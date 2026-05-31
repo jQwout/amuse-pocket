@@ -30,11 +30,24 @@ fun WebViewScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Портал Pocket ID") },
+                title = { Text("Вход Qwen") },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     titleContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                ),
+                actions = {
+                    TextButton(
+                        onClick = {
+                            viewModel.handleIntent(WebViewIntent.ForceProceed)
+                        }
+                    ) {
+                        Text(
+                            text = "Продолжить/Готово",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
             )
         },
         modifier = modifier.fillMaxSize().testTag("webview_screen")
@@ -45,7 +58,7 @@ fun WebViewScreen(
                 .padding(innerPadding)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            // Embed custom web browser component
+            // Embed web browser component loading Qwen AI
             AndroidView(
                 modifier = Modifier.fillMaxSize().testTag("embedded_webview"),
                 factory = { context ->
@@ -79,14 +92,8 @@ fun WebViewScreen(
                             }
                         }
 
-                        // Load built-in elegant mock portal
-                        loadDataWithBaseURL(
-                            "https://queen-portal.ru/",
-                            getMockHtml(),
-                            "text/html",
-                            "UTF-8",
-                            null
-                        )
+                        // Load direct target URL
+                        loadUrl(state.url)
                     }
                 }
             )

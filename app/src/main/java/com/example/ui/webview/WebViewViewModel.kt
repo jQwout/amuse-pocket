@@ -1,5 +1,6 @@
 package com.example.ui.webview
 
+import android.webkit.CookieManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.repository.ChatRepository
@@ -36,6 +37,24 @@ class WebViewViewModel(
         }
     }
 
+    private fun isAuthCookie(cookie: String?): Boolean {
+        if (cookie == null || cookie.isEmpty()) return false
+        val lowercaseCookie = cookie.lowercase()
+        val parts = lowercaseCookie.split(";").map { it.trim() }
+        var hasAuthIndicator = false
+        for (part in parts) {
+            val key = part.substringBefore("=")
+            if (key.contains("token") || key.contains("session") || key.contains("auth") || 
+                key.contains("user") || key.contains("login") || key.contains("sid") || 
+                key.contains("uid") || key.contains("jwt") || key.contains("at_p") || 
+                key.contains("g_state") || key.contains("account")) {
+                hasAuthIndicator = true
+                break
+            }
+        }
+        return hasAuthIndicator || cookie.length > 250
+    }
+
     fun handleIntent(intent: WebViewIntent) {
         when (intent) {
             is WebViewIntent.PageLoadProgress -> {
@@ -48,7 +67,7 @@ class WebViewViewModel(
                         capturedCookie = intent.cookieString
                     )
                 }
-                if (!intent.cookieString.isNullOrEmpty()) {
+                if (!intent.cookieString.isNullOrEmpty() && isAuthCookie(intent.cookieString)) {
                     handleIntent(WebViewIntent.OnCookieCaptured(intent.cookieString))
                 }
             }
@@ -57,6 +76,19 @@ class WebViewViewModel(
                     repository.saveCookie(intent.cookies)
                     _state.update { it.copy(capturedCookie = intent.cookies) }
                     // Navigate automatically
+                    navigationBridge.navigateTo(NavigationEvent.NavigateToChat)
+                }
+            }
+            is WebViewIntent.ForceProceed -> {
+                viewModelScope.launch {
+                    val cookieStr = CookieManager.getInstance().getCookie("https://chat.qwen.ai/")
+                    val finalCookies = if (cookieStr.isNullOrEmpty()) {
+                        "manual_bypass_cookie_placeholder"
+                    } else {
+                        cookieStr
+                    }
+                    repository.saveCookie(finalCookies)
+                    _state.update { it.copy(capturedCookie = finalCookies) }
                     navigationBridge.navigateTo(NavigationEvent.NavigateToChat)
                 }
             }
