@@ -17,8 +17,6 @@ import com.example.ui.chat.ChatScreen
 import com.example.ui.chat.ChatViewModel
 import com.example.ui.main.MainViewModel
 import com.example.ui.theme.MyApplicationTheme
-import com.example.ui.webview.WebViewScreen
-import com.example.ui.webview.WebViewViewModel
 
 class MainActivity : ComponentActivity() {
 
@@ -38,25 +36,13 @@ class MainActivity : ComponentActivity() {
                 // Encapsulated navigation event handler delegated to external file
                 AppNavigationHandler(navController = navController, mainViewModel = mainViewModel)
 
-                // Dependent ViewModels can be retrieved inside standard composable factory scopes with constructor injection
-                val webViewViewModel: WebViewViewModel = viewModel(
-                    factory = object : androidx.lifecycle.ViewModelProvider.Factory {
-                        override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                            @Suppress("UNCHECKED_CAST")
-                            return WebViewViewModel(
-                                Metro.chatRepository,
-                                Metro.navigationBridge
-                            ) as T
-                        }
-                    }
-                )
                 val chatViewModel: ChatViewModel = viewModel(
                     factory = object : androidx.lifecycle.ViewModelProvider.Factory {
                         override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
                             @Suppress("UNCHECKED_CAST")
                             return ChatViewModel(
                                 Metro.chatRepository,
-                                Metro.geminiClient,
+                                Metro.qwenClient,
                                 Metro.navigationBridge
                             ) as T
                         }
@@ -65,12 +51,9 @@ class MainActivity : ComponentActivity() {
 
                 NavHost(
                     navController = navController,
-                    startDestination = "webview",
+                    startDestination = "chat",
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    composable("webview") {
-                        WebViewScreen(viewModel = webViewViewModel)
-                    }
                     composable("chat") {
                         ChatScreen(viewModel = chatViewModel)
                     }

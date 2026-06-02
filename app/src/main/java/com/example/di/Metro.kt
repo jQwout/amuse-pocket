@@ -3,7 +3,7 @@ package com.example.di
 import android.content.Context
 import androidx.room.Room
 import com.example.data.database.AppDatabase
-import com.example.data.network.GeminiClient
+import com.example.data.network.QwenClient
 import com.example.data.repository.ChatRepository
 import com.example.navigation.NavigationBridge
 
@@ -28,8 +28,8 @@ object Metro {
         ChatRepository(database.chatDao())
     }
 
-    val geminiClient: GeminiClient by lazy {
-        GeminiClient()
+    val qwenClient: QwenClient by lazy {
+        QwenClient()
     }
 
     val navigationBridge: NavigationBridge

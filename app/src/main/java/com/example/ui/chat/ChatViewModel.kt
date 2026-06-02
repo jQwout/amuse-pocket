@@ -3,10 +3,8 @@ package com.example.ui.chat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.database.ChatMessage
-import com.example.data.network.GeminiContent
-import com.example.data.network.GeminiPart
 import com.example.data.repository.ChatRepository
-import com.example.data.network.GeminiClient
+import com.example.data.network.QwenClient
 import com.example.navigation.NavigationBridge
 import com.example.navigation.NavigationEvent
 import kotlinx.coroutines.Job
@@ -17,7 +15,7 @@ import kotlinx.coroutines.launch
 
 class ChatViewModel(
     private val repository: ChatRepository,
-    private val client: GeminiClient,
+    private val client: QwenClient,
     private val navigationBridge: NavigationBridge
 ) : ViewModel() {
 
@@ -31,13 +29,6 @@ class ChatViewModel(
         viewModelScope.launch {
             repository.allMessages.collect { list ->
                 _state.update { it.copy(messages = list) }
-            }
-        }
-
-        // Collect cookies info if any
-        viewModelScope.launch {
-            repository.getCookieFlow().collect { userCookie ->
-                _state.update { it.copy(capturedCookie = userCookie?.cookieValue) }
             }
         }
     }
@@ -80,31 +71,26 @@ class ChatViewModel(
                 // 2. Launch cancelable prompt chain Job
                 activeLlmJob = viewModelScope.launch {
                     try {
-                        // Gather history from our current messages list
-                        val requestHistory = mutableListOf<GeminiContent>()
-                        // Limit to last 20 messages to fit token constraints comfortably
-                        val lastMessages = _state.value.messages.takeLast(20)
-                        lastMessages.forEach { msg ->
-                            val role = if (msg.sender == "user") "user" else "model"
-                            requestHistory.add(
-                                GeminiContent(
-                                    role = role,
-                                    parts = listOf(GeminiPart(text = msg.content))
+                        val cookies = repository.getCookie()?.cookieValue
+                        if (cookies.isNullOrBlank()) {
+                            repository.insertMessage(
+                                ChatMessage(
+                                    sender = "system",
+                                    content = "Сессия не найдена. Установите куки."
                                 )
                             )
+                            return@launch
                         }
 
-                        // Append active new message if history was collected before save
-                        if (requestHistory.isEmpty() || requestHistory.last().parts.firstOrNull()?.text != textToSend) {
-                            requestHistory.add(
-                                GeminiContent(
-                                    role = "user",
-                                    parts = listOf(GeminiPart(text = textToSend))
-                                )
-                            )
-                        }
+                        val lastMessages = _state.value.messages
+                            .filter { it.sender == "user" || it.sender == "model" }
+                            .takeLast(20)
 
-                        val aiResponse = client.generateResponse(requestHistory)
+                        val aiResponse = client.generateResponse(
+                            cookies = cookies,
+                            history = lastMessages,
+                            userMessage = textToSend
+                        )
 
                         // 3. Save AI response to SQLite
                         repository.insertMessage(
@@ -162,14 +148,6 @@ class ChatViewModel(
             is ChatIntent.ClearHistory -> {
                 viewModelScope.launch {
                     repository.clearMessages()
-                }
-            }
-            is ChatIntent.Logout -> {
-                viewModelScope.launch {
-                    activeLlmJob?.cancel()
-                    repository.clearCookie()
-                    _state.update { ChatUiState() }
-                    navigationBridge.navigateTo(NavigationEvent.NavigateToWebView)
                 }
             }
         }

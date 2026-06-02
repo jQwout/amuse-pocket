@@ -97,13 +97,6 @@ fun ChatScreen(
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.onSurface
                             )
-                            state.capturedCookie?.let { cookie ->
-                                Text(
-                                    text = "Сессия активна",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
                         }
                     }
 
@@ -223,29 +216,6 @@ fun ChatScreen(
                             ),
                             modifier = Modifier.testTag("drawer_clear_history")
                         )
-
-                        NavigationDrawerItem(
-                            icon = {
-                                Icon(
-                                    imageVector = Icons.Default.Logout,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error
-                                )
-                            },
-                            label = { Text("Выйти из системы") },
-                            selected = false,
-                            onClick = {
-                                scope.launch {
-                                    drawerState.close()
-                                    viewModel.handleIntent(ChatIntent.Logout)
-                                }
-                            },
-                            colors = NavigationDrawerItemDefaults.colors(
-                                unselectedContainerColor = Color.Transparent,
-                                unselectedTextColor = MaterialTheme.colorScheme.error
-                            ),
-                            modifier = Modifier.testTag("drawer_logout")
-                        )
                     }
                 }
             }
@@ -271,21 +241,11 @@ fun ChatScreen(
                         }
                     },
                     title = {
-                        Column {
-                            Text(
-                                text = "AI Open Pocket",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            state.capturedCookie?.let { cookie ->
-                                val displayCookie = if (cookie.length > 25) "${cookie.take(25)}..." else cookie
-                                Text(
-                                    text = "Сессия: $displayCookie",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
+                        Text(
+                            text = "AI Open Pocket",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.background
@@ -340,7 +300,7 @@ fun ChatScreen(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Сессия успешно получена. Отправьте текстовое сообщение ИИ (Gemini LLM) ниже. Вы также можете сымитировать вложенные файлы (фото, документы)!",
+                                text = "Отправьте текстовое сообщение ИИ (Qwen) ниже. Вы также можете сымитировать вложенные файлы (фото, документы)!",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center
@@ -391,7 +351,7 @@ fun ChatScreen(
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                             Text(
-                                text = "Выполняется запрос к Gemini",
+                                text = "Выполняется запрос к Qwen",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
                             )

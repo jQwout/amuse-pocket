@@ -13,7 +13,6 @@ data class ChatUiState(
     val inputText: String = "",
     val isLoading: Boolean = false,
     val attachments: List<AttachmentInfo> = emptyList(),
-    val capturedCookie: String? = null,
     val error: String? = null
 )
 
@@ -25,5 +24,4 @@ sealed interface ChatIntent {
     data class AttachMockFile(val name: String, val mimeType: String) : ChatIntent
     data class RemoveAttachment(val index: Int) : ChatIntent
     object ClearHistory : ChatIntent
-    object Logout : ChatIntent
 }

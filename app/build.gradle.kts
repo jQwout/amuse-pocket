@@ -1,6 +1,7 @@
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
+  alias(libs.plugins.kotlin.serialization)
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.roborazzi)
   alias(libs.plugins.secrets)
@@ -28,12 +29,6 @@ android {
       keyAlias = "upload"
       keyPassword = System.getenv("KEY_PASSWORD")
     }
-    create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
-    }
   }
 
   buildTypes {
@@ -44,7 +39,6 @@ android {
       signingConfig = signingConfigs.getByName("release")
     }
     debug {
-      signingConfig = signingConfigs.getByName("debugConfig")
     }
   }
   compileOptions {
@@ -104,6 +98,7 @@ dependencies {
   // Ktor Client Dependencies
   implementation("io.ktor:ktor-client-core:2.3.11")
   implementation("io.ktor:ktor-client-android:2.3.11")
+  implementation("io.ktor:ktor-client-okhttp:2.3.11")
   implementation("io.ktor:ktor-client-content-negotiation:2.3.11")
   implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.11")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
