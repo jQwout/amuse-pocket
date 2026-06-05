@@ -7,6 +7,26 @@ import kotlinx.coroutines.flow.Flow
 
 class ChatRepository(private val chatDao: ChatDao) {
 
+    private val sharedPrefs by lazy {
+        com.example.di.Metro.context.getSharedPreferences("ai_pocket_preferences", android.content.Context.MODE_PRIVATE)
+    }
+
+    fun getCustomApiKey(): String {
+        return sharedPrefs.getString("custom_nvidia_api_key", "") ?: ""
+    }
+
+    fun saveCustomApiKey(key: String) {
+        sharedPrefs.edit().putString("custom_nvidia_api_key", key).apply()
+    }
+
+    fun getPersonaId(): String {
+        return sharedPrefs.getString("selected_persona_id", "sharp_partner") ?: "sharp_partner"
+    }
+
+    fun savePersonaId(personaId: String) {
+        sharedPrefs.edit().putString("selected_persona_id", personaId).apply()
+    }
+
     val allMessages: Flow<List<ChatMessage>> = chatDao.getAllMessages()
 
     fun getCookieFlow(): Flow<UserCookie?> = chatDao.getCookieFlow()

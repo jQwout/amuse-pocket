@@ -3,7 +3,7 @@ package com.example.di
 import android.content.Context
 import androidx.room.Room
 import com.example.data.database.AppDatabase
-import com.example.data.network.QwenClient
+import com.example.data.network.NvidiaClient
 import com.example.data.repository.ChatRepository
 import com.example.navigation.NavigationBridge
 
@@ -13,6 +13,9 @@ object Metro {
     fun initialize(context: Context) {
         appContext = context.applicationContext
     }
+
+    val context: Context
+        get() = appContext
 
     val database: AppDatabase by lazy {
         Room.databaseBuilder(
@@ -28,8 +31,8 @@ object Metro {
         ChatRepository(database.chatDao())
     }
 
-    val qwenClient: QwenClient by lazy {
-        QwenClient()
+    val nvidiaClient: NvidiaClient by lazy {
+        NvidiaClient()
     }
 
     val navigationBridge: NavigationBridge

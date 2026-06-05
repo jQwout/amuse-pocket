@@ -54,6 +54,7 @@ fun ChatScreen(
     // Drawer & Attachment state
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     var showAttachmentMenu by remember { mutableStateOf(false) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -97,6 +98,13 @@ fun ChatScreen(
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.onSurface
                             )
+                            state.capturedCookie?.let { cookie ->
+                                Text(
+                                    text = "Сессия активна",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
                     }
 
@@ -216,6 +224,52 @@ fun ChatScreen(
                             ),
                             modifier = Modifier.testTag("drawer_clear_history")
                         )
+
+                        NavigationDrawerItem(
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Default.VpnKey,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            label = { Text("Настроить API-ключ LM") },
+                            selected = false,
+                            onClick = {
+                                scope.launch {
+                                    drawerState.close()
+                                    showSettingsDialog = true
+                                }
+                            },
+                            colors = NavigationDrawerItemDefaults.colors(
+                                unselectedContainerColor = Color.Transparent,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurface
+                            ),
+                            modifier = Modifier.testTag("drawer_settings_api_key")
+                        )
+
+                        NavigationDrawerItem(
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Default.Logout,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            },
+                            label = { Text("Выйти из системы") },
+                            selected = false,
+                            onClick = {
+                                scope.launch {
+                                    drawerState.close()
+                                    viewModel.handleIntent(ChatIntent.Logout)
+                                }
+                            },
+                            colors = NavigationDrawerItemDefaults.colors(
+                                unselectedContainerColor = Color.Transparent,
+                                unselectedTextColor = MaterialTheme.colorScheme.error
+                            ),
+                            modifier = Modifier.testTag("drawer_logout")
+                        )
                     }
                 }
             }
@@ -241,11 +295,33 @@ fun ChatScreen(
                         }
                     },
                     title = {
-                        Text(
-                            text = "AI Open Pocket",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                        Column {
+                            Text(
+                                text = "AI Open Pocket",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            state.capturedCookie?.let { cookie ->
+                                val displayCookie = if (cookie.length > 25) "${cookie.take(25)}..." else cookie
+                                Text(
+                                    text = "Сессия: $displayCookie",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = { showSettingsDialog = true },
+                            modifier = Modifier.testTag("top_bar_key_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.VpnKey,
+                                contentDescription = "Настройка ключа",
+                                tint = if (state.customApiKey.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.background
@@ -300,7 +376,7 @@ fun ChatScreen(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Отправьте текстовое сообщение ИИ (Qwen) ниже. Вы также можете сымитировать вложенные файлы (фото, документы)!",
+                                text = "Сессия успешно получена. Отправьте текстовое сообщение ИИ (NVIDIA NIM) ниже. Вы также можете сымитировать вложенные файлы (фото, документы)!",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center
@@ -351,7 +427,7 @@ fun ChatScreen(
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                             Text(
-                                text = "Выполняется запрос к Qwen",
+                                text = "Выполняется запрос к NVIDIA NIM",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
                             )
@@ -619,6 +695,165 @@ fun ChatScreen(
                 }
             )
         }
+
+        // Custom API Key Settings Dialog
+        if (showSettingsDialog) {
+            var tempKey by remember { mutableStateOf(state.customApiKey) }
+            var isKeyVisible by remember { mutableStateOf(false) }
+
+            AlertDialog(
+                onDismissRequest = { showSettingsDialog = false },
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.VpnKey,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "Настройка API-ключа",
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    }
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            text = "Если у вас нет настроенных переменных окружения, вы можете ввести свой NVIDIA API-ключ вручную здесь для прямого соединения с Llama-3.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        OutlinedTextField(
+                            value = tempKey,
+                            onValueChange = { tempKey = it },
+                            label = { Text("Личный API-ключ (NVIDIA)") },
+                            placeholder = { Text("nvapi-...") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().testTag("api_key_input_field"),
+                            visualTransformation = if (isKeyVisible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = { isKeyVisible = !isKeyVisible }) {
+                                    Icon(
+                                        imageVector = if (isKeyVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                        contentDescription = "Переключить видимость"
+                                    )
+                                }
+                            }
+                        )
+
+                        Text(
+                            text = "Выберите активную персональность (характер) ИИ:",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+
+                        var expanded by remember { mutableStateOf(false) }
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedCard(
+                                onClick = { expanded = true },
+                                modifier = Modifier.fillMaxWidth().testTag("persona_picker_card")
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = when (state.selectedPersonaId) {
+                                                "silent_butler" -> "Тихий дворецкий"
+                                                "attentive_secretary" -> "Внимательный секретарь"
+                                                "sharp_partner" -> "Резкий напарник ⭐️ (Дефолт)"
+                                                "egalitarian_partner" -> "Партнёр-эгалитарист"
+                                                "friendly_companion" -> "Дружелюбный компаньон"
+                                                "ironic_assistant" -> "Ироничный ассистент"
+                                                "strict_coach" -> "Строгий коуч"
+                                                else -> state.selectedPersonaId
+                                            },
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        Text(
+                                            text = when (state.selectedPersonaId) {
+                                                "silent_butler" -> "Минимальный, утилитарный тон"
+                                                "attentive_secretary" -> "Вежливый, уточняющий тон"
+                                                "sharp_partner" -> "Деловой, проактивный топ"
+                                                "egalitarian_partner" -> "Ровный, уважительный"
+                                                "friendly_companion" -> "Теплый, общительный"
+                                                "ironic_assistant" -> "Сухой юмор"
+                                                "strict_coach" -> "Прямой, мотивирующий"
+                                                else -> ""
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.outline
+                                        )
+                                    }
+                                    Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = null)
+                                }
+                            }
+
+                            DropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false },
+                                modifier = Modifier.fillMaxWidth(0.85f)
+                            ) {
+                                state.personaList.forEach { pId ->
+                                    val name = when (pId) {
+                                        "silent_butler" -> "Тихий дворецкий"
+                                        "attentive_secretary" -> "Внимательный секретарь"
+                                        "sharp_partner" -> "Резкий напарник ⭐️"
+                                        "egalitarian_partner" -> "Партнёр-эгалитарист"
+                                        "friendly_companion" -> "Дружелюбный компаньон"
+                                        "ironic_assistant" -> "Ироничный ассистент"
+                                        "strict_coach" -> "Строгий коуч"
+                                        else -> pId
+                                    }
+                                    DropdownMenuItem(
+                                        text = { Text(name) },
+                                        onClick = {
+                                            viewModel.handleIntent(ChatIntent.ChangePersona(pId))
+                                            expanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        Text(
+                            text = "Ключ и настройки сохраняются локально на вашем устройстве Android в безопасном хранилище приложения.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.handleIntent(ChatIntent.SaveApiKey(tempKey.trim()))
+                            showSettingsDialog = false
+                        },
+                        modifier = Modifier.testTag("save_api_key_button")
+                    ) {
+                        Text("Сохранить")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { showSettingsDialog = false }
+                    ) {
+                        Text("Отмена")
+                    }
+                }
+            )
+        }
     }
 }
 }
@@ -688,16 +923,26 @@ fun ChatBubbleItem(message: ChatMessage) {
                         }
                     }
 
-                    // Render actual text message
-                    Text(
-                        text = message.content,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = when {
-                            isUser -> MaterialTheme.colorScheme.onPrimaryContainer
-                            isSystem -> MaterialTheme.colorScheme.onErrorContainer
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                        }
-                    )
+                    // Render actual text message or Driven UI Card
+                    val isJsonCard = remember(message.content) {
+                        !isUser && !isSystem && message.content.trim().startsWith("{") && message.content.trim().endsWith("}") && message.content.contains("\"template\"")
+                    }
+
+                    if (isJsonCard) {
+                        RenderDrivenUiCard(
+                            spec = message.content.trim()
+                        )
+                    } else {
+                        Text(
+                            text = message.content,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = when {
+                                isUser -> MaterialTheme.colorScheme.onPrimaryContainer
+                                isSystem -> MaterialTheme.colorScheme.onErrorContainer
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    }
                 }
             }
             
