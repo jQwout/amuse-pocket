@@ -4,6 +4,7 @@ plugins {
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.roborazzi)
   alias(libs.plugins.secrets)
+  alias(libs.plugins.metro)
 }
 
 android {
@@ -100,7 +101,8 @@ dependencies {
   implementation(libs.okhttp)
   // implementation(libs.play.services.location)
   implementation(libs.retrofit)
-  
+  implementation(libs.metrox.viewmodel)
+  implementation(libs.metrox.viewmodel.compose)
   // Ktor Client Dependencies
   implementation("io.ktor:ktor-client-core:2.3.11")
   implementation("io.ktor:ktor-client-android:2.3.11")

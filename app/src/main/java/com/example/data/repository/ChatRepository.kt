@@ -1,14 +1,23 @@
 package com.example.data.repository
 
+import android.app.Application
 import com.example.data.database.ChatDao
 import com.example.data.database.ChatMessage
 import com.example.data.database.UserCookie
+import dev.zacsweers.metro.Inject
+import dev.zacsweers.metro.SingleIn
+import com.example.di.AppScope
 import kotlinx.coroutines.flow.Flow
 
-class ChatRepository(private val chatDao: ChatDao) {
+@Inject
+@SingleIn(AppScope::class)
+class ChatRepository(
+    private val chatDao: ChatDao,
+    application: Application,
+) {
 
     private val sharedPrefs by lazy {
-        com.example.di.Metro.context.getSharedPreferences("ai_pocket_preferences", android.content.Context.MODE_PRIVATE)
+        application.getSharedPreferences("ai_pocket_preferences", Application.MODE_PRIVATE)
     }
 
     fun getCustomApiKey(): String {

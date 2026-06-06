@@ -31,12 +31,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.zacsweers.metrox.viewmodel.compose.metroViewModel
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ChatScreen(
-    viewModel: ChatViewModel,
+    viewModel: ChatViewModel = metroViewModel(),
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsState()
