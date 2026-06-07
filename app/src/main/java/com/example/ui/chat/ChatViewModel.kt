@@ -1,30 +1,23 @@
 package com.example.ui.chat
 
-import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.database.ChatMessage
 import com.example.data.network.NvidiaMessage
 import com.example.data.repository.ChatRepository
 import com.example.data.network.NvidiaClient
-import com.example.di.AppScope
-import dev.zacsweers.metro.ContributesIntoMap
-import dev.zacsweers.metro.Inject
-import dev.zacsweers.metro.ViewModelKey
-import dev.zacsweers.metro.binding
+import com.example.navigation.NavigationBridge
+import com.example.navigation.NavigationEvent
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-@Inject
-@ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
-@ViewModelKey(ChatViewModel::class)
 class ChatViewModel(
     private val repository: ChatRepository,
     private val client: NvidiaClient,
-    private val application: Application,
+    private val navigationBridge: NavigationBridge
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ChatUiState())
@@ -57,7 +50,8 @@ class ChatViewModel(
 
     private fun loadPersonaContent(personaId: String): String {
         return try {
-            application.assets.open("personas/$personaId.md").bufferedReader().use { it.readText() }
+            val context = com.example.di.Metro.context
+            context.assets.open("personas/$personaId.md").bufferedReader().use { it.readText() }
         } catch (e: Exception) {
             "Характер: Деловой напарник по умолчанию."
         }
@@ -266,6 +260,7 @@ ${personaContent}
                     activeLlmJob?.cancel()
                     repository.clearCookie()
                     _state.update { ChatUiState() }
+                    navigationBridge.navigateTo(NavigationEvent.NavigateToWebView)
                 }
             }
             is ChatIntent.SaveApiKey -> {

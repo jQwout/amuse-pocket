@@ -13,9 +13,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import dev.zacsweers.metro.Inject
-import dev.zacsweers.metro.SingleIn
-import com.example.di.AppScope
 
 @Serializable
 data class NvidiaMessage(
@@ -46,8 +43,6 @@ data class NvidiaResponse(
     val choices: List<NvidiaChoice>? = null
 )
 
-@Inject
-@SingleIn(AppScope::class)
 class NvidiaClient {
 
     private val httpClient = HttpClient(Android) {
