@@ -1,4 +1,4 @@
-package com.example.ui.chat
+﻿package com.aiopenpocket.ui.chat
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.Canvas
@@ -134,6 +134,63 @@ object DrivenUiEngine {
             DrivenUiCard.ErrorCard("Ошибка парсинга шаблона: ${e.localizedMessage}")
         }
     }
+}
+
+/**
+ * Renders a parsed card as Markdown. Used in markdown-only mode (card widgets disabled):
+ * the chat shows render_card results as markdown tables/lists instead of interactive views.
+ */
+fun DrivenUiCard.toMarkdown(): String = when (this) {
+    is DrivenUiCard.TodoList -> buildString {
+        appendLine("**$title**")
+        if (items.isEmpty()) {
+            appendLine("_Нет задач_")
+        } else {
+            items.forEach { appendLine("- [${if (it.done) "x" else " "}] ${it.text}") }
+        }
+    }.trim()
+
+    is DrivenUiCard.WeatherCard -> buildString {
+        appendLine("**Погода: $city**")
+        appendLine()
+        appendLine("| День | Темп | Описание |")
+        appendLine("| --- | --- | --- |")
+        days.forEach { appendLine("| ${it.dayName} | ${it.temp} | ${it.text} |") }
+    }.trim()
+
+    is DrivenUiCard.TimerCard -> "**$label** — таймер на $durationSec сек."
+
+    is DrivenUiCard.TableCard -> buildString {
+        if (headers.isNotEmpty()) {
+            appendLine("| ${headers.joinToString(" | ")} |")
+            appendLine("| ${headers.joinToString(" | ") { "---" }} |")
+        }
+        rows.forEach { row -> appendLine("| ${row.joinToString(" | ")} |") }
+    }.trim()
+
+    is DrivenUiCard.ChartBarCard -> buildString {
+        appendLine("**$title**")
+        appendLine()
+        val maxVal = values.maxOrNull()?.takeIf { it > 0f } ?: 1f
+        labels.forEachIndexed { i, label ->
+            val v = values.getOrNull(i) ?: 0f
+            val bars = "█".repeat((v / maxVal * 10).toInt().coerceIn(0, 10))
+            val valueText = if (v == v.toLong().toFloat()) v.toLong().toString() else v.toString()
+            appendLine("- $label: $bars $valueText")
+        }
+    }.trim()
+
+    is DrivenUiCard.FormCard -> buildString {
+        appendLine("**Форма**")
+        fields.forEach {
+            val ph = if (it.placeholder.isNotBlank()) " — _${it.placeholder}_" else ""
+            appendLine("- ${it.label}$ph")
+        }
+        appendLine()
+        appendLine("_[$submitLabel]_")
+    }.trim()
+
+    is DrivenUiCard.ErrorCard -> "> ⚠️ $message"
 }
 
 @Composable

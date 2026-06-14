@@ -1,7 +1,7 @@
-package com.example.data.network
+﻿package com.aiopenpocket.data.network
 
 import android.util.Log
-import com.example.BuildConfig
+import com.aiopenpocket.BuildConfig
 import io.ktor.client.*
 import io.ktor.client.engine.android.*
 import io.ktor.client.plugins.contentnegotiation.*
@@ -15,7 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
-import com.example.di.AppScope
+import com.aiopenpocket.di.AppScope
 
 @Serializable
 data class NvidiaMessage(

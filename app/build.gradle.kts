@@ -1,6 +1,8 @@
 plugins {
   alias(libs.plugins.android.application)
+  alias(libs.plugins.kotlin.android)
   alias(libs.plugins.kotlin.compose)
+  alias(libs.plugins.kotlin.serialization)
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.roborazzi)
   alias(libs.plugins.secrets)
@@ -8,8 +10,8 @@ plugins {
 }
 
 android {
-  namespace = "com.example"
-  compileSdk { version = release(36) { minorApiLevel = 1 } }
+  namespace = "com.aiopenpocket"
+  compileSdk = 36
 
   defaultConfig {
     applicationId = "com.aistudio.aiopenpocket.hzwpqy"
@@ -49,8 +51,13 @@ android {
     }
   }
   compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+  }
+  kotlin {
+    compilerOptions {
+      jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+    }
   }
   buildFeatures {
     compose = true
@@ -84,10 +91,11 @@ dependencies {
   implementation(libs.androidx.compose.ui.graphics)
   implementation(libs.androidx.compose.ui.tooling.preview)
   implementation(libs.androidx.core.ktx)
-  // implementation(libs.androidx.datastore.preferences)
+  implementation(libs.androidx.datastore.preferences)
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.lifecycle.viewmodel.compose)
+  implementation(libs.androidx.lifecycle.livedata.ktx)
   implementation(libs.androidx.navigation.compose)
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
@@ -103,12 +111,18 @@ dependencies {
   implementation(libs.retrofit)
   implementation(libs.metrox.viewmodel)
   implementation(libs.metrox.viewmodel.compose)
+  implementation(libs.androidx.security.crypto)
+  implementation(libs.androidx.work.runtime)
+  implementation(libs.androidx.documentfile)
   // Ktor Client Dependencies
   implementation("io.ktor:ktor-client-core:2.3.11")
   implementation("io.ktor:ktor-client-android:2.3.11")
   implementation("io.ktor:ktor-client-content-negotiation:2.3.11")
   implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.11")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+  // Markdown rendering (mikepenz multiplatform-markdown-renderer, Material 3 flavor)
+  implementation("com.mikepenz:multiplatform-markdown-renderer:0.41.0")
+  implementation("com.mikepenz:multiplatform-markdown-renderer-m3:0.41.0")
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)
@@ -125,6 +139,6 @@ dependencies {
   androidTestImplementation(libs.androidx.runner)
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
-  "ksp"(libs.androidx.room.compiler)
-  "ksp"(libs.moshi.kotlin.codegen)
+  ksp(libs.androidx.room.compiler)
+  ksp(libs.moshi.kotlin.codegen)
 }

@@ -1,6 +1,3 @@
-package com.example.di
+﻿package com.aiopenpocket.di
 
-import dev.zacsweers.metro.Scope
-
-@Scope
-annotation class AppScope
+abstract class AppScope private constructor()

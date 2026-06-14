@@ -1,7 +1,7 @@
-package com.example
+﻿package com.aiopenpocket
 
 import android.app.Application
-import com.example.di.AppGraph
+import com.aiopenpocket.di.AppGraph
 import dev.zacsweers.metro.createGraphFactory
 
 class AiOpenPocketApp : Application() {
