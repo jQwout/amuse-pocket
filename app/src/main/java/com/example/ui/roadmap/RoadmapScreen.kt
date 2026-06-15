@@ -61,7 +61,7 @@ data class RoadmapLevel(
   val title: String,
   val description: String,
   val icon: ImageVector,
-  /** Markdown theory shown on the lesson page before the practice chat. */
+  /** Markdown theory kept as reference for the in-chat lesson script. Not rendered directly. */
   val theory: String = "",
 )
 
@@ -146,6 +146,7 @@ val ROADMAP_LEVELS = listOf(
       спроси, как тебе лучше отвечать.
     """.trimIndent(),
   ),
+  /* Уроки 5–7 временно отключены
   RoadmapLevel(
     "l5_database",
     "База данных",
@@ -203,13 +204,15 @@ val ROADMAP_LEVELS = listOf(
       **Попробуй:** «Составь список дел на сегодня и покажи его карточкой».
     """.trimIndent(),
   ),
+  */
 )
 
 enum class LevelStatus { LOCKED, CURRENT, COMPLETED }
 
 @Composable
 fun RoadmapScreen(
-  onLevelClick: (String) -> Unit,
+  onOpenLessonChat: (String) -> Unit,
+  onReopenOnboarding: () -> Unit,
   onNavigateToChats: () -> Unit,
   onNavigateToLibrary: () -> Unit,
   onNavigateToSettings: () -> Unit,
@@ -301,7 +304,13 @@ fun RoadmapScreen(
           status = status,
           isFirst = index == 0,
           isLast = index == ROADMAP_LEVELS.lastIndex,
-          onClick = { if (status != LevelStatus.LOCKED) onLevelClick(level.id) },
+          onClick = {
+            if (status != LevelStatus.LOCKED) {
+              // Урок 1 = онбординг: открываем его экран, остальные уроки — чат.
+              if (level.id == "l1_welcome") onReopenOnboarding()
+              else viewModel.openLesson(level.id, onOpenLessonChat)
+            }
+          },
         )
       }
 

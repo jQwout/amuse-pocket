@@ -69,6 +69,7 @@ class MemoryRepository @Inject constructor(
     upsertFact("user.preferred_address", profile.preferredAddress.trim(), "profile")
     upsertFact("user.age", profile.age.trim(), "profile")
     upsertFact("user.gender", profile.gender.trim(), "profile")
+    upsertFact("user.religion", profile.religion.trim(), "profile")
     upsertFact("user.extra_info", profile.extraInfo.trim(), "profile")
   }
 

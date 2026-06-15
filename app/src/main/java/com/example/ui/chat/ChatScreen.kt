@@ -53,6 +53,7 @@ import com.aiopenpocket.ui.chat.components.ToolTracePanel
 fun ChatScreen(
   conversationId: String,
   onNavigateBack: () -> Unit,
+  onOpenQuiz: (String) -> Unit = {},
 ) {
   val viewModel: ChatViewModel = metroViewModel()
   val state by viewModel.state.collectAsState()
@@ -113,6 +114,13 @@ fun ChatScreen(
           MessageBubble(
             message = message,
             onTogglePin = { viewModel.handleIntent(ChatIntent.TogglePin(message.id)) },
+            interactiveCards = state.isTutorial,
+            onChoiceSelected = { viewModel.sendUserMessage(it) },
+            // Lesson finished in chat → go to the standalone quiz screen for this level.
+            onLessonComplete = {
+              val levelId = state.levelId
+              if (levelId != null) onOpenQuiz(levelId) else onNavigateBack()
+            },
           )
         }
         if (hasStreamingItem) {
@@ -157,12 +165,18 @@ fun ChatScreen(
 private fun MessageBubble(
   message: Message,
   onTogglePin: () -> Unit,
+  interactiveCards: Boolean = false,
+  onChoiceSelected: (String) -> Unit = {},
+  onLessonComplete: () -> Unit = {},
 ) {
   val isUser = message.role == "user"
+  val hasCard = !message.cardSpec.isNullOrBlank()
+  // Lesson chats render real interactive widgets; elsewhere cards fall back to markdown.
+  val interactive = interactiveCards && hasCard
 
   // Markdown-only mode: render_card specs are shown as markdown, not interactive widgets.
   val cardMarkdown = message.cardSpec
-    ?.takeIf { it.isNotBlank() }
+    ?.takeIf { it.isNotBlank() && !interactive }
     ?.let { DrivenUiEngine.parseJsonString(it).toMarkdown() }
   val displayText = when {
     cardMarkdown != null && message.content.isNotBlank() -> "${message.content}\n\n$cardMarkdown"
@@ -208,7 +222,19 @@ private fun MessageBubble(
         }
         Spacer(modifier = Modifier.height(4.dp))
       }
-      MarkdownText(text = displayText)
+      if (interactive) {
+        if (message.content.isNotBlank()) {
+          MarkdownText(text = message.content)
+          Spacer(modifier = Modifier.height(8.dp))
+        }
+        RenderDrivenUiCard(
+          spec = message.cardSpec!!,
+          onChoiceSelected = onChoiceSelected,
+          onLessonComplete = onLessonComplete,
+        )
+      } else {
+        MarkdownText(text = displayText)
+      }
     }
   }
 }

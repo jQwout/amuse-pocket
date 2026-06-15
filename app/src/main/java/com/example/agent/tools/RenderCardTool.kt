@@ -15,7 +15,7 @@ import dev.zacsweers.metro.SingleIn
 class RenderCardTool : Tool {
 
   override val name = "render_card"
-  override val description = "Отображает интерактивную карточку в чате. Доступные шаблоны: todo_list, weather_card, timer, chart_bar, table, form."
+  override val description = "Отображает интерактивную карточку в чате. Доступные шаблоны: todo_list, weather_card, timer, chart_bar, table, form, choice, lesson_complete."
   override val schema = FunctionSchema(
     function = FunctionSchema.FunctionDefinition(
       name = name,
@@ -25,7 +25,7 @@ class RenderCardTool : Tool {
         "properties" to JsonObject(mapOf(
           "template" to JsonObject(mapOf(
             "type" to JsonPrimitive("string"),
-            "enum" to JsonPrimitive("todo_list,weather_card,timer,chart_bar,table,form"),
+            "enum" to JsonPrimitive("todo_list,weather_card,timer,chart_bar,table,form,choice,lesson_complete"),
             "description" to JsonPrimitive("ID шаблона карточки"),
           )),
           "params" to JsonObject(mapOf(

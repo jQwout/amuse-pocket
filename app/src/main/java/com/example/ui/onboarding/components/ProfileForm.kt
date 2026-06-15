@@ -32,11 +32,13 @@ fun ProfileForm(
   name: String,
   age: String,
   gender: String,
+  religion: String,
   preferredAddress: String,
   extraInfo: String,
   onNameChange: (String) -> Unit,
   onAgeChange: (String) -> Unit,
   onGenderChange: (String) -> Unit,
+  onReligionChange: (String) -> Unit,
   onPreferredAddressChange: (String) -> Unit,
   onExtraInfoChange: (String) -> Unit,
   modifier: Modifier = Modifier,
@@ -115,6 +117,17 @@ fun ProfileForm(
         .fillMaxWidth()
         .padding(top = 12.dp)
         .testTag("profile_preferred_address"),
+      singleLine = true,
+    )
+    OutlinedTextField(
+      value = religion,
+      onValueChange = onReligionChange,
+      label = { Text("Религиозные предпочтения") },
+      placeholder = { Text("Чтобы агент был тактичен. Можно пропустить") },
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(top = 12.dp)
+        .testTag("profile_religion"),
       singleLine = true,
     )
     OutlinedTextField(

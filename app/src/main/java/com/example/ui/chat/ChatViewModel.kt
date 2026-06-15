@@ -2,6 +2,7 @@
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.loop.AgentEvent
@@ -27,6 +28,7 @@ class ChatViewModel(
   private val conversationRepository: ConversationRepository,
   private val agentLoop: AgentLoopOrchestrator,
   private val settingsRepository: SettingsRepository,
+  private val userPreferencesRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
   private val _state = MutableStateFlow(ChatUiState())
@@ -39,7 +41,7 @@ class ChatViewModel(
     if (_state.value.conversationId == id) return
     activeJob?.cancel()
     messagesJob?.cancel()
-    _state.update { it.copy(conversationId = id, messages = emptyList(), streamingText = "", toolTrace = emptyList(), isLoading = false) }
+    _state.update { it.copy(conversationId = id, messages = emptyList(), streamingText = "", toolTrace = emptyList(), isLoading = false, isTutorial = false, levelId = null) }
     // Новый чат (id пуст): диалога ещё нет, его создаст ensureConversation при отправке.
     // Коллектор по getMessages("") всегда пуст — не запускаем его.
     if (id.isBlank()) return
@@ -47,6 +49,30 @@ class ChatViewModel(
       conversationRepository.getMessages(id).collect { messages ->
         _state.update { it.copy(messages = messages) }
       }
+    }
+    // Урок-диалог: включаем интерактивные карточки и запоминаем levelId (= заголовок).
+    viewModelScope.launch {
+      val conversation = conversationRepository.getConversation(id)
+      val tutorial = conversation?.isTutorial == true
+      _state.update {
+        it.copy(isTutorial = tutorial, levelId = if (tutorial) conversation?.title else null)
+      }
+    }
+  }
+
+  /** Sends [text] into the conversation as a user message (used by interactive cards). */
+  fun sendUserMessage(text: String) {
+    if (text.isBlank()) return
+    _state.update { it.copy(inputText = text) }
+    sendMessage()
+  }
+
+  /** Marks the current lesson complete and invokes [onComplete] (e.g. navigate back). */
+  fun completeLesson(onComplete: () -> Unit) {
+    val levelId = _state.value.levelId ?: return
+    viewModelScope.launch {
+      userPreferencesRepository.completeRoadmapLevel(levelId)
+      onComplete()
     }
   }
 

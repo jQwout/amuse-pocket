@@ -36,17 +36,45 @@ class OnboardingViewModel(
       OnboardingIntent.StartIntroStreaming -> startIntroStreamingIfNeeded()
       OnboardingIntent.NextStep -> goToNextStep()
       OnboardingIntent.PreviousStep -> goToPreviousStep()
+      is OnboardingIntent.SelectLanguage -> {
+        _state.update { it.copy(selectedLanguage = intent.code) }
+      }
       is OnboardingIntent.SelectPersona -> {
         _state.update { it.copy(selectedPersonaId = intent.personaId) }
       }
       is OnboardingIntent.UpdateName -> _state.update { it.copy(name = intent.value) }
       is OnboardingIntent.UpdateAge -> _state.update { it.copy(age = intent.value) }
       is OnboardingIntent.UpdateGender -> _state.update { it.copy(gender = intent.value) }
+      is OnboardingIntent.UpdateReligion -> _state.update { it.copy(religion = intent.value) }
       is OnboardingIntent.UpdatePreferredAddress -> {
         _state.update { it.copy(preferredAddress = intent.value) }
       }
       is OnboardingIntent.UpdateExtraInfo -> _state.update { it.copy(extraInfo = intent.value) }
       OnboardingIntent.Complete -> completeOnboarding()
+    }
+  }
+
+  /**
+   * Режим правки (вход с карты, урок 1): подтягиваем уже сохранённые персону, язык и профиль,
+   * чтобы Complete не затёр их пустыми дефолтами. На первом запуске не вызывается.
+   */
+  fun loadExistingProfile() {
+    viewModelScope.launch {
+      val personaId = userPreferencesRepository.getDefaultPersonaId()
+      val language = userPreferencesRepository.getLanguage()
+      val facts = memoryRepository.getFactsByCategory("profile").associate { it.key to it.value }
+      _state.update {
+        it.copy(
+          selectedPersonaId = personaId,
+          selectedLanguage = language,
+          name = facts["user.name"] ?: it.name,
+          preferredAddress = facts["user.preferred_address"] ?: it.preferredAddress,
+          age = facts["user.age"] ?: it.age,
+          gender = facts["user.gender"] ?: it.gender,
+          religion = facts["user.religion"] ?: it.religion,
+          extraInfo = facts["user.extra_info"] ?: it.extraInfo,
+        )
+      }
     }
   }
 
@@ -93,17 +121,23 @@ class OnboardingViewModel(
     val current = _state.value
     if (!current.canProceed) return
     when (current.currentStep) {
+      OnboardingStep.LANGUAGE -> _state.update { it.copy(currentStep = OnboardingStep.INTRO) }
       OnboardingStep.INTRO -> _state.update { it.copy(currentStep = OnboardingStep.PERSONA) }
       OnboardingStep.PERSONA -> _state.update { it.copy(currentStep = OnboardingStep.PROFILE) }
-      OnboardingStep.PROFILE -> completeOnboarding()
+      OnboardingStep.PROFILE -> _state.update { it.copy(currentStep = OnboardingStep.WRAPUP) }
+      OnboardingStep.WRAPUP -> _state.update { it.copy(currentStep = OnboardingStep.QUIZ) }
+      OnboardingStep.QUIZ -> completeOnboarding()
     }
   }
 
   private fun goToPreviousStep() {
     when (_state.value.currentStep) {
+      OnboardingStep.INTRO -> _state.update { it.copy(currentStep = OnboardingStep.LANGUAGE) }
       OnboardingStep.PERSONA -> _state.update { it.copy(currentStep = OnboardingStep.INTRO) }
       OnboardingStep.PROFILE -> _state.update { it.copy(currentStep = OnboardingStep.PERSONA) }
-      OnboardingStep.INTRO -> Unit
+      OnboardingStep.WRAPUP -> _state.update { it.copy(currentStep = OnboardingStep.PROFILE) }
+      OnboardingStep.QUIZ -> _state.update { it.copy(currentStep = OnboardingStep.WRAPUP) }
+      OnboardingStep.LANGUAGE -> Unit
     }
   }
 
@@ -120,12 +154,14 @@ class OnboardingViewModel(
             preferredAddress = current.preferredAddress,
             age = current.age,
             gender = current.gender,
+            religion = current.religion,
             extraInfo = current.extraInfo,
           ),
         )
-        // Навигацию выполняет наблюдатель флага onboardingCompleted в MainActivity —
-        // единый источник истины, чтобы не было двойной/гоночной навигации.
-        userPreferencesRepository.completeOnboarding(current.selectedPersonaId)
+        // Навигацию первого запуска выполняет наблюдатель флага onboardingCompleted в
+        // MainActivity. Для режима правки экран реагирует на isCompleted.
+        userPreferencesRepository.completeOnboarding(current.selectedPersonaId, current.selectedLanguage)
+        _state.update { it.copy(isSaving = false, isCompleted = true) }
       } catch (e: Exception) {
         _state.update {
           it.copy(

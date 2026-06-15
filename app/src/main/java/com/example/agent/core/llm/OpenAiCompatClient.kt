@@ -69,6 +69,7 @@ class OpenAiCompatClient(
           model = p.model,
           messages = messages,
           tools = tools.ifEmpty { null },
+          maxTokens = p.maxTokens,
           stream = true,
         )
 
@@ -156,6 +157,9 @@ class OpenAiCompatClient(
     val model: String,
     val messages: List<ChatMessage>,
     val tools: List<FunctionSchema>? = null,
+    // namingStrategy = SnakeCase маппит maxTokens -> max_tokens. Бэкстоп, если ProviderConfig
+    // почему-то не задал значение; обычно приходит из ProviderConfig.maxTokens.
+    val maxTokens: Int = 4096,
     val stream: Boolean = true,
   )
 

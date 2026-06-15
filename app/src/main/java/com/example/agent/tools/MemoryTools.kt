@@ -41,7 +41,7 @@ class MemoryTools(
           )),
           "category" to JsonObject(mapOf(
             "type" to JsonPrimitive("string"),
-            "description" to JsonPrimitive("Категория факта: profile, preference, system (для remember_fact)"),
+            "description" to JsonPrimitive("Категория факта: profile, preference (для remember_fact)"),
           )),
           "query" to JsonObject(mapOf(
             "type" to JsonPrimitive("string"),
@@ -70,10 +70,20 @@ class MemoryTools(
   private suspend fun rememberFact(args: Map<String, JsonElement>): ToolResult {
     val key = (args["key"] as? JsonPrimitive)?.content ?: return ToolResult.Error("Missing 'key'")
     val value = (args["value"] as? JsonPrimitive)?.content ?: return ToolResult.Error("Missing 'value'")
-    val category = (args["category"] as? JsonPrimitive)?.content ?: "general"
+    // Категорию задаёт пользователь (через модель) — это недоверенный ввод. Зажимаем в allowlist,
+    // чтобы факт не попал в «привилегированную» секцию промпта (system/Инструкции/персона).
+    val category = sanitizeCategory((args["category"] as? JsonPrimitive)?.content)
     val id = memoryRepository.saveFact(key, value, category)
     return ToolResult.Success("Fact saved: $key = $value (id=$id)")
   }
+
+  /** Только эти категории модель может присваивать фактам. Прочее сводится к general. */
+  private fun sanitizeCategory(raw: String?): String =
+    when (raw?.trim()?.lowercase()) {
+      "profile" -> "profile"
+      "preference" -> "preference"
+      else -> "general"
+    }
 
   private suspend fun searchMemory(args: Map<String, JsonElement>): ToolResult {
     val query = (args["query"] as? JsonPrimitive)?.content ?: return ToolResult.Error("Missing 'query'")

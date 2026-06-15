@@ -47,6 +47,22 @@ class UserPreferencesRepository @Inject constructor(
       .map { prefs -> prefs[KEY_DEFAULT_PERSONA_ID] ?: DEFAULT_PERSONA_ID }
       .first()
 
+  val language: Flow<String> =
+    context.userPreferencesDataStore.data.map { prefs ->
+      prefs[KEY_LANGUAGE] ?: DEFAULT_LANGUAGE
+    }
+
+  suspend fun getLanguage(): String =
+    context.userPreferencesDataStore.data
+      .map { prefs -> prefs[KEY_LANGUAGE] ?: DEFAULT_LANGUAGE }
+      .first()
+
+  suspend fun setLanguage(code: String) {
+    context.userPreferencesDataStore.edit { prefs ->
+      prefs[KEY_LANGUAGE] = code
+    }
+  }
+
   suspend fun getHasSeenTutorial(): Boolean =
     context.userPreferencesDataStore.data
       .map { prefs -> prefs[KEY_HAS_SEEN_TUTORIAL] ?: false }
@@ -69,10 +85,14 @@ class UserPreferencesRepository @Inject constructor(
     }
   }
 
-  suspend fun completeOnboarding(personaId: String) {
+  suspend fun completeOnboarding(personaId: String, language: String = DEFAULT_LANGUAGE) {
     context.userPreferencesDataStore.edit { prefs ->
       prefs[KEY_ONBOARDING_COMPLETED] = true
       prefs[KEY_DEFAULT_PERSONA_ID] = personaId
+      prefs[KEY_LANGUAGE] = language
+      // Онбординг = урок 1: отмечаем его пройденным, чтобы на карте открылся урок 2.
+      val progress = prefs[KEY_ROADMAP_PROGRESS]?.split(",")?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
+      prefs[KEY_ROADMAP_PROGRESS] = (progress + ONBOARDING_LEVEL_ID).joinToString(",")
     }
   }
 
@@ -91,10 +111,15 @@ class UserPreferencesRepository @Inject constructor(
 
   companion object {
     const val DEFAULT_PERSONA_ID = "sharp_partner"
+    const val DEFAULT_LANGUAGE = "ru"
 
     private val KEY_ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
     private val KEY_DEFAULT_PERSONA_ID = stringPreferencesKey("default_persona_id")
     private val KEY_HAS_SEEN_TUTORIAL = booleanPreferencesKey("has_seen_tutorial")
     private val KEY_ROADMAP_PROGRESS = stringPreferencesKey("roadmap_progress")
+    private val KEY_LANGUAGE = stringPreferencesKey("language")
+
+    /** Roadmap level id of the onboarding lesson; completed automatically after onboarding. */
+    const val ONBOARDING_LEVEL_ID = "l1_welcome"
   }
 }

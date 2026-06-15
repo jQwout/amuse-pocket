@@ -1,5 +1,7 @@
 # Техническое задание: Android AI-Agent
 
+> ⏸️ **DivKit отложен до v2 (2026-06-15).** В v1 «Driven UI» = предзаполненные Compose-виджеты (`render_card` → `DrivenUiEngine`) + предзаполненные «апы» как композиции этих виджетов. Упоминания DivKit (§5.2 pipeline, §7 стек, Приложение B, ProGuard-правила) читать как post-v1. Остальной TZ — персоны, память, тулы, уведомления, фон — актуален.
+
 > **Версия:** 0.2 · **Дата:** 2026-06-04 · **Статус:** pre-implementation
 > **Платформа:** Android only · **Язык:** Kotlin · **Стиль:** idiomatic Kotlin + Coroutines
 

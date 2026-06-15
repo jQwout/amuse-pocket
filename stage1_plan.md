@@ -1,5 +1,7 @@
 # Stage 1: Engine Spin — Детальный план реализации
 
+> ⏸️ **PARKED / УСТАРЕЛ (2026-06-15).** Документ описывает DivKit-рендеринг, Hilt DI и пакет `com.openclaw` — всё это разошлось с фактическим кодом (Metro DI, `com.aiopenpocket`, `render_card` → Compose/markdown без DivKit). DivKit отложен до v2. Читать как историю проектирования, не как актуальный план.
+
 **Проект:** OpenClaw — Android AI-агент  
 **Стейдж:** Stage 1 (Engine Spin)  
 **Длительность:** 10 дней (2 рабочие недели)  

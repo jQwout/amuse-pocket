@@ -86,6 +86,9 @@ app/src/main/assets/personas/
 ├── sharp_partner.md          # Default persona
 ├── silent_butler.md
 └── strict_coach.md
+
+app/src/main/assets/config/
+└── models.json               # Ranked NVIDIA NIM model catalog (model selection source)
 ```
 
 ---
@@ -164,6 +167,31 @@ The LLM is instructed via a large system prompt (in `ChatViewModel`) to return *
 
 ### Personas
 Seven personas are stored as markdown files in `assets/personas/`. The default is `sharp_partner` (business-like, proactive tone). The persona content is loaded from assets and injected into the system prompt at runtime.
+
+### Model Catalog & Selection
+The working LLM is **chosen from a ranked catalog**, not hard-coded. The catalog lives at `app/src/main/assets/config/models.json` and is the single source of truth for which NVIDIA NIM models the agent may use.
+
+Each entry has four fields:
+
+| Field | Meaning |
+|-------|---------|
+| `name` | NVIDIA NIM model id (e.g. `deepseek-ai/deepseek-v4-flash`), sent as the `model` field to `https://integrate.api.nvidia.com/v1`. |
+| `priority` | Selection order — **1 is tried first**, then 2, 3, 4 as fallbacks if a higher-priority model is unavailable or errors. |
+| `max_tokens` | Per-request `max_tokens` ceiling for that model. |
+| `reasoning` | `true` if the model supports a thinking/reasoning mode (requires the corresponding `extra_body` flag, e.g. `chat_template_kwargs.thinking` or `reasoning_budget`); `false` for plain chat models. |
+
+Current ranking (highest priority first):
+
+1. `deepseek-ai/deepseek-v4-flash` — 16384 tokens, reasoning
+2. `meta/llama-3.1-8b-instruct` — 1024 tokens, no reasoning
+3. `openai/gpt-oss-20b` — 4096 tokens, no reasoning
+4. `nvidia/nemotron-3-nano-30b-a3b` — 16384 tokens, reasoning
+
+**Runtime wiring.** At graph construction `LlmModule.provideProviderFallbackChain` calls `ModelCatalogLoader.load()` (reads + parses `models.json`, sorts by `priority`) and expands the catalog into one `ProviderConfig` per model under `LlmProvider.NIM`. `ProviderFallbackChain.resolve(AUTO)` returns those NIM models in priority order, followed by the GROQ and GITHUB fallbacks. `OpenAiCompatClient.streamChat` iterates the resolved list and moves to the next entry whenever a request errors (blank key, non-2xx, network) — so a higher-priority model failing transparently falls through to the next. Each request sends that model's `max_tokens` from the catalog. If `models.json` is missing or empty, the loader falls back to a single safe model (`meta/llama-3.1-70b-instruct`).
+
+To change which model the agent uses, edit `models.json` and re-rank by `priority` — no code change required.
+
+> Note: the `reasoning` flag is loaded and carried on `ProviderConfig`, but the model-specific reasoning `extra_body` (DeepSeek `chat_template_kwargs.thinking`, Nemotron `reasoning_budget`) is **not** emitted yet — only `max_tokens` and model selection are wired.
 
 ### System Integrations & Permissions
 Four agent tools expose Android system features to the LLM (under `app/src/main/java/com/example/agent/tools/`, registered in `di/AgentToolsModule.kt` via `@Provides @IntoSet`):

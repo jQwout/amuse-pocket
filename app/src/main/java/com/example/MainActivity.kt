@@ -25,8 +25,8 @@ import androidx.navigation.compose.rememberNavController
 import com.aiopenpocket.ui.chat.ChatScreen
 import com.aiopenpocket.ui.conversations.ConversationsListScreen
 import com.aiopenpocket.ui.onboarding.OnboardingScreen
-import com.aiopenpocket.ui.roadmap.LessonScreen
 import com.aiopenpocket.ui.roadmap.LibraryScreen
+import com.aiopenpocket.ui.roadmap.QuizScreen
 import com.aiopenpocket.ui.roadmap.RoadmapScreen
 import com.aiopenpocket.ui.scheduledworks.ScheduledWorksScreen
 import com.aiopenpocket.ui.settings.SettingsScreen
@@ -95,10 +95,17 @@ class MainActivity : ComponentActivity() {
                                     // onboardingCompleted (LaunchedEffect выше) — единый источник.
                                     OnboardingScreen()
                                 }
+                                composable("onboarding_edit") {
+                                    // Урок 1 = онбординг: повторный вход с карты для правки настроек.
+                                    OnboardingScreen(onClose = { navController.popBackStack() })
+                                }
                                 composable("roadmap") {
                                     RoadmapScreen(
-                                        onLevelClick = { levelId ->
-                                            navController.navigate("lesson/$levelId")
+                                        onOpenLessonChat = { chatId ->
+                                            navController.navigate("chat/$chatId")
+                                        },
+                                        onReopenOnboarding = {
+                                            navController.navigate("onboarding_edit")
                                         },
                                         onNavigateToChats = {
                                             navController.navigate("conversations") {
@@ -130,16 +137,6 @@ class MainActivity : ComponentActivity() {
                                         onNavigateToSettings = {
                                             navController.navigate("settings")
                                         },
-                                    )
-                                }
-                                composable("lesson/{levelId}") { backStackEntry ->
-                                    val levelId = backStackEntry.arguments?.getString("levelId") ?: ""
-                                    LessonScreen(
-                                        levelId = levelId,
-                                        onStartLesson = { chatId ->
-                                            navController.navigate("chat/$chatId")
-                                        },
-                                        onNavigateBack = { navController.popBackStack() },
                                     )
                                 }
                                 composable("conversations") {
@@ -179,6 +176,23 @@ class MainActivity : ComponentActivity() {
                                     ChatScreen(
                                         conversationId = if (conversationId == "new") "" else conversationId,
                                         onNavigateBack = { navController.popBackStack() },
+                                        onOpenQuiz = { levelId ->
+                                            navController.navigate("quiz/$levelId")
+                                        },
+                                    )
+                                }
+                                composable("quiz/{levelId}") { backStackEntry ->
+                                    val levelId = backStackEntry.arguments?.getString("levelId") ?: ""
+                                    QuizScreen(
+                                        levelId = levelId,
+                                        onFinished = {
+                                            // Назад к карте: снимаем чат и экран-квиз со стека.
+                                            // Если карты нет в стеке (туториал открыли из списка чатов) — идём на неё.
+                                            val popped = navController.popBackStack("roadmap", inclusive = false)
+                                            if (!popped) {
+                                                navController.navigate("roadmap") { launchSingleTop = true }
+                                            }
+                                        },
                                     )
                                 }
                             }

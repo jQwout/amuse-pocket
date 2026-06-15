@@ -5,5 +5,6 @@ data class UserProfile(
   val preferredAddress: String,
   val age: String = "",
   val gender: String = "",
+  val religion: String = "",
   val extraInfo: String = "",
 )
