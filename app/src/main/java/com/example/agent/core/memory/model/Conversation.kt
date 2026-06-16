@@ -8,4 +8,5 @@ data class Conversation(
   val personaId: String,
   val summary: String?,
   val isTutorial: Boolean = false,
+  val tags: List<String> = emptyList(),
 )

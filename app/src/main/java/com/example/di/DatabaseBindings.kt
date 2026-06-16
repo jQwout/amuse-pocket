@@ -6,12 +6,10 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.aiopenpocket.data.database.AppDatabase
 import com.aiopenpocket.agent.core.memory.dao.ConversationDao
+import com.aiopenpocket.agent.core.memory.dao.ConversationTagDao
 import com.aiopenpocket.agent.core.memory.dao.EpisodeDao
 import com.aiopenpocket.agent.core.memory.dao.FactDao
 import com.aiopenpocket.agent.core.memory.dao.MessageDao
-import com.aiopenpocket.agent.core.memory.dao.WikiLinkDao
-import com.aiopenpocket.agent.core.memory.dao.WikiPageDao
-import com.aiopenpocket.agent.core.memory.dao.WikiTagDao
 import dev.zacsweers.metro.BindingContainer
 import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.Provides
@@ -29,12 +27,16 @@ object DatabaseBindings {
             AppDatabase::class.java,
             "queen_chat_db",
         )
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
             .fallbackToDestructiveMigration()
             .build()
 
     @Provides
     fun provideConversationDao(database: AppDatabase): ConversationDao = database.conversationDao()
+
+    @Provides
+    fun provideConversationTagDao(database: AppDatabase): ConversationTagDao =
+        database.conversationTagDao()
 
     @Provides
     fun provideMessageDao(database: AppDatabase): MessageDao = database.messageDao()
@@ -44,15 +46,6 @@ object DatabaseBindings {
 
     @Provides
     fun provideEpisodeDao(database: AppDatabase): EpisodeDao = database.episodeDao()
-
-    @Provides
-    fun provideWikiPageDao(database: AppDatabase): WikiPageDao = database.wikiPageDao()
-
-    @Provides
-    fun provideWikiTagDao(database: AppDatabase): WikiTagDao = database.wikiTagDao()
-
-    @Provides
-    fun provideWikiLinkDao(database: AppDatabase): WikiLinkDao = database.wikiLinkDao()
 
     val MIGRATION_2_3 = object : Migration(2, 3) {
         override fun migrate(database: SupportSQLiteDatabase) {
@@ -116,6 +109,33 @@ object DatabaseBindings {
             )
             database.execSQL(
                 "CREATE INDEX IF NOT EXISTS `index_wiki_links_toPageId` ON `wiki_links` (`toPageId`)",
+            )
+        }
+    }
+
+    // Knowledge base reframed onto conversations: drop the separate wiki store, tag conversations
+    // directly. Relatedness is tag overlap, so there is no link table. DDL must match Room's
+    // generated schema for ConversationTagEntity exactly, or runtime validation will throw.
+    val MIGRATION_6_7 = object : Migration(6, 7) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("DROP TABLE IF EXISTS `wiki_links`")
+            database.execSQL("DROP TABLE IF EXISTS `wiki_page_tags`")
+            database.execSQL("DROP TABLE IF EXISTS `wiki_pages`")
+
+            database.execSQL(
+                "CREATE TABLE IF NOT EXISTS `conversation_tags` (" +
+                    "`conversationId` TEXT NOT NULL, `tag` TEXT NOT NULL, " +
+                    "PRIMARY KEY(`conversationId`, `tag`), " +
+                    "FOREIGN KEY(`conversationId`) REFERENCES `conversations`(`id`) " +
+                    "ON UPDATE NO ACTION ON DELETE CASCADE )",
+            )
+            database.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_conversation_tags_tag` " +
+                    "ON `conversation_tags` (`tag`)",
+            )
+            database.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_conversation_tags_conversationId` " +
+                    "ON `conversation_tags` (`conversationId`)",
             )
         }
     }

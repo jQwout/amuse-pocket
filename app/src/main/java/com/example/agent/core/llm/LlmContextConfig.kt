@@ -23,8 +23,17 @@ object LlmContextConfig {
   /** Middle section smaller than this stays verbatim (merged into head/tail). */
   const val MIN_MIDDLE_MESSAGES_FOR_SUMMARY = 4
 
-  /** Target size for the rolling middle summary stored on [Conversation.summary]. */
+  /** Target size for the summary stored on [Conversation.summary]. */
   const val SUMMARY_MAX_CHARS = 4_000
+
+  /** Background annotation (title/summary/tags) needs at least this many messages to be meaningful. */
+  const val MIN_MESSAGES_FOR_ANNOTATION = 2
+
+  /** Most recent messages fed to the annotator when deriving title/summary/tags. */
+  const val ANNOTATION_MESSAGE_LIMIT = 40
+
+  /** Upper bound on auto-generated tags per conversation. */
+  const val MAX_TAGS = 5
 
   fun estimateTokens(text: String): Int = maxOf(1, text.length / 3)
 }

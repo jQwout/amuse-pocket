@@ -173,7 +173,7 @@ class ChatViewModel(
 
   private suspend fun ensureConversation(firstMessage: String): String {
     _state.value.conversationId?.takeIf { it.isNotBlank() }?.let { return it }
-    val title = firstMessage.take(40).ifBlank { "Новый диалог" }
+    val title = ConversationRepository.placeholderTitle(firstMessage)
     val newId = conversationRepository.createConversation(title = title)
     _state.update { it.copy(conversationId = newId) }
     messagesJob?.cancel()

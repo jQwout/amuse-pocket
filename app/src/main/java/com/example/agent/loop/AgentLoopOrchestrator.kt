@@ -8,7 +8,7 @@ import com.aiopenpocket.agent.core.mcp.ToolExecutor
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
-import com.aiopenpocket.agent.core.prompt.ConversationSummarizer
+import com.aiopenpocket.agent.core.prompt.ConversationAnnotator
 import com.aiopenpocket.agent.core.prompt.PrePromptAssembler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -30,7 +30,7 @@ class AgentLoopOrchestrator @Inject constructor(
   private val llmClient: LlmClient,
   private val toolExecutor: ToolExecutor,
   private val prePromptAssembler: PrePromptAssembler,
-  private val conversationSummarizer: ConversationSummarizer,
+  private val conversationAnnotator: ConversationAnnotator,
   private val registry: ToolRegistry,
   private val memoryRepository: MemoryRepository,
 ) {
@@ -145,7 +145,8 @@ class AgentLoopOrchestrator @Inject constructor(
     if (!done) {
       send(AgentEvent.Error("Max iterations ($MAX_ITERATIONS) reached"))
     } else {
-      runCatching { conversationSummarizer.summarizeMiddleIfNeeded(conversationId) }
+      // After each completed reply, refresh the chat's title/summary/tags from the raw log.
+      runCatching { conversationAnnotator.annotate(conversationId) }
     }
   }.buffer(Channel.UNLIMITED).flowOn(Dispatchers.IO)
 
