@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -50,6 +51,7 @@ fun ConversationsListScreen(
   onNavigateToSettings: () -> Unit,
   onNavigateToRoadmap: () -> Unit,
   onNavigateToLibrary: () -> Unit,
+  onNavigateToGraph: () -> Unit,
 ) {
   val viewModel: ConversationsListViewModel = metroViewModel()
   val state by viewModel.state.collectAsState()
@@ -60,6 +62,9 @@ fun ConversationsListScreen(
       TopAppBar(
         title = { Text("Чаты") },
         actions = {
+          IconButton(onClick = onNavigateToGraph) {
+            Icon(Icons.Default.Share, contentDescription = "Граф памяти")
+          }
           IconButton(onClick = onNavigateToSettings) {
             Icon(Icons.Default.Settings, contentDescription = "Настройки")
           }

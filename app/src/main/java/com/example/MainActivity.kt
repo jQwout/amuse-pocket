@@ -24,6 +24,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.aiopenpocket.ui.chat.ChatScreen
 import com.aiopenpocket.ui.conversations.ConversationsListScreen
+import com.aiopenpocket.ui.memory.MemoryGraphScreen
+import com.aiopenpocket.ui.memory.MemoryPageScreen
 import com.aiopenpocket.ui.onboarding.OnboardingScreen
 import com.aiopenpocket.ui.roadmap.LibraryScreen
 import com.aiopenpocket.ui.roadmap.QuizScreen
@@ -156,6 +158,30 @@ class MainActivity : ComponentActivity() {
                                             navController.navigate("library") {
                                                 launchSingleTop = true
                                             }
+                                        },
+                                        onNavigateToGraph = {
+                                            navController.navigate("memory_graph") {
+                                                launchSingleTop = true
+                                            }
+                                        },
+                                    )
+                                }
+                                composable("memory_graph") {
+                                    MemoryGraphScreen(
+                                        onNavigateBack = { navController.popBackStack() },
+                                        onOpenChat = { id ->
+                                            navController.navigate("memory_page/$id")
+                                        },
+                                    )
+                                }
+                                composable("memory_page/{conversationId}") { backStackEntry ->
+                                    val conversationId =
+                                        backStackEntry.arguments?.getString("conversationId") ?: ""
+                                    MemoryPageScreen(
+                                        conversationId = conversationId,
+                                        onNavigateBack = { navController.popBackStack() },
+                                        onOpenChat = { id ->
+                                            navController.navigate("chat/$id")
                                         },
                                     )
                                 }
