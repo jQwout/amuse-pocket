@@ -11,6 +11,7 @@ import com.aiopenpocket.agent.tools.MemoryTools
 import com.aiopenpocket.agent.tools.NotificationsTool
 import com.aiopenpocket.agent.tools.RenderCardTool
 import com.aiopenpocket.agent.tools.SmsTool
+import com.aiopenpocket.agent.tools.WikiTools
 import com.aiopenpocket.agent.tools.WorkManagerTool
 import dev.zacsweers.metro.BindingContainer
 import dev.zacsweers.metro.ContributesTo
@@ -28,6 +29,10 @@ object AgentToolsModule {
   @Provides
   @IntoSet
   fun provideMemoryTools(tool: MemoryTools): Tool = tool
+
+  @Provides
+  @IntoSet
+  fun provideWikiTools(tool: WikiTools): Tool = tool
 
   @Provides
   @IntoSet
