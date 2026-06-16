@@ -1,6 +1,7 @@
 ﻿package com.aiopenpocket
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -32,6 +33,7 @@ import com.aiopenpocket.ui.scheduledworks.ScheduledWorksScreen
 import com.aiopenpocket.ui.settings.SettingsScreen
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import dev.zacsweers.metrox.viewmodel.LocalMetroViewModelFactory
+import kotlinx.coroutines.flow.MutableStateFlow
 
 class MainActivity : ComponentActivity() {
 
@@ -39,8 +41,16 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { }
 
+    // Увеличивается каждый раз, когда приложение открыто как голосовой помощник —
+    // сигнал для UI открыть новый чат.
+    private val openNewChatRequest = MutableStateFlow(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        if (isOpenNewChatIntent(intent)) {
+            openNewChatRequest.value += 1
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             when {
@@ -78,10 +88,24 @@ class MainActivity : ComponentActivity() {
                         }
                         else -> {
                             val navController = rememberNavController()
+                            val newChatToken by openNewChatRequest.collectAsState()
                             LaunchedEffect(onboardingCompleted) {
                                 if (onboardingCompleted == true) {
                                     navController.navigate("roadmap") {
                                         popUpTo("onboarding") { inclusive = true }
+                                        launchSingleTop = true
+                                    }
+                                }
+                            }
+                            // Открываем новый чат при вызове голосового помощника.
+                            // Онбординг должен быть завершён — иначе чат недоступен.
+                            LaunchedEffect(newChatToken, onboardingCompleted) {
+                                if (newChatToken > 0 && onboardingCompleted == true) {
+                                    navController.navigate("roadmap") {
+                                        popUpTo("onboarding") { inclusive = true }
+                                        launchSingleTop = true
+                                    }
+                                    navController.navigate("chat/new") {
                                         launchSingleTop = true
                                     }
                                 }
@@ -201,5 +225,21 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (isOpenNewChatIntent(intent)) {
+            openNewChatRequest.value += 1
+        }
+    }
+
+    private fun isOpenNewChatIntent(intent: Intent?): Boolean =
+        intent?.action == ACTION_OPEN_NEW_CHAT || intent?.action == Intent.ACTION_ASSIST
+
+    companion object {
+        /** Открыть новый чат (приложение вызвано как голосовой помощник). */
+        const val ACTION_OPEN_NEW_CHAT = "com.aiopenpocket.action.OPEN_NEW_CHAT"
     }
 }
