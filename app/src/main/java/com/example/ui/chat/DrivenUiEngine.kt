@@ -1,8 +1,9 @@
-package com.example.ui.chat
+﻿package com.aiopenpocket.ui.chat
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,6 +40,8 @@ sealed class DrivenUiCard {
     data class TableCard(val headers: List<String>, val rows: List<List<String>>) : DrivenUiCard()
     data class ChartBarCard(val title: String, val labels: List<String>, val values: List<Float>) : DrivenUiCard()
     data class FormCard(val fields: List<FormField>, val submitLabel: String) : DrivenUiCard()
+    data class ChoiceCard(val question: String, val options: List<String>, val answerIndex: Int) : DrivenUiCard()
+    data class LessonCompleteCard(val title: String, val subtitle: String, val buttonLabel: String) : DrivenUiCard()
     data class ErrorCard(val message: String) : DrivenUiCard()
 }
 
@@ -128,6 +131,19 @@ object DrivenUiEngine {
                     }
                     DrivenUiCard.FormCard(fields, submitLabel)
                 }
+                "choice" -> {
+                    val question = params.optString("question", "")
+                    val optionsJson = params.optJSONArray("options") ?: JSONArray()
+                    val options = List(optionsJson.length()) { optionsJson.optString(it, "") }
+                    val answerIndex = if (params.has("answer")) params.optInt("answer", -1) else -1
+                    DrivenUiCard.ChoiceCard(question, options, answerIndex)
+                }
+                "lesson_complete" -> {
+                    val title = params.optString("title", "Урок пройден!")
+                    val subtitle = params.optString("subtitle", "")
+                    val buttonLabel = params.optString("button_label", "Продолжить")
+                    DrivenUiCard.LessonCompleteCard(title, subtitle, buttonLabel)
+                }
                 else -> DrivenUiCard.ErrorCard("Неизвестный шаблон: $template")
             }
         } catch (e: Exception) {
@@ -136,10 +152,80 @@ object DrivenUiEngine {
     }
 }
 
+/**
+ * Renders a parsed card as Markdown. Used in markdown-only mode (card widgets disabled):
+ * the chat shows render_card results as markdown tables/lists instead of interactive views.
+ */
+fun DrivenUiCard.toMarkdown(): String = when (this) {
+    is DrivenUiCard.TodoList -> buildString {
+        appendLine("**$title**")
+        if (items.isEmpty()) {
+            appendLine("_Нет задач_")
+        } else {
+            items.forEach { appendLine("- [${if (it.done) "x" else " "}] ${it.text}") }
+        }
+    }.trim()
+
+    is DrivenUiCard.WeatherCard -> buildString {
+        appendLine("**Погода: $city**")
+        appendLine()
+        appendLine("| День | Темп | Описание |")
+        appendLine("| --- | --- | --- |")
+        days.forEach { appendLine("| ${it.dayName} | ${it.temp} | ${it.text} |") }
+    }.trim()
+
+    is DrivenUiCard.TimerCard -> "**$label** — таймер на $durationSec сек."
+
+    is DrivenUiCard.TableCard -> buildString {
+        if (headers.isNotEmpty()) {
+            appendLine("| ${headers.joinToString(" | ")} |")
+            appendLine("| ${headers.joinToString(" | ") { "---" }} |")
+        }
+        rows.forEach { row -> appendLine("| ${row.joinToString(" | ")} |") }
+    }.trim()
+
+    is DrivenUiCard.ChartBarCard -> buildString {
+        appendLine("**$title**")
+        appendLine()
+        val maxVal = values.maxOrNull()?.takeIf { it > 0f } ?: 1f
+        labels.forEachIndexed { i, label ->
+            val v = values.getOrNull(i) ?: 0f
+            val bars = "█".repeat((v / maxVal * 10).toInt().coerceIn(0, 10))
+            val valueText = if (v == v.toLong().toFloat()) v.toLong().toString() else v.toString()
+            appendLine("- $label: $bars $valueText")
+        }
+    }.trim()
+
+    is DrivenUiCard.FormCard -> buildString {
+        appendLine("**Форма**")
+        fields.forEach {
+            val ph = if (it.placeholder.isNotBlank()) " — _${it.placeholder}_" else ""
+            appendLine("- ${it.label}$ph")
+        }
+        appendLine()
+        appendLine("_[$submitLabel]_")
+    }.trim()
+
+    is DrivenUiCard.ChoiceCard -> buildString {
+        if (question.isNotBlank()) appendLine("**$question**")
+        options.forEach { appendLine("- $it") }
+    }.trim()
+
+    is DrivenUiCard.LessonCompleteCard -> buildString {
+        appendLine("**✓ $title**")
+        if (subtitle.isNotBlank()) appendLine(subtitle)
+        appendLine("_[$buttonLabel]_")
+    }.trim()
+
+    is DrivenUiCard.ErrorCard -> "> ⚠️ $message"
+}
+
 @Composable
 fun RenderDrivenUiCard(
     spec: String,
-    onFormSubmitted: (String) -> Unit = {}
+    onFormSubmitted: (String) -> Unit = {},
+    onChoiceSelected: (String) -> Unit = {},
+    onLessonComplete: () -> Unit = {}
 ) {
     val card = remember(spec) { DrivenUiEngine.parseJsonString(spec) }
 
@@ -158,6 +244,8 @@ fun RenderDrivenUiCard(
             is DrivenUiCard.TableCard -> TableCardView(card)
             is DrivenUiCard.ChartBarCard -> ChartBarCardView(card)
             is DrivenUiCard.FormCard -> FormCardView(card, onFormSubmitted)
+            is DrivenUiCard.ChoiceCard -> ChoiceCardView(card, onChoiceSelected)
+            is DrivenUiCard.LessonCompleteCard -> LessonCompleteCardView(card, onLessonComplete)
             is DrivenUiCard.ErrorCard -> {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -586,6 +674,93 @@ fun FormCardView(
             Icon(imageVector = Icons.Default.Send, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
             Text(card.submitLabel)
+        }
+    }
+}
+
+@Composable
+fun ChoiceCardView(
+    card: DrivenUiCard.ChoiceCard,
+    onSelected: (String) -> Unit
+) {
+    var selected by remember { mutableStateOf<Int?>(null) }
+    val correctGreen = Color(0xFF4CAF50)
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (card.question.isNotBlank()) {
+            Text(
+                text = card.question,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        card.options.forEachIndexed { i, option ->
+            val answered = selected != null
+            val isCorrect = card.answerIndex >= 0 && i == card.answerIndex
+            val isPicked = selected == i
+            val borderColor = when {
+                !answered -> MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                isCorrect -> correctGreen
+                isPicked -> MaterialTheme.colorScheme.error
+                else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(1.5.dp, borderColor, RoundedCornerShape(12.dp))
+                    .clickable(enabled = selected == null) {
+                        selected = i
+                        onSelected(option)
+                    }
+                    .padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = option, style = MaterialTheme.typography.bodyLarge)
+                when {
+                    answered && isCorrect -> Icon(Icons.Default.Check, null, tint = correctGreen)
+                    answered && isPicked -> Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun LessonCompleteCardView(
+    card: DrivenUiCard.LessonCompleteCard,
+    onComplete: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Icon(
+            imageVector = Icons.Default.CheckCircle,
+            contentDescription = null,
+            tint = Color(0xFF4CAF50),
+            modifier = Modifier.size(48.dp)
+        )
+        Text(
+            text = card.title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+        if (card.subtitle.isNotBlank()) {
+            Text(
+                text = card.subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.outline
+            )
+        }
+        Button(onClick = onComplete, modifier = Modifier.fillMaxWidth()) {
+            Text(card.buttonLabel)
         }
     }
 }
