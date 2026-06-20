@@ -1,4 +1,4 @@
-package com.example.ui.theme
+﻿package com.aiopenpocket.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
@@ -7,6 +7,8 @@ val DarkOnBg = Color(0xFFE6E1E5)
 val PurpleAccent = Color(0xFFD0BCFF)
 val PurpleAccentDark = Color(0xFF381E72)
 val CardDark = Color(0xFF2B2930)
+val PersonaCardBg = Color(0xFF1A1A1A)
+val PersonaQuoteBg = Color(0xFF121212)
 val BorderDark = Color(0xFF49454F)
 val UserBubbleBg = Color(0xFF4A4458)
 val UserBubbleFg = Color(0xFFE8DEF8)
