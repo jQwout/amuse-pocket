@@ -1,12 +1,11 @@
 ﻿package com.aiopenpocket.agent.tools
 
-import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
+import com.aiopenpocket.agent.core.mcp.string
+import com.aiopenpocket.agent.core.mcp.toolSchema
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import dev.zacsweers.metro.Inject
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.SingleIn
@@ -19,46 +18,18 @@ class MemoryTools(
 
   override val name = "memory_tool"
   override val description = "Управление долговременной памятью агента: запоминать факты, искать факты, вспоминать эпизоды."
-  override val schema = FunctionSchema(
-    function = FunctionSchema.FunctionDefinition(
-      name = name,
-      description = description,
-      parameters = JsonObject(mapOf(
-        "type" to JsonPrimitive("object"),
-        "properties" to JsonObject(mapOf(
-          "action" to JsonObject(mapOf(
-            "type" to JsonPrimitive("string"),
-            "enum" to JsonPrimitive("remember_fact,search_memory,recall_episodes"),
-            "description" to JsonPrimitive("Действие: remember_fact, search_memory, recall_episodes"),
-          )),
-          "key" to JsonObject(mapOf(
-            "type" to JsonPrimitive("string"),
-            "description" to JsonPrimitive("Ключ факта (для remember_fact)"),
-          )),
-          "value" to JsonObject(mapOf(
-            "type" to JsonPrimitive("string"),
-            "description" to JsonPrimitive("Значение факта (для remember_fact)"),
-          )),
-          "category" to JsonObject(mapOf(
-            "type" to JsonPrimitive("string"),
-            "description" to JsonPrimitive("Категория факта: profile, preference (для remember_fact)"),
-          )),
-          "query" to JsonObject(mapOf(
-            "type" to JsonPrimitive("string"),
-            "description" to JsonPrimitive("Запрос для поиска фактов (для search_memory)"),
-          )),
-          "range" to JsonObject(mapOf(
-            "type" to JsonPrimitive("string"),
-            "description" to JsonPrimitive("Диапазон для эпизодов: today, yesterday, last_week (для recall_episodes)"),
-          )),
-        )),
-        "required" to kotlinx.serialization.json.JsonArray(listOf(JsonPrimitive("action"))),
-      )),
-    ),
-  )
+  override val schema = toolSchema(name, description) {
+    string("action", "Действие: remember_fact, search_memory, recall_episodes", required = true,
+      enum = listOf("remember_fact", "search_memory", "recall_episodes"))
+    string("key", "Ключ факта (для remember_fact)")
+    string("value", "Значение факта (для remember_fact)")
+    string("category", "Категория факта: profile, preference (для remember_fact)")
+    string("query", "Запрос для поиска фактов (для search_memory)")
+    string("range", "Диапазон для эпизодов: today, yesterday, last_week (для recall_episodes)")
+  }
 
   override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult {
-    val action = (arguments["action"] as? JsonPrimitive)?.content ?: return ToolResult.Error("Missing 'action'")
+    val action = arguments.string("action") ?: return ToolResult.Error("Missing 'action'")
     return when (action) {
       "remember_fact" -> rememberFact(arguments)
       "search_memory" -> searchMemory(arguments)
@@ -68,11 +39,11 @@ class MemoryTools(
   }
 
   private suspend fun rememberFact(args: Map<String, JsonElement>): ToolResult {
-    val key = (args["key"] as? JsonPrimitive)?.content ?: return ToolResult.Error("Missing 'key'")
-    val value = (args["value"] as? JsonPrimitive)?.content ?: return ToolResult.Error("Missing 'value'")
+    val key = args.string("key") ?: return ToolResult.Error("Missing 'key'")
+    val value = args.string("value") ?: return ToolResult.Error("Missing 'value'")
     // Категорию задаёт пользователь (через модель) — это недоверенный ввод. Зажимаем в allowlist,
     // чтобы факт не попал в «привилегированную» секцию промпта (system/Инструкции/персона).
-    val category = sanitizeCategory((args["category"] as? JsonPrimitive)?.content)
+    val category = sanitizeCategory(args.string("category"))
     val id = memoryRepository.saveFact(key, value, category)
     return ToolResult.Success("Fact saved: $key = $value (id=$id)")
   }
@@ -86,7 +57,7 @@ class MemoryTools(
     }
 
   private suspend fun searchMemory(args: Map<String, JsonElement>): ToolResult {
-    val query = (args["query"] as? JsonPrimitive)?.content ?: return ToolResult.Error("Missing 'query'")
+    val query = args.string("query") ?: return ToolResult.Error("Missing 'query'")
     val facts = memoryRepository.searchFacts(query)
     return if (facts.isEmpty()) {
       ToolResult.Success("No facts found for '$query'")
@@ -96,7 +67,7 @@ class MemoryTools(
   }
 
   private suspend fun recallEpisodes(args: Map<String, JsonElement>): ToolResult {
-    val range = (args["range"] as? JsonPrimitive)?.content
+    val range = args.string("range")
     val dayMillis = 24L * 60 * 60 * 1000
     val startOfToday = startOfTodayMillis()
     val episodes = when (range) {

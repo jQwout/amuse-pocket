@@ -1,21 +1,26 @@
 ﻿package com.aiopenpocket.ui.conversations
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,6 +51,7 @@ fun ConversationsListScreen(
   onNavigateToSettings: () -> Unit,
   onNavigateToRoadmap: () -> Unit,
   onNavigateToLibrary: () -> Unit,
+  onNavigateToGraph: () -> Unit,
 ) {
   val viewModel: ConversationsListViewModel = metroViewModel()
   val state by viewModel.state.collectAsState()
@@ -56,6 +62,9 @@ fun ConversationsListScreen(
       TopAppBar(
         title = { Text("Чаты") },
         actions = {
+          IconButton(onClick = onNavigateToGraph) {
+            Icon(Icons.Default.Share, contentDescription = "Граф памяти")
+          }
           IconButton(onClick = onNavigateToSettings) {
             Icon(Icons.Default.Settings, contentDescription = "Настройки")
           }
@@ -104,13 +113,30 @@ fun ConversationsListScreen(
         )
       }
     } else {
-      LazyColumn(modifier = Modifier.padding(padding)) {
-        items(state.conversations, key = { it.id }) { conversation ->
-          ConversationItem(
-            conversation = conversation,
-            onClick = { onConversationClick(conversation.id) },
-            onDelete = { viewModel.deleteConversation(conversation.id) },
-          )
+      Column(modifier = Modifier.padding(padding)) {
+        if (state.allTags.isNotEmpty()) {
+          LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            items(state.allTags, key = { it }) { tag ->
+              FilterChip(
+                selected = state.selectedTag == tag,
+                onClick = { viewModel.toggleTagFilter(tag) },
+                label = { Text(tag) },
+              )
+            }
+          }
+        }
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+          items(state.visibleConversations, key = { it.id }) { conversation ->
+            ConversationItem(
+              conversation = conversation,
+              onClick = { onConversationClick(conversation.id) },
+              onDelete = { viewModel.deleteConversation(conversation.id) },
+            )
+          }
         }
       }
     }
@@ -148,6 +174,13 @@ private fun ConversationItem(
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (conversation.tags.isNotEmpty()) {
+          Text(
+            conversation.tags.joinToString(" · ") { "#$it" },
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+          )
+        }
       }
       IconButton(onClick = onDelete) {
         Icon(Icons.Default.Delete, contentDescription = "Удалить")

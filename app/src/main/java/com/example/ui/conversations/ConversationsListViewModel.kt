@@ -34,8 +34,13 @@ class ConversationsListViewModel(
     }
   }
 
+  /** Tap a tag to narrow the list to chats carrying it; tap the active tag again to clear. */
+  fun toggleTagFilter(tag: String) {
+    _state.update { it.copy(selectedTag = if (it.selectedTag == tag) null else tag) }
+  }
+
   suspend fun createConversation(initialMessage: String? = null): String? {
-    val title = initialMessage?.take(30) ?: "Новый чат"
+    val title = initialMessage?.let { ConversationRepository.placeholderTitle(it) } ?: "Новый чат"
     val personaId = userPreferencesRepository.getDefaultPersonaId()
     val createdId = conversationRepository.createConversation(title, personaId)
     if (initialMessage != null) {

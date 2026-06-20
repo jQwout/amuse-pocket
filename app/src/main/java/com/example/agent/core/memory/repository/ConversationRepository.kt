@@ -1,13 +1,16 @@
 ﻿package com.aiopenpocket.agent.core.memory.repository
 
 import com.aiopenpocket.agent.core.memory.dao.ConversationDao
+import com.aiopenpocket.agent.core.memory.dao.ConversationTagDao
 import com.aiopenpocket.agent.core.memory.dao.MessageDao
 import com.aiopenpocket.agent.core.memory.entity.ConversationEntity
+import com.aiopenpocket.agent.core.memory.entity.ConversationTagEntity
 import com.aiopenpocket.agent.core.memory.entity.MessageEntity
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.core.memory.model.Conversation
 import com.aiopenpocket.agent.core.memory.model.Message
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.util.UUID
@@ -18,15 +21,17 @@ import com.aiopenpocket.di.AppScope
 @SingleIn(AppScope::class)
 class ConversationRepository @Inject constructor(
   private val conversationDao: ConversationDao,
+  private val conversationTagDao: ConversationTagDao,
   private val messageDao: MessageDao,
 ) {
   fun getAllConversations(): Flow<List<Conversation>> =
-    conversationDao.getAll().map { list ->
-      list.map { it.toDomain() }
+    combine(conversationDao.getAll(), conversationTagDao.getAll()) { conversations, tags ->
+      val tagsByConversation = tags.groupBy({ it.conversationId }, { it.tag })
+      conversations.map { it.toDomain(tagsByConversation[it.id].orEmpty()) }
     }
 
   suspend fun getConversation(id: String): Conversation? =
-    conversationDao.getById(id)?.toDomain()
+    conversationDao.getById(id)?.toDomain(conversationTagDao.getTagsForConversation(id))
 
   suspend fun createConversation(
     title: String,
@@ -54,6 +59,29 @@ class ConversationRepository @Inject constructor(
 
   suspend fun updateSummary(id: String, summary: String) {
     conversationDao.updateSummary(id, summary)
+  }
+
+  /**
+   * Apply the background annotation produced from the chat log: title, summary and tags. Each part
+   * is applied only when non-blank, so a partial LLM result never wipes a good earlier value.
+   */
+  suspend fun updateAnnotation(id: String, title: String?, summary: String?, tags: List<String>) {
+    title?.trim()?.takeIf { it.isNotBlank() }?.let { conversationDao.updateTitle(id, it) }
+    summary?.trim()?.takeIf { it.isNotBlank() }?.let { conversationDao.updateSummary(id, it) }
+    val normalized = tags.map(::normalizeTag).filter { it.isNotBlank() }.distinct()
+    if (normalized.isNotEmpty()) {
+      conversationTagDao.deleteForConversation(id)
+      normalized.forEach { conversationTagDao.insert(ConversationTagEntity(id, it)) }
+    }
+  }
+
+  suspend fun getAllTags(): List<String> = conversationTagDao.getAllTags()
+
+  /** Conversation ids that share any tag with [tags], most-overlapping first. */
+  suspend fun getConversationIdsByTags(tags: List<String>): List<String> {
+    val normalized = tags.map(::normalizeTag).filter { it.isNotBlank() }.distinct()
+    if (normalized.isEmpty()) return emptyList()
+    return conversationTagDao.getConversationIdsByTags(normalized)
   }
 
   suspend fun deleteConversation(id: String) {
@@ -105,10 +133,10 @@ class ConversationRepository @Inject constructor(
 
   suspend fun getTutorialConversation(): Conversation? =
     conversationDao.getAll()
-      .map { list -> list.find { it.isTutorial }?.toDomain() }
+      .map { list -> list.find { it.isTutorial }?.toDomain(emptyList()) }
       .first()
 
-  private fun ConversationEntity.toDomain() = Conversation(
+  private fun ConversationEntity.toDomain(tags: List<String>) = Conversation(
     id = id,
     title = title,
     createdAt = createdAt,
@@ -116,6 +144,7 @@ class ConversationRepository @Inject constructor(
     personaId = personaId,
     summary = summary,
     isTutorial = isTutorial,
+    tags = tags,
   )
 
   private fun MessageEntity.toDomain() = Message(
@@ -128,4 +157,27 @@ class ConversationRepository @Inject constructor(
     isPinned = isPinned,
     createdAt = createdAt,
   )
+
+  companion object {
+    private const val PLACEHOLDER_TITLE_MAX_CHARS = 40
+    private const val DEFAULT_TITLE = "Новый диалог"
+
+    /**
+     * Title shown until the background annotator generates a real one: the first message,
+     * clipped with an ellipsis. Falls back to a default when the message is blank.
+     */
+    fun placeholderTitle(firstMessage: String): String {
+      val trimmed = firstMessage.trim()
+      if (trimmed.isBlank()) return DEFAULT_TITLE
+      return if (trimmed.length <= PLACEHOLDER_TITLE_MAX_CHARS) {
+        trimmed
+      } else {
+        trimmed.take(PLACEHOLDER_TITLE_MAX_CHARS).trimEnd() + "…"
+      }
+    }
+
+    /** Tags are single lowercase tokens; internal whitespace collapses to one hyphen. */
+    fun normalizeTag(raw: String): String =
+      raw.trim().lowercase().replace(Regex("\\s+"), "-").trim('-')
+  }
 }
