@@ -123,6 +123,7 @@ fun ChatScreen(
             onTogglePin = { viewModel.handleIntent(ChatIntent.TogglePin(message.id)) },
             interactiveCards = state.isTutorial,
             onChoiceSelected = { viewModel.sendUserMessage(it) },
+            onFormSubmitted = { viewModel.sendUserMessage(it) },
             // Lesson finished in chat → go to the standalone quiz screen for this level.
             onLessonComplete = {
               val levelId = state.levelId
@@ -193,6 +194,7 @@ private fun MessageBubble(
   onTogglePin: () -> Unit,
   interactiveCards: Boolean = false,
   onChoiceSelected: (String) -> Unit = {},
+  onFormSubmitted: (String) -> Unit = {},
   onLessonComplete: () -> Unit = {},
   onCardAction: (String, Boolean) -> Unit = { _, _ -> },
 ) {
@@ -258,6 +260,7 @@ private fun MessageBubble(
         RenderDrivenUiCard(
           spec = message.cardSpec!!,
           onChoiceSelected = onChoiceSelected,
+          onFormSubmitted = onFormSubmitted,
           onLessonComplete = onLessonComplete,
           onAction = onCardAction,
         )
