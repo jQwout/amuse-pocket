@@ -11,6 +11,8 @@ data class ChatUiState(
   val streamingText: String = "",
   val toolTrace: List<ToolTrace> = emptyList(),
   val error: String? = null,
+  /** True when the last failed turn can be retried (we still have the last user message). */
+  val canRetry: Boolean = false,
   val showToolTrace: Boolean = false,
   /** True when this conversation is a roadmap lesson — enables interactive cards. */
   val isTutorial: Boolean = false,

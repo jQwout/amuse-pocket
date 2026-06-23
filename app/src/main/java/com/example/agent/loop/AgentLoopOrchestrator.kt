@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.agent.loop
+package com.aiopenpocket.agent.loop
 
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.LlmClient
@@ -42,7 +42,7 @@ class AgentLoopOrchestrator @Inject constructor(
   fun execute(
     conversationId: String,
     userMessage: String,
-    provider: LlmProvider = LlmProvider.AUTO,
+    provider: LlmProvider = LlmProvider.NIM,
   ): Flow<AgentEvent> = channelFlow {
     val context = prePromptAssembler.assemble(conversationId, userMessage)
     val messages = mutableListOf<ChatMessage>()
@@ -58,10 +58,10 @@ class AgentLoopOrchestrator @Inject constructor(
     var done = false
     for (iteration in 1..MAX_ITERATIONS) {
       if (done) break
-      var toolCalledThisIteration = false
-      // Текст копится в рамках одной итерации (одного хода модели). Финальный ответ —
-      // это последняя итерация, поэтому преамбла перед tool-call не должна склеиваться с ним.
+      // Текст и tool-call копятся в рамках одной итерации (одного хода модели). Сбрасываем в начале:
+      // преамбула перед tool-call не должна склеиваться с финальным ответом следующей итерации.
       accumulatedText = ""
+      val pendingToolCalls = mutableListOf<StreamEvent.ToolCall>()
       send(AgentEvent.StateChanged(AgentState.STREAMING))
 
       llmClient.streamChat(messages, tools, provider).collect { chunk ->
@@ -72,54 +72,13 @@ class AgentLoopOrchestrator @Inject constructor(
             send(AgentEvent.TextDelta(chunk.content))
           }
           is StreamEvent.ToolCall -> {
-            toolCalledThisIteration = true
-            send(AgentEvent.StateChanged(AgentState.EXECUTING_TOOL))
-            send(AgentEvent.ToolStarted(chunk.name, chunk.arguments))
-
-            val result = toolExecutor.execute(chunk.name, chunk.arguments)
-            toolTrace += ToolTrace(
-              iteration = iteration,
-              toolName = chunk.name,
-              arguments = chunk.arguments,
-              result = result,
-            )
-            send(AgentEvent.ToolCompleted(chunk.name, result, iteration, chunk.arguments))
-
-            memoryRepository.saveEpisode(
-              type = "tool_call",
-              payload = buildJsonObject {
-                put("id", chunk.id)
-                put("name", chunk.name)
-                put("arguments", JsonObject(chunk.arguments))
-              }.toString(),
-              outcome = result.toString(),
-              conversationId = conversationId,
-            )
-
-            messages += ChatMessage(
-              role = "assistant",
-              toolCalls = listOf(
-                ChatMessage.ToolCallData(
-                  id = chunk.id,
-                  function = ChatMessage.ToolCallData.FunctionCall(
-                    name = chunk.name,
-                    arguments = Json.encodeToString(chunk.arguments),
-                  ),
-                ),
-              ),
-            )
-            messages += ChatMessage(
-              role = "tool",
-              toolCallId = chunk.id,
-              content = resultToString(result),
-            )
+            // Не выполняем сразу — копим все вызовы хода, чтобы оформить их ОДНИМ assistant-сообщением
+            // с массивом tool_calls (этого требует протокол при нескольких параллельных вызовах).
+            pendingToolCalls += chunk
           }
           is StreamEvent.Finish -> {
-            if (chunk.reason == "tool_calls" || toolCalledThisIteration) {
-              // Инструменты выполнены, их результаты уже добавлены в messages.
-              // Не завершаем — на следующей итерации модель получит вывод инструментов
-              // и сформирует финальный ответ.
-            } else {
+            if (pendingToolCalls.isEmpty()) {
+              // Инструментов нет — это финальный ответ хода.
               send(AgentEvent.StateChanged(AgentState.FINISHED))
               send(
                 AgentEvent.Completed(
@@ -133,6 +92,7 @@ class AgentLoopOrchestrator @Inject constructor(
               )
               done = true
             }
+            // Иначе инструменты выполним после стрима (ниже) и уйдём на следующую итерацию.
           }
           is StreamEvent.Error -> {
             send(AgentEvent.StateChanged(AgentState.ERROR))
@@ -141,13 +101,74 @@ class AgentLoopOrchestrator @Inject constructor(
           }
         }
       }
+
+      if (done || pendingToolCalls.isEmpty()) continue
+
+      send(AgentEvent.StateChanged(AgentState.EXECUTING_TOOL))
+      // Одно assistant-сообщение со всеми вызовами хода. Преамбулу кладём в content, чтобы на следующей
+      // итерации модель видела собственный текст, предшествовавший вызовам.
+      messages += ChatMessage(
+        role = "assistant",
+        content = accumulatedText.ifBlank { null },
+        toolCalls = pendingToolCalls.map { tc ->
+          ChatMessage.ToolCallData(
+            id = tc.id,
+            function = ChatMessage.ToolCallData.FunctionCall(
+              name = tc.name,
+              arguments = Json.encodeToString(tc.arguments),
+            ),
+          )
+        },
+      )
+
+      for (tc in pendingToolCalls) {
+        send(AgentEvent.ToolStarted(tc.name, tc.arguments))
+
+        val result = toolExecutor.execute(tc.name, tc.arguments)
+        toolTrace += ToolTrace(
+          iteration = iteration,
+          toolName = tc.name,
+          arguments = tc.arguments,
+          result = result,
+        )
+        send(AgentEvent.ToolCompleted(tc.name, result, iteration, tc.arguments))
+
+        memoryRepository.saveEpisode(
+          type = "tool_call",
+          payload = buildJsonObject {
+            put("id", tc.id)
+            put("name", tc.name)
+            put("arguments", JsonObject(tc.arguments))
+          }.toString(),
+          outcome = result.toString(),
+          conversationId = conversationId,
+        )
+
+        // Каждый tool_call должен получить ровно один tool-ответ с тем же id.
+        messages += ChatMessage(
+          role = "tool",
+          toolCallId = tc.id,
+          content = resultToString(result),
+        )
+      }
     }
+
     if (!done) {
-      send(AgentEvent.Error("Max iterations ($MAX_ITERATIONS) reached"))
-    } else {
-      // After each completed reply, refresh the chat's title/summary/tags from the raw log.
-      runCatching { conversationAnnotator.annotate(conversationId) }
+      // Упёрлись в лимит шагов: отдаём накопленное (текст + трейс), а не голую ошибку — работа не пропадает.
+      send(AgentEvent.StateChanged(AgentState.FINISHED))
+      send(
+        AgentEvent.Completed(
+          AgentResult(
+            text = accumulatedText,
+            toolTrace = toolTrace,
+            state = AgentState.FINISHED,
+            iterations = MAX_ITERATIONS,
+          ),
+        ),
+      )
     }
+    // After each reply, refresh the chat's title/summary/tags from the raw log (no-op if too short).
+    runCatching { conversationAnnotator.annotate(conversationId) }
   }.buffer(Channel.UNLIMITED).flowOn(Dispatchers.IO)
 
   private fun resultToString(result: ToolResult): String = when (result) {
@@ -155,18 +176,11 @@ class AgentLoopOrchestrator @Inject constructor(
     is ToolResult.Error -> "Error: ${result.message}"
   }
 
+  // История прошлых ходов реплеится как обычный текст user/assistant. Вызовы инструментов прошлых
+  // ходов в чат-историю не пишутся (они живут в эпизодической памяти), поэтому tool_calls здесь не
+  // восстанавливаем — внутри текущего хода они уже добавлены в messages напрямую.
   private fun PrePromptAssembler.PromptMessage.toChatMessage(): ChatMessage =
-    ChatMessage(
-      role = role,
-      content = content,
-      toolCalls = toolCallsJson?.let { json ->
-        try {
-          Json.decodeFromString<List<ChatMessage.ToolCallData>>(json)
-        } catch (_: Exception) {
-          null
-        }
-      },
-    )
+    ChatMessage(role = role, content = content)
 }
 
 enum class AgentState { IDLE, STREAMING, EXECUTING_TOOL, FINISHED, ERROR }

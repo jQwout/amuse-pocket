@@ -7,5 +7,6 @@ sealed class ChatIntent {
   data object ToggleToolTrace : ChatIntent()
   data class TogglePin(val messageId: String) : ChatIntent()
   data object ClearError : ChatIntent()
+  data object RetryRequest : ChatIntent()
   data object NavigateBack : ChatIntent()
 }

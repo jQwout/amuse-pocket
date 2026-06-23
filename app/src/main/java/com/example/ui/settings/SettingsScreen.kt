@@ -80,6 +80,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
+import com.aiopenpocket.ui.components.AcademyBottomNav
+import com.aiopenpocket.ui.components.AcademyTab
 import com.aiopenpocket.ui.theme.CardDark
 import com.aiopenpocket.ui.theme.PersonaCardBg
 import com.aiopenpocket.ui.theme.PersonaQuoteBg
@@ -95,6 +97,8 @@ private val SettingsFieldShape = RoundedCornerShape(12.dp)
 fun SettingsScreen(
   onNavigateBack: () -> Unit,
   onNavigateToScheduledWorks: () -> Unit,
+  onNavigateToHome: () -> Unit,
+  onNavigateToRoadmap: () -> Unit,
 ) {
   val viewModel: SettingsViewModel = metroViewModel()
   val state by viewModel.state.collectAsState()
@@ -108,53 +112,68 @@ fun SettingsScreen(
       Column(
         modifier = Modifier
           .fillMaxWidth()
-          .background(PersonaQuoteBg)
-          .padding(horizontal = 20.dp)
-          .padding(bottom = 24.dp, top = 8.dp),
+          .background(PersonaQuoteBg),
       ) {
-        Row(
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-          Icon(
-            imageVector = Icons.Default.Lock,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(14.dp),
-          )
-          Text(
-            text = "Ключи хранятся в зашифрованном виде на устройстве.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(
-          onClick = viewModel::save,
+        Column(
           modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp)
-            .testTag("settings_save_button"),
-          shape = RoundedCornerShape(14.dp),
-          colors = ButtonDefaults.buttonColors(
-            containerColor = PurpleAccent,
-            contentColor = PurpleAccentDark,
-          ),
+            .padding(horizontal = 20.dp)
+            .padding(top = 8.dp),
         ) {
-          Text(
-            text = "Сохранить изменения",
-            style = MaterialTheme.typography.titleMedium,
-          )
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            Icon(
+              imageVector = Icons.Default.Lock,
+              contentDescription = null,
+              tint = MaterialTheme.colorScheme.onSurfaceVariant,
+              modifier = Modifier.size(14.dp),
+            )
+            Text(
+              text = "Ключи хранятся в зашифрованном виде на устройстве.",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
+          Spacer(modifier = Modifier.height(16.dp))
+          Button(
+            onClick = viewModel::save,
+            modifier = Modifier
+              .fillMaxWidth()
+              .height(52.dp)
+              .testTag("settings_save_button"),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(
+              containerColor = PurpleAccent,
+              contentColor = PurpleAccentDark,
+            ),
+          ) {
+            Text(
+              text = "Сохранить изменения",
+              style = MaterialTheme.typography.titleMedium,
+            )
+          }
+          if (state.saved) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+              text = "Сохранено",
+              color = PurpleAccent,
+              style = MaterialTheme.typography.bodyMedium,
+              modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
+          }
         }
-        if (state.saved) {
-          Spacer(modifier = Modifier.height(8.dp))
-          Text(
-            text = "Сохранено",
-            color = PurpleAccent,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-          )
-        }
+        AcademyBottomNav(
+          selectedTab = AcademyTab.Tools,
+          onTabSelected = { tab ->
+            when (tab) {
+              AcademyTab.Chat -> onNavigateToHome()
+              AcademyTab.Path -> onNavigateToRoadmap()
+              AcademyTab.Tools -> Unit
+            }
+          },
+        )
       }
     },
   ) { padding ->

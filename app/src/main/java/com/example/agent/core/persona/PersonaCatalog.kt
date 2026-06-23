@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.agent.core.persona
 
+// @trace swappable-persona-e5e65e
+
 data class PersonaInfo(
   val id: String,
   val displayName: String,

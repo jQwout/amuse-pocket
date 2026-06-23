@@ -11,3 +11,5 @@
 local.properties
 .env
 debug.keystore
+.trace/
+build_check.log

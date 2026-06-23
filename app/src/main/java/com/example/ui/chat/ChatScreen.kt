@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -31,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -61,6 +63,11 @@ fun ChatScreen(
   LaunchedEffect(conversationId) {
     viewModel.setConversationId(conversationId)
   }
+
+  // Точка расширения для действий switch-карточек (реальные вкл/выкл-настройки приложения,
+  // напр. toggle_daily_reminder). Запрос уведомлений вынесен в самодостаточную карточку
+  // notification_permission, поэтому здесь действий пока нет.
+  val onCardAction: (String, Boolean) -> Unit = { _, _ -> }
 
   Scaffold(
     topBar = {
@@ -121,6 +128,7 @@ fun ChatScreen(
               val levelId = state.levelId
               if (levelId != null) onOpenQuiz(levelId) else onNavigateBack()
             },
+            onCardAction = onCardAction,
           )
         }
         if (hasStreamingItem) {
@@ -142,11 +150,29 @@ fun ChatScreen(
       }
 
       if (state.error != null) {
-        Text(
-          text = state.error!!,
-          color = MaterialTheme.colorScheme.error,
-          modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-        )
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Text(
+            text = state.error!!,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.weight(1f),
+          )
+          if (state.canRetry) {
+            TextButton(onClick = { viewModel.handleIntent(ChatIntent.RetryRequest) }) {
+              Icon(
+                imageVector = Icons.Default.Refresh,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+              )
+              Spacer(Modifier.size(4.dp))
+              Text("Повторить")
+            }
+          }
+        }
       }
 
       ChatInput(
@@ -168,16 +194,18 @@ private fun MessageBubble(
   interactiveCards: Boolean = false,
   onChoiceSelected: (String) -> Unit = {},
   onLessonComplete: () -> Unit = {},
+  onCardAction: (String, Boolean) -> Unit = { _, _ -> },
 ) {
   val isUser = message.role == "user"
-  val hasCard = !message.cardSpec.isNullOrBlank()
-  // Lesson chats render real interactive widgets; elsewhere cards fall back to markdown.
-  val interactive = interactiveCards && hasCard
+  val card = message.cardSpec?.takeIf { it.isNotBlank() }?.let { DrivenUiEngine.parseJsonString(it) }
+  val hasCard = card != null
+  // Уроки рисуют интерактивные виджеты; в обычном чате карточки показываются как markdown —
+  // КРОМЕ switch: переключатель бессмыслен текстом, поэтому он интерактивен всегда.
+  val interactive = hasCard && (interactiveCards ||
+    card is DrivenUiCard.SwitchCard || card is DrivenUiCard.NotificationPermissionCard)
 
-  // Markdown-only mode: render_card specs are shown as markdown, not interactive widgets.
-  val cardMarkdown = message.cardSpec
-    ?.takeIf { it.isNotBlank() && !interactive }
-    ?.let { DrivenUiEngine.parseJsonString(it).toMarkdown() }
+  // Markdown-режим: спецификация карточки рендерится как markdown, без интерактива.
+  val cardMarkdown = card?.takeIf { !interactive }?.toMarkdown()
   val displayText = when {
     cardMarkdown != null && message.content.isNotBlank() -> "${message.content}\n\n$cardMarkdown"
     cardMarkdown != null -> cardMarkdown
@@ -231,6 +259,7 @@ private fun MessageBubble(
           spec = message.cardSpec!!,
           onChoiceSelected = onChoiceSelected,
           onLessonComplete = onLessonComplete,
+          onAction = onCardAction,
         )
       } else {
         MarkdownText(text = displayText)

@@ -5,6 +5,7 @@ import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
 import com.aiopenpocket.agent.core.skill.SkillRegistry
+import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import dev.zacsweers.metro.Inject
@@ -17,6 +18,7 @@ class PrePromptAssembler @Inject constructor(
   private val memoryRepository: MemoryRepository,
   private val conversationRepository: ConversationRepository,
   private val skillRegistry: SkillRegistry,
+  private val userPreferencesRepository: UserPreferencesRepository,
 ) {
 
   suspend fun assemble(conversationId: String, currentMessage: String): PromptContext =
@@ -28,7 +30,10 @@ class PrePromptAssembler @Inject constructor(
       }
 
       val conversation = conversationRepository.getConversation(conversationId)
-      val personaId = conversation?.personaId ?: "sharp_partner"
+      // Персона: у диалога своя (если задана), иначе — выбранная пользователем на онбординге, иначе дефолт.
+      val personaId = conversation?.personaId ?: userPreferencesRepository.getDefaultPersonaId()
+      // Язык общения, выбранный на онбординге (по умолчанию русский).
+      val language = userPreferencesRepository.getLanguage()
       val persona = try {
         application.assets.open("personas/$personaId.md").bufferedReader().use { it.readText() }
       } catch (_: Exception) {
@@ -65,6 +70,13 @@ class PrePromptAssembler @Inject constructor(
           appendLine(tutorialPrompt)
           appendLine()
         }
+        // --- Настройки помощника (доверенная зона): язык и персона, заданные пользователем на онбординге. ---
+        appendLine("## Язык")
+        appendLine(
+          "Общайся с пользователем на этом языке: ${languageLabel(language)}. " +
+            "Все ответы — на этом языке, пока пользователь сам явно не попросит другой.",
+        )
+        appendLine()
         appendLine("## Персона")
         appendLine(persona)
         appendLine()
@@ -131,6 +143,17 @@ class PrePromptAssembler @Inject constructor(
         history = window.verbatim,
       )
     }
+
+  /** Человекочитаемая метка языка для системной секции (код языка из онбординга → название). */
+  private fun languageLabel(code: String): String = when (code.lowercase()) {
+    "ru" -> "русский"
+    "en" -> "английский (English)"
+    "es" -> "испанский (Español)"
+    "de" -> "немецкий (Deutsch)"
+    "fr" -> "французский (Français)"
+    "uk" -> "украинский (Українська)"
+    else -> code
+  }
 
   data class PromptContext(
     val systemPrompt: String,

@@ -36,7 +36,7 @@ class SmsTool(
         "properties" to JsonObject(mapOf(
           "action" to JsonObject(mapOf(
             "type" to JsonPrimitive("string"),
-            "enum" to JsonPrimitive("read_recent"),
+            "enum" to JsonArray(listOf(JsonPrimitive("read_recent"))),
             "description" to JsonPrimitive("Действие: read_recent"),
           )),
           "limit" to JsonObject(mapOf(

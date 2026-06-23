@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.agent.tools
 
+// @trace driven-ui-cards-0418d0
+
 import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
@@ -15,7 +17,7 @@ import dev.zacsweers.metro.SingleIn
 class RenderCardTool : Tool {
 
   override val name = "render_card"
-  override val description = "Отображает интерактивную карточку в чате. Доступные шаблоны: todo_list, weather_card, timer, chart_bar, table, form, choice, lesson_complete."
+  override val description = "Отображает интерактивную карточку в чате. Доступные шаблоны: todo_list, weather_card, timer, chart_bar, table, form, choice, lesson_complete, switch, notification_permission. switch — переключатель вкл/выкл для настроек приложения, params: {label, description, action, initial}. notification_permission — карточка запроса разрешения на уведомления, params необязательны: {title, description, button_label}."
   override val schema = FunctionSchema(
     function = FunctionSchema.FunctionDefinition(
       name = name,
@@ -25,7 +27,7 @@ class RenderCardTool : Tool {
         "properties" to JsonObject(mapOf(
           "template" to JsonObject(mapOf(
             "type" to JsonPrimitive("string"),
-            "enum" to JsonPrimitive("todo_list,weather_card,timer,chart_bar,table,form,choice,lesson_complete"),
+            "enum" to kotlinx.serialization.json.JsonArray(listOf(JsonPrimitive("todo_list"), JsonPrimitive("weather_card"), JsonPrimitive("timer"), JsonPrimitive("chart_bar"), JsonPrimitive("table"), JsonPrimitive("form"), JsonPrimitive("choice"), JsonPrimitive("lesson_complete"), JsonPrimitive("switch"), JsonPrimitive("notification_permission"))),
             "description" to JsonPrimitive("ID шаблона карточки"),
           )),
           "params" to JsonObject(mapOf(
