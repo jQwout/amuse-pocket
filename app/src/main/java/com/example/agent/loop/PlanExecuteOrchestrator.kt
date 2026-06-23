@@ -77,9 +77,11 @@ class PlanExecuteOrchestrator @Inject constructor(
         }
       }
 
-      // 3. SYNTHESIZER — финальный связный ответ.
+      // 3. SYNTHESIZER — финальный связный ответ. Идёт через общий цикл с полным набором тулов,
+      // чтобы при необходимости закрыть ответ карточкой (напр. lesson_complete в уроке план-мода).
       tap(AgentEvent.TextDelta("\n\n---\n\n"))
-      runSynthesizer(context.systemPrompt, goal, plan, results, provider) { tap(it) }
+      val synth = runSynthesizer(conversationId, context.systemPrompt, goal, plan, results, provider) { tap(it) }
+      toolTrace += synth.toolTrace
 
       send(AgentEvent.StateChanged(AgentState.FINISHED))
       send(
@@ -154,15 +156,16 @@ class PlanExecuteOrchestrator @Inject constructor(
     return reactLoopRunner.run(conversationId, messages, registry.getAllSchemas(), provider, emit)
   }
 
-  /** Synthesizer phase: compose the user-facing answer from the step results (streamed as the reply). */
+  /** Synthesizer phase: compose the user-facing answer from the step results, via the shared loop. */
   private suspend fun runSynthesizer(
+    conversationId: String,
     systemPrompt: String,
     goal: String,
     plan: Plan,
     results: List<String>,
     provider: LlmProvider,
     emit: suspend (AgentEvent) -> Unit,
-  ) {
+  ): AgentResult {
     val instruction = buildString {
       appendLine("Задача пользователя: $goal")
       appendLine()
@@ -177,9 +180,7 @@ class PlanExecuteOrchestrator @Inject constructor(
       ChatMessage(role = "system", content = systemPrompt),
       ChatMessage(role = "user", content = instruction),
     )
-    llmClient.streamChat(messages, emptyList(), provider).collect { chunk ->
-      if (chunk is StreamEvent.TextDelta) emit(AgentEvent.TextDelta(chunk.content))
-    }
+    return reactLoopRunner.run(conversationId, messages, registry.getAllSchemas(), provider, emit)
   }
 
   private fun renderPlanHeader(plan: Plan): String = buildString {

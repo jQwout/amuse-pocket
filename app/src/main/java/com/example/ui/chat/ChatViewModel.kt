@@ -47,7 +47,7 @@ class ChatViewModel(
     activeJob?.cancel()
     messagesJob?.cancel()
     lastUserText = null
-    _state.update { it.copy(conversationId = id, messages = emptyList(), streamingText = "", toolTrace = emptyList(), isLoading = false, error = null, canRetry = false, isTutorial = false, levelId = null) }
+    _state.update { it.copy(conversationId = id, messages = emptyList(), streamingText = "", toolTrace = emptyList(), isLoading = false, error = null, canRetry = false, isTutorial = false, levelId = null, planMode = false) }
     // Новый чат (id пуст): диалога ещё нет, его создаст ensureConversation при отправке.
     // Коллектор по getMessages("") всегда пуст — не запускаем его.
     if (id.isBlank()) return
@@ -57,11 +57,18 @@ class ChatViewModel(
       }
     }
     // Урок-диалог: включаем интерактивные карточки и запоминаем levelId (= заголовок).
+    // Урок «plan_mode» открывается сразу с включённым План-режимом — задачи юзера идут через
+    // Plan-and-Execute, и он видит планирование→выполнение→синтез вживую.
     viewModelScope.launch {
       val conversation = conversationRepository.getConversation(id)
       val tutorial = conversation?.isTutorial == true
+      val planLesson = tutorial && conversation?.title == PLAN_MODE_LESSON_ID
       _state.update {
-        it.copy(isTutorial = tutorial, levelId = if (tutorial) conversation?.title else null)
+        it.copy(
+          isTutorial = tutorial,
+          levelId = if (tutorial) conversation?.title else null,
+          planMode = planLesson,
+        )
       }
     }
   }
@@ -247,5 +254,10 @@ class ChatViewModel(
   private fun cancel() {
     activeJob?.cancel()
     _state.update { it.copy(isLoading = false, streamingText = "") }
+  }
+
+  companion object {
+    /** Roadmap level id whose lesson chat opens with Plan-and-Execute mode enabled. */
+    const val PLAN_MODE_LESSON_ID = "plan_mode"
   }
 }
