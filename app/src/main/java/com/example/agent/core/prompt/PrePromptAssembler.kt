@@ -81,14 +81,16 @@ class PrePromptAssembler @Inject constructor(
             "Все ответы — на этом языке, пока пользователь сам явно не попросит другой.",
         )
         appendLine()
-        appendLine("## Персона")
-        appendLine(persona)
-        appendLine()
-
-        // Роль агента-специалиста: сужает зону ответственности поверх персоны (голоса).
+        // Агент-специалист несёт СВОЮ личность ВМЕСТО выбранной в настройках персоны — чтобы
+        // характер специалиста не смешивался с ассистентом, которого пользователь выбрал в Settings.
+        // Обычный чат (без агента) использует персону как обычно.
         if (agent != null) {
-          appendLine("## Роль агента-специалиста")
+          appendLine("## Личность и роль")
           appendLine(agent.systemPrompt)
+          appendLine()
+        } else {
+          appendLine("## Персона")
+          appendLine(persona)
           appendLine()
         }
 
