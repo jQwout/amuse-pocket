@@ -1,5 +1,6 @@
 package com.aiopenpocket.agent.loop
 
+import android.util.Log
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.mcp.ToolResult
@@ -44,12 +45,15 @@ class AgentLoopOrchestrator @Inject constructor(
 
     // Mini-agent chats run with only their scoped tools; a general chat gets the full set.
     val tools = context.toolNames?.let { registry.getSchemasFor(it) } ?: registry.getAllSchemas()
+    Log.d(TAG, "▶ chat turn conv=$conversationId scoped=${context.toolNames ?: "all"}")
     val result = reactLoopRunner.run(conversationId, messages, tools, provider) { send(it) }
 
     if (result.state == AgentState.ERROR) {
+      Log.w(TAG, "✗ turn error: ${result.errorMessage}")
       send(AgentEvent.StateChanged(AgentState.ERROR))
       send(AgentEvent.Error(result.errorMessage ?: "Unknown error"))
     } else {
+      Log.d(TAG, "✓ turn done iters=${result.iterations} textLen=${result.text.length}")
       send(AgentEvent.StateChanged(AgentState.FINISHED))
       send(AgentEvent.Completed(result))
     }
@@ -62,6 +66,10 @@ class AgentLoopOrchestrator @Inject constructor(
   // восстанавливаем — внутри текущего хода они уже добавлены в messages напрямую.
   private fun PrePromptAssembler.PromptMessage.toChatMessage(): ChatMessage =
     ChatMessage(role = role, content = content)
+
+  companion object {
+    private const val TAG = "AgentLoop"
+  }
 }
 
 enum class AgentState { IDLE, STREAMING, EXECUTING_TOOL, FINISHED, ERROR }

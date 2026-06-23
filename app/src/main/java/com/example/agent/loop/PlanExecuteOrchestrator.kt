@@ -58,16 +58,19 @@ class PlanExecuteOrchestrator @Inject constructor(
 
     try {
       val context = prePromptAssembler.assemble(conversationId, goal)
+      android.util.Log.d(TAG, "▶ plan-execute conv=$conversationId goal=\"${goal.take(60)}\"")
 
       // 1. PLANNER
       tap(AgentEvent.StateChanged(AgentState.STREAMING))
       val plan = runPlanner(goal, provider)
+      android.util.Log.d(TAG, "plan: ${plan.steps.size} step(s) [${plan.steps.joinToString { it.title }}]")
       tap(AgentEvent.TextDelta(renderPlanHeader(plan)))
 
       // 2. EXECUTOR — по шагам, через общий ReAct-цикл.
       val toolTrace = mutableListOf<ToolTrace>()
       val results = mutableListOf<String>()
       for (step in plan.steps) {
+        android.util.Log.d(TAG, "step ${step.id}/${plan.steps.size}: ${step.title}")
         tap(AgentEvent.TextDelta("\n\n**Шаг ${step.id}: ${step.title}**\n"))
         val stepResult = runStep(conversationId, context.systemPrompt, goal, plan, results, step, provider) { tap(it) }
         results += stepResult.text
@@ -79,9 +82,11 @@ class PlanExecuteOrchestrator @Inject constructor(
 
       // 3. SYNTHESIZER — финальный связный ответ. Идёт через общий цикл с полным набором тулов,
       // чтобы при необходимости закрыть ответ карточкой (напр. lesson_complete в уроке план-мода).
+      android.util.Log.d(TAG, "synthesize")
       tap(AgentEvent.TextDelta("\n\n---\n\n"))
       val synth = runSynthesizer(conversationId, context.systemPrompt, goal, plan, results, provider) { tap(it) }
       toolTrace += synth.toolTrace
+      android.util.Log.d(TAG, "✓ plan-execute done steps=${plan.steps.size}")
 
       send(AgentEvent.StateChanged(AgentState.FINISHED))
       send(
@@ -97,7 +102,7 @@ class PlanExecuteOrchestrator @Inject constructor(
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
-      android.util.Log.e("PlanExecute", "Plan-execute failed", e)
+      android.util.Log.e(TAG, "Plan-execute failed", e)
       send(AgentEvent.StateChanged(AgentState.ERROR))
       send(AgentEvent.Error(e.message ?: "Plan-execute failed"))
     }
@@ -213,6 +218,8 @@ class PlanExecuteOrchestrator @Inject constructor(
   }
 
   companion object {
+    private const val TAG = "PlanExec"
+
     private val LINE_PREFIX = Regex("""^\s*(\d+[.)]|[-*•])\s+""")
 
     private const val PLANNER_SYSTEM =

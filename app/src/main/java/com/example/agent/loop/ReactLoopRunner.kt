@@ -1,5 +1,6 @@
 package com.aiopenpocket.agent.loop
 
+import android.util.Log
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.llm.LlmClient
@@ -48,6 +49,7 @@ class ReactLoopRunner @Inject constructor(
     var accumulatedText = ""
     var finished = false
     var lastIteration = 0
+    Log.d(TAG, "▶ run conv=$conversationId tools=${tools.size} [${tools.joinToString { it.function.name }}]")
 
     for (iteration in 1..MAX_ITERATIONS) {
       lastIteration = iteration
@@ -75,11 +77,16 @@ class ReactLoopRunner @Inject constructor(
       }
 
       if (streamError != null) {
+        Log.w(TAG, "✗ iter $iteration stream error: $streamError")
         return AgentResult(accumulatedText, toolTrace, AgentState.ERROR, lastIteration, streamError)
       }
-      if (finished) break
+      if (finished) {
+        Log.d(TAG, "✓ finished at iter $iteration (textLen=${accumulatedText.length})")
+        break
+      }
       if (pendingToolCalls.isEmpty()) continue
 
+      Log.d(TAG, "iter $iteration: ${pendingToolCalls.size} tool-call(s) [${pendingToolCalls.joinToString { it.name }}]")
       emit(AgentEvent.StateChanged(AgentState.EXECUTING_TOOL))
       // Одно assistant-сообщение со всеми вызовами хода. Преамбулу кладём в content, чтобы на следующей
       // итерации модель видела собственный текст, предшествовавший вызовам.
@@ -98,9 +105,11 @@ class ReactLoopRunner @Inject constructor(
       )
 
       for (tc in pendingToolCalls) {
+        Log.d(TAG, "  → ${tc.name}(${preview(tc.arguments.toString())})")
         emit(AgentEvent.ToolStarted(tc.name, tc.arguments))
 
         val result = toolExecutor.execute(tc.name, tc.arguments)
+        Log.d(TAG, "  ← ${tc.name}: ${preview(resultToString(result))}")
         toolTrace += ToolTrace(
           iteration = iteration,
           toolName = tc.name,
@@ -131,6 +140,7 @@ class ReactLoopRunner @Inject constructor(
 
     // Либо модель ответила без инструментов (finished), либо упёрлись в лимит шагов — в обоих случаях
     // отдаём накопленный текст и трейс; терминальное событие выберет вызывающий.
+    if (!finished) Log.w(TAG, "⚠ exhausted MAX_ITERATIONS=$MAX_ITERATIONS")
     return AgentResult(accumulatedText, toolTrace, AgentState.FINISHED, lastIteration, null)
   }
 
@@ -139,7 +149,12 @@ class ReactLoopRunner @Inject constructor(
     is ToolResult.Error -> "Error: ${result.message}"
   }
 
+  /** One-line, length-capped preview of args/results for the loop log (no newlines, no flooding). */
+  private fun preview(s: String): String =
+    s.replace(Regex("\\s+"), " ").trim().let { if (it.length > 140) it.take(140) + "…" else it }
+
   companion object {
+    private const val TAG = "ReactLoop"
     const val MAX_ITERATIONS = 10
   }
 }
