@@ -40,7 +40,7 @@ class WorkManagerTool(
         "properties" to JsonObject(mapOf(
           "action" to JsonObject(mapOf(
             "type" to JsonPrimitive("string"),
-            "enum" to JsonPrimitive("schedule_notification,schedule_periodic,cancel_work"),
+            "enum" to JsonArray(listOf(JsonPrimitive("schedule_notification"), JsonPrimitive("schedule_periodic"), JsonPrimitive("cancel_work"))),
             "description" to JsonPrimitive("Действие: schedule_notification, schedule_periodic, cancel_work"),
           )),
           "delay_minutes" to JsonObject(mapOf(

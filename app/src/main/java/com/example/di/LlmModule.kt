@@ -1,5 +1,6 @@
 ﻿package com.aiopenpocket.di
 
+import com.aiopenpocket.BuildConfig
 import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.ModelCatalogLoader
@@ -37,7 +38,12 @@ object LlmModule {
         model = entry.name,
         maxTokens = entry.maxTokens,
         reasoning = entry.reasoning,
-        apiKeyResolver = { settingsRepository.getApiKey("NVIDIA") },
+        // Ручной ключ из Настроек в приоритете; иначе — ключ, вшитый в сборку из .env (BuildConfig).
+        apiKeyResolver = {
+          settingsRepository.getApiKey("NVIDIA").ifBlank {
+            BuildConfig.NVIDIA_API_KEY.takeUnless { it == "MY_NVIDIA_API_KEY" }.orEmpty()
+          }
+        },
       )
     }
 

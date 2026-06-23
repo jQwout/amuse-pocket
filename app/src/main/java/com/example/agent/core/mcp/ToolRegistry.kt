@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.agent.core.mcp
 
+// @trace mcp-tools-f77d9b
+
 import com.aiopenpocket.agent.core.llm.FunctionSchema
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn

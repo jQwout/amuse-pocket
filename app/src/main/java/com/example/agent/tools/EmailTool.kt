@@ -33,7 +33,7 @@ class EmailTool(
         "properties" to JsonObject(mapOf(
           "action" to JsonObject(mapOf(
             "type" to JsonPrimitive("string"),
-            "enum" to JsonPrimitive("compose"),
+            "enum" to JsonArray(listOf(JsonPrimitive("compose"))),
             "description" to JsonPrimitive("Действие: compose"),
           )),
           "to" to JsonObject(mapOf(

@@ -13,9 +13,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -36,8 +36,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.aiopenpocket.ui.components.AcademyBottomNav
-import com.aiopenpocket.ui.components.AcademyTab
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -48,9 +46,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ConversationsListScreen(
   onConversationClick: (String) -> Unit,
-  onNavigateToSettings: () -> Unit,
-  onNavigateToRoadmap: () -> Unit,
-  onNavigateToLibrary: () -> Unit,
+  onNavigateBack: () -> Unit,
   onNavigateToGraph: () -> Unit,
 ) {
   val viewModel: ConversationsListViewModel = metroViewModel()
@@ -61,12 +57,17 @@ fun ConversationsListScreen(
     topBar = {
       TopAppBar(
         title = { Text("Чаты") },
+        navigationIcon = {
+          IconButton(onClick = onNavigateBack) {
+            Icon(
+              Icons.AutoMirrored.Filled.ArrowBack,
+              contentDescription = "Назад",
+            )
+          }
+        },
         actions = {
           IconButton(onClick = onNavigateToGraph) {
             Icon(Icons.Default.Share, contentDescription = "Граф памяти")
-          }
-          IconButton(onClick = onNavigateToSettings) {
-            Icon(Icons.Default.Settings, contentDescription = "Настройки")
           }
         },
         colors = TopAppBarDefaults.topAppBarColors(
@@ -85,18 +86,6 @@ fun ConversationsListScreen(
       }) {
         Icon(Icons.Default.Add, contentDescription = "Новый чат")
       }
-    },
-    bottomBar = {
-      AcademyBottomNav(
-        selectedTab = AcademyTab.Chats,
-        onTabSelected = { tab ->
-          when (tab) {
-            AcademyTab.Chats -> Unit
-            AcademyTab.Path -> onNavigateToRoadmap()
-            AcademyTab.Library -> onNavigateToLibrary()
-          }
-        },
-      )
     },
   ) { padding ->
     if (state.conversations.isEmpty()) {

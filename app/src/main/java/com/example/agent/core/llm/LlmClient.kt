@@ -6,6 +6,6 @@ interface LlmClient {
   fun streamChat(
     messages: List<ChatMessage>,
     tools: List<FunctionSchema>,
-    provider: LlmProvider = LlmProvider.AUTO,
+    provider: LlmProvider = LlmProvider.NIM,
   ): Flow<StreamEvent>
 }
