@@ -7,8 +7,10 @@ import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.loop.AgentEvent
 import com.aiopenpocket.agent.core.mcp.ToolResult
+import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.loop.AgentLoopOrchestrator
 import com.aiopenpocket.agent.loop.PlanExecuteOrchestrator
+import com.aiopenpocket.agent.loop.SupervisorOrchestrator
 import com.aiopenpocket.data.repository.SettingsRepository
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
@@ -30,6 +32,7 @@ class ChatViewModel(
   private val conversationRepository: ConversationRepository,
   private val agentLoop: AgentLoopOrchestrator,
   private val planExecuteOrchestrator: PlanExecuteOrchestrator,
+  private val supervisorOrchestrator: SupervisorOrchestrator,
   private val settingsRepository: SettingsRepository,
   private val userPreferencesRepository: UserPreferencesRepository,
 ) : ViewModel() {
@@ -47,7 +50,7 @@ class ChatViewModel(
     activeJob?.cancel()
     messagesJob?.cancel()
     lastUserText = null
-    _state.update { it.copy(conversationId = id, messages = emptyList(), streamingText = "", toolTrace = emptyList(), isLoading = false, error = null, canRetry = false, isTutorial = false, levelId = null, planMode = false) }
+    _state.update { it.copy(conversationId = id, messages = emptyList(), streamingText = "", toolTrace = emptyList(), isLoading = false, error = null, canRetry = false, isTutorial = false, levelId = null, planMode = false, agentId = null) }
     // Новый чат (id пуст): диалога ещё нет, его создаст ensureConversation при отправке.
     // Коллектор по getMessages("") всегда пуст — не запускаем его.
     if (id.isBlank()) return
@@ -68,6 +71,7 @@ class ChatViewModel(
           isTutorial = tutorial,
           levelId = if (tutorial) conversation?.title else null,
           planMode = planLesson,
+          agentId = conversation?.agentId,
         )
       }
     }
@@ -170,11 +174,15 @@ class ChatViewModel(
   private suspend fun runAgent(convId: String, userMessage: String) {
     // Временно гоним всё на NIM; выбор провайдера (GROQ/GITHUB) выпилим позже.
     val provider = LlmProvider.NIM
-    // План-режим: ход идёт через Plan-and-Execute оркестратор; иначе — обычный чат-цикл.
-    val flow = if (_state.value.planMode) {
-      planExecuteOrchestrator.execute(convId, userMessage, provider)
-    } else {
-      agentLoop.execute(convId, userMessage, provider)
+    // Маршрут хода: координатор → супервизор-оркестратор (мульти-агент); план-режим →
+    // Plan-and-Execute; иначе — обычный чат-цикл (скоупленный по агенту, если он привязан).
+    val flow = when {
+      _state.value.agentId == MiniAgentCatalog.SUPERVISOR_ID ->
+        supervisorOrchestrator.execute(convId, userMessage, provider)
+      _state.value.planMode ->
+        planExecuteOrchestrator.execute(convId, userMessage, provider)
+      else ->
+        agentLoop.execute(convId, userMessage, provider)
     }
     flow.collect { event ->
       when (event) {

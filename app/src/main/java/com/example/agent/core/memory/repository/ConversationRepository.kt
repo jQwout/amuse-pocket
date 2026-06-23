@@ -37,6 +37,7 @@ class ConversationRepository @Inject constructor(
     title: String,
     personaId: String = "sharp_partner",
     isTutorial: Boolean = false,
+    agentId: String? = null,
   ): String {
     val id = UUID.randomUUID().toString()
     val now = System.currentTimeMillis()
@@ -48,6 +49,7 @@ class ConversationRepository @Inject constructor(
         updatedAt = now,
         personaId = personaId,
         isTutorial = isTutorial,
+        agentId = agentId,
       ),
     )
     return id
@@ -145,6 +147,7 @@ class ConversationRepository @Inject constructor(
     summary = summary,
     isTutorial = isTutorial,
     tags = tags,
+    agentId = agentId,
   )
 
   private fun MessageEntity.toDomain() = Message(

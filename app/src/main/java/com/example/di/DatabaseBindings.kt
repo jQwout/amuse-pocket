@@ -27,7 +27,7 @@ object DatabaseBindings {
             AppDatabase::class.java,
             "queen_chat_db",
         )
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
             .fallbackToDestructiveMigration()
             .build()
 
@@ -110,6 +110,13 @@ object DatabaseBindings {
             database.execSQL(
                 "CREATE INDEX IF NOT EXISTS `index_wiki_links_toPageId` ON `wiki_links` (`toPageId`)",
             )
+        }
+    }
+
+    // Bind a conversation to a mini-agent: scopes its tools + role. Nullable, default null.
+    val MIGRATION_7_8 = object : Migration(7, 8) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE conversations ADD COLUMN agentId TEXT")
         }
     }
 

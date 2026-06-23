@@ -42,7 +42,8 @@ class AgentLoopOrchestrator @Inject constructor(
     // The caller persists the user message to DB before calling execute(),
     // so it's already included in context.history via ContextWindowBuilder.
 
-    val tools = registry.getAllSchemas()
+    // Mini-agent chats run with only their scoped tools; a general chat gets the full set.
+    val tools = context.toolNames?.let { registry.getSchemasFor(it) } ?: registry.getAllSchemas()
     val result = reactLoopRunner.run(conversationId, messages, tools, provider) { send(it) }
 
     if (result.state == AgentState.ERROR) {

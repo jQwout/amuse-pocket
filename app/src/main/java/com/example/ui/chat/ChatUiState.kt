@@ -20,4 +20,6 @@ data class ChatUiState(
   val levelId: String? = null,
   /** When true, a sent message runs through the Plan-and-Execute orchestrator instead of the chat loop. */
   val planMode: Boolean = false,
+  /** Bound mini-agent id; the coordinator routes through the supervisor, others scope the chat loop. */
+  val agentId: String? = null,
 )

@@ -1,6 +1,7 @@
 ﻿package com.aiopenpocket.agent.core.prompt
 
 import android.app.Application
+import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
@@ -53,6 +54,9 @@ class PrePromptAssembler @Inject constructor(
         }
       } else null
 
+      // Mini-agent bound to this chat (if any): adds a role section and scopes the tool set.
+      val agent = MiniAgentCatalog.get(conversation?.agentId)
+
       val profileFacts = memoryRepository.getFactsByCategory("profile")
       val facts = memoryRepository.searchFacts(currentMessage).take(LlmContextConfig.RELEVANT_FACTS_LIMIT)
       val episodes = memoryRepository.getRecentEpisodesForConversation(
@@ -80,6 +84,13 @@ class PrePromptAssembler @Inject constructor(
         appendLine("## Персона")
         appendLine(persona)
         appendLine()
+
+        // Роль агента-специалиста: сужает зону ответственности поверх персоны (голоса).
+        if (agent != null) {
+          appendLine("## Роль агента-специалиста")
+          appendLine(agent.systemPrompt)
+          appendLine()
+        }
 
         // Каталог навыков (уровень 1 progressive disclosure) — доверенный контент.
         val skillCatalog = skillRegistry.catalog()
@@ -141,6 +152,7 @@ class PrePromptAssembler @Inject constructor(
       PromptContext(
         systemPrompt = systemPrompt,
         history = window.verbatim,
+        toolNames = agent?.toolNames?.takeIf { it.isNotEmpty() },
       )
     }
 
@@ -158,6 +170,8 @@ class PrePromptAssembler @Inject constructor(
   data class PromptContext(
     val systemPrompt: String,
     val history: List<PromptMessage>,
+    /** When non-null, the chat loop is restricted to these tool names (mini-agent scope). */
+    val toolNames: Set<String>? = null,
   )
 
   data class PromptMessage(
