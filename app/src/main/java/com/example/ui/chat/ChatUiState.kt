@@ -18,4 +18,6 @@ data class ChatUiState(
   val isTutorial: Boolean = false,
   /** Roadmap level id (the tutorial conversation title), used to mark completion. */
   val levelId: String? = null,
+  /** When true, a sent message runs through the Plan-and-Execute orchestrator instead of the chat loop. */
+  val planMode: Boolean = false,
 )

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
@@ -79,6 +80,18 @@ fun ChatScreen(
           }
         },
         actions = {
+          // План-режим: ход проходит через Plan-and-Execute оркестратор. Подсвечен, когда включён.
+          IconButton(onClick = { viewModel.handleIntent(ChatIntent.TogglePlanMode) }) {
+            Icon(
+              Icons.Default.AccountTree,
+              contentDescription = "План-режим",
+              tint = if (state.planMode) {
+                MaterialTheme.colorScheme.primary
+              } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+              },
+            )
+          }
           if (state.toolTrace.isNotEmpty()) {
             IconButton(onClick = { viewModel.handleIntent(ChatIntent.ToggleToolTrace) }) {
               Icon(Icons.Default.Build, contentDescription = "Tool trace")

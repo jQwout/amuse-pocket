@@ -8,6 +8,7 @@ import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.loop.AgentEvent
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.loop.AgentLoopOrchestrator
+import com.aiopenpocket.agent.loop.PlanExecuteOrchestrator
 import com.aiopenpocket.data.repository.SettingsRepository
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
@@ -28,6 +29,7 @@ import kotlinx.coroutines.launch
 class ChatViewModel(
   private val conversationRepository: ConversationRepository,
   private val agentLoop: AgentLoopOrchestrator,
+  private val planExecuteOrchestrator: PlanExecuteOrchestrator,
   private val settingsRepository: SettingsRepository,
   private val userPreferencesRepository: UserPreferencesRepository,
 ) : ViewModel() {
@@ -90,6 +92,7 @@ class ChatViewModel(
       is ChatIntent.TogglePin -> togglePin(intent.messageId)
       is ChatIntent.ClearError -> _state.update { it.copy(error = null, canRetry = false) }
       is ChatIntent.NavigateBack -> { /* handled by navigation */ }
+      is ChatIntent.TogglePlanMode -> _state.update { it.copy(planMode = !it.planMode) }
     }
   }
 
@@ -160,7 +163,13 @@ class ChatViewModel(
   private suspend fun runAgent(convId: String, userMessage: String) {
     // Временно гоним всё на NIM; выбор провайдера (GROQ/GITHUB) выпилим позже.
     val provider = LlmProvider.NIM
-    agentLoop.execute(convId, userMessage, provider).collect { event ->
+    // План-режим: ход идёт через Plan-and-Execute оркестратор; иначе — обычный чат-цикл.
+    val flow = if (_state.value.planMode) {
+      planExecuteOrchestrator.execute(convId, userMessage, provider)
+    } else {
+      agentLoop.execute(convId, userMessage, provider)
+    }
+    flow.collect { event ->
       when (event) {
         is AgentEvent.TextDelta -> {
           _state.update { it.copy(streamingText = it.streamingText + event.content) }
