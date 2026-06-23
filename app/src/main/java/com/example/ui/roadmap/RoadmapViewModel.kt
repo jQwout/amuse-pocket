@@ -45,11 +45,16 @@ class RoadmapViewModel(
         personaId = personaId,
         isTutorial = true,
       ).also { newId ->
-        conversationRepository.addMessage(
-          newId,
-          "assistant",
-          "Привет! Это урок «${level.title}». ${level.description} Напиши «готов», и начнём.",
-        )
+        // План-мод запускается сразу в деле: просим составную задачу, а не «готов».
+        val greeting = if (level.id == "plan_mode") {
+          "Это урок «${level.title}». План-режим уже включён (иконка дерева вверху). " +
+            "Дай мне любую составную задачу — например «спланируй продуктивное утро» " +
+            "или «составь план изучения Kotlin на неделю» — и увидишь, как я сначала " +
+            "строю план, потом выполняю по шагам, потом собираю итог."
+        } else {
+          "Привет! Это урок «${level.title}». ${level.description} Напиши «готов», и начнём."
+        }
+        conversationRepository.addMessage(newId, "assistant", greeting)
       }
 
       onReady(chatId)
