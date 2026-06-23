@@ -10,6 +10,7 @@ import com.aiopenpocket.agent.core.llm.StreamEvent
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
 import com.aiopenpocket.agent.core.mcp.string
 import com.aiopenpocket.agent.core.mcp.toolSchema
+import com.aiopenpocket.agent.core.prompt.ConversationAnnotator
 import com.aiopenpocket.agent.core.prompt.PrePromptAssembler
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -37,6 +38,7 @@ class SupervisorOrchestrator @Inject constructor(
   private val registry: ToolRegistry,
   private val prePromptAssembler: PrePromptAssembler,
   private val reactLoopRunner: ReactLoopRunner,
+  private val conversationAnnotator: ConversationAnnotator,
 ) {
 
   fun execute(
@@ -53,13 +55,18 @@ class SupervisorOrchestrator @Inject constructor(
     try {
       val context = prePromptAssembler.assemble(conversationId, userMessage)
       android.util.Log.d(TAG, "▶ supervisor conv=$conversationId msg=\"${userMessage.take(60)}\"")
+      // История диалога уже заканчивается текущим сообщением пользователя (его сохранили до
+      // маршрутизации), поэтому отдельным user-сообщением его НЕ добавляем — иначе уйдёт дважды.
+      // Тот же приём, что в AgentLoopOrchestrator, даёт координатору память о прошлых ходах.
       val messages = mutableListOf(
         ChatMessage(role = "system", content = context.systemPrompt + "\n\n" + rosterBlock()),
-        ChatMessage(role = "user", content = userMessage),
       )
+      messages += context.history.map { it.toChatMessage() }
       val toolTrace = mutableListOf<ToolTrace>()
 
+      var rounds = 0
       for (iteration in 1..MAX_ROUNDS) {
+        rounds = iteration
         var accumulated = ""
         var finished = false
         var streamError: String? = null
@@ -124,7 +131,7 @@ class SupervisorOrchestrator @Inject constructor(
         }
       }
 
-      android.util.Log.d(TAG, "✓ supervisor done")
+      android.util.Log.d(TAG, "✓ supervisor done rounds=$rounds")
       send(AgentEvent.StateChanged(AgentState.FINISHED))
       send(
         AgentEvent.Completed(
@@ -132,10 +139,12 @@ class SupervisorOrchestrator @Inject constructor(
             text = transcript.toString(),
             toolTrace = toolTrace,
             state = AgentState.FINISHED,
-            iterations = MAX_ROUNDS,
+            iterations = rounds,
           ),
         ),
       )
+      // Как и обычный чат-ход: обновляем заголовок/резюме/теги диалога из лога (no-op, если коротко).
+      runCatching { conversationAnnotator.annotate(conversationId) }
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {

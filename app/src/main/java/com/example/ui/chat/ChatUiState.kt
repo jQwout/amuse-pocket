@@ -22,4 +22,10 @@ data class ChatUiState(
   val planMode: Boolean = false,
   /** Bound mini-agent id; the coordinator routes through the supervisor, others scope the chat loop. */
   val agentId: String? = null,
-)
+  /** Display name shown in the chat header — the bound agent's name, else the conversation title. */
+  val title: String? = null,
+) {
+  companion object {
+    fun resetFor(id: String) = ChatUiState(conversationId = id)
+  }
+}

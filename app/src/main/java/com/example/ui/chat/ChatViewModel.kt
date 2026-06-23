@@ -50,25 +50,23 @@ class ChatViewModel(
     activeJob?.cancel()
     messagesJob?.cancel()
     lastUserText = null
-    _state.update { it.copy(conversationId = id, messages = emptyList(), streamingText = "", toolTrace = emptyList(), isLoading = false, error = null, canRetry = false, isTutorial = false, levelId = null, planMode = false, agentId = null) }
+    _state.value = ChatUiState.resetFor(id)
     // Новый чат (id пуст): диалога ещё нет, его создаст ensureConversation при отправке.
     // Коллектор по getMessages("") всегда пуст — не запускаем его.
     if (id.isBlank()) return
-    messagesJob = viewModelScope.launch {
-      conversationRepository.getMessages(id).collect { messages ->
-        _state.update { it.copy(messages = messages) }
-      }
-    }
+    observeMessages(id)
     // Урок-диалог: включаем интерактивные карточки и запоминаем levelId (= заголовок).
     // План-режим НЕ включаем автоматически — это только явный флаг из UI (тумблер в топбаре).
     viewModelScope.launch {
       val conversation = conversationRepository.getConversation(id)
       val tutorial = conversation?.isTutorial == true
+      val agentName = conversation?.agentId?.let { agentId -> MiniAgentCatalog.get(agentId)?.name }
       _state.update {
         it.copy(
           isTutorial = tutorial,
           levelId = if (tutorial) conversation?.title else null,
           agentId = conversation?.agentId,
+          title = agentName ?: conversation?.title,
         )
       }
     }
@@ -98,8 +96,6 @@ class ChatViewModel(
       is ChatIntent.RetryRequest -> retry()
       is ChatIntent.ToggleToolTrace -> _state.update { it.copy(showToolTrace = !it.showToolTrace) }
       is ChatIntent.TogglePin -> togglePin(intent.messageId)
-      is ChatIntent.ClearError -> _state.update { it.copy(error = null, canRetry = false) }
-      is ChatIntent.NavigateBack -> { /* handled by navigation */ }
       is ChatIntent.TogglePlanMode -> _state.update { it.copy(planMode = !it.planMode) }
     }
   }
@@ -186,9 +182,6 @@ class ChatViewModel(
         is AgentEvent.TextDelta -> {
           _state.update { it.copy(streamingText = it.streamingText + event.content) }
         }
-        is AgentEvent.ToolStarted -> {
-          _state.update { it.copy(isLoading = true) }
-        }
         is AgentEvent.ToolCompleted -> {
           val newTrace = com.aiopenpocket.agent.loop.ToolTrace(
             iteration = event.iteration,
@@ -204,6 +197,8 @@ class ChatViewModel(
             .filter { it.toolName == "render_card" }
             .mapNotNull { (it.result as? ToolResult.Success)?.data }
 
+          // result.text ≠ streamingText: plain loop drops pre-tool preamble; orchestrators produce a
+          // full transcript. Persisting streamingText instead would reintroduce the dropped preamble.
           val responseText = event.result.text
           if (responseText.isNotBlank() || cardSpecs.isNotEmpty()) {
             conversationRepository.addMessage(
@@ -240,12 +235,7 @@ class ChatViewModel(
     val title = ConversationRepository.placeholderTitle(firstMessage)
     val newId = conversationRepository.createConversation(title = title)
     _state.update { it.copy(conversationId = newId) }
-    messagesJob?.cancel()
-    messagesJob = viewModelScope.launch {
-      conversationRepository.getMessages(newId).collect { messages ->
-        _state.update { it.copy(messages = messages) }
-      }
-    }
+    observeMessages(newId)
     return newId
   }
 
@@ -253,6 +243,15 @@ class ChatViewModel(
     val current = _state.value.messages.find { it.id == messageId } ?: return
     viewModelScope.launch {
       conversationRepository.setMessagePinned(messageId, !current.isPinned)
+    }
+  }
+
+  private fun observeMessages(id: String) {
+    messagesJob?.cancel()
+    messagesJob = viewModelScope.launch {
+      conversationRepository.getMessages(id).collect { messages ->
+        _state.update { it.copy(messages = messages) }
+      }
     }
   }
 
