@@ -9,4 +9,5 @@ sealed class ChatIntent {
   data object ClearError : ChatIntent()
   data object RetryRequest : ChatIntent()
   data object NavigateBack : ChatIntent()
+  data object TogglePlanMode : ChatIntent()
 }
