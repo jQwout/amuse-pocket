@@ -52,6 +52,7 @@ class SupervisorOrchestrator @Inject constructor(
 
     try {
       val context = prePromptAssembler.assemble(conversationId, userMessage)
+      android.util.Log.d(TAG, "▶ supervisor conv=$conversationId msg=\"${userMessage.take(60)}\"")
       val messages = mutableListOf(
         ChatMessage(role = "system", content = context.systemPrompt + "\n\n" + rosterBlock()),
         ChatMessage(role = "user", content = userMessage),
@@ -107,10 +108,13 @@ class SupervisorOrchestrator @Inject constructor(
             tap(AgentEvent.StateChanged(AgentState.EXECUTING_TOOL))
             tap(AgentEvent.TextDelta("\n\n**→ ${specialist?.name ?: agentId}:** $task\n"))
             if (specialist == null) {
+              android.util.Log.w(TAG, "delegate → unknown agent_id=$agentId")
               "Нет агента с id=$agentId. Доступные: ${MiniAgentCatalog.specialistIds.joinToString()}"
             } else {
+              android.util.Log.d(TAG, "delegate → ${specialist.id}: \"${task.take(60)}\"")
               val sub = runSpecialist(conversationId, specialist, task, provider) { tap(it) }
               toolTrace += sub.toolTrace
+              android.util.Log.d(TAG, "← ${specialist.id} done state=${sub.state} (${sub.text.length} chars)")
               if (sub.state == AgentState.ERROR) "Ошибка агента: ${sub.errorMessage}" else sub.text
             }
           } else {
@@ -120,6 +124,7 @@ class SupervisorOrchestrator @Inject constructor(
         }
       }
 
+      android.util.Log.d(TAG, "✓ supervisor done")
       send(AgentEvent.StateChanged(AgentState.FINISHED))
       send(
         AgentEvent.Completed(
@@ -161,6 +166,7 @@ class SupervisorOrchestrator @Inject constructor(
   }
 
   companion object {
+    private const val TAG = "Supervisor"
     private const val MAX_ROUNDS = 6
 
     private val DELEGATE = toolSchema(
