@@ -8,9 +8,4 @@ data class PlanStep(
   val id: Int,
   val title: String,
   val detail: String? = null,
-  val status: PlanStepStatus = PlanStepStatus.PENDING,
-  /** The executor's short result text, filled once the step runs. */
-  val result: String? = null,
 )
-
-enum class PlanStepStatus { PENDING, RUNNING, DONE, FAILED }

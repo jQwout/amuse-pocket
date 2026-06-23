@@ -19,11 +19,13 @@ import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
 
 /**
- * The core ReAct loop (reason → act → observe), shared by every orchestrator. It streams
- * [AgentEvent]s through [emit] and RETURNS the final [AgentResult] instead of emitting a terminal
- * Completed/Error — the caller decides what a finished loop means (a whole chat reply, or one step
- * of a plan). Keeping the single loop here is why Plan-and-Execute is an orchestrator on top, not a
- * second engine.
+ * The core ReAct loop (reason → act → observe). It streams [AgentEvent]s through [emit] and RETURNS
+ * the final [AgentResult] instead of emitting a terminal Completed/Error — the caller decides what a
+ * finished loop means (a whole chat reply, or one step of a plan). Reused by [AgentLoopOrchestrator]
+ * for the plain chat turn, by [PlanExecuteOrchestrator] for each plan step, and by
+ * [SupervisorOrchestrator] for each specialist sub-pass. (The Supervisor's *coordinator* loop is
+ * hand-rolled, because its `delegate` calls are fulfilled by the orchestrator rather than by
+ * ToolExecutor.)
  */
 @SingleIn(AppScope::class)
 class ReactLoopRunner @Inject constructor(
@@ -118,16 +120,20 @@ class ReactLoopRunner @Inject constructor(
         )
         emit(AgentEvent.ToolCompleted(tc.name, result, iteration, tc.arguments))
 
-        memoryRepository.saveEpisode(
-          type = "tool_call",
-          payload = buildJsonObject {
-            put("id", tc.id)
-            put("name", tc.name)
-            put("arguments", JsonObject(tc.arguments))
-          }.toString(),
-          outcome = result.toString(),
-          conversationId = conversationId,
-        )
+        // Эпизодическая память — побочный эффект «по возможности»: сбой записи (БД занята/полна) не
+        // должен ронять уже успешный ход. runCatching, как и для annotate() в AgentLoopOrchestrator.
+        runCatching {
+          memoryRepository.saveEpisode(
+            type = "tool_call",
+            payload = buildJsonObject {
+              put("id", tc.id)
+              put("name", tc.name)
+              put("arguments", JsonObject(tc.arguments))
+            }.toString(),
+            outcome = result.toString(),
+            conversationId = conversationId,
+          )
+        }.onFailure { Log.w(TAG, "saveEpisode failed for ${tc.name}: ${it.message}") }
 
         // Каждый tool_call должен получить ровно один tool-ответ с тем же id.
         messages += ChatMessage(

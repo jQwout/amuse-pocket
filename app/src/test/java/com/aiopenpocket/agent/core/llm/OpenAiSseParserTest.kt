@@ -96,4 +96,37 @@ class OpenAiSseParserTest {
 
     assertEquals("stop", (events.last() as StreamEvent.Finish).reason)
   }
+
+  @Test
+  fun `malformed tool arguments produce emptyMap ToolCall, not an error`() = runTest {
+    val sse = """
+      data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"do_thing","arguments":"{invalid json"}}]}}]}
+      data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}
+      data: [DONE]
+    """.trimIndent()
+
+    val events = parse(sse)
+
+    val calls = events.filterIsInstance<StreamEvent.ToolCall>()
+    assertEquals(1, calls.size)
+    assertEquals("do_thing", calls[0].name)
+    assertTrue("malformed args must produce emptyMap", calls[0].arguments.isEmpty())
+    assertTrue("no Error event on malformed args", events.none { it is StreamEvent.Error })
+  }
+
+  @Test
+  fun `colon-prefixed keep-alive lines are silently ignored`() = runTest {
+    val sse = """
+      data: {"choices":[{"delta":{"content":"hi"}}]}
+      : keep-alive
+      data: {"choices":[{"delta":{},"finish_reason":"stop"}]}
+      data: [DONE]
+    """.trimIndent()
+
+    val events = parse(sse)
+
+    assertTrue("keep-alive must not surface as Error", events.none { it is StreamEvent.Error })
+    val text = events.filterIsInstance<StreamEvent.TextDelta>().joinToString("") { it.content }
+    assertEquals("hi", text)
+  }
 }

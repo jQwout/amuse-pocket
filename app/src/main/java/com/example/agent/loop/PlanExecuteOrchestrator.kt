@@ -6,6 +6,7 @@ import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.StreamEvent
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
+import com.aiopenpocket.agent.core.prompt.ConversationAnnotator
 import com.aiopenpocket.agent.core.prompt.PrePromptAssembler
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -41,6 +42,7 @@ class PlanExecuteOrchestrator @Inject constructor(
   private val registry: ToolRegistry,
   private val prePromptAssembler: PrePromptAssembler,
   private val reactLoopRunner: ReactLoopRunner,
+  private val conversationAnnotator: ConversationAnnotator,
 ) {
 
   fun execute(
@@ -84,7 +86,7 @@ class PlanExecuteOrchestrator @Inject constructor(
       // чтобы при необходимости закрыть ответ карточкой (напр. lesson_complete в уроке план-мода).
       android.util.Log.d(TAG, "synthesize")
       tap(AgentEvent.TextDelta("\n\n---\n\n"))
-      val synth = runSynthesizer(conversationId, context.systemPrompt, goal, plan, results, provider) { tap(it) }
+      val synth = runSynthesizer(conversationId, context.systemPrompt, goal, plan, results, context.history, provider) { tap(it) }
       toolTrace += synth.toolTrace
       android.util.Log.d(TAG, "✓ plan-execute done steps=${plan.steps.size}")
 
@@ -95,10 +97,14 @@ class PlanExecuteOrchestrator @Inject constructor(
             text = transcript.toString(),
             toolTrace = toolTrace,
             state = AgentState.FINISHED,
+            // Число ШАГОВ плана, а не LLM-раундов (планировщик/синтезатор и внутренние ReAct-итерации
+            // сюда не входят) — поле используется только для отладочного лога.
             iterations = plan.steps.size,
           ),
         ),
       )
+      // Как и обычный чат-ход: обновляем заголовок/резюме/теги диалога из лога (no-op, если коротко).
+      runCatching { conversationAnnotator.annotate(conversationId) }
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
@@ -168,6 +174,7 @@ class PlanExecuteOrchestrator @Inject constructor(
     goal: String,
     plan: Plan,
     results: List<String>,
+    history: List<PrePromptAssembler.PromptMessage>,
     provider: LlmProvider,
     emit: suspend (AgentEvent) -> Unit,
   ): AgentResult {
@@ -181,10 +188,14 @@ class PlanExecuteOrchestrator @Inject constructor(
       appendLine()
       appendLine("Дай пользователю финальный связный ответ на его языке. Не пересказывай внутреннюю кухню шагов, если это не нужно.")
     }
+    // Синтезатор (в отличие от планировщика и шагов-исполнителей, которые намеренно держат фокус на
+    // одной задаче) видит историю диалога — финальный ответ должен учитывать прошлые ходы. История
+    // уже заканчивается текущим сообщением пользователя, поэтому дублировать goal отдельно не нужно.
     val messages = mutableListOf(
       ChatMessage(role = "system", content = systemPrompt),
-      ChatMessage(role = "user", content = instruction),
     )
+    messages += history.map { it.toChatMessage() }
+    messages += ChatMessage(role = "user", content = instruction)
     return reactLoopRunner.run(conversationId, messages, registry.getAllSchemas(), provider, emit)
   }
 
