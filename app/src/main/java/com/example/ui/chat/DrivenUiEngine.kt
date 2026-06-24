@@ -19,18 +19,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
+
+private val CardSuccessGreen = Color(0xFF4CAF50)
 
 // Defined structures of Templates
 sealed class DrivenUiCard {
@@ -253,30 +252,39 @@ fun RenderDrivenUiCard(
 }
 
 @Composable
+private fun CardTitleRow(icon: ImageVector, title: String, iconTint: Color? = null) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = iconTint ?: MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(24.dp),
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun CardDivider() {
+    HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f))
+}
+
+@Composable
 fun TodoListCardView(card: DrivenUiCard.TodoList) {
     var itemsState = remember { mutableStateListOf<TodoItem>().apply { addAll(card.items) } }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(
-                imageVector = Icons.Default.PlaylistAddCheck,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = card.title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f))
+        CardTitleRow(icon = Icons.Default.PlaylistAddCheck, title = card.title)
+        CardDivider()
 
         if (itemsState.isEmpty()) {
             Text(
@@ -318,25 +326,12 @@ fun TodoListCardView(card: DrivenUiCard.TodoList) {
 @Composable
 fun WeatherCardView(card: DrivenUiCard.WeatherCard) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(
-                imageVector = Icons.Default.WbSunny,
-                contentDescription = null,
-                tint = Color(0xFFF9D976),
-                modifier = Modifier.size(24.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Прогноз для: ${card.city}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f))
+        CardTitleRow(
+            icon = Icons.Default.WbSunny,
+            title = "Прогноз для: ${card.city}",
+            iconTint = Color(0xFFF9D976),
+        )
+        CardDivider()
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -668,7 +663,7 @@ fun ChoiceCardView(
     onSelected: (String) -> Unit
 ) {
     var selected by remember { mutableStateOf<Int?>(null) }
-    val correctGreen = Color(0xFF4CAF50)
+    val correctGreen = CardSuccessGreen
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (card.question.isNotBlank()) {
@@ -726,7 +721,7 @@ fun LessonCompleteCardView(
         Icon(
             imageVector = Icons.Default.CheckCircle,
             contentDescription = null,
-            tint = Color(0xFF4CAF50),
+            tint = CardSuccessGreen,
             modifier = Modifier.size(48.dp)
         )
         Text(
