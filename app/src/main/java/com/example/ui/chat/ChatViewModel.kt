@@ -1,19 +1,22 @@
-﻿package com.aiopenpocket.ui.chat
+package com.aiopenpocket.ui.chat
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.loop.AgentEvent
-import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.loop.AgentLoopOrchestrator
+import com.aiopenpocket.agent.loop.AgentResult
+import com.aiopenpocket.agent.loop.ToolTrace
 import com.aiopenpocket.data.repository.SettingsRepository
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
-import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import dev.zacsweers.metro.binding
+import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,15 +44,21 @@ class ChatViewModel(
     if (_state.value.conversationId == id) return
     activeJob?.cancel()
     messagesJob?.cancel()
-    _state.update { it.copy(conversationId = id, messages = emptyList(), streamingText = "", toolTrace = emptyList(), isLoading = false, isTutorial = false, levelId = null) }
+    _state.update {
+      it.copy(
+        conversationId = id,
+        messages = emptyList(),
+        streamingText = "",
+        toolTrace = emptyList(),
+        isLoading = false,
+        isTutorial = false,
+        levelId = null,
+      )
+    }
     // Новый чат (id пуст): диалога ещё нет, его создаст ensureConversation при отправке.
     // Коллектор по getMessages("") всегда пуст — не запускаем его.
     if (id.isBlank()) return
-    messagesJob = viewModelScope.launch {
-      conversationRepository.getMessages(id).collect { messages ->
-        _state.update { it.copy(messages = messages) }
-      }
-    }
+    observeMessages(id)
     // Урок-диалог: включаем интерактивные карточки и запоминаем levelId (= заголовок).
     viewModelScope.launch {
       val conversation = conversationRepository.getConversation(id)
@@ -84,7 +93,7 @@ class ChatViewModel(
       is ChatIntent.ToggleToolTrace -> _state.update { it.copy(showToolTrace = !it.showToolTrace) }
       is ChatIntent.TogglePin -> togglePin(intent.messageId)
       is ChatIntent.ClearError -> _state.update { it.copy(error = null) }
-      is ChatIntent.NavigateBack -> { /* handled by navigation */ }
+      is ChatIntent.NavigateBack -> Unit
     }
   }
 
@@ -93,81 +102,60 @@ class ChatViewModel(
     if (text.isEmpty()) return
 
     activeJob?.cancel()
-
     _state.update {
-      it.copy(
-        inputText = "",
-        isLoading = true,
-        streamingText = "",
-        toolTrace = emptyList(),
-        error = null,
-      )
+      it.copy(inputText = "", isLoading = true, streamingText = "", toolTrace = emptyList(), error = null)
     }
 
     activeJob = viewModelScope.launch {
       try {
         // Маршрут "chat/new" даёт пустой id — создаём диалог, иначе FK-нарушение при addMessage.
         val convId = ensureConversation(text)
-        // Сначала ждём сохранения сообщения пользователя в БД
+        // Сначала ждём сохранения сообщения пользователя в БД,
+        // потом запускаем агент — история уже содержит новое сообщение.
         conversationRepository.addMessage(convId, "user", text)
-        // Теперь запускаем агент — история уже содержит новое сообщение
         val provider = runCatching {
           LlmProvider.valueOf(settingsRepository.getSelectedProvider())
         }.getOrDefault(LlmProvider.AUTO)
-        agentLoop.execute(convId, text, provider).collect { event ->
-          when (event) {
-            is AgentEvent.TextDelta -> {
-              _state.update { it.copy(streamingText = it.streamingText + event.content) }
-            }
-            is AgentEvent.ToolStarted -> {
-              _state.update { it.copy(isLoading = true) }
-            }
-            is AgentEvent.ToolCompleted -> {
-              val newTrace = com.aiopenpocket.agent.loop.ToolTrace(
-                iteration = event.iteration,
-                toolName = event.name,
-                arguments = event.arguments,
-                result = event.result,
-              )
-              _state.update { it.copy(toolTrace = it.toolTrace + newTrace) }
-            }
-            is AgentEvent.Completed -> {
-              // Extract render_card specs so the Driven UI cards render inline in chat.
-              val cardSpecs = event.result.toolTrace
-                .filter { it.toolName == "render_card" }
-                .mapNotNull { (it.result as? ToolResult.Success)?.data }
-
-              val replyText = event.result.text
-              if (replyText.isNotBlank() || cardSpecs.isNotEmpty()) {
-                conversationRepository.addMessage(
-                  convId,
-                  "assistant",
-                  replyText,
-                  cardSpec = cardSpecs.firstOrNull(),
-                )
-              }
-              // Any additional cards become their own card-only messages.
-              cardSpecs.drop(1).forEach { spec ->
-                conversationRepository.addMessage(convId, "assistant", "", cardSpec = spec)
-              }
-              _state.update {
-                it.copy(
-                  isLoading = false,
-                  streamingText = "",
-                  toolTrace = event.result.toolTrace,
-                )
-              }
-            }
-            is AgentEvent.Error -> {
-              _state.update { it.copy(isLoading = false, error = event.message) }
-            }
-            else -> { /* no-op */ }
-          }
-        }
+        agentLoop.execute(convId, text, provider).collect { handleAgentEvent(it, convId) }
       } catch (e: Exception) {
-        android.util.Log.e("ChatViewModel", "Agent loop error", e)
+        Log.e("ChatViewModel", "Agent loop error", e)
         _state.update { it.copy(isLoading = false, error = e.message) }
       }
+    }
+  }
+
+  private suspend fun handleAgentEvent(event: AgentEvent, convId: String) {
+    when (event) {
+      is AgentEvent.TextDelta -> _state.update {
+        it.copy(streamingText = it.streamingText + event.content)
+      }
+      is AgentEvent.ToolStarted -> _state.update { it.copy(isLoading = true) }
+      is AgentEvent.ToolCompleted -> _state.update {
+        it.copy(toolTrace = it.toolTrace + ToolTrace(event.iteration, event.name, event.arguments, event.result))
+      }
+      is AgentEvent.Completed -> {
+        persistReply(convId, event.result)
+        _state.update {
+          it.copy(isLoading = false, streamingText = "", toolTrace = event.result.toolTrace)
+        }
+      }
+      is AgentEvent.Error -> _state.update { it.copy(isLoading = false, error = event.message) }
+      is AgentEvent.StateChanged -> Unit
+    }
+  }
+
+  private suspend fun persistReply(convId: String, result: AgentResult) {
+    // Extract render_card specs so the Driven UI cards render inline in chat.
+    val cardSpecs = result.toolTrace
+      .filter { it.toolName == "render_card" }
+      .mapNotNull { (it.result as? ToolResult.Success)?.data }
+
+    if (result.text.isNotBlank() || cardSpecs.isNotEmpty()) {
+      conversationRepository.addMessage(convId, "assistant", result.text, cardSpec = cardSpecs.firstOrNull())
+    }
+    // Any additional cards become their own card-only messages.
+    cardSpecs.drop(1).forEach { spec ->
+      conversationRepository.addMessage(convId, "assistant", "", cardSpec = spec)
     }
   }
 
@@ -176,13 +164,17 @@ class ChatViewModel(
     val title = ConversationRepository.placeholderTitle(firstMessage)
     val newId = conversationRepository.createConversation(title = title)
     _state.update { it.copy(conversationId = newId) }
+    observeMessages(newId)
+    return newId
+  }
+
+  private fun observeMessages(id: String) {
     messagesJob?.cancel()
     messagesJob = viewModelScope.launch {
-      conversationRepository.getMessages(newId).collect { messages ->
+      conversationRepository.getMessages(id).collect { messages ->
         _state.update { it.copy(messages = messages) }
       }
     }
-    return newId
   }
 
   private fun togglePin(messageId: String) {
