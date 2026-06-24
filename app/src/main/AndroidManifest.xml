@@ -10,6 +10,16 @@
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Чтобы SpeechRecognizer находил системный recognition-сервис на Android 11+. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+    </queries>
+
     <application
         android:name="com.aiopenpocket.AiOpenPocketApp"
         android:allowBackup="true"

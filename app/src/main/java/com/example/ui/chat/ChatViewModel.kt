@@ -10,6 +10,9 @@ import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.loop.AgentLoopOrchestrator
 import com.aiopenpocket.data.repository.SettingsRepository
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.voice.input.VoiceInputController
+import com.aiopenpocket.voice.input.VoiceInputState
+import com.aiopenpocket.voice.input.appLanguageToBcp47
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
@@ -29,6 +32,7 @@ class ChatViewModel(
   private val agentLoop: AgentLoopOrchestrator,
   private val settingsRepository: SettingsRepository,
   private val userPreferencesRepository: UserPreferencesRepository,
+  private val voiceController: VoiceInputController,
 ) : ViewModel() {
 
   private val _state = MutableStateFlow(ChatUiState())
@@ -36,6 +40,29 @@ class ChatViewModel(
 
   private var activeJob: Job? = null
   private var messagesJob: Job? = null
+
+  init {
+    viewModelScope.launch {
+      voiceController.state.collect { vs ->
+        _state.update {
+          it.copy(
+            voiceState = vs,
+            voiceError = (vs as? VoiceInputState.Error)?.reason?.toUserMessage(),
+          )
+        }
+      }
+    }
+    viewModelScope.launch {
+      voiceController.transcripts.collect { transcript ->
+        _state.update { it.copy(inputText = appendTranscript(it.inputText, transcript)) }
+      }
+    }
+  }
+
+  override fun onCleared() {
+    voiceController.release()
+    super.onCleared()
+  }
 
   fun setConversationId(id: String) {
     if (_state.value.conversationId == id) return
@@ -85,6 +112,21 @@ class ChatViewModel(
       is ChatIntent.TogglePin -> togglePin(intent.messageId)
       is ChatIntent.ClearError -> _state.update { it.copy(error = null) }
       is ChatIntent.NavigateBack -> { /* handled by navigation */ }
+      is ChatIntent.ToggleVoiceInput -> toggleVoiceInput()
+      is ChatIntent.ClearVoiceError -> {
+        voiceController.clearError()
+        _state.update { it.copy(voiceError = null) }
+      }
+    }
+  }
+
+  private fun toggleVoiceInput() {
+    when (_state.value.voiceState) {
+      is VoiceInputState.Listening -> voiceController.stop()
+      else -> viewModelScope.launch {
+        val tag = appLanguageToBcp47(userPreferencesRepository.getLanguage())
+        voiceController.start(tag)
+      }
     }
   }
 
@@ -196,4 +238,20 @@ class ChatViewModel(
     activeJob?.cancel()
     _state.update { it.copy(isLoading = false, streamingText = "") }
   }
+}
+
+private fun appendTranscript(current: String, transcript: String): String {
+  if (current.isBlank()) return transcript
+  return if (current.endsWith(' ') || current.endsWith('\n')) current + transcript
+  else "$current $transcript"
+}
+
+private fun VoiceInputState.ErrorReason.toUserMessage(): String = when (this) {
+  VoiceInputState.ErrorReason.Unavailable -> "Распознавание речи недоступно на устройстве"
+  VoiceInputState.ErrorReason.NoMatch -> "Не удалось распознать речь"
+  VoiceInputState.ErrorReason.Network -> "Нет сети для распознавания речи"
+  VoiceInputState.ErrorReason.Audio -> "Ошибка микрофона"
+  VoiceInputState.ErrorReason.Permission -> "Нет разрешения на доступ к микрофону"
+  VoiceInputState.ErrorReason.Busy -> "Распознаватель занят, попробуйте ещё раз"
+  VoiceInputState.ErrorReason.Other -> "Не удалось распознать речь"
 }
