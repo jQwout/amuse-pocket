@@ -49,106 +49,90 @@ data class TodoItem(val text: String, var done: Boolean)
 data class WeatherDay(val dayName: String, val temp: String, val text: String, val icon: String)
 data class FormField(val name: String, val label: String, val placeholder: String, val type: String, var value: String = "")
 
+private fun JSONArray.toStringList(): List<String> =
+    List(length()) { optString(it, "") }
+
+private inline fun <T> JSONArray.mapObjects(transform: (JSONObject) -> T): List<T> =
+    List(length()) { transform(optJSONObject(it) ?: JSONObject()) }
+
+private fun JSONObject.array(key: String): JSONArray = optJSONArray(key) ?: JSONArray()
+
 object DrivenUiEngine {
 
-    fun parseJsonString(specString: String): DrivenUiCard {
-        return try {
-            val root = JSONObject(specString)
-            val template = root.optString("template", "")
-            val params = root.optJSONObject("params") ?: JSONObject()
+    fun parseJsonString(specString: String): DrivenUiCard = try {
+        val root = JSONObject(specString)
+        val template = root.optString("template", "")
+        val p = root.optJSONObject("params") ?: JSONObject()
 
-            when (template) {
-                "todo_list" -> {
-                    val title = params.optString("title", "Список дел")
-                    val itemsJson = params.optJSONArray("items") ?: JSONArray()
-                    val items = mutableListOf<TodoItem>()
-                    for (i in 0 until itemsJson.length()) {
-                        val obj = itemsJson.optJSONObject(i) ?: JSONObject()
-                        items.add(
-                            TodoItem(
-                                text = obj.optString("item_text", ""),
-                                done = obj.optBoolean("item_done", false)
-                            )
-                        )
-                    }
-                    DrivenUiCard.TodoList(title, items)
-                }
-                "weather_card" -> {
-                    val city = params.optString("city", "Погода")
-                    val daysJson = params.optJSONArray("days") ?: JSONArray()
-                    val days = mutableListOf<WeatherDay>()
-                    for (i in 0 until daysJson.length()) {
-                        val obj = daysJson.optJSONObject(i) ?: JSONObject()
-                        days.add(
-                            WeatherDay(
-                                dayName = obj.optString("day", ""),
-                                temp = obj.optString("temp", ""),
-                                text = obj.optString("text", "Ясно"),
-                                icon = obj.optString("icon", "clear")
-                            )
-                        )
-                    }
-                    DrivenUiCard.WeatherCard(city, days)
-                }
-                "timer" -> {
-                    val label = params.optString("label", "Таймер")
-                    val durationSec = params.optInt("duration_sec", 60)
-                    DrivenUiCard.TimerCard(label, durationSec)
-                }
-                "table" -> {
-                    val headersJson = params.optJSONArray("headers") ?: JSONArray()
-                    val headers = List(headersJson.length()) { headersJson.optString(it, "") }
-                    val rowsJson = params.optJSONArray("rows") ?: JSONArray()
-                    val rows = mutableListOf<List<String>>()
-                    for (i in 0 until rowsJson.length()) {
-                        val rowArray = rowsJson.optJSONArray(i) ?: JSONArray()
-                        rows.add(List(rowArray.length()) { rowArray.optString(it, "") })
-                    }
-                    DrivenUiCard.TableCard(headers, rows)
-                }
-                "chart_bar" -> {
-                    val title = params.optString("title", "График")
-                    val labelsJson = params.optJSONArray("labels") ?: JSONArray()
-                    val labels = List(labelsJson.length()) { labelsJson.optString(it, "") }
-                    val valuesJson = params.optJSONArray("values") ?: JSONArray()
-                    val values = List(valuesJson.length()) { valuesJson.optDouble(it, 0.0).toFloat() }
-                    DrivenUiCard.ChartBarCard(title, labels, values)
-                }
-                "form" -> {
-                    val submitLabel = params.optString("submit_label", "Отправить")
-                    val fieldsJson = params.optJSONArray("fields") ?: JSONArray()
-                    val fields = mutableListOf<FormField>()
-                    for (i in 0 until fieldsJson.length()) {
-                        val obj = fieldsJson.optJSONObject(i) ?: JSONObject()
-                        fields.add(
-                            FormField(
-                                name = obj.optString("name", "field"),
-                                label = obj.optString("label", "Поле"),
-                                placeholder = obj.optString("placeholder", ""),
-                                type = obj.optString("type", "text")
-                            )
-                        )
-                    }
-                    DrivenUiCard.FormCard(fields, submitLabel)
-                }
-                "choice" -> {
-                    val question = params.optString("question", "")
-                    val optionsJson = params.optJSONArray("options") ?: JSONArray()
-                    val options = List(optionsJson.length()) { optionsJson.optString(it, "") }
-                    val answerIndex = if (params.has("answer")) params.optInt("answer", -1) else -1
-                    DrivenUiCard.ChoiceCard(question, options, answerIndex)
-                }
-                "lesson_complete" -> {
-                    val title = params.optString("title", "Урок пройден!")
-                    val subtitle = params.optString("subtitle", "")
-                    val buttonLabel = params.optString("button_label", "Продолжить")
-                    DrivenUiCard.LessonCompleteCard(title, subtitle, buttonLabel)
-                }
-                else -> DrivenUiCard.ErrorCard("Неизвестный шаблон: $template")
+        when (template) {
+            "todo_list" -> DrivenUiCard.TodoList(
+                title = p.optString("title", "Список дел"),
+                items = p.array("items").mapObjects {
+                    TodoItem(
+                        text = it.optString("item_text", ""),
+                        done = it.optBoolean("item_done", false),
+                    )
+                },
+            )
+            "weather_card" -> DrivenUiCard.WeatherCard(
+                city = p.optString("city", "Погода"),
+                days = p.array("days").mapObjects {
+                    WeatherDay(
+                        dayName = it.optString("day", ""),
+                        temp = it.optString("temp", ""),
+                        text = it.optString("text", "Ясно"),
+                        icon = it.optString("icon", "clear"),
+                    )
+                },
+            )
+            "timer" -> DrivenUiCard.TimerCard(
+                label = p.optString("label", "Таймер"),
+                durationSec = p.optInt("duration_sec", 60),
+            )
+            "table" -> {
+                val rowsJson = p.array("rows")
+                DrivenUiCard.TableCard(
+                    headers = p.array("headers").toStringList(),
+                    rows = List(rowsJson.length()) {
+                        (rowsJson.optJSONArray(it) ?: JSONArray()).toStringList()
+                    },
+                )
             }
-        } catch (e: Exception) {
-            DrivenUiCard.ErrorCard("Ошибка парсинга шаблона: ${e.localizedMessage}")
+            "chart_bar" -> {
+                val valuesJson = p.array("values")
+                DrivenUiCard.ChartBarCard(
+                    title = p.optString("title", "График"),
+                    labels = p.array("labels").toStringList(),
+                    values = List(valuesJson.length()) {
+                        valuesJson.optDouble(it, 0.0).toFloat()
+                    },
+                )
+            }
+            "form" -> DrivenUiCard.FormCard(
+                fields = p.array("fields").mapObjects {
+                    FormField(
+                        name = it.optString("name", "field"),
+                        label = it.optString("label", "Поле"),
+                        placeholder = it.optString("placeholder", ""),
+                        type = it.optString("type", "text"),
+                    )
+                },
+                submitLabel = p.optString("submit_label", "Отправить"),
+            )
+            "choice" -> DrivenUiCard.ChoiceCard(
+                question = p.optString("question", ""),
+                options = p.array("options").toStringList(),
+                answerIndex = if (p.has("answer")) p.optInt("answer", -1) else -1,
+            )
+            "lesson_complete" -> DrivenUiCard.LessonCompleteCard(
+                title = p.optString("title", "Урок пройден!"),
+                subtitle = p.optString("subtitle", ""),
+                buttonLabel = p.optString("button_label", "Продолжить"),
+            )
+            else -> DrivenUiCard.ErrorCard("Неизвестный шаблон: $template")
         }
+    } catch (e: Exception) {
+        DrivenUiCard.ErrorCard("Ошибка парсинга шаблона: ${e.localizedMessage}")
     }
 }
 

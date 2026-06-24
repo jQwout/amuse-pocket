@@ -23,8 +23,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
+import com.aiopenpocket.ui.theme.MyApplicationTheme
 
 @Composable
 fun AboutMeStep(
@@ -143,4 +145,32 @@ private fun personaAsk(personaId: String): String = when (personaId) {
   "strict_coach" ->
     "Имя. Возраст. Чем занимаешься. Поехали."
   else -> "Расскажи о себе — имя, как обращаться, возраст и чем живёшь."
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1C1B1F)
+@Composable
+private fun AboutMeStepPreview() {
+  MyApplicationTheme {
+    AboutMeStep(
+      personaId = "sharp_partner",
+      text = "Я Саша, 27, разработчик. На «ты».",
+      isExtracting = false,
+      extractionError = null,
+      onTextChange = {},
+    )
+  }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1C1B1F)
+@Composable
+private fun AboutMeStepExtractingPreview() {
+  MyApplicationTheme {
+    AboutMeStep(
+      personaId = "sharp_partner",
+      text = "Саша, 27.",
+      isExtracting = true,
+      extractionError = null,
+      onTextChange = {},
+    )
+  }
 }
