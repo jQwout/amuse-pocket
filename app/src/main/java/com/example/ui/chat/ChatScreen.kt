@@ -1,5 +1,9 @@
 ﻿package com.aiopenpocket.ui.chat
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -41,6 +45,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -61,14 +66,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.aiopenpocket.agent.core.memory.model.Message
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import com.aiopenpocket.ui.components.StreamingBubble
 import com.aiopenpocket.ui.components.MarkdownText
+import com.aiopenpocket.ui.chat.components.MicButton
 import com.aiopenpocket.ui.chat.components.ToolTracePanel
+import com.aiopenpocket.voice.input.VoiceInputState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -271,6 +280,21 @@ fun ChatScreen(
         }
       }
 
+      if (state.voiceError != null) {
+        Text(
+          text = state.voiceError!!,
+          color = MaterialTheme.colorScheme.error,
+          modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+      }
+
+      if (!state.isLoading && state.lastResponseStats != null) {
+        ResponseStatsBar(
+          stats = state.lastResponseStats!!,
+          modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+        )
+      }
+
       ChatInput(
         value = state.inputText,
         onValueChange = { viewModel.handleIntent(ChatIntent.UpdateInput(it)) },
@@ -278,6 +302,9 @@ fun ChatScreen(
         onCancel = { viewModel.handleIntent(ChatIntent.CancelRequest) },
         isLoading = state.isLoading,
         onExpand = { composerExpanded = true },
+        voiceState = state.voiceState,
+        onVoiceToggle = { viewModel.handleIntent(ChatIntent.ToggleVoiceInput) },
+        onPermissionDenied = { viewModel.handleIntent(ChatIntent.ClearVoiceError) },
       )
     }
   }
@@ -442,6 +469,56 @@ private fun PinnedBar(
   }
 }
 
+@Composable
+private fun ResponseStatsBar(
+  stats: ResponseStats,
+  modifier: Modifier = Modifier,
+) {
+  val timeLabel = if (stats.responseTimeMs >= 1000) {
+    "%.1fс".format(stats.responseTimeMs / 1000f)
+  } else {
+    "${stats.responseTimeMs}мс"
+  }
+  val contextUsedFraction = (stats.contextTokensUsed.toFloat() / stats.contextBudget).coerceIn(0f, 1f)
+  val contextRemainingK = ((stats.contextBudget - stats.contextTokensUsed) / 1000)
+    .coerceAtLeast(0)
+
+  Column(modifier = modifier.fillMaxWidth()) {
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Text(
+        text = "⏱ $timeLabel",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+      Text(
+        text = "↩ ~${stats.completionTokens} токенов",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+      Text(
+        text = "контекст: ~${contextRemainingK}k осталось",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+    Spacer(modifier = Modifier.height(2.dp))
+    LinearProgressIndicator(
+      progress = { contextUsedFraction },
+      modifier = Modifier.fillMaxWidth().height(2.dp),
+      color = when {
+        contextUsedFraction > 0.85f -> MaterialTheme.colorScheme.error
+        contextUsedFraction > 0.65f -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.primary
+      },
+      trackColor = MaterialTheme.colorScheme.surfaceVariant,
+    )
+  }
+}
+
 private fun pinnedSnippet(message: Message): String {
   val base = message.content.ifBlank { if (message.cardSpec != null) "📋 Карточка" else "" }
   val firstLine = base.lineSequence().firstOrNull { it.isNotBlank() }?.trim().orEmpty()
@@ -456,7 +533,33 @@ private fun ChatInput(
   onCancel: () -> Unit,
   isLoading: Boolean,
   onExpand: () -> Unit,
+  voiceState: VoiceInputState,
+  onVoiceToggle: () -> Unit,
+  onPermissionDenied: () -> Unit,
 ) {
+  val context = LocalContext.current
+  var pendingStart by remember { mutableStateOf(false) }
+  val micPermissionLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.RequestPermission(),
+  ) { granted ->
+    if (granted && pendingStart) onVoiceToggle()
+    if (!granted) onPermissionDenied()
+    pendingStart = false
+  }
+
+  fun handleMicTap() {
+    val granted = ContextCompat.checkSelfPermission(
+      context,
+      Manifest.permission.RECORD_AUDIO,
+    ) == PackageManager.PERMISSION_GRANTED
+    if (granted) {
+      onVoiceToggle()
+    } else {
+      pendingStart = true
+      micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+    }
+  }
+
   Row(
     modifier = Modifier
       .fillMaxWidth()
@@ -486,6 +589,7 @@ private fun ChatInput(
       },
     )
     Spacer(Modifier.width(6.dp))
+    MicButton(state = voiceState, onClick = ::handleMicTap)
     if (isLoading) {
       // Прогресс вокруг кнопки «стоп» — даёт пользователю возможность отменить ход.
       Box(contentAlignment = Alignment.Center, modifier = Modifier.size(48.dp)) {

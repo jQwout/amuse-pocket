@@ -15,6 +15,16 @@
         android:name="android.hardware.sensor.stepcounter"
         android:required="false" />
 
+    <!-- Чтобы SpeechRecognizer находил системный recognition-сервис на Android 11+. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+    </queries>
+
     <application
         android:name="com.aiopenpocket.AiOpenPocketApp"
         android:allowBackup="true"
