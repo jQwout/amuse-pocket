@@ -21,8 +21,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.ui.theme.CardDark
+import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.ui.theme.PurpleAccent
 
 enum class AcademyTab {
@@ -99,5 +101,13 @@ private fun AcademyNavItem(
       style = MaterialTheme.typography.labelSmall,
       color = if (selected) PurpleAccent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
     )
+  }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1C1B1F)
+@Composable
+private fun AcademyBottomNavPreview() {
+  MyApplicationTheme {
+    AcademyBottomNav(selectedTab = AcademyTab.Path, onTabSelected = {})
   }
 }
