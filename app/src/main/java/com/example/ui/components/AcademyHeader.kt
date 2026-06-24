@@ -14,7 +14,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.ui.theme.PurpleAccent
 
 @Composable
@@ -50,5 +52,13 @@ fun AcademyHeader(
         tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
       )
     }
+  }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1C1B1F)
+@Composable
+private fun AcademyHeaderPreview() {
+  MyApplicationTheme {
+    AcademyHeader(onNavigateToSettings = {})
   }
 }
