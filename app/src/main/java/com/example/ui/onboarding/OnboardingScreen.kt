@@ -32,10 +32,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.ui.onboarding.components.AboutMeStep
 import com.aiopenpocket.ui.onboarding.components.IntroStreamingStep
 import com.aiopenpocket.ui.onboarding.components.LanguageSelectionStep
 import com.aiopenpocket.ui.onboarding.components.PersonaSelectionStep
-import com.aiopenpocket.ui.onboarding.components.ProfileForm
 import com.aiopenpocket.ui.onboarding.components.WrapupStep
 import com.aiopenpocket.ui.roadmap.LESSON_QUIZZES
 import com.aiopenpocket.ui.roadmap.components.QuizContent
@@ -179,36 +179,14 @@ fun OnboardingScreen(
         }
         OnboardingStep.PERSONA -> Unit
         OnboardingStep.PROFILE -> {
-          Column(modifier = Modifier.fillMaxSize()) {
-            Text(
-              text = "Расскажи о себе",
-              style = MaterialTheme.typography.headlineSmall,
-              modifier = Modifier.padding(16.dp),
-            )
-            Text(
-              text = "Агент будет использовать это в диалогах",
-              style = MaterialTheme.typography.bodyMedium,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-              modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-            ProfileForm(
-              name = state.name,
-              age = state.age,
-              gender = state.gender,
-              religion = state.religion,
-              preferredAddress = state.preferredAddress,
-              extraInfo = state.extraInfo,
-              onNameChange = { viewModel.handleIntent(OnboardingIntent.UpdateName(it)) },
-              onAgeChange = { viewModel.handleIntent(OnboardingIntent.UpdateAge(it)) },
-              onGenderChange = { viewModel.handleIntent(OnboardingIntent.UpdateGender(it)) },
-              onReligionChange = { viewModel.handleIntent(OnboardingIntent.UpdateReligion(it)) },
-              onPreferredAddressChange = {
-                viewModel.handleIntent(OnboardingIntent.UpdatePreferredAddress(it))
-              },
-              onExtraInfoChange = { viewModel.handleIntent(OnboardingIntent.UpdateExtraInfo(it)) },
-              modifier = Modifier.weight(1f),
-            )
-          }
+          AboutMeStep(
+            personaId = state.selectedPersonaId,
+            text = state.aboutMeText,
+            isExtracting = state.isExtracting,
+            extractionError = state.extractionError,
+            onTextChange = { viewModel.handleIntent(OnboardingIntent.UpdateAboutMe(it)) },
+            modifier = Modifier.weight(1f),
+          )
         }
         OnboardingStep.WRAPUP -> {
           WrapupStep(

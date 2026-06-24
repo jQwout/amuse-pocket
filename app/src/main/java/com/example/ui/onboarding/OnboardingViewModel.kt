@@ -1,8 +1,11 @@
-﻿package com.aiopenpocket.ui.onboarding
+package com.aiopenpocket.ui.onboarding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
+import com.aiopenpocket.agent.core.llm.ChatMessage
+import com.aiopenpocket.agent.core.llm.LlmClient
+import com.aiopenpocket.agent.core.llm.StreamEvent
 import com.aiopenpocket.agent.core.memory.model.UserProfile
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
 import com.aiopenpocket.di.AppScope
@@ -17,6 +20,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
@@ -24,12 +29,19 @@ import kotlinx.coroutines.launch
 class OnboardingViewModel(
   private val userPreferencesRepository: UserPreferencesRepository,
   private val memoryRepository: MemoryRepository,
+  private val llmClient: LlmClient,
 ) : ViewModel() {
 
   private val _state = MutableStateFlow(OnboardingUiState())
   val state: StateFlow<OnboardingUiState> = _state.asStateFlow()
 
   private var introJob: Job? = null
+  private var extractionJob: Job? = null
+
+  private val extractionJson = Json {
+    ignoreUnknownKeys = true
+    isLenient = true
+  }
 
   fun handleIntent(intent: OnboardingIntent) {
     when (intent) {
@@ -42,22 +54,13 @@ class OnboardingViewModel(
       is OnboardingIntent.SelectPersona -> {
         _state.update { it.copy(selectedPersonaId = intent.personaId) }
       }
-      is OnboardingIntent.UpdateName -> _state.update { it.copy(name = intent.value) }
-      is OnboardingIntent.UpdateAge -> _state.update { it.copy(age = intent.value) }
-      is OnboardingIntent.UpdateGender -> _state.update { it.copy(gender = intent.value) }
-      is OnboardingIntent.UpdateReligion -> _state.update { it.copy(religion = intent.value) }
-      is OnboardingIntent.UpdatePreferredAddress -> {
-        _state.update { it.copy(preferredAddress = intent.value) }
+      is OnboardingIntent.UpdateAboutMe -> {
+        _state.update { it.copy(aboutMeText = intent.value, extractionError = null) }
       }
-      is OnboardingIntent.UpdateExtraInfo -> _state.update { it.copy(extraInfo = intent.value) }
       OnboardingIntent.Complete -> completeOnboarding()
     }
   }
 
-  /**
-   * Режим правки (вход с карты, урок 1): подтягиваем уже сохранённые персону, язык и профиль,
-   * чтобы Complete не затёр их пустыми дефолтами. На первом запуске не вызывается.
-   */
   fun loadExistingProfile() {
     viewModelScope.launch {
       val personaId = userPreferencesRepository.getDefaultPersonaId()
@@ -124,7 +127,7 @@ class OnboardingViewModel(
       OnboardingStep.LANGUAGE -> _state.update { it.copy(currentStep = OnboardingStep.INTRO) }
       OnboardingStep.INTRO -> _state.update { it.copy(currentStep = OnboardingStep.PERSONA) }
       OnboardingStep.PERSONA -> _state.update { it.copy(currentStep = OnboardingStep.PROFILE) }
-      OnboardingStep.PROFILE -> _state.update { it.copy(currentStep = OnboardingStep.WRAPUP) }
+      OnboardingStep.PROFILE -> extractProfileAndAdvance()
       OnboardingStep.WRAPUP -> _state.update { it.copy(currentStep = OnboardingStep.QUIZ) }
       OnboardingStep.QUIZ -> completeOnboarding()
     }
@@ -139,6 +142,93 @@ class OnboardingViewModel(
       OnboardingStep.QUIZ -> _state.update { it.copy(currentStep = OnboardingStep.WRAPUP) }
       OnboardingStep.LANGUAGE -> Unit
     }
+  }
+
+  private fun extractProfileAndAdvance() {
+    if (extractionJob?.isActive == true) return
+    val current = _state.value
+    if (current.aboutMeText.isBlank()) return
+
+    extractionJob = viewModelScope.launch {
+      _state.update { it.copy(isExtracting = true, extractionError = null) }
+      try {
+        val raw = collectExtractionText(current.aboutMeText)
+        val extracted = parseExtracted(raw)
+          ?: throw IllegalStateException("Не удалось разобрать ответ модели")
+
+        memoryRepository.saveUserProfile(
+          UserProfile(
+            name = extracted.name.trim(),
+            preferredAddress = extracted.preferredAddress.trim(),
+            age = extracted.age.trim(),
+            gender = extracted.gender.trim(),
+            religion = extracted.religion.trim(),
+            extraInfo = extracted.extraInfo.trim(),
+          ),
+        )
+
+        _state.update {
+          it.copy(
+            isExtracting = false,
+            name = extracted.name.ifBlank { it.name },
+            preferredAddress = extracted.preferredAddress.ifBlank { it.preferredAddress },
+            age = extracted.age.ifBlank { it.age },
+            gender = extracted.gender.ifBlank { it.gender },
+            religion = extracted.religion.ifBlank { it.religion },
+            extraInfo = extracted.extraInfo.ifBlank { it.extraInfo },
+            currentStep = OnboardingStep.WRAPUP,
+          )
+        }
+      } catch (e: Exception) {
+        _state.update {
+          it.copy(
+            isExtracting = false,
+            extractionError = e.message ?: "Не удалось получить ответ модели",
+          )
+        }
+      }
+    }
+  }
+
+  private suspend fun collectExtractionText(userText: String): String {
+    val buffer = StringBuilder()
+    var errorMessage: String? = null
+    llmClient.streamChat(
+      messages = listOf(
+        ChatMessage(role = "system", content = EXTRACTION_SYSTEM_PROMPT),
+        ChatMessage(role = "user", content = userText),
+      ),
+      tools = emptyList(),
+    ).collect { event ->
+      when (event) {
+        is StreamEvent.TextDelta -> buffer.append(event.content)
+        is StreamEvent.Error -> errorMessage = event.message
+        else -> Unit
+      }
+    }
+    if (buffer.isBlank() && errorMessage != null) {
+      throw IllegalStateException(errorMessage)
+    }
+    return buffer.toString()
+  }
+
+  private fun parseExtracted(raw: String): ExtractedProfile? {
+    val jsonText = stripToJsonObject(raw) ?: return null
+    return try {
+      extractionJson.decodeFromString(ExtractedProfile.serializer(), jsonText)
+    } catch (e: Exception) {
+      null
+    }
+  }
+
+  private fun stripToJsonObject(raw: String): String? {
+    val s = raw.trim()
+    val fenced = FENCED_JSON.find(s)
+    if (fenced != null) return fenced.groupValues[1].trim()
+    val start = s.indexOf('{')
+    val end = s.lastIndexOf('}')
+    if (start >= 0 && end > start) return s.substring(start, end + 1)
+    return null
   }
 
   private fun completeOnboarding() {
@@ -158,8 +248,6 @@ class OnboardingViewModel(
             extraInfo = current.extraInfo,
           ),
         )
-        // Навигацию первого запуска выполняет наблюдатель флага onboardingCompleted в
-        // MainActivity. Для режима правки экран реагирует на isCompleted.
         userPreferencesRepository.completeOnboarding(current.selectedPersonaId, current.selectedLanguage)
         _state.update { it.copy(isSaving = false, isCompleted = true) }
       } catch (e: Exception) {
@@ -173,7 +261,34 @@ class OnboardingViewModel(
     }
   }
 
+  @Serializable
+  private data class ExtractedProfile(
+    val name: String = "",
+    val preferredAddress: String = "",
+    val age: String = "",
+    val gender: String = "",
+    val religion: String = "",
+    val extraInfo: String = "",
+  )
+
   companion object {
     private const val STREAM_CHAR_DELAY_MS = 25L
+
+    private val FENCED_JSON = Regex("""```(?:json)?\s*([\s\S]+?)\s*```""")
+
+    private val EXTRACTION_SYSTEM_PROMPT = """
+      Ты извлекаешь данные профиля пользователя из его свободного рассказа о себе.
+      Верни СТРОГО один JSON-объект на русском, без пояснений и без markdown-обёрток.
+
+      Поля (все строки; пустая строка, если пользователь не упомянул):
+      - name: имя
+      - preferredAddress: как к нему обращаться (имя, "ты", "вы")
+      - age: возраст числом
+      - gender: "мужской" | "женский" | ""
+      - religion: религиозные предпочтения
+      - extraInfo: одна строка с прочим контекстом — занятие, интересы, особенности
+
+      Не выдумывай. Если поле не упомянуто — пустая строка. Ключи именно в camelCase.
+    """.trimIndent()
   }
 }
