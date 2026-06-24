@@ -66,20 +66,32 @@ class OnboardingViewModel(
       val personaId = userPreferencesRepository.getDefaultPersonaId()
       val language = userPreferencesRepository.getLanguage()
       val facts = memoryRepository.getFactsByCategory("profile").associate { it.key to it.value }
+      val stored = UserProfile(
+        name = facts["user.name"].orEmpty(),
+        preferredAddress = facts["user.preferred_address"].orEmpty(),
+        age = facts["user.age"].orEmpty(),
+        gender = facts["user.gender"].orEmpty(),
+        religion = facts["user.religion"].orEmpty(),
+        extraInfo = facts["user.extra_info"].orEmpty(),
+      )
       _state.update {
-        it.copy(
+        it.mergeProfile(stored).copy(
           selectedPersonaId = personaId,
           selectedLanguage = language,
-          name = facts["user.name"] ?: it.name,
-          preferredAddress = facts["user.preferred_address"] ?: it.preferredAddress,
-          age = facts["user.age"] ?: it.age,
-          gender = facts["user.gender"] ?: it.gender,
-          religion = facts["user.religion"] ?: it.religion,
-          extraInfo = facts["user.extra_info"] ?: it.extraInfo,
         )
       }
     }
   }
+
+  /** Keep existing field values when [other] has them blank — used by both load and extract. */
+  private fun OnboardingUiState.mergeProfile(other: UserProfile): OnboardingUiState = copy(
+    name = other.name.ifBlank { name },
+    preferredAddress = other.preferredAddress.ifBlank { preferredAddress },
+    age = other.age.ifBlank { age },
+    gender = other.gender.ifBlank { gender },
+    religion = other.religion.ifBlank { religion },
+    extraInfo = other.extraInfo.ifBlank { extraInfo },
+  )
 
   private fun startIntroStreamingIfNeeded() {
     val current = _state.value
@@ -160,26 +172,19 @@ class OnboardingViewModel(
         val extracted = parseExtracted(raw)
           ?: throw IllegalStateException("Не удалось разобрать ответ модели")
 
-        memoryRepository.saveUserProfile(
-          UserProfile(
-            name = extracted.name.trim(),
-            preferredAddress = extracted.preferredAddress.trim(),
-            age = extracted.age.trim(),
-            gender = extracted.gender.trim(),
-            religion = extracted.religion.trim(),
-            extraInfo = extracted.extraInfo.trim(),
-          ),
+        val provided = UserProfile(
+          name = extracted.name.trim(),
+          preferredAddress = extracted.preferredAddress.trim(),
+          age = extracted.age.trim(),
+          gender = extracted.gender.trim(),
+          religion = extracted.religion.trim(),
+          extraInfo = extracted.extraInfo.trim(),
         )
+        memoryRepository.saveUserProfile(provided)
 
         _state.update {
-          it.copy(
+          it.mergeProfile(provided).copy(
             isExtracting = false,
-            name = extracted.name.ifBlank { it.name },
-            preferredAddress = extracted.preferredAddress.ifBlank { it.preferredAddress },
-            age = extracted.age.ifBlank { it.age },
-            gender = extracted.gender.ifBlank { it.gender },
-            religion = extracted.religion.ifBlank { it.religion },
-            extraInfo = extracted.extraInfo.ifBlank { it.extraInfo },
             currentStep = OnboardingStep.WRAPUP,
           )
         }

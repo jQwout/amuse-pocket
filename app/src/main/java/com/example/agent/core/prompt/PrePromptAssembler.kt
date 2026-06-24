@@ -21,31 +21,16 @@ class PrePromptAssembler @Inject constructor(
 
   suspend fun assemble(conversationId: String, currentMessage: String): PromptContext =
     withContext(Dispatchers.IO) {
-      val systemBase = try {
-        application.assets.open("prompts/system_base.md").bufferedReader().use { it.readText() }
-      } catch (_: Exception) {
-        DEFAULT_SYSTEM_BASE
-      }
+      val systemBase = loadAsset("prompts/system_base.md") ?: DEFAULT_SYSTEM_BASE
 
       val conversation = conversationRepository.getConversation(conversationId)
       val personaId = conversation?.personaId ?: "sharp_partner"
-      val persona = try {
-        application.assets.open("personas/$personaId.md").bufferedReader().use { it.readText() }
-      } catch (_: Exception) {
-        "Характер: Деловой напарник по умолчанию."
-      }
+      val persona = loadAsset("personas/$personaId.md")
+        ?: "Характер: Деловой напарник по умолчанию."
 
       val tutorialPrompt = if (conversation?.isTutorial == true) {
-        val levelId = conversation.title
-        try {
-          application.assets.open("prompts/roadmap/$levelId.md").bufferedReader().use { it.readText() }
-        } catch (_: Exception) {
-          try {
-            application.assets.open("prompts/tutorial.md").bufferedReader().use { it.readText() }
-          } catch (_: Exception) {
-            null
-          }
-        }
+        loadAsset("prompts/roadmap/${conversation.title}.md")
+          ?: loadAsset("prompts/tutorial.md")
       } else null
 
       val profileFacts = memoryRepository.getFactsByCategory("profile")
@@ -131,6 +116,10 @@ class PrePromptAssembler @Inject constructor(
         history = window.verbatim,
       )
     }
+
+  private fun loadAsset(path: String): String? = runCatching {
+    application.assets.open(path).bufferedReader().use { it.readText() }
+  }.getOrNull()
 
   data class PromptContext(
     val systemPrompt: String,
