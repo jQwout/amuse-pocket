@@ -13,6 +13,9 @@ import com.aiopenpocket.agent.loop.PlanExecuteOrchestrator
 import com.aiopenpocket.agent.loop.SupervisorOrchestrator
 import com.aiopenpocket.data.repository.SettingsRepository
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.voice.input.VoiceInputController
+import com.aiopenpocket.voice.input.VoiceInputState
+import com.aiopenpocket.voice.input.appLanguageToBcp47
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
@@ -35,6 +38,7 @@ class ChatViewModel(
   private val supervisorOrchestrator: SupervisorOrchestrator,
   private val settingsRepository: SettingsRepository,
   private val userPreferencesRepository: UserPreferencesRepository,
+  private val voiceController: VoiceInputController,
 ) : ViewModel() {
 
   private val _state = MutableStateFlow(ChatUiState())
@@ -44,6 +48,30 @@ class ChatViewModel(
   private var messagesJob: Job? = null
   /** Last user message of the active turn, kept so a failed turn can be retried without re-adding it. */
   private var lastUserText: String? = null
+  private var responseStartTime: Long = 0L
+
+  init {
+    viewModelScope.launch {
+      voiceController.state.collect { vs ->
+        _state.update {
+          it.copy(
+            voiceState = vs,
+            voiceError = (vs as? VoiceInputState.Error)?.reason?.toUserMessage(),
+          )
+        }
+      }
+    }
+    viewModelScope.launch {
+      voiceController.transcripts.collect { transcript ->
+        _state.update { it.copy(inputText = appendTranscript(it.inputText, transcript)) }
+      }
+    }
+  }
+
+  override fun onCleared() {
+    voiceController.release()
+    super.onCleared()
+  }
 
   fun setConversationId(id: String) {
     if (_state.value.conversationId == id) return
@@ -97,6 +125,23 @@ class ChatViewModel(
       is ChatIntent.ToggleToolTrace -> _state.update { it.copy(showToolTrace = !it.showToolTrace) }
       is ChatIntent.TogglePin -> togglePin(intent.messageId)
       is ChatIntent.TogglePlanMode -> _state.update { it.copy(planMode = !it.planMode) }
+      is ChatIntent.ClearError -> _state.update { it.copy(error = null) }
+      is ChatIntent.NavigateBack -> { /* handled by navigation */ }
+      is ChatIntent.ToggleVoiceInput -> toggleVoiceInput()
+      is ChatIntent.ClearVoiceError -> {
+        voiceController.clearError()
+        _state.update { it.copy(voiceError = null) }
+      }
+    }
+  }
+
+  private fun toggleVoiceInput() {
+    when (_state.value.voiceState) {
+      is VoiceInputState.Listening -> voiceController.stop()
+      else -> viewModelScope.launch {
+        val tag = appLanguageToBcp47(userPreferencesRepository.getLanguage())
+        voiceController.start(tag)
+      }
     }
   }
 
@@ -106,6 +151,8 @@ class ChatViewModel(
 
     // Новый ход — новая попытка. lastUserText выставим только после успешного addMessage.
     lastUserText = null
+    // responseStartTime фиксирует начало ожидания, чтобы ResponseStatsBar показал «время ответа».
+    responseStartTime = System.currentTimeMillis()
     launchTurn(resetInput = true) {
       // Маршрут "chat/new" даёт пустой id — создаём диалог, иначе FK-нарушение при addMessage.
       val convId = ensureConversation(text)
@@ -212,6 +259,11 @@ class ChatViewModel(
           cardSpecs.drop(1).forEach { spec ->
             conversationRepository.addMessage(convId, "assistant", "", cardSpec = spec)
           }
+          val stats = ResponseStats(
+            responseTimeMs = System.currentTimeMillis() - responseStartTime,
+            completionTokens = event.result.completionTokensEstimate,
+            contextTokensUsed = event.result.promptTokensEstimate,
+          )
           _state.update {
             it.copy(
               isLoading = false,
@@ -219,6 +271,7 @@ class ChatViewModel(
               toolTrace = event.result.toolTrace,
               error = null,
               canRetry = false,
+              lastResponseStats = stats,
             )
           }
         }
@@ -259,4 +312,20 @@ class ChatViewModel(
     activeJob?.cancel()
     _state.update { it.copy(isLoading = false, streamingText = "") }
   }
+}
+
+private fun appendTranscript(current: String, transcript: String): String {
+  if (current.isBlank()) return transcript
+  return if (current.endsWith(' ') || current.endsWith('\n')) current + transcript
+  else "$current $transcript"
+}
+
+private fun VoiceInputState.ErrorReason.toUserMessage(): String = when (this) {
+  VoiceInputState.ErrorReason.Unavailable -> "Распознавание речи недоступно на устройстве"
+  VoiceInputState.ErrorReason.NoMatch -> "Не удалось распознать речь"
+  VoiceInputState.ErrorReason.Network -> "Нет сети для распознавания речи"
+  VoiceInputState.ErrorReason.Audio -> "Ошибка микрофона"
+  VoiceInputState.ErrorReason.Permission -> "Нет разрешения на доступ к микрофону"
+  VoiceInputState.ErrorReason.Busy -> "Распознаватель занят, попробуйте ещё раз"
+  VoiceInputState.ErrorReason.Other -> "Не удалось распознать речь"
 }

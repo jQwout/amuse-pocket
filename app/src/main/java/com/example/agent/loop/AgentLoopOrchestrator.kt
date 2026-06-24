@@ -2,6 +2,7 @@ package com.aiopenpocket.agent.loop
 
 import android.util.Log
 import com.aiopenpocket.agent.core.llm.ChatMessage
+import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.prompt.ConversationAnnotator
@@ -50,7 +51,16 @@ class AgentLoopOrchestrator @Inject constructor(
       // Mini-agent chats run with only their scoped tools; a general chat gets the full set.
       val tools = context.toolNames?.let { registry.getSchemasFor(it) } ?: registry.getAllSchemas()
       Log.d(TAG, "▶ chat turn conv=$conversationId scoped=${context.toolNames ?: "all"}")
-      val result = reactLoopRunner.run(conversationId, messages, tools, provider) { send(it) }
+      val baseResult = reactLoopRunner.run(conversationId, messages, tools, provider) { send(it) }
+
+      // Token estimates feed the chat's response stats bar; computed at the boundary so the
+      // ReactLoopRunner stays unaware of UI concerns.
+      val promptTokensEstimate = LlmContextConfig.estimateTokens(context.systemPrompt) +
+        context.history.sumOf { LlmContextConfig.estimateTokens(it.content) }
+      val result = baseResult.copy(
+        promptTokensEstimate = promptTokensEstimate,
+        completionTokensEstimate = LlmContextConfig.estimateTokens(baseResult.text),
+      )
 
       if (result.state == AgentState.ERROR) {
         Log.w(TAG, "✗ turn error: ${result.errorMessage}")
@@ -100,6 +110,8 @@ data class AgentResult(
   val iterations: Int,
   /** Set when [state] is ERROR; the message to surface to the user. */
   val errorMessage: String? = null,
+  val promptTokensEstimate: Int = 0,
+  val completionTokensEstimate: Int = 0,
 )
 
 data class ToolTrace(
