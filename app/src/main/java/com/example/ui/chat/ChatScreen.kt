@@ -1,8 +1,9 @@
-﻿package com.aiopenpocket.ui.chat
+package com.aiopenpocket.ui.chat
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,10 +20,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -41,12 +42,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.memory.model.Message
-import dev.zacsweers.metrox.viewmodel.metroViewModel
-import com.aiopenpocket.ui.components.StreamingBubble
-import com.aiopenpocket.ui.components.MarkdownText
 import com.aiopenpocket.ui.chat.components.ToolTracePanel
+import com.aiopenpocket.ui.components.MarkdownText
+import com.aiopenpocket.ui.components.StreamingBubble
+import com.aiopenpocket.ui.theme.MyApplicationTheme
+import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,6 +65,34 @@ fun ChatScreen(
     viewModel.setConversationId(conversationId)
   }
 
+  ChatContent(
+    state = state,
+    onNavigateBack = onNavigateBack,
+    onInputChange = { viewModel.handleIntent(ChatIntent.UpdateInput(it)) },
+    onSend = { viewModel.handleIntent(ChatIntent.SendMessage) },
+    onCancel = { viewModel.handleIntent(ChatIntent.CancelRequest) },
+    onToggleTrace = { viewModel.handleIntent(ChatIntent.ToggleToolTrace) },
+    onTogglePin = { viewModel.handleIntent(ChatIntent.TogglePin(it)) },
+    onSendMessage = viewModel::sendUserMessage,
+    onLessonComplete = {
+      state.levelId?.let(onOpenQuiz) ?: onNavigateBack()
+    },
+  )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChatContent(
+  state: ChatUiState,
+  onNavigateBack: () -> Unit,
+  onInputChange: (String) -> Unit,
+  onSend: () -> Unit,
+  onCancel: () -> Unit,
+  onToggleTrace: () -> Unit,
+  onTogglePin: (String) -> Unit,
+  onSendMessage: (String) -> Unit,
+  onLessonComplete: () -> Unit,
+) {
   Scaffold(
     topBar = {
       TopAppBar(
@@ -73,7 +104,7 @@ fun ChatScreen(
         },
         actions = {
           if (state.toolTrace.isNotEmpty()) {
-            IconButton(onClick = { viewModel.handleIntent(ChatIntent.ToggleToolTrace) }) {
+            IconButton(onClick = onToggleTrace) {
               Icon(Icons.Default.Build, contentDescription = "Tool trace")
             }
           }
@@ -84,44 +115,26 @@ fun ChatScreen(
       )
     },
   ) { padding ->
-    Column(
-      modifier = Modifier
-        .fillMaxSize()
-        .padding(padding),
-    ) {
+    Column(modifier = Modifier.fillMaxSize().padding(padding)) {
       val listState = rememberLazyListState()
       val hasStreamingItem = state.isLoading
       LaunchedEffect(state.messages.size, state.streamingText, hasStreamingItem) {
         val lastIndex = state.messages.size + (if (hasStreamingItem) 1 else 0) - 1
-        if (lastIndex >= 0) {
-          listState.animateScrollToItem(lastIndex)
-        }
+        if (lastIndex >= 0) listState.animateScrollToItem(lastIndex)
       }
 
       val pinned = state.messages.filter { it.isPinned }
-      if (pinned.isNotEmpty()) {
-        PinnedBar(
-          pinned = pinned,
-          onUnpin = { viewModel.handleIntent(ChatIntent.TogglePin(it)) },
-        )
-      }
+      if (pinned.isNotEmpty()) PinnedBar(pinned = pinned, onUnpin = onTogglePin)
 
-      LazyColumn(
-        state = listState,
-        modifier = Modifier.weight(1f),
-      ) {
+      LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
         items(state.messages, key = { it.id }) { message ->
           MessageBubble(
             message = message,
-            onTogglePin = { viewModel.handleIntent(ChatIntent.TogglePin(message.id)) },
+            onTogglePin = { onTogglePin(message.id) },
             interactiveCards = state.isTutorial,
-            onChoiceSelected = { viewModel.sendUserMessage(it) },
-            onFormSubmitted = { viewModel.sendUserMessage(it) },
-            // Lesson finished in chat → go to the standalone quiz screen for this level.
-            onLessonComplete = {
-              val levelId = state.levelId
-              if (levelId != null) onOpenQuiz(levelId) else onNavigateBack()
-            },
+            onChoiceSelected = onSendMessage,
+            onFormSubmitted = onSendMessage,
+            onLessonComplete = onLessonComplete,
           )
         }
         if (hasStreamingItem) {
@@ -136,15 +149,12 @@ fun ChatScreen(
       }
 
       if (state.showToolTrace && state.toolTrace.isNotEmpty()) {
-        ToolTracePanel(
-          traces = state.toolTrace,
-          modifier = Modifier.padding(8.dp),
-        )
+        ToolTracePanel(traces = state.toolTrace, modifier = Modifier.padding(8.dp))
       }
 
-      if (state.error != null) {
+      state.error?.let {
         Text(
-          text = state.error!!,
+          text = it,
           color = MaterialTheme.colorScheme.error,
           modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
         )
@@ -152,9 +162,9 @@ fun ChatScreen(
 
       ChatInput(
         value = state.inputText,
-        onValueChange = { viewModel.handleIntent(ChatIntent.UpdateInput(it)) },
-        onSend = { viewModel.handleIntent(ChatIntent.SendMessage) },
-        onCancel = { viewModel.handleIntent(ChatIntent.CancelRequest) },
+        onValueChange = onInputChange,
+        onSend = onSend,
+        onCancel = onCancel,
         isLoading = state.isLoading,
       )
     }
@@ -173,10 +183,8 @@ private fun MessageBubble(
 ) {
   val isUser = message.role == "user"
   val hasCard = !message.cardSpec.isNullOrBlank()
-  // Lesson chats render real interactive widgets; elsewhere cards fall back to markdown.
   val interactive = interactiveCards && hasCard
 
-  // Markdown-only mode: render_card specs are shown as markdown, not interactive widgets.
   val cardMarkdown = message.cardSpec
     ?.takeIf { it.isNotBlank() && !interactive }
     ?.let { DrivenUiEngine.parseJsonString(it).toMarkdown() }
@@ -186,42 +194,22 @@ private fun MessageBubble(
     else -> message.content
   }
 
-  val backgroundColor = if (isUser) {
-    MaterialTheme.colorScheme.primaryContainer
-  } else {
-    MaterialTheme.colorScheme.surfaceVariant
-  }
-  val alignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart
-
   Box(
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(horizontal = 16.dp, vertical = 4.dp),
-    contentAlignment = alignment,
+    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+    contentAlignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart,
   ) {
     Column(
       modifier = Modifier
         .clip(RoundedCornerShape(16.dp))
-        .background(backgroundColor)
-        // Long-press a message to pin / unpin it.
+        .background(
+          if (isUser) MaterialTheme.colorScheme.primaryContainer
+          else MaterialTheme.colorScheme.surfaceVariant,
+        )
         .combinedClickable(onClick = {}, onLongClick = onTogglePin)
         .padding(12.dp),
     ) {
       if (message.isPinned) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          Icon(
-            imageVector = Icons.Default.PushPin,
-            contentDescription = "Закреплено",
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(14.dp),
-          )
-          Spacer(modifier = Modifier.size(4.dp))
-          Text(
-            text = "Закреплено",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.primary,
-          )
-        }
+        PinnedTag()
         Spacer(modifier = Modifier.height(4.dp))
       }
       if (interactive) {
@@ -243,36 +231,52 @@ private fun MessageBubble(
 }
 
 @Composable
-private fun PinnedBar(
-  pinned: List<Message>,
-  onUnpin: (String) -> Unit,
-) {
+private fun PinnedTag() {
+  Row(
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(4.dp),
+  ) {
+    Icon(
+      Icons.Default.PushPin,
+      contentDescription = "Закреплено",
+      tint = MaterialTheme.colorScheme.primary,
+      modifier = Modifier.size(14.dp),
+    )
+    Text(
+      "Закреплено",
+      style = MaterialTheme.typography.labelSmall,
+      color = MaterialTheme.colorScheme.primary,
+    )
+  }
+}
+
+@Composable
+private fun PinnedBar(pinned: List<Message>, onUnpin: (String) -> Unit) {
   Column(
     modifier = Modifier
       .fillMaxWidth()
       .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
       .padding(horizontal = 16.dp, vertical = 8.dp),
   ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
       Icon(
-        imageVector = Icons.Default.PushPin,
+        Icons.Default.PushPin,
         contentDescription = null,
         tint = MaterialTheme.colorScheme.primary,
         modifier = Modifier.size(16.dp),
       )
-      Spacer(modifier = Modifier.size(6.dp))
       Text(
-        text = "Закреплённые (${pinned.size})",
+        "Закреплённые (${pinned.size})",
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.primary,
       )
     }
     Spacer(modifier = Modifier.height(4.dp))
     pinned.forEach { msg ->
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
+      Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Text(
           text = pinnedSnippet(msg),
           style = MaterialTheme.typography.bodySmall,
@@ -281,12 +285,9 @@ private fun PinnedBar(
           overflow = TextOverflow.Ellipsis,
           modifier = Modifier.weight(1f),
         )
-        IconButton(
-          onClick = { onUnpin(msg.id) },
-          modifier = Modifier.size(28.dp),
-        ) {
+        IconButton(onClick = { onUnpin(msg.id) }, modifier = Modifier.size(28.dp)) {
           Icon(
-            imageVector = Icons.Default.Close,
+            Icons.Default.Close,
             contentDescription = "Открепить",
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(16.dp),
@@ -312,9 +313,7 @@ private fun ChatInput(
   isLoading: Boolean,
 ) {
   Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(8.dp),
+    modifier = Modifier.fillMaxWidth().padding(8.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
     OutlinedTextField(
@@ -326,7 +325,6 @@ private fun ChatInput(
       maxLines = 4,
     )
     if (isLoading) {
-      // Прогресс под кнопкой «стоп» — даёт пользователю возможность отменить ход.
       Box(contentAlignment = Alignment.Center) {
         CircularProgressIndicator(modifier = Modifier.padding(8.dp))
         IconButton(onClick = onCancel) {
@@ -338,5 +336,46 @@ private fun ChatInput(
         Icon(Icons.AutoMirrored.Default.Send, contentDescription = "Отправить")
       }
     }
+  }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1C1B1F)
+@Composable
+private fun ChatScreenPreview() {
+  MyApplicationTheme {
+    ChatContent(
+      state = ChatUiState(
+        conversationId = "demo",
+        messages = listOf(
+          Message(
+            id = "1",
+            conversationId = "demo",
+            role = "user",
+            content = "Привет! Что ты умеешь?",
+            toolCallsJson = null,
+            createdAt = 0L,
+          ),
+          Message(
+            id = "2",
+            conversationId = "demo",
+            role = "assistant",
+            content = "Могу вести заметки, искать в памяти, ставить напоминания и собирать карточки.",
+            toolCallsJson = null,
+            isPinned = true,
+            createdAt = 0L,
+          ),
+        ),
+        inputText = "",
+        isLoading = false,
+      ),
+      onNavigateBack = {},
+      onInputChange = {},
+      onSend = {},
+      onCancel = {},
+      onToggleTrace = {},
+      onTogglePin = {},
+      onSendMessage = {},
+      onLessonComplete = {},
+    )
   }
 }
