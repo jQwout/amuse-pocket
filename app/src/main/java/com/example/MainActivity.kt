@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -91,25 +92,21 @@ class MainActivity : ComponentActivity() {
                         else -> {
                             val navController = rememberNavController()
                             val newChatToken by openNewChatRequest.collectAsState()
-                            LaunchedEffect(onboardingCompleted) {
-                                if (onboardingCompleted == true) {
-                                    navController.navigate("roadmap") {
-                                        popUpTo("onboarding") { inclusive = true }
-                                        launchSingleTop = true
-                                    }
+                            fun openRoadmapAfterOnboarding() {
+                                navController.navigate("roadmap") {
+                                    popUpTo("onboarding") { inclusive = true }
+                                    launchSingleTop = true
                                 }
+                            }
+                            LaunchedEffect(onboardingCompleted) {
+                                if (onboardingCompleted == true) openRoadmapAfterOnboarding()
                             }
                             // Открываем новый чат при вызове голосового помощника.
                             // Онбординг должен быть завершён — иначе чат недоступен.
                             LaunchedEffect(newChatToken, onboardingCompleted) {
                                 if (newChatToken > 0 && onboardingCompleted == true) {
-                                    navController.navigate("roadmap") {
-                                        popUpTo("onboarding") { inclusive = true }
-                                        launchSingleTop = true
-                                    }
-                                    navController.navigate("chat/new") {
-                                        launchSingleTop = true
-                                    }
+                                    openRoadmapAfterOnboarding()
+                                    navController.singleTop("chat/new")
                                 }
                             }
                             NavHost(
@@ -133,16 +130,8 @@ class MainActivity : ComponentActivity() {
                                         onReopenOnboarding = {
                                             navController.navigate("onboarding_edit")
                                         },
-                                        onNavigateToChats = {
-                                            navController.navigate("conversations") {
-                                                launchSingleTop = true
-                                            }
-                                        },
-                                        onNavigateToLibrary = {
-                                            navController.navigate("library") {
-                                                launchSingleTop = true
-                                            }
-                                        },
+                                        onNavigateToChats = { navController.singleTop("conversations") },
+                                        onNavigateToLibrary = { navController.singleTop("library") },
                                         onNavigateToSettings = {
                                             navController.navigate("settings")
                                         },
@@ -150,16 +139,8 @@ class MainActivity : ComponentActivity() {
                                 }
                                 composable("library") {
                                     LibraryScreen(
-                                        onNavigateToChats = {
-                                            navController.navigate("conversations") {
-                                                launchSingleTop = true
-                                            }
-                                        },
-                                        onNavigateToPath = {
-                                            navController.navigate("roadmap") {
-                                                launchSingleTop = true
-                                            }
-                                        },
+                                        onNavigateToChats = { navController.singleTop("conversations") },
+                                        onNavigateToPath = { navController.singleTop("roadmap") },
                                         onNavigateToSettings = {
                                             navController.navigate("settings")
                                         },
@@ -173,21 +154,9 @@ class MainActivity : ComponentActivity() {
                                         onNavigateToSettings = {
                                             navController.navigate("settings")
                                         },
-                                        onNavigateToRoadmap = {
-                                            navController.navigate("roadmap") {
-                                                launchSingleTop = true
-                                            }
-                                        },
-                                        onNavigateToLibrary = {
-                                            navController.navigate("library") {
-                                                launchSingleTop = true
-                                            }
-                                        },
-                                        onNavigateToGraph = {
-                                            navController.navigate("memory_graph") {
-                                                launchSingleTop = true
-                                            }
-                                        },
+                                        onNavigateToRoadmap = { navController.singleTop("roadmap") },
+                                        onNavigateToLibrary = { navController.singleTop("library") },
+                                        onNavigateToGraph = { navController.singleTop("memory_graph") },
                                     )
                                 }
                                 composable("memory_graph") {
@@ -238,9 +207,8 @@ class MainActivity : ComponentActivity() {
                                         onFinished = {
                                             // Назад к карте: снимаем чат и экран-квиз со стека.
                                             // Если карты нет в стеке (туториал открыли из списка чатов) — идём на неё.
-                                            val popped = navController.popBackStack("roadmap", inclusive = false)
-                                            if (!popped) {
-                                                navController.navigate("roadmap") { launchSingleTop = true }
+                                            if (!navController.popBackStack("roadmap", inclusive = false)) {
+                                                navController.singleTop("roadmap")
                                             }
                                         },
                                     )
@@ -268,4 +236,8 @@ class MainActivity : ComponentActivity() {
         /** Открыть новый чат (приложение вызвано как голосовой помощник). */
         const val ACTION_OPEN_NEW_CHAT = "com.aiopenpocket.action.OPEN_NEW_CHAT"
     }
+}
+
+private fun NavController.singleTop(route: String) {
+    navigate(route) { launchSingleTop = true }
 }
