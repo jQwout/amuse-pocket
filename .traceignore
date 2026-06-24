@@ -1,0 +1,6 @@
+# .traceignore -- paths whose @trace markers are NOT real links (gitignore-style).
+# Docs and examples often contain illustrative markers; exclude them here.
+#
+# *.md            # all markdown (docs/examples)
+# docs/           # everything under docs/
+# **/testdata/    # fixture trees

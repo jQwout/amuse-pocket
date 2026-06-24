@@ -1,5 +1,6 @@
 ﻿package com.aiopenpocket.agent.core.mcp
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonElement
 import dev.zacsweers.metro.Inject
 
@@ -11,6 +12,9 @@ class ToolExecutor @Inject constructor(
       ?: return ToolResult.Error("Tool '$name' not found", recoverable = false)
     return try {
       tool.execute(arguments)
+    } catch (e: CancellationException) {
+      // Отмена запроса (юзер нажал Stop) — не глотаем, иначе цикл агента поедет дальше.
+      throw e
     } catch (e: Exception) {
       ToolResult.Error("Execution failed: ${e.message}", recoverable = true)
     }

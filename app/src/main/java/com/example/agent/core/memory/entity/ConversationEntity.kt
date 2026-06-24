@@ -12,4 +12,6 @@ data class ConversationEntity(
   val personaId: String = "sharp_partner",
   val summary: String? = null,
   val isTutorial: Boolean = false,
+  /** Bound mini-agent id (scopes tools + role); null = general assistant. */
+  val agentId: String? = null,
 )

@@ -32,7 +32,7 @@ class FileTools(
         "properties" to JsonObject(mapOf(
           "action" to JsonObject(mapOf(
             "type" to JsonPrimitive("string"),
-            "enum" to JsonPrimitive("read_file,write_file,list_dir,search_files"),
+            "enum" to kotlinx.serialization.json.JsonArray(listOf(JsonPrimitive("read_file"), JsonPrimitive("write_file"), JsonPrimitive("list_dir"), JsonPrimitive("search_files"))),
             "description" to JsonPrimitive("Действие: read_file, write_file, list_dir, search_files"),
           )),
           "path" to JsonObject(mapOf(
