@@ -6,6 +6,7 @@ import android.net.Uri
 import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
+import com.aiopenpocket.agent.core.mcp.missingArg
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -56,7 +57,7 @@ class EmailTool(
 
   override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult {
     val action = (arguments["action"] as? JsonPrimitive)?.content
-      ?: return ToolResult.Error("Missing 'action'")
+      ?: return missingArg("action")
     if (action != "compose") return ToolResult.Error("Unknown action: $action")
 
     val to = (arguments["to"] as? JsonPrimitive)?.content
