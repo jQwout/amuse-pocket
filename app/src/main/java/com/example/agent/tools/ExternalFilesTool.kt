@@ -6,6 +6,7 @@ import androidx.documentfile.provider.DocumentFile
 import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
+import com.aiopenpocket.agent.core.mcp.missingArg
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -54,9 +55,9 @@ class ExternalFilesTool(
 
   override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult {
     val action = (arguments["action"] as? JsonPrimitive)?.content
-      ?: return ToolResult.Error("Missing 'action'")
+      ?: return missingArg("action")
     val uriString = (arguments["uri"] as? JsonPrimitive)?.content
-      ?: return ToolResult.Error("Missing 'uri'")
+      ?: return missingArg("uri")
     val uri = Uri.parse(uriString)
 
     return when (action) {

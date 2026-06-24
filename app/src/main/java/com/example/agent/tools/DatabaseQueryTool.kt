@@ -5,6 +5,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
+import com.aiopenpocket.agent.core.mcp.missingArg
 import com.aiopenpocket.data.database.AppDatabase
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
@@ -45,7 +46,7 @@ class DatabaseQueryTool(
 
   override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult {
     val sql = (arguments["sql"] as? JsonPrimitive)?.content
-      ?: return ToolResult.Error("Missing 'sql'")
+      ?: return missingArg("sql")
 
     if (!isAllowed(sql)) {
       return ToolResult.Error(

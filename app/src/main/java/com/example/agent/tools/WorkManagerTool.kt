@@ -10,6 +10,7 @@ import androidx.work.WorkManager
 import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
+import com.aiopenpocket.agent.core.mcp.missingArg
 import com.aiopenpocket.agent.workers.NotificationWorker
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
@@ -71,7 +72,7 @@ class WorkManagerTool(
 
   override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult {
     val action = (arguments["action"] as? JsonPrimitive)?.content
-      ?: return ToolResult.Error("Missing 'action'")
+      ?: return missingArg("action")
     val workManager = WorkManager.getInstance(context)
 
     return when (action) {
@@ -129,7 +130,7 @@ class WorkManagerTool(
 
       "cancel_work" -> {
         val workId = (arguments["work_id"] as? JsonPrimitive)?.content
-          ?: return ToolResult.Error("Missing 'work_id'")
+          ?: return missingArg("work_id")
         workManager.cancelUniqueWork(workId)
         ToolResult.Success("Cancelled work: $workId")
       }

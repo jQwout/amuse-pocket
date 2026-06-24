@@ -3,6 +3,7 @@
 import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
+import com.aiopenpocket.agent.core.mcp.missingArg
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -43,7 +44,7 @@ class RenderCardTool : Tool {
 
   override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult {
     val template = (arguments["template"] as? JsonPrimitive)?.content
-      ?: return ToolResult.Error("Missing 'template'")
+      ?: return missingArg("template")
     val params = arguments["params"].toString()
     val json = """{"template":"$template","params":$params}"""
     return ToolResult.Success(json)

@@ -8,6 +8,7 @@ import android.provider.CalendarContract
 import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
+import com.aiopenpocket.agent.core.mcp.missingArg
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -82,7 +83,7 @@ class CalendarTool(
 
   override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult {
     val action = (arguments["action"] as? JsonPrimitive)?.content
-      ?: return ToolResult.Error("Missing 'action'")
+      ?: return missingArg("action")
 
     return when (action) {
       "list_events" -> listEvents(arguments)
@@ -143,7 +144,7 @@ class CalendarTool(
     context.requirePermission(Manifest.permission.WRITE_CALENDAR, "запись в календарь")?.let { return it }
 
     val title = (arguments["title"] as? JsonPrimitive)?.content
-      ?: return ToolResult.Error("Missing 'title'")
+      ?: return missingArg("title")
     val start = (arguments["start"] as? JsonPrimitive)?.content?.toLongOrNull()
       ?: return ToolResult.Error("Missing 'start' (Unix-время в мс)")
     val durationMin = (arguments["duration_minutes"] as? JsonPrimitive)?.content?.toLongOrNull() ?: 60L
@@ -175,7 +176,7 @@ class CalendarTool(
     context.requirePermission(Manifest.permission.WRITE_CALENDAR, "запись в календарь")?.let { return it }
 
     val eventId = (arguments["event_id"] as? JsonPrimitive)?.content?.toLongOrNull()
-      ?: return ToolResult.Error("Missing 'event_id'")
+      ?: return missingArg("event_id")
     val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId)
     val deleted = context.contentResolver.delete(uri, null, null)
     return if (deleted > 0) {
