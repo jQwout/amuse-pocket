@@ -3,6 +3,7 @@
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
+import com.aiopenpocket.agent.core.persona.PersonaCatalog
 import com.aiopenpocket.data.repository.SettingsRepository
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
@@ -35,15 +36,7 @@ class SettingsViewModel(
           githubKey = settingsRepository.getApiKey("GITHUB"),
           selectedProvider = settingsRepository.getSelectedProvider(),
           personaId = userPreferencesRepository.getDefaultPersonaId(),
-          personas = listOf(
-            "sharp_partner",
-            "attentive_secretary",
-            "egalitarian_partner",
-            "friendly_companion",
-            "ironic_assistant",
-            "silent_butler",
-            "strict_coach",
-          ),
+          personas = PersonaCatalog.all.map { it.id },
         )
       }
     }

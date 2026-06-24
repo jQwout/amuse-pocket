@@ -137,12 +137,12 @@ class ChatViewModel(
                 .filter { it.toolName == "render_card" }
                 .mapNotNull { (it.result as? ToolResult.Success)?.data }
 
-              val text = event.result.text
-              if (text.isNotBlank() || cardSpecs.isNotEmpty()) {
+              val replyText = event.result.text
+              if (replyText.isNotBlank() || cardSpecs.isNotEmpty()) {
                 conversationRepository.addMessage(
                   convId,
                   "assistant",
-                  text,
+                  replyText,
                   cardSpec = cardSpecs.firstOrNull(),
                 )
               }
