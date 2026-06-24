@@ -27,11 +27,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.agent.core.persona.PersonaCatalog
 import com.aiopenpocket.agent.core.persona.PersonaInfo
 import com.aiopenpocket.agent.core.persona.PersonaQuote
 import com.aiopenpocket.agent.core.persona.PersonaStats
 import com.aiopenpocket.ui.theme.BorderDark
+import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.ui.theme.PersonaCardBg
 import com.aiopenpocket.ui.theme.PersonaQuoteBg
 import com.aiopenpocket.ui.theme.PurpleAccent
@@ -210,5 +213,13 @@ private fun QuoteRow(quote: PersonaQuote) {
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurface,
     )
+  }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1C1B1F, heightDp = 540)
+@Composable
+private fun PersonaCardPreview() {
+  MyApplicationTheme {
+    PersonaCard(persona = PersonaCatalog.all.first(), isSelected = true, onSelect = {})
   }
 }
