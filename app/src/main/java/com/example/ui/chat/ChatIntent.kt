@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.ui.chat
+package com.aiopenpocket.ui.chat
 
 sealed class ChatIntent {
   data class UpdateInput(val text: String) : ChatIntent()
@@ -8,4 +8,6 @@ sealed class ChatIntent {
   data class TogglePin(val messageId: String) : ChatIntent()
   data object ClearError : ChatIntent()
   data object NavigateBack : ChatIntent()
+  data object ToggleVoiceInput : ChatIntent()
+  data object ClearVoiceError : ChatIntent()
 }
