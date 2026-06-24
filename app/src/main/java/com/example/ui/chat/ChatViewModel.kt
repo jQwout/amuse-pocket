@@ -36,6 +36,7 @@ class ChatViewModel(
 
   private var activeJob: Job? = null
   private var messagesJob: Job? = null
+  private var responseStartTime: Long = 0L
 
   fun setConversationId(id: String) {
     if (_state.value.conversationId == id) return
@@ -94,6 +95,7 @@ class ChatViewModel(
 
     activeJob?.cancel()
 
+    responseStartTime = System.currentTimeMillis()
     _state.update {
       it.copy(
         inputText = "",
@@ -150,11 +152,17 @@ class ChatViewModel(
               cardSpecs.drop(1).forEach { spec ->
                 conversationRepository.addMessage(convId, "assistant", "", cardSpec = spec)
               }
+              val stats = ResponseStats(
+                responseTimeMs = System.currentTimeMillis() - responseStartTime,
+                completionTokens = event.result.completionTokensEstimate,
+                contextTokensUsed = event.result.promptTokensEstimate,
+              )
               _state.update {
                 it.copy(
                   isLoading = false,
                   streamingText = "",
                   toolTrace = event.result.toolTrace,
+                  lastResponseStats = stats,
                 )
               }
             }
