@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.agent.loop
+package com.aiopenpocket.agent.loop
 
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.LlmClient
@@ -10,20 +10,22 @@ import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
 import com.aiopenpocket.agent.core.prompt.ConversationAnnotator
 import com.aiopenpocket.agent.core.prompt.PrePromptAssembler
+import com.aiopenpocket.di.AppScope
+import dev.zacsweers.metro.Inject
+import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ProducerScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import dev.zacsweers.metro.Inject
-import dev.zacsweers.metro.SingleIn
-import com.aiopenpocket.di.AppScope
 
 @SingleIn(AppScope::class)
 class AgentLoopOrchestrator @Inject constructor(
@@ -45,23 +47,21 @@ class AgentLoopOrchestrator @Inject constructor(
     provider: LlmProvider = LlmProvider.AUTO,
   ): Flow<AgentEvent> = channelFlow {
     val context = prePromptAssembler.assemble(conversationId, userMessage)
-    val messages = mutableListOf<ChatMessage>()
-    messages += ChatMessage(role = "system", content = context.systemPrompt)
-    messages += context.history.map { it.toChatMessage() }
     // The caller persists the user message to DB before calling execute(),
     // so it's already included in context.history via ContextWindowBuilder.
+    val messages = mutableListOf(ChatMessage(role = "system", content = context.systemPrompt))
+    messages += context.history.map { it.toChatMessage() }
 
     val tools = registry.getAllSchemas()
     val toolTrace = mutableListOf<ToolTrace>()
-    var accumulatedText = ""
-
     var done = false
+
     for (iteration in 1..MAX_ITERATIONS) {
       if (done) break
       var toolCalledThisIteration = false
       // Текст копится в рамках одной итерации (одного хода модели). Финальный ответ —
       // это последняя итерация, поэтому преамбла перед tool-call не должна склеиваться с ним.
-      accumulatedText = ""
+      var accumulatedText = ""
       send(AgentEvent.StateChanged(AgentState.STREAMING))
 
       llmClient.streamChat(messages, tools, provider).collect { chunk ->
@@ -73,64 +73,14 @@ class AgentLoopOrchestrator @Inject constructor(
           }
           is StreamEvent.ToolCall -> {
             toolCalledThisIteration = true
-            send(AgentEvent.StateChanged(AgentState.EXECUTING_TOOL))
-            send(AgentEvent.ToolStarted(chunk.name, chunk.arguments))
-
-            val result = toolExecutor.execute(chunk.name, chunk.arguments)
-            toolTrace += ToolTrace(
-              iteration = iteration,
-              toolName = chunk.name,
-              arguments = chunk.arguments,
-              result = result,
-            )
-            send(AgentEvent.ToolCompleted(chunk.name, result, iteration, chunk.arguments))
-
-            memoryRepository.saveEpisode(
-              type = "tool_call",
-              payload = buildJsonObject {
-                put("id", chunk.id)
-                put("name", chunk.name)
-                put("arguments", JsonObject(chunk.arguments))
-              }.toString(),
-              outcome = result.toString(),
-              conversationId = conversationId,
-            )
-
-            messages += ChatMessage(
-              role = "assistant",
-              toolCalls = listOf(
-                ChatMessage.ToolCallData(
-                  id = chunk.id,
-                  function = ChatMessage.ToolCallData.FunctionCall(
-                    name = chunk.name,
-                    arguments = Json.encodeToString(chunk.arguments),
-                  ),
-                ),
-              ),
-            )
-            messages += ChatMessage(
-              role = "tool",
-              toolCallId = chunk.id,
-              content = resultToString(result),
-            )
+            toolTrace += handleToolCall(chunk, iteration, conversationId, messages)
           }
           is StreamEvent.Finish -> {
-            if (chunk.reason == "tool_calls" || toolCalledThisIteration) {
-              // Инструменты выполнены, их результаты уже добавлены в messages.
-              // Не завершаем — на следующей итерации модель получит вывод инструментов
-              // и сформирует финальный ответ.
-            } else {
+            // tool_calls finish → не завершаем: на следующей итерации модель получит вывод
+            // инструментов и сформирует финальный ответ.
+            if (chunk.reason != "tool_calls" && !toolCalledThisIteration) {
               send(AgentEvent.StateChanged(AgentState.FINISHED))
-              send(
-                AgentEvent.Completed(
-                  AgentResult(
-                    text = accumulatedText,
-                    toolTrace = toolTrace,
-                    state = AgentState.FINISHED,
-                    iterations = iteration,
-                  ),
-                ),
-              )
+              send(AgentEvent.Completed(AgentResult(accumulatedText, toolTrace.toList(), AgentState.FINISHED, iteration)))
               done = true
             }
           }
@@ -150,9 +100,53 @@ class AgentLoopOrchestrator @Inject constructor(
     }
   }.buffer(Channel.UNLIMITED).flowOn(Dispatchers.IO)
 
-  private fun resultToString(result: ToolResult): String = when (result) {
-    is ToolResult.Success -> result.data
-    is ToolResult.Error -> "Error: ${result.message}"
+  private suspend fun ProducerScope<AgentEvent>.handleToolCall(
+    chunk: StreamEvent.ToolCall,
+    iteration: Int,
+    conversationId: String,
+    messages: MutableList<ChatMessage>,
+  ): ToolTrace {
+    send(AgentEvent.StateChanged(AgentState.EXECUTING_TOOL))
+    send(AgentEvent.ToolStarted(chunk.name, chunk.arguments))
+
+    val result = toolExecutor.execute(chunk.name, chunk.arguments)
+    val trace = ToolTrace(iteration, chunk.name, chunk.arguments, result)
+    send(AgentEvent.ToolCompleted(chunk.name, result, iteration, chunk.arguments))
+
+    memoryRepository.saveEpisode(
+      type = "tool_call",
+      payload = buildJsonObject {
+        put("id", chunk.id)
+        put("name", chunk.name)
+        put("arguments", JsonObject(chunk.arguments))
+      }.toString(),
+      outcome = result.toString(),
+      conversationId = conversationId,
+    )
+
+    messages += ChatMessage(
+      role = "assistant",
+      toolCalls = listOf(
+        ChatMessage.ToolCallData(
+          id = chunk.id,
+          function = ChatMessage.ToolCallData.FunctionCall(
+            name = chunk.name,
+            arguments = Json.encodeToString(chunk.arguments),
+          ),
+        ),
+      ),
+    )
+    messages += ChatMessage(
+      role = "tool",
+      toolCallId = chunk.id,
+      content = result.asMessageContent(),
+    )
+    return trace
+  }
+
+  private fun ToolResult.asMessageContent(): String = when (this) {
+    is ToolResult.Success -> data
+    is ToolResult.Error -> "Error: $message"
   }
 
   private fun PrePromptAssembler.PromptMessage.toChatMessage(): ChatMessage =
@@ -160,11 +154,7 @@ class AgentLoopOrchestrator @Inject constructor(
       role = role,
       content = content,
       toolCalls = toolCallsJson?.let { json ->
-        try {
-          Json.decodeFromString<List<ChatMessage.ToolCallData>>(json)
-        } catch (_: Exception) {
-          null
-        }
+        runCatching { Json.decodeFromString<List<ChatMessage.ToolCallData>>(json) }.getOrNull()
       },
     )
 }
@@ -181,19 +171,19 @@ data class AgentResult(
 data class ToolTrace(
   val iteration: Int,
   val toolName: String,
-  val arguments: Map<String, kotlinx.serialization.json.JsonElement>,
+  val arguments: Map<String, JsonElement>,
   val result: ToolResult,
   val timestamp: Long = System.currentTimeMillis(),
 )
 
 sealed class AgentEvent {
   data class TextDelta(val content: String) : AgentEvent()
-  data class ToolStarted(val name: String, val args: Map<String, kotlinx.serialization.json.JsonElement>) : AgentEvent()
+  data class ToolStarted(val name: String, val args: Map<String, JsonElement>) : AgentEvent()
   data class ToolCompleted(
     val name: String,
     val result: ToolResult,
     val iteration: Int,
-    val arguments: Map<String, kotlinx.serialization.json.JsonElement>,
+    val arguments: Map<String, JsonElement>,
   ) : AgentEvent()
   data class StateChanged(val state: AgentState) : AgentEvent()
   data class Completed(val result: AgentResult) : AgentEvent()
