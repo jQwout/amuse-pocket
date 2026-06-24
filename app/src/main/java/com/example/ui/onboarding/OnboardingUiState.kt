@@ -17,6 +17,9 @@ data class OnboardingUiState(
   val isIntroComplete: Boolean = false,
   val introAlreadyPlayed: Boolean = false,
   val selectedPersonaId: String = "sharp_partner",
+  val aboutMeText: String = "",
+  val isExtracting: Boolean = false,
+  val extractionError: String? = null,
   val name: String = "",
   val age: String = "",
   val gender: String = "",
@@ -31,14 +34,15 @@ data class OnboardingUiState(
     OnboardingStep.LANGUAGE -> selectedLanguage.isNotBlank()
     OnboardingStep.INTRO -> isIntroComplete
     OnboardingStep.PERSONA -> selectedPersonaId.isNotBlank()
-    OnboardingStep.PROFILE -> name.isNotBlank() && preferredAddress.isNotBlank() && !isSaving
+    OnboardingStep.PROFILE -> aboutMeText.isNotBlank() && !isExtracting && !isSaving
     OnboardingStep.WRAPUP -> !isSaving
     OnboardingStep.QUIZ -> !isSaving
   }
 
   val primaryButtonLabel: String = when (currentStep) {
     OnboardingStep.LANGUAGE, OnboardingStep.INTRO, OnboardingStep.PERSONA -> "Далее"
-    OnboardingStep.PROFILE, OnboardingStep.WRAPUP -> "Далее"
+    OnboardingStep.PROFILE -> "Готово"
+    OnboardingStep.WRAPUP -> "Далее"
     OnboardingStep.QUIZ -> "Завершить"
   }
 }
