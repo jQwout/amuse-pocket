@@ -120,26 +120,30 @@ class OnboardingViewModel(
     }
   }
 
+  private fun goToStep(step: OnboardingStep) {
+    _state.update { it.copy(currentStep = step) }
+  }
+
   private fun goToNextStep() {
     val current = _state.value
     if (!current.canProceed) return
     when (current.currentStep) {
-      OnboardingStep.LANGUAGE -> _state.update { it.copy(currentStep = OnboardingStep.INTRO) }
-      OnboardingStep.INTRO -> _state.update { it.copy(currentStep = OnboardingStep.PERSONA) }
-      OnboardingStep.PERSONA -> _state.update { it.copy(currentStep = OnboardingStep.PROFILE) }
+      OnboardingStep.LANGUAGE -> goToStep(OnboardingStep.INTRO)
+      OnboardingStep.INTRO -> goToStep(OnboardingStep.PERSONA)
+      OnboardingStep.PERSONA -> goToStep(OnboardingStep.PROFILE)
       OnboardingStep.PROFILE -> extractProfileAndAdvance()
-      OnboardingStep.WRAPUP -> _state.update { it.copy(currentStep = OnboardingStep.QUIZ) }
+      OnboardingStep.WRAPUP -> goToStep(OnboardingStep.QUIZ)
       OnboardingStep.QUIZ -> completeOnboarding()
     }
   }
 
   private fun goToPreviousStep() {
     when (_state.value.currentStep) {
-      OnboardingStep.INTRO -> _state.update { it.copy(currentStep = OnboardingStep.LANGUAGE) }
-      OnboardingStep.PERSONA -> _state.update { it.copy(currentStep = OnboardingStep.INTRO) }
-      OnboardingStep.PROFILE -> _state.update { it.copy(currentStep = OnboardingStep.PERSONA) }
-      OnboardingStep.WRAPUP -> _state.update { it.copy(currentStep = OnboardingStep.PROFILE) }
-      OnboardingStep.QUIZ -> _state.update { it.copy(currentStep = OnboardingStep.WRAPUP) }
+      OnboardingStep.INTRO -> goToStep(OnboardingStep.LANGUAGE)
+      OnboardingStep.PERSONA -> goToStep(OnboardingStep.INTRO)
+      OnboardingStep.PROFILE -> goToStep(OnboardingStep.PERSONA)
+      OnboardingStep.WRAPUP -> goToStep(OnboardingStep.PROFILE)
+      OnboardingStep.QUIZ -> goToStep(OnboardingStep.WRAPUP)
       OnboardingStep.LANGUAGE -> Unit
     }
   }
