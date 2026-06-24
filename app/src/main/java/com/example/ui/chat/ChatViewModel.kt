@@ -7,7 +7,10 @@ import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.loop.AgentEvent
 import com.aiopenpocket.agent.core.mcp.ToolResult
+import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.loop.AgentLoopOrchestrator
+import com.aiopenpocket.agent.loop.PlanExecuteOrchestrator
+import com.aiopenpocket.agent.loop.SupervisorOrchestrator
 import com.aiopenpocket.data.repository.SettingsRepository
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
@@ -28,6 +31,8 @@ import kotlinx.coroutines.launch
 class ChatViewModel(
   private val conversationRepository: ConversationRepository,
   private val agentLoop: AgentLoopOrchestrator,
+  private val planExecuteOrchestrator: PlanExecuteOrchestrator,
+  private val supervisorOrchestrator: SupervisorOrchestrator,
   private val settingsRepository: SettingsRepository,
   private val userPreferencesRepository: UserPreferencesRepository,
 ) : ViewModel() {
@@ -45,21 +50,24 @@ class ChatViewModel(
     activeJob?.cancel()
     messagesJob?.cancel()
     lastUserText = null
-    _state.update { it.copy(conversationId = id, messages = emptyList(), streamingText = "", toolTrace = emptyList(), isLoading = false, error = null, canRetry = false, isTutorial = false, levelId = null) }
+    _state.value = ChatUiState.resetFor(id)
     // Новый чат (id пуст): диалога ещё нет, его создаст ensureConversation при отправке.
     // Коллектор по getMessages("") всегда пуст — не запускаем его.
     if (id.isBlank()) return
-    messagesJob = viewModelScope.launch {
-      conversationRepository.getMessages(id).collect { messages ->
-        _state.update { it.copy(messages = messages) }
-      }
-    }
+    observeMessages(id)
     // Урок-диалог: включаем интерактивные карточки и запоминаем levelId (= заголовок).
+    // План-режим НЕ включаем автоматически — это только явный флаг из UI (тумблер в топбаре).
     viewModelScope.launch {
       val conversation = conversationRepository.getConversation(id)
       val tutorial = conversation?.isTutorial == true
+      val agentName = conversation?.agentId?.let { agentId -> MiniAgentCatalog.get(agentId)?.name }
       _state.update {
-        it.copy(isTutorial = tutorial, levelId = if (tutorial) conversation?.title else null)
+        it.copy(
+          isTutorial = tutorial,
+          levelId = if (tutorial) conversation?.title else null,
+          agentId = conversation?.agentId,
+          title = agentName ?: conversation?.title,
+        )
       }
     }
   }
@@ -88,8 +96,7 @@ class ChatViewModel(
       is ChatIntent.RetryRequest -> retry()
       is ChatIntent.ToggleToolTrace -> _state.update { it.copy(showToolTrace = !it.showToolTrace) }
       is ChatIntent.TogglePin -> togglePin(intent.messageId)
-      is ChatIntent.ClearError -> _state.update { it.copy(error = null, canRetry = false) }
-      is ChatIntent.NavigateBack -> { /* handled by navigation */ }
+      is ChatIntent.TogglePlanMode -> _state.update { it.copy(planMode = !it.planMode) }
     }
   }
 
@@ -160,13 +167,20 @@ class ChatViewModel(
   private suspend fun runAgent(convId: String, userMessage: String) {
     // Временно гоним всё на NIM; выбор провайдера (GROQ/GITHUB) выпилим позже.
     val provider = LlmProvider.NIM
-    agentLoop.execute(convId, userMessage, provider).collect { event ->
+    // Маршрут хода: координатор → супервизор-оркестратор (мульти-агент); план-режим →
+    // Plan-and-Execute; иначе — обычный чат-цикл (скоупленный по агенту, если он привязан).
+    val flow = when {
+      _state.value.agentId == MiniAgentCatalog.SUPERVISOR_ID ->
+        supervisorOrchestrator.execute(convId, userMessage, provider)
+      _state.value.planMode ->
+        planExecuteOrchestrator.execute(convId, userMessage, provider)
+      else ->
+        agentLoop.execute(convId, userMessage, provider)
+    }
+    flow.collect { event ->
       when (event) {
         is AgentEvent.TextDelta -> {
           _state.update { it.copy(streamingText = it.streamingText + event.content) }
-        }
-        is AgentEvent.ToolStarted -> {
-          _state.update { it.copy(isLoading = true) }
         }
         is AgentEvent.ToolCompleted -> {
           val newTrace = com.aiopenpocket.agent.loop.ToolTrace(
@@ -183,6 +197,8 @@ class ChatViewModel(
             .filter { it.toolName == "render_card" }
             .mapNotNull { (it.result as? ToolResult.Success)?.data }
 
+          // result.text ≠ streamingText: plain loop drops pre-tool preamble; orchestrators produce a
+          // full transcript. Persisting streamingText instead would reintroduce the dropped preamble.
           val responseText = event.result.text
           if (responseText.isNotBlank() || cardSpecs.isNotEmpty()) {
             conversationRepository.addMessage(
@@ -219,12 +235,7 @@ class ChatViewModel(
     val title = ConversationRepository.placeholderTitle(firstMessage)
     val newId = conversationRepository.createConversation(title = title)
     _state.update { it.copy(conversationId = newId) }
-    messagesJob?.cancel()
-    messagesJob = viewModelScope.launch {
-      conversationRepository.getMessages(newId).collect { messages ->
-        _state.update { it.copy(messages = messages) }
-      }
-    }
+    observeMessages(newId)
     return newId
   }
 
@@ -232,6 +243,15 @@ class ChatViewModel(
     val current = _state.value.messages.find { it.id == messageId } ?: return
     viewModelScope.launch {
       conversationRepository.setMessagePinned(messageId, !current.isPinned)
+    }
+  }
+
+  private fun observeMessages(id: String) {
+    messagesJob?.cancel()
+    messagesJob = viewModelScope.launch {
+      conversationRepository.getMessages(id).collect { messages ->
+        _state.update { it.copy(messages = messages) }
+      }
     }
   }
 
