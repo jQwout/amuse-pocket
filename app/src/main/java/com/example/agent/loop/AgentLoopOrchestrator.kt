@@ -2,6 +2,7 @@
 
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.LlmClient
+import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.StreamEvent
 import com.aiopenpocket.agent.core.mcp.ToolExecutor
@@ -50,6 +51,9 @@ class AgentLoopOrchestrator @Inject constructor(
     messages += context.history.map { it.toChatMessage() }
     // The caller persists the user message to DB before calling execute(),
     // so it's already included in context.history via ContextWindowBuilder.
+
+    val promptTokensEstimate = LlmContextConfig.estimateTokens(context.systemPrompt) +
+      context.history.sumOf { LlmContextConfig.estimateTokens(it.content) }
 
     val tools = registry.getAllSchemas()
     val toolTrace = mutableListOf<ToolTrace>()
@@ -128,6 +132,8 @@ class AgentLoopOrchestrator @Inject constructor(
                     toolTrace = toolTrace,
                     state = AgentState.FINISHED,
                     iterations = iteration,
+                    promptTokensEstimate = promptTokensEstimate,
+                    completionTokensEstimate = LlmContextConfig.estimateTokens(accumulatedText),
                   ),
                 ),
               )
@@ -176,6 +182,8 @@ data class AgentResult(
   val toolTrace: List<ToolTrace>,
   val state: AgentState,
   val iterations: Int,
+  val promptTokensEstimate: Int = 0,
+  val completionTokensEstimate: Int = 0,
 )
 
 data class ToolTrace(

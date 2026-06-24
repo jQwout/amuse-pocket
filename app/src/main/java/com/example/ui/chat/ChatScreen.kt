@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,6 +32,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -166,6 +168,13 @@ fun ChatScreen(
           text = state.voiceError!!,
           color = MaterialTheme.colorScheme.error,
           modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+      }
+
+      if (!state.isLoading && state.lastResponseStats != null) {
+        ResponseStatsBar(
+          stats = state.lastResponseStats!!,
+          modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
         )
       }
 
@@ -316,6 +325,56 @@ private fun PinnedBar(
         }
       }
     }
+  }
+}
+
+@Composable
+private fun ResponseStatsBar(
+  stats: ResponseStats,
+  modifier: Modifier = Modifier,
+) {
+  val timeLabel = if (stats.responseTimeMs >= 1000) {
+    "%.1fс".format(stats.responseTimeMs / 1000f)
+  } else {
+    "${stats.responseTimeMs}мс"
+  }
+  val contextUsedFraction = (stats.contextTokensUsed.toFloat() / stats.contextBudget).coerceIn(0f, 1f)
+  val contextRemainingK = ((stats.contextBudget - stats.contextTokensUsed) / 1000)
+    .coerceAtLeast(0)
+
+  Column(modifier = modifier.fillMaxWidth()) {
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Text(
+        text = "⏱ $timeLabel",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+      Text(
+        text = "↩ ~${stats.completionTokens} токенов",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+      Text(
+        text = "контекст: ~${contextRemainingK}k осталось",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+    Spacer(modifier = Modifier.height(2.dp))
+    LinearProgressIndicator(
+      progress = { contextUsedFraction },
+      modifier = Modifier.fillMaxWidth().height(2.dp),
+      color = when {
+        contextUsedFraction > 0.85f -> MaterialTheme.colorScheme.error
+        contextUsedFraction > 0.65f -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.primary
+      },
+      trackColor = MaterialTheme.colorScheme.surfaceVariant,
+    )
   }
 }
 
