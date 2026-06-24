@@ -72,5 +72,9 @@ fun Map<String, JsonElement>.string(key: String): String? =
 fun Map<String, JsonElement>.int(key: String): Int? =
   (this[key] as? JsonPrimitive)?.content?.toIntOrNull()
 
+/** Read a long argument (accepts numeric or string-numeric JSON values), or null. */
+fun Map<String, JsonElement>.long(key: String): Long? =
+  (this[key] as? JsonPrimitive)?.content?.toLongOrNull()
+
 /** Standard "Missing 'key'" error so tools can write `args.string(k) ?: return missingArg(k)`. */
 fun missingArg(key: String): ToolResult.Error = ToolResult.Error("Missing '$key'")
