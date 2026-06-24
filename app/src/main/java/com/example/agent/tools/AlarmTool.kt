@@ -32,7 +32,7 @@ class AlarmTool(
         "properties" to JsonObject(mapOf(
           "action" to JsonObject(mapOf(
             "type" to JsonPrimitive("string"),
-            "enum" to JsonPrimitive("set_alarm,show_alarms"),
+            "enum" to JsonArray(listOf(JsonPrimitive("set_alarm"), JsonPrimitive("show_alarms"))),
             "description" to JsonPrimitive("Действие: set_alarm, show_alarms"),
           )),
           "hour" to JsonObject(mapOf(

@@ -39,7 +39,7 @@ class CalendarTool(
         "properties" to JsonObject(mapOf(
           "action" to JsonObject(mapOf(
             "type" to JsonPrimitive("string"),
-            "enum" to JsonPrimitive("list_events,create_event,delete_event"),
+            "enum" to JsonArray(listOf(JsonPrimitive("list_events"), JsonPrimitive("create_event"), JsonPrimitive("delete_event"))),
             "description" to JsonPrimitive("Действие: list_events, create_event, delete_event"),
           )),
           "days_ahead" to JsonObject(mapOf(

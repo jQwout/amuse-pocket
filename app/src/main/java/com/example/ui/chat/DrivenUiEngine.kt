@@ -1,5 +1,15 @@
 ﻿package com.aiopenpocket.ui.chat
 
+import android.Manifest
+import android.content.Intent
+import android.os.Build
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.animation.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -31,6 +41,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.util.Locale
 
 // Defined structures of Templates
 sealed class DrivenUiCard {
@@ -42,6 +53,8 @@ sealed class DrivenUiCard {
     data class FormCard(val fields: List<FormField>, val submitLabel: String) : DrivenUiCard()
     data class ChoiceCard(val question: String, val options: List<String>, val answerIndex: Int) : DrivenUiCard()
     data class LessonCompleteCard(val title: String, val subtitle: String, val buttonLabel: String) : DrivenUiCard()
+    data class SwitchCard(val label: String, val description: String, val action: String, val initialOn: Boolean) : DrivenUiCard()
+    data class NotificationPermissionCard(val title: String, val description: String, val buttonLabel: String) : DrivenUiCard()
     data class ErrorCard(val message: String) : DrivenUiCard()
 }
 
@@ -144,6 +157,19 @@ object DrivenUiEngine {
                     val buttonLabel = params.optString("button_label", "Продолжить")
                     DrivenUiCard.LessonCompleteCard(title, subtitle, buttonLabel)
                 }
+                "switch" -> {
+                    val label = params.optString("label", "Переключатель")
+                    val description = params.optString("description", "")
+                    val action = params.optString("action", "")
+                    val initialOn = params.optBoolean("initial", false)
+                    DrivenUiCard.SwitchCard(label, description, action, initialOn)
+                }
+                "notification_permission" -> {
+                    val title = params.optString("title", "Уведомления")
+                    val description = params.optString("description", "Разреши уведомления, чтобы получать напоминания.")
+                    val buttonLabel = params.optString("button_label", "Разрешить уведомления")
+                    DrivenUiCard.NotificationPermissionCard(title, description, buttonLabel)
+                }
                 else -> DrivenUiCard.ErrorCard("Неизвестный шаблон: $template")
             }
         } catch (e: Exception) {
@@ -217,6 +243,17 @@ fun DrivenUiCard.toMarkdown(): String = when (this) {
         appendLine("_[$buttonLabel]_")
     }.trim()
 
+    is DrivenUiCard.SwitchCard -> buildString {
+        appendLine("**$label** _[${if (initialOn) "вкл" else "выкл"}]_")
+        if (description.isNotBlank()) appendLine(description)
+    }.trim()
+
+    is DrivenUiCard.NotificationPermissionCard -> buildString {
+        appendLine("**$title**")
+        if (description.isNotBlank()) appendLine(description)
+        appendLine("_[$buttonLabel]_")
+    }.trim()
+
     is DrivenUiCard.ErrorCard -> "> ⚠️ $message"
 }
 
@@ -225,7 +262,8 @@ fun RenderDrivenUiCard(
     spec: String,
     onFormSubmitted: (String) -> Unit = {},
     onChoiceSelected: (String) -> Unit = {},
-    onLessonComplete: () -> Unit = {}
+    onLessonComplete: () -> Unit = {},
+    onAction: (String, Boolean) -> Unit = { _, _ -> }
 ) {
     val card = remember(spec) { DrivenUiEngine.parseJsonString(spec) }
 
@@ -246,6 +284,8 @@ fun RenderDrivenUiCard(
             is DrivenUiCard.FormCard -> FormCardView(card, onFormSubmitted)
             is DrivenUiCard.ChoiceCard -> ChoiceCardView(card, onChoiceSelected)
             is DrivenUiCard.LessonCompleteCard -> LessonCompleteCardView(card, onLessonComplete)
+            is DrivenUiCard.SwitchCard -> SwitchCardView(card, onAction)
+            is DrivenUiCard.NotificationPermissionCard -> NotificationPermissionCardView(card)
             is DrivenUiCard.ErrorCard -> {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -270,7 +310,7 @@ fun RenderDrivenUiCard(
 
 @Composable
 fun TodoListCardView(card: DrivenUiCard.TodoList) {
-    var itemsState = remember { mutableStateListOf<TodoItem>().apply { addAll(card.items) } }
+    val itemsState = remember(card) { mutableStateListOf<TodoItem>().apply { addAll(card.items) } }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
@@ -451,7 +491,7 @@ fun TimerCardView(card: DrivenUiCard.TimerCard) {
             )
 
             Text(
-                text = String.format("%02d:%02d", minutes, seconds),
+                text = String.format(Locale.US, "%02d:%02d", minutes, seconds),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp
@@ -598,7 +638,8 @@ fun ChartBarCardView(card: DrivenUiCard.ChartBarCard) {
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 card.labels.forEachIndexed { index, label ->
-                    val valueText = card.values.getOrNull(index)?.toString() ?: ""
+                    val v = card.values.getOrNull(index) ?: 0f
+                    val valueText = if (v == v.toLong().toFloat()) v.toLong().toString() else v.toString()
                     Column(
                         modifier = Modifier.weight(1f),
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -628,7 +669,7 @@ fun FormCardView(
     card: DrivenUiCard.FormCard,
     onFormSubmitted: (String) -> Unit
 ) {
-    val fieldsState = remember { mutableStateListOf<FormField>().apply { addAll(card.fields) } }
+    val fieldsState = remember(card) { mutableStateListOf<FormField>().apply { addAll(card.fields) } }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
@@ -683,7 +724,7 @@ fun ChoiceCardView(
     card: DrivenUiCard.ChoiceCard,
     onSelected: (String) -> Unit
 ) {
-    var selected by remember { mutableStateOf<Int?>(null) }
+    var selected by remember(card) { mutableStateOf<Int?>(null) }
     val correctGreen = Color(0xFF4CAF50)
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -763,4 +804,130 @@ fun LessonCompleteCardView(
             Text(card.buttonLabel)
         }
     }
+}
+
+@Composable
+fun SwitchCardView(
+    card: DrivenUiCard.SwitchCard,
+    onAction: (String, Boolean) -> Unit
+) {
+    var checked by remember(card) { mutableStateOf(card.initialOn) }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = card.label,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (card.description.isNotBlank()) {
+                Text(
+                    text = card.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Switch(
+            checked = checked,
+            onCheckedChange = { isOn ->
+                checked = isOn
+                onAction(card.action, isOn)
+            }
+        )
+    }
+}
+
+/**
+ * Самодостаточная карточка запроса разрешения на уведомления: сама держит launcher и
+ * отражает РЕАЛЬНОЕ состояние (areNotificationsEnabled), обновляя его на ON_RESUME —
+ * никакого внешнего роутинга действий не требуется.
+ */
+@Composable
+fun NotificationPermissionCardView(card: DrivenUiCard.NotificationPermissionCard) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var enabled by remember {
+        mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled())
+    }
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {
+        enabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
+    }
+
+    // Возврат из системного диалога/настроек → пересчитываем состояние, чтобы карточка не врала.
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                enabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Default.Notifications,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = card.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        if (card.description.isNotBlank()) {
+            Text(
+                text = card.description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.outline
+            )
+        }
+        if (enabled) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Check, contentDescription = null, tint = Color(0xFF4CAF50))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Уведомления включены", style = MaterialTheme.typography.bodyMedium)
+            }
+        } else {
+            Button(
+                onClick = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        // < 33: runtime-разрешения нет — ведём в системные настройки уведомлений.
+                        openAppNotificationSettings(context)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(card.buttonLabel)
+            }
+        }
+    }
+}
+
+private fun openAppNotificationSettings(context: android.content.Context) {
+    val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+    } else {
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            .setData(android.net.Uri.fromParts("package", context.packageName, null))
+    }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { context.startActivity(intent) }
 }

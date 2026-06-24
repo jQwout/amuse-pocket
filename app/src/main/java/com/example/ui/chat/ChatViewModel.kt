@@ -7,7 +7,10 @@ import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.loop.AgentEvent
 import com.aiopenpocket.agent.core.mcp.ToolResult
+import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.loop.AgentLoopOrchestrator
+import com.aiopenpocket.agent.loop.PlanExecuteOrchestrator
+import com.aiopenpocket.agent.loop.SupervisorOrchestrator
 import com.aiopenpocket.data.repository.SettingsRepository
 import com.aiopenpocket.di.AppScope
 import com.aiopenpocket.voice.input.VoiceInputController
@@ -18,6 +21,7 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import dev.zacsweers.metro.binding
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +34,8 @@ import kotlinx.coroutines.launch
 class ChatViewModel(
   private val conversationRepository: ConversationRepository,
   private val agentLoop: AgentLoopOrchestrator,
+  private val planExecuteOrchestrator: PlanExecuteOrchestrator,
+  private val supervisorOrchestrator: SupervisorOrchestrator,
   private val settingsRepository: SettingsRepository,
   private val userPreferencesRepository: UserPreferencesRepository,
   private val voiceController: VoiceInputController,
@@ -40,6 +46,8 @@ class ChatViewModel(
 
   private var activeJob: Job? = null
   private var messagesJob: Job? = null
+  /** Last user message of the active turn, kept so a failed turn can be retried without re-adding it. */
+  private var lastUserText: String? = null
   private var responseStartTime: Long = 0L
 
   init {
@@ -69,21 +77,25 @@ class ChatViewModel(
     if (_state.value.conversationId == id) return
     activeJob?.cancel()
     messagesJob?.cancel()
-    _state.update { it.copy(conversationId = id, messages = emptyList(), streamingText = "", toolTrace = emptyList(), isLoading = false, isTutorial = false, levelId = null) }
+    lastUserText = null
+    _state.value = ChatUiState.resetFor(id)
     // Новый чат (id пуст): диалога ещё нет, его создаст ensureConversation при отправке.
     // Коллектор по getMessages("") всегда пуст — не запускаем его.
     if (id.isBlank()) return
-    messagesJob = viewModelScope.launch {
-      conversationRepository.getMessages(id).collect { messages ->
-        _state.update { it.copy(messages = messages) }
-      }
-    }
+    observeMessages(id)
     // Урок-диалог: включаем интерактивные карточки и запоминаем levelId (= заголовок).
+    // План-режим НЕ включаем автоматически — это только явный флаг из UI (тумблер в топбаре).
     viewModelScope.launch {
       val conversation = conversationRepository.getConversation(id)
       val tutorial = conversation?.isTutorial == true
+      val agentName = conversation?.agentId?.let { agentId -> MiniAgentCatalog.get(agentId)?.name }
       _state.update {
-        it.copy(isTutorial = tutorial, levelId = if (tutorial) conversation?.title else null)
+        it.copy(
+          isTutorial = tutorial,
+          levelId = if (tutorial) conversation?.title else null,
+          agentId = conversation?.agentId,
+          title = agentName ?: conversation?.title,
+        )
       }
     }
   }
@@ -109,8 +121,10 @@ class ChatViewModel(
       is ChatIntent.UpdateInput -> _state.update { it.copy(inputText = intent.text) }
       is ChatIntent.SendMessage -> sendMessage()
       is ChatIntent.CancelRequest -> cancel()
+      is ChatIntent.RetryRequest -> retry()
       is ChatIntent.ToggleToolTrace -> _state.update { it.copy(showToolTrace = !it.showToolTrace) }
       is ChatIntent.TogglePin -> togglePin(intent.messageId)
+      is ChatIntent.TogglePlanMode -> _state.update { it.copy(planMode = !it.planMode) }
       is ChatIntent.ClearError -> _state.update { it.copy(error = null) }
       is ChatIntent.NavigateBack -> { /* handled by navigation */ }
       is ChatIntent.ToggleVoiceInput -> toggleVoiceInput()
@@ -135,88 +149,136 @@ class ChatViewModel(
     val text = _state.value.inputText.trim()
     if (text.isEmpty()) return
 
-    activeJob?.cancel()
-
+    // Новый ход — новая попытка. lastUserText выставим только после успешного addMessage.
+    lastUserText = null
+    // responseStartTime фиксирует начало ожидания, чтобы ResponseStatsBar показал «время ответа».
     responseStartTime = System.currentTimeMillis()
-    _state.update {
-      it.copy(
-        inputText = "",
-        isLoading = true,
-        streamingText = "",
-        toolTrace = emptyList(),
-        error = null,
-      )
+    launchTurn(resetInput = true) {
+      // Маршрут "chat/new" даёт пустой id — создаём диалог, иначе FK-нарушение при addMessage.
+      val convId = ensureConversation(text)
+      // Сначала ждём сохранения сообщения пользователя в БД
+      conversationRepository.addMessage(convId, "user", text)
+      // Сообщение уже в истории — запоминаем ход для возможного ретрая (без повторного addMessage).
+      lastUserText = text
+      runAgent(convId, text)
     }
+  }
 
+  /**
+   * Повторяет последний ход агента после ошибки. Сообщение пользователя уже сохранено в истории
+   * (его записал sendMessage), поэтому заново его не добавляем — только перезапускаем агента.
+   */
+  private fun retry() {
+    val convId = _state.value.conversationId?.takeIf { it.isNotBlank() } ?: return
+    val text = lastUserText ?: return
+    launchTurn(resetInput = false) {
+      runAgent(convId, text)
+    }
+  }
+
+  /**
+   * Единый запуск хода агента (общий для отправки и ретрая). Дожидается завершения прошлого хода
+   * через cancelAndJoin — два агентных цикла не пересекаются, поэтому инструменты и addMessage не
+   * выполняются параллельно при быстром повторном тапе. [block] содержит специфичную для вызова
+   * подготовку (создание диалога, сохранение сообщения) и сам runAgent; отмена и ошибки
+   * обрабатываются здесь одинаково для обоих путей.
+   */
+  private fun launchTurn(resetInput: Boolean, block: suspend () -> Unit) {
+    val previous = activeJob
     activeJob = viewModelScope.launch {
+      // Прошлый ход мог ещё выполнять инструмент/запись — гасим его и ждём, прежде чем стартовать новый.
+      previous?.cancelAndJoin()
+      _state.update {
+        it.copy(
+          inputText = if (resetInput) "" else it.inputText,
+          isLoading = true,
+          streamingText = "",
+          toolTrace = emptyList(),
+          error = null,
+          canRetry = false,
+        )
+      }
       try {
-        // Маршрут "chat/new" даёт пустой id — создаём диалог, иначе FK-нарушение при addMessage.
-        val convId = ensureConversation(text)
-        // Сначала ждём сохранения сообщения пользователя в БД
-        conversationRepository.addMessage(convId, "user", text)
-        // Теперь запускаем агент — история уже содержит новое сообщение
-        val provider = runCatching {
-          LlmProvider.valueOf(settingsRepository.getSelectedProvider())
-        }.getOrDefault(LlmProvider.AUTO)
-        agentLoop.execute(convId, text, provider).collect { event ->
-          when (event) {
-            is AgentEvent.TextDelta -> {
-              _state.update { it.copy(streamingText = it.streamingText + event.content) }
-            }
-            is AgentEvent.ToolStarted -> {
-              _state.update { it.copy(isLoading = true) }
-            }
-            is AgentEvent.ToolCompleted -> {
-              val newTrace = com.aiopenpocket.agent.loop.ToolTrace(
-                iteration = event.iteration,
-                toolName = event.name,
-                arguments = event.arguments,
-                result = event.result,
-              )
-              _state.update { it.copy(toolTrace = it.toolTrace + newTrace) }
-            }
-            is AgentEvent.Completed -> {
-              // Extract render_card specs so the Driven UI cards render inline in chat.
-              val cardSpecs = event.result.toolTrace
-                .filter { it.toolName == "render_card" }
-                .mapNotNull { (it.result as? ToolResult.Success)?.data }
+        block()
+      } catch (e: kotlinx.coroutines.CancellationException) {
+        // Юзер нажал Stop / начал новый ход: отмена — штатный путь, не показываем как ошибку.
+        throw e
+      } catch (e: Exception) {
+        android.util.Log.e("ChatViewModel", "Agent turn error", e)
+        _state.update { it.copy(isLoading = false, error = e.message, canRetry = lastUserText != null) }
+      }
+    }
+  }
 
-              val text = event.result.text
-              if (text.isNotBlank() || cardSpecs.isNotEmpty()) {
-                conversationRepository.addMessage(
-                  convId,
-                  "assistant",
-                  text,
-                  cardSpec = cardSpecs.firstOrNull(),
-                )
-              }
-              // Any additional cards become their own card-only messages.
-              cardSpecs.drop(1).forEach { spec ->
-                conversationRepository.addMessage(convId, "assistant", "", cardSpec = spec)
-              }
-              val stats = ResponseStats(
-                responseTimeMs = System.currentTimeMillis() - responseStartTime,
-                completionTokens = event.result.completionTokensEstimate,
-                contextTokensUsed = event.result.promptTokensEstimate,
-              )
-              _state.update {
-                it.copy(
-                  isLoading = false,
-                  streamingText = "",
-                  toolTrace = event.result.toolTrace,
-                  lastResponseStats = stats,
-                )
-              }
-            }
-            is AgentEvent.Error -> {
-              _state.update { it.copy(isLoading = false, error = event.message) }
-            }
-            else -> { /* no-op */ }
+  /** Запускает агентный цикл и проецирует его события в состояние. Общий путь для отправки и ретрая. */
+  private suspend fun runAgent(convId: String, userMessage: String) {
+    // Временно гоним всё на NIM; выбор провайдера (GROQ/GITHUB) выпилим позже.
+    val provider = LlmProvider.NIM
+    // Маршрут хода: координатор → супервизор-оркестратор (мульти-агент); план-режим →
+    // Plan-and-Execute; иначе — обычный чат-цикл (скоупленный по агенту, если он привязан).
+    val flow = when {
+      _state.value.agentId == MiniAgentCatalog.SUPERVISOR_ID ->
+        supervisorOrchestrator.execute(convId, userMessage, provider)
+      _state.value.planMode ->
+        planExecuteOrchestrator.execute(convId, userMessage, provider)
+      else ->
+        agentLoop.execute(convId, userMessage, provider)
+    }
+    flow.collect { event ->
+      when (event) {
+        is AgentEvent.TextDelta -> {
+          _state.update { it.copy(streamingText = it.streamingText + event.content) }
+        }
+        is AgentEvent.ToolCompleted -> {
+          val newTrace = com.aiopenpocket.agent.loop.ToolTrace(
+            iteration = event.iteration,
+            toolName = event.name,
+            arguments = event.arguments,
+            result = event.result,
+          )
+          _state.update { it.copy(toolTrace = it.toolTrace + newTrace) }
+        }
+        is AgentEvent.Completed -> {
+          // Extract render_card specs so the Driven UI cards render inline in chat.
+          val cardSpecs = event.result.toolTrace
+            .filter { it.toolName == "render_card" }
+            .mapNotNull { (it.result as? ToolResult.Success)?.data }
+
+          // result.text ≠ streamingText: plain loop drops pre-tool preamble; orchestrators produce a
+          // full transcript. Persisting streamingText instead would reintroduce the dropped preamble.
+          val responseText = event.result.text
+          if (responseText.isNotBlank() || cardSpecs.isNotEmpty()) {
+            conversationRepository.addMessage(
+              convId,
+              "assistant",
+              responseText,
+              cardSpec = cardSpecs.firstOrNull(),
+            )
+          }
+          // Any additional cards become their own card-only messages.
+          cardSpecs.drop(1).forEach { spec ->
+            conversationRepository.addMessage(convId, "assistant", "", cardSpec = spec)
+          }
+          val stats = ResponseStats(
+            responseTimeMs = System.currentTimeMillis() - responseStartTime,
+            completionTokens = event.result.completionTokensEstimate,
+            contextTokensUsed = event.result.promptTokensEstimate,
+          )
+          _state.update {
+            it.copy(
+              isLoading = false,
+              streamingText = "",
+              toolTrace = event.result.toolTrace,
+              error = null,
+              canRetry = false,
+              lastResponseStats = stats,
+            )
           }
         }
-      } catch (e: Exception) {
-        android.util.Log.e("ChatViewModel", "Agent loop error", e)
-        _state.update { it.copy(isLoading = false, error = e.message) }
+        is AgentEvent.Error -> {
+          _state.update { it.copy(isLoading = false, error = event.message, canRetry = lastUserText != null) }
+        }
+        else -> { /* no-op */ }
       }
     }
   }
@@ -226,12 +288,7 @@ class ChatViewModel(
     val title = ConversationRepository.placeholderTitle(firstMessage)
     val newId = conversationRepository.createConversation(title = title)
     _state.update { it.copy(conversationId = newId) }
-    messagesJob?.cancel()
-    messagesJob = viewModelScope.launch {
-      conversationRepository.getMessages(newId).collect { messages ->
-        _state.update { it.copy(messages = messages) }
-      }
-    }
+    observeMessages(newId)
     return newId
   }
 
@@ -239,6 +296,15 @@ class ChatViewModel(
     val current = _state.value.messages.find { it.id == messageId } ?: return
     viewModelScope.launch {
       conversationRepository.setMessagePinned(messageId, !current.isPinned)
+    }
+  }
+
+  private fun observeMessages(id: String) {
+    messagesJob?.cancel()
+    messagesJob = viewModelScope.launch {
+      conversationRepository.getMessages(id).collect { messages ->
+        _state.update { it.copy(messages = messages) }
+      }
     }
   }
 

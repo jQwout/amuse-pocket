@@ -22,19 +22,18 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.TrackChanges
 import androidx.compose.material.icons.filled.WavingHand
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -146,6 +145,28 @@ val ROADMAP_LEVELS = listOf(
       спроси, как тебе лучше отвечать.
     """.trimIndent(),
   ),
+  RoadmapLevel(
+    "plan_mode",
+    "План-мод",
+    "Агент сначала строит план, потом выполняет — «подумать» отдельно от «сделать».",
+    Icons.Default.AccountTree,
+    theory = """
+      ## Сначала план, потом действие
+
+      На сложных задачах рискованно бросаться делать сразу. План-мод разделяет
+      «подумать» и «сделать»:
+
+      1. **Планировщик** разбивает задачу на 2–5 конкретных шагов.
+      2. **Исполнитель** проходит шаги по одному, вызывая инструменты.
+      3. **Синтезатор** собирает результаты шагов в финальный ответ.
+
+      > Это один и тот же ReAct-движок, что и в обычном чате, — просто сверху
+      > добавлен оркестратор ролей. Так устроены мульти-агентные системы.
+
+      **Попробуй:** дай составную задачу — «спланируй продуктивное утро» или
+      «составь план изучения Kotlin на неделю» — и проследи план → шаги → итог.
+    """.trimIndent(),
+  ),
   /* Уроки 5–7 временно отключены
   RoadmapLevel(
     "l5_database",
@@ -213,8 +234,7 @@ enum class LevelStatus { LOCKED, CURRENT, COMPLETED }
 fun RoadmapScreen(
   onOpenLessonChat: (String) -> Unit,
   onReopenOnboarding: () -> Unit,
-  onNavigateToChats: () -> Unit,
-  onNavigateToLibrary: () -> Unit,
+  onNavigateToHome: () -> Unit,
   onNavigateToSettings: () -> Unit,
 ) {
   val viewModel = metroViewModel<RoadmapViewModel>()
@@ -228,9 +248,9 @@ fun RoadmapScreen(
         selectedTab = AcademyTab.Path,
         onTabSelected = { tab ->
           when (tab) {
-            AcademyTab.Chats -> onNavigateToChats()
+            AcademyTab.Chat -> onNavigateToHome()
             AcademyTab.Path -> Unit
-            AcademyTab.Library -> onNavigateToLibrary()
+            AcademyTab.Tools -> onNavigateToSettings()
           }
         },
       )
@@ -264,13 +284,6 @@ fun RoadmapScreen(
               text = "AI Academy",
               style = MaterialTheme.typography.labelLarge,
               color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-            )
-          }
-          IconButton(onClick = onNavigateToSettings) {
-            Icon(
-              imageVector = Icons.Default.Settings,
-              contentDescription = "Настройки",
-              tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
             )
           }
         }

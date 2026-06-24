@@ -14,9 +14,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Article
-import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -27,8 +26,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import com.aiopenpocket.ui.components.AcademyBottomNav
-import com.aiopenpocket.ui.components.AcademyTab
 import com.aiopenpocket.ui.theme.CardDark
 import com.aiopenpocket.ui.theme.PurpleAccent
 
@@ -63,24 +60,9 @@ private val LIBRARY_ITEMS = listOf(
 
 @Composable
 fun LibraryScreen(
-  onNavigateToChats: () -> Unit,
-  onNavigateToPath: () -> Unit,
-  onNavigateToSettings: () -> Unit,
+  onNavigateBack: () -> Unit,
 ) {
-  Scaffold(
-    bottomBar = {
-      AcademyBottomNav(
-        selectedTab = AcademyTab.Library,
-        onTabSelected = { tab ->
-          when (tab) {
-            AcademyTab.Chats -> onNavigateToChats()
-            AcademyTab.Path -> onNavigateToPath()
-            AcademyTab.Library -> Unit
-          }
-        },
-      )
-    },
-  ) { padding ->
+  Scaffold { padding ->
     LazyColumn(
       modifier = Modifier
         .fillMaxSize()
@@ -88,35 +70,24 @@ fun LibraryScreen(
         .padding(horizontal = 20.dp),
     ) {
       item {
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         Row(
           modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-          Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-          ) {
+          IconButton(onClick = onNavigateBack) {
             Icon(
-              imageVector = Icons.Default.School,
-              contentDescription = null,
-              tint = PurpleAccent,
-              modifier = Modifier.size(20.dp),
-            )
-            Text(
-              text = "AI Academy",
-              style = MaterialTheme.typography.labelLarge,
-              color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+              imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+              contentDescription = "Назад",
+              tint = MaterialTheme.colorScheme.onSurface,
             )
           }
-          IconButton(onClick = onNavigateToSettings) {
-            Icon(
-              imageVector = Icons.Default.Settings,
-              contentDescription = "Настройки",
-              tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-            )
-          }
+          Text(
+            text = "AI Academy",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+          )
         }
       }
 
