@@ -1,8 +1,9 @@
-﻿package com.aiopenpocket.ui.chat
+package com.aiopenpocket.ui.chat
 
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.core.memory.model.Message
 import com.aiopenpocket.agent.loop.ToolTrace
+import com.aiopenpocket.voice.input.VoiceInputState
 
 data class ResponseStats(
   val responseTimeMs: Long,
@@ -25,4 +26,6 @@ data class ChatUiState(
   val isTutorial: Boolean = false,
   /** Roadmap level id (the tutorial conversation title), used to mark completion. */
   val levelId: String? = null,
+  val voiceState: VoiceInputState = VoiceInputState.Idle,
+  val voiceError: String? = null,
 )
