@@ -1,5 +1,9 @@
 ﻿package com.aiopenpocket.ui.chat
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -39,16 +43,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.aiopenpocket.agent.core.memory.model.Message
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import com.aiopenpocket.ui.components.StreamingBubble
 import com.aiopenpocket.ui.components.MarkdownText
+import com.aiopenpocket.ui.chat.components.MicButton
 import com.aiopenpocket.ui.chat.components.ToolTracePanel
+import com.aiopenpocket.voice.input.VoiceInputState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -152,9 +163,17 @@ fun ChatScreen(
         )
       }
 
+      if (state.voiceError != null) {
+        Text(
+          text = state.voiceError!!,
+          color = MaterialTheme.colorScheme.error,
+          modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+      }
+
       if (!state.isLoading && state.lastResponseStats != null) {
         ResponseStatsBar(
-          stats = state.lastResponseStats,
+          stats = state.lastResponseStats!!,
           modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
         )
       }
@@ -165,6 +184,9 @@ fun ChatScreen(
         onSend = { viewModel.handleIntent(ChatIntent.SendMessage) },
         onCancel = { viewModel.handleIntent(ChatIntent.CancelRequest) },
         isLoading = state.isLoading,
+        voiceState = state.voiceState,
+        onVoiceToggle = { viewModel.handleIntent(ChatIntent.ToggleVoiceInput) },
+        onPermissionDenied = { viewModel.handleIntent(ChatIntent.ClearVoiceError) },
       )
     }
   }
@@ -369,7 +391,33 @@ private fun ChatInput(
   onSend: () -> Unit,
   onCancel: () -> Unit,
   isLoading: Boolean,
+  voiceState: VoiceInputState,
+  onVoiceToggle: () -> Unit,
+  onPermissionDenied: () -> Unit,
 ) {
+  val context = LocalContext.current
+  var pendingStart by remember { mutableStateOf(false) }
+  val micPermissionLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.RequestPermission(),
+  ) { granted ->
+    if (granted && pendingStart) onVoiceToggle()
+    if (!granted) onPermissionDenied()
+    pendingStart = false
+  }
+
+  fun handleMicTap() {
+    val granted = ContextCompat.checkSelfPermission(
+      context,
+      Manifest.permission.RECORD_AUDIO,
+    ) == PackageManager.PERMISSION_GRANTED
+    if (granted) {
+      onVoiceToggle()
+    } else {
+      pendingStart = true
+      micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+    }
+  }
+
   Row(
     modifier = Modifier
       .fillMaxWidth()
@@ -384,6 +432,7 @@ private fun ChatInput(
       singleLine = false,
       maxLines = 4,
     )
+    MicButton(state = voiceState, onClick = ::handleMicTap)
     if (isLoading) {
       // Прогресс под кнопкой «стоп» — даёт пользователю возможность отменить ход.
       Box(contentAlignment = Alignment.Center) {
