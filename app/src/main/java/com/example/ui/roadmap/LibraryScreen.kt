@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.ui.roadmap
+package com.aiopenpocket.ui.roadmap
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -15,10 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Article
-import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -26,10 +23,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.ui.components.AcademyBottomNav
+import com.aiopenpocket.ui.components.AcademyHeader
 import com.aiopenpocket.ui.components.AcademyTab
 import com.aiopenpocket.ui.theme.CardDark
+import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.ui.theme.PurpleAccent
 
 private data class LibraryItem(
@@ -40,24 +40,24 @@ private data class LibraryItem(
 
 private val LIBRARY_ITEMS = listOf(
   LibraryItem(
-    title = "Основы промптинга",
-    description = "Как формулировать запросы, чтобы агент понимал задачу с первого раза.",
-    category = "Основы",
+    "Основы промптинга",
+    "Как формулировать запросы, чтобы агент понимал задачу с первого раза.",
+    "Основы",
   ),
   LibraryItem(
-    title = "Работа с файлами",
-    description = "Создание, чтение и поиск заметок в локальном хранилище.",
-    category = "Инструменты",
+    "Работа с файлами",
+    "Создание, чтение и поиск заметок в локальном хранилище.",
+    "Инструменты",
   ),
   LibraryItem(
-    title = "Память и навыки",
-    description = "Факты, эпизоды и возможности агента — что он помнит и что умеет.",
-    category = "Память",
+    "Память и навыки",
+    "Факты, эпизоды и возможности агента — что он помнит и что умеет.",
+    "Память",
   ),
   LibraryItem(
-    title = "Tool Trace",
-    description = "Как читать трассировку инструментов и понимать решения агента.",
-    category = "Продвинутое",
+    "Tool Trace",
+    "Как читать трассировку инструментов и понимать решения агента.",
+    "Продвинутое",
   ),
 )
 
@@ -89,58 +89,27 @@ fun LibraryScreen(
     ) {
       item {
         Spacer(modifier = Modifier.height(16.dp))
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-          ) {
-            Icon(
-              imageVector = Icons.Default.School,
-              contentDescription = null,
-              tint = PurpleAccent,
-              modifier = Modifier.size(20.dp),
-            )
-            Text(
-              text = "AI Academy",
-              style = MaterialTheme.typography.labelLarge,
-              color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-            )
-          }
-          IconButton(onClick = onNavigateToSettings) {
-            Icon(
-              imageVector = Icons.Default.Settings,
-              contentDescription = "Настройки",
-              tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-            )
-          }
-        }
+        AcademyHeader(onNavigateToSettings = onNavigateToSettings)
       }
-
       item {
         Spacer(modifier = Modifier.height(24.dp))
         Text(
-          text = "Библиотека",
+          "Библиотека",
           style = MaterialTheme.typography.headlineLarge,
           color = MaterialTheme.colorScheme.onSurface,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-          text = "Справочные материалы и шпаргалки по работе с агентом.",
+          "Справочные материалы и шпаргалки по работе с агентом.",
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
         )
         Spacer(modifier = Modifier.height(28.dp))
       }
-
       items(LIBRARY_ITEMS) { item ->
         LibraryCard(item = item)
         Spacer(modifier = Modifier.height(12.dp))
       }
-
       item { Spacer(modifier = Modifier.height(16.dp)) }
     }
   }
@@ -160,7 +129,7 @@ private fun LibraryCard(item: LibraryItem) {
       horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
       Icon(
-        imageVector = Icons.Default.Article,
+        Icons.Default.Article,
         contentDescription = null,
         tint = PurpleAccent,
         modifier = Modifier.size(20.dp),
@@ -173,15 +142,27 @@ private fun LibraryCard(item: LibraryItem) {
     }
     Spacer(modifier = Modifier.height(8.dp))
     Text(
-      text = item.title,
+      item.title,
       style = MaterialTheme.typography.titleMedium,
       color = MaterialTheme.colorScheme.onSurface,
     )
     Spacer(modifier = Modifier.height(4.dp))
     Text(
-      text = item.description,
+      item.description,
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+    )
+  }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1C1B1F)
+@Composable
+private fun LibraryScreenPreview() {
+  MyApplicationTheme {
+    LibraryScreen(
+      onNavigateToChats = {},
+      onNavigateToPath = {},
+      onNavigateToSettings = {},
     )
   }
 }

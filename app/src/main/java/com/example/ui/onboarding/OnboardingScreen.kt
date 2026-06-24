@@ -31,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.ui.onboarding.components.AboutMeStep
 import com.aiopenpocket.ui.onboarding.components.IntroStreamingStep
@@ -39,7 +40,10 @@ import com.aiopenpocket.ui.onboarding.components.PersonaSelectionStep
 import com.aiopenpocket.ui.onboarding.components.WrapupStep
 import com.aiopenpocket.ui.roadmap.LESSON_QUIZZES
 import com.aiopenpocket.ui.roadmap.components.QuizContent
+import com.aiopenpocket.ui.theme.MyApplicationTheme
 import dev.zacsweers.metrox.viewmodel.metroViewModel
+
+private val ONBOARDING_STEP_ORDER = OnboardingStep.entries.toList()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,9 +56,7 @@ fun OnboardingScreen(
   val editMode = onClose != null
 
   // В режиме правки подтягиваем сохранённые значения, иначе Complete затрёт профиль пустыми полями.
-  LaunchedEffect(editMode) {
-    if (editMode) viewModel.loadExistingProfile()
-  }
+  LaunchedEffect(editMode) { if (editMode) viewModel.loadExistingProfile() }
 
   LaunchedEffect(state.currentStep) {
     if (state.currentStep == OnboardingStep.INTRO) {
@@ -67,27 +69,36 @@ fun OnboardingScreen(
     if (state.isCompleted && editMode) onClose?.invoke()
   }
 
+  OnboardingContent(
+    state = state,
+    editMode = editMode,
+    onClose = onClose,
+    onIntent = viewModel::handleIntent,
+  )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OnboardingContent(
+  state: OnboardingUiState,
+  editMode: Boolean,
+  onClose: (() -> Unit)?,
+  onIntent: (OnboardingIntent) -> Unit,
+) {
   if (state.currentStep == OnboardingStep.PERSONA) {
     PersonaSelectionStep(
       selectedPersonaId = state.selectedPersonaId,
       isSaving = state.isSaving,
       error = state.error,
-      onSelectPersona = { viewModel.handleIntent(OnboardingIntent.SelectPersona(it)) },
-      onBack = { viewModel.handleIntent(OnboardingIntent.PreviousStep) },
-      onApply = { viewModel.handleIntent(OnboardingIntent.NextStep) },
+      onSelectPersona = { onIntent(OnboardingIntent.SelectPersona(it)) },
+      onBack = { onIntent(OnboardingIntent.PreviousStep) },
+      onApply = { onIntent(OnboardingIntent.NextStep) },
     )
     return
   }
 
-  val stepIndex = when (state.currentStep) {
-    OnboardingStep.LANGUAGE -> 0
-    OnboardingStep.INTRO -> 1
-    OnboardingStep.PERSONA -> 2
-    OnboardingStep.PROFILE -> 3
-    OnboardingStep.WRAPUP -> 4
-    OnboardingStep.QUIZ -> 5
-  }
-  val progress = (stepIndex + 1) / 6f
+  val stepIndex = ONBOARDING_STEP_ORDER.indexOf(state.currentStep).coerceAtLeast(0)
+  val progress = (stepIndex + 1) / ONBOARDING_STEP_ORDER.size.toFloat()
 
   Scaffold(
     topBar = {
@@ -105,119 +116,128 @@ fun OnboardingScreen(
         ),
       )
     },
-    bottomBar = {
-      Column(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(16.dp),
-      ) {
-        if (state.error != null) {
-          Text(
-            text = state.error!!,
-            color = MaterialTheme.colorScheme.error,
-            modifier = Modifier.padding(bottom = 8.dp),
-          )
-        }
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          if (state.currentStep != OnboardingStep.LANGUAGE) {
-            TextButton(
-              onClick = { viewModel.handleIntent(OnboardingIntent.PreviousStep) },
-              modifier = Modifier.testTag("onboarding_back"),
-            ) {
-              Text("Назад")
-            }
-          }
-          Box(modifier = Modifier.weight(1f))
-          AnimatedVisibility(
-            visible = state.canProceed || state.currentStep != OnboardingStep.INTRO,
-            enter = fadeIn(),
-          ) {
-            Button(
-              onClick = { viewModel.handleIntent(OnboardingIntent.NextStep) },
-              enabled = state.canProceed,
-              modifier = Modifier.testTag("onboarding_next"),
-            ) {
-              if (state.isSaving) {
-                CircularProgressIndicator(
-                  modifier = Modifier.padding(end = 8.dp),
-                  strokeWidth = 2.dp,
-                )
-              }
-              Text(state.primaryButtonLabel)
-            }
-          }
-        }
-      }
-    },
+    bottomBar = { OnboardingBottomBar(state = state, onIntent = onIntent) },
   ) { padding ->
-    Column(
-      modifier = Modifier
-        .fillMaxSize()
-        .padding(padding),
-    ) {
+    Column(modifier = Modifier.fillMaxSize().padding(padding)) {
       LinearProgressIndicator(
         progress = { progress },
         modifier = Modifier.fillMaxWidth(),
       )
-      when (state.currentStep) {
-        OnboardingStep.LANGUAGE -> {
-          LanguageSelectionStep(
-            selectedLanguage = state.selectedLanguage,
-            onSelectLanguage = { viewModel.handleIntent(OnboardingIntent.SelectLanguage(it)) },
-            modifier = Modifier.weight(1f),
-          )
-        }
-        OnboardingStep.INTRO -> {
-          IntroStreamingStep(
-            streamingText = state.introStreamingText,
-            isStreaming = state.isIntroStreaming,
-            modifier = Modifier.weight(1f),
-          )
-        }
-        OnboardingStep.PERSONA -> Unit
-        OnboardingStep.PROFILE -> {
-          AboutMeStep(
-            personaId = state.selectedPersonaId,
-            text = state.aboutMeText,
-            isExtracting = state.isExtracting,
-            extractionError = state.extractionError,
-            onTextChange = { viewModel.handleIntent(OnboardingIntent.UpdateAboutMe(it)) },
-            modifier = Modifier.weight(1f),
-          )
-        }
-        OnboardingStep.WRAPUP -> {
-          WrapupStep(
-            personaId = state.selectedPersonaId,
-            name = state.name,
-            preferredAddress = state.preferredAddress,
-            modifier = Modifier.weight(1f),
-          )
-        }
-        OnboardingStep.QUIZ -> {
-          Column(
-            modifier = Modifier
-              .weight(1f)
-              .verticalScroll(rememberScrollState())
-              .padding(horizontal = 24.dp),
-          ) {
-            Text(
-              text = "Закрепим пройденное",
-              style = MaterialTheme.typography.headlineSmall,
-              modifier = Modifier.padding(vertical = 16.dp),
+      OnboardingStepBody(
+        state = state,
+        onIntent = onIntent,
+        modifier = Modifier.weight(1f),
+      )
+    }
+  }
+}
+
+@Composable
+private fun OnboardingBottomBar(
+  state: OnboardingUiState,
+  onIntent: (OnboardingIntent) -> Unit,
+) {
+  Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+    state.error?.let {
+      Text(
+        text = it,
+        color = MaterialTheme.colorScheme.error,
+        modifier = Modifier.padding(bottom = 8.dp),
+      )
+    }
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+      if (state.currentStep != OnboardingStep.LANGUAGE) {
+        TextButton(
+          onClick = { onIntent(OnboardingIntent.PreviousStep) },
+          modifier = Modifier.testTag("onboarding_back"),
+        ) { Text("Назад") }
+      }
+      Box(modifier = Modifier.weight(1f))
+      AnimatedVisibility(
+        visible = state.canProceed || state.currentStep != OnboardingStep.INTRO,
+        enter = fadeIn(),
+      ) {
+        Button(
+          onClick = { onIntent(OnboardingIntent.NextStep) },
+          enabled = state.canProceed,
+          modifier = Modifier.testTag("onboarding_next"),
+        ) {
+          if (state.isSaving) {
+            CircularProgressIndicator(
+              modifier = Modifier.padding(end = 8.dp),
+              strokeWidth = 2.dp,
             )
-            QuizContent(questions = LESSON_QUIZZES["l1_welcome"].orEmpty())
-            TextButton(
-              onClick = { viewModel.handleIntent(OnboardingIntent.NextStep) },
-              modifier = Modifier.padding(top = 8.dp),
-            ) {
-              Text("Пропустить проверку")
-            }
           }
+          Text(state.primaryButtonLabel)
         }
       }
     }
+  }
+}
+
+@Composable
+private fun OnboardingStepBody(
+  state: OnboardingUiState,
+  onIntent: (OnboardingIntent) -> Unit,
+  modifier: Modifier,
+) {
+  when (state.currentStep) {
+    OnboardingStep.LANGUAGE -> LanguageSelectionStep(
+      selectedLanguage = state.selectedLanguage,
+      onSelectLanguage = { onIntent(OnboardingIntent.SelectLanguage(it)) },
+      modifier = modifier,
+    )
+    OnboardingStep.INTRO -> IntroStreamingStep(
+      streamingText = state.introStreamingText,
+      isStreaming = state.isIntroStreaming,
+      modifier = modifier,
+    )
+    OnboardingStep.PERSONA -> Unit
+    OnboardingStep.PROFILE -> AboutMeStep(
+      personaId = state.selectedPersonaId,
+      text = state.aboutMeText,
+      isExtracting = state.isExtracting,
+      extractionError = state.extractionError,
+      onTextChange = { onIntent(OnboardingIntent.UpdateAboutMe(it)) },
+      modifier = modifier,
+    )
+    OnboardingStep.WRAPUP -> WrapupStep(
+      personaId = state.selectedPersonaId,
+      name = state.name,
+      preferredAddress = state.preferredAddress,
+      modifier = modifier,
+    )
+    OnboardingStep.QUIZ -> Column(
+      modifier = modifier
+        .verticalScroll(rememberScrollState())
+        .padding(horizontal = 24.dp),
+    ) {
+      Text(
+        text = "Закрепим пройденное",
+        style = MaterialTheme.typography.headlineSmall,
+        modifier = Modifier.padding(vertical = 16.dp),
+      )
+      QuizContent(questions = LESSON_QUIZZES["l1_welcome"].orEmpty())
+      TextButton(
+        onClick = { onIntent(OnboardingIntent.NextStep) },
+        modifier = Modifier.padding(top = 8.dp),
+      ) { Text("Пропустить проверку") }
+    }
+  }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1C1B1F)
+@Composable
+private fun OnboardingScreenPreview() {
+  MyApplicationTheme {
+    OnboardingContent(
+      state = OnboardingUiState(
+        currentStep = OnboardingStep.LANGUAGE,
+        selectedLanguage = "ru",
+      ),
+      editMode = false,
+      onClose = null,
+      onIntent = {},
+    )
   }
 }
