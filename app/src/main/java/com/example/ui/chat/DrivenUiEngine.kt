@@ -43,6 +43,7 @@ import org.json.JSONObject
 import java.io.File
 import com.aiopenpocket.ui.roadmap.QuizQuestion
 import com.aiopenpocket.ui.roadmap.components.QuizContent
+import java.util.Locale
 
 // Defined structures of Templates
 sealed class DrivenUiCard {
@@ -339,7 +340,7 @@ fun RenderDrivenUiCard(
 
 @Composable
 fun TodoListCardView(card: DrivenUiCard.TodoList) {
-    var itemsState = remember { mutableStateListOf<TodoItem>().apply { addAll(card.items) } }
+    val itemsState = remember(card) { mutableStateListOf<TodoItem>().apply { addAll(card.items) } }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
@@ -520,7 +521,7 @@ fun TimerCardView(card: DrivenUiCard.TimerCard) {
             )
 
             Text(
-                text = String.format("%02d:%02d", minutes, seconds),
+                text = String.format(Locale.US, "%02d:%02d", minutes, seconds),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp
@@ -667,7 +668,8 @@ fun ChartBarCardView(card: DrivenUiCard.ChartBarCard) {
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 card.labels.forEachIndexed { index, label ->
-                    val valueText = card.values.getOrNull(index)?.toString() ?: ""
+                    val v = card.values.getOrNull(index) ?: 0f
+                    val valueText = if (v == v.toLong().toFloat()) v.toLong().toString() else v.toString()
                     Column(
                         modifier = Modifier.weight(1f),
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -697,7 +699,7 @@ fun FormCardView(
     card: DrivenUiCard.FormCard,
     onFormSubmitted: (String) -> Unit
 ) {
-    val fieldsState = remember { mutableStateListOf<FormField>().apply { addAll(card.fields) } }
+    val fieldsState = remember(card) { mutableStateListOf<FormField>().apply { addAll(card.fields) } }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
@@ -752,7 +754,7 @@ fun ChoiceCardView(
     card: DrivenUiCard.ChoiceCard,
     onSelected: (String) -> Unit
 ) {
-    var selected by remember { mutableStateOf<Int?>(null) }
+    var selected by remember(card) { mutableStateOf<Int?>(null) }
     val correctGreen = Color(0xFF4CAF50)
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

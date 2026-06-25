@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Lock
@@ -142,6 +143,28 @@ val ROADMAP_LEVELS = listOf(
 
       **Попробуй:** «Запомни: я предпочитаю короткие ответы» — а в новом чате
       спроси, как тебе лучше отвечать.
+    """.trimIndent(),
+  ),
+  RoadmapLevel(
+    "plan_mode",
+    "План-мод",
+    "Агент сначала строит план, потом выполняет — «подумать» отдельно от «сделать».",
+    Icons.Default.AccountTree,
+    theory = """
+      ## Сначала план, потом действие
+
+      На сложных задачах рискованно бросаться делать сразу. План-мод разделяет
+      «подумать» и «сделать»:
+
+      1. **Планировщик** разбивает задачу на 2–5 конкретных шагов.
+      2. **Исполнитель** проходит шаги по одному, вызывая инструменты.
+      3. **Синтезатор** собирает результаты шагов в финальный ответ.
+
+      > Это один и тот же ReAct-движок, что и в обычном чате, — просто сверху
+      > добавлен оркестратор ролей. Так устроены мульти-агентные системы.
+
+      **Попробуй:** дай составную задачу — «спланируй продуктивное утро» или
+      «составь план изучения Kotlin на неделю» — и проследи план → шаги → итог.
     """.trimIndent(),
   ),
   /* Уроки 5–7 временно отключены

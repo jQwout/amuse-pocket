@@ -3,6 +3,7 @@ package com.aiopenpocket.ui.roadmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
+import com.aiopenpocket.agent.core.lesson.LessonRepository
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
@@ -21,6 +22,7 @@ import kotlinx.coroutines.launch
 class RoadmapViewModel(
   private val userPreferencesRepository: UserPreferencesRepository,
   private val conversationRepository: ConversationRepository,
+  private val lessonRepository: LessonRepository,
 ) : ViewModel() {
 
   val roadmapProgress: StateFlow<Set<String>> =
@@ -35,6 +37,9 @@ class RoadmapViewModel(
     viewModelScope.launch {
       val level = ROADMAP_LEVELS.find { it.id == levelId } ?: return@launch
       val personaId = userPreferencesRepository.getDefaultPersonaId()
+      // JSON-урок (assets/lessons/{id}.json) драйвится чат-контроллером с шага 0 — приветствие НЕ постим,
+      // иначе оно собьёт счёт шагов в ChatViewModel.startOrResumeLesson. Свободные уроки (l2–l4) — постим.
+      val hasJsonLesson = lessonRepository.getLessonOrNull(level.id) != null
 
       val existing = conversationRepository.getAllConversations()
         .first()
@@ -45,11 +50,13 @@ class RoadmapViewModel(
         personaId = personaId,
         isTutorial = true,
       ).also { newId ->
-        conversationRepository.addMessage(
-          newId,
-          "assistant",
-          "Привет! Это урок «${level.title}». ${level.description} Напиши «готов», и начнём.",
-        )
+        if (!hasJsonLesson) {
+          conversationRepository.addMessage(
+            newId,
+            "assistant",
+            "Привет! Это урок «${level.title}». ${level.description} Напиши «готов», и начнём.",
+          )
+        }
       }
 
       onReady(chatId)
