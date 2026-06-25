@@ -25,6 +25,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.aiopenpocket.ui.chat.ChatScreen
 import com.aiopenpocket.ui.conversations.ConversationsListScreen
+import com.aiopenpocket.ui.agents.AgentsScreen
 import com.aiopenpocket.ui.home.HomeScreen
 import com.aiopenpocket.ui.memory.MemoryGraphScreen
 import com.aiopenpocket.ui.memory.MemoryPageScreen
@@ -151,6 +152,13 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onNavigateToRoadmap = { navigateToTab("roadmap") },
                                         onNavigateToSettings = { navigateToTab("settings") },
+                                        onNavigateToAgents = { navController.navigate("agents") },
+                                    )
+                                }
+                                composable("agents") {
+                                    AgentsScreen(
+                                        onOpenChat = { id -> navController.navigate("chat/$id") },
+                                        onNavigateBack = { navController.popBackStack() },
                                     )
                                 }
                                 composable("roadmap") {

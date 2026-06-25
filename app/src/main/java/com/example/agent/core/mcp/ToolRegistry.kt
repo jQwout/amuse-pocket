@@ -16,4 +16,8 @@ class ToolRegistry @Inject constructor(
   fun get(name: String): Tool? = toolMap[name]
   fun getAll(): List<Tool> = toolMap.values.toList()
   fun getAllSchemas(): List<FunctionSchema> = toolMap.values.map { it.schema }
+
+  /** Schemas for the named tools only — used to scope a mini-agent to its own tool set. */
+  fun getSchemasFor(names: Set<String>): List<FunctionSchema> =
+    toolMap.filterKeys { it in names }.values.map { it.schema }
 }

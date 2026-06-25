@@ -9,4 +9,6 @@ data class Conversation(
   val summary: String?,
   val isTutorial: Boolean = false,
   val tags: List<String> = emptyList(),
+  /** Bound mini-agent id (scopes tools + role); null = general assistant. */
+  val agentId: String? = null,
 )

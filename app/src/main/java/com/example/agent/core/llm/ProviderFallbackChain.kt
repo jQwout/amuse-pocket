@@ -7,11 +7,7 @@ class ProviderFallbackChain(
   private val configs: Map<LlmProvider, List<ProviderConfig>>,
 ) {
   fun resolve(requested: LlmProvider): List<ProviderConfig> = when (requested) {
-    LlmProvider.AUTO -> buildList {
-      configs[LlmProvider.NIM]?.let(::addAll)
-      configs[LlmProvider.GROQ]?.let(::addAll)
-      configs[LlmProvider.GITHUB]?.let(::addAll)
-    }
+    LlmProvider.AUTO -> LlmProvider.entries.filter { it != LlmProvider.AUTO }.flatMap { configs[it].orEmpty() }
     else -> configs[requested].orEmpty()
   }
 }

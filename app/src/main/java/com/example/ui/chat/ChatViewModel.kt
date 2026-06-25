@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.ui.chat
+package com.aiopenpocket.ui.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -9,10 +9,16 @@ import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.loop.AgentEvent
 import com.aiopenpocket.agent.core.mcp.ToolResult
+import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.loop.AgentLoopOrchestrator
 import com.aiopenpocket.agent.loop.AgentMode
+import com.aiopenpocket.agent.loop.PlanExecuteOrchestrator
+import com.aiopenpocket.agent.loop.SupervisorOrchestrator
 import com.aiopenpocket.data.repository.SettingsRepository
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.voice.input.VoiceInputController
+import com.aiopenpocket.voice.input.VoiceInputState
+import com.aiopenpocket.voice.input.appLanguageToBcp47
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
@@ -31,10 +37,14 @@ import kotlinx.coroutines.launch
 class ChatViewModel(
   private val conversationRepository: ConversationRepository,
   private val agentLoop: AgentLoopOrchestrator,
+  // Plan-and-Execute остаётся в коде, но больше не на кнопке план-мода (её заменил agentMode-гейт).
+  private val planExecuteOrchestrator: PlanExecuteOrchestrator,
+  private val supervisorOrchestrator: SupervisorOrchestrator,
   private val settingsRepository: SettingsRepository,
   private val userPreferencesRepository: UserPreferencesRepository,
   private val lessonRepository: LessonRepository,
   private val lessonChatController: LessonChatController,
+  private val voiceController: VoiceInputController,
 ) : ViewModel() {
 
   private val _state = MutableStateFlow(ChatUiState())
@@ -49,6 +59,7 @@ class ChatViewModel(
   private var lastPlanApproved: Boolean = false
   /** Защита от повторного входа при шаге урока (быстрый двойной тап «Дальше»/квиза). */
   private var lessonBusy = false
+  private var responseStartTime: Long = 0L
 
   init {
     // Лимит витков гоал-мода из настроек — держим в состоянии, чтобы передавать в оркестратор.
@@ -57,6 +68,26 @@ class ChatViewModel(
         _state.update { it.copy(goalMaxIterations = n) }
       }
     }
+    viewModelScope.launch {
+      voiceController.state.collect { vs ->
+        _state.update {
+          it.copy(
+            voiceState = vs,
+            voiceError = (vs as? VoiceInputState.Error)?.reason?.toUserMessage(),
+          )
+        }
+      }
+    }
+    viewModelScope.launch {
+      voiceController.transcripts.collect { transcript ->
+        _state.update { it.copy(inputText = appendTranscript(it.inputText, transcript)) }
+      }
+    }
+  }
+
+  override fun onCleared() {
+    voiceController.release()
+    super.onCleared()
   }
 
   fun setConversationId(id: String) {
@@ -67,28 +98,19 @@ class ChatViewModel(
     lastMode = AgentMode.CHAT
     lastPlanApproved = false
     lessonBusy = false
-    _state.update {
-      it.copy(
-        conversationId = id, messages = emptyList(), streamingText = "", toolTrace = emptyList(),
-        isLoading = false, error = null, canRetry = false, isTutorial = false, levelId = null,
-        agentMode = AgentMode.CHAT, planAwaitingApproval = false,
-        lessonMode = false, lesson = null, lessonStepIndex = 0, lessonFinished = false,
-      )
-    }
+    _state.value = ChatUiState.resetFor(id)
     // Новый чат (id пуст): диалога ещё нет, его создаст ensureConversation при отправке.
     // Коллектор по getMessages("") всегда пуст — не запускаем его.
     if (id.isBlank()) return
-    messagesJob = viewModelScope.launch {
-      conversationRepository.getMessages(id).collect { messages ->
-        _state.update { it.copy(messages = messages) }
-      }
-    }
+    observeMessages(id)
     // Урок-диалог: включаем интерактивные карточки. Если для заголовка есть JSON-урок — переходим в
     // lesson-режим и драйвим шаги контроллером (строгий контракт), иначе свободный путь (l2–l4).
+    // Режим агента (план/гоал) НЕ включаем автоматически — только явный выбор в UI.
     viewModelScope.launch {
       val conversation = conversationRepository.getConversation(id)
       val tutorial = conversation?.isTutorial == true
       val title = conversation?.title
+      val agentName = conversation?.agentId?.let { agentId -> MiniAgentCatalog.get(agentId)?.name }
       // l1_welcome исключаем: его setup-шаги (language/persona/profile) контроллер не умеет —
       // онбординг идёт через свой экран, не через чат-драйвер.
       val lesson = if (tutorial && title != null && title != ONBOARDING_LESSON_ID) {
@@ -100,6 +122,8 @@ class ChatViewModel(
         it.copy(
           isTutorial = tutorial,
           levelId = if (tutorial) title else null,
+          agentId = conversation?.agentId,
+          title = agentName ?: title,
           lessonMode = lesson != null,
           lesson = lesson,
         )
@@ -160,6 +184,11 @@ class ChatViewModel(
       is ChatIntent.TogglePin -> togglePin(intent.messageId)
       is ChatIntent.ClearError -> _state.update { it.copy(error = null, canRetry = false) }
       is ChatIntent.NavigateBack -> { /* handled by navigation */ }
+      is ChatIntent.ToggleVoiceInput -> toggleVoiceInput()
+      is ChatIntent.ClearVoiceError -> {
+        voiceController.clearError()
+        _state.update { it.copy(voiceError = null) }
+      }
       // Смена режима инвалидирует «Повторить» прошлого хода (иначе ретрай уйдёт в старый режим).
       is ChatIntent.SetMode -> _state.update { it.copy(agentMode = intent.mode, planAwaitingApproval = false, canRetry = false) }
       is ChatIntent.ApprovePlan -> approvePlan()
@@ -169,12 +198,24 @@ class ChatViewModel(
     }
   }
 
+  private fun toggleVoiceInput() {
+    when (_state.value.voiceState) {
+      is VoiceInputState.Listening -> voiceController.stop()
+      else -> viewModelScope.launch {
+        val tag = appLanguageToBcp47(userPreferencesRepository.getLanguage())
+        voiceController.start(tag)
+      }
+    }
+  }
+
   private fun sendMessage() {
     val text = _state.value.inputText.trim()
     if (text.isEmpty()) return
 
     // Новый ход — новая попытка. lastUserText выставим только после успешного addMessage.
     lastUserText = null
+    // responseStartTime фиксирует начало ожидания, чтобы ResponseStatsBar показал «время ответа».
+    responseStartTime = System.currentTimeMillis()
     launchTurn(resetInput = true) {
       // Маршрут "chat/new" даёт пустой id — создаём диалог, иначе FK-нарушение при addMessage.
       val convId = ensureConversation(text)
@@ -289,13 +330,18 @@ class ChatViewModel(
     lastPlanApproved = planApproved
     // Временно гоним всё на NIM; выбор провайдера (GROQ/GITHUB) выпилим позже.
     val provider = LlmProvider.NIM
-    agentLoop.execute(convId, userMessage, provider, mode, planApproved, _state.value.goalMaxIterations).collect { event ->
+    // Маршрут хода: координатор-агент → супервизор (мульти-агент); иначе — обычный чат-цикл с режимом
+    // агента (план-гейт / гоал-петля), скоупленный по привязанному мини-агенту.
+    val flow = when {
+      _state.value.agentId == MiniAgentCatalog.SUPERVISOR_ID ->
+        supervisorOrchestrator.execute(convId, userMessage, provider)
+      else ->
+        agentLoop.execute(convId, userMessage, provider, mode, planApproved, _state.value.goalMaxIterations)
+    }
+    flow.collect { event ->
       when (event) {
         is AgentEvent.TextDelta -> {
           _state.update { it.copy(streamingText = it.streamingText + event.content) }
-        }
-        is AgentEvent.ToolStarted -> {
-          _state.update { it.copy(isLoading = true) }
         }
         is AgentEvent.ToolCompleted -> {
           val newTrace = com.aiopenpocket.agent.loop.ToolTrace(
@@ -340,6 +386,11 @@ class ChatViewModel(
           val planningDone = planningPhase && !needInfo && responseText.isNotBlank()
           // Пустой ответ в фазе планирования: не оставляем немой экран — даём понятный ретрай.
           val planningBlank = planningPhase && responseText.isBlank() && cardSpecs.isEmpty()
+          val stats = ResponseStats(
+            responseTimeMs = System.currentTimeMillis() - responseStartTime,
+            completionTokens = event.result.completionTokensEstimate,
+            contextTokensUsed = event.result.promptTokensEstimate,
+          )
           _state.update {
             it.copy(
               isLoading = false,
@@ -348,6 +399,7 @@ class ChatViewModel(
               error = if (planningBlank) "Модель не вернула план — попробуй ещё раз." else null,
               canRetry = if (planningBlank) lastUserText != null else false,
               planAwaitingApproval = planningDone,
+              lastResponseStats = stats,
             )
           }
         }
@@ -364,12 +416,7 @@ class ChatViewModel(
     val title = ConversationRepository.placeholderTitle(firstMessage)
     val newId = conversationRepository.createConversation(title = title)
     _state.update { it.copy(conversationId = newId) }
-    messagesJob?.cancel()
-    messagesJob = viewModelScope.launch {
-      conversationRepository.getMessages(newId).collect { messages ->
-        _state.update { it.copy(messages = messages) }
-      }
-    }
+    observeMessages(newId)
     return newId
   }
 
@@ -377,6 +424,15 @@ class ChatViewModel(
     val current = _state.value.messages.find { it.id == messageId } ?: return
     viewModelScope.launch {
       conversationRepository.setMessagePinned(messageId, !current.isPinned)
+    }
+  }
+
+  private fun observeMessages(id: String) {
+    messagesJob?.cancel()
+    messagesJob = viewModelScope.launch {
+      conversationRepository.getMessages(id).collect { messages ->
+        _state.update { it.copy(messages = messages) }
+      }
     }
   }
 
@@ -392,4 +448,20 @@ class ChatViewModel(
     /** Урок-онбординг (setup-шаги language/persona/profile) драйвится не чат-контроллером, а экраном онбординга. */
     private const val ONBOARDING_LESSON_ID = "l1_welcome"
   }
+}
+
+private fun appendTranscript(current: String, transcript: String): String {
+  if (current.isBlank()) return transcript
+  return if (current.endsWith(' ') || current.endsWith('\n')) current + transcript
+  else "$current $transcript"
+}
+
+private fun VoiceInputState.ErrorReason.toUserMessage(): String = when (this) {
+  VoiceInputState.ErrorReason.Unavailable -> "Распознавание речи недоступно на устройстве"
+  VoiceInputState.ErrorReason.NoMatch -> "Не удалось распознать речь"
+  VoiceInputState.ErrorReason.Network -> "Нет сети для распознавания речи"
+  VoiceInputState.ErrorReason.Audio -> "Ошибка микрофона"
+  VoiceInputState.ErrorReason.Permission -> "Нет разрешения на доступ к микрофону"
+  VoiceInputState.ErrorReason.Busy -> "Распознаватель занят, попробуйте ещё раз"
+  VoiceInputState.ErrorReason.Other -> "Не удалось распознать речь"
 }

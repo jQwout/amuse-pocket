@@ -57,6 +57,7 @@ class OpenAiCompatClient(
   ): Flow<StreamEvent> = flow {
     val providers = fallbackChain.resolve(provider)
     var lastError: Exception? = null
+    var lastErrorCode: String? = if (providers.isEmpty()) "no_provider" else null
     // Как только провайдер отдал хоть кусок ответа, переход к следующему склеил бы два разных
     // ответа в один. Поэтому после первого эмита фоллбэк запрещён.
     var emittedAnswer = false
@@ -66,13 +67,14 @@ class OpenAiCompatClient(
         val apiKey = p.apiKeyResolver()
         if (apiKey.isBlank()) {
           lastError = IllegalStateException("API key for ${p.name} is blank")
+          lastErrorCode = "blank_key"
           continue
         }
 
         val requestBody = OpenAiChatRequest(
           model = p.model,
           messages = messages,
-          tools = tools.ifEmpty { null },
+          tools = tools.ifEmpty { null },  // null omitted via explicitNulls=false; [] would confuse some providers
           maxTokens = p.maxTokens,
           stream = true,
         )
@@ -85,7 +87,7 @@ class OpenAiCompatClient(
           if (response.status.value !in 200..299) {
             val bodyText = response.body<String>()
             // Бросаем, чтобы catch ниже перешёл к следующему провайдеру AUTO-цепочки.
-            throw IllegalStateException("HTTP ${response.status.value}: $bodyText")
+            throw LlmHttpException(response.status.value, bodyText)
           }
 
           val channel = response.body<ByteReadChannel>()
@@ -104,17 +106,18 @@ class OpenAiCompatClient(
       } catch (e: Exception) {
         Log.w(TAG, "Provider ${p.name} failed: ${e.message}")
         lastError = e
+        if (e is LlmHttpException) lastErrorCode = e.status.toString()
         if (emittedAnswer) {
           // Часть ответа уже ушла потребителю — молча перезапускать на другом провайдере нельзя,
           // иначе в чат попадёт обрывок + новый полный ответ.
-          emit(StreamEvent.Error("Stream interrupted: ${e.message}"))
+          emit(StreamEvent.Error("Stream interrupted: ${e.message}", code = lastErrorCode))
           return@flow
         }
         continue
       }
     }
 
-    emit(StreamEvent.Error("All providers failed. Last: ${lastError?.message}"))
+    emit(StreamEvent.Error("All providers failed. Last: ${lastError?.message}", code = lastErrorCode))
   }
 
   @Serializable
@@ -195,7 +198,7 @@ internal suspend fun consumeOpenAiSse(
       StreamEvent.ToolCall(
         id = acc.id ?: acc.index.toString(),
         name = acc.name,
-        arguments = parseToolArguments(acc.arguments.toString(), json),
+        arguments = parseToolArguments(acc.arguments.toString(), json, onParseError),
       ),
     )
   }
@@ -210,10 +213,15 @@ private class ToolCallAccumulator(val index: Int) {
   val arguments = StringBuilder()
 }
 
-private fun parseToolArguments(args: String, json: Json): Map<String, JsonElement> =
+private fun parseToolArguments(
+  args: String,
+  json: Json,
+  onError: (Throwable) -> Unit = {},
+): Map<String, JsonElement> =
   try {
     json.decodeFromString<JsonObject>(args).toMap()
   } catch (e: Exception) {
+    onError(e)
     emptyMap()
   }
 
@@ -250,3 +258,5 @@ private data class SseFunctionCall(
   val name: String? = null,
   val arguments: String? = null,
 )
+
+private class LlmHttpException(val status: Int, body: String) : Exception("HTTP $status: $body")

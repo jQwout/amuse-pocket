@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -69,6 +70,7 @@ fun HomeScreen(
   onNavigateToLibrary: () -> Unit,
   onNavigateToRoadmap: () -> Unit,
   onNavigateToSettings: () -> Unit,
+  onNavigateToAgents: () -> Unit,
 ) {
   val conversationsViewModel: ConversationsListViewModel = metroViewModel()
   val roadmapViewModel: RoadmapViewModel = metroViewModel()
@@ -131,6 +133,8 @@ fun HomeScreen(
       }
       item {
         NewChatCard(onClick = openNewChat)
+        Spacer(modifier = Modifier.height(12.dp))
+        AgentsEntryCard(onClick = onNavigateToAgents)
         Spacer(modifier = Modifier.height(28.dp))
       }
 
@@ -307,6 +311,55 @@ private fun NewChatCard(onClick: () -> Unit) {
       )
       Text(
         text = "Спросить AI Academy что угодно",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+      )
+    }
+    Icon(
+      imageVector = Icons.AutoMirrored.Default.KeyboardArrowRight,
+      contentDescription = null,
+      tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+    )
+  }
+}
+
+@Composable
+private fun AgentsEntryCard(onClick: () -> Unit) {
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .clip(CardShape)
+      .background(CardDark)
+      .clickable(onClick = onClick)
+      .padding(16.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Box(
+      modifier = Modifier
+        .size(44.dp)
+        .clip(CircleShape)
+        .background(PurpleAccentDark),
+      contentAlignment = Alignment.Center,
+    ) {
+      Icon(
+        imageVector = Icons.Default.Hub,
+        contentDescription = null,
+        tint = PurpleAccent,
+        modifier = Modifier.size(22.dp),
+      )
+    }
+    Column(
+      modifier = Modifier
+        .weight(1f)
+        .padding(horizontal = 14.dp),
+    ) {
+      Text(
+        text = "Агенты",
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onSurface,
+      )
+      Text(
+        text = "Специалисты и координатор, который их распределяет",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
       )
