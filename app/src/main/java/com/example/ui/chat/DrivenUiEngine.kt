@@ -41,6 +41,8 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import com.aiopenpocket.ui.roadmap.QuizQuestion
+import com.aiopenpocket.ui.roadmap.components.QuizContent
 
 // Defined structures of Templates
 sealed class DrivenUiCard {
@@ -51,6 +53,7 @@ sealed class DrivenUiCard {
     data class ChartBarCard(val title: String, val labels: List<String>, val values: List<Float>) : DrivenUiCard()
     data class FormCard(val fields: List<FormField>, val submitLabel: String) : DrivenUiCard()
     data class ChoiceCard(val question: String, val options: List<String>, val answerIndex: Int) : DrivenUiCard()
+    data class LessonQuizCard(val questions: List<QuizQuestion>) : DrivenUiCard()
     data class LessonCompleteCard(val title: String, val subtitle: String, val buttonLabel: String) : DrivenUiCard()
     data class SwitchCard(val label: String, val description: String, val action: String, val initialOn: Boolean) : DrivenUiCard()
     data class NotificationPermissionCard(val title: String, val description: String, val buttonLabel: String) : DrivenUiCard()
@@ -150,6 +153,23 @@ object DrivenUiEngine {
                     val answerIndex = if (params.has("answer")) params.optInt("answer", -1) else -1
                     DrivenUiCard.ChoiceCard(question, options, answerIndex)
                 }
+                "lesson_quiz" -> {
+                    val questionsJson = params.optJSONArray("questions") ?: JSONArray()
+                    val questions = mutableListOf<QuizQuestion>()
+                    for (i in 0 until questionsJson.length()) {
+                        val obj = questionsJson.optJSONObject(i) ?: JSONObject()
+                        val optsJson = obj.optJSONArray("options") ?: JSONArray()
+                        questions.add(
+                            QuizQuestion(
+                                question = obj.optString("q", ""),
+                                options = List(optsJson.length()) { optsJson.optString(it, "") },
+                                correctIndex = obj.optInt("correct", 0),
+                                explanation = obj.optString("explain", ""),
+                            )
+                        )
+                    }
+                    DrivenUiCard.LessonQuizCard(questions)
+                }
                 "lesson_complete" -> {
                     val title = params.optString("title", "Урок пройден!")
                     val subtitle = params.optString("subtitle", "")
@@ -236,6 +256,14 @@ fun DrivenUiCard.toMarkdown(): String = when (this) {
         options.forEach { appendLine("- $it") }
     }.trim()
 
+    is DrivenUiCard.LessonQuizCard -> buildString {
+        appendLine("**Проверка**")
+        questions.forEachIndexed { i, q ->
+            appendLine("${i + 1}. ${q.question}")
+            q.options.forEach { appendLine("   - $it") }
+        }
+    }.trim()
+
     is DrivenUiCard.LessonCompleteCard -> buildString {
         appendLine("**✓ $title**")
         if (subtitle.isNotBlank()) appendLine(subtitle)
@@ -262,6 +290,7 @@ fun RenderDrivenUiCard(
     onFormSubmitted: (String) -> Unit = {},
     onChoiceSelected: (String) -> Unit = {},
     onLessonComplete: () -> Unit = {},
+    onLessonQuizComplete: () -> Unit = {},
     onAction: (String, Boolean) -> Unit = { _, _ -> }
 ) {
     val card = remember(spec) { DrivenUiEngine.parseJsonString(spec) }
@@ -282,6 +311,7 @@ fun RenderDrivenUiCard(
             is DrivenUiCard.ChartBarCard -> ChartBarCardView(card)
             is DrivenUiCard.FormCard -> FormCardView(card, onFormSubmitted)
             is DrivenUiCard.ChoiceCard -> ChoiceCardView(card, onChoiceSelected)
+            is DrivenUiCard.LessonQuizCard -> LessonQuizCardView(card, onLessonQuizComplete)
             is DrivenUiCard.LessonCompleteCard -> LessonCompleteCardView(card, onLessonComplete)
             is DrivenUiCard.SwitchCard -> SwitchCardView(card, onAction)
             is DrivenUiCard.NotificationPermissionCard -> NotificationPermissionCardView(card)
@@ -765,6 +795,25 @@ fun ChoiceCardView(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun LessonQuizCardView(
+    card: DrivenUiCard.LessonQuizCard,
+    onAllAnswered: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = "Закрепим пройденное",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        QuizContent(
+            questions = card.questions,
+            onAllAnswered = onAllAnswered,
+        )
     }
 }
 

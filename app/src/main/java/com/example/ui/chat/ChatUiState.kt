@@ -1,6 +1,8 @@
 ﻿package com.aiopenpocket.ui.chat
 
+import com.aiopenpocket.agent.core.lesson.Lesson
 import com.aiopenpocket.agent.core.memory.model.Message
+import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.loop.ToolTrace
 
 data class ChatUiState(
@@ -18,4 +20,20 @@ data class ChatUiState(
   val isTutorial: Boolean = false,
   /** Roadmap level id (the tutorial conversation title), used to mark completion. */
   val levelId: String? = null,
+
+  // --- Режим агента (план-/гоал-мод) — эфемерный UI-флаг экрана чата ---
+  val agentMode: AgentMode = AgentMode.CHAT,
+  /** План-мод: план показан, ждём «Выполнить»/«Поправить». */
+  val planAwaitingApproval: Boolean = false,
+  /** Лимит витков гоал-мода (из настроек). */
+  val goalMaxIterations: Int = 3,
+
+  // --- Урок, который драйвит чат-контроллер по JSON-контракту ---
+  /** True, если этот чат — JSON-урок (есть assets/lessons/{title}.json). */
+  val lessonMode: Boolean = false,
+  val lesson: Lesson? = null,
+  /** Сколько шагов урока уже опубликовано (следующий к показу — steps[lessonStepIndex]). */
+  val lessonStepIndex: Int = 0,
+  /** True, когда показана карточка завершения урока. */
+  val lessonFinished: Boolean = false,
 )
