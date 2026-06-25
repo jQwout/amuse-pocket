@@ -25,6 +25,7 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
 
+// @trace rezhimy-agenta-plan-i-goal-ee2361
 @SingleIn(AppScope::class)
 class AgentLoopOrchestrator @Inject constructor(
   private val llmClient: LlmClient,
@@ -43,20 +44,39 @@ class AgentLoopOrchestrator @Inject constructor(
     conversationId: String,
     userMessage: String,
     provider: LlmProvider = LlmProvider.NIM,
+    mode: AgentMode = AgentMode.CHAT,
+    planApproved: Boolean = false,
+    goalMaxIterations: Int = 3,
   ): Flow<AgentEvent> = channelFlow {
-    val context = prePromptAssembler.assemble(conversationId, userMessage)
+    // Контракт режима (гейт план-мода / петля гоал-мода) — чистое решение, покрыто AgentModeTest.
+    val turn = resolveTurnExecutionPlan(mode, planApproved, goalMaxIterations, MAX_ITERATIONS)
+    val maxIterations = turn.maxIterations
+
+    val context = prePromptAssembler.assemble(conversationId, userMessage, turn.promptMode)
+    // В гоал-моде сообщаем модели бюджет витков — иначе goal.md обещает «честно остановиться на лимите»,
+    // но модель не знает, какой виток последний, и обычно уходит в обрыв на tool_call.
+    val systemContent = if (mode == AgentMode.GOAL) {
+      context.systemPrompt + "\n\nБюджет: не более " + maxIterations + " витков (рассуждение, действие, " +
+        "самопроверка). На последнем витке дай финальный ответ или честный частичный итог — не начинай новых действий."
+    } else {
+      context.systemPrompt
+    }
     val messages = mutableListOf<ChatMessage>()
-    messages += ChatMessage(role = "system", content = context.systemPrompt)
+    messages += ChatMessage(role = "system", content = systemContent)
     messages += context.history.map { it.toChatMessage() }
     // The caller persists the user message to DB before calling execute(),
     // so it's already included in context.history via ContextWindowBuilder.
 
-    val tools = registry.getAllSchemas()
+    // Гейт: на фазе планирования инструменты не отдаём модели — она физически не может ничего выполнить.
+    val tools = if (turn.usesTools) registry.getAllSchemas() else emptyList()
     val toolTrace = mutableListOf<ToolTrace>()
     var accumulatedText = ""
+    // Текст всех витков подряд: при упоре в лимит финальный ответ не должен оказаться пустым —
+    // последний виток часто = только tool_call без сопроводительного текста (паттерн «думаю→вызываю»).
+    val transcript = StringBuilder()
 
     var done = false
-    for (iteration in 1..MAX_ITERATIONS) {
+    for (iteration in 1..maxIterations) {
       if (done) break
       // Текст и tool-call копятся в рамках одной итерации (одного хода модели). Сбрасываем в начале:
       // преамбула перед tool-call не должна склеиваться с финальным ответом следующей итерации.
@@ -121,6 +141,12 @@ class AgentLoopOrchestrator @Inject constructor(
         },
       )
 
+      // Сохраняем преамбулу этого витка в общий транскрипт (на случай остановки по лимиту).
+      if (accumulatedText.isNotBlank()) {
+        if (transcript.isNotEmpty()) transcript.append("\n\n")
+        transcript.append(accumulatedText)
+      }
+
       for (tc in pendingToolCalls) {
         send(AgentEvent.ToolStarted(tc.name, tc.arguments))
 
@@ -154,15 +180,17 @@ class AgentLoopOrchestrator @Inject constructor(
     }
 
     if (!done) {
-      // Упёрлись в лимит шагов: отдаём накопленное (текст + трейс), а не голую ошибку — работа не пропадает.
+      // Упёрлись в лимит витков (в гоал-моде это штатная честная остановка): отдаём накопленное
+      // (текст + трейс), а не голую ошибку — работа не пропадает.
       send(AgentEvent.StateChanged(AgentState.FINISHED))
       send(
         AgentEvent.Completed(
           AgentResult(
-            text = accumulatedText,
+            text = transcript.toString().trim()
+              .ifBlank { "Достиг лимита витков — задача выполнена частично. Подробности — в трассировке инструментов." },
             toolTrace = toolTrace,
             state = AgentState.FINISHED,
-            iterations = MAX_ITERATIONS,
+            iterations = maxIterations,
           ),
         ),
       )

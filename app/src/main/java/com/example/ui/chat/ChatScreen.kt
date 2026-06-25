@@ -3,6 +3,7 @@
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,17 +25,21 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import com.aiopenpocket.agent.loop.AgentMode
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -124,10 +129,17 @@ fun ChatScreen(
             interactiveCards = state.isTutorial,
             onChoiceSelected = { viewModel.sendUserMessage(it) },
             onFormSubmitted = { viewModel.sendUserMessage(it) },
-            // Lesson finished in chat → go to the standalone quiz screen for this level.
+            // Квиз JSON-урока пройден → показать карточку завершения.
+            onLessonQuizComplete = { viewModel.handleIntent(ChatIntent.CompleteLessonQuiz) },
             onLessonComplete = {
-              val levelId = state.levelId
-              if (levelId != null) onOpenQuiz(levelId) else onNavigateBack()
+              if (state.lessonMode) {
+                // JSON-урок: отметить пройденным и вернуться к списку.
+                viewModel.completeLesson(onNavigateBack)
+              } else {
+                // Старый roadmap-урок: финальная карточка ведёт на отдельный экран-квиз.
+                val levelId = state.levelId
+                if (levelId != null) onOpenQuiz(levelId) else onNavigateBack()
+              }
             },
             onCardAction = onCardAction,
           )
@@ -176,14 +188,128 @@ fun ChatScreen(
         }
       }
 
-      ChatInput(
-        value = state.inputText,
-        onValueChange = { viewModel.handleIntent(ChatIntent.UpdateInput(it)) },
-        onSend = { viewModel.handleIntent(ChatIntent.SendMessage) },
-        onCancel = { viewModel.handleIntent(ChatIntent.CancelRequest) },
-        isLoading = state.isLoading,
-      )
+      if (state.lessonMode) {
+        // Урок драйвит контроллер: пользователь листает шаги кнопкой, текстовый инпут не нужен.
+        val currentStep = state.lesson?.steps?.getOrNull(state.lessonStepIndex - 1)
+        // Ручная кнопка нужна для текстового шага, а также для вырожденного quiz без вопросов —
+        // у такого карточка не вызовет onAllAnswered, и без кнопки урок бы застрял.
+        val needsManualAdvance = currentStep != null && !state.lessonFinished &&
+          (currentStep.type == "text" || (currentStep.type == "quiz" && currentStep.questions.isEmpty()))
+        if (needsManualAdvance) {
+          val isLastStep = state.lessonStepIndex >= (state.lesson?.steps?.size ?: 0)
+          LessonControlBar(
+            label = if (isLastStep) "Завершить урок" else "Дальше →",
+            onClick = { viewModel.handleIntent(ChatIntent.AdvanceLesson) },
+          )
+        }
+      } else {
+        // Режимы план/гоал — только в обычных чатах; в гайд-уроках (l2–l4) их не показываем.
+        if (!state.isTutorial) {
+          ModeSelector(
+            selected = state.agentMode,
+            enabled = !state.isLoading,
+            onSelect = { viewModel.handleIntent(ChatIntent.SetMode(it)) },
+          )
+          if (state.planAwaitingApproval) {
+            PlanApprovalBar(
+              onApprove = { viewModel.handleIntent(ChatIntent.ApprovePlan) },
+              onEdit = { viewModel.handleIntent(ChatIntent.EditPlan) },
+            )
+          }
+        }
+        ChatInput(
+          value = state.inputText,
+          onValueChange = { viewModel.handleIntent(ChatIntent.UpdateInput(it)) },
+          onSend = { viewModel.handleIntent(ChatIntent.SendMessage) },
+          onCancel = { viewModel.handleIntent(ChatIntent.CancelRequest) },
+          isLoading = state.isLoading,
+          placeholder = when (state.agentMode) {
+            AgentMode.PLAN -> "Опиши задачу — агент составит план…"
+            AgentMode.GOAL -> "Сформулируй цель…"
+            AgentMode.CHAT -> "Сообщение..."
+          },
+        )
+      }
     }
+  }
+}
+
+@Composable
+private fun ModeSelector(
+  selected: AgentMode,
+  enabled: Boolean,
+  onSelect: (AgentMode) -> Unit,
+) {
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(horizontal = 8.dp),
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    ModeChip("Чат", selected == AgentMode.CHAT, enabled) { onSelect(AgentMode.CHAT) }
+    ModeChip("План", selected == AgentMode.PLAN, enabled) { onSelect(AgentMode.PLAN) }
+    ModeChip("Цель", selected == AgentMode.GOAL, enabled) { onSelect(AgentMode.GOAL) }
+  }
+}
+
+@Composable
+private fun ModeChip(
+  label: String,
+  selected: Boolean,
+  enabled: Boolean,
+  onClick: () -> Unit,
+) {
+  FilterChip(
+    selected = selected,
+    onClick = onClick,
+    enabled = enabled,
+    label = { Text(label) },
+  )
+}
+
+@Composable
+private fun PlanApprovalBar(
+  onApprove: () -> Unit,
+  onEdit: () -> Unit,
+) {
+  Column(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(horizontal = 12.dp, vertical = 6.dp),
+  ) {
+    Text(
+      text = "План готов. Выполнить?",
+      style = MaterialTheme.typography.labelLarge,
+      color = MaterialTheme.colorScheme.primary,
+    )
+    Spacer(Modifier.height(6.dp))
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f)) {
+        Text("Поправить")
+      }
+      Button(onClick = onApprove, modifier = Modifier.weight(1f)) {
+        Text("Выполнить")
+      }
+    }
+  }
+}
+
+@Composable
+private fun LessonControlBar(
+  label: String,
+  onClick: () -> Unit,
+) {
+  Button(
+    onClick = onClick,
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(horizontal = 12.dp, vertical = 8.dp),
+  ) {
+    Text(label)
   }
 }
 
@@ -196,6 +322,7 @@ private fun MessageBubble(
   onChoiceSelected: (String) -> Unit = {},
   onFormSubmitted: (String) -> Unit = {},
   onLessonComplete: () -> Unit = {},
+  onLessonQuizComplete: () -> Unit = {},
   onCardAction: (String, Boolean) -> Unit = { _, _ -> },
 ) {
   val isUser = message.role == "user"
@@ -262,6 +389,7 @@ private fun MessageBubble(
           onChoiceSelected = onChoiceSelected,
           onFormSubmitted = onFormSubmitted,
           onLessonComplete = onLessonComplete,
+          onLessonQuizComplete = onLessonQuizComplete,
           onAction = onCardAction,
         )
       } else {
@@ -339,6 +467,7 @@ private fun ChatInput(
   onSend: () -> Unit,
   onCancel: () -> Unit,
   isLoading: Boolean,
+  placeholder: String = "Сообщение...",
 ) {
   Row(
     modifier = Modifier
@@ -350,7 +479,7 @@ private fun ChatInput(
       value = value,
       onValueChange = onValueChange,
       modifier = Modifier.weight(1f),
-      placeholder = { Text("Сообщение...") },
+      placeholder = { Text(placeholder) },
       singleLine = false,
       maxLines = 4,
     )
