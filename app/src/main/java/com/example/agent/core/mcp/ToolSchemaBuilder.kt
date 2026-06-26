@@ -25,6 +25,9 @@ class ToolSchemaBuilder(private val toolName: String, private val toolDescriptio
   fun integer(name: String, description: String, required: Boolean = false) =
     addParam(name, "integer", description, required)
 
+  fun obj(name: String, description: String, required: Boolean = false) =
+    addParam(name, "object", description, required)
+
   private fun addParam(
     name: String,
     jsonType: String,
@@ -36,7 +39,8 @@ class ToolSchemaBuilder(private val toolName: String, private val toolDescriptio
       buildMap {
         put("type", JsonPrimitive(jsonType))
         put("description", JsonPrimitive(description))
-        if (enum != null) put("enum", JsonPrimitive(enum.joinToString(",")))
+        // JSON Schema требует enum МАССИВОМ — иначе constrained decoding модели его игнорирует.
+        if (enum != null) put("enum", JsonArray(enum.map { JsonPrimitive(it) }))
       },
     )
     if (required) this.required += name
