@@ -1,7 +1,11 @@
 package com.aiopenpocket.ui.components
 
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.mikepenz.markdown.m3.Markdown
 
 /**
@@ -21,4 +25,24 @@ fun MarkdownText(
     content = text,
     modifier = modifier,
   )
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1C1B1F)
+@Composable
+private fun MarkdownTextPreview() {
+  MyApplicationTheme {
+    MarkdownText(
+      text = """
+        ## Заголовок
+
+        Обычный абзац с **жирным** и *курсивом*.
+
+        - первый пункт
+        - второй пункт
+
+        > Цитата
+      """.trimIndent(),
+      modifier = Modifier.padding(16.dp),
+    )
+  }
 }

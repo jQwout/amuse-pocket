@@ -29,8 +29,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
+import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.ui.theme.PurpleAccent
 import com.aiopenpocket.ui.theme.PurpleAccentDark
 
@@ -154,5 +156,20 @@ fun PersonaSelectionStep(
         }
       }
     }
+  }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1C1B1F)
+@Composable
+private fun PersonaSelectionStepPreview() {
+  MyApplicationTheme {
+    PersonaSelectionStep(
+      selectedPersonaId = "sharp_partner",
+      isSaving = false,
+      error = null,
+      onSelectPersona = {},
+      onBack = {},
+      onApply = {},
+    )
   }
 }

@@ -20,10 +20,24 @@ class ToolSchemaBuilder(private val toolName: String, private val toolDescriptio
     description: String,
     required: Boolean = false,
     enum: List<String>? = null,
+  ) = addParam(name, "string", description, required, enum)
+
+  fun integer(name: String, description: String, required: Boolean = false) =
+    addParam(name, "integer", description, required)
+
+  fun obj(name: String, description: String, required: Boolean = false) =
+    addParam(name, "object", description, required)
+
+  private fun addParam(
+    name: String,
+    jsonType: String,
+    description: String,
+    required: Boolean,
+    enum: List<String>? = null,
   ) {
     properties[name] = JsonObject(
       buildMap {
-        put("type", JsonPrimitive("string"))
+        put("type", JsonPrimitive(jsonType))
         put("description", JsonPrimitive(description))
         // JSON Schema требует enum МАССИВОМ — иначе constrained decoding модели его игнорирует.
         if (enum != null) put("enum", JsonArray(enum.map { JsonPrimitive(it) }))
@@ -57,3 +71,14 @@ fun toolSchema(
 /** Read a non-blank string argument, or null. Replaces the `(args[k] as? JsonPrimitive)?.content` dance. */
 fun Map<String, JsonElement>.string(key: String): String? =
   (this[key] as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() }
+
+/** Read an integer argument (accepts numeric or string-numeric JSON values), or null. */
+fun Map<String, JsonElement>.int(key: String): Int? =
+  (this[key] as? JsonPrimitive)?.content?.toIntOrNull()
+
+/** Read a long argument (accepts numeric or string-numeric JSON values), or null. */
+fun Map<String, JsonElement>.long(key: String): Long? =
+  (this[key] as? JsonPrimitive)?.content?.toLongOrNull()
+
+/** Standard "Missing 'key'" error so tools can write `args.string(k) ?: return missingArg(k)`. */
+fun missingArg(key: String): ToolResult.Error = ToolResult.Error("Missing '$key'")

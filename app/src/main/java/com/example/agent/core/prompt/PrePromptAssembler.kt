@@ -29,11 +29,7 @@ class PrePromptAssembler @Inject constructor(
     promptMode: PromptMode = PromptMode.NONE,
   ): PromptContext =
     withContext(Dispatchers.IO) {
-      val systemBase = try {
-        application.assets.open("prompts/system_base.md").bufferedReader().use { it.readText() }
-      } catch (_: Exception) {
-        DEFAULT_SYSTEM_BASE
-      }
+      val systemBase = loadAsset("prompts/system_base.md") ?: DEFAULT_SYSTEM_BASE
 
       // Секция режима (план-/гоал-мод) — доверенная инструкция, подмешивается поверх базовой.
       val modePrompt = loadModePrompt(promptMode)
@@ -43,23 +39,12 @@ class PrePromptAssembler @Inject constructor(
       val personaId = conversation?.personaId ?: userPreferencesRepository.getDefaultPersonaId()
       // Язык общения, выбранный на онбординге (по умолчанию русский).
       val language = userPreferencesRepository.getLanguage()
-      val persona = try {
-        application.assets.open("personas/$personaId.md").bufferedReader().use { it.readText() }
-      } catch (_: Exception) {
-        "Характер: Деловой напарник по умолчанию."
-      }
+      val persona = loadAsset("personas/$personaId.md")
+        ?: "Характер: Деловой напарник по умолчанию."
 
       val tutorialPrompt = if (conversation?.isTutorial == true) {
-        val levelId = conversation.title
-        try {
-          application.assets.open("prompts/roadmap/$levelId.md").bufferedReader().use { it.readText() }
-        } catch (_: Exception) {
-          try {
-            application.assets.open("prompts/tutorial.md").bufferedReader().use { it.readText() }
-          } catch (_: Exception) {
-            null
-          }
-        }
+        loadAsset("prompts/roadmap/${conversation.title}.md")
+          ?: loadAsset("prompts/tutorial.md")
       } else null
 
       // Mini-agent bound to this chat (if any): adds a role section and scopes the tool set.
@@ -170,6 +155,10 @@ class PrePromptAssembler @Inject constructor(
       )
     }
 
+  private fun loadAsset(path: String): String? = runCatching {
+    application.assets.open(path).bufferedReader().use { it.readText() }
+  }.getOrNull()
+
   /** Грузит секцию системного промпта для режима агента (план-/гоал-мод). NONE → null. */
   private fun loadModePrompt(promptMode: PromptMode): String? {
     val asset = when (promptMode) {
@@ -178,11 +167,7 @@ class PrePromptAssembler @Inject constructor(
       PromptMode.PLAN_EXECUTING -> "prompts/modes/plan_executing.md"
       PromptMode.GOAL -> "prompts/modes/goal.md"
     }
-    return try {
-      application.assets.open(asset).bufferedReader().use { it.readText() }
-    } catch (_: Exception) {
-      null
-    }
+    return loadAsset(asset)
   }
 
   /** Человекочитаемая метка языка для системной секции (код языка из онбординга → название). */

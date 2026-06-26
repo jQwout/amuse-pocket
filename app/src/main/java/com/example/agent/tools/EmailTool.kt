@@ -3,16 +3,15 @@ package com.aiopenpocket.agent.tools
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
+import com.aiopenpocket.agent.core.mcp.missingArg
+import com.aiopenpocket.agent.core.mcp.string
+import com.aiopenpocket.agent.core.mcp.toolSchema
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 
 @Inject
 @SingleIn(AppScope::class)
@@ -24,44 +23,20 @@ class EmailTool(
   override val description =
     "Помогает составить письмо и открывает черновик в почтовом приложении пользователя. " +
     "Письмо НЕ отправляется автоматически — пользователь сам нажимает «Отправить»."
-  override val schema = FunctionSchema(
-    function = FunctionSchema.FunctionDefinition(
-      name = name,
-      description = description,
-      parameters = JsonObject(mapOf(
-        "type" to JsonPrimitive("object"),
-        "properties" to JsonObject(mapOf(
-          "action" to JsonObject(mapOf(
-            "type" to JsonPrimitive("string"),
-            "enum" to JsonArray(listOf(JsonPrimitive("compose"))),
-            "description" to JsonPrimitive("Действие: compose"),
-          )),
-          "to" to JsonObject(mapOf(
-            "type" to JsonPrimitive("string"),
-            "description" to JsonPrimitive("Email получателя (опц.)"),
-          )),
-          "subject" to JsonObject(mapOf(
-            "type" to JsonPrimitive("string"),
-            "description" to JsonPrimitive("Тема письма"),
-          )),
-          "body" to JsonObject(mapOf(
-            "type" to JsonPrimitive("string"),
-            "description" to JsonPrimitive("Текст письма"),
-          )),
-        )),
-        "required" to JsonArray(listOf(JsonPrimitive("action"))),
-      )),
-    ),
-  )
+  override val schema = toolSchema(name, description) {
+    string("action", "Действие: compose", required = true, enum = listOf("compose"))
+    string("to", "Email получателя (опц.)")
+    string("subject", "Тема письма")
+    string("body", "Текст письма")
+  }
 
   override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult {
-    val action = (arguments["action"] as? JsonPrimitive)?.content
-      ?: return ToolResult.Error("Missing 'action'")
+    val action = arguments.string("action") ?: return missingArg("action")
     if (action != "compose") return ToolResult.Error("Unknown action: $action")
 
-    val to = (arguments["to"] as? JsonPrimitive)?.content
-    val subject = (arguments["subject"] as? JsonPrimitive)?.content
-    val body = (arguments["body"] as? JsonPrimitive)?.content
+    val to = arguments.string("to")
+    val subject = arguments.string("subject")
+    val body = arguments.string("body")
 
     val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:")).apply {
       if (!to.isNullOrBlank()) putExtra(Intent.EXTRA_EMAIL, arrayOf(to))

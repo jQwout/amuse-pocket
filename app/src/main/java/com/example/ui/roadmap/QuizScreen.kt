@@ -1,6 +1,5 @@
 package com.aiopenpocket.ui.roadmap
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,8 +16,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.ui.roadmap.components.QuizContent
+import com.aiopenpocket.ui.theme.MyApplicationTheme
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,33 +31,37 @@ fun QuizScreen(
   val viewModel = metroViewModel<QuizViewModel>()
   val questions = LESSON_QUIZZES[levelId].orEmpty()
 
-  // Nothing to ask — count the lesson done and leave immediately.
   if (questions.isEmpty()) {
     LaunchedEffect(levelId) { viewModel.finish(levelId, onFinished) }
     return
   }
 
+  QuizContentScreen(
+    questions = questions,
+    onFinish = { viewModel.finish(levelId, onFinished) },
+    onSkip = { viewModel.finish(levelId, onFinished) },
+  )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun QuizContentScreen(
+  questions: List<QuizQuestion>,
+  onFinish: () -> Unit,
+  onSkip: () -> Unit,
+) {
   Scaffold(
     topBar = {
       TopAppBar(
         title = { Text("Проверка") },
         actions = {
-          TextButton(onClick = { viewModel.finish(levelId, onFinished) }) {
-            Text("Пропустить")
-          }
+          TextButton(onClick = onSkip) { Text("Пропустить") }
         },
       )
     },
     bottomBar = {
-      Column(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(16.dp),
-      ) {
-        Button(
-          onClick = { viewModel.finish(levelId, onFinished) },
-          modifier = Modifier.fillMaxWidth(),
-        ) {
+      Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+        Button(onClick = onFinish, modifier = Modifier.fillMaxWidth()) {
           Text("Завершить урок")
         }
       }
@@ -70,17 +75,29 @@ fun QuizScreen(
         .verticalScroll(rememberScrollState()),
     ) {
       Text(
-        text = "Закрепим пройденное",
+        "Закрепим пройденное",
         style = MaterialTheme.typography.headlineSmall,
         modifier = Modifier.padding(vertical = 16.dp),
       )
       QuizContent(questions = questions)
       Text(
-        text = "Можно пропустить — урок всё равно засчитается.",
+        "Можно пропустить — урок всё равно засчитается.",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
       )
     }
+  }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1C1B1F)
+@Composable
+private fun QuizScreenPreview() {
+  MyApplicationTheme {
+    QuizContentScreen(
+      questions = LESSON_QUIZZES["l1_welcome"].orEmpty(),
+      onFinish = {},
+      onSkip = {},
+    )
   }
 }
