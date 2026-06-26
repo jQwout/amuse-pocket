@@ -30,8 +30,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.ui.roadmap.LESSON_QUIZZES
 import com.aiopenpocket.ui.roadmap.QuizQuestion
+import com.aiopenpocket.ui.theme.MyApplicationTheme
 
 private val CorrectGreen = Color(0xFF4CAF50)
 
@@ -141,5 +144,13 @@ fun QuizContent(
         Spacer(Modifier.height(20.dp))
       }
     }
+  }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1C1B1F, heightDp = 700)
+@Composable
+private fun QuizContentPreview() {
+  MyApplicationTheme {
+    QuizContent(questions = LESSON_QUIZZES["l1_welcome"].orEmpty())
   }
 }

@@ -18,7 +18,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.ui.theme.MyApplicationTheme
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -29,7 +31,16 @@ fun MemoryGraphScreen(
 ) {
   val viewModel: MemoryGraphViewModel = metroViewModel()
   val state by viewModel.state.collectAsState()
+  MemoryGraphContent(state = state, onNavigateBack = onNavigateBack, onOpenChat = onOpenChat)
+}
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MemoryGraphContent(
+  state: MemoryGraphState,
+  onNavigateBack: () -> Unit,
+  onOpenChat: (String) -> Unit,
+) {
   Scaffold(
     topBar = {
       TopAppBar(
@@ -67,5 +78,17 @@ fun MemoryGraphScreen(
         )
       }
     }
+  }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1C1B1F)
+@Composable
+private fun MemoryGraphEmptyPreview() {
+  MyApplicationTheme {
+    MemoryGraphContent(
+      state = MemoryGraphState(),
+      onNavigateBack = {},
+      onOpenChat = {},
+    )
   }
 }

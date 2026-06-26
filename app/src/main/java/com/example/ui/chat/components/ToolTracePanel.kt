@@ -9,8 +9,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.loop.ToolTrace
+import com.aiopenpocket.ui.theme.MyApplicationTheme
 
 @Composable
 fun ToolTracePanel(
@@ -31,8 +34,8 @@ fun ToolTracePanel(
       )
       traces.forEach { trace ->
         val resultText = when (trace.result) {
-          is com.aiopenpocket.agent.core.mcp.ToolResult.Success -> "OK"
-          is com.aiopenpocket.agent.core.mcp.ToolResult.Error -> "ERR"
+          is ToolResult.Success -> "OK"
+          is ToolResult.Error -> "ERR"
         }
         Text(
           text = "[${trace.iteration}] ${trace.toolName} → $resultText",
@@ -41,5 +44,18 @@ fun ToolTracePanel(
         )
       }
     }
+  }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1C1B1F)
+@Composable
+private fun ToolTracePanelPreview() {
+  MyApplicationTheme {
+    ToolTracePanel(
+      traces = listOf(
+        ToolTrace(1, "search_memory", emptyMap(), ToolResult.Success("3 matches")),
+        ToolTrace(2, "write_file", emptyMap(), ToolResult.Error("permission denied")),
+      ),
+    )
   }
 }

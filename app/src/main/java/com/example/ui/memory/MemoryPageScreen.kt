@@ -2,6 +2,7 @@ package com.aiopenpocket.ui.memory
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,8 +28,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.memory.model.Message
+import com.aiopenpocket.ui.theme.MyApplicationTheme
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -41,10 +44,22 @@ fun MemoryPageScreen(
   val viewModel: MemoryPageViewModel = metroViewModel()
   val state by viewModel.state.collectAsState()
 
-  LaunchedEffect(conversationId) {
-    viewModel.load(conversationId)
-  }
+  LaunchedEffect(conversationId) { viewModel.load(conversationId) }
 
+  MemoryPageContent(
+    state = state,
+    onNavigateBack = onNavigateBack,
+    onOpenChat = { onOpenChat(conversationId) },
+  )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MemoryPageContent(
+  state: MemoryPageState,
+  onNavigateBack: () -> Unit,
+  onOpenChat: () -> Unit,
+) {
   Scaffold(
     topBar = {
       TopAppBar(
@@ -55,7 +70,7 @@ fun MemoryPageScreen(
           }
         },
         actions = {
-          IconButton(onClick = { onOpenChat(conversationId) }) {
+          IconButton(onClick = onOpenChat) {
             Icon(Icons.Default.Edit, contentDescription = "Открыть чат")
           }
         },
@@ -67,26 +82,12 @@ fun MemoryPageScreen(
   ) { padding ->
     LazyColumn(
       modifier = Modifier.fillMaxSize().padding(padding),
-      contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+      contentPadding = PaddingValues(16.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
       if (!state.summary.isNullOrBlank()) {
-        item {
-          Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-              containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            ),
-          ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-              Text("Краткое содержание", style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-              Text(state.summary!!, style = MaterialTheme.typography.bodyMedium)
-            }
-          }
-        }
+        item { SummaryCard(state.summary) }
       }
-
       if (state.tags.isNotEmpty()) {
         item {
           Text(
@@ -96,14 +97,25 @@ fun MemoryPageScreen(
           )
         }
       }
+      item { Text("Сообщения", style = MaterialTheme.typography.titleSmall) }
+      items(state.messages, key = { it.id }) { message -> MessageRow(message) }
+    }
+  }
+}
 
-      item {
-        Text("Сообщения", style = MaterialTheme.typography.titleSmall)
-      }
-
-      items(state.messages, key = { it.id }) { message ->
-        MessageRow(message)
-      }
+@Composable
+private fun SummaryCard(summary: String) {
+  Card(
+    modifier = Modifier.fillMaxWidth(),
+    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+  ) {
+    Column(modifier = Modifier.padding(16.dp)) {
+      Text(
+        "Краткое содержание",
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+      Text(summary, style = MaterialTheme.typography.bodyMedium)
     }
   }
 }
@@ -121,5 +133,25 @@ private fun MessageRow(message: Message) {
       )
       Text(message.content, style = MaterialTheme.typography.bodyMedium)
     }
+  }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1C1B1F)
+@Composable
+private fun MemoryPagePreview() {
+  MyApplicationTheme {
+    MemoryPageContent(
+      state = MemoryPageState(
+        title = "Идеи проекта",
+        summary = "Обсудили MVP и дорожную карту.",
+        tags = listOf("работа", "идеи"),
+        messages = listOf(
+          Message("1", "c", "user", "Что у нас в работе?", null, createdAt = 0L),
+          Message("2", "c", "assistant", "Сейчас приоритет — MVP к понедельнику.", null, createdAt = 0L),
+        ),
+      ),
+      onNavigateBack = {},
+      onOpenChat = {},
+    )
   }
 }
