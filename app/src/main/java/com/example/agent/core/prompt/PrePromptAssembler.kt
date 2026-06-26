@@ -3,6 +3,7 @@
 import android.app.Application
 import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
+import com.aiopenpocket.agent.loop.PromptMode
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
 import com.aiopenpocket.agent.core.skill.SkillRegistry
@@ -22,13 +23,20 @@ class PrePromptAssembler @Inject constructor(
   private val userPreferencesRepository: UserPreferencesRepository,
 ) {
 
-  suspend fun assemble(conversationId: String, currentMessage: String): PromptContext =
+  suspend fun assemble(
+    conversationId: String,
+    currentMessage: String,
+    promptMode: PromptMode = PromptMode.NONE,
+  ): PromptContext =
     withContext(Dispatchers.IO) {
       val systemBase = try {
         application.assets.open("prompts/system_base.md").bufferedReader().use { it.readText() }
       } catch (_: Exception) {
         DEFAULT_SYSTEM_BASE
       }
+
+      // Секция режима (план-/гоал-мод) — доверенная инструкция, подмешивается поверх базовой.
+      val modePrompt = loadModePrompt(promptMode)
 
       val conversation = conversationRepository.getConversation(conversationId)
       // Персона: у диалога своя (если задана), иначе — выбранная пользователем на онбординге, иначе дефолт.
@@ -70,6 +78,10 @@ class PrePromptAssembler @Inject constructor(
       val systemPrompt = buildString {
         appendLine(systemBase)
         appendLine()
+        if (modePrompt != null) {
+          appendLine(modePrompt)
+          appendLine()
+        }
         if (tutorialPrompt != null) {
           appendLine(tutorialPrompt)
           appendLine()
@@ -157,6 +169,21 @@ class PrePromptAssembler @Inject constructor(
         toolNames = agent?.toolNames?.takeIf { it.isNotEmpty() },
       )
     }
+
+  /** Грузит секцию системного промпта для режима агента (план-/гоал-мод). NONE → null. */
+  private fun loadModePrompt(promptMode: PromptMode): String? {
+    val asset = when (promptMode) {
+      PromptMode.NONE -> return null
+      PromptMode.PLAN_PLANNING -> "prompts/modes/plan_planning.md"
+      PromptMode.PLAN_EXECUTING -> "prompts/modes/plan_executing.md"
+      PromptMode.GOAL -> "prompts/modes/goal.md"
+    }
+    return try {
+      application.assets.open(asset).bufferedReader().use { it.readText() }
+    } catch (_: Exception) {
+      null
+    }
+  }
 
   /** Человекочитаемая метка языка для системной секции (код языка из онбординга → название). */
   private fun languageLabel(code: String): String = when (code.lowercase()) {

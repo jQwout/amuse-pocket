@@ -176,6 +176,9 @@ class MainActivity : ComponentActivity() {
                                 composable("library") {
                                     LibraryScreen(
                                         onNavigateBack = { navController.popBackStack() },
+                                        onOpenLessonChat = { chatId ->
+                                            navController.navigate("chat/$chatId")
+                                        },
                                     )
                                 }
                                 composable("conversations") {

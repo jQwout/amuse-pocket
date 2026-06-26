@@ -21,10 +21,15 @@ import com.aiopenpocket.di.AppScope
 
 /**
  * Single-turn chat agent: assembles the prompt context, then runs the shared [ReactLoopRunner] over
- * the full tool set and emits a terminal Completed/Error. The reasoning loop itself lives in
+ * the tool set and emits a terminal Completed/Error. The reasoning loop itself lives in
  * [ReactLoopRunner] so that [com.aiopenpocket.agent.loop.PlanExecuteOrchestrator] can reuse the exact
  * same engine per plan step.
+ *
+ * Поверх базового хода поддерживает режимы агента ([AgentMode]): план-гейт (фаза планирования без
+ * инструментов → одобрение → выполнение) и гоал-петля (лимит витков). Решение режима — чистая
+ * [resolveTurnExecutionPlan] (покрыта AgentModeTest).
  */
+// @trace rezhimy-agenta-plan-i-goal-ee2361
 @SingleIn(AppScope::class)
 class AgentLoopOrchestrator @Inject constructor(
   private val prePromptAssembler: PrePromptAssembler,
@@ -37,29 +42,55 @@ class AgentLoopOrchestrator @Inject constructor(
     conversationId: String,
     userMessage: String,
     provider: LlmProvider = LlmProvider.NIM,
+    mode: AgentMode = AgentMode.CHAT,
+    planApproved: Boolean = false,
+    goalMaxIterations: Int = 3,
   ): Flow<AgentEvent> = channelFlow {
     // Same error contract as the Supervisor/Plan-Execute orchestrators: a thrown error (assemble,
     // serialization, a DB write) becomes an in-band AgentEvent.Error instead of a raw flow throw.
     try {
-      val context = prePromptAssembler.assemble(conversationId, userMessage)
+      // Контракт режима (гейт план-мода / петля гоал-мода) — чистое решение, покрыто AgentModeTest.
+      val turn = resolveTurnExecutionPlan(mode, planApproved, goalMaxIterations, ReactLoopRunner.MAX_ITERATIONS)
+
+      val context = prePromptAssembler.assemble(conversationId, userMessage, turn.promptMode)
+      // В гоал-моде сообщаем модели бюджет витков — иначе goal.md обещает «честно остановиться на лимите»,
+      // но модель не знает, какой виток последний, и обычно уходит в обрыв на tool_call.
+      val systemContent = if (mode == AgentMode.GOAL) {
+        context.systemPrompt + "\n\nБюджет: не более " + turn.maxIterations + " витков (рассуждение, действие, " +
+          "самопроверка). На последнем витке дай финальный ответ или честный частичный итог — не начинай новых действий."
+      } else {
+        context.systemPrompt
+      }
       val messages = mutableListOf<ChatMessage>()
-      messages += ChatMessage(role = "system", content = context.systemPrompt)
+      messages += ChatMessage(role = "system", content = systemContent)
       messages += context.history.map { it.toChatMessage() }
       // The caller persists the user message to DB before calling execute(),
       // so it's already included in context.history via ContextWindowBuilder.
 
-      // Mini-agent chats run with only their scoped tools; a general chat gets the full set.
-      val tools = context.toolNames?.let { registry.getSchemasFor(it) } ?: registry.getAllSchemas()
-      Log.d(TAG, "▶ chat turn conv=$conversationId scoped=${context.toolNames ?: "all"}")
-      val baseResult = reactLoopRunner.run(conversationId, messages, tools, provider) { send(it) }
+      // Гейт план-мода: на фазе планирования инструменты модели не отдаём (она физически ничего не
+      // выполнит). Иначе — обычный набор: scoped для мини-агента, либо полный.
+      val tools = if (!turn.usesTools) {
+        emptyList()
+      } else {
+        context.toolNames?.let { registry.getSchemasFor(it) } ?: registry.getAllSchemas()
+      }
+      Log.d(TAG, "▶ chat turn conv=$conversationId mode=$mode scoped=${context.toolNames ?: "all"} maxIter=${turn.maxIterations}")
+      val baseResult = reactLoopRunner.run(conversationId, messages, tools, provider, turn.maxIterations) { send(it) }
 
       // Token estimates feed the chat's response stats bar; computed at the boundary so the
       // ReactLoopRunner stays unaware of UI concerns.
       val promptTokensEstimate = LlmContextConfig.estimateTokens(context.systemPrompt) +
         context.history.sumOf { LlmContextConfig.estimateTokens(it.content) }
+      // Гоал-мод: на лимите витков не отдаём пустой ответ — честный частичный итог (трейс есть в UI).
+      val finalText = if (mode == AgentMode.GOAL && baseResult.text.isBlank()) {
+        "Достиг лимита витков — задача выполнена частично. Подробности — в трассировке инструментов."
+      } else {
+        baseResult.text
+      }
       val result = baseResult.copy(
+        text = finalText,
         promptTokensEstimate = promptTokensEstimate,
-        completionTokensEstimate = LlmContextConfig.estimateTokens(baseResult.text),
+        completionTokensEstimate = LlmContextConfig.estimateTokens(finalText),
       )
 
       if (result.state == AgentState.ERROR) {
@@ -100,9 +131,9 @@ internal fun PrePromptAssembler.PromptMessage.toChatMessage(): ChatMessage =
 data class AgentResult(
   /**
    * The assistant message to persist. For the plain chat loop this is the model's final-turn text
-   * (any preamble before tool calls is intentionally dropped — see ReactLoopRunner). For the
-   * Supervisor and Plan-Execute orchestrators it is the full streamed transcript, so the saved
-   * message matches exactly what the user watched stream.
+   * (any preamble before tool calls is intentionally dropped — see ReactLoopRunner), except on an
+   * iteration-limit stop where the full transcript is returned. For the Supervisor and Plan-Execute
+   * orchestrators it is the full streamed transcript, so the saved message matches what the user watched.
    */
   val text: String,
   val toolTrace: List<ToolTrace>,
