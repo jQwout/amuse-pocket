@@ -20,12 +20,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.aiopenpocket.ui.chat.ChatScreen
 import com.aiopenpocket.ui.conversations.ConversationsListScreen
+import com.aiopenpocket.ui.agents.AgentsScreen
+import com.aiopenpocket.ui.home.HomeScreen
 import com.aiopenpocket.ui.memory.MemoryGraphScreen
 import com.aiopenpocket.ui.memory.MemoryPageScreen
 import com.aiopenpocket.ui.onboarding.OnboardingScreen
@@ -92,21 +93,34 @@ class MainActivity : ComponentActivity() {
                         else -> {
                             val navController = rememberNavController()
                             val newChatToken by openNewChatRequest.collectAsState()
-                            fun openRoadmapAfterOnboarding() {
-                                navController.navigate("roadmap") {
-                                    popUpTo("onboarding") { inclusive = true }
-                                    launchSingleTop = true
-                                }
-                            }
                             LaunchedEffect(onboardingCompleted) {
-                                if (onboardingCompleted == true) openRoadmapAfterOnboarding()
+                                if (onboardingCompleted == true) {
+                                    navController.navigate("home") {
+                                        popUpTo("onboarding") { inclusive = true }
+                                        launchSingleTop = true
+                                    }
+                                }
                             }
                             // Открываем новый чат при вызове голосового помощника.
                             // Онбординг должен быть завершён — иначе чат недоступен.
                             LaunchedEffect(newChatToken, onboardingCompleted) {
                                 if (newChatToken > 0 && onboardingCompleted == true) {
-                                    openRoadmapAfterOnboarding()
-                                    navController.singleTop("chat/new")
+                                    navController.navigate("home") {
+                                        popUpTo("onboarding") { inclusive = true }
+                                        launchSingleTop = true
+                                    }
+                                    navController.navigate("chat/new") {
+                                        launchSingleTop = true
+                                    }
+                                }
+                            }
+                            // Переключение вкладок нижнего бара: держим стек плоским —
+                            // «home» как база, текущая вкладка сверху, с сохранением состояния.
+                            val navigateToTab: (String) -> Unit = { route ->
+                                navController.navigate(route) {
+                                    popUpTo("home") { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
                             }
                             NavHost(
@@ -122,6 +136,31 @@ class MainActivity : ComponentActivity() {
                                     // Урок 1 = онбординг: повторный вход с карты для правки настроек.
                                     OnboardingScreen(onClose = { navController.popBackStack() })
                                 }
+                                composable("home") {
+                                    HomeScreen(
+                                        onOpenChat = { id ->
+                                            navController.navigate("chat/$id")
+                                        },
+                                        onOpenLessonChat = { chatId ->
+                                            navController.navigate("chat/$chatId")
+                                        },
+                                        onNavigateToConversations = {
+                                            navController.navigate("conversations")
+                                        },
+                                        onNavigateToLibrary = {
+                                            navController.navigate("library")
+                                        },
+                                        onNavigateToRoadmap = { navigateToTab("roadmap") },
+                                        onNavigateToSettings = { navigateToTab("settings") },
+                                        onNavigateToAgents = { navController.navigate("agents") },
+                                    )
+                                }
+                                composable("agents") {
+                                    AgentsScreen(
+                                        onOpenChat = { id -> navController.navigate("chat/$id") },
+                                        onNavigateBack = { navController.popBackStack() },
+                                    )
+                                }
                                 composable("roadmap") {
                                     RoadmapScreen(
                                         onOpenLessonChat = { chatId ->
@@ -130,19 +169,15 @@ class MainActivity : ComponentActivity() {
                                         onReopenOnboarding = {
                                             navController.navigate("onboarding_edit")
                                         },
-                                        onNavigateToChats = { navController.singleTop("conversations") },
-                                        onNavigateToLibrary = { navController.singleTop("library") },
-                                        onNavigateToSettings = {
-                                            navController.navigate("settings")
-                                        },
+                                        onNavigateToHome = { navigateToTab("home") },
+                                        onNavigateToSettings = { navigateToTab("settings") },
                                     )
                                 }
                                 composable("library") {
                                     LibraryScreen(
-                                        onNavigateToChats = { navController.singleTop("conversations") },
-                                        onNavigateToPath = { navController.singleTop("roadmap") },
-                                        onNavigateToSettings = {
-                                            navController.navigate("settings")
+                                        onNavigateBack = { navController.popBackStack() },
+                                        onOpenLessonChat = { chatId ->
+                                            navController.navigate("chat/$chatId")
                                         },
                                     )
                                 }
@@ -151,12 +186,12 @@ class MainActivity : ComponentActivity() {
                                         onConversationClick = { id ->
                                             navController.navigate("chat/$id")
                                         },
-                                        onNavigateToSettings = {
-                                            navController.navigate("settings")
+                                        onNavigateBack = { navController.popBackStack() },
+                                        onNavigateToGraph = {
+                                            navController.navigate("memory_graph") {
+                                                launchSingleTop = true
+                                            }
                                         },
-                                        onNavigateToRoadmap = { navController.singleTop("roadmap") },
-                                        onNavigateToLibrary = { navController.singleTop("library") },
-                                        onNavigateToGraph = { navController.singleTop("memory_graph") },
                                     )
                                 }
                                 composable("memory_graph") {
@@ -182,6 +217,8 @@ class MainActivity : ComponentActivity() {
                                     SettingsScreen(
                                         onNavigateBack = { navController.popBackStack() },
                                         onNavigateToScheduledWorks = { navController.navigate("scheduled_works") },
+                                        onNavigateToHome = { navigateToTab("home") },
+                                        onNavigateToRoadmap = { navigateToTab("roadmap") },
                                     )
                                 }
                                 composable("scheduled_works") {
@@ -207,8 +244,9 @@ class MainActivity : ComponentActivity() {
                                         onFinished = {
                                             // Назад к карте: снимаем чат и экран-квиз со стека.
                                             // Если карты нет в стеке (туториал открыли из списка чатов) — идём на неё.
-                                            if (!navController.popBackStack("roadmap", inclusive = false)) {
-                                                navController.singleTop("roadmap")
+                                            val popped = navController.popBackStack("roadmap", inclusive = false)
+                                            if (!popped) {
+                                                navController.navigate("roadmap") { launchSingleTop = true }
                                             }
                                         },
                                     )
@@ -236,8 +274,4 @@ class MainActivity : ComponentActivity() {
         /** Открыть новый чат (приложение вызвано как голосовой помощник). */
         const val ACTION_OPEN_NEW_CHAT = "com.aiopenpocket.action.OPEN_NEW_CHAT"
     }
-}
-
-private fun NavController.singleTop(route: String) {
-    navigate(route) { launchSingleTop = true }
 }

@@ -1,0 +1,45 @@
+# traceability.yaml -- manual source of truth (edit by hand).
+# Each feature has a FROZEN id, a human title, and most importantly WHY it
+# exists (rationale). The code<->feature map is derived by `traxer scan` and is
+# NOT stored here. spec: ссылается на раздел ТЗ.
+lang: ru              # spec-draft language: de|en|es|fr|it|ru
+features:
+  - id: streaming-llm-chat-6595a1
+    title: "Стриминг-чат с LLM"
+    rationale: "Стримить ответы от OpenAI-совместимого LLM по Ktor SSE, с фолбэком между провайдерами."
+    spec: "TZ.md#10"
+    flows: [chat]
+  - id: agent-memory-05e545
+    title: "Память агента"
+    rationale: "Хранить короткую/длинную/эпизодическую память в Room, чтобы восстанавливать сессию и вспоминать контекст."
+    spec: "TZ.md#8"
+  - id: mcp-tools-f77d9b
+    title: "MCP-тулы"
+    rationale: "Дать агенту стандартный набор инструментов (файлы, уведомления, БД, web) через MCP."
+    spec: "TZ.md#9"
+  - id: driven-ui-cards-0418d0
+    title: "Driven UI карточки"
+    rationale: "Позволить LLM рендерить UI-карточки (todo/таблица/погода/график/таймер/форма) прямо в чате через render_card."
+    spec: "TZ.md#5"
+  - id: swappable-persona-e5e65e
+    title: "Сменяемая персона"
+    rationale: "Дать юзеру переключать одну из 7 персон в Settings без перекомпиляции."
+    spec: "TZ.md#3"
+  - id: background-tasks-15a34a
+    title: "Фоновые задачи"
+    rationale: "Выполнять отложенные и фоновые задачи через WorkManager."
+    spec: "TZ.md#14"
+  - id: ai-academy-onboarding-5d51bb
+    title: "AI Academy / онбординг"
+    rationale: "Онбординг: «путь агента» из 7 уроков и выбор персоны (реализовано сверх исходного ТЗ)."
+  - id: multi-chat-conversations-b3c93b
+    title: "Мульти-чат"
+    rationale: "Список диалогов и переключение между ними (реализовано сверх исходного ТЗ)."
+  - id: rezhimy-agenta-plan-i-goal-ee2361
+    title: "Режимы агента: план-мод и гоал-мод"
+    rationale: "План-мод — гейт «сначала план, ждём одобрения, потом выполнение» (инструменты отключены до «ок»); гоал-мод — петля ReAct с самопроверкой и лимитом витков. Через препромпт и UI."
+    flows: [chat]
+  - id: uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2
+    title: "Уроки-концепции в чате (JSON-контракт)"
+    rationale: "JSON-уроки (assets/lessons) драйвит чат-контроллер как строгий шаговый контракт: код ведёт шаги (текст/квиз), отделяя их от команд LLM. Открываются из Библиотеки."
+    flows: [chat]

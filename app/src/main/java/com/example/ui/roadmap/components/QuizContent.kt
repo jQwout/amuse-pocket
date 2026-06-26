@@ -19,8 +19,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,9 +47,36 @@ private val CorrectGreen = Color(0xFF4CAF50)
 fun QuizContent(
   questions: List<QuizQuestion>,
   modifier: Modifier = Modifier,
+  /** Fires once every question has an answer — used by the in-chat lesson quiz to advance. */
+  onAllAnswered: (() -> Unit)? = null,
 ) {
-  // questionIndex -> selected option index
-  val answers = remember { mutableStateMapOf<Int, Int>() }
+  // questionIndex -> selected option index. rememberSaveable, чтобы ответы переживали рециклинг
+  // элемента в LazyColumn, поворот и process death (иначе пройденный квиз перерисовывается пустым).
+  val answers = rememberSaveable(
+    saver = listSaver<SnapshotStateMap<Int, Int>, Int>(
+      save = { map -> map.entries.flatMap { listOf(it.key, it.value) } },
+      restore = { flat ->
+        mutableStateMapOf<Int, Int>().apply {
+          var i = 0
+          while (i + 1 < flat.size) {
+            put(flat[i], flat[i + 1])
+            i += 2
+          }
+        }
+      },
+    ),
+  ) { mutableStateMapOf<Int, Int>() }
+
+  // onAllAnswered должен сработать РОВНО раз за жизнь сохранённого состояния. rememberSaveable
+  // восстанавливает уже полный map после поворота/process death/рециклинга элемента в LazyColumn —
+  // без этого флага LaunchedEffect дёрнул бы колбэк повторно и промотал бы урок на лишний шаг.
+  val fired = rememberSaveable { mutableStateOf(false) }
+  LaunchedEffect(answers.size) {
+    if (!fired.value && questions.isNotEmpty() && answers.size == questions.size) {
+      fired.value = true
+      onAllAnswered?.invoke()
+    }
+  }
 
   Column(modifier = modifier) {
     questions.forEachIndexed { qIndex, question ->

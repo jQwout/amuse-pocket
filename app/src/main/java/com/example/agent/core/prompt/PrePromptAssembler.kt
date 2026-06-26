@@ -1,10 +1,13 @@
 ﻿package com.aiopenpocket.agent.core.prompt
 
 import android.app.Application
+import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
+import com.aiopenpocket.agent.loop.PromptMode
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
 import com.aiopenpocket.agent.core.skill.SkillRegistry
+import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import dev.zacsweers.metro.Inject
@@ -17,14 +20,25 @@ class PrePromptAssembler @Inject constructor(
   private val memoryRepository: MemoryRepository,
   private val conversationRepository: ConversationRepository,
   private val skillRegistry: SkillRegistry,
+  private val userPreferencesRepository: UserPreferencesRepository,
 ) {
 
-  suspend fun assemble(conversationId: String, currentMessage: String): PromptContext =
+  suspend fun assemble(
+    conversationId: String,
+    currentMessage: String,
+    promptMode: PromptMode = PromptMode.NONE,
+  ): PromptContext =
     withContext(Dispatchers.IO) {
       val systemBase = loadAsset("prompts/system_base.md") ?: DEFAULT_SYSTEM_BASE
 
+      // Секция режима (план-/гоал-мод) — доверенная инструкция, подмешивается поверх базовой.
+      val modePrompt = loadModePrompt(promptMode)
+
       val conversation = conversationRepository.getConversation(conversationId)
-      val personaId = conversation?.personaId ?: "sharp_partner"
+      // Персона: у диалога своя (если задана), иначе — выбранная пользователем на онбординге, иначе дефолт.
+      val personaId = conversation?.personaId ?: userPreferencesRepository.getDefaultPersonaId()
+      // Язык общения, выбранный на онбординге (по умолчанию русский).
+      val language = userPreferencesRepository.getLanguage()
       val persona = loadAsset("personas/$personaId.md")
         ?: "Характер: Деловой напарник по умолчанию."
 
@@ -32,6 +46,9 @@ class PrePromptAssembler @Inject constructor(
         loadAsset("prompts/roadmap/${conversation.title}.md")
           ?: loadAsset("prompts/tutorial.md")
       } else null
+
+      // Mini-agent bound to this chat (if any): adds a role section and scopes the tool set.
+      val agent = MiniAgentCatalog.get(conversation?.agentId)
 
       val profileFacts = memoryRepository.getFactsByCategory("profile")
       val facts = memoryRepository.searchFacts(currentMessage).take(LlmContextConfig.RELEVANT_FACTS_LIMIT)
@@ -46,13 +63,33 @@ class PrePromptAssembler @Inject constructor(
       val systemPrompt = buildString {
         appendLine(systemBase)
         appendLine()
+        if (modePrompt != null) {
+          appendLine(modePrompt)
+          appendLine()
+        }
         if (tutorialPrompt != null) {
           appendLine(tutorialPrompt)
           appendLine()
         }
-        appendLine("## Персона")
-        appendLine(persona)
+        // --- Настройки помощника (доверенная зона): язык и персона, заданные пользователем на онбординге. ---
+        appendLine("## Язык")
+        appendLine(
+          "Общайся с пользователем на этом языке: ${languageLabel(language)}. " +
+            "Все ответы — на этом языке, пока пользователь сам явно не попросит другой.",
+        )
         appendLine()
+        // Агент-специалист несёт СВОЮ личность ВМЕСТО выбранной в настройках персоны — чтобы
+        // характер специалиста не смешивался с ассистентом, которого пользователь выбрал в Settings.
+        // Обычный чат (без агента) использует персону как обычно.
+        if (agent != null) {
+          appendLine("## Личность и роль")
+          appendLine(agent.systemPrompt)
+          appendLine()
+        } else {
+          appendLine("## Персона")
+          appendLine(persona)
+          appendLine()
+        }
 
         // Каталог навыков (уровень 1 progressive disclosure) — доверенный контент.
         val skillCatalog = skillRegistry.catalog()
@@ -114,6 +151,7 @@ class PrePromptAssembler @Inject constructor(
       PromptContext(
         systemPrompt = systemPrompt,
         history = window.verbatim,
+        toolNames = agent?.toolNames?.takeIf { it.isNotEmpty() },
       )
     }
 
@@ -121,9 +159,33 @@ class PrePromptAssembler @Inject constructor(
     application.assets.open(path).bufferedReader().use { it.readText() }
   }.getOrNull()
 
+  /** Грузит секцию системного промпта для режима агента (план-/гоал-мод). NONE → null. */
+  private fun loadModePrompt(promptMode: PromptMode): String? {
+    val asset = when (promptMode) {
+      PromptMode.NONE -> return null
+      PromptMode.PLAN_PLANNING -> "prompts/modes/plan_planning.md"
+      PromptMode.PLAN_EXECUTING -> "prompts/modes/plan_executing.md"
+      PromptMode.GOAL -> "prompts/modes/goal.md"
+    }
+    return loadAsset(asset)
+  }
+
+  /** Человекочитаемая метка языка для системной секции (код языка из онбординга → название). */
+  private fun languageLabel(code: String): String = when (code.lowercase()) {
+    "ru" -> "русский"
+    "en" -> "английский (English)"
+    "es" -> "испанский (Español)"
+    "de" -> "немецкий (Deutsch)"
+    "fr" -> "французский (Français)"
+    "uk" -> "украинский (Українська)"
+    else -> code
+  }
+
   data class PromptContext(
     val systemPrompt: String,
     val history: List<PromptMessage>,
+    /** When non-null, the chat loop is restricted to these tool names (mini-agent scope). */
+    val toolNames: Set<String>? = null,
   )
 
   data class PromptMessage(

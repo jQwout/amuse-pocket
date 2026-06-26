@@ -1,5 +1,15 @@
 ﻿package com.aiopenpocket.ui.chat
 
+import android.Manifest
+import android.content.Intent
+import android.os.Build
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.animation.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -20,6 +30,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -28,6 +39,9 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
+import com.aiopenpocket.ui.roadmap.QuizQuestion
+import com.aiopenpocket.ui.roadmap.components.QuizContent
+import java.util.Locale
 
 private val CardSuccessGreen = Color(0xFF4CAF50)
 
@@ -40,7 +54,10 @@ sealed class DrivenUiCard {
     data class ChartBarCard(val title: String, val labels: List<String>, val values: List<Float>) : DrivenUiCard()
     data class FormCard(val fields: List<FormField>, val submitLabel: String) : DrivenUiCard()
     data class ChoiceCard(val question: String, val options: List<String>, val answerIndex: Int) : DrivenUiCard()
+    data class LessonQuizCard(val questions: List<QuizQuestion>) : DrivenUiCard()
     data class LessonCompleteCard(val title: String, val subtitle: String, val buttonLabel: String) : DrivenUiCard()
+    data class SwitchCard(val label: String, val description: String, val action: String, val initialOn: Boolean) : DrivenUiCard()
+    data class NotificationPermissionCard(val title: String, val description: String, val buttonLabel: String) : DrivenUiCard()
     data class ErrorCard(val message: String) : DrivenUiCard()
 }
 
@@ -123,10 +140,31 @@ object DrivenUiEngine {
                 options = p.array("options").toStringList(),
                 answerIndex = if (p.has("answer")) p.optInt("answer", -1) else -1,
             )
+            "lesson_quiz" -> DrivenUiCard.LessonQuizCard(
+                questions = p.array("questions").mapObjects {
+                    QuizQuestion(
+                        question = it.optString("q", ""),
+                        options = it.array("options").toStringList(),
+                        correctIndex = it.optInt("correct", 0),
+                        explanation = it.optString("explain", ""),
+                    )
+                },
+            )
             "lesson_complete" -> DrivenUiCard.LessonCompleteCard(
                 title = p.optString("title", "Урок пройден!"),
                 subtitle = p.optString("subtitle", ""),
                 buttonLabel = p.optString("button_label", "Продолжить"),
+            )
+            "switch" -> DrivenUiCard.SwitchCard(
+                label = p.optString("label", "Переключатель"),
+                description = p.optString("description", ""),
+                action = p.optString("action", ""),
+                initialOn = p.optBoolean("initial", false),
+            )
+            "notification_permission" -> DrivenUiCard.NotificationPermissionCard(
+                title = p.optString("title", "Уведомления"),
+                description = p.optString("description", "Разреши уведомления, чтобы получать напоминания."),
+                buttonLabel = p.optString("button_label", "Разрешить уведомления"),
             )
             else -> DrivenUiCard.ErrorCard("Неизвестный шаблон: $template")
         }
@@ -194,9 +232,28 @@ fun DrivenUiCard.toMarkdown(): String = when (this) {
         options.forEach { appendLine("- $it") }
     }.trim()
 
+    is DrivenUiCard.LessonQuizCard -> buildString {
+        appendLine("**Проверка**")
+        questions.forEachIndexed { i, q ->
+            appendLine("${i + 1}. ${q.question}")
+            q.options.forEach { appendLine("   - $it") }
+        }
+    }.trim()
+
     is DrivenUiCard.LessonCompleteCard -> buildString {
         appendLine("**✓ $title**")
         if (subtitle.isNotBlank()) appendLine(subtitle)
+        appendLine("_[$buttonLabel]_")
+    }.trim()
+
+    is DrivenUiCard.SwitchCard -> buildString {
+        appendLine("**$label** _[${if (initialOn) "вкл" else "выкл"}]_")
+        if (description.isNotBlank()) appendLine(description)
+    }.trim()
+
+    is DrivenUiCard.NotificationPermissionCard -> buildString {
+        appendLine("**$title**")
+        if (description.isNotBlank()) appendLine(description)
         appendLine("_[$buttonLabel]_")
     }.trim()
 
@@ -208,7 +265,9 @@ fun RenderDrivenUiCard(
     spec: String,
     onFormSubmitted: (String) -> Unit = {},
     onChoiceSelected: (String) -> Unit = {},
-    onLessonComplete: () -> Unit = {}
+    onLessonComplete: () -> Unit = {},
+    onLessonQuizComplete: () -> Unit = {},
+    onAction: (String, Boolean) -> Unit = { _, _ -> }
 ) {
     val card = remember(spec) { DrivenUiEngine.parseJsonString(spec) }
 
@@ -228,7 +287,10 @@ fun RenderDrivenUiCard(
             is DrivenUiCard.ChartBarCard -> ChartBarCardView(card)
             is DrivenUiCard.FormCard -> FormCardView(card, onFormSubmitted)
             is DrivenUiCard.ChoiceCard -> ChoiceCardView(card, onChoiceSelected)
+            is DrivenUiCard.LessonQuizCard -> LessonQuizCardView(card, onLessonQuizComplete)
             is DrivenUiCard.LessonCompleteCard -> LessonCompleteCardView(card, onLessonComplete)
+            is DrivenUiCard.SwitchCard -> SwitchCardView(card, onAction)
+            is DrivenUiCard.NotificationPermissionCard -> NotificationPermissionCardView(card)
             is DrivenUiCard.ErrorCard -> {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -280,7 +342,7 @@ private fun CardDivider() {
 
 @Composable
 fun TodoListCardView(card: DrivenUiCard.TodoList) {
-    var itemsState = remember { mutableStateListOf<TodoItem>().apply { addAll(card.items) } }
+    val itemsState = remember(card) { mutableStateListOf<TodoItem>().apply { addAll(card.items) } }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         CardTitleRow(icon = Icons.Default.PlaylistAddCheck, title = card.title)
@@ -430,7 +492,7 @@ fun TimerCardView(card: DrivenUiCard.TimerCard) {
             )
 
             Text(
-                text = String.format("%02d:%02d", minutes, seconds),
+                text = String.format(Locale.US, "%02d:%02d", minutes, seconds),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp
@@ -577,7 +639,8 @@ fun ChartBarCardView(card: DrivenUiCard.ChartBarCard) {
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 card.labels.forEachIndexed { index, label ->
-                    val valueText = card.values.getOrNull(index)?.toString() ?: ""
+                    val v = card.values.getOrNull(index) ?: 0f
+                    val valueText = if (v == v.toLong().toFloat()) v.toLong().toString() else v.toString()
                     Column(
                         modifier = Modifier.weight(1f),
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -607,7 +670,7 @@ fun FormCardView(
     card: DrivenUiCard.FormCard,
     onFormSubmitted: (String) -> Unit
 ) {
-    val fieldsState = remember { mutableStateListOf<FormField>().apply { addAll(card.fields) } }
+    val fieldsState = remember(card) { mutableStateListOf<FormField>().apply { addAll(card.fields) } }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
@@ -662,7 +725,7 @@ fun ChoiceCardView(
     card: DrivenUiCard.ChoiceCard,
     onSelected: (String) -> Unit
 ) {
-    var selected by remember { mutableStateOf<Int?>(null) }
+    var selected by remember(card) { mutableStateOf<Int?>(null) }
     val correctGreen = CardSuccessGreen
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -709,6 +772,25 @@ fun ChoiceCardView(
 }
 
 @Composable
+fun LessonQuizCardView(
+    card: DrivenUiCard.LessonQuizCard,
+    onAllAnswered: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = "Закрепим пройденное",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        QuizContent(
+            questions = card.questions,
+            onAllAnswered = onAllAnswered,
+        )
+    }
+}
+
+@Composable
 fun LessonCompleteCardView(
     card: DrivenUiCard.LessonCompleteCard,
     onComplete: () -> Unit
@@ -742,4 +824,130 @@ fun LessonCompleteCardView(
             Text(card.buttonLabel)
         }
     }
+}
+
+@Composable
+fun SwitchCardView(
+    card: DrivenUiCard.SwitchCard,
+    onAction: (String, Boolean) -> Unit
+) {
+    var checked by remember(card) { mutableStateOf(card.initialOn) }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = card.label,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (card.description.isNotBlank()) {
+                Text(
+                    text = card.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Switch(
+            checked = checked,
+            onCheckedChange = { isOn ->
+                checked = isOn
+                onAction(card.action, isOn)
+            }
+        )
+    }
+}
+
+/**
+ * Самодостаточная карточка запроса разрешения на уведомления: сама держит launcher и
+ * отражает РЕАЛЬНОЕ состояние (areNotificationsEnabled), обновляя его на ON_RESUME —
+ * никакого внешнего роутинга действий не требуется.
+ */
+@Composable
+fun NotificationPermissionCardView(card: DrivenUiCard.NotificationPermissionCard) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var enabled by remember {
+        mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled())
+    }
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {
+        enabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
+    }
+
+    // Возврат из системного диалога/настроек → пересчитываем состояние, чтобы карточка не врала.
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                enabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Default.Notifications,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = card.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        if (card.description.isNotBlank()) {
+            Text(
+                text = card.description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.outline
+            )
+        }
+        if (enabled) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Check, contentDescription = null, tint = Color(0xFF4CAF50))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Уведомления включены", style = MaterialTheme.typography.bodyMedium)
+            }
+        } else {
+            Button(
+                onClick = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        // < 33: runtime-разрешения нет — ведём в системные настройки уведомлений.
+                        openAppNotificationSettings(context)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(card.buttonLabel)
+            }
+        }
+    }
+}
+
+private fun openAppNotificationSettings(context: android.content.Context) {
+    val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+    } else {
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            .setData(android.net.Uri.fromParts("package", context.packageName, null))
+    }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { context.startActivity(intent) }
 }

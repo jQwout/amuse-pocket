@@ -1,6 +1,7 @@
-﻿package com.aiopenpocket.ui.components
+package com.aiopenpocket.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -11,7 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -20,19 +21,24 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.ui.theme.BorderDark
 import com.aiopenpocket.ui.theme.CardDark
-import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.ui.theme.PurpleAccent
 
 enum class AcademyTab {
-  Chats,
+  Chat,
   Path,
-  Library,
+  Tools,
 }
 
+/**
+ * Плавающий нижний навбар: тёмная «таблетка» с тенью, оторванная от краёв экрана.
+ * Размещается в слоте Scaffold.bottomBar — прозрачный внешний Box резервирует высоту,
+ * поэтому контент не перекрывается, а сама панель выглядит парящей над фоном.
+ */
 @Composable
 fun AcademyBottomNav(
   selectedTab: AcademyTab,
@@ -42,16 +48,21 @@ fun AcademyBottomNav(
   Row(
     modifier = modifier
       .fillMaxWidth()
+      .padding(horizontal = 24.dp)
+      .padding(top = 8.dp, bottom = 20.dp)
+      .shadow(16.dp, RoundedCornerShape(28.dp), clip = false)
+      .clip(RoundedCornerShape(28.dp))
       .background(CardDark)
-      .padding(horizontal = 16.dp, vertical = 12.dp),
+      .border(1.dp, BorderDark.copy(alpha = 0.6f), RoundedCornerShape(28.dp))
+      .padding(horizontal = 8.dp, vertical = 8.dp),
     horizontalArrangement = Arrangement.SpaceEvenly,
     verticalAlignment = Alignment.CenterVertically,
   ) {
     AcademyNavItem(
       icon = Icons.AutoMirrored.Filled.Chat,
-      label = "Чаты",
-      selected = selectedTab == AcademyTab.Chats,
-      onClick = { onTabSelected(AcademyTab.Chats) },
+      label = "Чат",
+      selected = selectedTab == AcademyTab.Chat,
+      onClick = { onTabSelected(AcademyTab.Chat) },
     )
     AcademyNavItem(
       icon = Icons.Default.Timeline,
@@ -60,10 +71,10 @@ fun AcademyBottomNav(
       onClick = { onTabSelected(AcademyTab.Path) },
     )
     AcademyNavItem(
-      icon = Icons.Default.MenuBook,
-      label = "Библиотека",
-      selected = selectedTab == AcademyTab.Library,
-      onClick = { onTabSelected(AcademyTab.Library) },
+      icon = Icons.Default.Build,
+      label = "Тулы",
+      selected = selectedTab == AcademyTab.Tools,
+      onClick = { onTabSelected(AcademyTab.Tools) },
     )
   }
 }
@@ -78,15 +89,15 @@ private fun AcademyNavItem(
   Column(
     horizontalAlignment = Alignment.CenterHorizontally,
     modifier = Modifier
-      .clip(RoundedCornerShape(16.dp))
+      .clip(RoundedCornerShape(18.dp))
       .clickable(onClick = onClick)
       .then(
         if (selected) {
           Modifier
-            .background(PurpleAccent.copy(alpha = 0.18f), RoundedCornerShape(16.dp))
-            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .background(PurpleAccent.copy(alpha = 0.18f), RoundedCornerShape(18.dp))
+            .padding(horizontal = 22.dp, vertical = 8.dp)
         } else {
-          Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+          Modifier.padding(horizontal = 22.dp, vertical = 8.dp)
         },
       ),
   ) {
@@ -101,13 +112,5 @@ private fun AcademyNavItem(
       style = MaterialTheme.typography.labelSmall,
       color = if (selected) PurpleAccent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
     )
-  }
-}
-
-@Preview(showBackground = true, backgroundColor = 0xFF1C1B1F)
-@Composable
-private fun AcademyBottomNavPreview() {
-  MyApplicationTheme {
-    AcademyBottomNav(selectedTab = AcademyTab.Path, onTabSelected = {})
   }
 }

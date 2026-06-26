@@ -1,5 +1,7 @@
 package com.aiopenpocket.agent.tools
 
+// @trace driven-ui-cards-0418d0
+
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.mcp.missingArg
@@ -12,6 +14,7 @@ import kotlinx.serialization.json.JsonElement
 
 private val CARD_TEMPLATES = listOf(
   "todo_list", "weather_card", "timer", "chart_bar", "table", "form", "choice", "lesson_complete",
+  "switch", "notification_permission",
 )
 
 @Inject
@@ -19,10 +22,13 @@ private val CARD_TEMPLATES = listOf(
 class RenderCardTool : Tool {
 
   override val name = "render_card"
-  override val description = "Отображает интерактивную карточку в чате. Доступные шаблоны: ${CARD_TEMPLATES.joinToString(", ")}."
+  override val description =
+    "Отображает интерактивную карточку в чате. Доступные шаблоны: ${CARD_TEMPLATES.joinToString(", ")}. " +
+    "switch — переключатель вкл/выкл для настроек приложения, params: {label, description, action, initial}. " +
+    "notification_permission — карточка запроса разрешения на уведомления, params необязательны: {title, description, button_label}."
   override val schema = toolSchema(name, description) {
     string("template", "ID шаблона карточки", required = true, enum = CARD_TEMPLATES)
-    string("params", "Параметры шаблона (зависят от template)", required = true)
+    obj("params", "Параметры шаблона (зависят от template)", required = true)
   }
 
   override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult {
