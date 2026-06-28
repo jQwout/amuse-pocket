@@ -1,5 +1,7 @@
 package com.aiopenpocket.ui.agents
 
+// @trace multi-agent-orchestration-27b8e3
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.agent.MiniAgent
@@ -33,12 +35,7 @@ class AgentsViewModel(
         personaId = personaId,
         agentId = agent.id,
       )
-      val greeting = if (agent.isSupervisor) {
-        "Я координатор. Опиши задачу — разложу её по специалистам " +
-          "(${MiniAgentCatalog.specialists.joinToString { it.name }}) и соберу результат."
-      } else {
-        "Это агент «${agent.name}». ${agent.description} Чем помочь?"
-      }
+      val greeting = "Это агент «${agent.name}». ${agent.description} Чем помочь?"
       conversationRepository.addMessage(id, "assistant", greeting)
       onReady(id)
     }

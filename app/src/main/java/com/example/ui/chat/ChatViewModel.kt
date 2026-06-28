@@ -13,7 +13,6 @@ import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.loop.AgentLoopOrchestrator
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.loop.PlanExecuteOrchestrator
-import com.aiopenpocket.agent.loop.SupervisorOrchestrator
 import com.aiopenpocket.data.repository.SettingsRepository
 import com.aiopenpocket.di.AppScope
 import com.aiopenpocket.voice.input.VoiceInputController
@@ -39,7 +38,6 @@ class ChatViewModel(
   private val agentLoop: AgentLoopOrchestrator,
   // Plan-and-Execute остаётся в коде, но больше не на кнопке план-мода (её заменил agentMode-гейт).
   private val planExecuteOrchestrator: PlanExecuteOrchestrator,
-  private val supervisorOrchestrator: SupervisorOrchestrator,
   private val settingsRepository: SettingsRepository,
   private val userPreferencesRepository: UserPreferencesRepository,
   private val lessonRepository: LessonRepository,
@@ -330,14 +328,8 @@ class ChatViewModel(
     lastPlanApproved = planApproved
     // Временно гоним всё на NIM; выбор провайдера (GROQ/GITHUB) выпилим позже.
     val provider = LlmProvider.NIM
-    // Маршрут хода: координатор-агент → супервизор (мульти-агент); иначе — обычный чат-цикл с режимом
-    // агента (план-гейт / гоал-петля), скоупленный по привязанному мини-агенту.
-    val flow = when {
-      _state.value.agentId == MiniAgentCatalog.SUPERVISOR_ID ->
-        supervisorOrchestrator.execute(convId, userMessage, provider)
-      else ->
-        agentLoop.execute(convId, userMessage, provider, mode, planApproved, _state.value.goalMaxIterations)
-    }
+    // Обычный чат-цикл с режимом агента (план-гейт / гоал-петля), скоупленный по привязанному мини-агенту.
+    val flow = agentLoop.execute(convId, userMessage, provider, mode, planApproved, _state.value.goalMaxIterations)
     flow.collect { event ->
       when (event) {
         is AgentEvent.TextDelta -> {
