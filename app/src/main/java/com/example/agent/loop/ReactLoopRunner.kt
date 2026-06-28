@@ -1,5 +1,7 @@
 package com.aiopenpocket.agent.loop
 
+// @trace rezhimy-agenta-plan-i-goal-ee2361
+
 import android.util.Log
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.FunctionSchema
@@ -22,10 +24,7 @@ import com.aiopenpocket.di.AppScope
  * The core ReAct loop (reason → act → observe). It streams [AgentEvent]s through [emit] and RETURNS
  * the final [AgentResult] instead of emitting a terminal Completed/Error — the caller decides what a
  * finished loop means (a whole chat reply, or one step of a plan). Reused by [AgentLoopOrchestrator]
- * for the plain chat turn, by [PlanExecuteOrchestrator] for each plan step, and by
- * [SupervisorOrchestrator] for each specialist sub-pass. (The Supervisor's *coordinator* loop is
- * hand-rolled, because its `delegate` calls are fulfilled by the orchestrator rather than by
- * ToolExecutor.)
+ * for the plain chat turn and by [PlanExecuteOrchestrator] for each plan step.
  */
 @SingleIn(AppScope::class)
 class ReactLoopRunner @Inject constructor(

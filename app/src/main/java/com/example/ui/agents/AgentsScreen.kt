@@ -1,5 +1,7 @@
 package com.aiopenpocket.ui.agents
 
+// @trace multi-agent-orchestration-27b8e3
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,17 +20,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccountTree
-import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Hub
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -37,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.MiniAgent
+import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
 import com.aiopenpocket.ui.theme.CardDark
 import com.aiopenpocket.ui.theme.PurpleAccent
 import dev.zacsweers.metrox.viewmodel.metroViewModel
@@ -48,7 +50,17 @@ fun AgentsScreen(
 ) {
   val viewModel: AgentsViewModel = metroViewModel()
 
-  Scaffold { padding ->
+  AcademyCollapsingScaffold(
+    title = "Агенты",
+    navigationIcon = {
+      IconButton(onClick = onNavigateBack) {
+        Icon(
+          imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+          contentDescription = "Назад",
+        )
+      }
+    },
+  ) { padding ->
     LazyColumn(
       modifier = Modifier
         .fillMaxSize()
@@ -56,41 +68,13 @@ fun AgentsScreen(
         .padding(horizontal = 20.dp),
     ) {
       item {
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-          IconButton(onClick = onNavigateBack) {
-            Icon(
-              imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-              contentDescription = "Назад",
-              tint = MaterialTheme.colorScheme.onSurface,
-            )
-          }
-          Text(
-            text = "AI Academy",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-          )
-        }
-      }
-
-      item {
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
-          text = "Агенты",
-          style = MaterialTheme.typography.headlineLarge,
-          color = MaterialTheme.colorScheme.onSurface,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-          text = "Специалисты со своими инструментами. Координатор сам распределяет задачу между ними.",
+          text = "Агенты-специалисты со своими инструментами. Открой нужного — и опиши задачу.",
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
         )
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
       }
 
       items(viewModel.agents, key = { it.id }) { agent ->
@@ -131,7 +115,7 @@ private fun AgentCard(agent: MiniAgent, onClick: () -> Unit) {
     }
     Column(modifier = Modifier.fillMaxWidth()) {
       Text(
-        text = if (agent.isSupervisor) "${agent.name} · координатор" else agent.name,
+        text = agent.name,
         style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.onSurface,
       )
@@ -146,11 +130,11 @@ private fun AgentCard(agent: MiniAgent, onClick: () -> Unit) {
 }
 
 private fun iconFor(key: String): ImageVector = when (key) {
-  "calendar" -> Icons.Default.CalendarMonth
-  "folder" -> Icons.Default.Folder
-  "message" -> Icons.Default.Email
-  "chart" -> Icons.Default.BarChart
-  "tree" -> Icons.Default.AccountTree
-  "hub" -> Icons.Default.Hub
+  "wallet" -> Icons.Default.AccountBalanceWallet
+  "translate" -> Icons.Default.Translate
+  "checklist" -> Icons.Default.Checklist
+  "alarm" -> Icons.Default.Alarm
+  "restaurant" -> Icons.Default.Restaurant
+  "book" -> Icons.Default.MenuBook
   else -> Icons.Default.SmartToy
 }
