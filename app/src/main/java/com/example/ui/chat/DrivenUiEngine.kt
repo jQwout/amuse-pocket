@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.ui.chat
 
+// @trace driven-ui-cards-0418d0
+
 import android.Manifest
 import android.content.Intent
 import android.os.Build
@@ -30,12 +32,17 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.ImageLoader
+import coil.compose.AsyncImage
+import coil.decode.SvgDecoder
+import coil.request.ImageRequest
 import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
@@ -58,15 +65,28 @@ sealed class DrivenUiCard {
     data class LessonCompleteCard(val title: String, val subtitle: String, val buttonLabel: String) : DrivenUiCard()
     data class SwitchCard(val label: String, val description: String, val action: String, val initialOn: Boolean) : DrivenUiCard()
     data class NotificationPermissionCard(val title: String, val description: String, val buttonLabel: String) : DrivenUiCard()
+    data class ImageCard(val asset: String, val url: String, val caption: String) : DrivenUiCard()
+    data class RevealCard(val question: String, val answer: String) : DrivenUiCard()
+    data class ConceptCard(val term: String, val definition: String, val example: String) : DrivenUiCard()
+    data class ExampleCard(val label: String, val parts: List<ExamplePart>) : DrivenUiCard()
+    data class FillCard(val template: String, val answer: String, val caseSensitive: Boolean) : DrivenUiCard()
+    data class SortCard(val instruction: String, val items: List<String>, val correct: List<Int>, val explain: String) : DrivenUiCard()
+    data class MatchCard(val instruction: String, val pairs: List<MatchPair>) : DrivenUiCard()
+    data class ScenarioCard(val situation: String, val question: String, val options: List<String>, val answerIndex: Int, val explain: String) : DrivenUiCard()
     data class ErrorCard(val message: String) : DrivenUiCard()
 }
 
 data class TodoItem(val text: String, var done: Boolean)
 data class WeatherDay(val dayName: String, val temp: String, val text: String, val icon: String)
 data class FormField(val name: String, val label: String, val placeholder: String, val type: String, var value: String = "")
+data class ExamplePart(val text: String, val role: String, val note: String)
+data class MatchPair(val term: String, val def: String)
 
 private fun JSONArray.toStringList(): List<String> =
     List(length()) { optString(it, "") }
+
+private fun JSONArray.toIntList(): List<Int> =
+    List(length()) { optInt(it, 0) }
 
 private inline fun <T> JSONArray.mapObjects(transform: (JSONObject) -> T): List<T> =
     List(length()) { transform(optJSONObject(it) ?: JSONObject()) }
@@ -166,6 +186,54 @@ object DrivenUiEngine {
                 description = p.optString("description", "Разреши уведомления, чтобы получать напоминания."),
                 buttonLabel = p.optString("button_label", "Разрешить уведомления"),
             )
+            "image" -> DrivenUiCard.ImageCard(
+                asset = p.optString("asset", ""),
+                url = p.optString("url", ""),
+                caption = p.optString("caption", ""),
+            )
+            "reveal" -> DrivenUiCard.RevealCard(
+                question = p.optString("question", ""),
+                answer = p.optString("answer", ""),
+            )
+            "concept" -> DrivenUiCard.ConceptCard(
+                term = p.optString("term", ""),
+                definition = p.optString("definition", ""),
+                example = p.optString("example", ""),
+            )
+            "example" -> DrivenUiCard.ExampleCard(
+                label = p.optString("label", ""),
+                parts = p.array("parts").mapObjects {
+                    ExamplePart(
+                        text = it.optString("text", ""),
+                        role = it.optString("role", ""),
+                        note = it.optString("note", ""),
+                    )
+                },
+            )
+            "fill" -> DrivenUiCard.FillCard(
+                template = p.optString("template", ""),
+                answer = p.optString("answer", ""),
+                caseSensitive = p.optBoolean("case_sensitive", false),
+            )
+            "sort" -> DrivenUiCard.SortCard(
+                instruction = p.optString("instruction", ""),
+                items = p.array("items").toStringList(),
+                correct = p.array("correct").toIntList(),
+                explain = p.optString("explain", ""),
+            )
+            "match" -> DrivenUiCard.MatchCard(
+                instruction = p.optString("instruction", ""),
+                pairs = p.array("pairs").mapObjects {
+                    MatchPair(term = it.optString("term", ""), def = it.optString("def", ""))
+                },
+            )
+            "scenario" -> DrivenUiCard.ScenarioCard(
+                situation = p.optString("situation", ""),
+                question = p.optString("q", ""),
+                options = p.array("options").toStringList(),
+                answerIndex = p.optInt("correct", 0),
+                explain = p.optString("explain", ""),
+            )
             else -> DrivenUiCard.ErrorCard("Неизвестный шаблон: $template")
         }
     } catch (e: Exception) {
@@ -257,6 +325,48 @@ fun DrivenUiCard.toMarkdown(): String = when (this) {
         appendLine("_[$buttonLabel]_")
     }.trim()
 
+    is DrivenUiCard.ImageCard -> buildString {
+        val src = asset.ifBlank { url }
+        appendLine("🖼️ ${caption.ifBlank { "Изображение" }}")
+        if (src.isNotBlank()) appendLine("_($src)_")
+    }.trim()
+
+    is DrivenUiCard.RevealCard -> buildString {
+        appendLine("**$question**")
+        appendLine("> $answer")
+    }.trim()
+
+    is DrivenUiCard.ConceptCard -> buildString {
+        appendLine("**$term** — $definition")
+        if (example.isNotBlank()) appendLine("_Пример: ${example}_")
+    }.trim()
+
+    is DrivenUiCard.ExampleCard -> buildString {
+        if (label.isNotBlank()) appendLine("**$label**")
+        parts.forEach { p ->
+            val note = if (p.note.isNotBlank()) " — _${p.note}_" else ""
+            appendLine("- ${if (p.role.isNotBlank()) "[${p.role}] " else ""}${p.text}$note")
+        }
+    }.trim()
+
+    is DrivenUiCard.FillCard -> "**Заполни пропуск:** ${template.replace("___", "_____")}"
+
+    is DrivenUiCard.SortCard -> buildString {
+        if (instruction.isNotBlank()) appendLine("**$instruction**")
+        items.forEachIndexed { i, it -> appendLine("${i + 1}. $it") }
+    }.trim()
+
+    is DrivenUiCard.MatchCard -> buildString {
+        if (instruction.isNotBlank()) appendLine("**$instruction**")
+        pairs.forEach { appendLine("- ${it.term} → ${it.def}") }
+    }.trim()
+
+    is DrivenUiCard.ScenarioCard -> buildString {
+        if (situation.isNotBlank()) appendLine("_${situation}_")
+        if (question.isNotBlank()) appendLine("**$question**")
+        options.forEach { appendLine("- $it") }
+    }.trim()
+
     is DrivenUiCard.ErrorCard -> "> ⚠️ $message"
 }
 
@@ -291,6 +401,14 @@ fun RenderDrivenUiCard(
             is DrivenUiCard.LessonCompleteCard -> LessonCompleteCardView(card, onLessonComplete)
             is DrivenUiCard.SwitchCard -> SwitchCardView(card, onAction)
             is DrivenUiCard.NotificationPermissionCard -> NotificationPermissionCardView(card)
+            is DrivenUiCard.ImageCard -> ImageCardView(card)
+            is DrivenUiCard.RevealCard -> RevealCardView(card)
+            is DrivenUiCard.ConceptCard -> ConceptCardView(card)
+            is DrivenUiCard.ExampleCard -> ExampleCardView(card)
+            is DrivenUiCard.FillCard -> FillCardView(card, onLessonQuizComplete)
+            is DrivenUiCard.SortCard -> SortCardView(card, onLessonQuizComplete)
+            is DrivenUiCard.MatchCard -> MatchCardView(card, onLessonQuizComplete)
+            is DrivenUiCard.ScenarioCard -> ScenarioCardView(card, onLessonQuizComplete)
             is DrivenUiCard.ErrorCard -> {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -937,6 +1055,402 @@ fun NotificationPermissionCardView(card: DrivenUiCard.NotificationPermissionCard
             ) {
                 Text(card.buttonLabel)
             }
+        }
+    }
+}
+
+/**
+ * Картинка/диаграмма в шаге урока. Источник — бандл-ассет (пробуем ПЕРВЫМ, чтобы работало оффлайн),
+ * с фоллбеком на сетевой URL, если ассета нет или он не загрузился. SVG и растр поддерживаются
+ * единым ImageLoader с SvgDecoder (он сам определяет SVG по содержимому).
+ */
+@Composable
+fun ImageCardView(card: DrivenUiCard.ImageCard) {
+    val context = LocalContext.current
+    val imageLoader = remember(context) {
+        ImageLoader.Builder(context)
+            .components { add(SvgDecoder.Factory()) }
+            .build()
+    }
+
+    val assetData = card.asset.takeIf { it.isNotBlank() }?.let { "file:///android_asset/$it" }
+    val urlData = card.url.takeIf { it.isNotBlank() }
+    // Ассет первым; при ошибке загрузки переключаемся на URL (один раз).
+    var useFallback by remember(card) { mutableStateOf(assetData == null) }
+    val data = if (!useFallback) (assetData ?: urlData) else urlData
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        if (data == null) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(Icons.Default.BrokenImage, contentDescription = null, tint = MaterialTheme.colorScheme.outline)
+                Text(
+                    text = "Нет изображения",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+            }
+        } else {
+            AsyncImage(
+                model = ImageRequest.Builder(context).data(data).crossfade(true).build(),
+                imageLoader = imageLoader,
+                contentDescription = card.caption.ifBlank { null },
+                contentScale = ContentScale.FillWidth,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp)),
+                onError = {
+                    // Ассет не загрузился — пробуем сетевой URL, если он задан и ещё не пробовали.
+                    if (!useFallback && assetData != null && urlData != null) useFallback = true
+                },
+            )
+        }
+        if (card.caption.isNotBlank()) {
+            Text(
+                text = card.caption,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+/** "reveal": вопрос, по кнопке раскрывается ответ. Шаг продвигается кнопкой «Дальше». */
+@Composable
+fun RevealCardView(card: DrivenUiCard.RevealCard) {
+    var revealed by remember(card) { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = card.question,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        AnimatedVisibility(visible = revealed) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Default.Lightbulb, null, tint = CardSuccessGreen, modifier = Modifier.size(20.dp))
+                Text(text = card.answer, style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+        if (!revealed) {
+            Button(onClick = { revealed = true }) {
+                Icon(Icons.Default.Visibility, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Показать ответ")
+            }
+        }
+    }
+}
+
+/** "concept": термин, определение, пример. Статичная карточка. */
+@Composable
+fun ConceptCardView(card: DrivenUiCard.ConceptCard) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        CardTitleRow(icon = Icons.Default.School, title = card.term)
+        CardDivider()
+        Text(text = card.definition, style = MaterialTheme.typography.bodyMedium)
+        if (card.example.isNotBlank()) {
+            Text(
+                text = "Пример: ${card.example}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline,
+            )
+        }
+    }
+}
+
+/** "example": заголовок и разбор на части (текст + роль-бейдж + заметка). Статичная карточка. */
+@Composable
+fun ExampleCardView(card: DrivenUiCard.ExampleCard) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (card.label.isNotBlank()) {
+            Text(
+                text = card.label,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            CardDivider()
+        }
+        card.parts.forEach { part ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                if (part.role.isNotBlank()) {
+                    Text(
+                        text = part.role.uppercase(Locale.getDefault()),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                Text(text = part.text, style = MaterialTheme.typography.bodyMedium)
+                if (part.note.isNotBlank()) {
+                    Text(
+                        text = part.note,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** "fill": заполни пропуск. Правильный ввод продвигает урок (как пройденный квиз). */
+@Composable
+fun FillCardView(card: DrivenUiCard.FillCard, onSolved: () -> Unit) {
+    var input by remember(card) { mutableStateOf("") }
+    var solved by remember(card) { mutableStateOf(false) }
+    var wrong by remember(card) { mutableStateOf(false) }
+
+    fun check() {
+        val a = if (card.caseSensitive) input.trim() else input.trim().lowercase(Locale.getDefault())
+        val b = if (card.caseSensitive) card.answer.trim() else card.answer.trim().lowercase(Locale.getDefault())
+        if (a == b && a.isNotEmpty()) { solved = true; wrong = false; onSolved() } else { wrong = true }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = card.template.replace("___", "  _____  "),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (solved) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Default.Check, null, tint = CardSuccessGreen)
+                Text(card.answer, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+            }
+        } else {
+            OutlinedTextField(
+                value = input,
+                onValueChange = { input = it; wrong = false },
+                singleLine = true,
+                isError = wrong,
+                placeholder = { Text("Впиши пропущенное слово") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (wrong) {
+                Text("Не то — попробуй ещё", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+            Button(onClick = { check() }, enabled = input.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                Text("Проверить")
+            }
+        }
+    }
+}
+
+/** "sort": расставь элементы стрелками вверх/вниз. Верный порядок продвигает урок. */
+@Composable
+fun SortCardView(card: DrivenUiCard.SortCard, onSolved: () -> Unit) {
+    val order = remember(card) { mutableStateListOf<String>().apply { addAll(card.items) } }
+    val target = remember(card) { card.correct.mapNotNull { card.items.getOrNull(it) } }
+    var solved by remember(card) { mutableStateOf(false) }
+    var wrong by remember(card) { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (card.instruction.isNotBlank()) {
+            Text(card.instruction, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        order.forEachIndexed { i, item ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
+                    .padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            ) {
+                Text("${i + 1}.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
+                Spacer(Modifier.width(8.dp))
+                Text(item, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                if (!solved) {
+                    IconButton(onClick = {
+                        if (i > 0) { val t = order[i - 1]; order[i - 1] = order[i]; order[i] = t; wrong = false }
+                    }, enabled = i > 0) { Icon(Icons.Default.KeyboardArrowUp, "Вверх") }
+                    IconButton(onClick = {
+                        if (i < order.size - 1) { val t = order[i + 1]; order[i + 1] = order[i]; order[i] = t; wrong = false }
+                    }, enabled = i < order.size - 1) { Icon(Icons.Default.KeyboardArrowDown, "Вниз") }
+                }
+            }
+        }
+        if (solved) {
+            if (card.explain.isNotBlank()) {
+                Text("✓ ${card.explain}", style = MaterialTheme.typography.bodySmall, color = CardSuccessGreen)
+            }
+        } else {
+            if (wrong) {
+                Text("Пока не тот порядок — переставь и проверь снова", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error)
+            }
+            Button(
+                onClick = { if (order.toList() == target) { solved = true; wrong = false; onSolved() } else wrong = true },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Проверить") }
+        }
+    }
+}
+
+/** "match": сопоставь термины и определения тапами. Полное верное сопоставление продвигает урок. */
+@Composable
+fun MatchCardView(card: DrivenUiCard.MatchCard, onSolved: () -> Unit) {
+    val terms = card.pairs.map { it.term }
+    // Определения показываем в сдвинутом порядке, чтобы строки не совпадали 1-в-1 с терминами.
+    val displayDefOrder = remember(card) {
+        val idx = card.pairs.indices.toList()
+        if (idx.size > 1) idx.drop(1) + idx.take(1) else idx
+    }
+    val assign = remember(card) { mutableStateMapOf<Int, Int>() } // termIndex -> исходный индекс пары (он же верный термин)
+    var selectedTerm by remember(card) { mutableStateOf<Int?>(null) }
+    var solved by remember(card) { mutableStateOf(false) }
+    var wrong by remember(card) { mutableStateOf(false) }
+    val correctGreen = CardSuccessGreen
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (card.instruction.isNotBlank()) {
+            Text(card.instruction, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        // Термины
+        terms.forEachIndexed { ti, term ->
+            val assignedDef = assign[ti]?.let { card.pairs[it].def }
+            val isSel = selectedTerm == ti
+            val border = when {
+                solved && assign[ti] == ti -> correctGreen
+                solved -> MaterialTheme.colorScheme.error
+                isSel -> MaterialTheme.colorScheme.primary
+                else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .border(1.5.dp, border, RoundedCornerShape(10.dp))
+                    .clickable(enabled = !solved) { selectedTerm = if (isSel) null else ti }
+                    .padding(12.dp),
+            ) {
+                Text(term, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text(
+                    text = assignedDef ?: "выбери →",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (assignedDef != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.weight(1.2f),
+                )
+            }
+        }
+        CardDivider()
+        Text("Определения:", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+        // Определения-кнопки: тап назначает выбранному термину
+        displayDefOrder.forEach { di ->
+            val used = assign.containsValue(di)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(
+                        if (used) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                        else MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+                    )
+                    .clickable(enabled = !solved && selectedTerm != null) {
+                        val t = selectedTerm
+                        if (t != null) {
+                            // снять этот def с прежнего термина, затем назначить
+                            assign.entries.firstOrNull { it.value == di }?.let { assign.remove(it.key) }
+                            assign[t] = di
+                            selectedTerm = null
+                            wrong = false
+                        }
+                    }
+                    .padding(12.dp),
+            ) {
+                Text(card.pairs[di].def, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                if (used) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+            }
+        }
+        if (solved) {
+            Text("✓ Верно!", style = MaterialTheme.typography.bodySmall, color = correctGreen)
+        } else {
+            if (wrong) {
+                Text("Не всё совпало — поправь пары", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+            Button(
+                onClick = {
+                    if (assign.size == terms.size && assign.all { it.key == it.value }) { solved = true; wrong = false; onSolved() } else wrong = true
+                },
+                enabled = assign.size == terms.size,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Проверить") }
+        }
+    }
+}
+
+/** "scenario": ситуация + один вопрос с вариантами. Ответ продвигает урок. */
+@Composable
+fun ScenarioCardView(card: DrivenUiCard.ScenarioCard, onSolved: () -> Unit) {
+    var selected by remember(card) { mutableStateOf<Int?>(null) }
+    val correctGreen = CardSuccessGreen
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (card.situation.isNotBlank()) {
+            Text(
+                text = card.situation,
+                style = MaterialTheme.typography.bodyMedium,
+                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                color = MaterialTheme.colorScheme.outline,
+            )
+        }
+        if (card.question.isNotBlank()) {
+            Text(card.question, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        card.options.forEachIndexed { i, option ->
+            val answered = selected != null
+            val isCorrect = i == card.answerIndex
+            val isPicked = selected == i
+            val border = when {
+                !answered -> MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                isCorrect -> correctGreen
+                isPicked -> MaterialTheme.colorScheme.error
+                else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(1.5.dp, border, RoundedCornerShape(12.dp))
+                    .clickable(enabled = selected == null) {
+                        selected = i
+                        // Ответил — двигаемся дальше независимо от правильности: виден верный вариант + пояснение.
+                        onSolved()
+                    }
+                    .padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(option, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                when {
+                    answered && isCorrect -> Icon(Icons.Default.Check, null, tint = correctGreen)
+                    answered && isPicked -> Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+        if (selected != null && card.explain.isNotBlank()) {
+            Text(card.explain, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
         }
     }
 }

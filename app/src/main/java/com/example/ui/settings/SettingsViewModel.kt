@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.ui.settings
 
+// @trace app-settings-beb470
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository

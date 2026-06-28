@@ -1,5 +1,7 @@
 package com.aiopenpocket.agent.core.llm
 
+// @trace streaming-llm-chat-6595a1
+
 // Экземпляр предоставляется через LlmModule.provideProviderFallbackChain (единственный binding).
 // Каждый провайдер хранит СПИСОК конфигов: для NIM это модели из assets/config/models.json,
 // отсортированные по priority. OpenAiCompatClient перебирает их по очереди с фоллбэком при ошибке.

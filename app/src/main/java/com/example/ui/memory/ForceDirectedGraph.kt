@@ -1,5 +1,7 @@
 package com.aiopenpocket.ui.memory
 
+// @trace agent-memory-05e545
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures

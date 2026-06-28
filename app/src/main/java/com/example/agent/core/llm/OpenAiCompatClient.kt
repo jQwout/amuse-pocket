@@ -62,10 +62,20 @@ class OpenAiCompatClient(
     // ответа в один. Поэтому после первого эмита фоллбэк запрещён.
     var emittedAnswer = false
 
-    for (p in providers) {
+    // Единая трасса хода: какие провайдеры в цепочке и сколько их (видно, есть ли вообще фолбэк).
+    Log.i(
+      TAG,
+      "▶ LLM turn requested=$provider chain=[${providers.joinToString { "${it.name}/${it.model}" }}] " +
+        "msgs=${messages.size} tools=${tools.size}",
+    )
+
+    for ((idx, p) in providers.withIndex()) {
+      val tag = "${p.name}/${p.model}"
+      val attempt = "[${idx + 1}/${providers.size}]"
       try {
         val apiKey = p.apiKeyResolver()
         if (apiKey.isBlank()) {
+          Log.w(TAG, "$attempt $tag → SKIP: API key is blank")
           lastError = IllegalStateException("API key for ${p.name} is blank")
           lastErrorCode = "blank_key"
           continue
@@ -78,38 +88,69 @@ class OpenAiCompatClient(
           maxTokens = p.maxTokens,
           stream = true,
         )
+        val bodyJson = json.encodeToString(requestBody)
+        // Ключевая проверка сериализации: type:"function" должен присутствовать у тулов, иначе строгие
+        // провайдеры дают HTTP 400 «missing field type». Логируем явно, чтобы баг было видно сразу.
+        val toolTypeOk = tools.isEmpty() || bodyJson.contains("\"type\":\"function\"")
+        Log.i(
+          TAG,
+          "$attempt $tag → POST ${p.baseUrl} bytes=${bodyJson.length} maxTokens=${p.maxTokens} " +
+            "toolTypePresent=$toolTypeOk",
+        )
 
+        val callStart = System.currentTimeMillis()
         httpClient.preparePost(p.baseUrl) {
           header("Authorization", "Bearer $apiKey")
           contentType(ContentType.Application.Json)
-          setBody(json.encodeToString(requestBody))
+          setBody(bodyJson)
         }.execute { response ->
-          if (response.status.value !in 200..299) {
+          val status = response.status.value
+          if (status !in 200..299) {
             val bodyText = response.body<String>()
+            Log.w(TAG, "$attempt $tag ✗ HTTP $status: ${bodyText.replace("\n", " ").take(800)}")
             // Бросаем, чтобы catch ниже перешёл к следующему провайдеру AUTO-цепочки.
-            throw LlmHttpException(response.status.value, bodyText)
+            throw LlmHttpException(status, bodyText)
           }
+          Log.i(TAG, "$attempt $tag ← HTTP $status, streaming…")
 
+          // Счётчики по итогу стрима — сразу видно, ПУСТОЙ ли ответ и почему (нет content? только reasoning?).
+          var textChars = 0
+          var toolCalls = 0
+          var finishReason = "?"
           val channel = response.body<ByteReadChannel>()
           consumeOpenAiSse(
             channel = channel,
             json = json,
-            onParseError = { Log.w(TAG, "Skipping unparseable SSE chunk: ${it.message}") },
+            onParseError = { Log.w(TAG, "$tag skipping unparseable SSE chunk: ${it.message}") },
           ) { event ->
-            if (event is StreamEvent.TextDelta || event is StreamEvent.ToolCall) {
-              emittedAnswer = true
+            when (event) {
+              is StreamEvent.TextDelta -> { textChars += event.content.length; emittedAnswer = true }
+              is StreamEvent.ToolCall -> {
+                toolCalls++
+                emittedAnswer = true
+                Log.d(TAG, "$tag tool_call: ${event.name}")
+              }
+              is StreamEvent.Finish -> finishReason = event.reason
+              else -> {}
             }
             emit(event)
           }
+          val ms = System.currentTimeMillis() - callStart
+          Log.i(
+            TAG,
+            "$attempt $tag ✓ done in ${ms}ms textChars=$textChars toolCalls=$toolCalls finish=$finishReason" +
+              if (textChars == 0 && toolCalls == 0) "  ⚠ EMPTY RESPONSE" else "",
+          )
         }
         return@flow
       } catch (e: Exception) {
-        Log.w(TAG, "Provider ${p.name} failed: ${e.message}")
+        Log.w(TAG, "$attempt $tag failed: ${e.message}")
         lastError = e
         if (e is LlmHttpException) lastErrorCode = e.status.toString()
         if (emittedAnswer) {
           // Часть ответа уже ушла потребителю — молча перезапускать на другом провайдере нельзя,
           // иначе в чат попадёт обрывок + новый полный ответ.
+          Log.w(TAG, "$tag interrupted mid-stream — НЕ фолбэчим (часть ответа уже у пользователя)")
           emit(StreamEvent.Error("Stream interrupted: ${e.message}", code = lastErrorCode))
           return@flow
         }
@@ -117,6 +158,7 @@ class OpenAiCompatClient(
       }
     }
 
+    Log.e(TAG, "✗ LLM turn: ВСЕ провайдеры упали. Last code=$lastErrorCode msg=${lastError?.message}")
     emit(StreamEvent.Error("All providers failed. Last: ${lastError?.message}", code = lastErrorCode))
   }
 
@@ -133,19 +175,23 @@ class OpenAiCompatClient(
 
   private companion object {
     const val TAG = "OpenAiCompatClient"
-    const val CONNECT_TIMEOUT_MS = 15_000L
+    const val CONNECT_TIMEOUT_MS = 8_000L
     const val SOCKET_IDLE_TIMEOUT_MS = 60_000L
   }
 }
 
 // OpenAI-совместимый протокол использует snake_case (tool_calls, finish_reason, tool_call_id).
 // explicitNulls = false, чтобы не слать null-поля (tool_calls/content) в запросе.
+// encodeDefaults = true ОБЯЗАТЕЛЕН: без него поля со значением по умолчанию выпадают из запроса —
+// в частности type="function" у каждого тула и у tool_call. Лояльные модели это глотают, но строгие
+// (llama/gpt-oss/nemotron на NIM) отвечают HTTP 400 «missing field `type`», ломая фолбэк при rate-limit.
 @OptIn(ExperimentalSerializationApi::class)
 internal fun openAiCompatJson(): Json = Json {
   ignoreUnknownKeys = true
   isLenient = true
   prettyPrint = false
   explicitNulls = false
+  encodeDefaults = true
   namingStrategy = JsonNamingStrategy.SnakeCase
 }
 
@@ -166,6 +212,11 @@ internal suspend fun consumeOpenAiSse(
 ) {
   val toolAccumulators = LinkedHashMap<Int, ToolCallAccumulator>()
   var finishReason: String? = null
+  // Reasoning-модели (deepseek-v4-flash, nemotron) стримят размышление в reasoning_content, а ответ
+  // в content. Копим размышление отдельно: если у хода content так и не пришёл (модель уложила всё в
+  // reasoning) и не было tool-call, отдаём размышление как ответ — иначе пользователь видит пустоту.
+  var contentSeen = false
+  val reasoning = StringBuilder()
   while (!channel.isClosedForRead) {
     val line = channel.readUTF8Line() ?: continue
     if (!line.startsWith("data:")) continue
@@ -180,7 +231,11 @@ internal suspend fun consumeOpenAiSse(
       continue
     }
     val choice = sseChunk.choices.firstOrNull() ?: continue
-    choice.delta?.content?.let { emit(StreamEvent.TextDelta(it)) }
+    choice.delta?.content?.let {
+      if (it.isNotEmpty()) contentSeen = true
+      emit(StreamEvent.TextDelta(it))
+    }
+    choice.delta?.reasoningContent?.let { reasoning.append(it) }
     // Tool-call приходит фрагментами по нескольким дельтам — копим по index.
     choice.delta?.toolCalls?.forEach { tc ->
       val idx = tc.index ?: 0
@@ -190,6 +245,12 @@ internal suspend fun consumeOpenAiSse(
       tc.function?.arguments?.let { acc.arguments.append(it) }
     }
     choice.finishReason?.let { finishReason = it }
+  }
+
+  // Фолбэк: модель выдала только reasoning_content (без content и без tool-call) — отдаём его как ответ,
+  // чтобы ход не закончился немым экраном. На обычных ходах с content этот блок не срабатывает.
+  if (!contentSeen && toolAccumulators.isEmpty() && reasoning.isNotBlank()) {
+    emit(StreamEvent.TextDelta(reasoning.toString().trim()))
   }
 
   // Эмитим каждый собранный tool-call один раз, с полными аргументами.
@@ -242,6 +303,8 @@ private data class SseChoice(
 private data class SseDelta(
   val role: String? = null,
   val content: String? = null,
+  // reasoning-модели NIM кладут цепочку рассуждений сюда (snake_case: reasoning_content).
+  val reasoningContent: String? = null,
   val toolCalls: List<SseToolCall>? = null,
 )
 

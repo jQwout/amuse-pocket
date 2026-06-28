@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.di
 
+// @trace mcp-tools-f77d9b
+
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.tools.AlarmTool
 import com.aiopenpocket.agent.tools.CalendarTool

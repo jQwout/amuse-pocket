@@ -23,13 +23,20 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Article
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Loop
+import androidx.compose.material.icons.filled.ManageSearch
+import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Thermostat
+import androidx.compose.material.icons.filled.TrackChanges
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -181,6 +188,13 @@ private fun lessonIcon(key: String): ImageVector = when (key) {
   "hub", "network" -> Icons.Default.Hub
   "tree", "routing" -> Icons.Default.AccountTree
   "shield", "privacy" -> Icons.Default.Shield
+  "memory" -> Icons.Default.Memory
+  "extension" -> Icons.Default.Extension
+  "build", "tools" -> Icons.Default.Build
+  "edit", "chat" -> Icons.Default.EditNote
+  "target" -> Icons.Default.TrackChanges
+  "thermostat", "temperature" -> Icons.Default.Thermostat
+  "manage_search", "search" -> Icons.Default.ManageSearch
   "book" -> Icons.Default.MenuBook
   else -> Icons.Default.Article
 }

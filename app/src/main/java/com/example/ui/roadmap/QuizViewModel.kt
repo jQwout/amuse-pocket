@@ -1,5 +1,7 @@
 package com.aiopenpocket.ui.roadmap
 
+// @trace ai-academy-onboarding-5d51bb
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository

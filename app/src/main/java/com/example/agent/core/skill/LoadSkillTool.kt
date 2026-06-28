@@ -1,5 +1,7 @@
 package com.aiopenpocket.agent.core.skill
 
+// @trace agent-skills-7189cc
+
 import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult

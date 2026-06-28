@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.ui.conversations
 
+// @trace multi-chat-conversations-b3c93b
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,10 +27,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -36,6 +35,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -53,27 +53,20 @@ fun ConversationsListScreen(
   val state by viewModel.state.collectAsState()
   val scope = rememberCoroutineScope()
 
-  Scaffold(
-    topBar = {
-      TopAppBar(
-        title = { Text("Чаты") },
-        navigationIcon = {
-          IconButton(onClick = onNavigateBack) {
-            Icon(
-              Icons.AutoMirrored.Filled.ArrowBack,
-              contentDescription = "Назад",
-            )
-          }
-        },
-        actions = {
-          IconButton(onClick = onNavigateToGraph) {
-            Icon(Icons.Default.Share, contentDescription = "Граф памяти")
-          }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-          containerColor = MaterialTheme.colorScheme.surface,
-        ),
-      )
+  AcademyCollapsingScaffold(
+    title = "Чаты",
+    navigationIcon = {
+      IconButton(onClick = onNavigateBack) {
+        Icon(
+          Icons.AutoMirrored.Filled.ArrowBack,
+          contentDescription = "Назад",
+        )
+      }
+    },
+    actions = {
+      IconButton(onClick = onNavigateToGraph) {
+        Icon(Icons.Default.Share, contentDescription = "Граф памяти")
+      }
     },
     floatingActionButton = {
       FloatingActionButton(onClick = {

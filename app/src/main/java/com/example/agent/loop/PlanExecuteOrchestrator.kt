@@ -1,5 +1,7 @@
 package com.aiopenpocket.agent.loop
 
+// @trace multi-agent-orchestration-27b8e3
+
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.llm.LlmClient

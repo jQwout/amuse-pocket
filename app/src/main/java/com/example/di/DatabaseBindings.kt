@@ -1,5 +1,7 @@
 package com.aiopenpocket.di
 
+// @trace agent-memory-05e545
+
 import android.app.Application
 import androidx.room.Room
 import androidx.room.migration.Migration

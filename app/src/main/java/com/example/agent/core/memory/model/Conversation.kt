@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.agent.core.memory.model
 
+// @trace multi-chat-conversations-b3c93b
+
 data class Conversation(
   val id: String,
   val title: String,

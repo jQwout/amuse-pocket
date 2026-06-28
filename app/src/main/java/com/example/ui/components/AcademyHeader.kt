@@ -1,5 +1,7 @@
 package com.aiopenpocket.ui.components
 
+// @trace ai-academy-onboarding-5d51bb
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth

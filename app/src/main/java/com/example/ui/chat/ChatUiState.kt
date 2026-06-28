@@ -1,5 +1,7 @@
 package com.aiopenpocket.ui.chat
 
+// @trace streaming-llm-chat-6595a1
+
 import com.aiopenpocket.agent.core.lesson.Lesson
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.core.memory.model.Message

@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.di
 
+// @trace app-settings-beb470
+
 import android.app.Application
 import android.content.Context
 import dev.zacsweers.metro.BindingContainer
