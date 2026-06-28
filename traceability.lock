@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "features": {
+    "agent-memory-05e545": {
+      "hash": "125a5c6e0144",
+      "git": "44b0648"
+    },
+    "agent-skills-7189cc": {
+      "hash": "3269e4a00e3b",
+      "git": "44b0648"
+    },
+    "ai-academy-onboarding-5d51bb": {
+      "hash": "9161dd8bb7ed",
+      "git": "44b0648"
+    },
+    "app-settings-beb470": {
+      "hash": "0bb690c907c6",
+      "git": "44b0648"
+    },
+    "background-tasks-15a34a": {
+      "hash": "9eae4f12fda5",
+      "git": "44b0648"
+    },
+    "classic-typography-a44c05": {
+      "hash": "543c953adb9c",
+      "git": "44b0648"
+    },
+    "driven-ui-cards-0418d0": {
+      "hash": "463ee100b8b3",
+      "git": "44b0648"
+    },
+    "mcp-tools-f77d9b": {
+      "hash": "5955f1ae0839",
+      "git": "44b0648"
+    },
+    "multi-agent-orchestration-27b8e3": {
+      "hash": "cf2143071fee",
+      "git": "44b0648"
+    },
+    "multi-chat-conversations-b3c93b": {
+      "hash": "4d5cdef66a64",
+      "git": "44b0648"
+    },
+    "rezhimy-agenta-plan-i-goal-ee2361": {
+      "hash": "15cb7cf0b35e",
+      "git": "44b0648"
+    },
+    "streaming-llm-chat-6595a1": {
+      "hash": "3f022edc1b01",
+      "git": "44b0648"
+    },
+    "swappable-persona-e5e65e": {
+      "hash": "a97ed41796da",
+      "git": "44b0648"
+    },
+    "uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2": {
+      "hash": "046cdeb1a43f",
+      "git": "44b0648"
+    },
+    "voice-input-1a0dfd": {
+      "hash": "e3c49a027dd5",
+      "git": "44b0648"
+    }
+  }
+}

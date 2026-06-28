@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.ui.settings
 
+// @trace app-settings-beb470
+
 data class SettingsUiState(
   val nvidiaKey: String = "",
   val groqKey: String = "",

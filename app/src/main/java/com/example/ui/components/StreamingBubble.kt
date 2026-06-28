@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.ui.components
 
+// @trace streaming-llm-chat-6595a1
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row

@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.agent.core.llm
 
+// @trace streaming-llm-chat-6595a1
+
 /**
  * Budget for a single LLM request. Llama 3.1 supports ~128K tokens; we reserve headroom
  * for system prompt, tool schemas, and the model reply.

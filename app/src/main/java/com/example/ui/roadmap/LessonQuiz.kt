@@ -1,5 +1,7 @@
 package com.aiopenpocket.ui.roadmap
 
+// @trace ai-academy-onboarding-5d51bb
+
 /** Single multiple-choice quiz question shown on the post-lesson quiz screen. */
 data class QuizQuestion(
   val question: String,

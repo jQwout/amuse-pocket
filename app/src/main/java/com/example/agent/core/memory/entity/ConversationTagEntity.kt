@@ -1,5 +1,7 @@
 package com.aiopenpocket.agent.core.memory.entity
 
+// @trace multi-chat-conversations-b3c93b
+
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index

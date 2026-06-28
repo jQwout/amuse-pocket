@@ -1,5 +1,7 @@
 package com.aiopenpocket.agent.core.skill
 
+// @trace agent-skills-7189cc
+
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope

@@ -1,5 +1,7 @@
 package com.aiopenpocket.agent.tools
 
+// @trace mcp-tools-f77d9b
+
 import android.Manifest
 import android.content.ContentUris
 import android.content.ContentValues

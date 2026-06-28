@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.ui.roadmap
 
+// @trace ai-academy-onboarding-5d51bb
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,21 +24,28 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.AltRoute
 import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Psychology
-import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Loop
+import androidx.compose.material.icons.filled.ManageSearch
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.TrackChanges
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.WavingHand
-import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -49,6 +58,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.ui.components.AcademyBottomNav
+import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
 import com.aiopenpocket.ui.components.AcademyTab
 import com.aiopenpocket.ui.theme.CardDark
 import com.aiopenpocket.ui.theme.PurpleAccent
@@ -64,168 +74,112 @@ data class RoadmapLevel(
   val theory: String = "",
 )
 
+// Единый путь обучения = онбординг + все уроки-концепции (порядок педагогический, совпадает с
+// каталогом библиотеки). l1_welcome — онбординг (открывается своим экраном), остальные — JSON-уроки
+// из assets/lessons, которые драйвит чат-контроллер. Описания держим в синхроне с *.json.
 val ROADMAP_LEVELS = listOf(
   RoadmapLevel(
     "l1_welcome",
     "Анатомия чата",
     "Сообщение, препромпт, стриминг и путь данных от тебя к LLM и обратно.",
     Icons.Default.WavingHand,
-    theory = """
-      ## Как устроен один ответ агента
-
-      Когда ты отправляешь сообщение, происходит цепочка шагов:
-
-      1. **Препромпт** — система собирает контекст: базовые правила, выбранную
-         персону, релевантные факты и недавнюю историю диалога.
-      2. **Запрос к LLM** — всё это уходит в модель одним пакетом сообщений.
-      3. **Стриминг** — ответ приходит по кусочкам (токенам) и печатается в реальном времени.
-      4. **Инструменты** — если модель решает вызвать тул, ты видишь это в *tool trace*.
-
-      > Локально-первый принцип: в облако уходит только промпт. Память, файлы и
-      > история остаются на устройстве.
-
-      Базовая команда для проверки — просто поздоровайся и попроси рассказать,
-      что агент умеет.
-    """.trimIndent(),
   ),
   RoadmapLevel(
-    "l2_notes",
-    "Быстрые заметки",
-    "Техники захвата контекста в реальном времени и передачи агенту.",
-    Icons.Default.EditNote,
-    theory = """
-      ## Файлы как заметки
-
-      Агент работает с файлами в защищённой песочнице. Доступные инструменты:
-
-      - `write_file` — создать или перезаписать заметку
-      - `read_file` — прочитать содержимое
-      - `search_files` — найти файл по содержимому
-      - `list_dir` — показать список файлов
-
-      **Попробуй:** «Запиши в заметку `idea.txt`, что нужно купить молоко»,
-      затем «Прочитай `idea.txt`».
-    """.trimIndent(),
-  ),
-  RoadmapLevel(
-    "l3_reminders",
-    "Напоминания",
-    "Временная логика и автоматические триггеры для выполнения задач.",
-    Icons.Default.Notifications,
-    theory = """
-      ## Напоминания и фоновые задачи
-
-      Агент умеет планировать действия на будущее через `work_manager`:
-
-      - **schedule_notification** — одноразовое уведомление через N минут
-      - **schedule_periodic** — повтор каждые N минут (минимум 15)
-      - **cancel_work** — отмена задачи по её ID
-
-      > Из-за ограничений Android время срабатывания — приблизительное (±15 минут),
-      > особенно в режиме энергосбережения.
-
-      **Попробуй:** «Напомни через 2 минуты проверить почту».
-    """.trimIndent(),
-  ),
-  RoadmapLevel(
-    "l4_memory",
-    "Память и навыки",
-    "Долгая память, эпизоды и возможности агента — базовое представление о системе.",
+    "how_llm_reads",
+    "Как ИИ читает твой запрос",
+    "Промпт, препромпт и путь запроса внутри модели.",
     Icons.Default.Psychology,
-    theory = """
-      ## Три слоя памяти
-
-      1. **Короткая** — текущий диалог (последние сообщения).
-      2. **Долгая (факты)** — `remember_fact` сохраняет факт о тебе навсегда,
-         `search_memory` ищет его позже.
-      3. **Эпизоды** — журнал действий: каждый вызов инструмента записывается
-         автоматически, `recall_episodes` достаёт прошлые события.
-
-      **Попробуй:** «Запомни: я предпочитаю короткие ответы» — а в новом чате
-      спроси, как тебе лучше отвечать.
-    """.trimIndent(),
+  ),
+  RoadmapLevel(
+    "how_to_ask",
+    "Как просить",
+    "Почему точный запрос даёт точный ответ и как формулировать, чтобы получить нужное.",
+    Icons.Default.EditNote,
+  ),
+  RoadmapLevel(
+    "tokens_and_speed",
+    "Токены и скорость",
+    "Что такое токен, входные и выходные токены, рассуждения моделей и отчего один ответ быстрый, а другой долгий и дорогой.",
+    Icons.Default.Bolt,
+  ),
+  RoadmapLevel(
+    "temperature_and_randomness",
+    "Почему ответы разные",
+    "Что такое температура и почему один и тот же запрос даёт разные ответы.",
+    Icons.Default.Thermostat,
+  ),
+  RoadmapLevel(
+    "privacy_and_reliability",
+    "Приватность и надёжность",
+    "Что уходит в облако, что остаётся у тебя, и что делать при сбоях.",
+    Icons.Default.Shield,
+  ),
+  RoadmapLevel(
+    "hallucinations",
+    "Когда модель ошибается",
+    "Почему модель уверенно выдумывает и как ловить такие ответы.",
+    Icons.Default.TrackChanges,
+  ),
+  RoadmapLevel(
+    "react_loop",
+    "Цикл агента: ReAct",
+    "Как агент работает внутри: рассуждай → действуй → наблюдай, и так по кругу — на живом примере.",
+    Icons.Default.Loop,
+  ),
+  RoadmapLevel(
+    "agent_tools",
+    "Инструменты агента",
+    "Чем агент действует: как модель вызывает инструменты и получает результат обратно.",
+    Icons.Default.Build,
+  ),
+  RoadmapLevel(
+    "memory_and_context",
+    "Память и контекст",
+    "Почему модель будто забывает разговор и как агент помнит тебя тремя видами памяти.",
+    Icons.Default.Memory,
+  ),
+  RoadmapLevel(
+    "agent_skills",
+    "Навыки агента",
+    "Как агент подгружает умения по требованию, не раздувая контекст — три уровня раскрытия.",
+    Icons.Default.Extension,
+  ),
+  RoadmapLevel(
+    "rag",
+    "RAG: ответы по твоей базе",
+    "Почему модель не знает твои файлы и как поиск нужных кусков перед ответом это чинит.",
+    Icons.Default.ManageSearch,
   ),
   RoadmapLevel(
     "plan_mode",
     "План-мод",
-    "Агент сначала строит план, потом выполняет — «подумать» отдельно от «сделать».",
+    "Агент сначала строит план и ждёт твоего «ок» — «подумать» отдельно от «сделать».",
+    Icons.Default.Checklist,
+  ),
+  RoadmapLevel(
+    "goal_mode",
+    "Гоал-мод",
+    "Задаёшь цель и критерии — агент сам идёт к ней циклом, сверяясь с результатом.",
+    Icons.Default.Flag,
+  ),
+  RoadmapLevel(
+    "workflow_and_agent",
+    "Воркфлоу и агент",
+    "Два способа выстроить многошаговую задачу: заранее заданный воркфлоу и самостоятельный агент — когда брать какой.",
     Icons.Default.AccountTree,
-    theory = """
-      ## Сначала план, потом действие
-
-      На сложных задачах рискованно бросаться делать сразу. План-мод разделяет
-      «подумать» и «сделать»:
-
-      1. **Планировщик** разбивает задачу на 2–5 конкретных шагов.
-      2. **Исполнитель** проходит шаги по одному, вызывая инструменты.
-      3. **Синтезатор** собирает результаты шагов в финальный ответ.
-
-      > Это один и тот же ReAct-движок, что и в обычном чате, — просто сверху
-      > добавлен оркестратор ролей. Так устроены мульти-агентные системы.
-
-      **Попробуй:** дай составную задачу — «спланируй продуктивное утро» или
-      «составь план изучения Kotlin на неделю» — и проследи план → шаги → итог.
-    """.trimIndent(),
-  ),
-  /* Уроки 5–7 временно отключены
-  RoadmapLevel(
-    "l5_database",
-    "База данных",
-    "SQL-запросы и работа со структурированными данными на устройстве.",
-    Icons.Default.Storage,
-    theory = """
-      ## Структурированные данные
-
-      Когда заметок мало — хватает файлов. Когда данных много и они однотипные
-      (задачи, расходы, привычки) — нужна таблица и `query_db`.
-
-      - Запросы — только чтение (`SELECT`), данные не повреждаются.
-      - Можно считать агрегаты: `COUNT`, `SUM`, `AVG`.
-      - Доступ ограничен безопасными таблицами.
-
-      **Попробуй:** «Сколько у меня записей в базе?»
-    """.trimIndent(),
   ),
   RoadmapLevel(
-    "l6_trace",
-    "Tool Trace",
-    "Прозрачность работы агента: как читать трассировку инструментов.",
-    Icons.Default.TrackChanges,
-    theory = """
-      ## Прозрачность работы
-
-      **Tool trace** — это лог всех инструментов, которые агент вызвал, чтобы
-      ответить. Он показывает:
-
-      - какой инструмент был вызван и с какими аргументами;
-      - что инструмент вернул;
-      - порядок шагов в рамках одного ответа.
-
-      > Это не отладочный мусор, а фича: ты всегда видишь, *почему* агент ответил
-      > именно так, и можешь доверять результату.
-
-      Открой панель trace иконкой на верхней панели чата после ответа с инструментами.
-    """.trimIndent(),
+    "chaining_and_routing",
+    "Паттерны: цепочка и роутинг",
+    "Два базовых паттерна воркфлоу: промпт-чейнинг и роутинг задачи.",
+    Icons.AutoMirrored.Filled.AltRoute,
   ),
   RoadmapLevel(
-    "l7_combo",
-    "Комбо",
-    "Комбинирование инструментов для решения сложных задач.",
-    Icons.Default.RocketLaunch,
-    theory = """
-      ## От задачи — к инструментам
-
-      Сильные сценарии получаются, когда агент *комбинирует* инструменты в одном
-      ответе:
-
-      - заметка + напоминание: записать идею и напомнить о ней завтра;
-      - база + карточка: посчитать данные и показать `render_card(chart_bar)`;
-      - память + файлы: вспомнить предпочтение и применить его к новой задаче.
-
-      **Попробуй:** «Составь список дел на сегодня и покажи его карточкой».
-    """.trimIndent(),
+    "arena_and_swarm",
+    "Арена и рой агентов",
+    "Несколько прогонов или агентов сразу: сравнить лучший ответ и поделить задачу.",
+    Icons.Default.Groups,
   ),
-  */
 )
 
 enum class LevelStatus { LOCKED, CURRENT, COMPLETED }
@@ -242,7 +196,8 @@ fun RoadmapScreen(
   val completedCount = progress.size
   val progressFraction = completedCount.toFloat() / ROADMAP_LEVELS.size
 
-  Scaffold(
+  AcademyCollapsingScaffold(
+    title = "Путь агента",
     bottomBar = {
       AcademyBottomNav(
         selectedTab = AcademyTab.Path,
@@ -264,45 +219,13 @@ fun RoadmapScreen(
       contentPadding = PaddingValues(bottom = 24.dp),
     ) {
       item {
-        Spacer(modifier = Modifier.height(16.dp))
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-          ) {
-            Icon(
-              imageVector = Icons.Default.School,
-              contentDescription = null,
-              tint = PurpleAccent,
-              modifier = Modifier.size(20.dp),
-            )
-            Text(
-              text = "AI Academy",
-              style = MaterialTheme.typography.labelLarge,
-              color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-            )
-          }
-        }
-      }
-
-      item {
-        Spacer(modifier = Modifier.height(24.dp))
-        Text(
-          text = "Путь агента",
-          style = MaterialTheme.typography.headlineLarge,
-          color = MaterialTheme.colorScheme.onSurface,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
           text = "Освой искусство оркестрации AI через пошаговую программу обучения.",
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
         )
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(24.dp))
       }
 
       itemsIndexed(ROADMAP_LEVELS) { index, level ->

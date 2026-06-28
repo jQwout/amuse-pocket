@@ -1,5 +1,7 @@
 package com.aiopenpocket.agent.tools
 
+// @trace mcp-tools-f77d9b
+
 import android.database.Cursor
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.aiopenpocket.agent.core.mcp.Tool

@@ -1,5 +1,7 @@
 package com.aiopenpocket.ui.chat
 
+// @trace streaming-llm-chat-6595a1
+
 import com.aiopenpocket.agent.loop.AgentMode
 
 sealed class ChatIntent {
@@ -12,6 +14,8 @@ sealed class ChatIntent {
   data object ClearError : ChatIntent()
   data object NavigateBack : ChatIntent()
   data object ToggleVoiceInput : ChatIntent()
+  /** Отмена записи: сбросить распознавание без вставки текста (кнопка-корзина в баре записи). */
+  data object CancelVoiceInput : ChatIntent()
   data object ClearVoiceError : ChatIntent()
 
   /** Сменить режим агента (Чат/План/Цель). Заменяет прежний boolean-тогл план-мода. */

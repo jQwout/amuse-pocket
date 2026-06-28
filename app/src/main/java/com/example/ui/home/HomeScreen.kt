@@ -25,12 +25,15 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -62,6 +65,7 @@ import kotlinx.coroutines.launch
 
 private val CardShape = RoundedCornerShape(20.dp)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
   onOpenChat: (String) -> Unit,
@@ -100,6 +104,49 @@ fun HomeScreen(
 
   Scaffold(
     containerColor = PersonaQuoteBg,
+    topBar = {
+      TopAppBar(
+        title = {
+          Text(
+            text = "AI Academy",
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+          )
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+          containerColor = PersonaQuoteBg,
+          scrolledContainerColor = PersonaQuoteBg,
+          titleContentColor = MaterialTheme.colorScheme.onSurface,
+          actionIconContentColor = MaterialTheme.colorScheme.onSurface,
+        ),
+        actions = {
+      IconButton(onClick = onNavigateToConversations) {
+        Icon(
+          imageVector = Icons.Default.History,
+          contentDescription = "История чатов",
+          tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+        )
+      }
+      Box(
+        modifier = Modifier
+          .size(40.dp)
+          .clip(CircleShape)
+          .border(2.dp, PurpleAccent, CircleShape)
+          .background(PurpleAccentDark)
+          .clickable(onClick = onNavigateToSettings),
+        contentAlignment = Alignment.Center,
+      ) {
+        Icon(
+          imageVector = Icons.Default.Person,
+          contentDescription = "Профиль",
+          tint = PurpleAccent,
+          modifier = Modifier.size(22.dp),
+        )
+      }
+      Spacer(modifier = Modifier.size(12.dp))
+        },
+      )
+    },
     bottomBar = {
       AcademyBottomNav(
         selectedTab = AcademyTab.Chat,
@@ -118,16 +165,10 @@ fun HomeScreen(
         .fillMaxSize()
         .padding(padding)
         .padding(horizontal = 20.dp),
-      contentPadding = PaddingValues(top = 12.dp, bottom = 12.dp),
+      contentPadding = PaddingValues(top = 4.dp, bottom = 12.dp),
     ) {
       item {
-        HomeTopBar(
-          onHistoryClick = onNavigateToConversations,
-          onAvatarClick = onNavigateToSettings,
-        )
-      }
-      item {
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         HomeHero()
         Spacer(modifier = Modifier.height(28.dp))
       }
@@ -185,54 +226,6 @@ fun HomeScreen(
           )
         }
       }
-    }
-  }
-}
-
-@Composable
-private fun HomeTopBar(
-  onHistoryClick: () -> Unit,
-  onAvatarClick: () -> Unit,
-) {
-  Row(
-    modifier = Modifier.fillMaxWidth(),
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    Column(modifier = Modifier.weight(1f)) {
-      Text(
-        text = "school AI",
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
-      )
-      Text(
-        text = "Academy",
-        style = MaterialTheme.typography.headlineSmall,
-        color = PurpleAccent,
-      )
-    }
-    IconButton(onClick = onHistoryClick) {
-      Icon(
-        imageVector = Icons.Default.History,
-        contentDescription = "История чатов",
-        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-      )
-    }
-    Spacer(modifier = Modifier.size(4.dp))
-    Box(
-      modifier = Modifier
-        .size(40.dp)
-        .clip(CircleShape)
-        .border(2.dp, PurpleAccent, CircleShape)
-        .background(PurpleAccentDark)
-        .clickable(onClick = onAvatarClick),
-      contentAlignment = Alignment.Center,
-    ) {
-      Icon(
-        imageVector = Icons.Default.Person,
-        contentDescription = "Профиль",
-        tint = PurpleAccent,
-        modifier = Modifier.size(22.dp),
-      )
     }
   }
 }

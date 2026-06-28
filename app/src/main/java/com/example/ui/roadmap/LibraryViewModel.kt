@@ -35,14 +35,21 @@ data class LibraryLesson(
  */
 private val LIBRARY_LESSON_IDS = listOf(
   "how_llm_reads",
+  "how_to_ask",
   "tokens_and_speed",
+  "temperature_and_randomness",
+  "privacy_and_reliability",
+  "hallucinations",
   "react_loop",
-  "chaining_and_routing",
-  "workflow_and_agent",
+  "agent_tools",
+  "memory_and_context",
+  "agent_skills",
+  "rag",
   "plan_mode",
   "goal_mode",
+  "workflow_and_agent",
+  "chaining_and_routing",
   "arena_and_swarm",
-  "privacy_and_reliability",
 )
 
 @Inject

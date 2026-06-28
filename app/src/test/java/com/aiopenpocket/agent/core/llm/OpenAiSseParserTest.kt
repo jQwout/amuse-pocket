@@ -115,6 +115,40 @@ class OpenAiSseParserTest {
   }
 
   @Test
+  fun `reasoning_content is used as the answer when content stays empty`() = runTest {
+    // Reasoning-модель (deepseek-v4-flash) уложила всё в reasoning_content, content так и не пришёл.
+    val sse = """
+      data: {"choices":[{"delta":{"reasoning_content":"Думаю над "}}]}
+      data: {"choices":[{"delta":{"reasoning_content":"ответом."}}]}
+      data: {"choices":[{"delta":{},"finish_reason":"stop"}]}
+      data: [DONE]
+    """.trimIndent()
+
+    val events = parse(sse)
+
+    // Без фолбэка тут был бы пустой ответ; теперь отдаём накопленное размышление как текст.
+    val text = events.filterIsInstance<StreamEvent.TextDelta>().joinToString("") { it.content }
+    assertEquals("Думаю над ответом.", text)
+    assertEquals("stop", (events.last() as StreamEvent.Finish).reason)
+  }
+
+  @Test
+  fun `reasoning_content is ignored when real content is present`() = runTest {
+    val sse = """
+      data: {"choices":[{"delta":{"reasoning_content":"Сначала подумаю."}}]}
+      data: {"choices":[{"delta":{"content":"Привет!"}}]}
+      data: {"choices":[{"delta":{},"finish_reason":"stop"}]}
+      data: [DONE]
+    """.trimIndent()
+
+    val events = parse(sse)
+
+    // Есть настоящий content — размышление не подмешиваем в ответ.
+    val text = events.filterIsInstance<StreamEvent.TextDelta>().joinToString("") { it.content }
+    assertEquals("Привет!", text)
+  }
+
+  @Test
   fun `colon-prefixed keep-alive lines are silently ignored`() = runTest {
     val sse = """
       data: {"choices":[{"delta":{"content":"hi"}}]}

@@ -1,5 +1,7 @@
 package com.aiopenpocket.agent.core.skill.skills
 
+// @trace agent-skills-7189cc
+
 import android.app.Application
 import com.aiopenpocket.agent.core.skill.AssetSkill
 import com.aiopenpocket.agent.core.skill.SkillManifest

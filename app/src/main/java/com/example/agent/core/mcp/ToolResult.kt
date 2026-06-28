@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.agent.core.mcp
 
+// @trace mcp-tools-f77d9b
+
 import kotlinx.serialization.json.JsonElement
 
 sealed class ToolResult {

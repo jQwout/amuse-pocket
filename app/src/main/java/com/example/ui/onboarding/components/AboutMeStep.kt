@@ -1,5 +1,7 @@
 package com.aiopenpocket.ui.onboarding.components
 
+// @trace ai-academy-onboarding-5d51bb
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column

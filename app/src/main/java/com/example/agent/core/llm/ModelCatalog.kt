@@ -1,5 +1,7 @@
 package com.aiopenpocket.agent.core.llm
 
+// @trace streaming-llm-chat-6595a1
+
 import android.app.Application
 import android.util.Log
 import dev.zacsweers.metro.Inject

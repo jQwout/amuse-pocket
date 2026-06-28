@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.agent.core.memory.entity
 
+// @trace agent-memory-05e545
+
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey

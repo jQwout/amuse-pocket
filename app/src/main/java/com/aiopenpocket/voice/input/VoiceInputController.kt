@@ -1,5 +1,7 @@
 package com.aiopenpocket.voice.input
 
+// @trace voice-input-1a0dfd
+
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -61,6 +63,16 @@ class VoiceInputController(
   fun stop() {
     runOnMain {
       recognizer?.stopListening()
+    }
+  }
+
+  /** Отмена записи: глушим распознавание без доставки результата (onResults не придёт) и сразу Idle. */
+  fun cancel() {
+    runOnMain {
+      recognizer?.cancel()
+      if (_state.value is VoiceInputState.Listening) {
+        _state.value = VoiceInputState.Idle
+      }
     }
   }
 

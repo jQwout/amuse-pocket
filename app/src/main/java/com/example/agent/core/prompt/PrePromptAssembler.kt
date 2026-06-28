@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.agent.core.prompt
 
+// @trace rezhimy-agenta-plan-i-goal-ee2361
+
 import android.app.Application
 import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.core.llm.LlmContextConfig

@@ -1,5 +1,7 @@
 package com.aiopenpocket.ui.roadmap
 
+// @trace ai-academy-onboarding-5d51bb
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth

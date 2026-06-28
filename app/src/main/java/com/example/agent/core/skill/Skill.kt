@@ -1,5 +1,7 @@
 package com.aiopenpocket.agent.core.skill
 
+// @trace agent-skills-7189cc
+
 /**
  * Манифест навыка — дешёвые метаданные для каталога (уровень 1 progressive disclosure).
  * Объявляется в коде (как PersonaInfo), чтобы каталог собирался без чтения ассетов.

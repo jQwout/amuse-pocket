@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.data.repository
 
+// @trace app-settings-beb470
+
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences

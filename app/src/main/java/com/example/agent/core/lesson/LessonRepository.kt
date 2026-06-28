@@ -1,5 +1,7 @@
 package com.aiopenpocket.agent.core.lesson
 
+// @trace uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2
+
 import android.content.Context
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject

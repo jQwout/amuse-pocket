@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.ui.onboarding.components
 
+// @trace swappable-persona-e5e65e
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column

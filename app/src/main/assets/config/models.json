@@ -2,25 +2,25 @@
   "base_url": "https://integrate.api.nvidia.com/v1",
   "models": [
     {
-      "name": "deepseek-ai/deepseek-v4-flash",
+      "name": "nvidia/nemotron-3-nano-30b-a3b",
       "priority": 1,
       "max_tokens": 16384,
       "reasoning": true
     },
     {
-      "name": "meta/llama-3.1-8b-instruct",
-      "priority": 2,
-      "max_tokens": 1024,
-      "reasoning": false
-    },
-    {
       "name": "openai/gpt-oss-20b",
-      "priority": 3,
+      "priority": 2,
       "max_tokens": 4096,
       "reasoning": false
     },
     {
-      "name": "nvidia/nemotron-3-nano-30b-a3b",
+      "name": "meta/llama-3.1-8b-instruct",
+      "priority": 3,
+      "max_tokens": 1024,
+      "reasoning": false
+    },
+    {
+      "name": "deepseek-ai/deepseek-v4-flash",
       "priority": 4,
       "max_tokens": 16384,
       "reasoning": true
