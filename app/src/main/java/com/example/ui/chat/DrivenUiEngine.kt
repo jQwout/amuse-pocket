@@ -231,7 +231,7 @@ object DrivenUiEngine {
                 situation = p.optString("situation", ""),
                 question = p.optString("q", ""),
                 options = p.array("options").toStringList(),
-                answerIndex = p.optInt("correct", 0),
+                answerIndex = p.optInt("correct", -1),
                 explain = p.optString("explain", ""),
             )
             else -> DrivenUiCard.ErrorCard("Неизвестный шаблон: $template")
@@ -1256,7 +1256,14 @@ fun FillCardView(card: DrivenUiCard.FillCard, onSolved: () -> Unit) {
 @Composable
 fun SortCardView(card: DrivenUiCard.SortCard, onSolved: () -> Unit) {
     val order = remember(card) { mutableStateListOf<String>().apply { addAll(card.items) } }
-    val target = remember(card) { card.correct.mapNotNull { card.items.getOrNull(it) } }
+    // correct должен быть полной перестановкой индексов items. Если он битый (вне диапазона, дубли,
+    // не та длина — частый брак LLM-карточки или авторской ошибки урока), деградируем к исходному
+    // порядку, чтобы шаг остался решаемым по «Проверить», а не залип навсегда.
+    val target = remember(card) {
+        val n = card.items.size
+        val isPermutation = card.correct.size == n && card.correct.toSet() == (0 until n).toSet()
+        if (isPermutation) card.correct.map { card.items[it] } else card.items
+    }
     var solved by remember(card) { mutableStateOf(false) }
     var wrong by remember(card) { mutableStateOf(false) }
 
@@ -1420,12 +1427,16 @@ fun ScenarioCardView(card: DrivenUiCard.ScenarioCard, onSolved: () -> Unit) {
         }
         card.options.forEachIndexed { i, option ->
             val answered = selected != null
-            val isCorrect = i == card.answerIndex
+            // answerIndex < 0 — правильный вариант неизвестен (не задан/битый): не подсвечиваем
+            // ничего как «верное/неверное», чтобы не вводить в заблуждение ложным ключом.
+            val hasKey = card.answerIndex >= 0
+            val isCorrect = hasKey && i == card.answerIndex
             val isPicked = selected == i
             val border = when {
                 !answered -> MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
                 isCorrect -> correctGreen
-                isPicked -> MaterialTheme.colorScheme.error
+                hasKey && isPicked -> MaterialTheme.colorScheme.error
+                isPicked -> MaterialTheme.colorScheme.outline
                 else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
             }
             Row(
@@ -1445,7 +1456,7 @@ fun ScenarioCardView(card: DrivenUiCard.ScenarioCard, onSolved: () -> Unit) {
                 Text(option, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                 when {
                     answered && isCorrect -> Icon(Icons.Default.Check, null, tint = correctGreen)
-                    answered && isPicked -> Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.error)
+                    answered && hasKey && isPicked -> Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.error)
                 }
             }
         }
