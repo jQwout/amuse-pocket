@@ -45,6 +45,19 @@ class ExtractUserProfileUseCaseTest {
   }
 
   @Test
+  fun `trailing prose with extra braces keeps only the first balanced object`() {
+    // Наивный lastIndexOf('}') захватил бы и хвостовые скобки «{это}» → битый JSON.
+    val raw = "Профиль: {\"name\":\"Иван\"}. Надеюсь {это} поможет!"
+    assertEquals("""{"name":"Иван"}""", stripToJsonObject(raw))
+  }
+
+  @Test
+  fun `braces inside string values are ignored`() {
+    val raw = """{"extraInfo":"любит }{ символы"}"""
+    assertEquals(raw, stripToJsonObject(raw))
+  }
+
+  @Test
   fun `text without any braces yields null`() {
     assertNull(stripToJsonObject("извините, не понял запрос"))
   }

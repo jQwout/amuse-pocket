@@ -36,6 +36,10 @@ class VoiceInputController(
   private val mainHandler = Handler(Looper.getMainLooper())
   private var recognizer: SpeechRecognizer? = null
 
+  // SpeechRecognizer.cancel() асинхронно доставляет onError(ERROR_CLIENT) для прерванной сессии.
+  // Этот флаг гасит ровно один такой «ложный» onError после ручной отмены, иначе UI мигнёт ошибкой.
+  private var canceling = false
+
   fun start(languageBcp47: String) {
     runOnMain {
       if (_state.value is VoiceInputState.Listening) return@runOnMain
@@ -55,6 +59,7 @@ class VoiceInputController(
         putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
         putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
       }
+      canceling = false
       _state.value = VoiceInputState.Listening(partial = null)
       r.startListening(intent)
     }
@@ -69,10 +74,9 @@ class VoiceInputController(
   /** Отмена записи: глушим распознавание без доставки результата (onResults не придёт) и сразу Idle. */
   fun cancel() {
     runOnMain {
+      canceling = true
       recognizer?.cancel()
-      if (_state.value is VoiceInputState.Listening) {
-        _state.value = VoiceInputState.Idle
-      }
+      _state.value = VoiceInputState.Idle
     }
   }
 
@@ -115,6 +119,7 @@ class VoiceInputController(
     }
 
     override fun onResults(results: Bundle) {
+      canceling = false
       val text = results
         .getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
         ?.firstOrNull()
@@ -124,6 +129,12 @@ class VoiceInputController(
     }
 
     override fun onError(error: Int) {
+      // Гасим ложный onError, прилетевший вслед за ручной cancel() — состояние уже Idle.
+      if (canceling) {
+        canceling = false
+        _state.value = VoiceInputState.Idle
+        return
+      }
       val reason = when (error) {
         SpeechRecognizer.ERROR_NO_MATCH,
         SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> VoiceInputState.ErrorReason.NoMatch
