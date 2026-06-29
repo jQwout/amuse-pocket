@@ -7,8 +7,10 @@ import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.StreamEvent
 import com.aiopenpocket.agent.core.memory.model.UserProfile
 import dev.zacsweers.metro.Inject
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * Доменная операция онбординга: из свободного рассказа пользователя о себе извлекает структурный
@@ -27,20 +29,27 @@ class ExtractUserProfileUseCase @Inject constructor(
   suspend operator fun invoke(aboutMe: String): UserProfile? {
     val raw = collectExtractionText(aboutMe)
     val jsonText = stripToJsonObject(raw) ?: return null
-    val extracted = try {
-      extractionJson.decodeFromString(ExtractedProfile.serializer(), jsonText)
+    val obj = try {
+      extractionJson.parseToJsonElement(jsonText) as? JsonObject
     } catch (e: Exception) {
       return null
-    }
+    } ?: return null
+
+    // Поля читаем как строку-литерал примитива: модель часто возвращает age числом (30), хотя
+    // профиль хранит его строкой. JsonPrimitive.content даёт "30" и для числа, и для строки —
+    // строгий decode в data class здесь падал бы и молча терял весь профиль.
     return UserProfile(
-      name = extracted.name.trim(),
-      preferredAddress = extracted.preferredAddress.trim(),
-      age = extracted.age.trim(),
-      gender = extracted.gender.trim(),
-      religion = extracted.religion.trim(),
-      extraInfo = extracted.extraInfo.trim(),
+      name = obj.field("name"),
+      preferredAddress = obj.field("preferredAddress"),
+      age = obj.field("age"),
+      gender = obj.field("gender"),
+      religion = obj.field("religion"),
+      extraInfo = obj.field("extraInfo"),
     )
   }
+
+  private fun JsonObject.field(key: String): String =
+    (this[key] as? JsonPrimitive)?.takeUnless { it is JsonNull }?.content?.trim().orEmpty()
 
   /** Стримит ответ модели и склеивает текст. Если текста нет, но был error — пробрасываем его. */
   private suspend fun collectExtractionText(userText: String): String {
@@ -64,16 +73,6 @@ class ExtractUserProfileUseCase @Inject constructor(
     }
     return buffer.toString()
   }
-
-  @Serializable
-  private data class ExtractedProfile(
-    val name: String = "",
-    val preferredAddress: String = "",
-    val age: String = "",
-    val gender: String = "",
-    val religion: String = "",
-    val extraInfo: String = "",
-  )
 }
 
 private val extractionJson = Json {
@@ -92,9 +91,39 @@ internal fun stripToJsonObject(raw: String): String? {
   val s = raw.trim()
   val fenced = FENCED_JSON.find(s)
   if (fenced != null) return fenced.groupValues[1].trim()
+  return firstBalancedObject(s)
+}
+
+/**
+ * Возвращает первый сбалансированный {…}-объект, начиная с первой `{`. В отличие от наивного
+ * indexOf('{')..lastIndexOf('}') не цепляет хвостовую болтовню со скобками («…Надеюсь {это}»).
+ * Скобки внутри строковых литералов игнорируются.
+ */
+private fun firstBalancedObject(s: String): String? {
   val start = s.indexOf('{')
-  val end = s.lastIndexOf('}')
-  if (start >= 0 && end > start) return s.substring(start, end + 1)
+  if (start < 0) return null
+  var depth = 0
+  var inString = false
+  var escaped = false
+  for (i in start until s.length) {
+    val c = s[i]
+    if (inString) {
+      when {
+        escaped -> escaped = false
+        c == '\\' -> escaped = true
+        c == '"' -> inString = false
+      }
+      continue
+    }
+    when (c) {
+      '"' -> inString = true
+      '{' -> depth++
+      '}' -> {
+        depth--
+        if (depth == 0) return s.substring(start, i + 1)
+      }
+    }
+  }
   return null
 }
 
@@ -105,7 +134,7 @@ private val EXTRACTION_SYSTEM_PROMPT = """
   Поля (все строки; пустая строка, если пользователь не упомянул):
   - name: имя
   - preferredAddress: как к нему обращаться (имя, "ты", "вы")
-  - age: возраст числом
+  - age: возраст
   - gender: "мужской" | "женский" | ""
   - religion: религиозные предпочтения
   - extraInfo: одна строка с прочим контекстом — занятие, интересы, особенности
