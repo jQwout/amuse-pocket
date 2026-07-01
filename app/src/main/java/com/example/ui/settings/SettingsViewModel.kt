@@ -35,6 +35,7 @@ class SettingsViewModel(
           githubKey = settingsRepository.getApiKey("GITHUB"),
           selectedProvider = settingsRepository.getSelectedProvider(),
           personaId = userPreferencesRepository.getDefaultPersonaId(),
+          goalMaxIterations = userPreferencesRepository.getGoalModeMaxIterations(),
           personas = listOf(
             "sharp_partner",
             "attentive_secretary",
@@ -69,6 +70,10 @@ class SettingsViewModel(
     _state.update { it.copy(personaId = personaId, saved = false) }
   }
 
+  fun updateGoalMaxIterations(value: Int) {
+    _state.update { it.copy(goalMaxIterations = value.coerceIn(1, 10), saved = false) }
+  }
+
   fun save() {
     val current = _state.value
     settingsRepository.setApiKey("NVIDIA", current.nvidiaKey)
@@ -76,8 +81,16 @@ class SettingsViewModel(
     settingsRepository.setApiKey("GITHUB", current.githubKey)
     settingsRepository.setSelectedProvider(current.selectedProvider)
     viewModelScope.launch {
+      // «Сохранено» показываем только после реальной записи в DataStore (suspend), а не до неё.
       userPreferencesRepository.setDefaultPersonaId(current.personaId)
+      userPreferencesRepository.setGoalModeMaxIterations(current.goalMaxIterations)
+      // ...и только если пользователь не успел изменить поля во время записи (иначе соврём «Сохранено»).
+      _state.update { s ->
+        val unchanged = s.nvidiaKey == current.nvidiaKey && s.groqKey == current.groqKey &&
+          s.githubKey == current.githubKey && s.selectedProvider == current.selectedProvider &&
+          s.personaId == current.personaId && s.goalMaxIterations == current.goalMaxIterations
+        if (unchanged) s.copy(saved = true) else s
+      }
     }
-    _state.update { it.copy(saved = true) }
   }
 }
