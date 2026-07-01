@@ -32,9 +32,10 @@ data class LibraryLesson(
 
 /**
  * Каталог уроков-концепций (порядок — педагогический). `l1_welcome` — это онбординг, в библиотеке его нет.
- * Каждый id должен соответствовать `assets/lessons/{id}.json`.
+ * Каждый id должен соответствовать `assets/lessons/{id}.json` — это сверяет LessonAssetsValidationTest
+ * (потому и internal, а не private).
  */
-private val LIBRARY_LESSON_IDS = listOf(
+internal val LIBRARY_LESSON_IDS = listOf(
   "how_llm_reads",
   "how_to_ask",
   "tokens_and_speed",
