@@ -1,7 +1,11 @@
-﻿package com.aiopenpocket.ui.roadmap
+package com.aiopenpocket.ui.roadmap
+
+// @trace uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,56 +16,47 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Article
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Hub
+import androidx.compose.material.icons.filled.Loop
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.ui.theme.CardDark
 import com.aiopenpocket.ui.theme.PurpleAccent
-
-private data class LibraryItem(
-  val title: String,
-  val description: String,
-  val category: String,
-)
-
-private val LIBRARY_ITEMS = listOf(
-  LibraryItem(
-    title = "Основы промптинга",
-    description = "Как формулировать запросы, чтобы агент понимал задачу с первого раза.",
-    category = "Основы",
-  ),
-  LibraryItem(
-    title = "Работа с файлами",
-    description = "Создание, чтение и поиск заметок в локальном хранилище.",
-    category = "Инструменты",
-  ),
-  LibraryItem(
-    title = "Память и навыки",
-    description = "Факты, эпизоды и возможности агента — что он помнит и что умеет.",
-    category = "Память",
-  ),
-  LibraryItem(
-    title = "Tool Trace",
-    description = "Как читать трассировку инструментов и понимать решения агента.",
-    category = "Продвинутое",
-  ),
-)
+import com.aiopenpocket.ui.theme.PurpleAccentDark
+import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 @Composable
 fun LibraryScreen(
   onNavigateBack: () -> Unit,
+  onOpenLessonChat: (String) -> Unit,
 ) {
+  val viewModel: LibraryViewModel = metroViewModel()
+  val lessons by viewModel.lessons.collectAsState()
+  val completed by viewModel.completed.collectAsState()
+
   Scaffold { padding ->
     LazyColumn(
       modifier = Modifier
@@ -100,15 +95,19 @@ fun LibraryScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-          text = "Справочные материалы и шпаргалки по работе с агентом.",
+          text = "Короткие уроки-концепции. Открой любой — он пройдёт прямо в чате, шаг за шагом.",
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
         )
         Spacer(modifier = Modifier.height(28.dp))
       }
 
-      items(LIBRARY_ITEMS) { item ->
-        LibraryCard(item = item)
+      items(lessons, key = { it.id }) { lesson ->
+        LibraryCard(
+          lesson = lesson,
+          completed = lesson.id in completed,
+          onClick = { viewModel.openLesson(lesson.id, onOpenLessonChat) },
+        )
         Spacer(modifier = Modifier.height(12.dp))
       }
 
@@ -118,41 +117,70 @@ fun LibraryScreen(
 }
 
 @Composable
-private fun LibraryCard(item: LibraryItem) {
-  Column(
+private fun LibraryCard(
+  lesson: LibraryLesson,
+  completed: Boolean,
+  onClick: () -> Unit,
+) {
+  Row(
     modifier = Modifier
       .fillMaxWidth()
       .clip(RoundedCornerShape(16.dp))
       .background(CardDark)
+      .clickable(onClick = onClick)
       .padding(16.dp),
+    verticalAlignment = Alignment.CenterVertically,
   ) {
-    Row(
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(10.dp),
+    Box(
+      modifier = Modifier
+        .size(44.dp)
+        .clip(CircleShape)
+        .background(PurpleAccentDark),
+      contentAlignment = Alignment.Center,
     ) {
       Icon(
-        imageVector = Icons.Default.Article,
+        imageVector = lessonIcon(lesson.iconKey),
         contentDescription = null,
+        tint = PurpleAccent,
+        modifier = Modifier.size(22.dp),
+      )
+    }
+    Column(
+      modifier = Modifier
+        .weight(1f)
+        .padding(horizontal = 14.dp),
+    ) {
+      Text(
+        text = lesson.title,
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onSurface,
+      )
+      Spacer(modifier = Modifier.height(4.dp))
+      Text(
+        text = lesson.description,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+      )
+    }
+    if (completed) {
+      Icon(
+        imageVector = Icons.Default.Check,
+        contentDescription = "Пройдено",
         tint = PurpleAccent,
         modifier = Modifier.size(20.dp),
       )
-      Text(
-        text = item.category.uppercase(),
-        style = MaterialTheme.typography.labelSmall,
-        color = PurpleAccent,
-      )
     }
-    Spacer(modifier = Modifier.height(8.dp))
-    Text(
-      text = item.title,
-      style = MaterialTheme.typography.titleMedium,
-      color = MaterialTheme.colorScheme.onSurface,
-    )
-    Spacer(modifier = Modifier.height(4.dp))
-    Text(
-      text = item.description,
-      style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-    )
   }
+}
+
+private fun lessonIcon(key: String): ImageVector = when (key) {
+  "flag" -> Icons.Default.Flag
+  "checklist" -> Icons.Default.Checklist
+  "loop", "cycle" -> Icons.Default.Loop
+  "bolt", "speed" -> Icons.Default.Bolt
+  "hub", "network" -> Icons.Default.Hub
+  "tree", "routing" -> Icons.Default.AccountTree
+  "shield", "privacy" -> Icons.Default.Shield
+  "book" -> Icons.Default.MenuBook
+  else -> Icons.Default.Article
 }

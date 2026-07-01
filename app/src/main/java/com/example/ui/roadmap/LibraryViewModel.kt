@@ -1,0 +1,107 @@
+package com.aiopenpocket.ui.roadmap
+
+// @trace uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
+import com.aiopenpocket.agent.core.lesson.LessonRepository
+import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
+import com.aiopenpocket.di.AppScope
+import dev.zacsweers.metro.ContributesIntoMap
+import dev.zacsweers.metro.Inject
+import dev.zacsweers.metrox.viewmodel.ViewModelKey
+import dev.zacsweers.metro.binding
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+/** Метаданные урока для карточки в Библиотеке. */
+data class LibraryLesson(
+  val id: String,
+  val title: String,
+  val description: String,
+  val iconKey: String,
+)
+
+/**
+ * Каталог уроков-концепций (порядок — педагогический). `l1_welcome` — это онбординг, в библиотеке его нет.
+ * Каждый id должен соответствовать `assets/lessons/{id}.json`.
+ */
+private val LIBRARY_LESSON_IDS = listOf(
+  "how_llm_reads",
+  "tokens_and_speed",
+  "react_loop",
+  "chaining_and_routing",
+  "workflow_and_agent",
+  "plan_mode",
+  "goal_mode",
+  "arena_and_swarm",
+  "privacy_and_reliability",
+)
+
+@Inject
+@ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
+@ViewModelKey(LibraryViewModel::class)
+class LibraryViewModel(
+  private val lessonRepository: LessonRepository,
+  private val conversationRepository: ConversationRepository,
+  private val userPreferencesRepository: UserPreferencesRepository,
+) : ViewModel() {
+
+  private val _lessons = MutableStateFlow<List<LibraryLesson>>(emptyList())
+  val lessons: StateFlow<List<LibraryLesson>> = _lessons.asStateFlow()
+
+  val completed: StateFlow<Set<String>> =
+    userPreferencesRepository.roadmapProgress
+      .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+  /** Защита от двойного создания lesson-чата при быстром двойном тапе по карточке. */
+  private var opening = false
+
+  init {
+    viewModelScope.launch {
+      val loaded = LIBRARY_LESSON_IDS.mapNotNull { id ->
+        lessonRepository.getLessonOrNull(id)?.let { lesson ->
+          LibraryLesson(
+            id = lesson.id.ifBlank { id },
+            title = lesson.title.ifBlank { id },
+            description = lesson.description,
+            iconKey = lesson.iconKey,
+          )
+        }
+      }
+      _lessons.update { loaded }
+    }
+  }
+
+  /**
+   * Открывает (или переиспользует) lesson-чат для [lessonId] и возвращает его id через [onReady].
+   * Приветствие НЕ публикуем — шаги драйвит [com.aiopenpocket.agent.core.lesson.LessonChatController].
+   */
+  fun openLesson(lessonId: String, onReady: (String) -> Unit) {
+    if (opening) return
+    opening = true
+    viewModelScope.launch {
+      try {
+        val personaId = userPreferencesRepository.getDefaultPersonaId()
+        val existing = conversationRepository.getAllConversations()
+          .first()
+          .find { it.title == lessonId && it.isTutorial }
+        val chatId = existing?.id ?: conversationRepository.createConversation(
+          title = lessonId,
+          personaId = personaId,
+          isTutorial = true,
+        )
+        onReady(chatId)
+      } finally {
+        opening = false
+      }
+    }
+  }
+}
