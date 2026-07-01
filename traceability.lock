@@ -2,8 +2,8 @@
   "version": 1,
   "features": {
     "agent-memory-05e545": {
-      "hash": "b72ef7902e83",
-      "git": "afd92b7"
+      "hash": "a592b21b6616",
+      "git": "4ddf435"
     },
     "agent-skills-7189cc": {
       "hash": "6d1595097f23",
@@ -26,36 +26,36 @@
       "git": "44b0648"
     },
     "driven-ui-cards-0418d0": {
-      "hash": "4752f07138a2",
-      "git": "92b9cbb"
+      "hash": "3fd4e7a5b5a5",
+      "git": "4ddf435"
     },
     "mcp-tools-f77d9b": {
-      "hash": "4e23b742b09f",
-      "git": "afd92b7"
+      "hash": "ab75e908d291",
+      "git": "4ddf435"
     },
     "multi-agent-orchestration-27b8e3": {
       "hash": "997370b5397a",
       "git": "afd92b7"
     },
     "multi-chat-conversations-b3c93b": {
-      "hash": "ffc06b8d9b03",
-      "git": "afd92b7"
+      "hash": "4861ed6d0178",
+      "git": "4ddf435"
     },
     "rezhimy-agenta-plan-i-goal-ee2361": {
-      "hash": "422402625826",
-      "git": "afd92b7"
+      "hash": "93720f3554e2",
+      "git": "4ddf435"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "29306d5b7f20",
-      "git": "afd92b7"
+      "hash": "337cfce2413c",
+      "git": "4ddf435"
     },
     "swappable-persona-e5e65e": {
       "hash": "ac831590d00d",
       "git": "afd92b7"
     },
     "uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2": {
-      "hash": "c9e97a35f521",
-      "git": "92b9cbb"
+      "hash": "7fdf88a6d6ff",
+      "git": "4ddf435"
     },
     "voice-input-1a0dfd": {
       "hash": "ec70865aeaa7",
