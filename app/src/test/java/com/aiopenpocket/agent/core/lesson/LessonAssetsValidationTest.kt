@@ -2,6 +2,7 @@ package com.aiopenpocket.agent.core.lesson
 
 // @trace uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2
 
+import com.aiopenpocket.ui.roadmap.LESSON_QUIZZES
 import com.aiopenpocket.ui.roadmap.LIBRARY_LESSON_IDS
 import com.aiopenpocket.ui.roadmap.ROADMAP_LEVELS
 import kotlinx.serialization.json.Json
@@ -174,6 +175,49 @@ class LessonAssetsValidationTest {
 
             else -> err("неизвестный тип — пустой пузырь и НЕТ кнопки «Дальше», урок зависнет")
           }
+        }
+      }
+    }
+    assertTrue(errors.joinToString("\n"), errors.isEmpty())
+  }
+
+  /**
+   * Рендер перемешивает варианты (stableShuffledIndices), но длину он не спрячет: в авторском
+   * контенте правильный ответ был кратно длиннее дистракторов, и квиз решался правилом «жми самую
+   * длинную кнопку» без чтения. Порог мягкий: дистракторам можно быть и длиннее правильного,
+   * запрещён только явный перекос в его пользу.
+   */
+  private fun lengthGiveaway(options: List<String>, correct: Int): String? {
+    if (options.size < 2 || correct !in options.indices) return null
+    val correctLen = options[correct].length
+    val maxDistractor = options.filterIndexed { i, _ -> i != correct }.maxOf { it.length }
+    return if (correctLen > maxDistractor * 1.5 && correctLen - maxDistractor > 12) {
+      "правильный вариант ($correctLen зн.) заметно длиннее всех дистракторов (макс. $maxDistractor зн.) — длина выдаёт ответ"
+    } else {
+      null
+    }
+  }
+
+  @Test
+  fun `correct option must not be the giveaway-longest`() {
+    val errors = buildList {
+      parsedLessons().forEach { (file, lesson) ->
+        lesson.steps.forEachIndexed { i, step ->
+          when (step.type) {
+            "quiz" -> step.questions.forEachIndexed { qi, q ->
+              lengthGiveaway(q.options, q.correct)?.let { add("${file.name} шаг $i вопрос $qi: $it") }
+            }
+            "scenario" -> {
+              val correct = (step.correct as? JsonPrimitive)?.intOrNull ?: -1
+              lengthGiveaway(step.options, correct)?.let { add("${file.name} шаг $i (scenario): $it") }
+            }
+          }
+        }
+      }
+      // Тот же контракт для хардкодных квизов роадмапа/онбординга.
+      LESSON_QUIZZES.forEach { (levelId, questions) ->
+        questions.forEachIndexed { qi, q ->
+          lengthGiveaway(q.options, q.correctIndex)?.let { add("LESSON_QUIZZES[$levelId] вопрос $qi: $it") }
         }
       }
     }
