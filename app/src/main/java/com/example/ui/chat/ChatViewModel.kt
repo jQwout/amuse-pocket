@@ -14,6 +14,7 @@ import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.loop.AgentEvent
 import com.aiopenpocket.agent.loop.AgentLoopOrchestrator
 import com.aiopenpocket.agent.loop.AgentMode
+import com.aiopenpocket.agent.loop.AgentState
 import com.aiopenpocket.agent.loop.PlanExecuteOrchestrator
 import com.aiopenpocket.data.repository.SettingsRepository
 import com.aiopenpocket.di.AppScope
@@ -67,6 +68,14 @@ class ChatViewModel(
     private var activeJob: Job? = null
     private var messagesJob: Job? = null
 
+    /**
+     * Id только что сохранённого ассистентского сообщения, ПОКА оно не приехало в окно ленты.
+     * Пока он выставлен, стрим-пузырь не снимается: убираем его атомарно с приходом сообщения
+     * (см. observeMessages) — иначе между isLoading=false и Room-переэмитом окна есть 1–2 кадра,
+     * в которые ответ не отображается нигде («мигание» в конце каждого хода).
+     */
+    private var pendingHandoffId: String? = null
+
     /** Last user message of the active turn, kept so a failed turn can be retried without re-adding it. */
     private var lastUserText: String? = null
 
@@ -115,6 +124,7 @@ class ChatViewModel(
         activeJob?.cancel()
         messagesJob?.cancel()
         resetStreaming()
+        pendingHandoffId = null
         lastUserText = null
         lastUserMessageId = null
         lastMode = AgentMode.CHAT
@@ -323,6 +333,8 @@ class ChatViewModel(
         activeJob = viewModelScope.launch {
             // Прошлый ход мог ещё выполнять инструмент/запись — гасим его и ждём, прежде чем стартовать новый.
             previous?.cancelAndJoin()
+            // Незавершённый handoff прошлого хода больше не актуален: пузырь теперь принадлежит новому ходу.
+            pendingHandoffId = null
             resetStreaming()
             _state.update {
                 it.copy(
@@ -397,13 +409,15 @@ class ChatViewModel(
                         planningPhase -> rawText.trim()
                         else -> rawText
                     }
-                    if (responseText.isNotBlank() || cardSpecs.isNotEmpty()) {
+                    val insertedId = if (responseText.isNotBlank() || cardSpecs.isNotEmpty()) {
                         conversationRepository.addMessage(
                             convId,
                             "assistant",
                             responseText,
                             cardSpec = cardSpecs.firstOrNull(),
                         )
+                    } else {
+                        null
                     }
                     // Any additional cards become their own card-only messages.
                     cardSpecs.drop(1).forEach { spec ->
@@ -425,10 +439,20 @@ class ChatViewModel(
                         completionTokens = event.result.completionTokensEstimate,
                         contextTokensUsed = event.result.promptTokensEstimate,
                     )
-                    resetStreaming()
+                    // Handoff без мигания: если сообщение сохранено, но окно ленты его ещё не отдало,
+                    // НЕ снимаем стрим-пузырь сейчас — его атомарно уберёт observeMessages вместе с
+                    // приходом сообщения. Пузырь снимаем сразу только когда вставки не было (пустой
+                    // ответ) или окно уже успело догнать БД.
+                    val windowCaughtUp = insertedId == null ||
+                        _state.value.messages.any { it.id == insertedId }
+                    if (windowCaughtUp) {
+                        resetStreaming()
+                    } else {
+                        pendingHandoffId = insertedId
+                    }
                     _state.update {
                         it.copy(
-                            isLoading = false,
+                            isLoading = if (windowCaughtUp) false else it.isLoading,
                             toolTrace = event.result.toolTrace,
                             error = blankError,
                             canRetry = if (blankReply) lastUserText != null else false,
@@ -440,6 +464,14 @@ class ChatViewModel(
 
                 is AgentEvent.Error -> {
                     _state.update { it.copy(isLoading = false, error = event.message, canRetry = lastUserText != null) }
+                }
+
+                is AgentEvent.StateChanged -> {
+                    // Новый виток ReAct стримит свой текст заново. Показываем текст ТЕКУЩЕГО витка —
+                    // именно он и сохранится в историю на финише. Раньше буфер копил преамбулы ВСЕХ
+                    // витков подряд (без разделителей), а сохранялся только последний — при подмене
+                    // пузыря сообщением текст «укорачивался».
+                    if (event.state == AgentState.STREAMING) resetStreaming()
                 }
 
                 else -> { /* no-op */
@@ -505,8 +537,20 @@ class ChatViewModel(
                 }
                 .collect { (messages, limit) ->
                     olderLoadInFlight = false
+                    // Атомарная подмена «стрим-пузырь → сохранённое сообщение»: пузырь убираем ТЕМ ЖЕ
+                    // обновлением состояния, которым сообщение попадает в ленту, — ни кадра без ответа
+                    // и ни кадра с дублем (детали — у pendingHandoffId).
+                    val handoffArrived = pendingHandoffId?.let { id -> messages.any { it.id == id } } == true
+                    if (handoffArrived) {
+                        pendingHandoffId = null
+                        resetStreaming()
+                    }
                     _state.update {
-                        it.copy(messages = messages, hasMoreOlder = messages.size >= limit)
+                        it.copy(
+                            messages = messages,
+                            hasMoreOlder = messages.size >= limit,
+                            isLoading = if (handoffArrived) false else it.isLoading,
+                        )
                     }
                 }
         }
