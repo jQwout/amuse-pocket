@@ -40,6 +40,8 @@ object LlmModule {
         model = entry.name,
         maxTokens = entry.maxTokens,
         reasoning = entry.reasoning,
+        temperature = entry.temperature,
+        topP = entry.topP,
         // Ручной ключ из Настроек в приоритете; иначе — ключ, вшитый в сборку из .env (BuildConfig).
         apiKeyResolver = {
           settingsRepository.getApiKey("NVIDIA").ifBlank {
@@ -72,6 +74,9 @@ object LlmModule {
         ),
       ),
     )
-    return ProviderFallbackChain(configs)
+    return ProviderFallbackChain(
+      configs,
+      preferredNimModel = { settingsRepository.getSelectedModel() },
+    )
   }
 }

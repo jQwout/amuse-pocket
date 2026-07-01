@@ -13,8 +13,9 @@ import dev.zacsweers.metro.SingleIn
 import kotlinx.serialization.json.JsonElement
 
 private val CARD_TEMPLATES = listOf(
-  "todo_list", "weather_card", "timer", "chart_bar", "table", "form", "choice", "lesson_complete",
-  "switch", "notification_permission",
+  "todo_list", "weather_card", "timer", "chart_bar", "table", "form", "choice", "lesson_quiz",
+  "lesson_complete", "switch", "notification_permission", "image", "reveal", "concept", "example",
+  "fill", "sort", "match", "scenario",
 )
 
 @Inject

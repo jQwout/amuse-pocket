@@ -87,6 +87,8 @@ class OpenAiCompatClient(
           tools = tools.ifEmpty { null },  // null omitted via explicitNulls=false; [] would confuse some providers
           maxTokens = p.maxTokens,
           stream = true,
+          temperature = p.temperature,
+          topP = p.topP,
         )
         val bodyJson = json.encodeToString(requestBody)
         // Ключевая проверка сериализации: type:"function" должен присутствовать у тулов, иначе строгие
@@ -146,7 +148,9 @@ class OpenAiCompatClient(
       } catch (e: Exception) {
         Log.w(TAG, "$attempt $tag failed: ${e.message}")
         lastError = e
-        if (e is LlmHttpException) lastErrorCode = e.status.toString()
+        // Всегда переписываем оба поля вместе — иначе на не-HTTP ошибке (таймаут и т.п.) следующего
+        // провайдера lastErrorCode остался бы от ПРЕДЫДУЩЕГО провайдера и разошёлся бы с lastError.
+        lastErrorCode = (e as? LlmHttpException)?.status?.toString()
         if (emittedAnswer) {
           // Часть ответа уже ушла потребителю — молча перезапускать на другом провайдере нельзя,
           // иначе в чат попадёт обрывок + новый полный ответ.
@@ -171,6 +175,9 @@ class OpenAiCompatClient(
     // почему-то не задал значение; обычно приходит из ProviderConfig.maxTokens.
     val maxTokens: Int = 4096,
     val stream: Boolean = true,
+    // null omitted via explicitNulls=false — providers without an override fall back to their own default.
+    val temperature: Double? = null,
+    val topP: Double? = null,
   )
 
   private companion object {

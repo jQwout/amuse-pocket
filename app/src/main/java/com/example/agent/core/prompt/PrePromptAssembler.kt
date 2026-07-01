@@ -11,6 +11,7 @@ import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
 import com.aiopenpocket.agent.core.skill.SkillRegistry
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -31,16 +32,35 @@ class PrePromptAssembler @Inject constructor(
     promptMode: PromptMode = PromptMode.NONE,
   ): PromptContext =
     withContext(Dispatchers.IO) {
-      val systemBase = loadAsset("prompts/system_base.md") ?: DEFAULT_SYSTEM_BASE
-
+      // Независимые друг от друга чтения (БД/DataStore/ассеты) — запускаем разом и ждём вместе,
+      // вместо последовательных await: на каждый ход чата это было ~7-8 круговых обращений подряд.
+      val systemBaseDeferred = async { loadAsset("prompts/system_base.md") ?: DEFAULT_SYSTEM_BASE }
       // Секция режима (план-/гоал-мод) — доверенная инструкция, подмешивается поверх базовой.
-      val modePrompt = loadModePrompt(promptMode)
+      val modePromptDeferred = async { loadModePrompt(promptMode) }
+      val conversationDeferred = async { conversationRepository.getConversation(conversationId) }
+      // Язык общения, выбранный на онбординге (по умолчанию русский).
+      val languageDeferred = async { userPreferencesRepository.getLanguage() }
+      val profileFactsDeferred = async { memoryRepository.getFactsByCategory("profile") }
+      val factsDeferred = async {
+        memoryRepository.searchFacts(currentMessage).take(LlmContextConfig.RELEVANT_FACTS_LIMIT)
+      }
+      val episodesDeferred = async {
+        memoryRepository.getRecentEpisodesForConversation(conversationId, LlmContextConfig.EPISODES_LIMIT)
+      }
+      val allMessagesDeferred = async { conversationRepository.getAllMessages(conversationId) }
 
-      val conversation = conversationRepository.getConversation(conversationId)
+      val systemBase = systemBaseDeferred.await()
+      val modePrompt = modePromptDeferred.await()
+      val conversation = conversationDeferred.await()
+      val language = languageDeferred.await()
+      val profileFacts = profileFactsDeferred.await()
+      val facts = factsDeferred.await()
+      val episodes = episodesDeferred.await()
+      val allMessages = allMessagesDeferred.await()
+
+      // Зависит от conversation (выше), поэтому идёт последовательно за ним.
       // Персона: у диалога своя (если задана), иначе — выбранная пользователем на онбординге, иначе дефолт.
       val personaId = conversation?.personaId ?: userPreferencesRepository.getDefaultPersonaId()
-      // Язык общения, выбранный на онбординге (по умолчанию русский).
-      val language = userPreferencesRepository.getLanguage()
       val persona = loadAsset("personas/$personaId.md")
         ?: "Характер: Деловой напарник по умолчанию."
 
@@ -52,14 +72,6 @@ class PrePromptAssembler @Inject constructor(
       // Mini-agent bound to this chat (if any): adds a role section and scopes the tool set.
       val agent = MiniAgentCatalog.get(conversation?.agentId)
 
-      val profileFacts = memoryRepository.getFactsByCategory("profile")
-      val facts = memoryRepository.searchFacts(currentMessage).take(LlmContextConfig.RELEVANT_FACTS_LIMIT)
-      val episodes = memoryRepository.getRecentEpisodesForConversation(
-        conversationId,
-        LlmContextConfig.EPISODES_LIMIT,
-      )
-
-      val allMessages = conversationRepository.getAllMessages(conversationId)
       val window = ContextWindowBuilder.build(allMessages)
 
       val systemPrompt = buildString {
@@ -93,8 +105,10 @@ class PrePromptAssembler @Inject constructor(
           appendLine()
         }
 
-        // Каталог навыков (уровень 1 progressive disclosure) — доверенный контент.
-        val skillCatalog = skillRegistry.catalog()
+        // Каталог навыков (уровень 1 progressive disclosure) — доверенный контент. Мини-агент со
+        // своим навыком видит только его (иначе он мог бы load_skill() чужой навык вне своего домена).
+        val skillIds = agent?.toolNames?.takeIf { LOAD_SKILL_TOOL in it }?.let { setOf(agent.id) }
+        val skillCatalog = skillRegistry.catalog(skillIds)
         if (skillCatalog.isNotEmpty()) {
           appendLine("## Доступные навыки")
           appendLine(
@@ -131,16 +145,16 @@ class PrePromptAssembler @Inject constructor(
             episodes.forEach { appendLine("- [${it.type}] ${it.outcome}") }
           }
           if (window.hasMiddleGap) {
+            // conversation.summary — это резюме ConversationAnnotator по ПОСЛЕДНИМ сообщениям
+            // (для заголовка/тегов диалога), а не по вырезанной середине: оно избыточно с уже
+            // включённым verbatim-хвостом и не покрывает реально выпавшие реплики. Настоящего
+            // резюме именно середины сейчас нет нигде — честно говорим об этом, а не выдаём
+            // хвостовое резюме за него.
             appendLine("Резюме середины диалога:")
-            val middleSummary = conversation?.summary?.trim().orEmpty()
-            if (middleSummary.isNotEmpty()) {
-              appendLine(middleSummary)
-            } else {
-              appendLine(
-                "Между началом и недавними сообщениями было ещё ${window.middleMessageCount} " +
-                  "реплик. Детали пока не сжаты — опирайся на недавний контекст и инструменты памяти.",
-              )
-            }
+            appendLine(
+              "Между началом и недавними сообщениями было ещё ${window.middleMessageCount} " +
+                "реплик. Детали пока не сжаты — опирайся на недавний контекст и инструменты памяти.",
+            )
           }
           appendLine("</user_data>")
           appendLine()
@@ -154,6 +168,7 @@ class PrePromptAssembler @Inject constructor(
         systemPrompt = systemPrompt,
         history = window.verbatim,
         toolNames = agent?.toolNames?.takeIf { it.isNotEmpty() },
+        agentId = agent?.id,
       )
     }
 
@@ -188,6 +203,8 @@ class PrePromptAssembler @Inject constructor(
     val history: List<PromptMessage>,
     /** When non-null, the chat loop is restricted to these tool names (mini-agent scope). */
     val toolNames: Set<String>? = null,
+    /** Mini-agent bound to this chat, if any — scopes which skill(s) `load_skill` may load. */
+    val agentId: String? = null,
   )
 
   data class PromptMessage(
@@ -197,6 +214,7 @@ class PrePromptAssembler @Inject constructor(
   )
 
   companion object {
+    private const val LOAD_SKILL_TOOL = "load_skill"
     private val DEFAULT_SYSTEM_BASE = """
 Ты — локальный AI-агент на Android-устройстве пользователя.
 Если задача подразумевает визуальный результат — используй render_card.

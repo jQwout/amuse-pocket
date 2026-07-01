@@ -17,9 +17,6 @@ import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import kotlinx.serialization.json.JsonElement
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import java.util.TimeZone
 
 @Inject
@@ -92,7 +89,7 @@ class CalendarTool(
         val title = cursor.getString(1) ?: "(без названия)"
         val begin = cursor.getLong(2)
         val location = cursor.getString(4)
-        events.append("• [$id] ${formatDateTime(begin)} — $title")
+        events.append("• [$id] ${formatToolDateTime(begin)} — $title")
         if (!location.isNullOrBlank()) events.append(" @ $location")
         events.append('\n')
         count++
@@ -129,7 +126,7 @@ class CalendarTool(
 
     val uri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
       ?: return ToolResult.Error("Не удалось создать событие.")
-    return ToolResult.Success("Событие создано (id=${uri.lastPathSegment}): «$title» на ${formatDateTime(start)}")
+    return ToolResult.Success("Событие создано (id=${uri.lastPathSegment}): «$title» на ${formatToolDateTime(start)}")
   }
 
   private fun deleteEvent(arguments: Map<String, JsonElement>): ToolResult {
@@ -155,7 +152,4 @@ class CalendarTool(
     }
     return null
   }
-
-  private fun formatDateTime(millis: Long): String =
-    SimpleDateFormat("dd.MM HH:mm", Locale.getDefault()).format(Date(millis))
 }

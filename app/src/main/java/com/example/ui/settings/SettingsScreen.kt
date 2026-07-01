@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Loop
+import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Settings
@@ -81,6 +82,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
 import com.aiopenpocket.ui.onboarding.components.PersonaCard
@@ -249,11 +251,28 @@ fun SettingsScreen(
         modifier = Modifier.padding(horizontal = 20.dp),
       )
       Spacer(modifier = Modifier.height(12.dp))
-      ProviderSelectorCard(
+      SelectorCard(
         selected = state.selectedProvider,
         options = listOf("AUTO", "NIM", "GROQ", "GITHUB"),
         onSelect = viewModel::updateProvider,
         modifier = Modifier.padding(horizontal = 20.dp),
+        testTag = "settings_provider_selector",
+      )
+
+      Spacer(modifier = Modifier.height(28.dp))
+
+      SettingsSectionHeader(
+        icon = Icons.Default.Memory,
+        title = "МОДЕЛЬ",
+        modifier = Modifier.padding(horizontal = 20.dp),
+      )
+      Spacer(modifier = Modifier.height(12.dp))
+      SelectorCard(
+        selected = state.selectedModel,
+        options = state.availableModels,
+        onSelect = viewModel::updateModel,
+        modifier = Modifier.padding(horizontal = 20.dp),
+        testTag = "settings_model_selector",
       )
 
       Spacer(modifier = Modifier.height(28.dp))
@@ -472,11 +491,12 @@ private fun ApiKeyField(
 }
 
 @Composable
-private fun ProviderSelectorCard(
+private fun SelectorCard(
   selected: String,
   options: List<String>,
   onSelect: (String) -> Unit,
   modifier: Modifier = Modifier,
+  testTag: String = "settings_selector",
 ) {
   var expanded by remember { mutableStateOf(false) }
 
@@ -488,7 +508,7 @@ private fun ProviderSelectorCard(
         .background(PersonaCardBg)
         .clickable { expanded = true }
         .padding(horizontal = 16.dp, vertical = 18.dp)
-        .testTag("settings_provider_selector"),
+        .testTag(testTag),
       verticalAlignment = Alignment.CenterVertically,
     ) {
       Box(
@@ -509,6 +529,8 @@ private fun ProviderSelectorCard(
         text = selected,
         style = MaterialTheme.typography.headlineSmall,
         color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         modifier = Modifier
           .weight(1f)
           .padding(horizontal = 16.dp),

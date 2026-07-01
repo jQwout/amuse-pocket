@@ -2,60 +2,60 @@
   "version": 1,
   "features": {
     "agent-memory-05e545": {
-      "hash": "b4e3992f4c4d",
-      "git": "43dec3c"
+      "hash": "b72ef7902e83",
+      "git": "afd92b7"
     },
     "agent-skills-7189cc": {
-      "hash": "3269e4a00e3b",
-      "git": "44b0648"
+      "hash": "6d1595097f23",
+      "git": "afd92b7"
     },
     "ai-academy-onboarding-5d51bb": {
-      "hash": "e9c38f267574",
-      "git": "43dec3c"
+      "hash": "5e3f0f7021d4",
+      "git": "afd92b7"
     },
     "app-settings-beb470": {
-      "hash": "0bb690c907c6",
-      "git": "44b0648"
+      "hash": "547babbd033c",
+      "git": "afd92b7"
     },
     "background-tasks-15a34a": {
-      "hash": "9eae4f12fda5",
-      "git": "44b0648"
+      "hash": "0d44e2161dfe",
+      "git": "afd92b7"
     },
     "classic-typography-a44c05": {
       "hash": "543c953adb9c",
       "git": "44b0648"
     },
     "driven-ui-cards-0418d0": {
-      "hash": "63c21d75a863",
-      "git": "f646e64"
+      "hash": "8af56da55aa0",
+      "git": "afd92b7"
     },
     "mcp-tools-f77d9b": {
-      "hash": "5955f1ae0839",
-      "git": "44b0648"
+      "hash": "4e23b742b09f",
+      "git": "afd92b7"
     },
     "multi-agent-orchestration-27b8e3": {
-      "hash": "3ea54560f329",
-      "git": "43dec3c"
+      "hash": "997370b5397a",
+      "git": "afd92b7"
     },
     "multi-chat-conversations-b3c93b": {
-      "hash": "4d5cdef66a64",
-      "git": "44b0648"
+      "hash": "ffc06b8d9b03",
+      "git": "afd92b7"
     },
     "rezhimy-agenta-plan-i-goal-ee2361": {
-      "hash": "15cb7cf0b35e",
-      "git": "44b0648"
+      "hash": "422402625826",
+      "git": "afd92b7"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "3f022edc1b01",
-      "git": "44b0648"
+      "hash": "29306d5b7f20",
+      "git": "afd92b7"
     },
     "swappable-persona-e5e65e": {
-      "hash": "a97ed41796da",
-      "git": "44b0648"
+      "hash": "ac831590d00d",
+      "git": "afd92b7"
     },
     "uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2": {
-      "hash": "9dc2adbed8ba",
-      "git": "f646e64"
+      "hash": "2f2775493693",
+      "git": "afd92b7"
     },
     "voice-input-1a0dfd": {
       "hash": "ec70865aeaa7",

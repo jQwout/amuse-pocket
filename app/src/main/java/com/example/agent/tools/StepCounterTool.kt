@@ -11,6 +11,7 @@ import android.hardware.SensorManager
 import android.os.Build
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
+import com.aiopenpocket.agent.core.mcp.missingArg
 import com.aiopenpocket.agent.core.mcp.string
 import com.aiopenpocket.agent.core.mcp.toolSchema
 import com.aiopenpocket.di.AppScope
@@ -54,7 +55,7 @@ class StepCounterTool(
   }
 
   override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult {
-    val action = arguments.string("action") ?: return ToolResult.Error("Missing 'action'")
+    val action = arguments.string("action") ?: return missingArg("action")
     if (action != "snapshot") return ToolResult.Error("Unknown action: $action")
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

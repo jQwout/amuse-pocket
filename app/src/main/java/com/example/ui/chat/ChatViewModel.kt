@@ -24,11 +24,14 @@ import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -50,11 +53,25 @@ class ChatViewModel(
     private val _state = MutableStateFlow(ChatUiState())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
 
+    // Стриминговый текст ответа — отдельный поток, а не поле _state. Дельты токенов прилетают часто;
+    // держа их вне общего состояния, мы рекомпозируем только пузырь стрима, а не весь экран чата.
+    private val streamingBuilder = StringBuilder()
+    private val _streamingText = MutableStateFlow("")
+    val streamingText: StateFlow<String> = _streamingText.asStateFlow()
+
+    // Пагинация ленты: показываем последние [windowLimit] сообщений, «старые» догружаем увеличением
+    // лимита. Поток сообщений пересобирается через flatMapLatest при каждом изменении лимита.
+    private val windowLimit = MutableStateFlow(INITIAL_WINDOW)
+    private var olderLoadInFlight = false
+
     private var activeJob: Job? = null
     private var messagesJob: Job? = null
 
     /** Last user message of the active turn, kept so a failed turn can be retried without re-adding it. */
     private var lastUserText: String? = null
+
+    /** DB id of [lastUserText] — lets [deleteMessage] invalidate a pending retry if that row is deleted. */
+    private var lastUserMessageId: String? = null
 
     /** Режим/фаза последнего хода — чтобы ретрай повторял то же самое (план/гоал/чат). */
     private var lastMode: AgentMode = AgentMode.CHAT
@@ -97,7 +114,9 @@ class ChatViewModel(
         if (_state.value.conversationId == id) return
         activeJob?.cancel()
         messagesJob?.cancel()
+        resetStreaming()
         lastUserText = null
+        lastUserMessageId = null
         lastMode = AgentMode.CHAT
         lastPlanApproved = false
         lessonBusy = false
@@ -185,6 +204,7 @@ class ChatViewModel(
             is ChatIntent.RetryRequest -> retry()
             is ChatIntent.ToggleToolTrace -> _state.update { it.copy(showToolTrace = !it.showToolTrace) }
             is ChatIntent.TogglePin -> togglePin(intent.messageId)
+            is ChatIntent.DeleteMessage -> deleteMessage(intent.messageId)
             is ChatIntent.ClearError -> _state.update { it.copy(error = null, canRetry = false) }
             is ChatIntent.NavigateBack -> { /* handled by navigation */
             }
@@ -220,15 +240,17 @@ class ChatViewModel(
 
         // Новый ход — новая попытка. lastUserText выставим только после успешного addMessage.
         lastUserText = null
+        lastUserMessageId = null
         // responseStartTime фиксирует начало ожидания, чтобы ResponseStatsBar показал «время ответа».
         responseStartTime = System.currentTimeMillis()
         launchTurn(resetInput = true) {
             // Маршрут "chat/new" даёт пустой id — создаём диалог, иначе FK-нарушение при addMessage.
             val convId = ensureConversation(text)
             // Сначала ждём сохранения сообщения пользователя в БД
-            conversationRepository.addMessage(convId, "user", text)
+            val userMsgId = conversationRepository.addMessage(convId, "user", text)
             // Сообщение уже в истории — запоминаем ход для возможного ретрая (без повторного addMessage).
             lastUserText = text
+            lastUserMessageId = userMsgId
             // В план-моде обычная отправка — это фаза ПЛАНИРОВАНИЯ (planApproved=false): план, без инструментов.
             runAgent(convId, text, _state.value.agentMode, planApproved = false)
         }
@@ -241,7 +263,7 @@ class ChatViewModel(
         _state.update { it.copy(planAwaitingApproval = false) }
         val approveMsg = "Одобряю план, выполни его по шагам."
         launchTurn(resetInput = false) {
-            conversationRepository.addMessage(convId, "user", approveMsg)
+            lastUserMessageId = conversationRepository.addMessage(convId, "user", approveMsg)
             lastUserText = approveMsg
             runAgent(convId, approveMsg, AgentMode.PLAN, planApproved = true)
         }
@@ -301,11 +323,11 @@ class ChatViewModel(
         activeJob = viewModelScope.launch {
             // Прошлый ход мог ещё выполнять инструмент/запись — гасим его и ждём, прежде чем стартовать новый.
             previous?.cancelAndJoin()
+            resetStreaming()
             _state.update {
                 it.copy(
                     inputText = if (resetInput) "" else it.inputText,
                     isLoading = true,
-                    streamingText = "",
                     toolTrace = emptyList(),
                     error = null,
                     canRetry = false,
@@ -341,7 +363,10 @@ class ChatViewModel(
         flow.collect { event ->
             when (event) {
                 is AgentEvent.TextDelta -> {
-                    _state.update { it.copy(streamingText = it.streamingText + event.content) }
+                    // Аккумулируем в StringBuilder (без O(n²) на конкатенации неизменяемых строк) и
+                    // публикуем в отдельный поток — рекомпозируется только пузырь стрима.
+                    streamingBuilder.append(event.content)
+                    _streamingText.value = streamingBuilder.toString()
                 }
 
                 is AgentEvent.ToolCompleted -> {
@@ -400,10 +425,10 @@ class ChatViewModel(
                         completionTokens = event.result.completionTokensEstimate,
                         contextTokensUsed = event.result.promptTokensEstimate,
                     )
+                    resetStreaming()
                     _state.update {
                         it.copy(
                             isLoading = false,
-                            streamingText = "",
                             toolTrace = event.result.toolTrace,
                             error = blankError,
                             canRetry = if (blankReply) lastUserText != null else false,
@@ -439,18 +464,71 @@ class ChatViewModel(
         }
     }
 
+    /** Удаляет сообщение. `state.messages` реактивен (Flow из БД), поэтому лента обновится сама. */
+    private fun deleteMessage(messageId: String) {
+        // Если это сообщение и держит текущий «Повторить» — гасим ретрай, иначе он переотправит
+        // текст хода, чей user-ряд в истории только что исчез (агент ответит, не увидев вопроса).
+        if (messageId == lastUserMessageId) {
+            lastUserText = null
+            lastUserMessageId = null
+            _state.update { it.copy(canRetry = false) }
+        }
+        viewModelScope.launch {
+            conversationRepository.deleteMessage(messageId)
+        }
+    }
+
+    /**
+     * Область поиска по чату: пока активен — временно снимаем лимит окна ленты, чтобы поиск видел
+     * ВСЮ историю, а не только подгруженный «хвост» (иначе совпадения в старых сообщениях, ещё не
+     * попавших в окно пагинации, не находились бы — выглядело бы как «поиск не работает»). При
+     * выходе из поиска возвращаем обычное окно — незачем держать всю историю в памяти постоянно.
+     */
+    fun setSearchActive(active: Boolean) {
+        windowLimit.value = if (active) Int.MAX_VALUE else INITIAL_WINDOW
+    }
+
+    /**
+     * Подписка на окно последних сообщений. [windowLimit] управляет размером окна: при «подгрузке
+     * старых» он растёт, flatMapLatest переподписывается на больший запрос. hasMoreOlder выводим
+     * эвристикой «вернули ровно лимит → вероятно, есть ещё старше».
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
     private fun observeMessages(id: String) {
         messagesJob?.cancel()
+        windowLimit.value = INITIAL_WINDOW
+        olderLoadInFlight = false
         messagesJob = viewModelScope.launch {
-            conversationRepository.getMessages(id).collect { messages ->
-                _state.update { it.copy(messages = messages) }
-            }
+            windowLimit
+                .flatMapLatest { limit ->
+                    conversationRepository.getMessagesWindow(id, limit).map { msgs -> msgs to limit }
+                }
+                .collect { (messages, limit) ->
+                    olderLoadInFlight = false
+                    _state.update {
+                        it.copy(messages = messages, hasMoreOlder = messages.size >= limit)
+                    }
+                }
         }
+    }
+
+    /** Просьба показать более старые сообщения — растим окно. Защита от повторных вызовов в полёте. */
+    fun loadOlderMessages() {
+        if (olderLoadInFlight || !_state.value.hasMoreOlder) return
+        olderLoadInFlight = true
+        windowLimit.value += WINDOW_PAGE
+    }
+
+    /** Сбрасывает накопленный стриминговый текст (и буфер) — общий путь для старта/конца/отмены хода. */
+    private fun resetStreaming() {
+        streamingBuilder.setLength(0)
+        _streamingText.value = ""
     }
 
     private fun cancel() {
         activeJob?.cancel()
-        _state.update { it.copy(isLoading = false, streamingText = "") }
+        resetStreaming()
+        _state.update { it.copy(isLoading = false) }
     }
 
     companion object {
@@ -460,6 +538,10 @@ class ChatViewModel(
 
         /** Урок-онбординг (setup-шаги language/persona/profile) драйвится не чат-контроллером, а экраном онбординга. */
         private const val ONBOARDING_LESSON_ID = "l1_welcome"
+
+        /** Начальный размер окна ленты и шаг догрузки «старых» сообщений. */
+        private const val INITIAL_WINDOW = 40
+        private const val WINDOW_PAGE = 40
     }
 }
 

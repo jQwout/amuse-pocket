@@ -41,8 +41,8 @@ class ExtractUserProfileUseCase @Inject constructor(
     return UserProfile(
       name = obj.field("name"),
       preferredAddress = obj.field("preferredAddress"),
-      age = obj.field("age"),
-      gender = obj.field("gender"),
+      age = obj.field("age").let(::validAgeOrBlank),
+      gender = obj.field("gender").let { if (it in VALID_GENDERS) it else "" },
       religion = obj.field("religion"),
       extraInfo = obj.field("extraInfo"),
     )
@@ -50,6 +50,16 @@ class ExtractUserProfileUseCase @Inject constructor(
 
   private fun JsonObject.field(key: String): String =
     (this[key] as? JsonPrimitive)?.takeUnless { it is JsonNull }?.content?.trim().orEmpty()
+
+  /**
+   * Модель иногда путает возраст (упомянутого в рассказе третьего лица) или галлюцинирует число —
+   * отбрасываем неправдоподобные значения, а не сохраняем их в профиль, который потом попадает в
+   * каждый будущий системный промпт без дальнейшей проверки.
+   */
+  private fun validAgeOrBlank(raw: String): String {
+    val n = raw.toIntOrNull() ?: return raw
+    return if (n in MIN_PLAUSIBLE_AGE..MAX_PLAUSIBLE_AGE) raw else ""
+  }
 
   /** Стримит ответ модели и склеивает текст. Если текста нет, но был error — пробрасываем его. */
   private suspend fun collectExtractionText(userText: String): String {
@@ -79,6 +89,10 @@ private val extractionJson = Json {
   ignoreUnknownKeys = true
   isLenient = true
 }
+
+private const val MIN_PLAUSIBLE_AGE = 1
+private const val MAX_PLAUSIBLE_AGE = 119
+private val VALID_GENDERS = setOf("", "мужской", "женский")
 
 private val FENCED_JSON = Regex("""```(?:json)?\s*([\s\S]+?)\s*```""")
 

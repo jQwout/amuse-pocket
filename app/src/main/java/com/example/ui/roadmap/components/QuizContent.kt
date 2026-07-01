@@ -98,12 +98,16 @@ fun QuizContent(
 
       question.options.forEachIndexed { i, option ->
         val answered = selected != null
-        val isCorrect = i == question.correctIndex
+        // correctIndex < 0 — правильный вариант не задан/битый (см. f646e64): не подсвечиваем
+        // ничего как «верное/неверное», чтобы не вводить в заблуждение ложным ключом.
+        val hasKey = question.correctIndex >= 0
+        val isCorrect = hasKey && i == question.correctIndex
         val isPicked = selected == i
         val borderColor = when {
           !answered -> MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
           isCorrect -> CorrectGreen
-          isPicked -> MaterialTheme.colorScheme.error
+          hasKey && isPicked -> MaterialTheme.colorScheme.error
+          isPicked -> MaterialTheme.colorScheme.outline
           else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
         }
         Row(
@@ -120,7 +124,7 @@ fun QuizContent(
           Text(text = option, style = MaterialTheme.typography.bodyLarge)
           when {
             answered && isCorrect -> Icon(Icons.Default.Check, null, tint = CorrectGreen)
-            answered && isPicked -> Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.error)
+            answered && hasKey && isPicked -> Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.error)
           }
         }
       }

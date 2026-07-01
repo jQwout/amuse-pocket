@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -69,14 +68,6 @@ fun PersonaSelectionStep(
             Icon(
               imageVector = Icons.AutoMirrored.Filled.ArrowBack,
               contentDescription = "Назад",
-            )
-          }
-        },
-        actions = {
-          IconButton(onClick = { }) {
-            Icon(
-              imageVector = Icons.Default.Settings,
-              contentDescription = "Настройки",
             )
           }
         },

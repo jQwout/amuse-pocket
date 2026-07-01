@@ -44,7 +44,7 @@ fun StreamingBubble(
           val displayText = if (showCursor) "$text▌" else text
           Text(
             text = displayText,
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
         }

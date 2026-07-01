@@ -5,6 +5,8 @@
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
+import com.aiopenpocket.agent.core.llm.ModelCatalogLoader
+import com.aiopenpocket.agent.core.persona.PersonaCatalog
 import com.aiopenpocket.data.repository.SettingsRepository
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
@@ -23,6 +25,7 @@ import kotlinx.coroutines.launch
 class SettingsViewModel(
   private val settingsRepository: SettingsRepository,
   private val userPreferencesRepository: UserPreferencesRepository,
+  private val modelCatalogLoader: ModelCatalogLoader,
 ) : ViewModel() {
 
   private val _state = MutableStateFlow(SettingsUiState())
@@ -30,23 +33,20 @@ class SettingsViewModel(
 
   init {
     viewModelScope.launch {
+      // Каталог уже отсортирован по priority (ModelCatalogLoader.load()) — тот же порядок, что и
+      // в фоллбэк-цепочке, поэтому список в Настройках совпадает с реальным порядком попыток.
+      val catalog = modelCatalogLoader.load()
       _state.update {
         it.copy(
           nvidiaKey = settingsRepository.getApiKey("NVIDIA"),
           groqKey = settingsRepository.getApiKey("GROQ"),
           githubKey = settingsRepository.getApiKey("GITHUB"),
           selectedProvider = settingsRepository.getSelectedProvider(),
+          selectedModel = settingsRepository.getSelectedModel(),
+          availableModels = listOf("AUTO") + catalog.models.map { it.name },
           personaId = userPreferencesRepository.getDefaultPersonaId(),
           goalMaxIterations = userPreferencesRepository.getGoalModeMaxIterations(),
-          personas = listOf(
-            "sharp_partner",
-            "attentive_secretary",
-            "egalitarian_partner",
-            "friendly_companion",
-            "ironic_assistant",
-            "silent_butler",
-            "strict_coach",
-          ),
+          personas = PersonaCatalog.all.map { it.id },
         )
       }
     }
@@ -68,6 +68,10 @@ class SettingsViewModel(
     _state.update { it.copy(selectedProvider = provider, saved = false) }
   }
 
+  fun updateModel(model: String) {
+    _state.update { it.copy(selectedModel = model, saved = false) }
+  }
+
   fun updatePersona(personaId: String) {
     _state.update { it.copy(personaId = personaId, saved = false) }
   }
@@ -82,6 +86,7 @@ class SettingsViewModel(
     settingsRepository.setApiKey("GROQ", current.groqKey)
     settingsRepository.setApiKey("GITHUB", current.githubKey)
     settingsRepository.setSelectedProvider(current.selectedProvider)
+    settingsRepository.setSelectedModel(current.selectedModel)
     viewModelScope.launch {
       // «Сохранено» показываем только после реальной записи в DataStore (suspend), а не до неё.
       userPreferencesRepository.setDefaultPersonaId(current.personaId)
@@ -90,6 +95,7 @@ class SettingsViewModel(
       _state.update { s ->
         val unchanged = s.nvidiaKey == current.nvidiaKey && s.groqKey == current.groqKey &&
           s.githubKey == current.githubKey && s.selectedProvider == current.selectedProvider &&
+          s.selectedModel == current.selectedModel &&
           s.personaId == current.personaId && s.goalMaxIterations == current.goalMaxIterations
         if (unchanged) s.copy(saved = true) else s
       }
