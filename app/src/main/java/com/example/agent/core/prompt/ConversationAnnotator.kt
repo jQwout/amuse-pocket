@@ -33,14 +33,21 @@ class ConversationAnnotator @Inject constructor(
 
   /** Regenerate title/summary/tags for [conversationId] from its current messages. */
   suspend fun annotate(conversationId: String) {
-    val messages = conversationRepository.getAllMessages(conversationId)
-      .filter { it.role == "user" || it.role == "assistant" }
-      .filter { it.content.isNotBlank() }
-    if (messages.size < LlmContextConfig.MIN_MESSAGES_FOR_ANNOTATION) return
+    // Счётчик вместо загрузки всей истории (раньше — getAllMessages на каждый ход).
+    val count = conversationRepository.countAnnotatableMessages(conversationId)
+    if (count < LlmContextConfig.MIN_MESSAGES_FOR_ANNOTATION) return
+    // Гейт частоты: аннотация — это ВТОРОЙ LLM-вызов после ответа. Первый раз — как только реплик
+    // хватает (свежий диалог получает заголовок сразу), дальше — раз в ANNOTATE_EVERY_MESSAGES
+    // реплик, а не после каждого хода.
+    val isFirstAnnotation = count < LlmContextConfig.MIN_MESSAGES_FOR_ANNOTATION +
+      LlmContextConfig.ANNOTATE_EVERY_MESSAGES
+    if (!isFirstAnnotation && count % LlmContextConfig.ANNOTATE_EVERY_MESSAGES != 0) return
 
-    val transcript = ContextWindowBuilder.formatMessagesForSummary(
-      messages.takeLast(LlmContextConfig.ANNOTATION_MESSAGE_LIMIT),
+    val messages = conversationRepository.getRecentAnnotatableMessages(
+      conversationId,
+      LlmContextConfig.ANNOTATION_MESSAGE_LIMIT,
     )
+    val transcript = ContextWindowBuilder.formatMessagesForSummary(messages)
     val annotation = request(transcript) ?: return
     conversationRepository.updateAnnotation(
       id = conversationId,

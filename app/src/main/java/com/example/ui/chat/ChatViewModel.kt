@@ -2,6 +2,7 @@ package com.aiopenpocket.ui.chat
 
 // @trace streaming-llm-chat-6595a1
 
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
@@ -25,16 +26,22 @@ import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
@@ -60,10 +67,16 @@ class ChatViewModel(
     private val _streamingText = MutableStateFlow("")
     val streamingText: StateFlow<String> = _streamingText.asStateFlow()
 
+    /** Метка последней публикации стрим-текста — гейт частоты (см. TextDelta в runAgent). */
+    private var lastStreamPublishAt = 0L
+
     // Пагинация ленты: показываем последние [windowLimit] сообщений, «старые» догружаем увеличением
     // лимита. Поток сообщений пересобирается через flatMapLatest при каждом изменении лимита.
     private val windowLimit = MutableStateFlow(INITIAL_WINDOW)
     private var olderLoadInFlight = false
+
+    /** Поисковый запрос из шапки чата; скан совпадений — с дебаунсом и вне Main (см. init). */
+    private val searchQueryFlow = MutableStateFlow("")
 
     private var activeJob: Job? = null
     private var messagesJob: Job? = null
@@ -111,6 +124,31 @@ class ChatViewModel(
             voiceController.transcripts.collect { transcript ->
                 _state.update { it.copy(inputText = appendTranscript(it.inputText, transcript)) }
             }
+        }
+        // Поиск по чату: дебаунс ввода (collectLatest + delay — новый символ отменяет хвост) и
+        // contains-скан на Default. Раньше скан шёл прямо в композиции на каждый введённый символ —
+        // на длинной истории это десятки мс на Main и пропуски кадров. contains(ignoreCase) в
+        // Kotlin корректно фолдит кириллицу (SQL LIKE — нет), поэтому ищем в памяти, не в SQL.
+        viewModelScope.launch {
+            combine(
+                searchQueryFlow,
+                _state.map { it.messages }.distinctUntilChanged(),
+            ) { query, messages -> query to messages }
+                .collectLatest { (query, messages) ->
+                    if (query.isBlank()) {
+                        if (_state.value.searchMatches.isNotEmpty()) {
+                            _state.update { it.copy(searchMatches = emptyList()) }
+                        }
+                        return@collectLatest
+                    }
+                    delay(SEARCH_DEBOUNCE_MS)
+                    val matches = withContext(Dispatchers.Default) {
+                        messages.mapIndexedNotNull { index, message ->
+                            if (message.content.contains(query, ignoreCase = true)) index else null
+                        }
+                    }
+                    _state.update { it.copy(searchMatches = matches) }
+                }
         }
     }
 
@@ -376,9 +414,16 @@ class ChatViewModel(
             when (event) {
                 is AgentEvent.TextDelta -> {
                     // Аккумулируем в StringBuilder (без O(n²) на конкатенации неизменяемых строк) и
-                    // публикуем в отдельный поток — рекомпозируется только пузырь стрима.
+                    // публикуем в отдельный поток — рекомпозируется только пузырь стрима. Публикация
+                    // под гейтом частоты: toString() копирует ВЕСЬ накопленный текст, и на каждый
+                    // токен это суммарно O(L²) аллокаций за длинный ответ; чаще ~20 раз/сек глазу
+                    // всё равно не нужно. Хвост дофлашивает StateChanged ниже.
                     streamingBuilder.append(event.content)
-                    _streamingText.value = streamingBuilder.toString()
+                    val now = SystemClock.uptimeMillis()
+                    if (now - lastStreamPublishAt >= STREAM_PUBLISH_INTERVAL_MS) {
+                        lastStreamPublishAt = now
+                        _streamingText.value = streamingBuilder.toString()
+                    }
                 }
 
                 is AgentEvent.ToolCompleted -> {
@@ -466,12 +511,17 @@ class ChatViewModel(
                     _state.update { it.copy(isLoading = false, error = event.message, canRetry = lastUserText != null) }
                 }
 
-                is AgentEvent.StateChanged -> {
+                is AgentEvent.StateChanged -> when (event.state) {
                     // Новый виток ReAct стримит свой текст заново. Показываем текст ТЕКУЩЕГО витка —
                     // именно он и сохранится в историю на финише. Раньше буфер копил преамбулы ВСЕХ
                     // витков подряд (без разделителей), а сохранялся только последний — при подмене
                     // пузыря сообщением текст «укорачивался».
-                    if (event.state == AgentState.STREAMING) resetStreaming()
+                    AgentState.STREAMING -> resetStreaming()
+                    // Стрим витка закончился (инструменты/финиш/ошибка): дофлашиваем хвост текста,
+                    // который мог не пройти гейт частоты публикации выше.
+                    else -> if (streamingBuilder.isNotEmpty()) {
+                        _streamingText.value = streamingBuilder.toString()
+                    }
                 }
 
                 else -> { /* no-op */
@@ -518,6 +568,12 @@ class ChatViewModel(
      */
     fun setSearchActive(active: Boolean) {
         windowLimit.value = if (active) Int.MAX_VALUE else INITIAL_WINDOW
+        if (!active) searchQueryFlow.value = ""
+    }
+
+    /** Текущий текст поиска из шапки чата — совпадения пересчитает фоновый скан (см. init). */
+    fun setSearchQuery(query: String) {
+        searchQueryFlow.value = query
     }
 
     /**
@@ -567,6 +623,7 @@ class ChatViewModel(
     private fun resetStreaming() {
         streamingBuilder.setLength(0)
         _streamingText.value = ""
+        lastStreamPublishAt = 0L
     }
 
     private fun cancel() {
@@ -586,6 +643,12 @@ class ChatViewModel(
         /** Начальный размер окна ленты и шаг догрузки «старых» сообщений. */
         private const val INITIAL_WINDOW = 40
         private const val WINDOW_PAGE = 40
+
+        /** Дебаунс поискового ввода перед сканом истории. */
+        private const val SEARCH_DEBOUNCE_MS = 250L
+
+        /** Минимальный интервал публикации стрим-текста в UI (~20 обновлений/сек). */
+        private const val STREAM_PUBLISH_INTERVAL_MS = 50L
     }
 }
 

@@ -11,9 +11,11 @@ import com.aiopenpocket.agent.core.memory.entity.MessageEntity
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.core.memory.model.Conversation
 import com.aiopenpocket.agent.core.memory.model.Message
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import java.util.UUID
 import dev.zacsweers.metro.Inject
@@ -126,17 +128,19 @@ class ConversationRepository @Inject constructor(
   fun getMessages(conversationId: String): Flow<List<Message>> =
     messageDao.getByConversation(conversationId).map { list ->
       list.map { it.toDomain() }
-    }
+    }.flowOn(Dispatchers.Default)
 
   /**
    * Окно последних [limit] сообщений в хронологическом порядке (старые→новые). БД отдаёт свежие в
    * обратном порядке (DESC + LIMIT), поэтому разворачиваем. Используется чатом для пагинации, чтобы
-   * не грузить и не держать в памяти всю историю длинного диалога.
+   * не грузить и не держать в памяти всю историю длинного диалога. flowOn(Default): разворот и
+   * маппинг в домен не выполняются в контексте коллектора (Main) — при больших окнах (поиск по
+   * всей истории) это ощутимая работа.
    */
   fun getMessagesWindow(conversationId: String, limit: Int): Flow<List<Message>> =
     messageDao.getByConversationWindow(conversationId, limit).map { list ->
       list.asReversed().map { it.toDomain() }
-    }
+    }.flowOn(Dispatchers.Default)
 
   suspend fun getRecentMessages(
     conversationId: String,
@@ -146,6 +150,41 @@ class ConversationRepository @Inject constructor(
 
   suspend fun getAllMessages(conversationId: String): List<Message> =
     messageDao.getAllOrdered(conversationId).map { it.toDomain() }
+
+  /**
+   * Head + tail + счётчик «промптовых» сообщений для сборки промпт-окна (ContextWindowBuilder)
+   * БЕЗ загрузки всей истории с диска на каждый ход. Фильтр «промптовости» — на стороне SQL.
+   */
+  suspend fun getPromptWindowParts(
+    conversationId: String,
+    headCount: Int,
+    tailCount: Int,
+  ): PromptWindowParts {
+    val total = messageDao.countPromptable(conversationId)
+    if (total <= headCount + tailCount) {
+      val all = messageDao.getFirstPromptable(conversationId, total).map { it.toDomain() }
+      return PromptWindowParts(head = all, tail = emptyList(), totalPromptable = total)
+    }
+    val head = messageDao.getFirstPromptable(conversationId, headCount).map { it.toDomain() }
+    val tail = messageDao.getLastPromptable(conversationId, tailCount)
+      .asReversed()
+      .map { it.toDomain() }
+    return PromptWindowParts(head = head, tail = tail, totalPromptable = total)
+  }
+
+  data class PromptWindowParts(
+    val head: List<Message>,
+    val tail: List<Message>,
+    val totalPromptable: Int,
+  )
+
+  /** Счётчик текстовых user/assistant-реплик — гейт частоты фонового аннотатора. */
+  suspend fun countAnnotatableMessages(conversationId: String): Int =
+    messageDao.countAnnotatable(conversationId)
+
+  /** Последние [limit] текстовых user/assistant-реплик (старые→новые) — вход аннотатора. */
+  suspend fun getRecentAnnotatableMessages(conversationId: String, limit: Int): List<Message> =
+    messageDao.getLastAnnotatable(conversationId, limit).asReversed().map { it.toDomain() }
 
   suspend fun addMessage(
     conversationId: String,

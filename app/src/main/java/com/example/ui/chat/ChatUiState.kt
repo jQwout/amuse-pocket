@@ -22,6 +22,12 @@ data class ChatUiState(
   /** True, пока в БД есть сообщения старше текущего окна (см. пагинацию в ChatViewModel). */
   val hasMoreOlder: Boolean = false,
   val inputText: String = "",
+  /**
+   * Индексы сообщений (в [messages]), содержащих текущий поисковый запрос. Считаются во
+   * ViewModel с дебаунсом на Dispatchers.Default — раньше скан шёл в композиции на каждый
+   * введённый символ (десятки мс на длинной истории прямо на Main).
+   */
+  val searchMatches: List<Int> = emptyList(),
   val isLoading: Boolean = false,
   // Стриминговый текст живёт в отдельном потоке ChatViewModel.streamingText (не в этом state),
   // чтобы дельты токенов не пересобирали весь экран — только пузырь стрима.
