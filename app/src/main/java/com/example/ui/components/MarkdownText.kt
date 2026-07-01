@@ -25,7 +25,9 @@ import com.mikepenz.markdown.compose.elements.MarkdownTableRow
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.model.DefaultMarkdownTypography
 import com.mikepenz.markdown.model.MarkdownTypography
+import com.mikepenz.markdown.model.markdownAnimations
 import com.mikepenz.markdown.model.markdownDimens
+import com.mikepenz.markdown.model.rememberMarkdownState
 
 /**
  * Shared markdown renderer used by chat bubbles and lesson pages.
@@ -35,7 +37,9 @@ import com.mikepenz.markdown.model.markdownDimens
  * code blocks and links. The `-m3` module pulls styling from the active MaterialTheme,
  * so it matches the forced-dark theme out of the box.
  *
- * Две локальные настройки против дефолтов библиотеки:
+ * Локальные настройки против дефолтов библиотеки:
+ *  - синхронный парс с сохранением состояния (immediate + retainState) — дефолтный асинхронный
+ *    рендер показывал пустой пузырь нулевой высоты до завершения парса (см. комментарий ниже);
  *  - [compact] — компактная типографика для пузырей чата (дефолтный body = 16sp слишком крупный).
  *  - таблицы рендерим с переносом строк в ячейках (дефолт — `maxLines = 1` + ellipsis, из-за чего
  *    длинные значения вроде дат/сроков обрезались многоточием).
@@ -110,13 +114,42 @@ fun MarkdownText(
   }
 
   val dimens = markdownDimens(tableCellPadding = 10.dp)
+  // Синхронный парс (immediate) + retainState: без них библиотека парсит в корутине на
+  // Dispatchers.Default из начального состояния Loading, а loading-слот по умолчанию — пустой Box
+  // НУЛЕВОЙ высоты. Итог был виден как «пустые сообщения, потом контент»: каждый markdown-пузырь
+  // рождался пустым (и заново — при каждом возврате в вьюпорт, remember-состояние итема умирает),
+  // а лента прыгала от доросших высот. immediate=true даёт Success уже к первому кадру; парс
+  // сообщения чата — та же категория работы, что и layout его текста. retainState=true не даёт
+  // откатиться в Loading при обновлении контента (фоновый ре-парс подменяет контент на месте).
+  // Бонус rememberMarkdownState: его дефолтные parser/flavour/handler запомнены (в отличие от
+  // дефолтов оверлоада Markdown(content=…), которые пересоздавались бы на каждую рекомпозицию,
+  // сбрасывая контент в Loading).
+  val markdownState = rememberMarkdownState(
+    content = text,
+    retainState = true,
+    immediate = true,
+  )
+  val bodyStyle = if (compact) typo.bodySmall else typo.bodyLarge
   val render: @Composable () -> Unit = {
     Markdown(
-      content = text,
+      markdownState = markdownState,
       modifier = modifier,
       typography = typography,
       components = components,
       dimens = dimens,
+      // Рост текста не анимируем: дефолтный animateContentSize превращал каждое дорастание
+      // контента в видимый reflow ленты.
+      animations = markdownAnimations(animateTextSize = { this }),
+      // Страховка на случай Loading-состояния (например, если immediate когда-нибудь выключат):
+      // сырой текст вместо пустого бокса — пузырь никогда не схлопывается в ноль.
+      loading = { m ->
+        Text(
+          text = text,
+          modifier = m,
+          style = bodyStyle,
+          color = MaterialTheme.colorScheme.onBackground,
+        )
+      },
     )
   }
   // SelectionContainer обрабатывает long-press на тексте сам (выделение), поэтому он перехватывает

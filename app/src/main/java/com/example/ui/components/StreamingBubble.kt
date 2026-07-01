@@ -45,7 +45,9 @@ fun StreamingBubble(
           Text(
             text = displayText,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            // Тот же цвет, что у сохранённого сообщения (plain-путь MarkdownText / markdown m3 —
+            // onBackground): подмена пузыря сообщением не должна менять вид текста.
+            color = MaterialTheme.colorScheme.onBackground,
           )
         }
         isWaiting -> {
