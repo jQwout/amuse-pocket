@@ -25,6 +25,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,15 +43,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.ImageLoader
 import coil.compose.AsyncImage
-import coil.decode.SvgDecoder
 import coil.request.ImageRequest
 import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
 import com.aiopenpocket.ui.roadmap.QuizQuestion
 import com.aiopenpocket.ui.roadmap.components.QuizContent
+import com.aiopenpocket.ui.roadmap.components.stableShuffledIndices
 import java.util.Locale
 
 private val CardSuccessGreen = Color(0xFF4CAF50)
@@ -372,15 +375,15 @@ fun DrivenUiCard.toMarkdown(): String = when (this) {
 
 @Composable
 fun RenderDrivenUiCard(
-    spec: String,
+    // Готовая карточка, а не JSON-спек: пузырь уже парсил spec, решая interactive/markdown —
+    // второй парс того же JSON на главном потоке при первой композиции итема был лишним.
+    card: DrivenUiCard,
     onFormSubmitted: (String) -> Unit = {},
     onChoiceSelected: (String) -> Unit = {},
     onLessonComplete: () -> Unit = {},
     onLessonQuizComplete: () -> Unit = {},
     onAction: (String, Boolean) -> Unit = { _, _ -> }
 ) {
-    val card = remember(spec) { DrivenUiEngine.parseJsonString(spec) }
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -1065,18 +1068,14 @@ fun NotificationPermissionCardView(card: DrivenUiCard.NotificationPermissionCard
 
 /**
  * Картинка/диаграмма в шаге урока. Источник — бандл-ассет (пробуем ПЕРВЫМ, чтобы работало оффлайн),
- * с фоллбеком на сетевой URL, если ассета нет или он не загрузился. SVG и растр поддерживаются
- * единым ImageLoader с SvgDecoder (он сам определяет SVG по содержимому).
+ * с фоллбеком на сетевой URL, если ассета нет или он не загрузился. SVG и растр декодирует общий
+ * Coil-синглтон приложения (SvgDecoder подключён в [com.aiopenpocket.AiOpenPocketApp.newImageLoader]).
+ * Раньше здесь собирался СВОЙ ImageLoader на каждый экземпляр карточки — его кэш умирал вместе с
+ * итемом ленты, и при возврате пузыря в вьюпорт картинка грузилась заново (пустой пузырь → скачок).
  */
 @Composable
 fun ImageCardView(card: DrivenUiCard.ImageCard) {
     val context = LocalContext.current
-    val imageLoader = remember(context) {
-        ImageLoader.Builder(context)
-            .components { add(SvgDecoder.Factory()) }
-            .build()
-    }
-
     val assetData = card.asset.takeIf { it.isNotBlank() }?.let { "file:///android_asset/$it" }
     val urlData = card.url.takeIf { it.isNotBlank() }
     // Ассет первым; при ошибке загрузки переключаемся на URL (один раз).
@@ -1103,11 +1102,15 @@ fun ImageCardView(card: DrivenUiCard.ImageCard) {
         } else {
             AsyncImage(
                 model = ImageRequest.Builder(context).data(data).crossfade(true).build(),
-                imageLoader = imageLoader,
                 contentDescription = card.caption.ifBlank { null },
-                contentScale = ContentScale.FillWidth,
+                // Фиксированный аспект: высота пузыря известна ДО загрузки картинки, поэтому лента
+                // не «раздувается» и не прыгает, когда картинка доехала (раньше — FillWidth без
+                // высоты: пузырь рождался схлопнутым). Fit — схемы/диаграммы не обрезаем, возможен
+                // леттербокс по краям.
+                contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .aspectRatio(16f / 9f)
                     .clip(RoundedCornerShape(12.dp)),
                 onError = {
                     // Ассет не загрузился — пробуем сетевой URL, если он задан и ещё не пробовали.
@@ -1129,7 +1132,9 @@ fun ImageCardView(card: DrivenUiCard.ImageCard) {
 /** "reveal": вопрос, по кнопке раскрывается ответ. Шаг продвигается кнопкой «Дальше». */
 @Composable
 fun RevealCardView(card: DrivenUiCard.RevealCard) {
-    var revealed by remember(card) { mutableStateOf(false) }
+    // rememberSaveable: раскрытие переживает рециклинг элемента в LazyColumn и поворот
+    // (обычный remember сбрасывал карточку в «закрыто» при скролле за экран и обратно).
+    var revealed by rememberSaveable(card) { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
             text = card.question,
@@ -1216,8 +1221,12 @@ fun ExampleCardView(card: DrivenUiCard.ExampleCard) {
 /** "fill": заполни пропуск. Правильный ввод продвигает урок (как пройденный квиз). */
 @Composable
 fun FillCardView(card: DrivenUiCard.FillCard, onSolved: () -> Unit) {
-    var input by remember(card) { mutableStateOf("") }
-    var solved by remember(card) { mutableStateOf(false) }
+    // rememberSaveable: решённость (и черновик) переживают рециклинг/поворот. Иначе карточка
+    // сбрасывалась в нерешённую, и повторное решение ЕЩЁ РАЗ дёргало onSolved — курсор урока
+    // прыгал на лишний шаг. onSolved зовётся только на переходе solved=false→true, поэтому
+    // восстановленное solved=true повторного продвижения не даёт.
+    var input by rememberSaveable(card) { mutableStateOf("") }
+    var solved by rememberSaveable(card) { mutableStateOf(false) }
     var wrong by remember(card) { mutableStateOf(false) }
 
     fun check() {
@@ -1259,7 +1268,18 @@ fun FillCardView(card: DrivenUiCard.FillCard, onSolved: () -> Unit) {
 /** "sort": расставь элементы стрелками вверх/вниз. Верный порядок продвигает урок. */
 @Composable
 fun SortCardView(card: DrivenUiCard.SortCard, onSolved: () -> Unit) {
-    val order = remember(card) { mutableStateListOf<String>().apply { addAll(card.items) } }
+    // rememberSaveable: расстановка и решённость переживают рециклинг элемента в LazyColumn и
+    // поворот. Раньше remember сбрасывал карточку в нерешённую, и повторное решение ЕЩЁ РАЗ дёргало
+    // onSolved — курсор урока прыгал на лишний шаг. onSolved зовётся только на переходе
+    // solved=false→true, поэтому восстановленное solved=true повторного продвижения не даёт.
+    // Порядок храним индексами: дубликаты строк в items не путают восстановление.
+    val order = rememberSaveable(
+        card,
+        saver = listSaver<SnapshotStateList<Int>, Int>(
+            save = { it.toList() },
+            restore = { it.toMutableStateList() },
+        ),
+    ) { card.items.indices.toList().toMutableStateList() }
     // correct должен быть полной перестановкой индексов items. Если он битый (вне диапазона, дубли,
     // не та длина — частый брак LLM-карточки или авторской ошибки урока), деградируем к исходному
     // порядку, чтобы шаг остался решаемым по «Проверить», а не залип навсегда.
@@ -1268,7 +1288,7 @@ fun SortCardView(card: DrivenUiCard.SortCard, onSolved: () -> Unit) {
         val isPermutation = card.correct.size == n && card.correct.toSet() == (0 until n).toSet()
         if (isPermutation) card.correct.map { card.items[it] } else card.items
     }
-    var solved by remember(card) { mutableStateOf(false) }
+    var solved by rememberSaveable(card) { mutableStateOf(false) }
     var wrong by remember(card) { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1276,7 +1296,7 @@ fun SortCardView(card: DrivenUiCard.SortCard, onSolved: () -> Unit) {
             Text(card.instruction, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        order.forEachIndexed { i, item ->
+        order.forEachIndexed { i, itemIndex ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -1287,7 +1307,7 @@ fun SortCardView(card: DrivenUiCard.SortCard, onSolved: () -> Unit) {
             ) {
                 Text("${i + 1}.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
                 Spacer(Modifier.width(8.dp))
-                Text(item, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                Text(card.items[itemIndex], style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                 if (!solved) {
                     IconButton(onClick = {
                         if (i > 0) { val t = order[i - 1]; order[i - 1] = order[i]; order[i] = t; wrong = false }
@@ -1308,7 +1328,11 @@ fun SortCardView(card: DrivenUiCard.SortCard, onSolved: () -> Unit) {
                     color = MaterialTheme.colorScheme.error)
             }
             Button(
-                onClick = { if (order.toList() == target) { solved = true; wrong = false; onSolved() } else wrong = true },
+                onClick = {
+                    // Сравниваем отображаемые строки (а не индексы): при дубликатах в items любой
+                    // визуально совпадающий порядок засчитывается — как и раньше.
+                    if (order.map { card.items[it] } == target) { solved = true; wrong = false; onSolved() } else wrong = true
+                },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Проверить") }
         }
@@ -1319,14 +1343,32 @@ fun SortCardView(card: DrivenUiCard.SortCard, onSolved: () -> Unit) {
 @Composable
 fun MatchCardView(card: DrivenUiCard.MatchCard, onSolved: () -> Unit) {
     val terms = card.pairs.map { it.term }
-    // Определения показываем в сдвинутом порядке, чтобы строки не совпадали 1-в-1 с терминами.
+    // Определения показываем в перемешанном (стабильном) порядке. Раньше был сдвиг на 1 — верное
+    // определение почти всегда оказывалось «следующим по списку» и сопоставление угадывалось.
+    // avoidIdentity: исходный порядок подсказал бы все пары разом.
     val displayDefOrder = remember(card) {
-        val idx = card.pairs.indices.toList()
-        if (idx.size > 1) idx.drop(1) + idx.take(1) else idx
+        val seed = card.pairs.fold(0) { acc, p -> (acc * 31 + p.term.hashCode()) * 31 + p.def.hashCode() }
+        stableShuffledIndices(card.pairs.size, seed, avoidIdentity = true)
     }
-    val assign = remember(card) { mutableStateMapOf<Int, Int>() } // termIndex -> исходный индекс пары (он же верный термин)
+    // rememberSaveable: сопоставление и решённость переживают рециклинг/поворот (см. SortCardView —
+    // тот же класс бага с повторным onSolved).
+    val assign = rememberSaveable(
+        card,
+        saver = listSaver<SnapshotStateMap<Int, Int>, Int>(
+            save = { map -> map.entries.flatMap { listOf(it.key, it.value) } },
+            restore = { flat ->
+                mutableStateMapOf<Int, Int>().apply {
+                    var i = 0
+                    while (i + 1 < flat.size) {
+                        put(flat[i], flat[i + 1])
+                        i += 2
+                    }
+                }
+            },
+        ),
+    ) { mutableStateMapOf() } // termIndex -> исходный индекс пары (он же верный термин)
     var selectedTerm by remember(card) { mutableStateOf<Int?>(null) }
-    var solved by remember(card) { mutableStateOf(false) }
+    var solved by rememberSaveable(card) { mutableStateOf(false) }
     var wrong by remember(card) { mutableStateOf(false) }
     val correctGreen = CardSuccessGreen
 
@@ -1413,7 +1455,17 @@ fun MatchCardView(card: DrivenUiCard.MatchCard, onSolved: () -> Unit) {
 /** "scenario": ситуация + один вопрос с вариантами. Ответ продвигает урок. */
 @Composable
 fun ScenarioCardView(card: DrivenUiCard.ScenarioCard, onSolved: () -> Unit) {
-    var selected by remember(card) { mutableStateOf<Int?>(null) }
+    // rememberSaveable: ответ переживает рециклинг/поворот — повторный тап по «сброшенной» карточке
+    // раньше ЕЩЁ РАЗ дёргал onSolved и толкал урок на лишний шаг. -1 = ещё не отвечено
+    // (Int? автосейвер не сохраняет). Храним ИСХОДНЫЙ индекс варианта — сверка с answerIndex
+    // и восстановление не зависят от порядка показа.
+    var selected by rememberSaveable(card) { mutableStateOf(-1) }
+    // Варианты — в перемешанном (стабильном) порядке: в авторских JSON правильный всегда первый.
+    val displayOrder = remember(card) {
+        val seed = (card.situation.hashCode() * 31 + card.question.hashCode()) * 31 +
+            card.options.fold(0) { acc, o -> acc * 31 + o.hashCode() }
+        stableShuffledIndices(card.options.size, seed)
+    }
     val correctGreen = CardSuccessGreen
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1429,8 +1481,9 @@ fun ScenarioCardView(card: DrivenUiCard.ScenarioCard, onSolved: () -> Unit) {
             Text(card.question, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        card.options.forEachIndexed { i, option ->
-            val answered = selected != null
+        displayOrder.forEach { i ->
+            val option = card.options[i]
+            val answered = selected >= 0
             // answerIndex < 0 — правильный вариант неизвестен (не задан/битый): не подсвечиваем
             // ничего как «верное/неверное», чтобы не вводить в заблуждение ложным ключом.
             val hasKey = card.answerIndex >= 0
@@ -1448,7 +1501,7 @@ fun ScenarioCardView(card: DrivenUiCard.ScenarioCard, onSolved: () -> Unit) {
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .border(1.5.dp, border, RoundedCornerShape(12.dp))
-                    .clickable(enabled = selected == null) {
+                    .clickable(enabled = selected < 0) {
                         selected = i
                         // Ответил — двигаемся дальше независимо от правильности: виден верный вариант + пояснение.
                         onSolved()
@@ -1464,7 +1517,7 @@ fun ScenarioCardView(card: DrivenUiCard.ScenarioCard, onSolved: () -> Unit) {
                 }
             }
         }
-        if (selected != null && card.explain.isNotBlank()) {
+        if (selected >= 0 && card.explain.isNotBlank()) {
             Text(card.explain, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
         }
     }

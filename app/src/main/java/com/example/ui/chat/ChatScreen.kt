@@ -153,12 +153,8 @@ fun ChatScreen(
         searchQuery = ""
         viewModel.setSearchActive(false)
     }
-    val matchIndices = remember(searchQuery, state.messages) {
-        if (searchQuery.isBlank()) emptyList()
-        else state.messages.mapIndexedNotNull { i, m ->
-            if (m.content.contains(searchQuery, ignoreCase = true)) i else null
-        }
-    }
+    // Совпадения считает ViewModel (дебаунс + Default-диспетчер) — здесь только читаем.
+    val matchIndices = state.searchMatches
     LaunchedEffect(matchIndices.size) {
         if (currentMatch >= matchIndices.size) currentMatch = 0
     }
@@ -292,7 +288,11 @@ fun ChatScreen(
                     if (searchActive) {
                         ChatSearchBar(
                             query = searchQuery,
-                            onQueryChange = { searchQuery = it; currentMatch = 0 },
+                            onQueryChange = {
+                                searchQuery = it
+                                currentMatch = 0
+                                viewModel.setSearchQuery(it)
+                            },
                             matchCount = matchIndices.size,
                             currentMatch = if (matchIndices.isEmpty()) 0 else currentMatch + 1,
                             onPrev = {
@@ -1069,7 +1069,7 @@ private fun MessageBubble(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
                 RenderDrivenUiCard(
-                    spec = message.cardSpec!!,
+                    card = card!!,
                     onChoiceSelected = onChoiceSelected,
                     onFormSubmitted = onFormSubmitted,
                     onLessonComplete = onLessonComplete,

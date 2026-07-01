@@ -23,7 +23,7 @@ import com.aiopenpocket.agent.core.memory.entity.MessageEntity
     FactEntity::class,
     EpisodeEntity::class,
   ],
-  version = 9,
+  version = 10,
   exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {

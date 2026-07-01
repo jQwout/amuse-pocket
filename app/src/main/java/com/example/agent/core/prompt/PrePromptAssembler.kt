@@ -47,7 +47,15 @@ class PrePromptAssembler @Inject constructor(
       val episodesDeferred = async {
         memoryRepository.getRecentEpisodesForConversation(conversationId, LlmContextConfig.EPISODES_LIMIT)
       }
-      val allMessagesDeferred = async { conversationRepository.getAllMessages(conversationId) }
+      // Head/tail/счётчик — лимитированные выборки: раньше здесь грузилась ВСЯ история диалога
+      // с диска на каждый ход (на длинных диалогах — заметная задержка старта ответа).
+      val windowPartsDeferred = async {
+        conversationRepository.getPromptWindowParts(
+          conversationId,
+          headCount = LlmContextConfig.HEAD_MESSAGE_COUNT,
+          tailCount = LlmContextConfig.TAIL_MESSAGE_COUNT,
+        )
+      }
 
       val systemBase = systemBaseDeferred.await()
       val modePrompt = modePromptDeferred.await()
@@ -56,7 +64,7 @@ class PrePromptAssembler @Inject constructor(
       val profileFacts = profileFactsDeferred.await()
       val facts = factsDeferred.await()
       val episodes = episodesDeferred.await()
-      val allMessages = allMessagesDeferred.await()
+      val windowParts = windowPartsDeferred.await()
 
       // Зависит от conversation (выше), поэтому идёт последовательно за ним.
       // Персона: у диалога своя (если задана), иначе — выбранная пользователем на онбординге, иначе дефолт.
@@ -72,7 +80,11 @@ class PrePromptAssembler @Inject constructor(
       // Mini-agent bound to this chat (if any): adds a role section and scopes the tool set.
       val agent = MiniAgentCatalog.get(conversation?.agentId)
 
-      val window = ContextWindowBuilder.build(allMessages)
+      val window = ContextWindowBuilder.buildFromParts(
+        head = windowParts.head,
+        tail = windowParts.tail,
+        totalPromptable = windowParts.totalPromptable,
+      )
 
       val systemPrompt = buildString {
         appendLine(systemBase)

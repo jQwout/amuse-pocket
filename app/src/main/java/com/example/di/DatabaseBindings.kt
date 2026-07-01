@@ -24,7 +24,7 @@ object DatabaseBindings {
     @SingleIn(AppScope::class)
     fun provideDatabase(application: Application): AppDatabase =
         Room.databaseBuilder(application, AppDatabase::class.java, "queen_chat_db")
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
             .fallbackToDestructiveMigration()
             .build()
 
@@ -117,5 +117,18 @@ object DatabaseBindings {
     // Избранные диалоги: флаг, по которому они всплывают в начало списка.
     val MIGRATION_8_9 = Migration(8, 9) { db ->
         db.execSQL("ALTER TABLE conversations ADD COLUMN isFavorite INTEGER NOT NULL DEFAULT 0")
+    }
+
+    // Составной индекс под запрос окна чата (WHERE conversationId=? ORDER BY createdAt DESC
+    // LIMIT ?): два раздельных индекса заставляли SQLite сортировать все строки диалога на
+    // каждый переэмит окна. Имена индексов — в точности как генерирует Room (иначе его
+    // валидация схемы упадёт на старте).
+    val MIGRATION_9_10 = Migration(9, 10) { db ->
+        db.execSQL("DROP INDEX IF EXISTS `index_messages_conversationId`")
+        db.execSQL("DROP INDEX IF EXISTS `index_messages_createdAt`")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_messages_conversationId_createdAt` " +
+                "ON `messages` (`conversationId`, `createdAt`)",
+        )
     }
 }

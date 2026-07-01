@@ -26,23 +26,45 @@ object ContextWindowBuilder {
     val allMessages = rawMessages.filter {
       it.content.isNotBlank() || it.toolCallsJson != null
     }
-    if (allMessages.isEmpty()) {
+    val total = allMessages.size
+    return if (total <= headCount + tailCount) {
+      buildFromParts(allMessages, emptyList(), total, headCount, tailCount)
+    } else {
+      buildFromParts(
+        head = allMessages.take(headCount),
+        tail = allMessages.takeLast(tailCount),
+        totalPromptable = total,
+        headCount = headCount,
+        tailCount = tailCount,
+      )
+    }
+  }
+
+  /**
+   * То же промпт-окно, но из уже готовых частей (head/tail/счётчик из лимитированных SQL-выборок,
+   * см. ConversationRepository.getPromptWindowParts) — без загрузки всей истории в память.
+   * Части считаются уже отфильтрованными от пустых карточек. Когда диалог целиком помещается в
+   * head+tail, вся история приходит в [head], а [tail] пуст.
+   */
+  fun buildFromParts(
+    head: List<Message>,
+    tail: List<Message>,
+    totalPromptable: Int,
+    headCount: Int = LlmContextConfig.HEAD_MESSAGE_COUNT,
+    tailCount: Int = LlmContextConfig.TAIL_MESSAGE_COUNT,
+  ): Window {
+    if (totalPromptable == 0) {
       return Window(emptyList(), hasMiddleGap = false, middleMessageCount = 0)
     }
-
-    val total = allMessages.size
-    if (total <= headCount + tailCount) {
+    if (totalPromptable <= headCount + tailCount) {
       return Window(
-        verbatim = allMessages.map { it.toPromptMessage() },
+        verbatim = (head + tail).map { it.toPromptMessage() },
         hasMiddleGap = false,
         middleMessageCount = 0,
       )
     }
 
-    val head = allMessages.take(headCount)
-    val tail = allMessages.takeLast(tailCount)
-    val middleCount = total - headCount - tailCount
-
+    val middleCount = totalPromptable - headCount - tailCount
     val verbatim = (head + tail).map { it.toPromptMessage() }
     return Window(
       verbatim = trimVerbatimToTokenBudget(verbatim),
