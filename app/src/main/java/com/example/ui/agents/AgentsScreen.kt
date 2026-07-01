@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,6 +34,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -87,47 +90,99 @@ fun AgentsScreen(
   }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AgentCard(agent: MiniAgent, onClick: () -> Unit) {
-  Row(
+  Column(
     modifier = Modifier
       .fillMaxWidth()
       .clip(RoundedCornerShape(16.dp))
       .background(CardDark)
       .clickable(onClick = onClick)
       .padding(16.dp),
-    verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(14.dp),
   ) {
-    Box(
-      modifier = Modifier
-        .size(44.dp)
-        .clip(CircleShape)
-        .background(PurpleAccent.copy(alpha = 0.18f)),
-      contentAlignment = Alignment.Center,
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-      Icon(
-        imageVector = iconFor(agent.iconKey),
-        contentDescription = null,
-        tint = PurpleAccent,
-        modifier = Modifier.size(22.dp),
-      )
+      Box(
+        modifier = Modifier
+          .size(44.dp)
+          .clip(CircleShape)
+          .background(PurpleAccent.copy(alpha = 0.18f)),
+        contentAlignment = Alignment.Center,
+      ) {
+        Icon(
+          imageVector = iconFor(agent.iconKey),
+          contentDescription = null,
+          tint = PurpleAccent,
+          modifier = Modifier.size(22.dp),
+        )
+      }
+      Column(modifier = Modifier.weight(1f)) {
+        Text(
+          text = agent.name,
+          style = MaterialTheme.typography.titleMedium,
+          color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+          text = agent.description,
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+        )
+      }
     }
-    Column(modifier = Modifier.fillMaxWidth()) {
-      Text(
-        text = agent.name,
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.onSurface,
-      )
-      Spacer(modifier = Modifier.height(2.dp))
-      Text(
-        text = agent.description,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-      )
+
+    // «Под капотом»: что у агента в распоряжении — инструменты и навыки (его скоуп). Делает
+    // карточку информативной: видно, на что агент способен, ещё до открытия чата.
+    Spacer(modifier = Modifier.height(12.dp))
+    Text(
+      text = "Умеет",
+      style = MaterialTheme.typography.labelSmall,
+      color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+    )
+    Spacer(modifier = Modifier.height(6.dp))
+    FlowRow(
+      horizontalArrangement = Arrangement.spacedBy(6.dp),
+      verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+      val labels = remember(agent.toolNames) { capabilityLabels(agent.toolNames) }
+      labels.forEach { CapabilityChip(it) }
     }
   }
 }
+
+@Composable
+private fun CapabilityChip(label: String) {
+  Text(
+    text = label,
+    style = MaterialTheme.typography.labelSmall,
+    color = PurpleAccent,
+    modifier = Modifier
+      .clip(RoundedCornerShape(8.dp))
+      .background(PurpleAccent.copy(alpha = 0.12f))
+      .padding(horizontal = 8.dp, vertical = 4.dp),
+  )
+}
+
+/** Человекочитаемые ярлыки инструментов агента — его «оснащение». Неизвестные имена пропускаем. */
+private fun capabilityLabels(toolNames: Set<String>): List<String> =
+  toolNames.mapNotNull { tool ->
+    when (tool) {
+      "memory_tool" -> "Память"
+      "render_card" -> "Карточки"
+      "load_skill" -> "Навыки"
+      "sms" -> "СМС"
+      "email" -> "Почта"
+      "alarm" -> "Будильник"
+      "work_manager" -> "Фоновые задачи"
+      "calendar" -> "Календарь"
+      "file_tool" -> "Файлы"
+      else -> null
+    }
+  }.distinct()
 
 private fun iconFor(key: String): ImageVector = when (key) {
   "wallet" -> Icons.Default.AccountBalanceWallet

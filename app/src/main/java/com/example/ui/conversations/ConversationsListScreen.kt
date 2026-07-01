@@ -19,6 +19,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -28,18 +31,21 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.agent.core.memory.model.Conversation
 import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
+import com.aiopenpocket.ui.util.formatDateTime
 import dev.zacsweers.metrox.viewmodel.metroViewModel
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -52,6 +58,10 @@ fun ConversationsListScreen(
   val viewModel: ConversationsListViewModel = metroViewModel()
   val state by viewModel.state.collectAsState()
   val scope = rememberCoroutineScope()
+
+  // Удаление — через подтверждение: клик по корзине лишь намечает диалог к удалению, а сносит его
+  // явное «Удалить» в диалоге. Иначе один промах по корзине безвозвратно сносил чат.
+  var pendingDelete by remember { mutableStateOf<Conversation?>(null) }
 
   AcademyCollapsingScaffold(
     title = "Чаты",
@@ -111,24 +121,61 @@ fun ConversationsListScreen(
             }
           }
         }
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-          items(state.visibleConversations, key = { it.id }) { conversation ->
-            ConversationItem(
-              conversation = conversation,
-              onClick = { onConversationClick(conversation.id) },
-              onDelete = { viewModel.deleteConversation(conversation.id) },
+        if (state.visibleConversations.isEmpty()) {
+          Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+          ) {
+            Text(
+              "Нет чатов с тегом «${state.selectedTag}».",
+              style = MaterialTheme.typography.bodyLarge,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+          }
+        } else {
+          LazyColumn(modifier = Modifier.fillMaxSize()) {
+            items(state.visibleConversations, key = { it.id }) { conversation ->
+              ConversationItem(
+                conversation = conversation,
+                onClick = { onConversationClick(conversation.id) },
+                onToggleFavorite = { viewModel.toggleFavorite(conversation.id, conversation.isFavorite) },
+                onDelete = { pendingDelete = conversation },
+              )
+            }
           }
         }
       }
+    }
+
+    val toDelete = pendingDelete
+    if (toDelete != null) {
+      AlertDialog(
+        onDismissRequest = { pendingDelete = null },
+        title = { Text("Удалить чат?") },
+        text = { Text("«${toDelete.title}» и вся переписка будут удалены без возможности восстановления.") },
+        confirmButton = {
+          TextButton(onClick = {
+            viewModel.deleteConversation(toDelete.id)
+            pendingDelete = null
+          }) {
+            Text("Удалить", color = MaterialTheme.colorScheme.error)
+          }
+        },
+        dismissButton = {
+          TextButton(onClick = { pendingDelete = null }) {
+            Text("Отмена")
+          }
+        },
+      )
     }
   }
 }
 
 @Composable
 private fun ConversationItem(
-  conversation: com.aiopenpocket.agent.core.memory.model.Conversation,
+  conversation: Conversation,
   onClick: () -> Unit,
+  onToggleFavorite: () -> Unit,
   onDelete: () -> Unit,
 ) {
   Card(
@@ -152,7 +199,7 @@ private fun ConversationItem(
           style = MaterialTheme.typography.titleMedium,
         )
         Text(
-          formatDate(conversation.updatedAt),
+          formatDateTime(conversation.updatedAt),
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -164,14 +211,20 @@ private fun ConversationItem(
           )
         }
       }
+      IconButton(onClick = onToggleFavorite) {
+        Icon(
+          imageVector = if (conversation.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
+          contentDescription = if (conversation.isFavorite) "Убрать из избранного" else "В избранное",
+          tint = if (conversation.isFavorite) {
+            MaterialTheme.colorScheme.primary
+          } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+          },
+        )
+      }
       IconButton(onClick = onDelete) {
         Icon(Icons.Default.Delete, contentDescription = "Удалить")
       }
     }
   }
-}
-
-private fun formatDate(timestamp: Long): String {
-  val sdf = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
-  return sdf.format(Date(timestamp))
 }

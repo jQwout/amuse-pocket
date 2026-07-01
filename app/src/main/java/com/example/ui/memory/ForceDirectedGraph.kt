@@ -63,6 +63,10 @@ fun ForceDirectedGraph(
   // Bumped every simulation frame so the Canvas redraws.
   var frame by remember(graph) { mutableIntStateOf(0) }
   var initialized by remember(graph) { mutableStateOf(false) }
+  // Once every node's velocity has damped to near-zero, the O(n²) force pass below is skipped
+  // each frame (idle redraw loop only) until a drag perturbs a position again — otherwise this
+  // burns full CPU forever while the memory graph screen is simply left open.
+  var settled by remember(graph) { mutableStateOf(false) }
 
   fun radiusOf(node: MemoryNode): Float = when (node.kind) {
     MemoryNodeKind.CHAT -> 20f
@@ -101,6 +105,9 @@ fun ForceDirectedGraph(
         }
         initialized = true
       }
+
+      // Idle: nothing is moving and nobody is dragging — skip the O(n²) force pass this frame.
+      if (settled && dragIndex < 0) return@LaunchedSimulation
 
       val fx = FloatArray(nodes.size)
       val fy = FloatArray(nodes.size)
@@ -143,6 +150,8 @@ fun ForceDirectedGraph(
         posX[i] = (posX[i] + velX[i]).coerceIn(MARGIN, w - MARGIN)
         posY[i] = (posY[i] + velY[i]).coerceIn(MARGIN, h - MARGIN)
       }
+      settled = dragIndex < 0 &&
+        nodes.indices.all { i -> velX[i] * velX[i] + velY[i] * velY[i] < SETTLE_VELOCITY_SQ }
       frame++
     },
   )
@@ -226,3 +235,4 @@ private const val GRAVITY = 0.005f
 private const val DAMPING = 0.9f
 private const val MAX_VELOCITY = 15f
 private const val MARGIN = 28f
+private const val SETTLE_VELOCITY_SQ = 0.01f

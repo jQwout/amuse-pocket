@@ -2,13 +2,12 @@ package com.aiopenpocket.agent.core.skill
 
 // @trace agent-skills-7189cc
 
-import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
-import kotlinx.serialization.json.JsonArray
+import com.aiopenpocket.agent.core.mcp.missingArg
+import com.aiopenpocket.agent.core.mcp.string
+import com.aiopenpocket.agent.core.mcp.toolSchema
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
@@ -28,26 +27,12 @@ class LoadSkillTool(
   override val description =
     "Загрузить подробную инструкцию навыка по его id, когда задача подходит под навык из каталога доступных навыков."
 
-  override val schema = FunctionSchema(
-    function = FunctionSchema.FunctionDefinition(
-      name = name,
-      description = description,
-      parameters = JsonObject(mapOf(
-        "type" to JsonPrimitive("object"),
-        "properties" to JsonObject(mapOf(
-          "id" to JsonObject(mapOf(
-            "type" to JsonPrimitive("string"),
-            "description" to JsonPrimitive("ID навыка из каталога доступных навыков"),
-          )),
-        )),
-        "required" to JsonArray(listOf(JsonPrimitive("id"))),
-      )),
-    ),
-  )
+  override val schema = toolSchema(name, description) {
+    string("id", "ID навыка из каталога доступных навыков", required = true)
+  }
 
   override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult {
-    val id = (arguments["id"] as? JsonPrimitive)?.content
-      ?: return ToolResult.Error("Missing 'id'")
+    val id = arguments.string("id") ?: return missingArg("id")
     val skill = registry.get(id)
       ?: return ToolResult.Error(
         "Unknown skill: $id. Доступные: ${registry.ids().joinToString()}",

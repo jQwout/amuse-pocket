@@ -66,7 +66,7 @@ Android-приложение, агент-ассистент уровня Hermes 
 - [x] ✅ Background-задачи через WorkManager
 - [x] ✅ Зашифрованный keystore для секретов — `EncryptedSharedPreferences`
 - [ ] ❌ JSON Schema валидация аргументов тулов / рендеров
-- [x] ✅ Multi-provider fallback (NIM → Groq → GitHub Models)
+- [ ] 🟡 Multi-provider fallback (NIM → Groq → GitHub Models) — механизм в коде есть (`ProviderFallbackChain`), но текущий чат-путь сознательно хардкодит `LlmProvider.NIM` (см. `ChatViewModel.runAgent`) — пока работаем только с этой моделью; кросс-провайдерный фолбэк и выбор провайдера в Settings временно не задействованы
 - [x] ✅ Сменяемая persona (7 персон в коробке)
 - [ ] 🟡 Базовые тесты — 18 unit-тестов по core; integration/UI пока нет
 
@@ -79,7 +79,6 @@ Android-приложение, агент-ассистент уровня Hermes 
 - **AI Academy:** онбординг, «путь агента» из 7 уроков, markdown-теория на странице урока, библиотека
 - **Управление контекстом LLM:** `ContextWindowBuilder` (head/tail-окно) + `ConversationSummarizer` (сжатие середины)
 - **Multi-chat:** список диалогов и переключение
-- **Выбор провайдера в Settings** реально влияет на запрос (протянут в `streamChat`)
 - **Tool trace UI:** сворачиваемая панель вызовов инструментов
 
 ### 1.3 Non-goals (v1)
@@ -1113,7 +1112,7 @@ Driven UI фреймворк от Yandex. JSON-спек → нативный р�
 | 0 | Foundation | 3-5 дн | APK собирается, пустой экран | ✅ |
 | 1 | Engine spin | 1-1.5 нед | render_card работает в чате | 🟡 (работает, но как markdown; нет JSON-schema-валидации) |
 | 2 | Memory basic | 1 нед | remember/recall, сессия восстанавливается | ✅ |
-| 3 | Persona & Settings | 3-5 дн | переключаемая персона, multi-provider | ✅ |
+| 3 | Persona & Settings | 3-5 дн | переключаемая персона, multi-provider | 🟡 (персона ✅; multi-provider сознательно отключён — работаем только с NIM) |
 | 4 | Notifications + Work | 1 нед | напоминания, фоновые задачи | 🟡 (нет action-кнопок, 3 каналов, deep-link) |
 | 5 | More templates | 3-5 дн | 5+ типов карточек | 🟡 (6 шаблонов как markdown; нет TemplatesScreen) |
 | 6 | Web + DB | 1 нед | web_fetch, query_db | 🟡 (query_db есть; web-тулов нет) |

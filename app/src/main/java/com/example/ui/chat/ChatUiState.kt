@@ -19,9 +19,12 @@ data class ResponseStats(
 data class ChatUiState(
   val conversationId: String? = null,
   val messages: List<Message> = emptyList(),
+  /** True, пока в БД есть сообщения старше текущего окна (см. пагинацию в ChatViewModel). */
+  val hasMoreOlder: Boolean = false,
   val inputText: String = "",
   val isLoading: Boolean = false,
-  val streamingText: String = "",
+  // Стриминговый текст живёт в отдельном потоке ChatViewModel.streamingText (не в этом state),
+  // чтобы дельты токенов не пересобирали весь экран — только пузырь стрима.
   val toolTrace: List<ToolTrace> = emptyList(),
   val error: String? = null,
   /** True when the last failed turn can be retried (we still have the last user message). */

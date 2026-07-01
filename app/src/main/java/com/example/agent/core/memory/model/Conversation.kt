@@ -13,4 +13,6 @@ data class Conversation(
   val tags: List<String> = emptyList(),
   /** Bound mini-agent id (scopes tools + role); null = general assistant. */
   val agentId: String? = null,
+  /** Закреплён пользователем в избранное — всплывает в начало списка диалогов. */
+  val isFavorite: Boolean = false,
 )

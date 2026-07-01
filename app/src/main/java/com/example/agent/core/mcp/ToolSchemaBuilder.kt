@@ -10,8 +10,7 @@ import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * Builds a function-call JSON schema for a [Tool] without the nested `JsonObject(mapOf(...))`
- * boilerplate every tool used to repeat. Enums are kept as a comma-joined string to match the
- * wire format the tools already emit.
+ * boilerplate every tool used to repeat.
  */
 class ToolSchemaBuilder(private val toolName: String, private val toolDescription: String) {
   private val properties = LinkedHashMap<String, JsonObject>()

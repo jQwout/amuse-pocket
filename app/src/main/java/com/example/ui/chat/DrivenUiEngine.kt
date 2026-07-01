@@ -165,7 +165,7 @@ object DrivenUiEngine {
                     QuizQuestion(
                         question = it.optString("q", ""),
                         options = it.array("options").toStringList(),
-                        correctIndex = it.optInt("correct", 0),
+                        correctIndex = it.optInt("correct", -1),
                         explanation = it.optString("explain", ""),
                     )
                 },
@@ -858,12 +858,16 @@ fun ChoiceCardView(
 
         card.options.forEachIndexed { i, option ->
             val answered = selected != null
-            val isCorrect = card.answerIndex >= 0 && i == card.answerIndex
+            // answerIndex < 0 — правильный вариант не задан (например, открытый опрос без "верного"
+            // ответа): не подсвечиваем выбор как неверный, см. f646e64 для того же класса бага.
+            val hasKey = card.answerIndex >= 0
+            val isCorrect = hasKey && i == card.answerIndex
             val isPicked = selected == i
             val borderColor = when {
                 !answered -> MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
                 isCorrect -> correctGreen
-                isPicked -> MaterialTheme.colorScheme.error
+                hasKey && isPicked -> MaterialTheme.colorScheme.error
+                isPicked -> MaterialTheme.colorScheme.outline
                 else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
             }
             Row(
@@ -882,7 +886,7 @@ fun ChoiceCardView(
                 Text(text = option, style = MaterialTheme.typography.bodyLarge)
                 when {
                     answered && isCorrect -> Icon(Icons.Default.Check, null, tint = correctGreen)
-                    answered && isPicked -> Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.error)
+                    answered && hasKey && isPicked -> Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.error)
                 }
             }
         }

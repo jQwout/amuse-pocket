@@ -21,10 +21,13 @@ class SkillRegistry @Inject constructor(
 
   /**
    * Дешёвый каталог для системного промпта (уровень 1) — только метаданные, без чтения ассетов.
-   * Пусто, если навыков нет (тогда секция в промпт не добавляется).
+   * Пусто, если навыков нет (тогда секция в промпт не добавляется). [allowedIds] не null — сужает
+   * каталог до навыков мини-агента, к которому привязан чат (см. [LoadSkillTool]).
    */
-  fun catalog(): String =
-    skillMap.values.joinToString("\n") { s ->
-      "- ${s.manifest.id}: ${s.manifest.description} (когда: ${s.manifest.whenToUse})"
-    }
+  fun catalog(allowedIds: Set<String>? = null): String =
+    skillMap.values
+      .filter { allowedIds == null || it.manifest.id in allowedIds }
+      .joinToString("\n") { s ->
+        "- ${s.manifest.id}: ${s.manifest.description} (когда: ${s.manifest.whenToUse})"
+      }
 }

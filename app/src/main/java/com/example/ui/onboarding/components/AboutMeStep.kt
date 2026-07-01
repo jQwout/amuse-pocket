@@ -69,7 +69,10 @@ fun AboutMeStep(
 
     OutlinedTextField(
       value = text,
-      onValueChange = onTextChange,
+      // Потолок на вставку огромного текста — иначе весь кусок уходит одним user-сообщением в LLM
+      // при извлечении профиля. Обрезаем, а не отбрасываем целиком: иначе вставка текста длиннее
+      // лимита молча не давала бы вообще никакого эффекта.
+      onValueChange = { onTextChange(it.take(ABOUT_ME_MAX_LENGTH)) },
       placeholder = { Text("Например: Я Саша, мне 27, разработчик, увлекаюсь альпинизмом. Обращайся на ты.") },
       modifier = Modifier
         .fillMaxWidth()
@@ -106,6 +109,8 @@ fun AboutMeStep(
     Spacer(modifier = Modifier.height(16.dp))
   }
 }
+
+private const val ABOUT_ME_MAX_LENGTH = 2000
 
 @Composable
 private fun PersonaAskBubble(personaName: String, line: String) {

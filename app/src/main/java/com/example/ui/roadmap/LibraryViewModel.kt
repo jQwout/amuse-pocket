@@ -12,11 +12,12 @@ import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import dev.zacsweers.metro.binding
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -73,13 +74,17 @@ class LibraryViewModel(
 
   init {
     viewModelScope.launch {
-      val loaded = LIBRARY_LESSON_IDS.mapNotNull { id ->
-        lessonRepository.getLessonOrNull(id)?.let { lesson ->
+      // Независимые чтения ассетов — грузим все разом, а не по одному (16 уроков подряд иначе
+      // задерживают первую отрисовку экрана суммой всех round-trip'ов вместо максимума одного).
+      val loaded = LIBRARY_LESSON_IDS.map { id ->
+        async { id to lessonRepository.getLessonOrNull(id) }
+      }.awaitAll().mapNotNull { (id, lesson) ->
+        lesson?.let {
           LibraryLesson(
-            id = lesson.id.ifBlank { id },
-            title = lesson.title.ifBlank { id },
-            description = lesson.description,
-            iconKey = lesson.iconKey,
+            id = it.id.ifBlank { id },
+            title = it.title.ifBlank { id },
+            description = it.description,
+            iconKey = it.iconKey,
           )
         }
       }
@@ -97,9 +102,7 @@ class LibraryViewModel(
     viewModelScope.launch {
       try {
         val personaId = userPreferencesRepository.getDefaultPersonaId()
-        val existing = conversationRepository.getAllConversations()
-          .first()
-          .find { it.title == lessonId && it.isTutorial }
+        val existing = conversationRepository.findLatestTutorialConversation(lessonId)
         val chatId = existing?.id ?: conversationRepository.createConversation(
           title = lessonId,
           personaId = personaId,

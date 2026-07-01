@@ -93,8 +93,17 @@ class MainActivity : ComponentActivity() {
                         else -> {
                             val navController = rememberNavController()
                             val newChatToken by openNewChatRequest.collectAsState()
+                            // Стартовый экран выбираем сразу по факту прохождения онбординга — иначе
+                            // NavHost сперва рисует "onboarding", и только потом LaunchedEffect уводит
+                            // на "home", из-за чего у уже прошедшего пользователя онбординг мелькает.
+                            // К этому моменту onboardingCompleted уже не null (мы в ветке else).
+                            val startDestination = if (onboardingCompleted == true) "home" else "onboarding"
+                            // Подстраховка на случай, если онбординг завершится уже после старта
+                            // (false → true): уводим на home, сняв онбординг со стека.
                             LaunchedEffect(onboardingCompleted) {
-                                if (onboardingCompleted == true) {
+                                if (onboardingCompleted == true &&
+                                    navController.currentDestination?.route == "onboarding"
+                                ) {
                                     navController.navigate("home") {
                                         popUpTo("onboarding") { inclusive = true }
                                         launchSingleTop = true
@@ -125,7 +134,7 @@ class MainActivity : ComponentActivity() {
                             }
                             NavHost(
                                 navController = navController,
-                                startDestination = "onboarding",
+                                startDestination = startDestination,
                             ) {
                                 composable("onboarding") {
                                     // Навигация после завершения управляется наблюдателем

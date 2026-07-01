@@ -14,6 +14,7 @@ import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import dev.zacsweers.metro.Inject
@@ -45,6 +46,8 @@ class ReactLoopRunner @Inject constructor(
     tools: List<FunctionSchema>,
     provider: LlmProvider,
     maxIterations: Int = MAX_ITERATIONS,
+    /** Mini-agent bound to this chat, if any — `load_skill` is confined to this agent's own skill. */
+    boundAgentId: String? = null,
     emit: suspend (AgentEvent) -> Unit,
   ): AgentResult {
     val toolTrace = mutableListOf<ToolTrace>()
@@ -93,6 +96,11 @@ class ReactLoopRunner @Inject constructor(
 
       Log.d(TAG, "iter $iteration: ${pendingToolCalls.size} tool-call(s) [${pendingToolCalls.joinToString { it.name }}]")
       emit(AgentEvent.StateChanged(AgentState.EXECUTING_TOOL))
+      // Скоуп мини-агента реализован только через то, какие schemas показаны модели (tools) —
+      // ToolExecutor сам по себе резолвит имя против ГЛОБАЛЬНОГО ToolRegistry. Без этой проверки
+      // галлюцинация модели (или унаследованное из истории имя тула от другого агента) выполнилась
+      // бы, даже если этот tool не входил в scoped-набор текущего хода.
+      val allowedToolNames = tools.map { it.function.name }.toSet()
       // Одно assistant-сообщение со всеми вызовами хода. Преамбулу кладём в content, чтобы на следующей
       // итерации модель видела собственный текст, предшествовавший вызовам.
       messages += ChatMessage(
@@ -119,7 +127,13 @@ class ReactLoopRunner @Inject constructor(
         Log.d(TAG, "  → ${tc.name}(${preview(tc.arguments.toString())})")
         emit(AgentEvent.ToolStarted(tc.name, tc.arguments))
 
-        val result = toolExecutor.execute(tc.name, tc.arguments)
+        val result = if (tc.name !in allowedToolNames) {
+          ToolResult.Error("Tool '${tc.name}' is not available in this context.", recoverable = false)
+        } else if (tc.name == LOAD_SKILL_TOOL && !isSkillAllowed(tc.arguments, boundAgentId)) {
+          ToolResult.Error("Skill not available for this agent")
+        } else {
+          toolExecutor.execute(tc.name, tc.arguments)
+        }
         Log.d(TAG, "  ← ${tc.name}: ${preview(resultToString(result))}")
         toolTrace += ToolTrace(
           iteration = iteration,
@@ -166,12 +180,25 @@ class ReactLoopRunner @Inject constructor(
     is ToolResult.Error -> "Error: ${result.message}"
   }
 
+  /**
+   * A mini-agent may only load its own skill (its [MiniAgent.id] doubles as that skill's id) —
+   * otherwise a chat scoped to e.g. "budget" could load_skill("diary") and pull another domain's
+   * instructions into context. No bound agent (plain chat) is unrestricted. A missing/malformed
+   * `id` argument is let through so [ToolExecutor] surfaces its own "Missing 'id'" error.
+   */
+  private fun isSkillAllowed(arguments: Map<String, kotlinx.serialization.json.JsonElement>, boundAgentId: String?): Boolean {
+    if (boundAgentId == null) return true
+    val requestedId = (arguments["id"] as? JsonPrimitive)?.content ?: return true
+    return requestedId == boundAgentId
+  }
+
   /** One-line, length-capped preview of args/results for the loop log (no newlines, no flooding). */
   private fun preview(s: String): String =
     s.replace(Regex("\\s+"), " ").trim().let { if (it.length > 140) it.take(140) + "…" else it }
 
   companion object {
     private const val TAG = "ReactLoop"
+    private const val LOAD_SKILL_TOOL = "load_skill"
     const val MAX_ITERATIONS = 10
   }
 }

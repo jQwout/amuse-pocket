@@ -25,19 +25,42 @@ class AgentsViewModel(
 
   val agents: List<MiniAgent> = MiniAgentCatalog.all
 
-  /** Opens a fresh chat bound to [agentId] (scoped tools + role) and returns its id via [onReady]. */
+  /**
+   * Агенты, для которых прямо сейчас идёт открытие чата. Защита от быстрого двойного тапа: без неё
+   * два тапа по агенту без существующего чата оба увидели бы «чата нет» (первый insert ещё не
+   * закоммичен) и создали бы два дубля — тот самый баг, который чинит переиспользование.
+   * Доступ только с главного потока (viewModelScope), поэтому обычного set достаточно.
+   */
+  private val opening = mutableSetOf<String>()
+
+  /**
+   * Открывает чат агента [agentId] (скоуп инструментов + роль) и отдаёт его id через [onReady].
+   * Переиспользует существующий чат этого агента, если он есть, — иначе каждый повторный вход
+   * плодил бы новый пустой чат агента в списке диалогов («агенты плодят чаты»).
+   */
   fun openAgentChat(agentId: String, onReady: (String) -> Unit) {
+    // add() == false → открытие этого агента уже идёт: игнорируем повторный тап.
+    if (!opening.add(agentId)) return
     viewModelScope.launch {
-      val agent = MiniAgentCatalog.get(agentId) ?: return@launch
-      val personaId = userPreferencesRepository.getDefaultPersonaId()
-      val id = conversationRepository.createConversation(
-        title = agent.name,
-        personaId = personaId,
-        agentId = agent.id,
-      )
-      val greeting = "Это агент «${agent.name}». ${agent.description} Чем помочь?"
-      conversationRepository.addMessage(id, "assistant", greeting)
-      onReady(id)
+      try {
+        val agent = MiniAgentCatalog.get(agentId) ?: return@launch
+        val existing = conversationRepository.findLatestConversationByAgent(agent.id)
+        if (existing != null) {
+          onReady(existing.id)
+          return@launch
+        }
+        val personaId = userPreferencesRepository.getDefaultPersonaId()
+        val id = conversationRepository.createConversation(
+          title = agent.name,
+          personaId = personaId,
+          agentId = agent.id,
+        )
+        val greeting = "Это агент «${agent.name}». ${agent.description} Чем помочь?"
+        conversationRepository.addMessage(id, "assistant", greeting)
+        onReady(id)
+      } finally {
+        opening.remove(agentId)
+      }
     }
   }
 }

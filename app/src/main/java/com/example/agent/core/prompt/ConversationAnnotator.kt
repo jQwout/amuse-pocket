@@ -7,6 +7,7 @@ import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.core.llm.StreamEvent
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
+import com.aiopenpocket.agent.core.profile.stripToJsonObject
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -84,10 +85,8 @@ class ConversationAnnotator @Inject constructor(
 
   /** Pull the JSON object out of the model's reply, tolerating stray prose or code fences. */
   private fun parse(raw: String): Annotation? {
-    val start = raw.indexOf('{')
-    val end = raw.lastIndexOf('}')
-    if (start < 0 || end <= start) return null
-    return runCatching { json.decodeFromString<Annotation>(raw.substring(start, end + 1)) }.getOrNull()
+    val jsonText = stripToJsonObject(raw) ?: return null
+    return runCatching { json.decodeFromString<Annotation>(jsonText) }.getOrNull()
   }
 
   @Serializable

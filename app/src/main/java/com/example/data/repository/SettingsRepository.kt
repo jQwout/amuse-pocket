@@ -44,4 +44,12 @@ class SettingsRepository @Inject constructor(
   fun setSelectedProvider(provider: String) {
     prefs.edit().putString("selected_provider", provider).apply()
   }
+
+  /** Конкретная NIM-модель, выбранная вручную в Настройках. "AUTO" — по приоритету из models.json. */
+  fun getSelectedModel(): String =
+    prefs.getString("selected_model", "AUTO") ?: "AUTO"
+
+  fun setSelectedModel(model: String) {
+    prefs.edit().putString("selected_model", model).apply()
+  }
 }

@@ -94,7 +94,9 @@ data class LessonStep(
 data class LessonQuizQuestion(
   val q: String,
   val options: List<String> = emptyList(),
-  val correct: Int = 0,
+  // -1, а не 0: при отсутствующем/битом correct не помечаем первый вариант как «правильный»
+  // (см. коммит f646e64, тот же класс бага для sort/scenario).
+  val correct: Int = -1,
   val explain: String = "",
 )
 

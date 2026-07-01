@@ -174,6 +174,10 @@ class OnboardingViewModel(
                         currentStep = OnboardingStep.WRAPUP,
                     )
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // Экран покинут (навигация/пересоздание ViewModel) — не глотаем отмену, иначе она
+                // тратится на обновление state уже уничтожаемой VM вместо нормального распространения.
+                throw e
             } catch (e: Exception) {
                 _state.update {
                     it.copy(

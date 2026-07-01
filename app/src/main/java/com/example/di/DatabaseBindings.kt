@@ -24,7 +24,7 @@ object DatabaseBindings {
     @SingleIn(AppScope::class)
     fun provideDatabase(application: Application): AppDatabase =
         Room.databaseBuilder(application, AppDatabase::class.java, "queen_chat_db")
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
             .fallbackToDestructiveMigration()
             .build()
 
@@ -90,11 +90,6 @@ object DatabaseBindings {
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_wiki_links_toPageId` ON `wiki_links` (`toPageId`)")
     }
 
-    // Bind a conversation to a mini-agent: scopes its tools + role. Nullable, default null.
-    val MIGRATION_7_8 = Migration(7, 8) { db ->
-        db.execSQL("ALTER TABLE conversations ADD COLUMN agentId TEXT")
-    }
-
     // Knowledge base reframed onto conversations: drop the separate wiki store, tag conversations
     // directly. Relatedness is tag overlap, so there is no link table. DDL must match Room's
     // generated schema for ConversationTagEntity exactly, or runtime validation will throw.
@@ -112,5 +107,15 @@ object DatabaseBindings {
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_conversation_tags_tag` ON `conversation_tags` (`tag`)")
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_conversation_tags_conversationId` ON `conversation_tags` (`conversationId`)")
+    }
+
+    // Bind a conversation to a mini-agent: scopes its tools + role. Nullable, default null.
+    val MIGRATION_7_8 = Migration(7, 8) { db ->
+        db.execSQL("ALTER TABLE conversations ADD COLUMN agentId TEXT")
+    }
+
+    // Избранные диалоги: флаг, по которому они всплывают в начало списка.
+    val MIGRATION_8_9 = Migration(8, 9) { db ->
+        db.execSQL("ALTER TABLE conversations ADD COLUMN isFavorite INTEGER NOT NULL DEFAULT 0")
     }
 }
