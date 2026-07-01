@@ -24,6 +24,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -70,6 +71,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -96,6 +98,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
@@ -181,28 +184,63 @@ fun ChatScreen(
     // как первый автоскролл к низу отработал. Сбрасывается при смене диалога.
     var initialScrollDone by remember(conversationId) { mutableStateOf(false) }
 
-    // Новое сообщение (своё или ответ) либо старт/конец стрима — подскролл к низу. Ключ — id ПОСЛЕДНЕГО
-    // сообщения (а не размер списка): подгрузка старых растит ленту сверху, последнего не меняет — и низ
-    // дёргать не нужно.
+    // --- Прилипание к низу (pinnedToBottom) — единственный источник истины для ВСЕХ автоскроллов. ---
+    // Отлипаем только на пользовательском ЖЕСТЕ (начало драга): раньше «у низа?» проверялось как
+    // «последний итем хоть частично видим», и во время стрима длинного ответа (пузырь выше экрана)
+    // любая попытка проскроллить вверх внутри пузыря переигрывалась следующим токеном — пользователь
+    // был заперт у низа до конца стрима. Прилипаем обратно, когда лента остановилась на самом низу.
+    var pinnedToBottom by remember(conversationId) { mutableStateOf(true) }
+    // «Пришло новое, пока читаем историю» — подсветка FAB вместо принудительного прыжка вниз.
+    var hasUnseenNew by remember(conversationId) { mutableStateOf(false) }
+
+    LaunchedEffect(listState) {
+        listState.interactionSource.interactions.collect { interaction ->
+            if (interaction is DragInteraction.Start) pinnedToBottom = false
+        }
+    }
+    // Прилип обратно: лента неподвижна и докручена до последнего пикселя (включая конец инерции).
+    // Программные скроллы DragInteraction не эмитят, поэтому автоскролл сам себя не отлепляет.
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress to listState.canScrollForward }
+            .collect { (scrolling, canScrollFwd) ->
+                if (!scrolling && !canScrollFwd && listState.layoutInfo.totalItemsCount > 0) {
+                    pinnedToBottom = true
+                    hasUnseenNew = false
+                }
+            }
+    }
+    // Выход из поиска: могли остаться посреди истории у найденного совпадения — прилипание
+    // пересчитываем по факту, чтобы следующий ответ не дёргал читателя вниз.
+    LaunchedEffect(searchActive) {
+        if (!searchActive) pinnedToBottom = !listState.canScrollForward
+    }
+
+    // Новое сообщение либо старт/конец стрима. Ключ — id ПОСЛЕДНЕГО сообщения (а не размер списка):
+    // подгрузка старых растит ленту сверху, последнего не меняет — и низ дёргать не нужно.
+    // К низу скроллим ТОЛЬКО когда прилипли; иначе не дёргаем читателя истории, а помечаем «есть новое».
+    // Исключение — собственное сообщение: оно всегда возвращает к низу (стандарт мессенджеров).
     LaunchedEffect(state.messages.lastOrNull()?.id, hasStreamingItem) {
         if (searchActive) return@LaunchedEffect // во время поиска не перебиваем подскролл к совпадению
+        if (state.messages.lastOrNull()?.role == "user") pinnedToBottom = true
         val target = lastItemIndex()
-        // scrollOffset = Int.MAX_VALUE — докрутка до САМОГО низа: обычный scrollToItem(target) выравнивает
-        // только верх целевого элемента по верху вьюпорта, и длинный ответ (выше экрана) остаётся обрезан
-        // снизу. Недостижимый оффсет LazyListState сам клэмпит до максимально возможного скролла.
-        if (target >= 0) listState.scrollToItem(target, Int.MAX_VALUE)
-        initialScrollDone = true
+        if (pinnedToBottom) {
+            // scrollOffset = Int.MAX_VALUE — докрутка до САМОГО низа: обычный scrollToItem(target)
+            // выравнивает верх элемента по верху вьюпорта, и длинный ответ оставался обрезан снизу.
+            // Недостижимый оффсет LazyListState сам клэмпит до максимально возможного скролла.
+            if (target >= 0) listState.scrollToItem(target, Int.MAX_VALUE)
+        } else if (state.messages.isNotEmpty()) {
+            hasUnseenNew = true
+        }
+        if (state.messages.isNotEmpty()) initialScrollDone = true
     }
-    // Во время стрима держим низ в зоне видимости — но только если пользователь уже у низа. Подписываемся
-    // ПРЯМО на поток токенов (не через state), поэтому дельты не рекомпозируют экран; «у низа?» считаем по
-    // свежему layoutInfo, без устаревшего захвата состояния.
+    // Во время стрима держим низ в зоне видимости — но только пока прилипли. Подписываемся ПРЯМО на
+    // поток токенов (не через state), поэтому дельты не рекомпозируют экран.
     LaunchedEffect(listState) {
         viewModel.streamingText.collect {
             if (searchActive) return@collect
+            if (!pinnedToBottom) return@collect
             val info = listState.layoutInfo
-            val last = info.visibleItemsInfo.lastOrNull()
-            val atBottomNow = last == null || last.index >= info.totalItemsCount - 1
-            if (atBottomNow && info.totalItemsCount > 0) {
+            if (info.totalItemsCount > 0) {
                 listState.scrollToItem(info.totalItemsCount - 1, Int.MAX_VALUE)
             }
         }
@@ -370,7 +408,12 @@ fun ChatScreen(
                 // верха с пустотой над полем ввода — как в обычных мессенджерах.
                 LazyColumn(
                     state = listState,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        // До первого автоскролла к низу ленту не показываем: LazyColumn рождается на
+                        // индексе 0 (старые сообщения), и до снапа юзер видел вспышку начала истории.
+                        // graphicsLayer читает флаг на фазе рисования — смена не рекомпозирует ленту.
+                        .graphicsLayer { alpha = if (initialScrollDone) 1f else 0f },
                     verticalArrangement = Arrangement.Bottom,
                 ) {
                     items(
@@ -572,11 +615,10 @@ fun ChatScreen(
             }
         }
 
-        // Плавающая кнопка быстрого скролла вниз — когда уехали вверх по истории. Была случайно
-        // закомментирована (мёртвый код) — без неё не было явного способа быстро вернуться к низу
-        // после скролла по истории, из чего тоже складывалось ощущение «скролл не работает».
-        // Отступ снизу увеличен (96dp вместо 16dp): поле ввода теперь всегда внизу экрана, и без
-        // этого запаса FAB садился прямо поверх кнопки «Отправить» в поле ввода.
+        // Плавающая кнопка быстрого скролла вниз — когда уехали вверх по истории. Отступ снизу
+        // увеличен (96dp вместо 16dp): поле ввода всегда внизу экрана, и без этого запаса FAB
+        // садился прямо поверх кнопки «Отправить». Когда во время чтения истории пришло новое
+        // сообщение, кнопка подсвечивается акцентом (вместо прежнего принудительного прыжка вниз).
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -587,10 +629,30 @@ fun ChatScreen(
         ) {
             AnimatedVisibility(visible = showScrollDown) {
                 SmallFloatingActionButton(
-                    onClick = { scope.launch { listState.animateScrollToItem(lastItemIndex().coerceAtLeast(0)) } },
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    onClick = {
+                        pinnedToBottom = true
+                        hasUnseenNew = false
+                        // Оффсет MAX_VALUE — до самого низа (см. комментарий у автоскролла): без него
+                        // длинное последнее сообщение выравнивалось верхом и низ оставался обрезан.
+                        scope.launch {
+                            listState.animateScrollToItem(lastItemIndex().coerceAtLeast(0), Int.MAX_VALUE)
+                        }
+                    },
+                    containerColor = if (hasUnseenNew) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    },
                 ) {
-                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Вниз")
+                    Icon(
+                        Icons.Default.KeyboardArrowDown,
+                        contentDescription = if (hasUnseenNew) "Вниз — есть новое сообщение" else "Вниз",
+                        tint = if (hasUnseenNew) {
+                            MaterialTheme.colorScheme.onPrimary
+                        } else {
+                            LocalContentColor.current
+                        },
+                    )
                 }
             }
         }
