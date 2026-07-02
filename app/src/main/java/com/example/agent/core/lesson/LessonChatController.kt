@@ -159,7 +159,7 @@ class LessonChatController(
   /** "scenario": ситуативный вопрос с одним правильным вариантом (correct — целое). */
   private fun buildScenarioCardSpec(step: LessonStep): String {
     // -1, а не 0: при отсутствующем/битом correct не помечаем первый вариант как «правильный».
-    val correctIndex = (step.correct as? JsonPrimitive)?.intOrNull ?: -1
+    val correctIndex = step.scenarioCorrectIndex()
     val params = JSONObject()
       .put("situation", step.situation)
       .put("q", step.q)
