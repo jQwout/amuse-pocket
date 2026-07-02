@@ -27,6 +27,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -188,10 +189,19 @@ fun ChatScreen(
     var pinnedToBottom by remember(conversationId) { mutableStateOf(true) }
     // «Пришло новое, пока читаем историю» — подсветка FAB вместо принудительного прыжка вниз.
     var hasUnseenNew by remember(conversationId) { mutableStateOf(false) }
+    // Стрим-ход в стиле ChatGPT/Claude: при отправке вопроса он уезжает к ВЕРХУ экрана, снизу
+    // резервируется пустое место (tail-spacer в ленте), и ответ «печатается» в него сверху вниз —
+    // лента не дёргается за каждым токеном, и после ответа не нужно скроллить. Флаг активен от
+    // отправки вопроса до конца хода; сбрасывается пользовательским жестом (юзер сам взял
+    // управление) и сменой диалога.
+    var streamAnchorActive by remember(conversationId) { mutableStateOf(false) }
 
     LaunchedEffect(listState) {
         listState.interactionSource.interactions.collect { interaction ->
-            if (interaction is DragInteraction.Start) pinnedToBottom = false
+            if (interaction is DragInteraction.Start) {
+                pinnedToBottom = false
+                streamAnchorActive = false
+            }
         }
     }
     // Прилип обратно: лента неподвижна и докручена до последнего пикселя (включая конец инерции).
@@ -213,33 +223,35 @@ fun ChatScreen(
 
     // Новое сообщение либо старт/конец стрима. Ключ — id ПОСЛЕДНЕГО сообщения (а не размер списка):
     // подгрузка старых растит ленту сверху, последнего не меняет — и низ дёргать не нужно.
-    // К низу скроллим ТОЛЬКО когда прилипли; иначе не дёргаем читателя истории, а помечаем «есть новое».
-    // Исключение — собственное сообщение: оно всегда возвращает к низу (стандарт мессенджеров).
     LaunchedEffect(state.messages.lastOrNull()?.id, hasStreamingItem) {
         if (searchActive) return@LaunchedEffect // во время поиска не перебиваем подскролл к совпадению
-        if (state.messages.lastOrNull()?.role == "user") pinnedToBottom = true
-        val target = lastItemIndex()
-        if (pinnedToBottom) {
-            // scrollOffset = Int.MAX_VALUE — докрутка до САМОГО низа: обычный scrollToItem(target)
-            // выравнивает верх элемента по верху вьюпорта, и длинный ответ оставался обрезан снизу.
-            // Недостижимый оффсет LazyListState сам клэмпит до максимально возможного скролла.
-            if (target >= 0) listState.scrollToItem(target, Int.MAX_VALUE)
-        } else if (state.messages.isNotEmpty()) {
-            hasUnseenNew = true
+        val last = state.messages.lastOrNull()
+        when {
+            // СТАРТ ХОДА: пользователь отправил вопрос, пошёл стрим. Прибиваем вопрос к верху экрана —
+            // ответ будет «печататься» ниже, в зарезервированный tail-spacer (см. LazyColumn), а не
+            // толкать ленту снизу. scrollToItem(qIndex, 0): вопрос ровно у верхней кромки.
+            last?.role == "user" && hasStreamingItem -> {
+                streamAnchorActive = true
+                val qIndex = state.messages.lastIndex
+                if (qIndex >= 0) listState.scrollToItem(qIndex, 0)
+            }
+            // КОНЕЦ ХОДА: ответ сохранён, стрим-пузырь снят. НЕ дёргаем ленту вниз — оставляем ответ
+            // там, где его читают; прилипание пересчитываем по фактической позиции.
+            streamAnchorActive && !hasStreamingItem -> {
+                streamAnchorActive = false
+                pinnedToBottom = !listState.canScrollForward
+            }
+            // Обычный путь (не стрим-ход: урок постит сообщение, приходит чужое и т.п.): к низу —
+            // только когда прилипли; иначе метим «есть новое» (подсветка FAB).
+            pinnedToBottom -> {
+                // scrollOffset = Int.MAX_VALUE — докрутка до САМОГО низа: обычный scrollToItem(target)
+                // выравнивает верх элемента по верху вьюпорта, и длинный ответ оставался обрезан снизу.
+                val target = lastItemIndex()
+                if (target >= 0) listState.scrollToItem(target, Int.MAX_VALUE)
+            }
+            state.messages.isNotEmpty() -> hasUnseenNew = true
         }
         if (state.messages.isNotEmpty()) initialScrollDone = true
-    }
-    // Во время стрима держим низ в зоне видимости — но только пока прилипли. Подписываемся ПРЯМО на
-    // поток токенов (не через state), поэтому дельты не рекомпозируют экран.
-    LaunchedEffect(listState) {
-        viewModel.streamingText.collect {
-            if (searchActive) return@collect
-            if (!pinnedToBottom) return@collect
-            val info = listState.layoutInfo
-            if (info.totalItemsCount > 0) {
-                listState.scrollToItem(info.totalItemsCount - 1, Int.MAX_VALUE)
-            }
-        }
     }
 
     // Поиск: при смене текущего совпадения подскроллить к нему.
@@ -257,12 +269,16 @@ fun ChatScreen(
     // запускал следующую догрузку — рекурсивный шторм релейаутов прямо под пальцем. Внешне это и
     // выглядело как «скролл не работает»: лента постоянно перестраивалась вместо обычной прокрутки.
     var pendingAnchorId by remember { mutableStateOf<String?>(null) }
+    // Размер ленты в момент запроса догрузки: по нему отличаем нашу догрузку от постороннего
+    // переэмита того же окна (touch updatedAt, фоновая аннотация).
+    var anchorRequestSize by remember { mutableStateOf(0) }
     LaunchedEffect(listState) {
         snapshotFlow { listState.firstVisibleItemIndex to listState.isScrollInProgress }
             .collect { (index, scrolling) ->
                 if (scrolling && index <= 2 && initialScrollDone && state.hasMoreOlder &&
                     pendingAnchorId == null && !searchActive
                 ) {
+                    anchorRequestSize = state.messages.size
                     pendingAnchorId = state.messages.getOrNull(index)?.id
                     viewModel.loadOlderMessages()
                 }
@@ -270,6 +286,15 @@ fun ChatScreen(
     }
     LaunchedEffect(state.messages) {
         val anchor = pendingAnchorId ?: return@LaunchedEffect
+        // Посторонний переэмит того же окна (размер не вырос, якорь на месте, старые ещё есть) — НЕ
+        // наша догрузка: держим якорь, иначе он сбрасывался бы, не дождавшись префикса, и лента
+        // «съедала» жест догрузки. Ждём эмит, где окно реально выросло сверху (или дошли до самых старых).
+        if (state.messages.size == anchorRequestSize &&
+            state.hasMoreOlder &&
+            state.messages.any { it.id == anchor }
+        ) {
+            return@LaunchedEffect
+        }
         val newIndex = state.messages.indexOfFirst { it.id == anchor }
         // Старые приклеились сверху — мгновенно (без анимации) возвращаем якорь на прежнее место.
         if (newIndex > listState.firstVisibleItemIndex) {
@@ -406,13 +431,17 @@ fun ChatScreen(
                 // Лента сообщений — сверху, занимает всё свободное место. Свежие сообщения снизу.
                 // Arrangement.Bottom: короткий чат (меньше экрана) прижимается к низу, а не висит у
                 // верха с пустотой над полем ввода — как в обычных мессенджерах.
-                LazyColumn(
+                BoxWithConstraints(modifier = Modifier.weight(1f)) {
+                  // Высота вьюпорта ленты — размер tail-spacer'а стрим-хода: полный экран, чтобы вопрос
+                  // гарантированно дотягивался до самого верха, а ответ рос в резерв сверху вниз.
+                  val tailSpacerHeight = maxHeight
+                  LazyColumn(
                     state = listState,
                     modifier = Modifier
-                        .weight(1f)
-                        // До первого автоскролла к низу ленту не показываем: LazyColumn рождается на
-                        // индексе 0 (старые сообщения), и до снапа юзер видел вспышку начала истории.
-                        // graphicsLayer читает флаг на фазе рисования — смена не рекомпозирует ленту.
+                        .fillMaxSize()
+                        // До первого автоскролла ленту не показываем: LazyColumn рождается на индексе 0
+                        // (старые сообщения), и до снапа юзер видел вспышку начала истории. graphicsLayer
+                        // читает флаг на фазе рисования — смена не рекомпозирует ленту.
                         .graphicsLayer { alpha = if (initialScrollDone) 1f else 0f },
                     verticalArrangement = Arrangement.Bottom,
                 ) {
@@ -467,7 +496,13 @@ fun ChatScreen(
                                 isWaiting = streamingText.isEmpty(),
                             )
                         }
+                        // Резерв под ответ: пустое место в высоту экрана, чтобы вопрос прибился к верху,
+                        // а ответ рос в него сверху вниз. Исчезает вместе с концом хода (hasStreamingItem).
+                        item(key = "tail_spacer") {
+                            Spacer(Modifier.height(tailSpacerHeight))
+                        }
                     }
+                  }
                 }
 
                 if (state.showToolTrace && state.toolTrace.isNotEmpty()) {
@@ -627,7 +662,9 @@ fun ChatScreen(
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            AnimatedVisibility(visible = showScrollDown) {
+            // Во время хода FAB прячем: снизу висит tail-spacer, поэтому canScrollForward всегда true
+            // (иначе кнопка «вниз» маячила бы на каждом ответе и вела бы в пустой резерв).
+            AnimatedVisibility(visible = showScrollDown && !hasStreamingItem) {
                 SmallFloatingActionButton(
                     onClick = {
                         pinnedToBottom = true
