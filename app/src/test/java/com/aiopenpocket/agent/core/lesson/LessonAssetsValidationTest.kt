@@ -159,8 +159,8 @@ class LessonAssetsValidationTest {
             "scenario" -> {
               // ScenarioCardView без вариантов не кликается, а кнопки «Дальше» у scenario нет.
               if (step.options.isEmpty()) err("нет options — нечего тапнуть, урок зависнет")
-              val correct = (step.correct as? JsonPrimitive)?.intOrNull
-              if (correct == null || correct !in step.options.indices) {
+              // scenarioCorrectIndex() = тот же декод, что и у рендерера: -1 при отсутствии/битом ключе.
+              if (step.scenarioCorrectIndex() !in step.options.indices) {
                 err("correct=${step.correct} вне 0..${step.options.size - 1}")
               }
             }
@@ -182,6 +182,30 @@ class LessonAssetsValidationTest {
   }
 
   /**
+   * Все «карточки с выбором варианта», которые рендерер тасует: quiz-вопросы и scenario-шаги
+   * уроков плюс хардкодные квизы роадмапа/онбординга. Один обход — чтобы новый тип шага с
+   * вариантами нельзя было завести мимо option-level линтов ниже (иначе они молча его пропустят).
+   * Каждый элемент: (место, варианты, 0-based индекс правильного).
+   */
+  private fun optionSets(): List<Triple<String, List<String>, Int>> = buildList {
+    parsedLessons().forEach { (file, lesson) ->
+      lesson.steps.forEachIndexed { i, step ->
+        when (step.type) {
+          "quiz" -> step.questions.forEachIndexed { qi, q ->
+            add(Triple("${file.name} шаг $i вопрос $qi", q.options, q.correct))
+          }
+          "scenario" -> add(Triple("${file.name} шаг $i (scenario)", step.options, step.scenarioCorrectIndex()))
+        }
+      }
+    }
+    LESSON_QUIZZES.forEach { (levelId, questions) ->
+      questions.forEachIndexed { qi, q ->
+        add(Triple("LESSON_QUIZZES[$levelId] вопрос $qi", q.options, q.correctIndex))
+      }
+    }
+  }
+
+  /**
    * Рендер перемешивает варианты (stableShuffledIndices), но длину он не спрячет: в авторском
    * контенте правильный ответ был кратно длиннее дистракторов, и квиз решался правилом «жми самую
    * длинную кнопку» без чтения. Порог мягкий: дистракторам можно быть и длиннее правильного,
@@ -200,26 +224,8 @@ class LessonAssetsValidationTest {
 
   @Test
   fun `correct option must not be the giveaway-longest`() {
-    val errors = buildList {
-      parsedLessons().forEach { (file, lesson) ->
-        lesson.steps.forEachIndexed { i, step ->
-          when (step.type) {
-            "quiz" -> step.questions.forEachIndexed { qi, q ->
-              lengthGiveaway(q.options, q.correct)?.let { add("${file.name} шаг $i вопрос $qi: $it") }
-            }
-            "scenario" -> {
-              val correct = (step.correct as? JsonPrimitive)?.intOrNull ?: -1
-              lengthGiveaway(step.options, correct)?.let { add("${file.name} шаг $i (scenario): $it") }
-            }
-          }
-        }
-      }
-      // Тот же контракт для хардкодных квизов роадмапа/онбординга.
-      LESSON_QUIZZES.forEach { (levelId, questions) ->
-        questions.forEachIndexed { qi, q ->
-          lengthGiveaway(q.options, q.correctIndex)?.let { add("LESSON_QUIZZES[$levelId] вопрос $qi: $it") }
-        }
-      }
+    val errors = optionSets().mapNotNull { (location, options, correct) ->
+      lengthGiveaway(options, correct)?.let { "$location: $it" }
     }
     assertTrue(errors.joinToString("\n"), errors.isEmpty())
   }
