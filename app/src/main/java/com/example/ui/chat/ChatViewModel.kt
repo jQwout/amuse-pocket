@@ -16,7 +16,6 @@ import com.aiopenpocket.agent.loop.AgentEvent
 import com.aiopenpocket.agent.loop.AgentLoopOrchestrator
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.loop.AgentState
-import com.aiopenpocket.agent.loop.PlanExecuteOrchestrator
 import com.aiopenpocket.data.repository.SettingsRepository
 import com.aiopenpocket.di.AppScope
 import com.aiopenpocket.voice.input.VoiceInputController
@@ -49,8 +48,6 @@ import kotlinx.coroutines.withContext
 class ChatViewModel(
     private val conversationRepository: ConversationRepository,
     private val agentLoop: AgentLoopOrchestrator,
-    // Plan-and-Execute остаётся в коде, но больше не на кнопке план-мода (её заменил agentMode-гейт).
-    private val planExecuteOrchestrator: PlanExecuteOrchestrator,
     private val settingsRepository: SettingsRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val lessonRepository: LessonRepository,

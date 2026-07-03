@@ -41,7 +41,6 @@ class SettingsViewModel(
           nvidiaKey = settingsRepository.getApiKey("NVIDIA"),
           groqKey = settingsRepository.getApiKey("GROQ"),
           githubKey = settingsRepository.getApiKey("GITHUB"),
-          selectedProvider = settingsRepository.getSelectedProvider(),
           selectedModel = settingsRepository.getSelectedModel(),
           availableModels = listOf("AUTO") + catalog.models.map { it.name },
           personaId = userPreferencesRepository.getDefaultPersonaId(),
@@ -64,10 +63,6 @@ class SettingsViewModel(
     _state.update { it.copy(githubKey = key, saved = false) }
   }
 
-  fun updateProvider(provider: String) {
-    _state.update { it.copy(selectedProvider = provider, saved = false) }
-  }
-
   fun updateModel(model: String) {
     _state.update { it.copy(selectedModel = model, saved = false) }
   }
@@ -85,7 +80,6 @@ class SettingsViewModel(
     settingsRepository.setApiKey("NVIDIA", current.nvidiaKey)
     settingsRepository.setApiKey("GROQ", current.groqKey)
     settingsRepository.setApiKey("GITHUB", current.githubKey)
-    settingsRepository.setSelectedProvider(current.selectedProvider)
     settingsRepository.setSelectedModel(current.selectedModel)
     viewModelScope.launch {
       // «Сохранено» показываем только после реальной записи в DataStore (suspend), а не до неё.
@@ -94,7 +88,7 @@ class SettingsViewModel(
       // ...и только если пользователь не успел изменить поля во время записи (иначе соврём «Сохранено»).
       _state.update { s ->
         val unchanged = s.nvidiaKey == current.nvidiaKey && s.groqKey == current.groqKey &&
-          s.githubKey == current.githubKey && s.selectedProvider == current.selectedProvider &&
+          s.githubKey == current.githubKey &&
           s.selectedModel == current.selectedModel &&
           s.personaId == current.personaId && s.goalMaxIterations == current.goalMaxIterations
         if (unchanged) s.copy(saved = true) else s

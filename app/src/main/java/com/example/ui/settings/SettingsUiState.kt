@@ -6,7 +6,6 @@ data class SettingsUiState(
   val nvidiaKey: String = "",
   val groqKey: String = "",
   val githubKey: String = "",
-  val selectedProvider: String = "AUTO",
   /** Конкретная NIM-модель ("AUTO" — по приоритету из models.json). */
   val selectedModel: String = "AUTO",
   /** Модели из каталога (models.json), отсортированные по приоритету — опции для выбора. */

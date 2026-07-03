@@ -2,8 +2,8 @@
   "version": 1,
   "features": {
     "agent-memory-05e545": {
-      "hash": "a592b21b6616",
-      "git": "4ddf435"
+      "hash": "3faf3e5d3de2",
+      "git": "3d61a5b"
     },
     "agent-skills-7189cc": {
       "hash": "6d1595097f23",
@@ -14,8 +14,8 @@
       "git": "92b9cbb"
     },
     "app-settings-beb470": {
-      "hash": "547babbd033c",
-      "git": "afd92b7"
+      "hash": "a1c8fc4e76a7",
+      "git": "3d61a5b"
     },
     "background-tasks-15a34a": {
       "hash": "0d44e2161dfe",
@@ -38,24 +38,24 @@
       "git": "afd92b7"
     },
     "multi-chat-conversations-b3c93b": {
-      "hash": "4861ed6d0178",
-      "git": "4ddf435"
+      "hash": "be3f4fd32d00",
+      "git": "3d61a5b"
     },
     "rezhimy-agenta-plan-i-goal-ee2361": {
       "hash": "93720f3554e2",
       "git": "4ddf435"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "337cfce2413c",
-      "git": "4ddf435"
+      "hash": "a863b6b3a2c3",
+      "git": "b7038af"
     },
     "swappable-persona-e5e65e": {
       "hash": "ac831590d00d",
       "git": "afd92b7"
     },
     "uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2": {
-      "hash": "7fdf88a6d6ff",
-      "git": "4ddf435"
+      "hash": "27ee92298a32",
+      "git": "3d61a5b"
     },
     "voice-input-1a0dfd": {
       "hash": "ec70865aeaa7",

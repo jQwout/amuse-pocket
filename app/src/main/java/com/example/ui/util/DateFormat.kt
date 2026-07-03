@@ -5,9 +5,12 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-private val DATE_TIME = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
+// ThreadLocal: SimpleDateFormat не потокобезопасен, а formatDateTime — публичная util (может
+// вызываться не только с Main). Общий mutable-инстанс при конкурентном format() давал искажённые
+// даты/AIOOBE; ThreadLocal даёт по инстансу на поток без аллокации на каждый вызов.
+private val DATE_TIME = ThreadLocal.withInitial { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
 
-fun formatDateTime(timestamp: Long): String = DATE_TIME.format(Date(timestamp))
+fun formatDateTime(timestamp: Long): String = DATE_TIME.get()!!.format(Date(timestamp))
 
 /** Сегодня/Вчера с временем, иначе «N дней назад» или дата. */
 fun formatRelativeDate(timestamp: Long): String {

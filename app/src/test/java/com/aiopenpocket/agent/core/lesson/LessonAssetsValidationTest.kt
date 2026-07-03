@@ -164,7 +164,9 @@ class LessonAssetsValidationTest {
               }
             }
 
-            "input" -> if (step.prompt.isBlank()) err("пустой prompt — пустой пузырь")
+            // Рантайм (LessonChatController.textForStep) берёт prompt ИЛИ hint — пустой пузырь
+            // только когда пусты оба (как и для challenge ниже).
+            "input" -> if (step.prompt.isBlank() && step.hint.isBlank()) err("пустые prompt и hint — пустой пузырь")
 
             "challenge" -> if (step.instruction.isBlank() && step.task.isBlank()) err("пустые instruction/task — пустой пузырь")
 

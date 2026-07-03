@@ -62,7 +62,10 @@ fun MarkdownText(
   // рендерим лёгким Text. Тяжёлый AST-рендер Markdown измеряется не за один кадр — из-за этого при
   // быстром скролле пузырь сперва появлялся пустым, а текст «доезжал» следующим кадром, и лента
   // прыгала. Цвет берём как у Markdown m3 (onBackground), чтобы обычные и markdown-пузыри совпадали.
-  if (!looksLikeMarkdown(text)) {
+  // Скан кэшируем по тексту: без remember он гонялся бы на КАЖДУЮ рекомпозицию пузыря (подсветка
+  // поиска, панель действий, пин, смена окна) — O(n) по всей строке на каждый кадр.
+  val isMarkdown = remember(text) { looksLikeMarkdown(text) }
+  if (!isMarkdown) {
     val style = if (compact) typo.bodySmall else typo.bodyLarge
     val plain: @Composable () -> Unit = {
       Text(

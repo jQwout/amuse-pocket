@@ -105,6 +105,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.aiopenpocket.agent.core.memory.model.Message
@@ -113,6 +114,7 @@ import com.aiopenpocket.ui.chat.components.MicButton
 import com.aiopenpocket.ui.chat.components.ToolTracePanel
 import com.aiopenpocket.ui.components.MarkdownText
 import com.aiopenpocket.ui.components.StreamingBubble
+import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.voice.input.VoiceInputState
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import kotlinx.coroutines.launch
@@ -1476,5 +1478,247 @@ private fun FullScreenComposer(
             }
         }
     }
+}
+
+// ==================================================================================================
+// Превью экрана чата (панель Android Studio / скриншот-тесты). Рендерят ВИЗУАЛЬНЫЙ каркас на фейковых
+// данных без ViewModel/DI/сети — тот же MyApplicationTheme и те же stateless-пузыри (MessageBubble/
+// StreamingBubble), что и в бою. Скролл-эффекты настоящего ChatScreen требуют рантайма и в превью
+// не участвуют — здесь смотрим именно КАК ВЫГЛЯДИТ чат в разных состояниях.
+// ==================================================================================================
+
+/** Фейковое сообщение для превью. id включает cardSpec, чтобы карточки-«пустышки» не совпадали ключами. */
+internal fun previewMessage(
+    role: String,
+    content: String,
+    cardSpec: String? = null,
+    isPinned: Boolean = false,
+) = Message(
+    id = "$role-${content.hashCode()}-${cardSpec?.hashCode() ?: 0}",
+    conversationId = "preview",
+    role = role,
+    content = content,
+    toolCallsJson = null,
+    cardSpec = cardSpec,
+    isPinned = isPinned,
+    createdAt = 0L,
+)
+
+/**
+ * Каркас чата для превью: закреплённая шапка + лента пузырей (+ опц. стрим-пузырь, стат-бар, ошибка)
+ * + мок поля ввода. Настоящий [ChatInput] тянет rememberLauncherForActivityResult, который падает в
+ * @Preview без ActivityResultRegistry, поэтому ввод здесь — визуальная заглушка [PreviewComposerBar].
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun ChatPreviewScaffold(
+    title: String,
+    messages: List<Message>,
+    interactiveCards: Boolean = false,
+    streamingText: String? = null,
+    streamingWaiting: Boolean = false,
+    stats: ResponseStats? = null,
+    error: String? = null,
+    showInput: Boolean = true,
+) {
+    MyApplicationTheme {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    Icons.Default.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = {}) {
+                            Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Назад")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = {}) {
+                            Icon(Icons.Default.Search, contentDescription = "Поиск", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    },
+                )
+            },
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+            ) {
+                if (stats != null) {
+                    ResponseStatsBar(stats = stats, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+                }
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.Bottom,
+                ) {
+                    items(messages, key = { it.id }) { m ->
+                        MessageBubble(message = m, onTogglePin = {}, interactiveCards = interactiveCards)
+                    }
+                    if (streamingText != null || streamingWaiting) {
+                        item(key = "streaming") {
+                            StreamingBubble(
+                                text = streamingText.orEmpty(),
+                                showCursor = !streamingText.isNullOrEmpty(),
+                                isWaiting = streamingWaiting,
+                            )
+                        }
+                    }
+                }
+                if (error != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f))
+                        TextButton(onClick = {}) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.size(4.dp))
+                            Text("Повторить")
+                        }
+                    }
+                }
+                if (showInput) PreviewComposerBar()
+            }
+        }
+    }
+}
+
+/** Статичная визуальная заглушка поля ввода (без микрофона/лаунчеров) — только для превью. */
+@Composable
+private fun PreviewComposerBar(placeholder: String = "Сообщение...") {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.7f), RoundedCornerShape(24.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Text(
+            placeholder,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+            modifier = Modifier.padding(4.dp),
+        )
+        Spacer(Modifier.height(6.dp))
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.OpenInFull, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.weight(1f))
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.AutoMirrored.Default.Send, contentDescription = "Отправить", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+internal val previewChatMessages = listOf(
+    previewMessage("user", "Привет! Помоги составить план на неделю."),
+    previewMessage(
+        "assistant",
+        "Конечно. Вот черновик:\n\n- **Пн** — планирование\n- **Вт** — глубокая работа\n- **Ср** — встречи\n\nПоправить под тебя?",
+    ),
+    previewMessage("user", "Добавь спорт по утрам."),
+    previewMessage("assistant", "Готово — добавил утренние тренировки во все будни. Ещё что-нибудь?", isPinned = true),
+)
+
+/** Шаги урока с интерактивными карточками — общие для @Preview и скриншот-теста. */
+internal val previewLessonMessages = listOf(
+    previewMessage("assistant", "Разберём, из чего состоит твой запрос к модели."),
+    previewMessage(
+        "assistant", "",
+        cardSpec = """{"template":"concept","params":{"term":"Промпт","definition":"Твой запрос к модели — то, что ты пишешь в чат.","example":"«составь план на неделю»"}}""",
+    ),
+    previewMessage(
+        "assistant", "",
+        cardSpec = """{"template":"reveal","params":{"question":"Что модель видит перед твоим сообщением?","answer":"Препромпт — скрытую инструкцию: правила и выбранную персону."}}""",
+    ),
+    previewMessage(
+        "assistant", "",
+        cardSpec = """{"template":"lesson_quiz","params":{"questions":[{"q":"Что такое промпт?","options":["Твой запрос к модели","Список всех файлов","Ничего не отправляется"],"correct":0,"explain":"Промпт — это то, что ты пишешь модели."}]}}""",
+    ),
+)
+
+@Preview(name = "Чат — переписка", showBackground = true, backgroundColor = 0xFF1C1B1F, heightDp = 760)
+@Composable
+private fun ChatScreenConversationPreview() {
+    ChatPreviewScaffold(
+        title = "Чат",
+        messages = previewChatMessages,
+        stats = ResponseStats(responseTimeMs = 1840, completionTokens = 128, contextTokensUsed = 3200),
+    )
+}
+
+@Preview(name = "Чат — идёт ответ", showBackground = true, backgroundColor = 0xFF1C1B1F, heightDp = 760)
+@Composable
+private fun ChatScreenStreamingPreview() {
+    ChatPreviewScaffold(
+        title = "Чат",
+        messages = listOf(previewMessage("user", "Расскажи про токены простыми словами.")),
+        streamingText = "Токен — это кусочек текста: слово или часть слова. Модель читает и пишет",
+    )
+}
+
+@Preview(name = "Чат — ждём ответ", showBackground = true, backgroundColor = 0xFF1C1B1F, heightDp = 760)
+@Composable
+private fun ChatScreenWaitingPreview() {
+    ChatPreviewScaffold(
+        title = "Чат",
+        messages = listOf(previewMessage("user", "Сколько будет 2+2?")),
+        streamingWaiting = true,
+    )
+}
+
+@Preview(name = "Чат — ошибка/повтор", showBackground = true, backgroundColor = 0xFF1C1B1F, heightDp = 760)
+@Composable
+private fun ChatScreenErrorPreview() {
+    ChatPreviewScaffold(
+        title = "Чат",
+        messages = listOf(previewMessage("user", "Проверь погоду на завтра.")),
+        error = "Модель вернула пустой ответ — попробуй ещё раз.",
+    )
+}
+
+@Preview(name = "Урок — интерактивные карточки", showBackground = true, backgroundColor = 0xFF1C1B1F, heightDp = 940)
+@Composable
+private fun ChatScreenLessonPreview() {
+    ChatPreviewScaffold(
+        title = "Как ИИ читает твой запрос",
+        interactiveCards = true,
+        showInput = false,
+        messages = previewLessonMessages,
+    )
+}
+
+@Preview(name = "Чат — пустой", showBackground = true, backgroundColor = 0xFF1C1B1F, heightDp = 760)
+@Composable
+private fun ChatScreenEmptyPreview() {
+    ChatPreviewScaffold(title = "Новый чат", messages = emptyList())
 }
 

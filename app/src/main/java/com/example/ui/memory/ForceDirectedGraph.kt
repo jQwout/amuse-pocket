@@ -57,6 +57,10 @@ fun ForceDirectedGraph(
   val posY = remember(graph) { FloatArray(nodes.size) }
   val velX = remember(graph) { FloatArray(nodes.size) }
   val velY = remember(graph) { FloatArray(nodes.size) }
+  // Силовые аккумуляторы переиспользуем между кадрами (обнуляем в начале прохода): иначе два
+  // FloatArray(N) аллоцировались бы на КАЖДЫЙ кадр (~60/сек в движении) — мусор в GC на UI-потоке.
+  val forceX = remember(graph) { FloatArray(nodes.size) }
+  val forceY = remember(graph) { FloatArray(nodes.size) }
 
   var size by remember { mutableStateOf(IntSize.Zero) }
   var dragIndex by remember(graph) { mutableIntStateOf(-1) }
@@ -109,8 +113,8 @@ fun ForceDirectedGraph(
       // Idle: nothing is moving and nobody is dragging — skip the O(n²) force pass this frame.
       if (settled && dragIndex < 0) return@LaunchedSimulation
 
-      val fx = FloatArray(nodes.size)
-      val fy = FloatArray(nodes.size)
+      val fx = forceX.also { it.fill(0f) }
+      val fy = forceY.also { it.fill(0f) }
 
       for (i in nodes.indices) {
         for (j in i + 1 until nodes.size) {
