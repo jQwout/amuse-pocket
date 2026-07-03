@@ -31,7 +31,6 @@ import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Flag
@@ -243,22 +242,8 @@ fun SettingsScreen(
         )
       }
 
-      Spacer(modifier = Modifier.height(28.dp))
-
-      SettingsSectionHeader(
-        icon = Icons.Default.Dns,
-        title = "ПРОВАЙДЕР",
-        modifier = Modifier.padding(horizontal = 20.dp),
-      )
-      Spacer(modifier = Modifier.height(12.dp))
-      SelectorCard(
-        selected = state.selectedProvider,
-        options = listOf("AUTO", "NIM", "GROQ", "GITHUB"),
-        onSelect = viewModel::updateProvider,
-        modifier = Modifier.padding(horizontal = 20.dp),
-        testTag = "settings_provider_selector",
-      )
-
+      // Выбор провайдера скрыт: runAgent всегда идёт на NIM (GROQ/GITHUB к нему не подключены),
+      // поэтому селектор был бы контролом без эффекта. Вернуть, когда провайдер начнёт применяться.
       Spacer(modifier = Modifier.height(28.dp))
 
       SettingsSectionHeader(

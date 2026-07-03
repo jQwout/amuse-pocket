@@ -42,7 +42,9 @@ class ExtractUserProfileUseCase @Inject constructor(
       name = obj.field("name"),
       preferredAddress = obj.field("preferredAddress"),
       age = obj.field("age").let(::validAgeOrBlank),
-      gender = obj.field("gender").let { if (it in VALID_GENDERS) it else "" },
+      // lowercase: модель иногда отдаёт «Мужской» с заглавной — регистронезависимый матч не теряет
+      // валидный пол (множество хранит нижний регистр).
+      gender = obj.field("gender").lowercase().let { if (it in VALID_GENDERS) it else "" },
       religion = obj.field("religion"),
       extraInfo = obj.field("extraInfo"),
     )
