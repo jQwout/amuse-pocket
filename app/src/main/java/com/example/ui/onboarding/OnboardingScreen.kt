@@ -226,6 +226,8 @@ private fun OnboardingStepBody(
                 style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(vertical = 16.dp),
             )
+            // Источник квиза онбординга — хардкод LESSON_QUIZZES, НЕ assets/lessons/l1_welcome.json
+            // (тот валидируется тестом, но не рендерится). Правки делай в LessonQuiz.kt — см. коммент там.
             QuizContent(questions = LESSON_QUIZZES["l1_welcome"].orEmpty())
             TextButton(
                 onClick = { onIntent(OnboardingIntent.NextStep) },

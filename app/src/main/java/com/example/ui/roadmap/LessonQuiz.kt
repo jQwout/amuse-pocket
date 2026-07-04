@@ -13,6 +13,12 @@ data class QuizQuestion(
 
 /** Quiz questions per roadmap level. A level with no entry simply has no quiz. */
 val LESSON_QUIZZES: Map<String, List<QuizQuestion>> = mapOf(
+  // ВНИМАНИЕ: онбординг (l1_welcome, firstRun) рендерится ЭТИМ хардкодом + хардкод-шагами
+  // OnboardingViewModel/OnboardingScreen, а НЕ assets/lessons/l1_welcome.json. JSON-версию урока
+  // валидирует LessonAssetsValidationTest, но при показе онбординга она не используется: ChatViewModel
+  // исключает l1_welcome из JSON-драйвера, а роадмап открывает его своим экраном (onReopenOnboarding).
+  // Итог: правь квиз онбординга ЗДЕСЬ — редактировать l1_welcome.json ради онбординга бесполезно,
+  // до экрана эти изменения не дойдут. (Ловушка задокументирована; см. code-review 2026-07-03.)
   "l1_welcome" to listOf(
     QuizQuestion(
       question = "Что уходит в облако при твоём запросе?",

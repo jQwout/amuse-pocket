@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AltRoute
 import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Architecture
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Check
@@ -80,8 +81,8 @@ data class RoadmapLevel(
 val ROADMAP_LEVELS = listOf(
   RoadmapLevel(
     "l1_welcome",
-    "Анатомия чата",
-    "Сообщение, препромпт, стриминг и путь данных от тебя к LLM и обратно.",
+    "Знакомство и настройка",
+    "Настрой ассистента под себя: язык, персона, профиль — и первое касание того, как устроен чат.",
     Icons.Default.WavingHand,
   ),
   RoadmapLevel(
@@ -119,6 +120,12 @@ val ROADMAP_LEVELS = listOf(
     "Когда модель ошибается",
     "Почему модель уверенно выдумывает и как ловить такие ответы.",
     Icons.Default.TrackChanges,
+  ),
+  RoadmapLevel(
+    "workflow_and_agent",
+    "Воркфлоу и агент",
+    "Два способа выстроить многошаговую задачу: заранее заданный воркфлоу и самостоятельный агент — когда брать какой.",
+    Icons.Default.AccountTree,
   ),
   RoadmapLevel(
     "react_loop",
@@ -163,12 +170,6 @@ val ROADMAP_LEVELS = listOf(
     Icons.Default.Flag,
   ),
   RoadmapLevel(
-    "workflow_and_agent",
-    "Воркфлоу и агент",
-    "Два способа выстроить многошаговую задачу: заранее заданный воркфлоу и самостоятельный агент — когда брать какой.",
-    Icons.Default.AccountTree,
-  ),
-  RoadmapLevel(
     "chaining_and_routing",
     "Паттерны: цепочка и роутинг",
     "Два базовых паттерна воркфлоу: промпт-чейнинг и роутинг задачи.",
@@ -179,6 +180,12 @@ val ROADMAP_LEVELS = listOf(
     "Арена и рой агентов",
     "Несколько прогонов или агентов сразу: сравнить лучший ответ и поделить задачу.",
     Icons.Default.Groups,
+  ),
+  RoadmapLevel(
+    "agent_blueprint",
+    "Капстоун: спроектируй агента",
+    "Финал курса: чеклист из пяти вопросов — цель, инструменты, паттерн, память, проверка.",
+    Icons.Default.Architecture,
   ),
 )
 

@@ -42,6 +42,7 @@ internal val LIBRARY_LESSON_IDS = listOf(
   "temperature_and_randomness",
   "privacy_and_reliability",
   "hallucinations",
+  "workflow_and_agent",
   "react_loop",
   "agent_tools",
   "memory_and_context",
@@ -49,9 +50,9 @@ internal val LIBRARY_LESSON_IDS = listOf(
   "rag",
   "plan_mode",
   "goal_mode",
-  "workflow_and_agent",
   "chaining_and_routing",
   "arena_and_swarm",
+  "agent_blueprint",
 )
 
 @Inject
