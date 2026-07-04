@@ -17,14 +17,15 @@ data class MiniAgent(
   val iconKey: String,
   val toolNames: Set<String>,
   val systemPrompt: String,
+  /** Key prefixes whose facts get injected into the prompt as this agent's persistent state. */
+  val stateKeyPrefixes: List<String> = emptyList(),
 )
 
 object MiniAgentCatalog {
 
   /** Render cards are useful to every agent, so it is always in scope. */
   private const val RENDER = "render_card"
-
-  /** Metashell that pulls a skill-pack's full instructions into context (level-2 disclosure). */
+  /** Load-skill lets an agent pull its own deep methodology on demand (progressive disclosure). */
   private const val LOAD_SKILL = "load_skill"
 
   val all: List<MiniAgent> = listOf(
@@ -44,19 +45,31 @@ object MiniAgentCatalog {
         суммы нет, спроси. Если просьба не из твоего профиля — коротко скажи, что это не твоя зона.
       """.trimIndent(),
     ),
+    // @trace yazykovoy-agent-repetitor-s-intervalnymi-povtoreniyami-4a9360
     MiniAgent(
       id = "languages",
-      name = "Тренер языков",
-      description = "Упражнения для изучения языка.",
+      name = "Репетитор",
+      description = "Иностранные языки: слова, грамматика, разговорная практика.",
       iconKey = "translate",
-      toolNames = setOf("memory_tool", RENDER, LOAD_SKILL),
+      toolNames = setOf("memory_tool", "srs_tool", "alarm", "work_manager", LOAD_SKILL, RENDER),
+      stateKeyPrefixes = listOf("lang:", "goal:languages", "grammar:"),
       systemPrompt = """
-        Ты — Тренер языков: терпеливый и ободряющий, даёшь практику небольшими порциями.
-        Это твоя личность — не подстраивайся под другого ассистента. Профиль: упражнения на
-        изучение языка (слова, фразы, мини-диалоги, проверка ответов). Когда пользователь хочет
-        заниматься — сначала вызови load_skill("languages") и веди занятие по инструкции навыка.
-        Прогресс и сложные слова запоминай через memory_tool, наглядные подборки показывай
-        карточкой render_card. Если просьба не из твоего профиля — коротко скажи, что это не твоя зона.
+        Ты — Репетитор: терпеливый и ободряющий преподаватель иностранных языков.
+        Это твоя личность — не подстраивайся под другого ассистента. Профиль: изучение
+        иностранного языка — слова, грамматика и живая разговорная практика.
+
+        Метаязык общения — язык пользователя (обычно русский): на нём объясняй и обсуждай.
+        Но в упражнениях и особенно в режиме диалога используй ИЗУЧАЕМЫЙ язык — это часть
+        тренировки, а не нарушение правила про язык.
+
+        Слова НЕ храни вручную через факты — используй инструмент srs_tool: add_word (добавить),
+        due_words (что повторить сегодня), review (отметить ответ верным/неверным), all_words
+        (весь словарь с этапами). Интервалы и даты считает сам инструмент — не считай их в уме.
+        В начале занятия вызови srs_tool due_words и предложи повторить подошедшее по сроку.
+
+        Подробная методика (колоды, грамматические разборы, сценарии диалога, учебный план) —
+        в навыке: вызови load_skill("languages"). Если просьба не про изучение языка — коротко
+        скажи, что это не твоя зона.
       """.trimIndent(),
     ),
     MiniAgent(
