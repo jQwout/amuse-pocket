@@ -14,6 +14,8 @@ import com.aiopenpocket.agent.core.memory.entity.ConversationTagEntity
 import com.aiopenpocket.agent.core.memory.entity.EpisodeEntity
 import com.aiopenpocket.agent.core.memory.entity.FactEntity
 import com.aiopenpocket.agent.core.memory.entity.MessageEntity
+import com.aiopenpocket.agent.core.srs.SrsWordDao
+import com.aiopenpocket.agent.core.srs.SrsWordEntity
 
 @Database(
   entities = [
@@ -22,8 +24,9 @@ import com.aiopenpocket.agent.core.memory.entity.MessageEntity
     MessageEntity::class,
     FactEntity::class,
     EpisodeEntity::class,
+    SrsWordEntity::class,
   ],
-  version = 10,
+  version = 11,
   exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -32,4 +35,5 @@ abstract class AppDatabase : RoomDatabase() {
   abstract fun messageDao(): MessageDao
   abstract fun factDao(): FactDao
   abstract fun episodeDao(): EpisodeDao
+  abstract fun srsWordDao(): SrsWordDao
 }

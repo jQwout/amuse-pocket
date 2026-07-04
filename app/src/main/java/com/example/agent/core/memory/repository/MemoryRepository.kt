@@ -31,6 +31,15 @@ class MemoryRepository @Inject constructor(
   suspend fun getFactsByCategory(category: String): List<Fact> =
     factDao.getByCategory(category).map { it.toDomain() }
 
+  suspend fun getFactsByKeyPrefix(prefix: String): List<Fact> {
+    // Экранируем спецсимволы LIKE, как и в searchFacts.
+    val escaped = prefix
+      .replace("\\", "\\\\")
+      .replace("%", "\\%")
+      .replace("_", "\\_")
+    return factDao.getByKeyPrefix(escaped).map { it.toDomain() }
+  }
+
   suspend fun saveFact(key: String, value: String, category: String): String {
     val id = UUID.randomUUID().toString()
     val now = System.currentTimeMillis()

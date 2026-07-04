@@ -180,6 +180,7 @@ private fun capabilityLabels(toolNames: Set<String>): List<String> =
       "work_manager" -> "Фоновые задачи"
       "calendar" -> "Календарь"
       "file_tool" -> "Файлы"
+      "srs_tool" -> "Словарь"
       else -> null
     }
   }.distinct()
