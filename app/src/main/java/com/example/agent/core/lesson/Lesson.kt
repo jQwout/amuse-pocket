@@ -4,6 +4,8 @@ package com.aiopenpocket.agent.core.lesson
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.intOrNull
 
 /**
  * A lesson loaded from `assets/lessons/{id}.json`. The lesson is a linear list of typed
@@ -89,6 +91,14 @@ data class LessonStep(
   val hint: String = "",
   val task: String = "",
 )
+
+/**
+ * "scenario" step: 0-based index of the correct option, or -1 when the key is missing/malformed
+ * (see f646e64 — a bad key must NOT fall back to 0 and falsely mark the first option correct).
+ * Single decode of the polymorphic [LessonStep.correct], shared by the chat controller and the
+ * asset lint so they can't disagree on what the renderer treats as the answer.
+ */
+fun LessonStep.scenarioCorrectIndex(): Int = (correct as? JsonPrimitive)?.intOrNull ?: -1
 
 @Serializable
 data class LessonQuizQuestion(
