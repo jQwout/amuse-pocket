@@ -26,7 +26,7 @@ import com.aiopenpocket.agent.core.srs.SrsWordEntity
     EpisodeEntity::class,
     SrsWordEntity::class,
   ],
-  version = 11,
+  version = 1,
   exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
