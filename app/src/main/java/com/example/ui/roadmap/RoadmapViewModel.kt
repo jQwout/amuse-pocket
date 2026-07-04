@@ -1,5 +1,7 @@
 package com.aiopenpocket.ui.roadmap
 
+// @trace ai-academy-onboarding-5d51bb
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
@@ -12,7 +14,6 @@ import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import dev.zacsweers.metro.binding
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -29,37 +30,44 @@ class RoadmapViewModel(
     userPreferencesRepository.roadmapProgress
       .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
+  /** Открытие уже идёт для этого levelId — игнорируем повторный тап, иначе двойной клик успевает
+   *  создать два дубля чата до того, как первый закоммитится (см. LibraryViewModel/AgentsViewModel). */
+  private val opening = mutableSetOf<String>()
+
   /**
    * Opens (or reuses) the lesson chat for [levelId] and returns its id via [onReady].
    * Each lesson is a tutorial conversation; PrePromptAssembler injects the lesson script.
    */
   fun openLesson(levelId: String, onReady: (String) -> Unit) {
+    if (!opening.add(levelId)) return
     viewModelScope.launch {
-      val level = ROADMAP_LEVELS.find { it.id == levelId } ?: return@launch
-      val personaId = userPreferencesRepository.getDefaultPersonaId()
-      // JSON-урок (assets/lessons/{id}.json) драйвится чат-контроллером с шага 0 — приветствие НЕ постим,
-      // иначе оно собьёт счёт шагов в ChatViewModel.startOrResumeLesson. Свободные уроки (l2–l4) — постим.
-      val hasJsonLesson = lessonRepository.getLessonOrNull(level.id) != null
+      try {
+        val level = ROADMAP_LEVELS.find { it.id == levelId } ?: return@launch
+        val personaId = userPreferencesRepository.getDefaultPersonaId()
+        // JSON-урок (assets/lessons/{id}.json) драйвится чат-контроллером с шага 0 — приветствие НЕ постим,
+        // иначе оно собьёт счёт шагов в ChatViewModel.startOrResumeLesson. Свободные уроки (l2–l4) — постим.
+        val hasJsonLesson = lessonRepository.getLessonOrNull(level.id) != null
 
-      val existing = conversationRepository.getAllConversations()
-        .first()
-        .find { it.title == level.id && it.isTutorial }
+        val existing = conversationRepository.findLatestTutorialConversation(level.id)
 
-      val chatId = existing?.id ?: conversationRepository.createConversation(
-        title = level.id,
-        personaId = personaId,
-        isTutorial = true,
-      ).also { newId ->
-        if (!hasJsonLesson) {
-          conversationRepository.addMessage(
-            newId,
-            "assistant",
-            "Привет! Это урок «${level.title}». ${level.description} Напиши «готов», и начнём.",
-          )
+        val chatId = existing?.id ?: conversationRepository.createConversation(
+          title = level.id,
+          personaId = personaId,
+          isTutorial = true,
+        ).also { newId ->
+          if (!hasJsonLesson) {
+            conversationRepository.addMessage(
+              newId,
+              "assistant",
+              "Привет! Это урок «${level.title}». ${level.description} Напиши «готов», и начнём.",
+            )
+          }
         }
-      }
 
-      onReady(chatId)
+        onReady(chatId)
+      } finally {
+        opening.remove(levelId)
+      }
     }
   }
 }

@@ -1,10 +1,14 @@
 package com.aiopenpocket.ui.agents
 
+// @trace multi-agent-orchestration-27b8e3
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,25 +22,26 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccountTree
-import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Hub
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.MiniAgent
+import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
 import com.aiopenpocket.ui.theme.CardDark
 import com.aiopenpocket.ui.theme.PurpleAccent
 import dev.zacsweers.metrox.viewmodel.metroViewModel
@@ -48,7 +53,17 @@ fun AgentsScreen(
 ) {
   val viewModel: AgentsViewModel = metroViewModel()
 
-  Scaffold { padding ->
+  AcademyCollapsingScaffold(
+    title = "Агенты",
+    navigationIcon = {
+      IconButton(onClick = onNavigateBack) {
+        Icon(
+          imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+          contentDescription = "Назад",
+        )
+      }
+    },
+  ) { padding ->
     LazyColumn(
       modifier = Modifier
         .fillMaxSize()
@@ -56,41 +71,13 @@ fun AgentsScreen(
         .padding(horizontal = 20.dp),
     ) {
       item {
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-          IconButton(onClick = onNavigateBack) {
-            Icon(
-              imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-              contentDescription = "Назад",
-              tint = MaterialTheme.colorScheme.onSurface,
-            )
-          }
-          Text(
-            text = "AI Academy",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-          )
-        }
-      }
-
-      item {
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
-          text = "Агенты",
-          style = MaterialTheme.typography.headlineLarge,
-          color = MaterialTheme.colorScheme.onSurface,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-          text = "Специалисты со своими инструментами. Координатор сам распределяет задачу между ними.",
+          text = "Агенты-специалисты со своими инструментами. Открой нужного — и опиши задачу.",
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
         )
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
       }
 
       items(viewModel.agents, key = { it.id }) { agent ->
@@ -103,54 +90,107 @@ fun AgentsScreen(
   }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AgentCard(agent: MiniAgent, onClick: () -> Unit) {
-  Row(
+  Column(
     modifier = Modifier
       .fillMaxWidth()
       .clip(RoundedCornerShape(16.dp))
       .background(CardDark)
       .clickable(onClick = onClick)
       .padding(16.dp),
-    verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(14.dp),
   ) {
-    Box(
-      modifier = Modifier
-        .size(44.dp)
-        .clip(CircleShape)
-        .background(PurpleAccent.copy(alpha = 0.18f)),
-      contentAlignment = Alignment.Center,
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-      Icon(
-        imageVector = iconFor(agent.iconKey),
-        contentDescription = null,
-        tint = PurpleAccent,
-        modifier = Modifier.size(22.dp),
-      )
+      Box(
+        modifier = Modifier
+          .size(44.dp)
+          .clip(CircleShape)
+          .background(PurpleAccent.copy(alpha = 0.18f)),
+        contentAlignment = Alignment.Center,
+      ) {
+        Icon(
+          imageVector = iconFor(agent.iconKey),
+          contentDescription = null,
+          tint = PurpleAccent,
+          modifier = Modifier.size(22.dp),
+        )
+      }
+      Column(modifier = Modifier.weight(1f)) {
+        Text(
+          text = agent.name,
+          style = MaterialTheme.typography.titleMedium,
+          color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+          text = agent.description,
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+        )
+      }
     }
-    Column(modifier = Modifier.fillMaxWidth()) {
-      Text(
-        text = if (agent.isSupervisor) "${agent.name} · координатор" else agent.name,
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.onSurface,
-      )
-      Spacer(modifier = Modifier.height(2.dp))
-      Text(
-        text = agent.description,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-      )
+
+    // «Под капотом»: что у агента в распоряжении — инструменты и навыки (его скоуп). Делает
+    // карточку информативной: видно, на что агент способен, ещё до открытия чата.
+    Spacer(modifier = Modifier.height(12.dp))
+    Text(
+      text = "Умеет",
+      style = MaterialTheme.typography.labelSmall,
+      color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+    )
+    Spacer(modifier = Modifier.height(6.dp))
+    FlowRow(
+      horizontalArrangement = Arrangement.spacedBy(6.dp),
+      verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+      val labels = remember(agent.toolNames) { capabilityLabels(agent.toolNames) }
+      labels.forEach { CapabilityChip(it) }
     }
   }
 }
 
+@Composable
+private fun CapabilityChip(label: String) {
+  Text(
+    text = label,
+    style = MaterialTheme.typography.labelSmall,
+    color = PurpleAccent,
+    modifier = Modifier
+      .clip(RoundedCornerShape(8.dp))
+      .background(PurpleAccent.copy(alpha = 0.12f))
+      .padding(horizontal = 8.dp, vertical = 4.dp),
+  )
+}
+
+/** Человекочитаемые ярлыки инструментов агента — его «оснащение». Неизвестные имена пропускаем. */
+private fun capabilityLabels(toolNames: Set<String>): List<String> =
+  toolNames.mapNotNull { tool ->
+    when (tool) {
+      "memory_tool" -> "Память"
+      "render_card" -> "Карточки"
+      "load_skill" -> "Навыки"
+      "sms" -> "СМС"
+      "email" -> "Почта"
+      "alarm" -> "Будильник"
+      "work_manager" -> "Фоновые задачи"
+      "calendar" -> "Календарь"
+      "file_tool" -> "Файлы"
+      "srs_tool" -> "Словарь"
+      else -> null
+    }
+  }.distinct()
+
 private fun iconFor(key: String): ImageVector = when (key) {
-  "calendar" -> Icons.Default.CalendarMonth
-  "folder" -> Icons.Default.Folder
-  "message" -> Icons.Default.Email
-  "chart" -> Icons.Default.BarChart
-  "tree" -> Icons.Default.AccountTree
-  "hub" -> Icons.Default.Hub
+  "wallet" -> Icons.Default.AccountBalanceWallet
+  "translate" -> Icons.Default.Translate
+  "checklist" -> Icons.Default.Checklist
+  "alarm" -> Icons.Default.Alarm
+  "restaurant" -> Icons.Default.Restaurant
+  "book" -> Icons.Default.MenuBook
   else -> Icons.Default.SmartToy
 }

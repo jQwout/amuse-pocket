@@ -12,11 +12,12 @@ import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import dev.zacsweers.metro.binding
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -31,18 +32,27 @@ data class LibraryLesson(
 
 /**
  * Каталог уроков-концепций (порядок — педагогический). `l1_welcome` — это онбординг, в библиотеке его нет.
- * Каждый id должен соответствовать `assets/lessons/{id}.json`.
+ * Каждый id должен соответствовать `assets/lessons/{id}.json` — это сверяет LessonAssetsValidationTest
+ * (потому и internal, а не private).
  */
-private val LIBRARY_LESSON_IDS = listOf(
+internal val LIBRARY_LESSON_IDS = listOf(
   "how_llm_reads",
+  "how_to_ask",
   "tokens_and_speed",
-  "react_loop",
-  "chaining_and_routing",
+  "temperature_and_randomness",
+  "privacy_and_reliability",
+  "hallucinations",
   "workflow_and_agent",
+  "react_loop",
+  "agent_tools",
+  "memory_and_context",
+  "agent_skills",
+  "rag",
   "plan_mode",
   "goal_mode",
+  "chaining_and_routing",
   "arena_and_swarm",
-  "privacy_and_reliability",
+  "agent_blueprint",
 )
 
 @Inject
@@ -66,13 +76,17 @@ class LibraryViewModel(
 
   init {
     viewModelScope.launch {
-      val loaded = LIBRARY_LESSON_IDS.mapNotNull { id ->
-        lessonRepository.getLessonOrNull(id)?.let { lesson ->
+      // Независимые чтения ассетов — грузим все разом, а не по одному (16 уроков подряд иначе
+      // задерживают первую отрисовку экрана суммой всех round-trip'ов вместо максимума одного).
+      val loaded = LIBRARY_LESSON_IDS.map { id ->
+        async { id to lessonRepository.getLessonOrNull(id) }
+      }.awaitAll().mapNotNull { (id, lesson) ->
+        lesson?.let {
           LibraryLesson(
-            id = lesson.id.ifBlank { id },
-            title = lesson.title.ifBlank { id },
-            description = lesson.description,
-            iconKey = lesson.iconKey,
+            id = it.id.ifBlank { id },
+            title = it.title.ifBlank { id },
+            description = it.description,
+            iconKey = it.iconKey,
           )
         }
       }
@@ -90,9 +104,7 @@ class LibraryViewModel(
     viewModelScope.launch {
       try {
         val personaId = userPreferencesRepository.getDefaultPersonaId()
-        val existing = conversationRepository.getAllConversations()
-          .first()
-          .find { it.title == lessonId && it.isTutorial }
+        val existing = conversationRepository.findLatestTutorialConversation(lessonId)
         val chatId = existing?.id ?: conversationRepository.createConversation(
           title = lessonId,
           personaId = personaId,

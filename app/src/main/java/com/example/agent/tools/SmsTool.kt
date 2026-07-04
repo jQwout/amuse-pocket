@@ -1,5 +1,7 @@
 package com.aiopenpocket.agent.tools
 
+// @trace mcp-tools-f77d9b
+
 import android.Manifest
 import android.content.Context
 import android.provider.Telephony
@@ -13,9 +15,6 @@ import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import kotlinx.serialization.json.JsonElement
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @Inject
 @SingleIn(AppScope::class)
@@ -59,7 +58,7 @@ class SmsTool(
         val address = cursor.getString(0) ?: "(неизвестно)"
         val body = cursor.getString(1) ?: ""
         val date = cursor.getLong(2)
-        out.append("• ${formatSmsDate(date)} от $address: $body\n")
+        out.append("• ${formatToolDateTime(date)} от $address: $body\n")
         count++
       }
     }
@@ -67,7 +66,4 @@ class SmsTool(
     return if (count == 0) ToolResult.Success("Сообщений не найдено.")
     else ToolResult.Success("Последние SMS ($count):\n${out.trimEnd()}")
   }
-
-  private fun formatSmsDate(millis: Long): String =
-    SimpleDateFormat("dd.MM HH:mm", Locale.getDefault()).format(Date(millis))
 }

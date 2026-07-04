@@ -1,9 +1,12 @@
 package com.aiopenpocket.agent.core.memory.dao
 
+// @trace multi-chat-conversations-b3c93b
+
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.aiopenpocket.agent.core.memory.entity.ConversationTagEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -31,4 +34,11 @@ interface ConversationTagDao {
 
   @Query("DELETE FROM conversation_tags WHERE conversationId = :conversationId")
   suspend fun deleteForConversation(conversationId: String)
+
+  /** Atomically swaps a conversation's whole tag set — a crash/kill mid-update can't leave it tagless. */
+  @Transaction
+  suspend fun replaceTags(conversationId: String, tags: List<ConversationTagEntity>) {
+    deleteForConversation(conversationId)
+    tags.forEach { insert(it) }
+  }
 }

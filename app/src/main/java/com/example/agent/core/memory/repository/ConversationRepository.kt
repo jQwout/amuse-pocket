@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.agent.core.memory.repository
 
+// @trace multi-chat-conversations-b3c93b
+
 import com.aiopenpocket.agent.core.memory.dao.ConversationDao
 import com.aiopenpocket.agent.core.memory.dao.ConversationTagDao
 import com.aiopenpocket.agent.core.memory.dao.MessageDao
@@ -9,9 +11,11 @@ import com.aiopenpocket.agent.core.memory.entity.MessageEntity
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.core.memory.model.Conversation
 import com.aiopenpocket.agent.core.memory.model.Message
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import java.util.UUID
 import dev.zacsweers.metro.Inject
@@ -32,6 +36,33 @@ class ConversationRepository @Inject constructor(
 
   suspend fun getConversation(id: String): Conversation? =
     conversationDao.getById(id)?.toDomain(conversationTagDao.getTagsForConversation(id))
+
+  /**
+   * Самый свежий чат, привязанный к мини-агенту [agentId], либо null. Нужен, чтобы повторный вход
+   * в агента переоткрывал его существующий чат, а не плодил новый пустой при каждом тапе.
+   */
+  suspend fun findLatestConversationByAgent(agentId: String): Conversation? {
+    val entity = conversationDao.findLatestByAgent(agentId) ?: return null
+    return entity.toDomain(conversationTagDao.getTagsForConversation(entity.id))
+  }
+
+  /**
+   * Самый свежий обычный (не агентный, не туториал) чат, если в нём ЕЩЁ нет ни одного сообщения.
+   * Нужен, чтобы повторный тап «Новый чат» без отправки сообщения переиспользовал уже созданный
+   * пустой чат, а не плодил новые пустые «Новый чат» в списке диалогов при каждом тапе.
+   */
+  suspend fun findReusableNewChat(): Conversation? {
+    val latest = conversationDao.findLatestReusableNewChat() ?: return null
+    val hasMessages = messageDao.getRecent(latest.id, limit = 1).isNotEmpty()
+    if (hasMessages) return null
+    return latest.toDomain(conversationTagDao.getTagsForConversation(latest.id))
+  }
+
+  /** Существующий чат урока [title] (Roadmap/Library переиспользуют его вместо нового). */
+  suspend fun findLatestTutorialConversation(title: String): Conversation? {
+    val entity = conversationDao.findLatestTutorialByTitle(title) ?: return null
+    return entity.toDomain(conversationTagDao.getTagsForConversation(entity.id))
+  }
 
   suspend fun createConversation(
     title: String,
@@ -72,8 +103,7 @@ class ConversationRepository @Inject constructor(
     summary?.trim()?.takeIf { it.isNotBlank() }?.let { conversationDao.updateSummary(id, it) }
     val normalized = tags.map(::normalizeTag).filter { it.isNotBlank() }.distinct()
     if (normalized.isNotEmpty()) {
-      conversationTagDao.deleteForConversation(id)
-      normalized.forEach { conversationTagDao.insert(ConversationTagEntity(id, it)) }
+      conversationTagDao.replaceTags(id, normalized.map { ConversationTagEntity(id, it) })
     }
   }
 
@@ -90,10 +120,27 @@ class ConversationRepository @Inject constructor(
     conversationDao.delete(id)
   }
 
+  /** Закрепляет/снимает диалог из избранного (избранные всплывают в начало списка). */
+  suspend fun setFavorite(id: String, favorite: Boolean) {
+    conversationDao.setFavorite(id, favorite)
+  }
+
   fun getMessages(conversationId: String): Flow<List<Message>> =
     messageDao.getByConversation(conversationId).map { list ->
       list.map { it.toDomain() }
-    }
+    }.flowOn(Dispatchers.Default)
+
+  /**
+   * Окно последних [limit] сообщений в хронологическом порядке (старые→новые). БД отдаёт свежие в
+   * обратном порядке (DESC + LIMIT), поэтому разворачиваем. Используется чатом для пагинации, чтобы
+   * не грузить и не держать в памяти всю историю длинного диалога. flowOn(Default): разворот и
+   * маппинг в домен не выполняются в контексте коллектора (Main) — при больших окнах (поиск по
+   * всей истории) это ощутимая работа.
+   */
+  fun getMessagesWindow(conversationId: String, limit: Int): Flow<List<Message>> =
+    messageDao.getByConversationWindow(conversationId, limit).map { list ->
+      list.asReversed().map { it.toDomain() }
+    }.flowOn(Dispatchers.Default)
 
   suspend fun getRecentMessages(
     conversationId: String,
@@ -103,6 +150,41 @@ class ConversationRepository @Inject constructor(
 
   suspend fun getAllMessages(conversationId: String): List<Message> =
     messageDao.getAllOrdered(conversationId).map { it.toDomain() }
+
+  /**
+   * Head + tail + счётчик «промптовых» сообщений для сборки промпт-окна (ContextWindowBuilder)
+   * БЕЗ загрузки всей истории с диска на каждый ход. Фильтр «промптовости» — на стороне SQL.
+   */
+  suspend fun getPromptWindowParts(
+    conversationId: String,
+    headCount: Int,
+    tailCount: Int,
+  ): PromptWindowParts {
+    val total = messageDao.countPromptable(conversationId)
+    if (total <= headCount + tailCount) {
+      val all = messageDao.getFirstPromptable(conversationId, total).map { it.toDomain() }
+      return PromptWindowParts(head = all, tail = emptyList(), totalPromptable = total)
+    }
+    val head = messageDao.getFirstPromptable(conversationId, headCount).map { it.toDomain() }
+    val tail = messageDao.getLastPromptable(conversationId, tailCount)
+      .asReversed()
+      .map { it.toDomain() }
+    return PromptWindowParts(head = head, tail = tail, totalPromptable = total)
+  }
+
+  data class PromptWindowParts(
+    val head: List<Message>,
+    val tail: List<Message>,
+    val totalPromptable: Int,
+  )
+
+  /** Счётчик текстовых user/assistant-реплик — гейт частоты фонового аннотатора. */
+  suspend fun countAnnotatableMessages(conversationId: String): Int =
+    messageDao.countAnnotatable(conversationId)
+
+  /** Последние [limit] текстовых user/assistant-реплик (старые→новые) — вход аннотатора. */
+  suspend fun getRecentAnnotatableMessages(conversationId: String, limit: Int): List<Message> =
+    messageDao.getLastAnnotatable(conversationId, limit).asReversed().map { it.toDomain() }
 
   suspend fun addMessage(
     conversationId: String,
@@ -122,11 +204,19 @@ class ConversationRepository @Inject constructor(
         cardSpec = cardSpec,
       ),
     )
+    // Сообщение — это активность диалога: поднимаем updatedAt, чтобы «последний чат» и порядок в
+    // списке отражали реальную свежесть (иначе updatedAt стоял со времени создания/аннотации).
+    conversationDao.touch(conversationId)
     return id
   }
 
   suspend fun setMessagePinned(messageId: String, pinned: Boolean) {
     messageDao.setPinned(messageId, pinned)
+  }
+
+  /** Удаляет одно сообщение по id (действие пользователя в чате). */
+  suspend fun deleteMessage(messageId: String) {
+    messageDao.deleteById(messageId)
   }
 
   suspend fun deleteMessages(conversationId: String) {
@@ -148,6 +238,7 @@ class ConversationRepository @Inject constructor(
     isTutorial = isTutorial,
     tags = tags,
     agentId = agentId,
+    isFavorite = isFavorite,
   )
 
   private fun MessageEntity.toDomain() = Message(

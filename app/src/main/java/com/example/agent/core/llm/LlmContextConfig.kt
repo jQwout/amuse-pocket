@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.agent.core.llm
 
+// @trace streaming-llm-chat-6595a1
+
 /**
  * Budget for a single LLM request. Llama 3.1 supports ~128K tokens; we reserve headroom
  * for system prompt, tool schemas, and the model reply.
@@ -31,6 +33,12 @@ object LlmContextConfig {
 
   /** Most recent messages fed to the annotator when deriving title/summary/tags. */
   const val ANNOTATION_MESSAGE_LIMIT = 40
+
+  /**
+   * Гейт частоты фонового аннотатора: после первичной аннотации обновляем заголовок/резюме/теги
+   * раз в столько текстовых реплик (а не после каждого хода — это второй LLM-вызов на ход).
+   */
+  const val ANNOTATE_EVERY_MESSAGES = 4
 
   /** Upper bound on auto-generated tags per conversation. */
   const val MAX_TAGS = 5

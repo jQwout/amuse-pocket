@@ -1,5 +1,7 @@
 package com.aiopenpocket.ui.onboarding
 
+// @trace ai-academy-onboarding-5d51bb
+
 sealed class OnboardingIntent {
   data object StartIntroStreaming : OnboardingIntent()
   data object NextStep : OnboardingIntent()

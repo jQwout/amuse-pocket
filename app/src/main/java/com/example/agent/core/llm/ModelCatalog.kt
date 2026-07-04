@@ -1,5 +1,7 @@
 package com.aiopenpocket.agent.core.llm
 
+// @trace streaming-llm-chat-6595a1
+
 import android.app.Application
 import android.util.Log
 import dev.zacsweers.metro.Inject
@@ -35,6 +37,9 @@ data class ModelEntry(
   val maxTokens: Int = 1024,
   /** Whether the model supports a thinking/reasoning mode. */
   val reasoning: Boolean = false,
+  /** Optional sampling overrides — omitted from the request when null (provider applies its own default). */
+  val temperature: Double? = null,
+  val topP: Double? = null,
 )
 
 @SingleIn(AppScope::class)

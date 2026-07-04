@@ -1,17 +1,16 @@
 package com.aiopenpocket.agent.tools
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
+// @trace mcp-tools-f77d9b
+
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.Build
-import androidx.core.app.NotificationCompat
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.mcp.missingArg
 import com.aiopenpocket.agent.core.mcp.string
 import com.aiopenpocket.agent.core.mcp.toolSchema
+import com.aiopenpocket.agent.core.notification.showAgentNotification
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -34,15 +33,6 @@ class NotificationsTool(
     val title = arguments.string("title") ?: return missingArg("title")
     val message = arguments.string("message") ?: return missingArg("message")
 
-    val notificationManager =
-      context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      notificationManager.createNotificationChannel(
-        NotificationChannel(CHANNEL_ID, "AI Agent Notifications", NotificationManager.IMPORTANCE_DEFAULT),
-      )
-    }
-
     val intent = Intent(context, com.aiopenpocket.MainActivity::class.java).apply {
       flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
     }
@@ -53,21 +43,14 @@ class NotificationsTool(
       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
 
-    val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-      .setSmallIcon(android.R.drawable.ic_dialog_info)
-      .setContentTitle(title)
-      .setContentText(message)
-      .setContentIntent(pendingIntent)
-      .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-      .setAutoCancel(true)
-      .build()
-
     val id = System.currentTimeMillis().toInt()
-    notificationManager.notify(id, notification)
+    val shown = showAgentNotification(context, title, message, id, pendingIntent)
+    if (!shown) {
+      return ToolResult.Error(
+        "Нет разрешения на уведомления. Выдайте его в Настройках → Интеграции.",
+        recoverable = false,
+      )
+    }
     return ToolResult.Success("Notification shown: id=$id")
-  }
-
-  companion object {
-    const val CHANNEL_ID = "ai_agent_channel"
   }
 }

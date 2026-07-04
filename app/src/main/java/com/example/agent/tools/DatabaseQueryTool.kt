@@ -1,5 +1,7 @@
 package com.aiopenpocket.agent.tools
 
+// @trace mcp-tools-f77d9b
+
 import android.database.Cursor
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.aiopenpocket.agent.core.mcp.Tool
@@ -59,7 +61,12 @@ class DatabaseQueryTool(
     val cursor: Cursor = db.query(sql)
     val result = JSONArray()
     val columns = cursor.columnNames
+    var truncated = false
     while (cursor.moveToNext()) {
+      if (result.length() >= MAX_ROWS) {
+        truncated = true
+        break
+      }
       val row = JSONObject()
       columns.forEachIndexed { index, col ->
         row.put(col, cursor.getString(index) ?: JSONObject.NULL)
@@ -67,6 +74,12 @@ class DatabaseQueryTool(
       result.put(row)
     }
     cursor.close()
+    // Модель сама пишет SQL и часто не ставит LIMIT — без потолка большой SELECT (вся история
+    // сообщений и т.п.) раздул бы результат тула на мегабайты JSON прямо в контекст LLM. Маркер
+    // усечения кладём ПОСЛЕДНИМ элементом массива — вывод остаётся валидным JSON целиком.
+    if (truncated) {
+      result.put(JSONObject().put("_truncated", true).put("_note", "truncated at $MAX_ROWS rows, add LIMIT to your query for fewer"))
+    }
     return ToolResult.Success(result.toString(2))
   }
 
@@ -82,6 +95,7 @@ class DatabaseQueryTool(
   }
 
   private companion object {
+    const val MAX_ROWS = 200
     val FORBIDDEN_SQL = setOf("drop", "create", "alter", "truncate", "grant", "revoke", "pragma")
   }
 }

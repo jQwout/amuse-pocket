@@ -75,7 +75,9 @@ class AgentLoopOrchestrator @Inject constructor(
         context.toolNames?.let { registry.getSchemasFor(it) } ?: registry.getAllSchemas()
       }
       Log.d(TAG, "▶ chat turn conv=$conversationId mode=$mode scoped=${context.toolNames ?: "all"} maxIter=${turn.maxIterations}")
-      val baseResult = reactLoopRunner.run(conversationId, messages, tools, provider, turn.maxIterations) { send(it) }
+      val baseResult = reactLoopRunner.run(
+        conversationId, messages, tools, provider, turn.maxIterations, context.agentId,
+      ) { send(it) }
 
       // Token estimates feed the chat's response stats bar; computed at the boundary so the
       // ReactLoopRunner stays unaware of UI concerns.

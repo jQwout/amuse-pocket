@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.agent.core.memory.model
 
+// @trace agent-memory-05e545
+
 data class UserProfile(
   val name: String,
   val preferredAddress: String,

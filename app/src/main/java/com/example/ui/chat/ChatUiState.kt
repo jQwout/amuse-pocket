@@ -1,5 +1,7 @@
 package com.aiopenpocket.ui.chat
 
+// @trace streaming-llm-chat-6595a1
+
 import com.aiopenpocket.agent.core.lesson.Lesson
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.core.memory.model.Message
@@ -17,9 +19,18 @@ data class ResponseStats(
 data class ChatUiState(
   val conversationId: String? = null,
   val messages: List<Message> = emptyList(),
+  /** True, пока в БД есть сообщения старше текущего окна (см. пагинацию в ChatViewModel). */
+  val hasMoreOlder: Boolean = false,
   val inputText: String = "",
+  /**
+   * Индексы сообщений (в [messages]), содержащих текущий поисковый запрос. Считаются во
+   * ViewModel с дебаунсом на Dispatchers.Default — раньше скан шёл в композиции на каждый
+   * введённый символ (десятки мс на длинной истории прямо на Main).
+   */
+  val searchMatches: List<Int> = emptyList(),
   val isLoading: Boolean = false,
-  val streamingText: String = "",
+  // Стриминговый текст живёт в отдельном потоке ChatViewModel.streamingText (не в этом state),
+  // чтобы дельты токенов не пересобирали весь экран — только пузырь стрима.
   val toolTrace: List<ToolTrace> = emptyList(),
   val error: String? = null,
   /** True when the last failed turn can be retried (we still have the last user message). */

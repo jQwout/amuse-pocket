@@ -1,5 +1,7 @@
 package com.aiopenpocket.voice
 
+// @trace voice-input-1a0dfd
+
 import android.service.voice.VoiceInteractionService
 
 /**

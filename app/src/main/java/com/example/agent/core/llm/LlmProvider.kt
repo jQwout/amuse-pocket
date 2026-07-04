@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.agent.core.llm
 
+// @trace streaming-llm-chat-6595a1
+
 enum class LlmProvider {
   AUTO, NIM, GROQ, GITHUB
 }
@@ -12,5 +14,7 @@ data class ProviderConfig(
   // в assets/config/models.json. Это лимит ДЛИНЫ ОТВЕТА (output), препромпт сюда не входит.
   val maxTokens: Int = 4096,
   val reasoning: Boolean = false,
+  val temperature: Double? = null,
+  val topP: Double? = null,
   val apiKeyResolver: () -> String,
 )

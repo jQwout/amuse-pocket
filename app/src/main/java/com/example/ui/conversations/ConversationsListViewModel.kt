@@ -41,19 +41,43 @@ class ConversationsListViewModel(
     _state.update { it.copy(selectedTag = if (it.selectedTag == tag) null else tag) }
   }
 
+  /** Защита от повторного тапа «Новый чат»: без неё быстрый двойной тап успевал пройти оба раза
+   *  до того, как первый вызов создаст диалог, и плодил два пустых «Новый чат» подряд. Доступ
+   *  только с главного потока (viewModelScope), поэтому обычного флага достаточно. */
+  private var creatingConversation = false
+
   suspend fun createConversation(initialMessage: String? = null): String? {
-    val title = initialMessage?.let { ConversationRepository.placeholderTitle(it) } ?: "Новый чат"
-    val personaId = userPreferencesRepository.getDefaultPersonaId()
-    val createdId = conversationRepository.createConversation(title, personaId)
-    if (initialMessage != null) {
-      conversationRepository.addMessage(createdId, "user", initialMessage)
+    if (creatingConversation) return null
+    creatingConversation = true
+    try {
+      // Без начального сообщения — это тап «Новый чат»: переиспользуем уже созданный пустой чат,
+      // если пользователь просто открывал его и не написал ничего, иначе каждый повторный тап
+      // плодил бы новый пустой «Новый чат» в списке диалогов.
+      if (initialMessage == null) {
+        conversationRepository.findReusableNewChat()?.let { return it.id }
+      }
+      val title = initialMessage?.let { ConversationRepository.placeholderTitle(it) } ?: "Новый чат"
+      val personaId = userPreferencesRepository.getDefaultPersonaId()
+      val createdId = conversationRepository.createConversation(title, personaId)
+      if (initialMessage != null) {
+        conversationRepository.addMessage(createdId, "user", initialMessage)
+      }
+      return createdId
+    } finally {
+      creatingConversation = false
     }
-    return createdId
   }
 
   fun deleteConversation(id: String) {
     viewModelScope.launch {
       conversationRepository.deleteConversation(id)
+    }
+  }
+
+  /** Переключает «избранное» для диалога — избранные всплывают в начало списка. */
+  fun toggleFavorite(id: String, isFavorite: Boolean) {
+    viewModelScope.launch {
+      conversationRepository.setFavorite(id, !isFavorite)
     }
   }
 }

@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "features": {
+    "agent-memory-05e545": {
+      "hash": "b6912a460111",
+      "git": "2cc539f"
+    },
+    "agent-skills-7189cc": {
+      "hash": "6d1595097f23",
+      "git": "afd92b7"
+    },
+    "ai-academy-onboarding-5d51bb": {
+      "hash": "785b039d3470",
+      "git": "c3134a2"
+    },
+    "app-settings-beb470": {
+      "hash": "a1c8fc4e76a7",
+      "git": "3d61a5b"
+    },
+    "background-tasks-15a34a": {
+      "hash": "0d44e2161dfe",
+      "git": "afd92b7"
+    },
+    "classic-typography-a44c05": {
+      "hash": "543c953adb9c",
+      "git": "44b0648"
+    },
+    "driven-ui-cards-0418d0": {
+      "hash": "3fd4e7a5b5a5",
+      "git": "4ddf435"
+    },
+    "mcp-tools-f77d9b": {
+      "hash": "2621cd718393",
+      "git": "2cc539f"
+    },
+    "multi-agent-orchestration-27b8e3": {
+      "hash": "ab7757d3e575",
+      "git": "2cc539f"
+    },
+    "multi-chat-conversations-b3c93b": {
+      "hash": "be3f4fd32d00",
+      "git": "3d61a5b"
+    },
+    "rezhimy-agenta-plan-i-goal-ee2361": {
+      "hash": "ec7d0aabb7f6",
+      "git": "2cc539f"
+    },
+    "streaming-llm-chat-6595a1": {
+      "hash": "6deea76c4459",
+      "git": "67c2430"
+    },
+    "swappable-persona-e5e65e": {
+      "hash": "ac831590d00d",
+      "git": "afd92b7"
+    },
+    "uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2": {
+      "hash": "383812fded81",
+      "git": "c3134a2"
+    },
+    "voice-input-1a0dfd": {
+      "hash": "ec70865aeaa7",
+      "git": "43dec3c"
+    },
+    "yazykovoy-agent-repetitor-s-intervalnymi-povtoreniyami-4a9360": {
+      "hash": "b724c31ed575",
+      "git": "2cc539f"
+    }
+  }
+}

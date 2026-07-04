@@ -1,5 +1,7 @@
 package com.aiopenpocket.ui.roadmap
 
+// @trace ai-academy-onboarding-5d51bb
+
 /** Single multiple-choice quiz question shown on the post-lesson quiz screen. */
 data class QuizQuestion(
   val question: String,
@@ -11,23 +13,31 @@ data class QuizQuestion(
 
 /** Quiz questions per roadmap level. A level with no entry simply has no quiz. */
 val LESSON_QUIZZES: Map<String, List<QuizQuestion>> = mapOf(
+  // ВНИМАНИЕ: онбординг (l1_welcome, firstRun) рендерится ЭТИМ хардкодом + хардкод-шагами
+  // OnboardingViewModel/OnboardingScreen, а НЕ assets/lessons/l1_welcome.json. JSON-версию урока
+  // валидирует LessonAssetsValidationTest, но при показе онбординга она не используется: ChatViewModel
+  // исключает l1_welcome из JSON-драйвера, а роадмап открывает его своим экраном (onReopenOnboarding).
+  // Итог: правь квиз онбординга ЗДЕСЬ — редактировать l1_welcome.json ради онбординга бесполезно,
+  // до экрана эти изменения не дойдут. (Ловушка задокументирована; см. code-review 2026-07-03.)
   "l1_welcome" to listOf(
     QuizQuestion(
       question = "Что уходит в облако при твоём запросе?",
       options = listOf(
         "Только текст: промпт и история диалога",
-        "Все твои файлы и база",
-        "Ничего не уходит",
+        "Все твои файлы и база приложения целиком",
+        "Ничего — всё считается на устройстве",
       ),
       correctIndex = 0,
-      explanation = "В облако уходит только промпт. Память, файлы и история остаются на устройстве.",
+      // Не «история остаётся»: история диалога КАК РАЗ уходит в облако в составе запроса —
+      // прежняя формулировка противоречила правильному ответу.
+      explanation = "В облако уходит только текст: препромпт, история диалога и твоё сообщение. Файлы, база и долгая память остаются на устройстве.",
     ),
     QuizQuestion(
       question = "Из чего состоит препромпт?",
       options = listOf(
         "Личность ассистента + информация о тебе",
         "Только твоё последнее сообщение",
-        "Список всех твоих файлов",
+        "Список всех файлов и заметок на устройстве",
       ),
       correctIndex = 0,
       explanation = "Препромпт — скрытая инструкция: выбранная персона плюс твой профиль.",
@@ -38,8 +48,8 @@ val LESSON_QUIZZES: Map<String, List<QuizQuestion>> = mapOf(
       question = "Где живут твои заметки?",
       options = listOf(
         "В защищённой песочнице на устройстве",
-        "На сервере в облаке",
-        "Нигде, они не сохраняются",
+        "На сервере провайдера в облаке",
+        "Нигде — после чата они стираются",
       ),
       correctIndex = 0,
       explanation = "Файлы хранятся в песочнице на устройстве и в облако сами не уходят.",
@@ -82,8 +92,8 @@ val LESSON_QUIZZES: Map<String, List<QuizQuestion>> = mapOf(
       question = "Что делает план-мод?",
       options = listOf(
         "Сначала строит план, потом выполняет",
-        "Сразу делает без плана",
-        "Отменяет задачу",
+        "Сразу делает всё без плана и вопросов",
+        "Отменяет задачу, если она сложная",
       ),
       correctIndex = 0,
       explanation = "План-мод разделяет «подумать» и «сделать»: сначала план, потом выполнение.",
@@ -93,7 +103,7 @@ val LESSON_QUIZZES: Map<String, List<QuizQuestion>> = mapOf(
       options = listOf(
         "Планировщик → исполнитель → синтезатор",
         "Только одна модель без ролей",
-        "Планировщик и больше ничего",
+        "Планировщик и больше никаких ролей",
       ),
       correctIndex = 0,
       explanation = "Планировщик строит план, исполнитель проходит шаги, синтезатор собирает итог — поверх одного ReAct-движка.",

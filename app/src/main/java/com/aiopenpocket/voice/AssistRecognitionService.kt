@@ -1,5 +1,7 @@
 package com.aiopenpocket.voice
 
+// @trace voice-input-1a0dfd
+
 import android.content.Intent
 import android.speech.RecognitionService
 import android.speech.SpeechRecognizer

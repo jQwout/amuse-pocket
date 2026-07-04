@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.data.repository
 
+// @trace app-settings-beb470
+
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
@@ -36,10 +38,11 @@ class SettingsRepository @Inject constructor(
     prefs.edit().putString("api_key_$provider", key).apply()
   }
 
-  fun getSelectedProvider(): String =
-    prefs.getString("selected_provider", "AUTO") ?: "AUTO"
+  /** Конкретная NIM-модель, выбранная вручную в Настройках. "AUTO" — по приоритету из models.json. */
+  fun getSelectedModel(): String =
+    prefs.getString("selected_model", "AUTO") ?: "AUTO"
 
-  fun setSelectedProvider(provider: String) {
-    prefs.edit().putString("selected_provider", provider).apply()
+  fun setSelectedModel(model: String) {
+    prefs.edit().putString("selected_model", model).apply()
   }
 }
