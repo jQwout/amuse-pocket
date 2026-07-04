@@ -743,7 +743,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Test: `app/src/test/java/com/example/agent/workers/HeartbeatRunnerTest.kt`
 
 **Interfaces:**
-- Consumes: `HeartbeatDao`, `ReactLoopRunner` (конкретный класс — в тестах собирается с fake `LlmClient`; `LlmClient` — интерфейс `fun streamChat(messages, tools, provider): Flow<StreamEvent>`), `ToolRegistry`, `ConversationRepository.addMessage(conversationId, role, content, toolCallsJson=null, cardSpec=null): String`, `showAgentNotification(context, title, message, id, contentIntent): Boolean`, `MiniAgent`-каталог (объект со списком в `MiniAgent.kt` — lookup по id), `MainActivity.EXTRA_OPEN_CONVERSATION_ID` (Task 6 — объявить константу там заранее или в этом таске, см. Step 3).
+- Consumes: `HeartbeatDao`, `ReactLoopRunner` (конкретный класс — в тестах собирается с fake `LlmClient`; `LlmClient` — интерфейс `fun streamChat(messages, tools, provider): Flow<StreamEvent>`), `ToolRegistry`, `ConversationRepository.addMessage(conversationId, role, content, toolCallsJson=null, cardSpec=null): String`, `showAgentNotification(context, title, message, id, contentIntent): Boolean`, `MiniAgentCatalog.get(id: String?): MiniAgent?` (готовый lookup в `MiniAgent.kt`), `MainActivity.EXTRA_OPEN_CONVERSATION_ID` (Task 6 — объявить константу там заранее или в этом таске, см. Step 3).
 - Produces: `suspend fun handleFire(heartbeatId: String, attempt: Int): FireOutcome`; `enum class FireOutcome { DONE, RETRY }`; `SAFE_TOOL_NAMES = setOf("memory_tool", "database_query", "calendar", "step_counter", "notifications")`; `BG_MAX_ITERATIONS = 5`; `MAX_ATTEMPTS = 3`.
 
 - [ ] **Step 1: Написать падающие тесты**
@@ -931,7 +931,7 @@ class HeartbeatRunner(
   }
 
   private suspend fun fireAgent(hb: HeartbeatEntity, attempt: Int): FireOutcome {
-    val agent = miniAgentById(hb.agentId)
+    val agent = MiniAgentCatalog.get(hb.agentId)
     val systemPrompt = buildString {
       append(agent?.systemPrompt ?: "Ты — полезный ассистент AI Open Pocket.")
       append("\n\nСейчас ты работаешь В ФОНЕ по плановому heartbeat — юзер тебя не вызывал. ")
@@ -968,11 +968,6 @@ class HeartbeatRunner(
     return FireOutcome.DONE
   }
 
-  // Каталог мини-агентов: объект со списком всех агентов живёт в
-  // app/src/main/java/com/example/agent/core/agent/MiniAgent.kt — точное имя объекта взять оттуда.
-  private fun miniAgentById(id: String?) =
-    id?.let { agentId -> MiniAgentCatalog.all.firstOrNull { it.id == agentId } }
-
   private suspend fun record(hb: HeartbeatEntity, ok: Boolean, result: String?) {
     val status = when {
       !ok -> "error"
@@ -1008,7 +1003,7 @@ class HeartbeatRunner(
 }
 ```
 
-`miniAgentById(id)` — использовать существующий каталог мини-агентов из `app/src/main/java/com/example/agent/core/agent/MiniAgent.kt` (объект со списком всех агентов; lookup `firstOrNull { it.id == id }`; точное имя объекта взять по месту). В `MainActivity` уже сейчас добавить константу (полная навигация — Task 6):
+`MiniAgentCatalog.get(id)` — готовый lookup в `app/src/main/java/com/example/agent/core/agent/MiniAgent.kt` (`fun get(id: String?): MiniAgent?`), возвращает null для дефолтного ассистента и неизвестных id. Импорт: `com.aiopenpocket.agent.core.agent.MiniAgentCatalog`. В `MainActivity` уже сейчас добавить константу (полная навигация — Task 6):
 
 ```kotlin
 const val EXTRA_OPEN_CONVERSATION_ID = "com.aiopenpocket.extra.OPEN_CONVERSATION_ID"
@@ -1141,16 +1136,22 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 
 ---
 
-### Task 7: Регистрация тула + мини-агент «Напоминалки»
+### Task 7: Регистрация тула + раздача heartbeat всему ростеру
+
+Тул регистрируется в глобальном `Set<Tool>` (доступен обычному чату) и добавляется в
+`toolNames` всех шести мини-агентов — каждый ставит проактивные напоминания в своём домене.
+У `reminders` и `languages` строка `"work_manager"` заменяется на `"heartbeat"` (heartbeat
+его надстройка: то же расписание + опциональное пробуждение агента). Остальные четыре просто
+получают `"heartbeat"` в дополнение к своим тулзам.
 
 **Files:**
 - Modify: `app/src/main/java/com/example/di/AgentToolsModule.kt`
-- Modify: `app/src/main/java/com/example/agent/core/agent/MiniAgent.kt` (агент `reminders`, строки ~90-105)
+- Modify: `app/src/main/java/com/example/agent/core/agent/MiniAgent.kt` (все 6 агентов, строки 32-135)
 - Test: `app/src/test/java/com/example/agent/core/agent/MiniAgentCatalogTest.kt` (новый)
 
 **Interfaces:**
-- Consumes: multibinding-паттерн `@Provides @IntoSet fun provideX(tool: X): Tool = tool`.
-- Produces: тул `heartbeat` доступен глобально и в скоупе агента `reminders`.
+- Consumes: multibinding-паттерн `@Provides @IntoSet fun provideX(tool: X): Tool = tool`; `MiniAgentCatalog.all` (список из 6 агентов).
+- Produces: тул `heartbeat` доступен глобально и в скоупе всех 6 агентов; ни у одного агента больше нет `work_manager` в `toolNames`.
 
 - [ ] **Step 1: Падающий тест на каталог**
 
@@ -1163,18 +1164,31 @@ import org.junit.Test
 class MiniAgentCatalogTest {
 
   @Test
-  fun `reminders agent uses heartbeat tool`() {
-    // Точное имя объекта-каталога взять из MiniAgent.kt (список всех агентов).
-    val reminders = MiniAgentCatalog.all.first { it.id == "reminders" }
-    assertTrue("heartbeat" in reminders.toolNames)
-    assertTrue(reminders.systemPrompt.contains("heartbeat"))
+  fun `every roster agent can set heartbeats`() {
+    for (agent in MiniAgentCatalog.all) {
+      assertTrue("agent ${agent.id} lacks heartbeat tool", "heartbeat" in agent.toolNames)
+      assertTrue("agent ${agent.id} prompt omits heartbeat", agent.systemPrompt.contains("heartbeat"))
+    }
+  }
+
+  @Test
+  fun `heartbeat supersedes work_manager in scoped agents`() {
+    // heartbeat — надстройка над work_manager; в скоупе агентов старый тул больше не нужен.
+    for (agent in MiniAgentCatalog.all) {
+      assertTrue("agent ${agent.id} still scopes work_manager", "work_manager" !in agent.toolNames)
+    }
   }
 }
 ```
 
-- [ ] **Step 2: Прогнать — FAIL**, затем изменения
+- [ ] **Step 2: Прогнать — FAIL**
 
-В `AgentToolsModule.kt` (рядом с provideWorkManagerTool):
+Run: `./gradlew testDebugUnitTest --tests "com.aiopenpocket.agent.core.agent.MiniAgentCatalogTest"`
+Expected: FAIL (агенты пока без heartbeat).
+
+- [ ] **Step 3: Зарегистрировать тул**
+
+В `AgentToolsModule.kt` (рядом с `provideWorkManagerTool`):
 
 ```kotlin
 @Provides
@@ -1182,28 +1196,70 @@ class MiniAgentCatalogTest {
 fun provideHeartbeatTool(tool: HeartbeatTool): Tool = tool
 ```
 
-В `MiniAgent.kt`, агент `reminders`:
-- `toolNames`: `setOf("alarm", "heartbeat", "calendar", "render_card")` — `work_manager` заменяется на `heartbeat` (старый тул остаётся в глобальном наборе для обычного чата).
-- `systemPrompt` — заменить упоминание work_manager:
+- [ ] **Step 4: Раздать heartbeat агентам**
 
+В `MiniAgent.kt` для каждого из 6 агентов правим `toolNames` и добавляем в `systemPrompt`
+ОДНУ доменную строку (перед финальным «Если просьба не из твоего профиля…»). Правки точечные —
+менять только `toolNames`-строку и вставлять указанное предложение, остальной промпт не трогать.
+
+**`budget`** — `toolNames = setOf("memory_tool", "sms", "email", "heartbeat", RENDER, LOAD_SKILL)`.
+Вставить в промпт:
 ```
-Ты — Напоминалки: внимательный и пунктуальный, ничего не даёшь забыть.
-Это твоя личность — не подстраивайся под другого ассистента. Профиль: напоминания,
-будильники и события календаря. Напоминания и периодические проверки ставь через
-heartbeat (mode=push — просто пуш; mode=agent — фоновая проверка с твоим участием),
-после schedule показывай карточку render_card template="reminder". Будильники по
-времени — через alarm, события — через calendar. Уточняй время и текст, когда их
-не хватает, и вызывай инструменты по-настоящему. Если просьба не из твоего
-профиля — коротко скажи, что это не твоя зона.
+Периодическую сводку по тратам можешь ставить через heartbeat (mode=agent): по расписанию
+глянуть расходы и предупредить о перерасходе — после schedule покажи карточку render_card
+template="reminder".
 ```
 
-- [ ] **Step 3: Прогнать — PASS**: `./gradlew testDebugUnitTest --tests "com.aiopenpocket.agent.core.agent.MiniAgentCatalogTest"`
+**`languages`** — `toolNames`: заменить `"work_manager"` на `"heartbeat"` →
+`setOf("memory_tool", "srs_tool", "alarm", "heartbeat", LOAD_SKILL, RENDER)`.
+Вставить в промпт (после блока про srs_tool):
+```
+Напоминания о повторениях ставь через heartbeat (mode=agent): по расписанию проверяй
+srs_tool due_words и зови повторить подошедшее — после schedule покажи карточку render_card
+template="reminder".
+```
 
-- [ ] **Step 4: Commit**
+**`tasks`** — `toolNames = setOf("memory_tool", "heartbeat", RENDER)`.
+Вставить в промпт:
+```
+Проверку задач можешь ставить через heartbeat (mode=agent): например, раз в день напомнить
+о просроченных — после schedule покажи карточку render_card template="reminder".
+```
+
+**`reminders`** — `toolNames = setOf("alarm", "heartbeat", "calendar", RENDER)` (замена
+`work_manager` → `heartbeat`). Заменить в промпте предложение про work_manager на:
+```
+Напоминания и периодические проверки ставь через heartbeat (mode=push — просто пуш; mode=agent —
+фоновая проверка с твоим участием), после schedule показывай карточку render_card
+template="reminder".
+```
+(остальное про alarm/calendar оставить как есть).
+
+**`nutrition`** — `toolNames = setOf("alarm", "memory_tool", "heartbeat", RENDER)`.
+Вставить в промпт:
+```
+Напоминания о приёмах пищи и окнах голодания можешь ставить через heartbeat (mode=push для
+простого пуша, mode=agent для проверки) — после schedule покажи карточку render_card
+template="reminder".
+```
+
+**`diary`** — `toolNames = setOf("file_tool", "memory_tool", "heartbeat", RENDER, LOAD_SKILL)`.
+Вставить в промпт:
+```
+Вечернее напоминание «как прошёл день» ставь через heartbeat (mode=agent): по расписанию мягко
+предложи записать день — после schedule покажи карточку render_card template="reminder".
+```
+
+- [ ] **Step 5: Прогнать — PASS**
+
+Run: `./gradlew testDebugUnitTest --tests "com.aiopenpocket.agent.core.agent.MiniAgentCatalogTest"`
+Expected: PASS (2 tests, обходят все 6 агентов).
+
+- [ ] **Step 6: Commit**
 
 ```bash
 git add app/src/main/java/com/example/di/AgentToolsModule.kt app/src/main/java/com/example/agent/core/agent/MiniAgent.kt app/src/test/java/com/example/agent/core/agent/MiniAgentCatalogTest.kt
-git commit -m "feat(heartbeat): регистрация тула + переключение агента Напоминалок
+git commit -m "feat(heartbeat): раздать heartbeat всему ростеру мини-агентов
 
 Trace: <TRACE_ID>
 

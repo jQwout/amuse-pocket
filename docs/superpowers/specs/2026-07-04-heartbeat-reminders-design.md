@@ -18,7 +18,9 @@
 - `NotificationsTool` — немедленный локальный пуш; `NotificationHelper.showAgentNotification`
   честно репортит отсутствие POST_NOTIFICATIONS.
 - `WorkManagerTool` + `NotificationWorker` — статичные отложенные/периодические пуши.
-  **Не трогаем** (обратная совместимость), но мини-агент «Напоминалки» переключается на новый тул.
+  **Не трогаем** (обратная совместимость), но агенты ростера переключаются на новый тул.
+- Ростер из 6 мини-агентов (`MiniAgentCatalog`): budget, languages (Репетитор/SRS), tasks,
+  reminders, nutrition, diary. `MiniAgentCatalog.get(id)` — lookup по id (переиспользуем в воркере).
 - Карточка `notification_permission` в `render_card`/DrivenUiEngine — запрос разрешения из чата.
 - `ReactLoopRunner` — headless-движок ReAct-цикла (conversationId, messages, tools, emit).
 - Мини-агент «Напоминалки» в ростере, экран ScheduledWorks.
@@ -52,6 +54,14 @@
 Действия: `schedule` (one-time `delay_minutes` ИЛИ periodic `interval_minutes` ≥ 15),
 `cancel(heartbeat_id)`, `list`. Успешный `schedule` возвращает `heartbeat_id` и инструкцию
 показать карточку `render_card(template="reminder", params={heartbeat_id})`.
+
+**Доступность агентам.** Тул раздаётся всему ростеру (не только «Напоминалкам») — каждый
+специалист ставит проактивные напоминания/heartbeat в своём домене: дневник — вечернее «как
+прошёл день», таск-лист — проверку просроченных, Репетитор — напоминание о SRS-повторениях
+(заменяет его прежний `work_manager`), бюджет — сводку трат, нутрициолог — приёмы пищи. В
+фоновом ходе `agentId` из карточки поднимает системный промпт именно этого агента, так что
+напоминание приходит его голосом. Фоновое подмножество тулз общее для всех (чтение + пуш) —
+доменные записи агент делает уже на переднем плане, когда юзер откроет чат по тапу на пуш.
 
 Без POST_NOTIFICATIONS `schedule` возвращает recoverable-ошибку с инструкцией показать
 карточку `notification_permission` и повторить.
