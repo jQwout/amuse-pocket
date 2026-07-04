@@ -4,7 +4,6 @@ package com.aiopenpocket.di
 
 import android.app.Application
 import androidx.room.Room
-import androidx.room.migration.Migration
 import com.aiopenpocket.agent.core.memory.dao.ConversationDao
 import com.aiopenpocket.agent.core.memory.dao.ConversationTagDao
 import com.aiopenpocket.agent.core.memory.dao.EpisodeDao
@@ -24,8 +23,11 @@ object DatabaseBindings {
     @Provides
     @SingleIn(AppScope::class)
     fun provideDatabase(application: Application): AppDatabase =
+        // Pre-release: схему не версионируем — держим единый baseline (AppDatabase version=1). При
+        // любом изменении схемы Room просто пересоздаёт базу (fallbackToDestructiveMigration):
+        // продакшн-пользователей нет, а локальные dev-данные потерять не жалко. Пошаговые миграции
+        // (Migration + addMigrations) заводим с первого релиза, от релизного baseline.
         Room.databaseBuilder(application, AppDatabase::class.java, "queen_chat_db")
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
             .fallbackToDestructiveMigration()
             .build()
 
@@ -47,107 +49,4 @@ object DatabaseBindings {
 
     @Provides
     fun provideSrsWordDao(database: AppDatabase): SrsWordDao = database.srsWordDao()
-
-    val MIGRATION_2_3 = Migration(2, 3) { db ->
-        db.execSQL("ALTER TABLE conversations ADD COLUMN isTutorial INTEGER NOT NULL DEFAULT 0")
-    }
-
-    val MIGRATION_3_4 = Migration(3, 4) { db ->
-        db.execSQL("ALTER TABLE messages ADD COLUMN cardSpec TEXT")
-    }
-
-    val MIGRATION_4_5 = Migration(4, 5) { db ->
-        db.execSQL("ALTER TABLE messages ADD COLUMN isPinned INTEGER NOT NULL DEFAULT 0")
-    }
-
-    // Wiki-style memory layer: pages + tags + directed links. DDL must match Room's generated
-    // schema for these entities exactly, or Room's runtime schema validation will throw.
-    val MIGRATION_5_6 = Migration(5, 6) { db ->
-        db.execSQL(
-            "CREATE TABLE IF NOT EXISTS `wiki_pages` (" +
-                "`id` TEXT NOT NULL, `slug` TEXT NOT NULL, `title` TEXT NOT NULL, " +
-                "`content` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, " +
-                "`updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
-        )
-        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_wiki_pages_slug` ON `wiki_pages` (`slug`)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_wiki_pages_updatedAt` ON `wiki_pages` (`updatedAt`)")
-
-        db.execSQL(
-            "CREATE TABLE IF NOT EXISTS `wiki_page_tags` (" +
-                "`pageId` TEXT NOT NULL, `tag` TEXT NOT NULL, PRIMARY KEY(`pageId`, `tag`), " +
-                "FOREIGN KEY(`pageId`) REFERENCES `wiki_pages`(`id`) " +
-                "ON UPDATE NO ACTION ON DELETE CASCADE )",
-        )
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_wiki_page_tags_tag` ON `wiki_page_tags` (`tag`)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_wiki_page_tags_pageId` ON `wiki_page_tags` (`pageId`)")
-
-        db.execSQL(
-            "CREATE TABLE IF NOT EXISTS `wiki_links` (" +
-                "`fromPageId` TEXT NOT NULL, `toPageId` TEXT NOT NULL, `relation` TEXT NOT NULL, " +
-                "`createdAt` INTEGER NOT NULL, PRIMARY KEY(`fromPageId`, `toPageId`, `relation`), " +
-                "FOREIGN KEY(`fromPageId`) REFERENCES `wiki_pages`(`id`) " +
-                "ON UPDATE NO ACTION ON DELETE CASCADE , " +
-                "FOREIGN KEY(`toPageId`) REFERENCES `wiki_pages`(`id`) " +
-                "ON UPDATE NO ACTION ON DELETE CASCADE )",
-        )
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_wiki_links_fromPageId` ON `wiki_links` (`fromPageId`)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_wiki_links_toPageId` ON `wiki_links` (`toPageId`)")
-    }
-
-    // Knowledge base reframed onto conversations: drop the separate wiki store, tag conversations
-    // directly. Relatedness is tag overlap, so there is no link table. DDL must match Room's
-    // generated schema for ConversationTagEntity exactly, or runtime validation will throw.
-    val MIGRATION_6_7 = Migration(6, 7) { db ->
-        db.execSQL("DROP TABLE IF EXISTS `wiki_links`")
-        db.execSQL("DROP TABLE IF EXISTS `wiki_page_tags`")
-        db.execSQL("DROP TABLE IF EXISTS `wiki_pages`")
-
-        db.execSQL(
-            "CREATE TABLE IF NOT EXISTS `conversation_tags` (" +
-                "`conversationId` TEXT NOT NULL, `tag` TEXT NOT NULL, " +
-                "PRIMARY KEY(`conversationId`, `tag`), " +
-                "FOREIGN KEY(`conversationId`) REFERENCES `conversations`(`id`) " +
-                "ON UPDATE NO ACTION ON DELETE CASCADE )",
-        )
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_conversation_tags_tag` ON `conversation_tags` (`tag`)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_conversation_tags_conversationId` ON `conversation_tags` (`conversationId`)")
-    }
-
-    // Bind a conversation to a mini-agent: scopes its tools + role. Nullable, default null.
-    val MIGRATION_7_8 = Migration(7, 8) { db ->
-        db.execSQL("ALTER TABLE conversations ADD COLUMN agentId TEXT")
-    }
-
-    // Избранные диалоги: флаг, по которому они всплывают в начало списка.
-    val MIGRATION_8_9 = Migration(8, 9) { db ->
-        db.execSQL("ALTER TABLE conversations ADD COLUMN isFavorite INTEGER NOT NULL DEFAULT 0")
-    }
-
-    // Составной индекс под запрос окна чата (WHERE conversationId=? ORDER BY createdAt DESC
-    // LIMIT ?): два раздельных индекса заставляли SQLite сортировать все строки диалога на
-    // каждый переэмит окна. Имена индексов — в точности как генерирует Room (иначе его
-    // валидация схемы упадёт на старте).
-    val MIGRATION_9_10 = Migration(9, 10) { db ->
-        db.execSQL("DROP INDEX IF EXISTS `index_messages_conversationId`")
-        db.execSQL("DROP INDEX IF EXISTS `index_messages_createdAt`")
-        db.execSQL(
-            "CREATE INDEX IF NOT EXISTS `index_messages_conversationId_createdAt` " +
-                "ON `messages` (`conversationId`, `createdAt`)",
-        )
-    }
-
-    // Dedicated spaced-repetition vocabulary table for the language tutor (previously stored in the
-    // shared facts table). DDL must match Room's generated schema for SrsWordEntity exactly.
-    val MIGRATION_10_11 = Migration(10, 11) { db ->
-        db.execSQL(
-            "CREATE TABLE IF NOT EXISTS `srs_words` (" +
-                "`id` TEXT NOT NULL, `lang` TEXT NOT NULL, `term` TEXT NOT NULL, " +
-                "`translation` TEXT NOT NULL, `example` TEXT NOT NULL, `stage` INTEGER NOT NULL, " +
-                "`dueMs` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, " +
-                "PRIMARY KEY(`id`))",
-        )
-        db.execSQL(
-            "CREATE INDEX IF NOT EXISTS `index_srs_words_lang` ON `srs_words` (`lang`)",
-        )
-    }
 }
