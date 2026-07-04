@@ -27,7 +27,7 @@ object DatabaseBindings {
         // любом изменении схемы Room просто пересоздаёт базу (fallbackToDestructiveMigration):
         // продакшн-пользователей нет, а локальные dev-данные потерять не жалко. Пошаговые миграции
         // (Migration + addMigrations) заводим с первого релиза, от релизного baseline.
-        Room.databaseBuilder(application, AppDatabase::class.java, "queen_chat_db")
+        Room.databaseBuilder(application, AppDatabase::class.java, "ai_open_pocket_db")
             .fallbackToDestructiveMigration()
             .build()
 
