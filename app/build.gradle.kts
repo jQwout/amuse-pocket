@@ -73,6 +73,16 @@ secrets {
   defaultPropertiesFileName = ".env.example"
 }
 
+// LessonAssetsValidationTest читает assets/lessons/*.json (+ картинки) напрямую через File() в
+// рантайме теста, минуя мёрж ресурсов. Gradle не видит их как входы задачи → при правках ТОЛЬКО
+// уроков testDebugUnitTest помечается UP-TO-DATE и валидатор НЕ запускается (битый урок мог пройти
+// CI). Объявляем каталог входом всех Test-задач: правка урока инвалидирует кэш и тест перезапускается.
+tasks.withType<Test>().configureEach {
+  inputs.dir(layout.projectDirectory.dir("src/main/assets/lessons"))
+    .withPropertyName("lessonAssets")
+    .withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+}
+
 // Some unused dependencies are commented out below instead of being removed.
 // This makes it easy to add them back in the future if needed.
 dependencies {
@@ -100,6 +110,7 @@ dependencies {
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
   implementation(libs.coil.compose)
+  implementation(libs.coil.svg)
   implementation(libs.converter.moshi)
   // implementation(libs.firebase.ai)
   implementation(libs.kotlinx.coroutines.android)

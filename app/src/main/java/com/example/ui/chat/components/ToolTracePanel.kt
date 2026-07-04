@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.ui.chat.components
 
+// @trace mcp-tools-f77d9b
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding

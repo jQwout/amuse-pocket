@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.ui.chat
 
+// @trace driven-ui-cards-0418d0
+
 import android.Manifest
 import android.content.Intent
 import android.os.Build
@@ -23,6 +25,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,17 +36,21 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
 import com.aiopenpocket.ui.roadmap.QuizQuestion
 import com.aiopenpocket.ui.roadmap.components.QuizContent
+import com.aiopenpocket.ui.roadmap.components.stableShuffledIndices
 import java.util.Locale
 
 private val CardSuccessGreen = Color(0xFF4CAF50)
@@ -58,15 +68,28 @@ sealed class DrivenUiCard {
     data class LessonCompleteCard(val title: String, val subtitle: String, val buttonLabel: String) : DrivenUiCard()
     data class SwitchCard(val label: String, val description: String, val action: String, val initialOn: Boolean) : DrivenUiCard()
     data class NotificationPermissionCard(val title: String, val description: String, val buttonLabel: String) : DrivenUiCard()
+    data class ImageCard(val asset: String, val url: String, val caption: String) : DrivenUiCard()
+    data class RevealCard(val question: String, val answer: String) : DrivenUiCard()
+    data class ConceptCard(val term: String, val definition: String, val example: String) : DrivenUiCard()
+    data class ExampleCard(val label: String, val parts: List<ExamplePart>) : DrivenUiCard()
+    data class FillCard(val template: String, val answer: String, val caseSensitive: Boolean) : DrivenUiCard()
+    data class SortCard(val instruction: String, val items: List<String>, val correct: List<Int>, val explain: String) : DrivenUiCard()
+    data class MatchCard(val instruction: String, val pairs: List<MatchPair>) : DrivenUiCard()
+    data class ScenarioCard(val situation: String, val question: String, val options: List<String>, val answerIndex: Int, val explain: String) : DrivenUiCard()
     data class ErrorCard(val message: String) : DrivenUiCard()
 }
 
 data class TodoItem(val text: String, var done: Boolean)
 data class WeatherDay(val dayName: String, val temp: String, val text: String, val icon: String)
 data class FormField(val name: String, val label: String, val placeholder: String, val type: String, var value: String = "")
+data class ExamplePart(val text: String, val role: String, val note: String)
+data class MatchPair(val term: String, val def: String)
 
 private fun JSONArray.toStringList(): List<String> =
     List(length()) { optString(it, "") }
+
+private fun JSONArray.toIntList(): List<Int> =
+    List(length()) { optInt(it, 0) }
 
 private inline fun <T> JSONArray.mapObjects(transform: (JSONObject) -> T): List<T> =
     List(length()) { transform(optJSONObject(it) ?: JSONObject()) }
@@ -145,7 +168,7 @@ object DrivenUiEngine {
                     QuizQuestion(
                         question = it.optString("q", ""),
                         options = it.array("options").toStringList(),
-                        correctIndex = it.optInt("correct", 0),
+                        correctIndex = it.optInt("correct", -1),
                         explanation = it.optString("explain", ""),
                     )
                 },
@@ -165,6 +188,54 @@ object DrivenUiEngine {
                 title = p.optString("title", "Уведомления"),
                 description = p.optString("description", "Разреши уведомления, чтобы получать напоминания."),
                 buttonLabel = p.optString("button_label", "Разрешить уведомления"),
+            )
+            "image" -> DrivenUiCard.ImageCard(
+                asset = p.optString("asset", ""),
+                url = p.optString("url", ""),
+                caption = p.optString("caption", ""),
+            )
+            "reveal" -> DrivenUiCard.RevealCard(
+                question = p.optString("question", ""),
+                answer = p.optString("answer", ""),
+            )
+            "concept" -> DrivenUiCard.ConceptCard(
+                term = p.optString("term", ""),
+                definition = p.optString("definition", ""),
+                example = p.optString("example", ""),
+            )
+            "example" -> DrivenUiCard.ExampleCard(
+                label = p.optString("label", ""),
+                parts = p.array("parts").mapObjects {
+                    ExamplePart(
+                        text = it.optString("text", ""),
+                        role = it.optString("role", ""),
+                        note = it.optString("note", ""),
+                    )
+                },
+            )
+            "fill" -> DrivenUiCard.FillCard(
+                template = p.optString("template", ""),
+                answer = p.optString("answer", ""),
+                caseSensitive = p.optBoolean("case_sensitive", false),
+            )
+            "sort" -> DrivenUiCard.SortCard(
+                instruction = p.optString("instruction", ""),
+                items = p.array("items").toStringList(),
+                correct = p.array("correct").toIntList(),
+                explain = p.optString("explain", ""),
+            )
+            "match" -> DrivenUiCard.MatchCard(
+                instruction = p.optString("instruction", ""),
+                pairs = p.array("pairs").mapObjects {
+                    MatchPair(term = it.optString("term", ""), def = it.optString("def", ""))
+                },
+            )
+            "scenario" -> DrivenUiCard.ScenarioCard(
+                situation = p.optString("situation", ""),
+                question = p.optString("q", ""),
+                options = p.array("options").toStringList(),
+                answerIndex = p.optInt("correct", -1),
+                explain = p.optString("explain", ""),
             )
             else -> DrivenUiCard.ErrorCard("Неизвестный шаблон: $template")
         }
@@ -257,20 +328,62 @@ fun DrivenUiCard.toMarkdown(): String = when (this) {
         appendLine("_[$buttonLabel]_")
     }.trim()
 
+    is DrivenUiCard.ImageCard -> buildString {
+        val src = asset.ifBlank { url }
+        appendLine("🖼️ ${caption.ifBlank { "Изображение" }}")
+        if (src.isNotBlank()) appendLine("_($src)_")
+    }.trim()
+
+    is DrivenUiCard.RevealCard -> buildString {
+        appendLine("**$question**")
+        appendLine("> $answer")
+    }.trim()
+
+    is DrivenUiCard.ConceptCard -> buildString {
+        appendLine("**$term** — $definition")
+        if (example.isNotBlank()) appendLine("_Пример: ${example}_")
+    }.trim()
+
+    is DrivenUiCard.ExampleCard -> buildString {
+        if (label.isNotBlank()) appendLine("**$label**")
+        parts.forEach { p ->
+            val note = if (p.note.isNotBlank()) " — _${p.note}_" else ""
+            appendLine("- ${if (p.role.isNotBlank()) "[${p.role}] " else ""}${p.text}$note")
+        }
+    }.trim()
+
+    is DrivenUiCard.FillCard -> "**Заполни пропуск:** ${template.replace("___", "_____")}"
+
+    is DrivenUiCard.SortCard -> buildString {
+        if (instruction.isNotBlank()) appendLine("**$instruction**")
+        items.forEachIndexed { i, it -> appendLine("${i + 1}. $it") }
+    }.trim()
+
+    is DrivenUiCard.MatchCard -> buildString {
+        if (instruction.isNotBlank()) appendLine("**$instruction**")
+        pairs.forEach { appendLine("- ${it.term} → ${it.def}") }
+    }.trim()
+
+    is DrivenUiCard.ScenarioCard -> buildString {
+        if (situation.isNotBlank()) appendLine("_${situation}_")
+        if (question.isNotBlank()) appendLine("**$question**")
+        options.forEach { appendLine("- $it") }
+    }.trim()
+
     is DrivenUiCard.ErrorCard -> "> ⚠️ $message"
 }
 
 @Composable
 fun RenderDrivenUiCard(
-    spec: String,
+    // Готовая карточка, а не JSON-спек: пузырь уже парсил spec, решая interactive/markdown —
+    // второй парс того же JSON на главном потоке при первой композиции итема был лишним.
+    card: DrivenUiCard,
     onFormSubmitted: (String) -> Unit = {},
     onChoiceSelected: (String) -> Unit = {},
     onLessonComplete: () -> Unit = {},
     onLessonQuizComplete: () -> Unit = {},
     onAction: (String, Boolean) -> Unit = { _, _ -> }
 ) {
-    val card = remember(spec) { DrivenUiEngine.parseJsonString(spec) }
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -291,6 +404,14 @@ fun RenderDrivenUiCard(
             is DrivenUiCard.LessonCompleteCard -> LessonCompleteCardView(card, onLessonComplete)
             is DrivenUiCard.SwitchCard -> SwitchCardView(card, onAction)
             is DrivenUiCard.NotificationPermissionCard -> NotificationPermissionCardView(card)
+            is DrivenUiCard.ImageCard -> ImageCardView(card)
+            is DrivenUiCard.RevealCard -> RevealCardView(card)
+            is DrivenUiCard.ConceptCard -> ConceptCardView(card)
+            is DrivenUiCard.ExampleCard -> ExampleCardView(card)
+            is DrivenUiCard.FillCard -> FillCardView(card, onLessonQuizComplete)
+            is DrivenUiCard.SortCard -> SortCardView(card, onLessonQuizComplete)
+            is DrivenUiCard.MatchCard -> MatchCardView(card, onLessonQuizComplete)
+            is DrivenUiCard.ScenarioCard -> ScenarioCardView(card, onLessonQuizComplete)
             is DrivenUiCard.ErrorCard -> {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -740,12 +861,16 @@ fun ChoiceCardView(
 
         card.options.forEachIndexed { i, option ->
             val answered = selected != null
-            val isCorrect = card.answerIndex >= 0 && i == card.answerIndex
+            // answerIndex < 0 — правильный вариант не задан (например, открытый опрос без "верного"
+            // ответа): не подсвечиваем выбор как неверный, см. f646e64 для того же класса бага.
+            val hasKey = card.answerIndex >= 0
+            val isCorrect = hasKey && i == card.answerIndex
             val isPicked = selected == i
             val borderColor = when {
                 !answered -> MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
                 isCorrect -> correctGreen
-                isPicked -> MaterialTheme.colorScheme.error
+                hasKey && isPicked -> MaterialTheme.colorScheme.error
+                isPicked -> MaterialTheme.colorScheme.outline
                 else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
             }
             Row(
@@ -764,7 +889,7 @@ fun ChoiceCardView(
                 Text(text = option, style = MaterialTheme.typography.bodyLarge)
                 when {
                     answered && isCorrect -> Icon(Icons.Default.Check, null, tint = correctGreen)
-                    answered && isPicked -> Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.error)
+                    answered && hasKey && isPicked -> Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.error)
                 }
             }
         }
@@ -937,6 +1062,463 @@ fun NotificationPermissionCardView(card: DrivenUiCard.NotificationPermissionCard
             ) {
                 Text(card.buttonLabel)
             }
+        }
+    }
+}
+
+/**
+ * Картинка/диаграмма в шаге урока. Источник — бандл-ассет (пробуем ПЕРВЫМ, чтобы работало оффлайн),
+ * с фоллбеком на сетевой URL, если ассета нет или он не загрузился. SVG и растр декодирует общий
+ * Coil-синглтон приложения (SvgDecoder подключён в [com.aiopenpocket.AiOpenPocketApp.newImageLoader]).
+ * Раньше здесь собирался СВОЙ ImageLoader на каждый экземпляр карточки — его кэш умирал вместе с
+ * итемом ленты, и при возврате пузыря в вьюпорт картинка грузилась заново (пустой пузырь → скачок).
+ */
+@Composable
+fun ImageCardView(card: DrivenUiCard.ImageCard) {
+    val context = LocalContext.current
+    val assetData = card.asset.takeIf { it.isNotBlank() }?.let { "file:///android_asset/$it" }
+    val urlData = card.url.takeIf { it.isNotBlank() }
+    // Ассет первым; при ошибке загрузки переключаемся на URL (один раз).
+    var useFallback by remember(card) { mutableStateOf(assetData == null) }
+    val data = if (!useFallback) (assetData ?: urlData) else urlData
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        if (data == null) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(Icons.Default.BrokenImage, contentDescription = null, tint = MaterialTheme.colorScheme.outline)
+                Text(
+                    text = "Нет изображения",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+            }
+        } else {
+            AsyncImage(
+                model = ImageRequest.Builder(context).data(data).crossfade(true).build(),
+                contentDescription = card.caption.ifBlank { null },
+                // Фиксированный аспект: высота пузыря известна ДО загрузки картинки, поэтому лента
+                // не «раздувается» и не прыгает, когда картинка доехала (раньше — FillWidth без
+                // высоты: пузырь рождался схлопнутым). Fit — схемы/диаграммы не обрезаем, возможен
+                // леттербокс по краям.
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(16f / 9f)
+                    .clip(RoundedCornerShape(12.dp)),
+                onError = {
+                    // Ассет не загрузился — пробуем сетевой URL, если он задан и ещё не пробовали.
+                    if (!useFallback && assetData != null && urlData != null) useFallback = true
+                },
+            )
+        }
+        if (card.caption.isNotBlank()) {
+            Text(
+                text = card.caption,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+/** "reveal": вопрос, по кнопке раскрывается ответ. Шаг продвигается кнопкой «Дальше». */
+@Composable
+fun RevealCardView(card: DrivenUiCard.RevealCard) {
+    // rememberSaveable: раскрытие переживает рециклинг элемента в LazyColumn и поворот
+    // (обычный remember сбрасывал карточку в «закрыто» при скролле за экран и обратно).
+    var revealed by rememberSaveable(card) { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = card.question,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        AnimatedVisibility(visible = revealed) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Default.Lightbulb, null, tint = CardSuccessGreen, modifier = Modifier.size(20.dp))
+                Text(text = card.answer, style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+        if (!revealed) {
+            Button(onClick = { revealed = true }) {
+                Icon(Icons.Default.Visibility, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Показать ответ")
+            }
+        }
+    }
+}
+
+/** "concept": термин, определение, пример. Статичная карточка. */
+@Composable
+fun ConceptCardView(card: DrivenUiCard.ConceptCard) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        CardTitleRow(icon = Icons.Default.School, title = card.term)
+        CardDivider()
+        Text(text = card.definition, style = MaterialTheme.typography.bodyMedium)
+        if (card.example.isNotBlank()) {
+            Text(
+                text = "Пример: ${card.example}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline,
+            )
+        }
+    }
+}
+
+/** "example": заголовок и разбор на части (текст + роль-бейдж + заметка). Статичная карточка. */
+@Composable
+fun ExampleCardView(card: DrivenUiCard.ExampleCard) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (card.label.isNotBlank()) {
+            Text(
+                text = card.label,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            CardDivider()
+        }
+        card.parts.forEach { part ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                if (part.role.isNotBlank()) {
+                    Text(
+                        text = part.role.uppercase(Locale.getDefault()),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                Text(text = part.text, style = MaterialTheme.typography.bodyMedium)
+                if (part.note.isNotBlank()) {
+                    Text(
+                        text = part.note,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** "fill": заполни пропуск. Правильный ввод продвигает урок (как пройденный квиз). */
+@Composable
+fun FillCardView(card: DrivenUiCard.FillCard, onSolved: () -> Unit) {
+    // rememberSaveable: решённость (и черновик) переживают рециклинг/поворот. Иначе карточка
+    // сбрасывалась в нерешённую, и повторное решение ЕЩЁ РАЗ дёргало onSolved — курсор урока
+    // прыгал на лишний шаг. onSolved зовётся только на переходе solved=false→true, поэтому
+    // восстановленное solved=true повторного продвижения не даёт.
+    var input by rememberSaveable(card) { mutableStateOf("") }
+    var solved by rememberSaveable(card) { mutableStateOf(false) }
+    var wrong by remember(card) { mutableStateOf(false) }
+
+    fun check() {
+        val a = if (card.caseSensitive) input.trim() else input.trim().lowercase(Locale.getDefault())
+        val b = if (card.caseSensitive) card.answer.trim() else card.answer.trim().lowercase(Locale.getDefault())
+        if (a == b && a.isNotEmpty()) { solved = true; wrong = false; onSolved() } else { wrong = true }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = card.template.replace("___", "  _____  "),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (solved) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Default.Check, null, tint = CardSuccessGreen)
+                Text(card.answer, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+            }
+        } else {
+            OutlinedTextField(
+                value = input,
+                onValueChange = { input = it; wrong = false },
+                singleLine = true,
+                isError = wrong,
+                placeholder = { Text("Впиши пропущенное слово") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (wrong) {
+                Text("Не то — попробуй ещё", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+            Button(onClick = { check() }, enabled = input.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                Text("Проверить")
+            }
+        }
+    }
+}
+
+/** "sort": расставь элементы стрелками вверх/вниз. Верный порядок продвигает урок. */
+@Composable
+fun SortCardView(card: DrivenUiCard.SortCard, onSolved: () -> Unit) {
+    // rememberSaveable: расстановка и решённость переживают рециклинг элемента в LazyColumn и
+    // поворот. Раньше remember сбрасывал карточку в нерешённую, и повторное решение ЕЩЁ РАЗ дёргало
+    // onSolved — курсор урока прыгал на лишний шаг. onSolved зовётся только на переходе
+    // solved=false→true, поэтому восстановленное solved=true повторного продвижения не даёт.
+    // Порядок храним индексами: дубликаты строк в items не путают восстановление.
+    val order = rememberSaveable(
+        card,
+        saver = listSaver<SnapshotStateList<Int>, Int>(
+            save = { it.toList() },
+            restore = { it.toMutableStateList() },
+        ),
+    ) { card.items.indices.toList().toMutableStateList() }
+    // correct должен быть полной перестановкой индексов items. Если он битый (вне диапазона, дубли,
+    // не та длина — частый брак LLM-карточки или авторской ошибки урока), деградируем к исходному
+    // порядку, чтобы шаг остался решаемым по «Проверить», а не залип навсегда.
+    val target = remember(card) {
+        val n = card.items.size
+        val isPermutation = card.correct.size == n && card.correct.toSet() == (0 until n).toSet()
+        if (isPermutation) card.correct.map { card.items[it] } else card.items
+    }
+    var solved by rememberSaveable(card) { mutableStateOf(false) }
+    var wrong by remember(card) { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (card.instruction.isNotBlank()) {
+            Text(card.instruction, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        order.forEachIndexed { i, itemIndex ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
+                    .padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            ) {
+                Text("${i + 1}.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
+                Spacer(Modifier.width(8.dp))
+                Text(card.items[itemIndex], style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                if (!solved) {
+                    IconButton(onClick = {
+                        if (i > 0) { val t = order[i - 1]; order[i - 1] = order[i]; order[i] = t; wrong = false }
+                    }, enabled = i > 0) { Icon(Icons.Default.KeyboardArrowUp, "Вверх") }
+                    IconButton(onClick = {
+                        if (i < order.size - 1) { val t = order[i + 1]; order[i + 1] = order[i]; order[i] = t; wrong = false }
+                    }, enabled = i < order.size - 1) { Icon(Icons.Default.KeyboardArrowDown, "Вниз") }
+                }
+            }
+        }
+        if (solved) {
+            if (card.explain.isNotBlank()) {
+                Text("✓ ${card.explain}", style = MaterialTheme.typography.bodySmall, color = CardSuccessGreen)
+            }
+        } else {
+            if (wrong) {
+                Text("Пока не тот порядок — переставь и проверь снова", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error)
+            }
+            Button(
+                onClick = {
+                    // Сравниваем отображаемые строки (а не индексы): при дубликатах в items любой
+                    // визуально совпадающий порядок засчитывается — как и раньше.
+                    if (order.map { card.items[it] } == target) { solved = true; wrong = false; onSolved() } else wrong = true
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Проверить") }
+        }
+    }
+}
+
+/** "match": сопоставь термины и определения тапами. Полное верное сопоставление продвигает урок. */
+@Composable
+fun MatchCardView(card: DrivenUiCard.MatchCard, onSolved: () -> Unit) {
+    val terms = card.pairs.map { it.term }
+    // Определения показываем в перемешанном (стабильном) порядке. Раньше был сдвиг на 1 — верное
+    // определение почти всегда оказывалось «следующим по списку» и сопоставление угадывалось.
+    // avoidIdentity: исходный порядок подсказал бы все пары разом.
+    val displayDefOrder = remember(card) {
+        val seed = card.pairs.fold(0) { acc, p -> (acc * 31 + p.term.hashCode()) * 31 + p.def.hashCode() }
+        stableShuffledIndices(card.pairs.size, seed, avoidIdentity = true)
+    }
+    // rememberSaveable: сопоставление и решённость переживают рециклинг/поворот (см. SortCardView —
+    // тот же класс бага с повторным onSolved).
+    val assign = rememberSaveable(
+        card,
+        saver = listSaver<SnapshotStateMap<Int, Int>, Int>(
+            save = { map -> map.entries.flatMap { listOf(it.key, it.value) } },
+            restore = { flat ->
+                mutableStateMapOf<Int, Int>().apply {
+                    var i = 0
+                    while (i + 1 < flat.size) {
+                        put(flat[i], flat[i + 1])
+                        i += 2
+                    }
+                }
+            },
+        ),
+    ) { mutableStateMapOf() } // termIndex -> исходный индекс пары (он же верный термин)
+    var selectedTerm by remember(card) { mutableStateOf<Int?>(null) }
+    var solved by rememberSaveable(card) { mutableStateOf(false) }
+    var wrong by remember(card) { mutableStateOf(false) }
+    val correctGreen = CardSuccessGreen
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (card.instruction.isNotBlank()) {
+            Text(card.instruction, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        // Термины
+        terms.forEachIndexed { ti, term ->
+            val assignedDef = assign[ti]?.let { card.pairs[it].def }
+            val isSel = selectedTerm == ti
+            val border = when {
+                solved && assign[ti] == ti -> correctGreen
+                solved -> MaterialTheme.colorScheme.error
+                isSel -> MaterialTheme.colorScheme.primary
+                else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .border(1.5.dp, border, RoundedCornerShape(10.dp))
+                    .clickable(enabled = !solved) { selectedTerm = if (isSel) null else ti }
+                    .padding(12.dp),
+            ) {
+                Text(term, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text(
+                    text = assignedDef ?: "выбери →",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (assignedDef != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.weight(1.2f),
+                )
+            }
+        }
+        CardDivider()
+        Text("Определения:", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+        // Определения-кнопки: тап назначает выбранному термину
+        displayDefOrder.forEach { di ->
+            val used = assign.containsValue(di)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(
+                        if (used) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                        else MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+                    )
+                    .clickable(enabled = !solved && selectedTerm != null) {
+                        val t = selectedTerm
+                        if (t != null) {
+                            // снять этот def с прежнего термина, затем назначить
+                            assign.entries.firstOrNull { it.value == di }?.let { assign.remove(it.key) }
+                            assign[t] = di
+                            selectedTerm = null
+                            wrong = false
+                        }
+                    }
+                    .padding(12.dp),
+            ) {
+                Text(card.pairs[di].def, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                if (used) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+            }
+        }
+        if (solved) {
+            Text("✓ Верно!", style = MaterialTheme.typography.bodySmall, color = correctGreen)
+        } else {
+            if (wrong) {
+                Text("Не всё совпало — поправь пары", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+            Button(
+                onClick = {
+                    if (assign.size == terms.size && assign.all { it.key == it.value }) { solved = true; wrong = false; onSolved() } else wrong = true
+                },
+                enabled = assign.size == terms.size,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Проверить") }
+        }
+    }
+}
+
+/** "scenario": ситуация + один вопрос с вариантами. Ответ продвигает урок. */
+@Composable
+fun ScenarioCardView(card: DrivenUiCard.ScenarioCard, onSolved: () -> Unit) {
+    // rememberSaveable: ответ переживает рециклинг/поворот — повторный тап по «сброшенной» карточке
+    // раньше ЕЩЁ РАЗ дёргал onSolved и толкал урок на лишний шаг. -1 = ещё не отвечено
+    // (Int? автосейвер не сохраняет). Храним ИСХОДНЫЙ индекс варианта — сверка с answerIndex
+    // и восстановление не зависят от порядка показа.
+    var selected by rememberSaveable(card) { mutableStateOf(-1) }
+    // Варианты — в перемешанном (стабильном) порядке: в авторских JSON правильный всегда первый.
+    val displayOrder = remember(card) {
+        val seed = (card.situation.hashCode() * 31 + card.question.hashCode()) * 31 +
+            card.options.fold(0) { acc, o -> acc * 31 + o.hashCode() }
+        stableShuffledIndices(card.options.size, seed)
+    }
+    val correctGreen = CardSuccessGreen
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (card.situation.isNotBlank()) {
+            Text(
+                text = card.situation,
+                style = MaterialTheme.typography.bodyMedium,
+                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                color = MaterialTheme.colorScheme.outline,
+            )
+        }
+        if (card.question.isNotBlank()) {
+            Text(card.question, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        displayOrder.forEach { i ->
+            val option = card.options[i]
+            val answered = selected >= 0
+            // answerIndex < 0 — правильный вариант неизвестен (не задан/битый): не подсвечиваем
+            // ничего как «верное/неверное», чтобы не вводить в заблуждение ложным ключом.
+            val hasKey = card.answerIndex >= 0
+            val isCorrect = hasKey && i == card.answerIndex
+            val isPicked = selected == i
+            val border = when {
+                !answered -> MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                isCorrect -> correctGreen
+                hasKey && isPicked -> MaterialTheme.colorScheme.error
+                isPicked -> MaterialTheme.colorScheme.outline
+                else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(1.5.dp, border, RoundedCornerShape(12.dp))
+                    .clickable(enabled = selected < 0) {
+                        selected = i
+                        // Ответил — двигаемся дальше независимо от правильности: виден верный вариант + пояснение.
+                        onSolved()
+                    }
+                    .padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(option, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                when {
+                    answered && isCorrect -> Icon(Icons.Default.Check, null, tint = correctGreen)
+                    answered && hasKey && isPicked -> Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+        if (selected >= 0 && card.explain.isNotBlank()) {
+            Text(card.explain, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
         }
     }
 }

@@ -1,5 +1,7 @@
 package com.aiopenpocket.ui.memory
 
+// @trace agent-memory-05e545
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -55,12 +57,20 @@ fun ForceDirectedGraph(
   val posY = remember(graph) { FloatArray(nodes.size) }
   val velX = remember(graph) { FloatArray(nodes.size) }
   val velY = remember(graph) { FloatArray(nodes.size) }
+  // Силовые аккумуляторы переиспользуем между кадрами (обнуляем в начале прохода): иначе два
+  // FloatArray(N) аллоцировались бы на КАЖДЫЙ кадр (~60/сек в движении) — мусор в GC на UI-потоке.
+  val forceX = remember(graph) { FloatArray(nodes.size) }
+  val forceY = remember(graph) { FloatArray(nodes.size) }
 
   var size by remember { mutableStateOf(IntSize.Zero) }
   var dragIndex by remember(graph) { mutableIntStateOf(-1) }
   // Bumped every simulation frame so the Canvas redraws.
   var frame by remember(graph) { mutableIntStateOf(0) }
   var initialized by remember(graph) { mutableStateOf(false) }
+  // Once every node's velocity has damped to near-zero, the O(n²) force pass below is skipped
+  // each frame (idle redraw loop only) until a drag perturbs a position again — otherwise this
+  // burns full CPU forever while the memory graph screen is simply left open.
+  var settled by remember(graph) { mutableStateOf(false) }
 
   fun radiusOf(node: MemoryNode): Float = when (node.kind) {
     MemoryNodeKind.CHAT -> 20f
@@ -100,8 +110,11 @@ fun ForceDirectedGraph(
         initialized = true
       }
 
-      val fx = FloatArray(nodes.size)
-      val fy = FloatArray(nodes.size)
+      // Idle: nothing is moving and nobody is dragging — skip the O(n²) force pass this frame.
+      if (settled && dragIndex < 0) return@LaunchedSimulation
+
+      val fx = forceX.also { it.fill(0f) }
+      val fy = forceY.also { it.fill(0f) }
 
       for (i in nodes.indices) {
         for (j in i + 1 until nodes.size) {
@@ -141,6 +154,8 @@ fun ForceDirectedGraph(
         posX[i] = (posX[i] + velX[i]).coerceIn(MARGIN, w - MARGIN)
         posY[i] = (posY[i] + velY[i]).coerceIn(MARGIN, h - MARGIN)
       }
+      settled = dragIndex < 0 &&
+        nodes.indices.all { i -> velX[i] * velX[i] + velY[i] * velY[i] < SETTLE_VELOCITY_SQ }
       frame++
     },
   )
@@ -224,3 +239,4 @@ private const val GRAVITY = 0.005f
 private const val DAMPING = 0.9f
 private const val MAX_VELOCITY = 15f
 private const val MARGIN = 28f
+private const val SETTLE_VELOCITY_SQ = 0.01f

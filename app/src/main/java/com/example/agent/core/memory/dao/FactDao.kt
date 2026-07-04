@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.agent.core.memory.dao
 
+// @trace agent-memory-05e545
+
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -19,6 +21,9 @@ interface FactDao {
 
   @Query("SELECT * FROM facts WHERE category = :category ORDER BY updatedAt DESC")
   suspend fun getByCategory(category: String): List<FactEntity>
+
+  @Query("SELECT * FROM facts WHERE `key` LIKE :prefix || '%' ESCAPE '\\' ORDER BY `key` ASC, updatedAt DESC")
+  suspend fun getByKeyPrefix(prefix: String): List<FactEntity>
 
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insert(fact: FactEntity)

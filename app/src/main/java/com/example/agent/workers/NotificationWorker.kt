@@ -1,14 +1,11 @@
-﻿package com.aiopenpocket.agent.workers
+package com.aiopenpocket.agent.workers
 
 // @trace background-tasks-15a34a
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.content.Context
-import android.os.Build
-import androidx.core.app.NotificationCompat
 import androidx.work.Worker
 import androidx.work.WorkerParameters
+import com.aiopenpocket.agent.core.notification.showAgentNotification
 
 class NotificationWorker(
   context: Context,
@@ -20,33 +17,13 @@ class NotificationWorker(
     val message = inputData.getString(KEY_MESSAGE) ?: return Result.failure()
     val notificationId = inputData.getInt(KEY_NOTIFICATION_ID, System.currentTimeMillis().toInt())
 
-    val notificationManager =
-      applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      val channel = NotificationChannel(
-        CHANNEL_ID,
-        "AI Agent Notifications",
-        NotificationManager.IMPORTANCE_DEFAULT,
-      )
-      notificationManager.createNotificationChannel(channel)
-    }
-
-    val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
-      .setSmallIcon(android.R.drawable.ic_dialog_info)
-      .setContentTitle(title)
-      .setContentText(message)
-      .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-      .setAutoCancel(true)
-      .build()
-
-    notificationManager.notify(notificationId, notification)
-
-    return Result.success()
+    val shown = showAgentNotification(applicationContext, title, message, notificationId)
+    // Разрешение могли отозвать между постановкой в очередь и срабатыванием — сообщаем об этом
+    // через Result.failure(), а не молча делаем вид, что уведомление показано.
+    return if (shown) Result.success() else Result.failure()
   }
 
   companion object {
-    const val CHANNEL_ID = "ai_agent_channel"
     const val KEY_TITLE = "title"
     const val KEY_MESSAGE = "message"
     const val KEY_NOTIFICATION_ID = "notification_id"

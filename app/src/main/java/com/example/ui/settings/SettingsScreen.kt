@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.ui.settings
 
+// @trace app-settings-beb470
+
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -29,14 +31,13 @@ import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Loop
+import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Settings
@@ -55,7 +56,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -79,12 +79,14 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
+import com.aiopenpocket.ui.onboarding.components.PersonaCard
 import com.aiopenpocket.ui.components.AcademyBottomNav
+import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
 import com.aiopenpocket.ui.components.AcademyTab
 import com.aiopenpocket.ui.theme.CardDark
 import com.aiopenpocket.ui.theme.PersonaCardBg
@@ -110,8 +112,26 @@ fun SettingsScreen(
   val personaSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   val currentPersona = PersonaCatalog.findById(state.personaId)
 
-  Scaffold(
+  AcademyCollapsingScaffold(
+    title = "Настройки",
     containerColor = PersonaQuoteBg,
+    navigationIcon = {
+      IconButton(onClick = onNavigateBack) {
+        Icon(
+          imageVector = Icons.AutoMirrored.Default.ArrowBack,
+          contentDescription = "Назад",
+        )
+      }
+    },
+    actions = {
+      Icon(
+        imageVector = Icons.Default.Settings,
+        contentDescription = null,
+        modifier = Modifier
+          .padding(end = 12.dp)
+          .size(22.dp),
+      )
+    },
     bottomBar = {
       Column(
         modifier = Modifier
@@ -187,9 +207,7 @@ fun SettingsScreen(
         .padding(padding)
         .verticalScroll(rememberScrollState()),
     ) {
-      SettingsTopBar(onNavigateBack = onNavigateBack)
-
-      Spacer(modifier = Modifier.height(20.dp))
+      Spacer(modifier = Modifier.height(8.dp))
 
       SettingsInfoCard(
         modifier = Modifier.padding(horizontal = 20.dp),
@@ -224,19 +242,22 @@ fun SettingsScreen(
         )
       }
 
+      // Выбор провайдера скрыт: runAgent всегда идёт на NIM (GROQ/GITHUB к нему не подключены),
+      // поэтому селектор был бы контролом без эффекта. Вернуть, когда провайдер начнёт применяться.
       Spacer(modifier = Modifier.height(28.dp))
 
       SettingsSectionHeader(
-        icon = Icons.Default.Dns,
-        title = "ПРОВАЙДЕР",
+        icon = Icons.Default.Memory,
+        title = "МОДЕЛЬ",
         modifier = Modifier.padding(horizontal = 20.dp),
       )
       Spacer(modifier = Modifier.height(12.dp))
-      ProviderSelectorCard(
-        selected = state.selectedProvider,
-        options = listOf("AUTO", "NIM", "GROQ", "GITHUB"),
-        onSelect = viewModel::updateProvider,
+      SelectorCard(
+        selected = state.selectedModel,
+        options = state.availableModels,
+        onSelect = viewModel::updateModel,
         modifier = Modifier.padding(horizontal = 20.dp),
+        testTag = "settings_model_selector",
       )
 
       Spacer(modifier = Modifier.height(28.dp))
@@ -326,87 +347,37 @@ fun SettingsScreen(
       Column(
         modifier = Modifier
           .fillMaxWidth()
-          .padding(horizontal = 20.dp)
+          .verticalScroll(rememberScrollState())
           .padding(bottom = 32.dp),
       ) {
         Text(
           text = "Выбор персоны",
           style = MaterialTheme.typography.titleLarge,
           color = MaterialTheme.colorScheme.onSurface,
+          modifier = Modifier.padding(start = 20.dp, end = 20.dp),
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+          text = "Выбери напарника — у каждого свой характер, статы и манера",
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp),
+        )
+        Spacer(modifier = Modifier.height(10.dp))
         state.personas.forEach { personaId ->
           val persona = PersonaCatalog.findById(personaId)
-          val isSelected = personaId == state.personaId
-          Row(
-            modifier = Modifier
-              .fillMaxWidth()
-              .clip(RoundedCornerShape(12.dp))
-              .clickable {
+          if (persona != null) {
+            PersonaCard(
+              persona = persona,
+              isSelected = personaId == state.personaId,
+              onSelect = {
                 viewModel.updatePersona(personaId)
                 showPersonaSheet = false
-              }
-              .background(if (isSelected) PurpleAccentDark.copy(alpha = 0.4f) else Color.Transparent)
-              .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-          ) {
-            Column(modifier = Modifier.weight(1f)) {
-              Text(
-                text = persona?.displayName ?: personaId,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-              )
-              if (persona != null) {
-                Text(
-                  text = persona.tone,
-                  style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-              }
-            }
-            if (isSelected) {
-              Icon(
-                imageVector = Icons.Default.Check,
-                contentDescription = "Выбрано",
-                tint = PurpleAccent,
-              )
-            }
+              },
+            )
           }
         }
       }
     }
-  }
-}
-
-@Composable
-private fun SettingsTopBar(onNavigateBack: () -> Unit) {
-  Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(horizontal = 8.dp, vertical = 8.dp),
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    IconButton(onClick = onNavigateBack) {
-      Icon(
-        imageVector = Icons.AutoMirrored.Default.ArrowBack,
-        contentDescription = "Назад",
-        tint = MaterialTheme.colorScheme.onSurface,
-      )
-    }
-    Text(
-      text = "Настройки (Обновлено)",
-      style = MaterialTheme.typography.titleLarge,
-      color = MaterialTheme.colorScheme.onSurface,
-      modifier = Modifier.weight(1f),
-    )
-    Icon(
-      imageVector = Icons.Default.Settings,
-      contentDescription = null,
-      tint = MaterialTheme.colorScheme.onSurfaceVariant,
-      modifier = Modifier
-        .padding(end = 16.dp)
-        .size(22.dp),
-    )
   }
 }
 
@@ -421,7 +392,7 @@ private fun SettingsInfoCard(modifier: Modifier = Modifier) {
   ) {
     Column {
       Text(
-        text = "LUMINA AI LEARNING",
+        text = "AI ACADEMY",
         style = MaterialTheme.typography.labelLarge,
         color = PurpleAccent,
       )
@@ -505,11 +476,12 @@ private fun ApiKeyField(
 }
 
 @Composable
-private fun ProviderSelectorCard(
+private fun SelectorCard(
   selected: String,
   options: List<String>,
   onSelect: (String) -> Unit,
   modifier: Modifier = Modifier,
+  testTag: String = "settings_selector",
 ) {
   var expanded by remember { mutableStateOf(false) }
 
@@ -521,7 +493,7 @@ private fun ProviderSelectorCard(
         .background(PersonaCardBg)
         .clickable { expanded = true }
         .padding(horizontal = 16.dp, vertical = 18.dp)
-        .testTag("settings_provider_selector"),
+        .testTag(testTag),
       verticalAlignment = Alignment.CenterVertically,
     ) {
       Box(
@@ -542,6 +514,8 @@ private fun ProviderSelectorCard(
         text = selected,
         style = MaterialTheme.typography.headlineSmall,
         color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         modifier = Modifier
           .weight(1f)
           .padding(horizontal = 16.dp),
@@ -843,7 +817,7 @@ private fun PersonaSelectorCard(
       )
       Text(
         text = displayName ?: personaId,
-        style = MaterialTheme.typography.titleLarge.copy(fontStyle = FontStyle.Italic),
+        style = MaterialTheme.typography.titleLarge,
         color = MaterialTheme.colorScheme.onSurface,
       )
     }

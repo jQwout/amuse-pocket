@@ -1,5 +1,7 @@
 package com.aiopenpocket.ui.memory
 
+// @trace agent-memory-05e545
+
 /** Node kind in the bipartite memory graph: a conversation or a tag hub. */
 enum class MemoryNodeKind { CHAT, TAG }
 

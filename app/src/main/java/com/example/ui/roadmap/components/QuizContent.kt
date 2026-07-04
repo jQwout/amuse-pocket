@@ -1,5 +1,7 @@
 package com.aiopenpocket.ui.roadmap.components
 
+// @trace ai-academy-onboarding-5d51bb
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,10 +20,12 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshots.SnapshotStateMap
@@ -35,8 +39,25 @@ import androidx.compose.ui.unit.dp
 import com.aiopenpocket.ui.roadmap.LESSON_QUIZZES
 import com.aiopenpocket.ui.roadmap.QuizQuestion
 import com.aiopenpocket.ui.theme.MyApplicationTheme
+import kotlin.random.Random
 
 private val CorrectGreen = Color(0xFF4CAF50)
+
+/**
+ * Детерминированно перемешанные индексы [0, size): seed считается из содержимого, поэтому порядок
+ * одинаков на каждом показе — сохранённые ответы и подсветка не съезжают после рециклинга, поворота
+ * или переоткрытия. Лечит «правильный ответ всегда первый» в авторских JSON, не трогая контент.
+ * [avoidIdentity] — для match-карточки: исходный порядок подсказывал бы все пары разом.
+ */
+internal fun stableShuffledIndices(size: Int, seed: Int, avoidIdentity: Boolean = false): List<Int> {
+  val order = (0 until size).shuffled(Random(seed))
+  val isIdentity = order.withIndex().all { (i, v) -> i == v }
+  return if (avoidIdentity && size > 1 && isIdentity) order.drop(1) + order.first() else order
+}
+
+/** Seed перемешивания вариантов вопроса — стабилен, пока не меняется сам вопрос. */
+private fun QuizQuestion.shuffleSeed(): Int =
+  question.hashCode() * 31 + options.fold(0) { acc, o -> acc * 31 + o.hashCode() }
 
 /**
  * Renders the lesson quiz: a list of multiple-choice questions, each revealing
@@ -94,14 +115,25 @@ fun QuizContent(
       )
       Spacer(Modifier.height(8.dp))
 
-      question.options.forEachIndexed { i, option ->
+      // Варианты показываем в перемешанном (но стабильном) порядке; в answers кладём ИСХОДНЫЙ
+      // индекс варианта — сверка с correctIndex и восстановление сохранённых ответов не зависят
+      // от порядка показа.
+      val displayOrder = remember(question) {
+        stableShuffledIndices(question.options.size, question.shuffleSeed())
+      }
+      displayOrder.forEach { i ->
+        val option = question.options[i]
         val answered = selected != null
-        val isCorrect = i == question.correctIndex
+        // correctIndex < 0 — правильный вариант не задан/битый (см. f646e64): не подсвечиваем
+        // ничего как «верное/неверное», чтобы не вводить в заблуждение ложным ключом.
+        val hasKey = question.correctIndex >= 0
+        val isCorrect = hasKey && i == question.correctIndex
         val isPicked = selected == i
         val borderColor = when {
           !answered -> MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
           isCorrect -> CorrectGreen
-          isPicked -> MaterialTheme.colorScheme.error
+          hasKey && isPicked -> MaterialTheme.colorScheme.error
+          isPicked -> MaterialTheme.colorScheme.outline
           else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
         }
         Row(
@@ -118,7 +150,7 @@ fun QuizContent(
           Text(text = option, style = MaterialTheme.typography.bodyLarge)
           when {
             answered && isCorrect -> Icon(Icons.Default.Check, null, tint = CorrectGreen)
-            answered && isPicked -> Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.error)
+            answered && hasKey && isPicked -> Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.error)
           }
         }
       }
@@ -142,6 +174,33 @@ fun QuizContent(
 
       if (qIndex != questions.lastIndex) {
         Spacer(Modifier.height(20.dp))
+      }
+    }
+
+    // Итог: счёт по вопросам с ключом + пересдача. «Пройти ещё раз» чистит только ответы:
+    // fired не трогаем, поэтому урок не продвинется второй раз — пересдача чисто для самопроверки.
+    if (questions.isNotEmpty() && answers.size == questions.size) {
+      val keyed = questions.count { it.correctIndex >= 0 }
+      val correctCount = questions.withIndex()
+        .count { (i, q) -> q.correctIndex >= 0 && answers[i] == q.correctIndex }
+      Spacer(Modifier.height(16.dp))
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .clip(RoundedCornerShape(12.dp))
+          .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+          .padding(horizontal = 12.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Text(
+          text = if (keyed > 0) "Верно: $correctCount из $keyed" else "Квиз пройден",
+          style = MaterialTheme.typography.titleSmall,
+          fontWeight = FontWeight.Bold,
+          color = if (keyed > 0 && correctCount == keyed) CorrectGreen
+          else MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = { answers.clear() }) { Text("Пройти ещё раз") }
       }
     }
   }

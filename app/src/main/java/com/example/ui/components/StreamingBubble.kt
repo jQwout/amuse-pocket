@@ -1,5 +1,7 @@
 ﻿package com.aiopenpocket.ui.components
 
+// @trace streaming-llm-chat-6595a1
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -42,8 +44,10 @@ fun StreamingBubble(
           val displayText = if (showCursor) "$text▌" else text
           Text(
             text = displayText,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+            // Тот же цвет, что у сохранённого сообщения (plain-путь MarkdownText / markdown m3 —
+            // onBackground): подмена пузыря сообщением не должна менять вид текста.
+            color = MaterialTheme.colorScheme.onBackground,
           )
         }
         isWaiting -> {
