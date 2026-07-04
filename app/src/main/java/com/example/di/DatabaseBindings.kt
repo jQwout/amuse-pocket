@@ -10,6 +10,7 @@ import com.aiopenpocket.agent.core.memory.dao.ConversationTagDao
 import com.aiopenpocket.agent.core.memory.dao.EpisodeDao
 import com.aiopenpocket.agent.core.memory.dao.FactDao
 import com.aiopenpocket.agent.core.memory.dao.MessageDao
+import com.aiopenpocket.agent.core.srs.SrsWordDao
 import dev.zacsweers.metro.BindingContainer
 import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.Provides
@@ -27,7 +28,7 @@ object DatabaseBindings {
             AppDatabase::class.java,
             "queen_chat_db",
         )
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
             .fallbackToDestructiveMigration()
             .build()
 
@@ -46,6 +47,9 @@ object DatabaseBindings {
 
     @Provides
     fun provideEpisodeDao(database: AppDatabase): EpisodeDao = database.episodeDao()
+
+    @Provides
+    fun provideSrsWordDao(database: AppDatabase): SrsWordDao = database.srsWordDao()
 
     val MIGRATION_2_3 = object : Migration(2, 3) {
         override fun migrate(database: SupportSQLiteDatabase) {
@@ -117,6 +121,23 @@ object DatabaseBindings {
     val MIGRATION_7_8 = object : Migration(7, 8) {
         override fun migrate(database: SupportSQLiteDatabase) {
             database.execSQL("ALTER TABLE conversations ADD COLUMN agentId TEXT")
+        }
+    }
+
+    // Dedicated spaced-repetition vocabulary table for the language tutor (previously stored in the
+    // shared facts table). DDL must match Room's generated schema for SrsWordEntity exactly.
+    val MIGRATION_8_9 = object : Migration(8, 9) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL(
+                "CREATE TABLE IF NOT EXISTS `srs_words` (" +
+                    "`id` TEXT NOT NULL, `lang` TEXT NOT NULL, `term` TEXT NOT NULL, " +
+                    "`translation` TEXT NOT NULL, `example` TEXT NOT NULL, `stage` INTEGER NOT NULL, " +
+                    "`dueMs` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`id`))",
+            )
+            database.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_srs_words_lang` ON `srs_words` (`lang`)",
+            )
         }
     }
 

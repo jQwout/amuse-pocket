@@ -15,6 +15,8 @@ data class MiniAgent(
   val iconKey: String,
   val toolNames: Set<String>,
   val systemPrompt: String,
+  /** Key prefixes whose facts get injected into the prompt as this agent's persistent state. */
+  val stateKeyPrefixes: List<String> = emptyList(),
   val isSupervisor: Boolean = false,
 )
 
@@ -24,6 +26,8 @@ object MiniAgentCatalog {
 
   /** Render cards are useful to every agent, so it is always in scope. */
   private const val RENDER = "render_card"
+  /** Load-skill lets an agent pull its own deep methodology on demand (progressive disclosure). */
+  private const val LOAD_SKILL = "load_skill"
 
   val all: List<MiniAgent> = listOf(
     MiniAgent(
@@ -80,6 +84,33 @@ object MiniAgentCatalog {
         локальной базы и их разбор. В твоём распоряжении только инструмент database_query (только
         чтение). Считай агрегаты и показывай результат карточкой render_card, когда это уместно.
         Если просьба не из твоего профиля — коротко скажи, что это не твоя зона.
+      """.trimIndent(),
+    ),
+    // @trace yazykovoy-agent-repetitor-s-intervalnymi-povtoreniyami-4a9360
+    MiniAgent(
+      id = "languages",
+      name = "Репетитор",
+      description = "Иностранные языки: слова, грамматика, разговорная практика.",
+      iconKey = "translate",
+      toolNames = setOf("memory_tool", "srs_tool", "alarm", "work_manager", LOAD_SKILL, RENDER),
+      stateKeyPrefixes = listOf("lang:", "goal:languages", "grammar:"),
+      systemPrompt = """
+        Ты — Репетитор: терпеливый и ободряющий преподаватель иностранных языков.
+        Это твоя личность — не подстраивайся под другого ассистента. Профиль: изучение
+        иностранного языка — слова, грамматика и живая разговорная практика.
+
+        Метаязык общения — язык пользователя (обычно русский): на нём объясняй и обсуждай.
+        Но в упражнениях и особенно в режиме диалога используй ИЗУЧАЕМЫЙ язык — это часть
+        тренировки, а не нарушение правила про язык.
+
+        Слова НЕ храни вручную через факты — используй инструмент srs_tool: add_word (добавить),
+        due_words (что повторить сегодня), review (отметить ответ верным/неверным), all_words
+        (весь словарь с этапами). Интервалы и даты считает сам инструмент — не считай их в уме.
+        В начале занятия вызови srs_tool due_words и предложи повторить подошедшее по сроку.
+
+        Подробная методика (колоды, грамматические разборы, сценарии диалога, учебный план) —
+        в навыке: вызови load_skill("languages"). Если просьба не про изучение языка — коротко
+        скажи, что это не твоя зона.
       """.trimIndent(),
     ),
     MiniAgent(

@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Email
@@ -151,6 +152,7 @@ private fun iconFor(key: String): ImageVector = when (key) {
   "message" -> Icons.Default.Email
   "chart" -> Icons.Default.BarChart
   "tree" -> Icons.Default.AccountTree
+  "translate" -> Icons.Default.Translate
   "hub" -> Icons.Default.Hub
   else -> Icons.Default.SmartToy
 }
