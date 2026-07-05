@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
@@ -36,6 +37,7 @@ class AgentLoopOrchestrator @Inject constructor(
   private val conversationAnnotator: ConversationAnnotator,
   private val registry: ToolRegistry,
   private val reactLoopRunner: ReactLoopRunner,
+  private val turnContextHolder: TurnContextHolder,
 ) {
 
   fun execute(
@@ -75,9 +77,11 @@ class AgentLoopOrchestrator @Inject constructor(
         context.toolNames?.let { registry.getSchemasFor(it) } ?: registry.getAllSchemas()
       }
       Log.d(TAG, "▶ chat turn conv=$conversationId mode=$mode scoped=${context.toolNames ?: "all"} maxIter=${turn.maxIterations}")
-      val baseResult = reactLoopRunner.run(
-        conversationId, messages, tools, provider, turn.maxIterations, context.agentId,
-      ) { send(it) }
+      val baseResult = withContext(turnContextHolder.contextElement(conversationId, context.agentId)) {
+        reactLoopRunner.run(
+          conversationId, messages, tools, provider, turn.maxIterations, context.agentId,
+        ) { send(it) }
+      }
 
       // Token estimates feed the chat's response stats bar; computed at the boundary so the
       // ReactLoopRunner stays unaware of UI concerns.
