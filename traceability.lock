@@ -10,8 +10,8 @@
       "git": "afd92b7"
     },
     "ai-academy-onboarding-5d51bb": {
-      "hash": "785b039d3470",
-      "git": "c3134a2"
+      "hash": "9e9dfd4fe5bd",
+      "git": "8a3b272"
     },
     "app-settings-beb470": {
       "hash": "a1c8fc4e76a7",
@@ -35,23 +35,23 @@
     },
     "heartbeat-napominalki-agenta-5f0442": {
       "hash": "fe19582a6a20",
-      "git": "ff19983"
+      "git": "8a3b272"
     },
     "mcp-tools-f77d9b": {
-      "hash": "2621cd718393",
-      "git": "2cc539f"
+      "hash": "d48d54ab5ef1",
+      "git": "8a3b272"
     },
     "multi-agent-orchestration-27b8e3": {
-      "hash": "ab7757d3e575",
-      "git": "2cc539f"
+      "hash": "bd4cf4f2312e",
+      "git": "8a3b272"
     },
     "multi-chat-conversations-b3c93b": {
       "hash": "5bb7ee8f4da9",
       "git": "80dd68c"
     },
     "rezhimy-agenta-plan-i-goal-ee2361": {
-      "hash": "ec7d0aabb7f6",
-      "git": "2cc539f"
+      "hash": "f131bb6a3e89",
+      "git": "8a3b272"
     },
     "streaming-llm-chat-6595a1": {
       "hash": "35bf1c6a366e",
@@ -62,16 +62,16 @@
       "git": "afd92b7"
     },
     "uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2": {
-      "hash": "383812fded81",
-      "git": "c3134a2"
+      "hash": "1683a243c980",
+      "git": "8a3b272"
     },
     "voice-input-1a0dfd": {
       "hash": "ec70865aeaa7",
       "git": "43dec3c"
     },
     "yazykovoy-agent-repetitor-s-intervalnymi-povtoreniyami-4a9360": {
-      "hash": "b724c31ed575",
-      "git": "2cc539f"
+      "hash": "42cc33837142",
+      "git": "8a3b272"
     }
   }
 }

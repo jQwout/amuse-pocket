@@ -237,6 +237,7 @@ Twelve tools expose Android/system capabilities to the LLM (`app/src/main/java/c
 | `notifications` | post a notification (title/message) | `NotificationCompat` via shared `NotificationHelper` | `POST_NOTIFICATIONS` (runtime, Android 13+) |
 | `step_counter` | `snapshot` (cumulative count + timestamp) | `SensorManager.TYPE_STEP_COUNTER` | `ACTIVITY_RECOGNITION` (runtime, Android 10+) |
 | `work_manager` | `schedule_notification`, `schedule_periodic` (≥15 min), `cancel_work` | `WorkManager` + `NotificationWorker` | `POST_NOTIFICATIONS` for delivery |
+| `heartbeat` | `schedule` (push/agent, one-time/periodic ≥15 min), `cancel`, `list`; agent-mode wakes `ReactLoopRunner` headless with a safe read-only tool subset (`HEARTBEAT_OK` = stay silent) → assistant message into the source chat + push (reuses `TurnNotifier` deep-link) | Room `heartbeats` registry + `HeartbeatWorker` (CoroutineWorker) | `POST_NOTIFICATIONS` |
 | `database_query` | raw `sql` (SELECT/INSERT/UPDATE/DELETE) | Room/SQLite on `AppDatabase` | none — DDL blocked, multi-statement blocked, SELECT capped at 200 rows |
 | `external_files` | `read_file`, `write_file`, `list_dir` | Storage Access Framework via `ContentResolver` | none — scoped to user-granted `content://` URIs only |
 | `file_tool` | `read_file`, `write_file`, `list_dir`, `search_files` | `java.io.File`, sandboxed to `filesDir/agent` | none |
