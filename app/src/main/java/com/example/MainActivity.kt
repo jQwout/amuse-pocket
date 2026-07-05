@@ -49,12 +49,16 @@ class MainActivity : ComponentActivity() {
     // сигнал для UI открыть новый чат.
     private val openNewChatRequest = MutableStateFlow(0)
 
+    // Id диалога из тапа по уведомлению «агент ответил» — сигнал UI открыть этот чат.
+    private val openConversationRequest = MutableStateFlow<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         if (isOpenNewChatIntent(intent)) {
             openNewChatRequest.value += 1
         }
+        handleOpenConversationIntent(intent)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             when {
@@ -121,6 +125,15 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate("chat/new") {
                                         launchSingleTop = true
                                     }
+                                }
+                            }
+                            // Тап по уведомлению «агент ответил»: открываем тот самый диалог.
+                            val openConversationId by openConversationRequest.collectAsState()
+                            LaunchedEffect(openConversationId, onboardingCompleted) {
+                                val convId = openConversationId
+                                if (convId != null && onboardingCompleted == true) {
+                                    navController.navigate("chat/$convId") { launchSingleTop = true }
+                                    openConversationRequest.value = null
                                 }
                             }
                             // Переключение вкладок нижнего бара: держим стек плоским —
@@ -274,13 +287,26 @@ class MainActivity : ComponentActivity() {
         if (isOpenNewChatIntent(intent)) {
             openNewChatRequest.value += 1
         }
+        handleOpenConversationIntent(intent)
     }
 
     private fun isOpenNewChatIntent(intent: Intent?): Boolean =
         intent?.action == ACTION_OPEN_NEW_CHAT || intent?.action == Intent.ACTION_ASSIST
 
+    private fun handleOpenConversationIntent(intent: Intent?) {
+        if (intent?.action == ACTION_OPEN_CONVERSATION) {
+            intent.getStringExtra(EXTRA_CONVERSATION_ID)
+                ?.takeIf { it.isNotBlank() }
+                ?.let { openConversationRequest.value = it }
+        }
+    }
+
     companion object {
         /** Открыть новый чат (приложение вызвано как голосовой помощник). */
         const val ACTION_OPEN_NEW_CHAT = "com.aiopenpocket.action.OPEN_NEW_CHAT"
+
+        /** Тап по уведомлению «агент ответил» — открыть конкретный диалог. */
+        const val ACTION_OPEN_CONVERSATION = "com.aiopenpocket.action.OPEN_CONVERSATION"
+        const val EXTRA_CONVERSATION_ID = "conversation_id"
     }
 }
