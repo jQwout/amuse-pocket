@@ -8,6 +8,7 @@ import com.aiopenpocket.agent.core.memory.dao.ConversationDao
 import com.aiopenpocket.agent.core.memory.dao.ConversationTagDao
 import com.aiopenpocket.agent.core.memory.dao.EpisodeDao
 import com.aiopenpocket.agent.core.memory.dao.FactDao
+import com.aiopenpocket.agent.core.memory.dao.HeartbeatDao
 import com.aiopenpocket.agent.core.memory.dao.MessageDao
 import com.aiopenpocket.agent.core.srs.SrsWordDao
 import com.aiopenpocket.data.database.AppDatabase
@@ -49,4 +50,7 @@ object DatabaseBindings {
 
     @Provides
     fun provideSrsWordDao(database: AppDatabase): SrsWordDao = database.srsWordDao()
+
+    @Provides
+    fun provideHeartbeatDao(database: AppDatabase): HeartbeatDao = database.heartbeatDao()
 }
