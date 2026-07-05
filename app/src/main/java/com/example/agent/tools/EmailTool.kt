@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import com.aiopenpocket.agent.core.llm.FunctionSchema
+import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.di.AppScope
@@ -19,6 +20,9 @@ import kotlinx.serialization.json.JsonPrimitive
 class EmailTool(
   private val context: Context,
 ) : Tool {
+
+  // Composer only — opens a draft the user sends manually — but it leaves the trust boundary.
+  override val riskClass = RiskClass.EXTERNAL
 
   override val name = "email"
   override val description =

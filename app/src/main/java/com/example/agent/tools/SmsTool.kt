@@ -23,6 +23,9 @@ class SmsTool(
   private val context: Context,
 ) : Tool {
 
+  // Incoming SMS bodies are attacker-controllable text: mark untrusted so the loop wraps them.
+  override val returnsUntrustedContent = true
+
   override val name = "sms"
   override val description =
     "Чтение последних входящих SMS пользователя. Только чтение, без отправки. " +

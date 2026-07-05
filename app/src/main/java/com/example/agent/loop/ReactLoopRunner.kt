@@ -7,6 +7,7 @@ import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.StreamEvent
 import com.aiopenpocket.agent.core.mcp.ToolExecutor
+import com.aiopenpocket.agent.core.mcp.ToolRegistry
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
 import kotlinx.serialization.encodeToString
@@ -31,6 +32,7 @@ import com.aiopenpocket.di.AppScope
 class ReactLoopRunner @Inject constructor(
   private val llmClient: LlmClient,
   private val toolExecutor: ToolExecutor,
+  private val toolRegistry: ToolRegistry,
   private val memoryRepository: MemoryRepository,
 ) {
 
@@ -128,6 +130,8 @@ class ReactLoopRunner @Inject constructor(
             payload = buildJsonObject {
               put("id", tc.id)
               put("name", tc.name)
+              // Record the tool's runtime risk class so side effects are auditable in memory.
+              put("risk", (toolRegistry.get(tc.name)?.riskClass ?: com.aiopenpocket.agent.core.mcp.RiskClass.READ).name)
               put("arguments", JsonObject(tc.arguments))
             }.toString(),
             outcome = result.toString(),
@@ -139,7 +143,7 @@ class ReactLoopRunner @Inject constructor(
         messages += ChatMessage(
           role = "tool",
           toolCallId = tc.id,
-          content = resultToString(result),
+          content = toolMessageContent(tc.name, result),
         )
       }
     }
@@ -153,6 +157,18 @@ class ReactLoopRunner @Inject constructor(
   private fun resultToString(result: ToolResult): String = when (result) {
     is ToolResult.Success -> result.data
     is ToolResult.Error -> "Error: ${result.message}"
+  }
+
+  /**
+   * Builds the tool-result message fed back to the model. Output from tools that return untrusted
+   * external content (SMS, files, calendar entries) is fenced in a `<tool_output trust="untrusted">`
+   * envelope so any instructions embedded in it are read as data, never commands — the same
+   * treatment `<user_data>` gets in the system prompt. Enforced in the harness, not in prompt text.
+   */
+  private fun toolMessageContent(toolName: String, result: ToolResult): String {
+    val raw = resultToString(result)
+    val untrusted = result is ToolResult.Success && toolRegistry.get(toolName)?.returnsUntrustedContent == true
+    return if (untrusted) "<tool_output tool=\"$toolName\" trust=\"untrusted\">\n$raw\n</tool_output>" else raw
   }
 
   /** One-line, length-capped preview of args/results for the loop log (no newlines, no flooding). */

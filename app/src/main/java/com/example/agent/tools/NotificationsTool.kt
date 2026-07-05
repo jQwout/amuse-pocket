@@ -8,6 +8,7 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.aiopenpocket.agent.core.llm.FunctionSchema
+import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.di.AppScope
@@ -23,6 +24,8 @@ import kotlinx.serialization.json.JsonPrimitive
 class NotificationsTool(
   private val context: Context,
 ) : Tool {
+
+  override val riskClass = RiskClass.WRITE
 
   override val name = "notifications"
   override val description = "Показывает локальное push-уведомление пользователю."

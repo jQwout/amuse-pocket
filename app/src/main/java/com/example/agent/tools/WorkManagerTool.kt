@@ -8,6 +8,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.aiopenpocket.agent.core.llm.FunctionSchema
+import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.workers.NotificationWorker
@@ -26,6 +27,8 @@ import java.util.concurrent.TimeUnit
 class WorkManagerTool(
   private val context: Context,
 ) : Tool {
+
+  override val riskClass = RiskClass.WRITE
 
   override val name = "work_manager"
   override val description =
