@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
+import com.aiopenpocket.agent.loop.TurnManager
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
@@ -23,6 +24,7 @@ import kotlinx.coroutines.launch
 class ConversationsListViewModel(
   private val conversationRepository: ConversationRepository,
   private val userPreferencesRepository: UserPreferencesRepository,
+  private val turnManager: TurnManager,
 ) : ViewModel() {
 
   private val _state = MutableStateFlow(ConversationsListState())
@@ -32,6 +34,12 @@ class ConversationsListViewModel(
     viewModelScope.launch {
       conversationRepository.getAllConversations().collect { conversations ->
         _state.update { it.copy(conversations = conversations, isLoading = false) }
+      }
+    }
+    // Бейджи фоновых ходов: «варится»/«готово»/«ошибка» у диалога в списке.
+    viewModelScope.launch {
+      turnManager.badges.collect { statuses ->
+        _state.update { it.copy(turnStatuses = statuses) }
       }
     }
   }
@@ -69,6 +77,8 @@ class ConversationsListViewModel(
   }
 
   fun deleteConversation(id: String) {
+    // Удаление диалога с активным ходом — сперва гасим ход, потом удаляем строки БД.
+    turnManager.cancel(id)
     viewModelScope.launch {
       conversationRepository.deleteConversation(id)
     }
