@@ -8,12 +8,16 @@ import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -67,6 +71,95 @@ class TurnManager(
         session.job?.cancel()
         sessionsFlow.update { it - conversationId }
       }
+    }
+  }
+
+  /** Повтор последнего хода после ошибки: реплика пользователя уже в истории, addMessage не повторяем. */
+  fun retry(conversationId: String) {
+    scope.launch {
+      val session = sessionsFlow.value[conversationId] ?: return@launch
+      val text = session.lastUserText ?: return@launch
+      startTurn(conversationId, text, session.lastMode, session.lastPlanApproved, session.lastGoalMaxIterations, persistUserMessage = false)
+    }
+  }
+
+  /** План-мод: пользователь одобрил план → фаза выполнения (инструменты включены). */
+  fun approvePlan(conversationId: String) {
+    scope.launch {
+      val goalIterations = sessionsFlow.value[conversationId]?.lastGoalMaxIterations ?: 3
+      startTurn(conversationId, APPROVE_PLAN_MESSAGE, AgentMode.PLAN, planApproved = true, goalMaxIterations = goalIterations, persistUserMessage = true)
+    }
+  }
+
+  /** «Поправить» вместо «Выполнить»: бар одобрения прячем, сессию и ретрай не трогаем. */
+  fun dismissPlanApproval(conversationId: String) {
+    val session = sessionsFlow.value[conversationId] ?: return
+    session.statusFlow.update { status ->
+      if (status is TurnStatus.Completed) status.copy(planAwaitingApproval = false) else status
+    }
+  }
+
+  /** Смена режима агента инвалидирует «Повторить» прошлого хода (иначе ретрай уйдёт в старый режим). */
+  fun invalidateRetry(conversationId: String) {
+    val session = sessionsFlow.value[conversationId] ?: return
+    session.lastUserText = null
+    session.lastUserMessageId = null
+    session.statusFlow.update { status ->
+      when (status) {
+        is TurnStatus.Failed -> status.copy(canRetry = false)
+        is TurnStatus.Completed -> status.copy(canRetry = false)
+        else -> status
+      }
+    }
+  }
+
+  /** Удалили сообщение, которое держит «Повторить», — гасим ретрай (см. deleteMessage до переезда). */
+  fun invalidateRetryFor(conversationId: String, messageId: String) {
+    val session = sessionsFlow.value[conversationId] ?: return
+    if (session.lastUserMessageId == messageId) invalidateRetry(conversationId)
+  }
+
+  /** Интент ClearError: пользователь закрыл баннер ошибки — сессия с ошибкой больше не нужна. */
+  fun clearError(conversationId: String) {
+    scope.launch {
+      mutex.withLock {
+        val session = sessionsFlow.value[conversationId] ?: return@withLock
+        val status = session.status.value
+        val hasError = status is TurnStatus.Failed || (status is TurnStatus.Completed && status.error != null)
+        if (hasError) {
+          session.job?.cancel()
+          sessionsFlow.update { it - conversationId }
+        }
+      }
+    }
+  }
+
+  /**
+   * Ход просмотрен (вход в диалог, либо ответ доехал до ленты) — чисто завершённую сессию убираем,
+   * чтобы бейдж «готово» в списке погас. Running/Failed/план-бар/blank-error не трогаем: они ещё
+   * нужны экрану (индикация, ретрай, одобрение).
+   */
+  fun markSeen(conversationId: String) {
+    scope.launch {
+      mutex.withLock {
+        val session = sessionsFlow.value[conversationId] ?: return@withLock
+        val status = session.status.value
+        val cleanlyDone = status is TurnStatus.Completed &&
+          status.error == null && !status.planAwaitingApproval && !status.canRetry
+        if (cleanlyDone) {
+          sessionsFlow.update { it - conversationId }
+        }
+      }
+    }
+  }
+
+  /** Статусы ходов по диалогам — бейджи списка диалогов («варится» / «готово» / «ошибка»). */
+  @OptIn(ExperimentalCoroutinesApi::class)
+  val badges: Flow<Map<String, TurnStatus>> = sessionsFlow.flatMapLatest { map ->
+    if (map.isEmpty()) {
+      flowOf(emptyMap())
+    } else {
+      combine(map.map { (id, session) -> session.status.map { id to it } }) { pairs -> pairs.toMap() }
     }
   }
 
@@ -261,6 +354,9 @@ class TurnManager(
 
     /** Маркер план-планирования: модель ставит его в начало ответа-вопроса (вырезается из текста). */
     internal const val NEED_INFO_MARKER = "[[NEED_INFO]]"
+
+    /** Реплика, которой ход одобрения плана попадает в историю (перенос из ChatViewModel.approvePlan). */
+    internal const val APPROVE_PLAN_MESSAGE = "Одобряю план, выполни его по шагам."
 
     /** Минимальный интервал публикации стрим-текста (~20 обновлений/сек). */
     private const val STREAM_PUBLISH_INTERVAL_MS = 50L
