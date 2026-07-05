@@ -32,7 +32,7 @@
 - Modify: `app/src/main/java/com/example/data/database/AppDatabase.kt` (entities-список + abstract dao)
 - Modify: `app/src/main/java/com/example/di/DatabaseBindings.kt` (provide DAO)
 - Modify: `traceability.yaml` (новая запись)
-- Test: `app/src/test/java/com/example/agent/core/memory/dao/HeartbeatDaoTest.kt`
+- Test: `app/src/test/java/com/aiopenpocket/agent/core/memory/dao/HeartbeatDaoTest.kt`
 
 **Interfaces:**
 - Consumes: `AppDatabase`, паттерн `SrsWordDaoTest` (in-memory Room + Robolectric).
@@ -55,7 +55,7 @@ Run: `traxer id` — получить `<TRACE_ID>` (далее во всех з�
 
 - [ ] **Step 2: Написать падающий DAO-тест**
 
-`app/src/test/java/com/example/agent/core/memory/dao/HeartbeatDaoTest.kt`:
+`app/src/test/java/com/aiopenpocket/agent/core/memory/dao/HeartbeatDaoTest.kt`:
 
 ```kotlin
 package com.aiopenpocket.agent.core.memory.dao
@@ -250,7 +250,7 @@ Expected: PASS (5 tests).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app/src/main/java/com/example/agent/core/memory/ app/src/main/java/com/example/data/database/AppDatabase.kt app/src/main/java/com/example/di/DatabaseBindings.kt app/src/test/java/com/example/agent/core/memory/dao/HeartbeatDaoTest.kt traceability.yaml
+git add app/src/main/java/com/example/agent/core/memory/ app/src/main/java/com/example/data/database/AppDatabase.kt app/src/main/java/com/example/di/DatabaseBindings.kt app/src/test/java/com/aiopenpocket/agent/core/memory/dao/HeartbeatDaoTest.kt traceability.yaml
 git commit -m "feat(heartbeat): Room-реестр heartbeats + DAO
 
 Trace: <TRACE_ID>
@@ -262,23 +262,29 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 
 ### Task 2: TurnContextHolder — тулу нужен conversationId/agentId текущего хода
 
-Тулзы выполняются без контекста диалога (`ToolExecutor.execute(name, args)`), а `heartbeat` должен знать, в какой диалог писать результат и от чьего имени. Решение — синглтон-холдер, который оркестратор заполняет в начале каждого хода.
+Тулзы выполняются без контекста диалога (`ToolExecutor.execute(name, args)`), а `heartbeat` должен знать, в какой диалог писать результат и от чьего имени. **Важно (изменение относительно исходного плана):** появившийся `TurnManager` гоняет ходы РАЗНЫХ диалогов параллельно, поэтому глобальный volatile-холдер отдал бы тулу чужой `conversationId`. Решение — thread-local, привязанный к корутине хода через `ThreadLocal.asContextElement`: тул-вызовы внутри хода читают именно свой контекст. Тул-facing API (`conversationId`/`agentId`/`set`) сохраняется, concurrency-safety спрятана внутрь.
 
 **Files:**
 - Create: `app/src/main/java/com/example/agent/loop/TurnContextHolder.kt`
-- Modify: `app/src/main/java/com/example/agent/loop/AgentLoopOrchestrator.kt` (инжект + set после `assemble`, строка ~55)
-- Test: `app/src/test/java/com/example/agent/loop/TurnContextHolderTest.kt`
+- Modify: `app/src/main/java/com/example/agent/loop/AgentLoopOrchestrator.kt` (инжект + `withContext(contextElement)` вокруг `reactLoopRunner.run`, строка ~78)
+- Test: `app/src/test/java/com/aiopenpocket/agent/loop/TurnContextHolderTest.kt` (тест-дерево под `com/aiopenpocket/...`, как `AgentModeTest`)
 
 **Interfaces:**
-- Produces: `TurnContextHolder.set(conversationId: String?, agentId: String?)`, `val conversationId: String?`, `val agentId: String?`. Инжектится через Metro `@Inject` + `@SingleIn(AppScope::class)`.
+- Produces: `TurnContextHolder.contextElement(conversationId, agentId): CoroutineContext` (обёртка хода), `set(conversationId, agentId)` (тест/синхронный seam), `val conversationId: String?`, `val agentId: String?` (читает тул). Инжектится через Metro `@Inject` + `@SingleIn(AppScope::class)`.
 
 - [ ] **Step 1: Написать падающий тест**
 
-`app/src/test/java/com/example/agent/loop/TurnContextHolderTest.kt`:
+`app/src/test/java/com/aiopenpocket/agent/loop/TurnContextHolderTest.kt`:
 
 ```kotlin
 package com.aiopenpocket.agent.loop
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -293,12 +299,28 @@ class TurnContextHolderTest {
   }
 
   @Test
-  fun `set overwrites previous turn`() {
+  fun `set seeds current thread`() {
     val holder = TurnContextHolder()
     holder.set("conv1", "reminders")
-    holder.set("conv2", null)
-    assertEquals("conv2", holder.conversationId)
-    assertNull(holder.agentId)
+    assertEquals("conv1", holder.conversationId)
+    assertEquals("reminders", holder.agentId)
+  }
+
+  // Гарантия против гонки: TurnManager гоняет ходы разных диалогов параллельно. Каждый ход в своей
+  // обёртке contextElement должен видеть СВОЙ conversationId, даже перескочив на другой поток.
+  @Test
+  fun `contextElement isolates concurrent turns`() = runTest {
+    val holder = TurnContextHolder()
+    val results = listOf("A" to "budget", "B" to "diary").map { (conv, agent) ->
+      async(Dispatchers.Default) {
+        withContext(holder.contextElement(conv, agent)) {
+          yield() // спровоцировать возможный перескок потока внутри хода
+          holder.conversationId to holder.agentId
+        }
+      }
+    }.awaitAll()
+    assertEquals(listOf("A" to "budget", "B" to "diary"), results)
+    assertNull(holder.conversationId) // вне обёртки контекст снова пуст
   }
 }
 ```
@@ -314,36 +336,51 @@ Run: `./gradlew testDebugUnitTest --tests "com.aiopenpocket.agent.loop.TurnConte
 ```kotlin
 package com.aiopenpocket.agent.loop
 
-// @trace <TRACE_ID>
+// @trace heartbeat-napominalki-agenta-5f0442
 
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
+import kotlinx.coroutines.asContextElement
+import kotlin.coroutines.CoroutineContext
 
 /**
- * Контекст текущего хода агента (диалог + мини-агент) для тулз, которым он нужен
- * (heartbeat пишет результат в «свой» диалог). Оркестраторы заполняют его в начале
- * каждого хода; ходы в приложении не конкурируют (один активный чат), поэтому
- * простого volatile-холдера достаточно.
+ * Контекст текущего хода агента (диалог + мини-агент) для тулз, которым он нужен (heartbeat пишет
+ * результат в «свой» диалог). Хранится thread-local и прокидывается через coroutine-context:
+ * [com.aiopenpocket.agent.loop.TurnManager] гоняет ходы РАЗНЫХ диалогов параллельно, поэтому
+ * глобальный volatile отдал бы тулу чужой conversationId. [contextElement] привязывает значение к
+ * корутине хода — тул-вызовы внутри неё читают именно свой контекст, на каком бы потоке ни возобновились.
  */
 @SingleIn(AppScope::class)
 class TurnContextHolder @Inject constructor() {
-  @Volatile var conversationId: String? = null
-    private set
-  @Volatile var agentId: String? = null
-    private set
+  data class Ctx(val conversationId: String?, val agentId: String?)
 
+  private val threadLocal = ThreadLocal<Ctx?>()
+
+  val conversationId: String? get() = threadLocal.get()?.conversationId
+  val agentId: String? get() = threadLocal.get()?.agentId
+
+  /** Обернуть ход: `withContext(holder.contextElement(convId, agentId)) { reactLoopRunner.run(...) }`. */
+  fun contextElement(conversationId: String?, agentId: String?): CoroutineContext =
+    threadLocal.asContextElement(Ctx(conversationId, agentId))
+
+  /** Прямая установка на текущем потоке — для тестов и синхронных путей. */
   fun set(conversationId: String?, agentId: String?) {
-    this.conversationId = conversationId
-    this.agentId = agentId
+    threadLocal.set(Ctx(conversationId, agentId))
   }
 }
 ```
 
-В `AgentLoopOrchestrator`: добавить в конструктор `private val turnContextHolder: TurnContextHolder,` и сразу после `val context = prePromptAssembler.assemble(...)` (строка ~55):
+В `AgentLoopOrchestrator`: добавить в конструктор `private val turnContextHolder: TurnContextHolder,`,
+импорт `kotlinx.coroutines.withContext`, и обернуть вызов `reactLoopRunner.run(...)` (строка ~78) в
+`withContext` с контекстом хода — тогда `heartbeat`, вызванный внутри хода, прочитает верный диалог/агента:
 
 ```kotlin
-turnContextHolder.set(conversationId, context.agentId)
+val baseResult = withContext(turnContextHolder.contextElement(conversationId, context.agentId)) {
+  reactLoopRunner.run(
+    conversationId, messages, tools, provider, turn.maxIterations, context.agentId,
+  ) { send(it) }
+}
 ```
 
 - [ ] **Step 4: Прогнать — PASS**, плюс общий build не сломан: `./gradlew testDebugUnitTest --tests "com.aiopenpocket.agent.loop.*"`
@@ -351,7 +388,8 @@ turnContextHolder.set(conversationId, context.agentId)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add app/src/main/java/com/example/agent/loop/ app/src/test/java/com/example/agent/loop/TurnContextHolderTest.kt
+# ВНИМАНИЕ: НЕ `git add .../agent/loop/` целиком — в этой папке живут файлы другой фичи. Только свои:
+git add app/src/main/java/com/example/agent/loop/TurnContextHolder.kt app/src/main/java/com/example/agent/loop/AgentLoopOrchestrator.kt app/src/test/java/com/aiopenpocket/agent/loop/TurnContextHolderTest.kt
 git commit -m "feat(heartbeat): TurnContextHolder — контекст хода для тулз
 
 Trace: <TRACE_ID>
@@ -366,7 +404,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 **Files:**
 - Create: `app/src/main/java/com/example/agent/tools/HeartbeatTool.kt`
 - Modify: `gradle/libs.versions.toml` (+ work-testing), `app/build.gradle.kts` (+ testImplementation)
-- Test: `app/src/test/java/com/example/agent/tools/HeartbeatToolTest.kt`
+- Test: `app/src/test/java/com/aiopenpocket/agent/tools/HeartbeatToolTest.kt`
 
 **Interfaces:**
 - Consumes: `HeartbeatDao` (Task 1), `TurnContextHolder` (Task 2), `toolSchema`/`string`/`long`/`missingArg` из `ToolSchemaBuilder.kt`, `HeartbeatWorker.KEY_HEARTBEAT_ID` (появится в Task 4 — в этом таске объявить константу в самом туле и переиспользовать позже, см. Step 3).
@@ -388,7 +426,7 @@ testImplementation(libs.androidx.work.testing)
 
 - [ ] **Step 2: Написать падающий тест**
 
-`app/src/test/java/com/example/agent/tools/HeartbeatToolTest.kt`:
+`app/src/test/java/com/aiopenpocket/agent/tools/HeartbeatToolTest.kt`:
 
 ```kotlin
 package com.aiopenpocket.agent.tools
@@ -724,7 +762,7 @@ Run: `./gradlew testDebugUnitTest --tests "com.aiopenpocket.agent.tools.Heartbea
 - [ ] **Step 5: Commit**
 
 ```bash
-git add app/src/main/java/com/example/agent/tools/HeartbeatTool.kt app/src/main/java/com/example/agent/workers/HeartbeatWorker.kt app/src/test/java/com/example/agent/tools/HeartbeatToolTest.kt gradle/libs.versions.toml app/build.gradle.kts
+git add app/src/main/java/com/example/agent/tools/HeartbeatTool.kt app/src/main/java/com/example/agent/workers/HeartbeatWorker.kt app/src/test/java/com/aiopenpocket/agent/tools/HeartbeatToolTest.kt gradle/libs.versions.toml app/build.gradle.kts
 git commit -m "feat(heartbeat): тул heartbeat — schedule/cancel/list
 
 Trace: <TRACE_ID>
@@ -740,15 +778,15 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 
 **Files:**
 - Create: `app/src/main/java/com/example/agent/workers/HeartbeatRunner.kt`
-- Test: `app/src/test/java/com/example/agent/workers/HeartbeatRunnerTest.kt`
+- Test: `app/src/test/java/com/aiopenpocket/agent/workers/HeartbeatRunnerTest.kt` (тест-дерево под `com/aiopenpocket/...`)
 
 **Interfaces:**
-- Consumes: `HeartbeatDao`, `ReactLoopRunner` (конкретный класс — в тестах собирается с fake `LlmClient`; `LlmClient` — интерфейс `fun streamChat(messages, tools, provider): Flow<StreamEvent>`), `ToolRegistry`, `ConversationRepository.addMessage(conversationId, role, content, toolCallsJson=null, cardSpec=null): String`, `showAgentNotification(context, title, message, id, contentIntent): Boolean`, `MiniAgentCatalog.get(id: String?): MiniAgent?` (готовый lookup в `MiniAgent.kt`), `MainActivity.EXTRA_OPEN_CONVERSATION_ID` (Task 6 — объявить константу там заранее или в этом таске, см. Step 3).
+- Consumes: `HeartbeatDao`, `ReactLoopRunner` (конкретный класс — в тестах собирается с fake `LlmClient`; `LlmClient` — интерфейс `fun streamChat(messages, tools, provider): Flow<StreamEvent>`), `ToolRegistry`, `ConversationRepository.addMessage(conversationId, role, content, toolCallsJson=null, cardSpec=null): String`, `TurnNotifier.turnFinished(conversationId, conversationTitle, preview, failed)` — **порт из turns-фичи** (`agent/loop/TurnPorts.kt`), пуш с deep-link в диалог; реализация `AgentTurnNotifier`. **Deep-link уже реализован turns-фичей — свои Intent-константы НЕ вводим.** `MiniAgentCatalog.get(id: String?): MiniAgent?` (готовый lookup в `MiniAgent.kt`).
 - Produces: `suspend fun handleFire(heartbeatId: String, attempt: Int): FireOutcome`; `enum class FireOutcome { DONE, RETRY }`; `SAFE_TOOL_NAMES = setOf("memory_tool", "database_query", "calendar", "step_counter", "notifications")`; `BG_MAX_ITERATIONS = 5`; `MAX_ATTEMPTS = 3`.
 
 - [ ] **Step 1: Написать падающие тесты**
 
-`app/src/test/java/com/example/agent/workers/HeartbeatRunnerTest.kt`. Fake LlmClient скриптуется списком событий; ReactLoopRunner собирается настоящий (fake `ToolExecutor` не нужен — сценарии без tool-call'ов). Зависимости `ToolExecutor`/`MemoryRepository`/`ConversationRepository` — по образцу существующих фейков в `ToolExecutorTest`/`PrePromptAssembler`-тестах; если конструктор требует Room — собрать in-memory `AppDatabase` как в `HeartbeatDaoTest`.
+`app/src/test/java/com/aiopenpocket/agent/workers/HeartbeatRunnerTest.kt`. Fake LlmClient скриптуется списком событий; ReactLoopRunner собирается настоящий (fake `ToolExecutor` не нужен — сценарии без tool-call'ов). `TurnNotifier` — fake, копящий вызовы (ассертим пуш). Зависимости `ToolExecutor`/`MemoryRepository`/`ConversationRepository` — по образцу существующих фейков в `ToolExecutorTest`/`PrePromptAssembler`-тестах; если конструктор требует Room — собрать in-memory `AppDatabase` как в `HeartbeatDaoTest`.
 
 ```kotlin
 package com.aiopenpocket.agent.workers
@@ -763,6 +801,7 @@ import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.StreamEvent
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
+import com.aiopenpocket.agent.loop.TurnNotifier
 import com.aiopenpocket.data.database.AppDatabase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -789,22 +828,32 @@ class HeartbeatRunnerTest {
     ): Flow<StreamEvent> = flowOf(*events.toTypedArray())
   }
 
+  private class FakeNotifier : TurnNotifier {
+    data class Call(val conversationId: String, val title: String?, val preview: String, val failed: Boolean)
+    val calls = mutableListOf<Call>()
+    override fun turnFinished(conversationId: String, conversationTitle: String?, preview: String, failed: Boolean) {
+      calls += Call(conversationId, conversationTitle, preview, failed)
+    }
+  }
+
   private lateinit var context: Context
   private lateinit var db: AppDatabase
+  private lateinit var notifier: FakeNotifier
 
   @Before
   fun setUp() {
     context = ApplicationProvider.getApplicationContext()
     shadowOf(context as Application).grantPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
     db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
+    notifier = FakeNotifier()
   }
 
   @After
   fun tearDown() = db.close()
 
-  // runner(events) — хелпер: собрать HeartbeatRunner с FakeLlm поверх реального ReactLoopRunner,
-  // реальных DAO из db и реального ConversationRepository (или их минимальных фейков — по факту
-  // конструкторов). Дописать по месту, сигнатуры зависимостей см. в соответствующих классах.
+  // runner(events) — хелпер: собрать HeartbeatRunner c FakeLlm поверх настоящего ReactLoopRunner,
+  // DAO из db, настоящим ConversationRepository и [notifier]. Конструкторы ReactLoopRunner/
+  // ConversationRepository сверить по коду; TurnNotifier — передать this@…notifier.
 
   private fun hb(mode: String, prompt: String? = null, kind: String = "one_time") = HeartbeatEntity(
     id = "hb1", title = "T", mode = mode, prompt = prompt, message = "msg",
@@ -823,6 +872,9 @@ class HeartbeatRunnerTest {
     val runner = runner(emptyList())
     assertEquals(FireOutcome.DONE, runner.handleFire("hb1", attempt = 0))
     assertEquals("fired", db.heartbeatDao().getById("hb1")?.status)
+    // Пуш ушёл через общий нотифаер, с заголовком напоминания и deep-link в его диалог.
+    assertEquals("T", notifier.calls.single().title)
+    assertEquals("conv1", notifier.calls.single().conversationId)
   }
 
   @Test
@@ -833,6 +885,7 @@ class HeartbeatRunnerTest {
     val messages = db.messageDao().getAllOrdered("conv1")
     assertTrue(messages.any { it.role == "assistant" && it.content.contains("задач 3") })
     assertEquals("Всё в порядке, задач 3.", db.heartbeatDao().getById("hb1")?.lastResult)
+    assertTrue(notifier.calls.single().preview.contains("задач 3")) // ответ ушёл и пушем
   }
 
   @Test
@@ -842,6 +895,7 @@ class HeartbeatRunnerTest {
     assertEquals(FireOutcome.DONE, runner.handleFire("hb1", attempt = 0))
     assertTrue(db.messageDao().getAllOrdered("conv1").isEmpty())
     assertEquals("fired", db.heartbeatDao().getById("hb1")?.status)
+    assertTrue(notifier.calls.isEmpty()) // HEARTBEAT_OK = полная тишина, пуша тоже нет
   }
 
   @Test
@@ -876,20 +930,17 @@ package com.aiopenpocket.agent.workers
 
 // @trace <TRACE_ID>
 
-import android.app.PendingIntent
-import android.content.Context
-import android.content.Intent
 import android.util.Log
-import com.aiopenpocket.MainActivity
+import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
 import com.aiopenpocket.agent.core.memory.dao.HeartbeatDao
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
-import com.aiopenpocket.agent.core.notification.showAgentNotification
 import com.aiopenpocket.agent.loop.AgentState
 import com.aiopenpocket.agent.loop.ReactLoopRunner
+import com.aiopenpocket.agent.loop.TurnNotifier
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -897,18 +948,19 @@ import dev.zacsweers.metro.SingleIn
 enum class FireOutcome { DONE, RETRY }
 
 /**
- * Логика срабатывания heartbeat'а — отдельно от [HeartbeatWorker], чтобы тестироваться
- * без WorkManager. push — статичный пуш; agent — headless-ход [ReactLoopRunner] с безопасным
- * подмножеством тулз: результат в исходный диалог + пуш, «пульс» без задачи молчит на HEARTBEAT_OK.
+ * Логика срабатывания heartbeat'а — отдельно от [HeartbeatWorker], чтобы тестироваться без
+ * WorkManager. push — статичный пуш; agent — headless-ход [ReactLoopRunner] с безопасным подмножеством
+ * тулз. Пуш и deep-link в диалог переиспользуют [TurnNotifier] (та же инфраструктура, что у фоновых
+ * ходов); «пульс» без задачи молчит на HEARTBEAT_OK.
  */
 @Inject
 @SingleIn(AppScope::class)
 class HeartbeatRunner(
-  private val context: Context,
   private val heartbeatDao: HeartbeatDao,
   private val reactLoopRunner: ReactLoopRunner,
   private val toolRegistry: ToolRegistry,
   private val conversationRepository: ConversationRepository,
+  private val turnNotifier: TurnNotifier,
 ) {
 
   suspend fun handleFire(heartbeatId: String, attempt: Int): FireOutcome {
@@ -922,11 +974,11 @@ class HeartbeatRunner(
   }
 
   private suspend fun firePush(hb: HeartbeatEntity): FireOutcome {
-    val shown = showAgentNotification(
-      context, hb.title, hb.message.orEmpty(), hb.id.hashCode(), openConversationIntent(hb),
-    )
-    // Разрешение могли отозвать после постановки — фиксируем на карточке, не молчим.
-    record(hb, ok = shown, result = if (shown) hb.message else "Нет разрешения на уведомления")
+    // Пуш с deep-link в диалог — через общий TurnNotifier (заголовок = имя напоминания, тап → тот же
+    // чат). Без POST_NOTIFICATIONS showAgentNotification внутри молча вернёт false; всё равно fired —
+    // напоминание отработало, отсутствие разрешения это вопрос настроек, а не сбой heartbeat'а.
+    turnNotifier.turnFinished(hb.conversationId, hb.title, hb.message.orEmpty(), failed = false)
+    record(hb, ok = true, result = hb.message)
     return FireOutcome.DONE
   }
 
@@ -963,7 +1015,7 @@ class HeartbeatRunner(
     }
 
     conversationRepository.addMessage(hb.conversationId, "assistant", text)
-    showAgentNotification(context, hb.title, text.take(120), hb.id.hashCode(), openConversationIntent(hb))
+    turnNotifier.turnFinished(hb.conversationId, hb.title, text.take(140), failed = false)
     record(hb, ok = true, result = text.take(200))
     return FireOutcome.DONE
   }
@@ -975,17 +1027,6 @@ class HeartbeatRunner(
       else -> "fired"
     }
     heartbeatDao.recordRun(hb.id, status, System.currentTimeMillis(), result)
-  }
-
-  private fun openConversationIntent(hb: HeartbeatEntity): PendingIntent {
-    val intent = Intent(context, MainActivity::class.java).apply {
-      flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-      putExtra(MainActivity.EXTRA_OPEN_CONVERSATION_ID, hb.conversationId)
-    }
-    return PendingIntent.getActivity(
-      context, hb.id.hashCode(), intent,
-      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-    )
   }
 
   companion object {
@@ -1003,11 +1044,9 @@ class HeartbeatRunner(
 }
 ```
 
-`MiniAgentCatalog.get(id)` — готовый lookup в `app/src/main/java/com/example/agent/core/agent/MiniAgent.kt` (`fun get(id: String?): MiniAgent?`), возвращает null для дефолтного ассистента и неизвестных id. Импорт: `com.aiopenpocket.agent.core.agent.MiniAgentCatalog`. В `MainActivity` уже сейчас добавить константу (полная навигация — Task 6):
+`MiniAgentCatalog.get(id)` — готовый lookup в `app/src/main/java/com/example/agent/core/agent/MiniAgent.kt` (`fun get(id: String?): MiniAgent?`), возвращает null для дефолтного ассистента и неизвестных id. Импорт: `com.aiopenpocket.agent.core.agent.MiniAgentCatalog`.
 
-```kotlin
-const val EXTRA_OPEN_CONVERSATION_ID = "com.aiopenpocket.extra.OPEN_CONVERSATION_ID"
-```
+**Deep-link «тап по пушу → диалог» уже реализован turns-фичей** (`MainActivity.ACTION_OPEN_CONVERSATION` + `EXTRA_CONVERSATION_ID`, `AgentTurnNotifier`). HeartbeatRunner НЕ трогает `MainActivity` — он вызывает `turnNotifier.turnFinished(...)`, а `AgentTurnNotifier` уже строит нужный PendingIntent с deep-link. (Это делает исходный Task 6 избыточным — см. Task 6.)
 
 - [ ] **Step 4: Прогнать — PASS** (6 tests)
 
@@ -1016,7 +1055,7 @@ Run: `./gradlew testDebugUnitTest --tests "com.aiopenpocket.agent.workers.Heartb
 - [ ] **Step 5: Commit**
 
 ```bash
-git add app/src/main/java/com/example/agent/workers/HeartbeatRunner.kt app/src/main/java/com/example/MainActivity.kt app/src/test/java/com/example/agent/workers/HeartbeatRunnerTest.kt
+git add app/src/main/java/com/example/agent/workers/HeartbeatRunner.kt app/src/test/java/com/aiopenpocket/agent/workers/HeartbeatRunnerTest.kt
 git commit -m "feat(heartbeat): HeartbeatRunner — фоновый ход агента с безопасными тулзами
 
 Trace: <TRACE_ID>
@@ -1079,60 +1118,15 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 
 ---
 
-### Task 6: Тап по пушу открывает диалог
+### Task 6: Тап по пушу открывает диалог — ✅ УЖЕ СДЕЛАНО turns-фичей (SKIP)
 
-**Files:**
-- Modify: `app/src/main/java/com/example/MainActivity.kt`
+**Статус: пропустить, имплементера не дспетчить.** Deep-link «тап по пушу → открыть диалог»
+полностью реализован фичей «фоновые ходы» (turns-коммиты на этой ветке): `MainActivity` уже содержит
+`openConversationRequest`, `handleOpenConversationIntent`, навигацию `chat/$convId` и константы
+`ACTION_OPEN_CONVERSATION` / `EXTRA_CONVERSATION_ID`; `AgentTurnNotifier` строит PendingIntent с этим
+deep-link. Task 4 переиспользует всё это через порт `TurnNotifier`, поэтому отдельная работа не нужна.
 
-**Interfaces:**
-- Consumes: `EXTRA_OPEN_CONVERSATION_ID` (константа из Task 4), паттерн `openNewChatRequest` (StateFlow + LaunchedEffect, MainActivity.kt:50, 115-125).
-- Produces: пуш с extra → навигация `chat/<conversationId>`.
-
-- [ ] **Step 1: Добавить StateFlow и чтение extra**
-
-Рядом с `openNewChatRequest` (MainActivity.kt:50):
-
-```kotlin
-// Диалог, который надо открыть по тапу на уведомление heartbeat'а.
-private val openConversationRequest = MutableStateFlow<String?>(null)
-```
-
-В `onCreate` (после `isOpenNewChatIntent`-блока) и в `onNewIntent`:
-
-```kotlin
-intent?.getStringExtra(EXTRA_OPEN_CONVERSATION_ID)?.let { openConversationRequest.value = it }
-```
-
-- [ ] **Step 2: Навигация**
-
-Рядом с `LaunchedEffect(newChatToken, onboardingCompleted)` (MainActivity.kt:115):
-
-```kotlin
-val pendingConversation by openConversationRequest.collectAsState()
-LaunchedEffect(pendingConversation, onboardingCompleted) {
-  val convId = pendingConversation
-  if (convId != null && onboardingCompleted == true) {
-    openConversationRequest.value = null
-    navController.navigate("chat/$convId") { launchSingleTop = true }
-  }
-}
-```
-
-- [ ] **Step 3: Сборка + ручная проверка отложена в Task 10**
-
-Run: `./gradlew assembleDebug`
-Expected: BUILD SUCCESSFUL.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add app/src/main/java/com/example/MainActivity.kt
-git commit -m "feat(heartbeat): тап по пушу открывает исходный диалог
-
-Trace: <TRACE_ID>
-
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
-```
+Контроллеру: отметить Task 6 выполненным в ledger со ссылкой «покрыто turns».
 
 ---
 
@@ -1147,7 +1141,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 **Files:**
 - Modify: `app/src/main/java/com/example/di/AgentToolsModule.kt`
 - Modify: `app/src/main/java/com/example/agent/core/agent/MiniAgent.kt` (все 6 агентов, строки 32-135)
-- Test: `app/src/test/java/com/example/agent/core/agent/MiniAgentCatalogTest.kt` (новый)
+- Test: `app/src/test/java/com/aiopenpocket/agent/core/agent/MiniAgentCatalogTest.kt` (новый)
 
 **Interfaces:**
 - Consumes: multibinding-паттерн `@Provides @IntoSet fun provideX(tool: X): Tool = tool`; `MiniAgentCatalog.all` (список из 6 агентов).
@@ -1258,7 +1252,7 @@ Expected: PASS (2 tests, обходят все 6 агентов).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add app/src/main/java/com/example/di/AgentToolsModule.kt app/src/main/java/com/example/agent/core/agent/MiniAgent.kt app/src/test/java/com/example/agent/core/agent/MiniAgentCatalogTest.kt
+git add app/src/main/java/com/example/di/AgentToolsModule.kt app/src/main/java/com/example/agent/core/agent/MiniAgent.kt app/src/test/java/com/aiopenpocket/agent/core/agent/MiniAgentCatalogTest.kt
 git commit -m "feat(heartbeat): раздать heartbeat всему ростеру мини-агентов
 
 Trace: <TRACE_ID>
@@ -1276,7 +1270,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Modify: `app/src/main/java/com/example/ui/chat/ChatViewModel.kt` (observe/cancel)
 - Modify: `app/src/main/java/com/example/ui/chat/ChatScreen.kt` (прокинуть в рендер карточек)
 - Create: `app/src/main/java/com/example/ui/chat/HeartbeatCardFormat.kt`
-- Test: расширить `app/src/test/java/com/example/ui/chat/DrivenUiEngineTest.kt` + новый `app/src/test/java/com/example/ui/chat/HeartbeatCardFormatTest.kt`
+- Test: расширить `app/src/test/java/com/aiopenpocket/ui/chat/DrivenUiEngineTest.kt` + новый `app/src/test/java/com/aiopenpocket/ui/chat/HeartbeatCardFormatTest.kt`
 
 **Interfaces:**
 - Consumes: `HeartbeatDao.observe(id): Flow<HeartbeatEntity?>`, `HeartbeatTool.workName(id)`, паттерны карточек `SwitchCard`/`NotificationPermissionCard` в DrivenUiEngine.
@@ -1302,7 +1296,7 @@ fun `reminder card without id is error card`() {
 }
 ```
 
-`app/src/test/java/com/example/ui/chat/HeartbeatCardFormatTest.kt`:
+`app/src/test/java/com/aiopenpocket/ui/chat/HeartbeatCardFormatTest.kt`:
 
 ```kotlin
 package com.aiopenpocket.ui.chat
@@ -1484,7 +1478,7 @@ Expected: PASS, включая 2 новых parse-теста и 4 формат-�
 - [ ] **Step 4: Commit**
 
 ```bash
-git add app/src/main/java/com/example/ui/chat/ app/src/main/java/com/example/agent/tools/RenderCardTool.kt app/src/test/java/com/example/ui/chat/
+git add app/src/main/java/com/example/ui/chat/ app/src/main/java/com/example/agent/tools/RenderCardTool.kt app/src/test/java/com/aiopenpocket/ui/chat/
 git commit -m "feat(heartbeat): живая карточка reminder в чате
 
 Trace: <TRACE_ID>
