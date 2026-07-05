@@ -26,16 +26,16 @@
       "git": "44b0648"
     },
     "driven-ui-cards-0418d0": {
-      "hash": "3fd4e7a5b5a5",
-      "git": "4ddf435"
+      "hash": "92cd4bb47813",
+      "git": "ff19983"
     },
     "fonovye-hody-agenta-dde42d": {
       "hash": "e93d9e1ffd24",
       "git": "80dd68c"
     },
     "heartbeat-napominalki-agenta-5f0442": {
-      "hash": "2ad304469a9b",
-      "git": "fc50ae7"
+      "hash": "fe19582a6a20",
+      "git": "ff19983"
     },
     "mcp-tools-f77d9b": {
       "hash": "2621cd718393",
@@ -54,8 +54,8 @@
       "git": "2cc539f"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "87834fd6df58",
-      "git": "80dd68c"
+      "hash": "35bf1c6a366e",
+      "git": "ff19983"
     },
     "swappable-persona-e5e65e": {
       "hash": "ac831590d00d",
