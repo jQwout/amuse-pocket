@@ -2,7 +2,7 @@
 
 Дата: 2026-07-04
 Ветка: `feature/background-turns` (от `fix/chat-lag`)
-Статус: одобрено на брейншторме, ждёт ревью спеки
+Статус: реализовано (ветка `feature/background-turns-impl`, trace `fonovye-hody-agenta-dde42d`)
 
 ## Проблема
 
