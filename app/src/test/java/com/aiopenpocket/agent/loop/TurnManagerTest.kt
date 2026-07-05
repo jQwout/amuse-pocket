@@ -397,6 +397,40 @@ class TurnManagerTest {
     assertTrue(snapshot["b"] is TurnStatus.Completed)
   }
 
+  @Test
+  fun `уведомление уходит только когда приложение в фоне`() = runTest {
+    executor.script = { flowOf(AgentEvent.Completed(finished("готово"))) }
+    val m = manager()
+
+    inForeground = true
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT, false, 3)
+    advanceUntilIdle()
+    assertEquals(0, notifier.shown.size)
+
+    inForeground = false
+    m.launchTurn("c2", "вопрос", AgentMode.CHAT, false, 3)
+    advanceUntilIdle()
+
+    assertEquals(1, notifier.shown.size)
+    val shown = notifier.shown.single()
+    assertEquals("c2", shown.convId)
+    assertEquals("Чат c2", shown.title)
+    assertEquals("готово", shown.preview)
+    assertTrue(!shown.failed)
+  }
+
+  @Test
+  fun `падение хода в фоне тоже уведомляет`() = runTest {
+    executor.script = { flowOf(AgentEvent.Error("сеть упала")) }
+    inForeground = false
+    manager().launchTurn("c1", "вопрос", AgentMode.CHAT, false, 3)
+    advanceUntilIdle()
+
+    val shown = notifier.shown.single()
+    assertTrue(shown.failed)
+    assertEquals("сеть упала", shown.preview)
+  }
+
   companion object {
     fun finished(text: String, trace: List<ToolTrace> = emptyList()) = AgentResult(
       text = text,
