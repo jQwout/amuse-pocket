@@ -4,10 +4,46 @@ import com.aiopenpocket.agent.core.llm.FunctionSchema
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+
+/** Schema with one required string param `action` constrained to enum {read, write}. */
+private fun actionSchema(): FunctionSchema = FunctionSchema(
+  function = FunctionSchema.FunctionDefinition(
+    name = "act",
+    description = "d",
+    parameters = buildJsonObject {
+      put("type", JsonPrimitive("object"))
+      putJsonObject("properties") {
+        putJsonObject("action") {
+          put("type", JsonPrimitive("string"))
+          put("enum", buildJsonArray { add(JsonPrimitive("read")); add(JsonPrimitive("write")) })
+        }
+      }
+      put("required", buildJsonArray { add(JsonPrimitive("action")) })
+    },
+  ),
+)
+
+/** Tool that records whether its body actually ran, so we can assert the gate blocks execution. */
+private class RecordingTool(override val schema: FunctionSchema) : Tool {
+  override val name = schema.function.name
+  override val description = "d"
+  var executed = false
+    private set
+
+  override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult {
+    executed = true
+    return ToolResult.Success("ok")
+  }
+}
 
 private class FakeTool(
   override val name: String,
@@ -51,6 +87,35 @@ class ToolExecutorTest {
     assertTrue(result is ToolResult.Error)
     assertTrue((result as ToolResult.Error).recoverable)
     assertTrue(result.message.contains("kaboom"))
+  }
+
+  @Test
+  fun `missing required argument is rejected before the tool runs`() = runTest {
+    val tool = RecordingTool(actionSchema())
+    val executor = ToolExecutor(ToolRegistry(setOf(tool)))
+    val result = executor.execute("act", emptyMap())
+    assertTrue(result is ToolResult.Error)
+    assertFalse((result as ToolResult.Error).recoverable)
+    assertTrue(result.message.contains("action"))
+    assertFalse("tool must not run when validation fails", tool.executed)
+  }
+
+  @Test
+  fun `enum violation is rejected before the tool runs`() = runTest {
+    val tool = RecordingTool(actionSchema())
+    val executor = ToolExecutor(ToolRegistry(setOf(tool)))
+    val result = executor.execute("act", mapOf("action" to JsonPrimitive("delete")))
+    assertTrue(result is ToolResult.Error)
+    assertFalse(tool.executed)
+  }
+
+  @Test
+  fun `valid arguments pass validation and reach the tool`() = runTest {
+    val tool = RecordingTool(actionSchema())
+    val executor = ToolExecutor(ToolRegistry(setOf(tool)))
+    val result = executor.execute("act", mapOf("action" to JsonPrimitive("read")))
+    assertEquals(ToolResult.Success("ok"), result)
+    assertTrue(tool.executed)
   }
 
   @Test

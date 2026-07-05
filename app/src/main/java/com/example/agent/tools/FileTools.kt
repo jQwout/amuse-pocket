@@ -2,6 +2,7 @@
 
 import android.app.Application
 import com.aiopenpocket.agent.core.llm.FunctionSchema
+import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import kotlinx.serialization.json.JsonElement
@@ -17,6 +18,10 @@ import dev.zacsweers.metro.SingleIn
 class FileTools(
   private val application: Application,
 ) : Tool {
+
+  // Writes/deletes inside the sandbox; file contents can carry injected instructions.
+  override val riskClass = RiskClass.WRITE
+  override val returnsUntrustedContent = true
 
   private val sandboxDir: File
     get() = File(application.filesDir, "agent").also { if (!it.exists()) it.mkdirs() }

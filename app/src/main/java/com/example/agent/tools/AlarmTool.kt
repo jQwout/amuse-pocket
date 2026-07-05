@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.provider.AlarmClock
 import com.aiopenpocket.agent.core.llm.FunctionSchema
+import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.di.AppScope
@@ -19,6 +20,8 @@ import kotlinx.serialization.json.JsonPrimitive
 class AlarmTool(
   private val context: Context,
 ) : Tool {
+
+  override val riskClass = RiskClass.WRITE
 
   override val name = "alarm"
   override val description =
