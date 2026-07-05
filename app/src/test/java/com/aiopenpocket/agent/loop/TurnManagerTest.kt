@@ -7,6 +7,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.test.TestScope
@@ -220,6 +221,180 @@ class TurnManagerTest {
     assertEquals("сеть упала", status.message)
     assertTrue(status.canRetry)
     assertEquals(listOf("user"), persistence.rows.map { it.role })
+  }
+
+  @Test
+  fun `retry перезапускает ход без повторного addMessage`() = runTest {
+    var failFirst = true
+    executor.script = {
+      if (failFirst) { failFirst = false; flowOf(AgentEvent.Error("таймаут")) }
+      else flowOf(AgentEvent.Completed(finished("со второго раза")))
+    }
+    val m = manager()
+
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT, false, 3)
+    advanceUntilIdle()
+    m.retry("c1")
+    advanceUntilIdle()
+
+    assertEquals(listOf("user" to "вопрос", "assistant" to "со второго раза"), persistence.rows.map { it.role to it.content })
+    assertEquals(2, executor.calls.size)
+    assertEquals("вопрос", executor.calls[1].message)
+    assertTrue(m.sessions.value.getValue("c1").status.value is TurnStatus.Completed)
+  }
+
+  @Test
+  fun `approvePlan запускает фазу выполнения с planApproved`() = runTest {
+    executor.script = { call ->
+      if (!call.planApproved) flowOf(AgentEvent.Completed(finished("1. шаг один")))
+      else flowOf(AgentEvent.Completed(finished("сделано")))
+    }
+    val m = manager()
+
+    m.launchTurn("c1", "сделай X", AgentMode.PLAN, planApproved = false, goalMaxIterations = 3)
+    advanceUntilIdle()
+    assertTrue((m.sessions.value.getValue("c1").status.value as TurnStatus.Completed).planAwaitingApproval)
+
+    m.approvePlan("c1")
+    advanceUntilIdle()
+
+    val exec = executor.calls[1]
+    assertEquals(AgentMode.PLAN, exec.mode)
+    assertTrue(exec.planApproved)
+    assertTrue(persistence.rows.any { it.role == "user" && it.content == "Одобряю план, выполни его по шагам." })
+  }
+
+  @Test
+  fun `NEED_INFO в фазе планирования вырезается и не показывает план-бар`() = runTest {
+    executor.script = { flowOf(AgentEvent.Completed(finished("[[NEED_INFO]] Какой именно отчёт нужен?"))) }
+    val m = manager()
+
+    m.launchTurn("c1", "сделай отчёт", AgentMode.PLAN, planApproved = false, goalMaxIterations = 3)
+    advanceUntilIdle()
+
+    val status = m.sessions.value.getValue("c1").status.value as TurnStatus.Completed
+    assertTrue(!status.planAwaitingApproval)
+    assertEquals("Какой именно отчёт нужен?", persistence.rows.last().content)
+  }
+
+  @Test
+  fun `пустой ответ даёт Completed с ошибкой и canRetry без вставки в БД`() = runTest {
+    executor.script = { flowOf(AgentEvent.Completed(finished(""))) }
+    val m = manager()
+
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT, false, 3)
+    advanceUntilIdle()
+
+    val status = m.sessions.value.getValue("c1").status.value as TurnStatus.Completed
+    assertNull(status.insertedMessageId)
+    assertEquals("Модель вернула пустой ответ — попробуй ещё раз.", status.error)
+    assertTrue(status.canRetry)
+    assertEquals(listOf("user"), persistence.rows.map { it.role })
+  }
+
+  @Test
+  fun `render_card - первая карточка в сообщении, остальные отдельными`() = runTest {
+    val card1 = ToolTrace(1, "render_card", emptyMap(), com.aiopenpocket.agent.core.mcp.ToolResult.Success("{\"type\":\"todo\"}"))
+    val card2 = ToolTrace(1, "render_card", emptyMap(), com.aiopenpocket.agent.core.mcp.ToolResult.Success("{\"type\":\"table\"}"))
+    executor.script = { flowOf(AgentEvent.Completed(finished("вот карточки", listOf(card1, card2)))) }
+    val m = manager()
+
+    m.launchTurn("c1", "покажи", AgentMode.CHAT, false, 3)
+    advanceUntilIdle()
+
+    val assistant = persistence.rows.filter { it.role == "assistant" }
+    assertEquals(2, assistant.size)
+    assertEquals("{\"type\":\"todo\"}", assistant[0].cardSpec)
+    assertEquals("" to "{\"type\":\"table\"}", assistant[1].content to assistant[1].cardSpec)
+  }
+
+  @Test
+  fun `invalidateRetryFor гасит ретрай только для того самого сообщения`() = runTest {
+    executor.script = { flowOf(AgentEvent.Error("упало")) }
+    val m = manager()
+
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT, false, 3)
+    advanceUntilIdle()
+    val userMsgId = persistence.rows.first().id
+
+    m.invalidateRetryFor("c1", "чужой-id")
+    advanceUntilIdle()
+    assertTrue((m.sessions.value.getValue("c1").status.value as TurnStatus.Failed).canRetry)
+
+    m.invalidateRetryFor("c1", userMsgId)
+    advanceUntilIdle()
+    assertTrue(!(m.sessions.value.getValue("c1").status.value as TurnStatus.Failed).canRetry)
+  }
+
+  @Test
+  fun `clearError убирает Failed-сессию`() = runTest {
+    executor.script = { flowOf(AgentEvent.Error("упало")) }
+    val m = manager()
+
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT, false, 3)
+    advanceUntilIdle()
+    m.clearError("c1")
+    advanceUntilIdle()
+
+    assertNull(m.sessions.value["c1"])
+  }
+
+  @Test
+  fun `markSeen убирает чисто завершённую сессию, но не Running и не план-бар`() = runTest {
+    executor.script = { flow { emit(AgentEvent.TextDelta("...")); awaitCancellation() } }
+    val m = manager()
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT, false, 3)
+    advanceUntilIdle()
+
+    m.markSeen("c1")
+    advanceUntilIdle()
+    assertTrue(m.sessions.value.containsKey("c1")) // Running не трогаем
+
+    executor.script = { flowOf(AgentEvent.Completed(finished("готово"))) }
+    m.launchTurn("c1", "ещё вопрос", AgentMode.CHAT, false, 3)
+    advanceUntilIdle()
+    m.markSeen("c1")
+    advanceUntilIdle()
+    assertNull(m.sessions.value["c1"]) // чистое Completed — убрали
+
+    executor.script = { flowOf(AgentEvent.Completed(finished("1. план"))) }
+    m.launchTurn("c1", "сделай X", AgentMode.PLAN, false, 3)
+    advanceUntilIdle()
+    m.markSeen("c1")
+    advanceUntilIdle()
+    assertTrue(m.sessions.value.containsKey("c1")) // план ждёт одобрения — бейдж/бар живут
+  }
+
+  @Test
+  fun `dismissPlanApproval прячет план-бар не убивая сессию`() = runTest {
+    executor.script = { flowOf(AgentEvent.Completed(finished("1. план"))) }
+    val m = manager()
+
+    m.launchTurn("c1", "сделай X", AgentMode.PLAN, false, 3)
+    advanceUntilIdle()
+    m.dismissPlanApproval("c1")
+    advanceUntilIdle()
+
+    assertTrue(!(m.sessions.value.getValue("c1").status.value as TurnStatus.Completed).planAwaitingApproval)
+  }
+
+  @Test
+  fun `badges отдаёт статусы по всем диалогам`() = runTest {
+    executor.script = { call ->
+      if (call.convId == "a") flow { emit(AgentEvent.TextDelta("...")); awaitCancellation() }
+      else flowOf(AgentEvent.Completed(finished("ответ")))
+    }
+    val m = manager()
+
+    m.launchTurn("a", "вопрос", AgentMode.CHAT, false, 3)
+    m.launchTurn("b", "вопрос", AgentMode.CHAT, false, 3)
+    advanceUntilIdle()
+
+    // badges — производный Flow: сессии уже наполнены, поэтому первая же эмиссия несёт оба статуса.
+    val snapshot = m.badges.first()
+
+    assertTrue(snapshot["a"] is TurnStatus.Running)
+    assertTrue(snapshot["b"] is TurnStatus.Completed)
   }
 
   companion object {
