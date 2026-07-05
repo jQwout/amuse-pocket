@@ -108,6 +108,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.model.Message
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.ui.chat.components.MicButton
@@ -117,6 +118,7 @@ import com.aiopenpocket.ui.components.StreamingBubble
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.voice.input.VoiceInputState
 import dev.zacsweers.metrox.viewmodel.metroViewModel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -143,6 +145,9 @@ fun ChatScreen(
     val onCardAction: (String, Boolean) -> Unit = remember { { _, _ -> } }
     val onChoiceSelected: (String) -> Unit = remember { { text: String -> viewModel.sendUserMessage(text) } }
     val onLessonQuizComplete: () -> Unit = remember { { viewModel.handleIntent(ChatIntent.CompleteLessonQuiz) } }
+    // Живая карточка reminder: подписка на heartbeat + отмена — стабильные ссылки на методы ViewModel.
+    val observeHeartbeat: (String) -> Flow<HeartbeatEntity?> = remember { viewModel::observeHeartbeat }
+    val onCancelHeartbeat: (String) -> Unit = remember { viewModel::cancelHeartbeat }
     var composerExpanded by remember { mutableStateOf(false) }
 
     // --- Полнотекстовый поиск по сообщениям чата (иконка-лупа в тулбаре). ---
@@ -485,6 +490,8 @@ fun ChatScreen(
                             onLessonQuizComplete = onLessonQuizComplete,
                             onLessonComplete = onLessonComplete,
                             onCardAction = onCardAction,
+                            observeHeartbeat = observeHeartbeat,
+                            onCancelHeartbeat = onCancelHeartbeat,
                         )
                     }
                     if (hasStreamingItem) {
@@ -1025,6 +1032,8 @@ private fun MessageBubble(
     onLessonComplete: () -> Unit = {},
     onLessonQuizComplete: () -> Unit = {},
     onCardAction: (String, Boolean) -> Unit = { _, _ -> },
+    observeHeartbeat: (String) -> Flow<HeartbeatEntity?> = { kotlinx.coroutines.flow.flowOf(null) },
+    onCancelHeartbeat: (String) -> Unit = {},
 ) {
     // Панель действий (закрепить/удалить) — по ТАПУ на пузырь, не по long-press: long-press занят
     // выделением текста (SelectionContainer внутри MarkdownText), и раньше оба обработчика конфликтовали —
@@ -1039,10 +1048,12 @@ private fun MessageBubble(
     // Карточки рисуем интерактивными виджетами только там, где они осмысленны:
     //  • уроки/туториал — карточка и есть содержимое шага;
     //  • свои сообщения — например вложенное фото (по просьбе оставляем карточкой);
-    //  • функциональные контролы (переключатель/запрос уведомлений) — текстом бессмысленны.
+    //  • функциональные контролы (переключатель/запрос уведомлений/reminder) — текстом бессмысленны:
+    //    reminder вообще живая карточка, статичный markdown её не отразит.
     // Ответы агента в обычном чате показываем простым текстом (markdown) — легче и без подлагиваний.
     val interactive = hasCard && (interactiveCards || isUser ||
-            card is DrivenUiCard.SwitchCard || card is DrivenUiCard.NotificationPermissionCard)
+            card is DrivenUiCard.SwitchCard || card is DrivenUiCard.NotificationPermissionCard ||
+            card is DrivenUiCard.ReminderCard)
 
     // Просто текст без карточки: если у ответа есть текст — показываем только его, не приклеивая
     // markdown-представление карточки. Карточку-«пустышку» без текста показываем как её markdown,
@@ -1114,6 +1125,8 @@ private fun MessageBubble(
                     onLessonComplete = onLessonComplete,
                     onLessonQuizComplete = onLessonQuizComplete,
                     onAction = onCardAction,
+                    observeHeartbeat = observeHeartbeat,
+                    onCancelHeartbeat = onCancelHeartbeat,
                 )
             } else {
                 MarkdownText(text = displayText, compact = true, selectable = true)
@@ -1135,11 +1148,12 @@ private fun MessageBubble(
                     }
                     // В уроке шаг чата ведёт себя по счётчику ассистентских сообщений
                     // (ChatViewModel.startOrResumeLesson) — удаление любого из них десинхронизирует
-                    // курсор урока (повтор или пропуск шага). Функциональные карточки (switch/разрешение)
+                    // курсор урока (повтор или пропуск шага). Функциональные карточки (switch/разрешение/reminder)
                     // не часть шагового счёта, поэтому их можно удалять и внутри урока — как и свои сообщения.
                     val isLessonStepContent = interactiveCards &&
                         card !is DrivenUiCard.SwitchCard &&
-                        card !is DrivenUiCard.NotificationPermissionCard
+                        card !is DrivenUiCard.NotificationPermissionCard &&
+                        card !is DrivenUiCard.ReminderCard
                     if (!isLessonStepContent || isUser) {
                         IconButton(onClick = { showDeleteConfirm = true }, modifier = Modifier.size(32.dp)) {
                             Icon(

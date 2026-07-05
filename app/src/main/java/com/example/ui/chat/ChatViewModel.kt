@@ -2,16 +2,21 @@ package com.aiopenpocket.ui.chat
 
 // @trace streaming-llm-chat-6595a1
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.WorkManager
 import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.lesson.LessonChatController
 import com.aiopenpocket.agent.core.lesson.LessonRepository
+import com.aiopenpocket.agent.core.memory.dao.HeartbeatDao
+import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.loop.TurnManager
 import com.aiopenpocket.agent.loop.TurnStatus
+import com.aiopenpocket.agent.tools.HeartbeatTool
 import com.aiopenpocket.data.repository.SettingsRepository
 import com.aiopenpocket.di.AppScope
 import com.aiopenpocket.voice.input.VoiceInputController
@@ -25,6 +30,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -51,6 +57,8 @@ class ChatViewModel(
     private val lessonRepository: LessonRepository,
     private val lessonChatController: LessonChatController,
     private val voiceController: VoiceInputController,
+    private val heartbeatDao: HeartbeatDao,
+    private val context: Context,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ChatUiState())
@@ -403,6 +411,19 @@ class ChatViewModel(
         observeSession(newId)
         convIdFlow.value = newId
         return newId
+    }
+
+    /** Живая подписка карточки reminder — см. [ReminderCardView]. */
+    // @trace heartbeat-napominalki-agenta-5f0442
+    fun observeHeartbeat(id: String): Flow<HeartbeatEntity?> = heartbeatDao.observe(id)
+
+    /** Отмена из карточки: гасим WorkManager-задачу и фиксируем статус в Room (карточка сама перерисуется). */
+    // @trace heartbeat-napominalki-agenta-5f0442
+    fun cancelHeartbeat(id: String) {
+        viewModelScope.launch {
+            WorkManager.getInstance(context).cancelUniqueWork(HeartbeatTool.workName(id))
+            heartbeatDao.setStatus(id, "cancelled")
+        }
     }
 
     private fun togglePin(messageId: String) {

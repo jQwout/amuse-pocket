@@ -14,8 +14,8 @@ import kotlinx.serialization.json.JsonElement
 
 private val CARD_TEMPLATES = listOf(
   "todo_list", "weather_card", "timer", "chart_bar", "table", "form", "choice", "lesson_quiz",
-  "lesson_complete", "switch", "notification_permission", "image", "reveal", "concept", "example",
-  "fill", "sort", "match", "scenario",
+  "lesson_complete", "switch", "notification_permission", "reminder", "image", "reveal", "concept",
+  "example", "fill", "sort", "match", "scenario",
 )
 
 @Inject
@@ -26,7 +26,8 @@ class RenderCardTool : Tool {
   override val description =
     "Отображает интерактивную карточку в чате. Доступные шаблоны: ${CARD_TEMPLATES.joinToString(", ")}. " +
     "switch — переключатель вкл/выкл для настроек приложения, params: {label, description, action, initial}. " +
-    "notification_permission — карточка запроса разрешения на уведомления, params необязательны: {title, description, button_label}."
+    "notification_permission — карточка запроса разрешения на уведомления, params необязательны: {title, description, button_label}. " +
+    "reminder — живая карточка напоминания/heartbeat, params: {heartbeat_id} (id из ответа тула heartbeat)."
   override val schema = toolSchema(name, description) {
     string("template", "ID шаблона карточки", required = true, enum = CARD_TEMPLATES)
     obj("params", "Параметры шаблона (зависят от template)", required = true)

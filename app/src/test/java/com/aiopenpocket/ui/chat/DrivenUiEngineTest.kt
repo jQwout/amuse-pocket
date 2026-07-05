@@ -63,4 +63,18 @@ class DrivenUiEngineTest {
     card as DrivenUiCard.TimerCard
     assertEquals(60, card.durationSec)
   }
+
+  @Test
+  fun `parses reminder card`() {
+    val spec = """{"template":"reminder","params":{"heartbeat_id":"hb42"}}"""
+    val card = DrivenUiEngine.parseJsonString(spec)
+    assertTrue(card is DrivenUiCard.ReminderCard)
+    assertEquals("hb42", (card as DrivenUiCard.ReminderCard).heartbeatId)
+  }
+
+  @Test
+  fun `reminder card without id is error card`() {
+    val card = DrivenUiEngine.parseJsonString("""{"template":"reminder","params":{}}""")
+    assertTrue(card is DrivenUiCard.ErrorCard)
+  }
 }
