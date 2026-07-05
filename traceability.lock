@@ -29,6 +29,10 @@
       "hash": "3fd4e7a5b5a5",
       "git": "4ddf435"
     },
+    "fonovye-hody-agenta-dde42d": {
+      "hash": "e93d9e1ffd24",
+      "git": "80dd68c"
+    },
     "mcp-tools-f77d9b": {
       "hash": "2621cd718393",
       "git": "2cc539f"
@@ -38,16 +42,16 @@
       "git": "2cc539f"
     },
     "multi-chat-conversations-b3c93b": {
-      "hash": "be3f4fd32d00",
-      "git": "3d61a5b"
+      "hash": "5bb7ee8f4da9",
+      "git": "80dd68c"
     },
     "rezhimy-agenta-plan-i-goal-ee2361": {
       "hash": "ec7d0aabb7f6",
       "git": "2cc539f"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "6deea76c4459",
-      "git": "67c2430"
+      "hash": "87834fd6df58",
+      "git": "80dd68c"
     },
     "swappable-persona-e5e65e": {
       "hash": "ac831590d00d",
