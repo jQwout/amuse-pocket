@@ -2,20 +2,16 @@ package com.aiopenpocket.ui.chat
 
 // @trace streaming-llm-chat-6595a1
 
-import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.lesson.LessonChatController
 import com.aiopenpocket.agent.core.lesson.LessonRepository
-import com.aiopenpocket.agent.core.llm.LlmProvider
-import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
-import com.aiopenpocket.agent.loop.AgentEvent
-import com.aiopenpocket.agent.loop.AgentLoopOrchestrator
 import com.aiopenpocket.agent.loop.AgentMode
-import com.aiopenpocket.agent.loop.AgentState
+import com.aiopenpocket.agent.loop.TurnManager
+import com.aiopenpocket.agent.loop.TurnStatus
 import com.aiopenpocket.data.repository.SettingsRepository
 import com.aiopenpocket.di.AppScope
 import com.aiopenpocket.voice.input.VoiceInputController
@@ -28,16 +24,18 @@ import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -47,7 +45,7 @@ import kotlinx.coroutines.withContext
 @ViewModelKey(ChatViewModel::class)
 class ChatViewModel(
     private val conversationRepository: ConversationRepository,
-    private val agentLoop: AgentLoopOrchestrator,
+    private val turnManager: TurnManager,
     private val settingsRepository: SettingsRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val lessonRepository: LessonRepository,
@@ -58,14 +56,19 @@ class ChatViewModel(
     private val _state = MutableStateFlow(ChatUiState())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
 
-    // Стриминговый текст ответа — отдельный поток, а не поле _state. Дельты токенов прилетают часто;
-    // держа их вне общего состояния, мы рекомпозируем только пузырь стрима, а не весь экран чата.
-    private val streamingBuilder = StringBuilder()
-    private val _streamingText = MutableStateFlow("")
-    val streamingText: StateFlow<String> = _streamingText.asStateFlow()
+    /** Текущий conversationId для подписок на сессию хода (пустой = чат ещё не создан). */
+    private val convIdFlow = MutableStateFlow("")
+    private var sessionJob: Job? = null
 
-    /** Метка последней публикации стрим-текста — гейт частоты (см. TextDelta в runAgent). */
-    private var lastStreamPublishAt = 0L
+    // Стриминговый текст берём напрямую из сессии хода в TurnManager: ход (и его стрим) живёт в
+    // appScope, а этот поток лишь переключается на сессию текущего диалога — вернулся на экран,
+    // стрим продолжает бежать. Отдельный поток (не поле _state), чтобы частые дельты токенов
+    // рекомпозировали только пузырь стрима, а не весь экран.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val streamingText: StateFlow<String> = convIdFlow
+        .flatMapLatest { id -> if (id.isBlank()) flowOf(null) else turnManager.session(id) }
+        .flatMapLatest { session -> session?.streamingText ?: flowOf("") }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
     // Пагинация ленты: показываем последние [windowLimit] сообщений, «старые» догружаем увеличением
     // лимита. Поток сообщений пересобирается через flatMapLatest при каждом изменении лимита.
@@ -75,30 +78,13 @@ class ChatViewModel(
     /** Поисковый запрос из шапки чата; скан совпадений — с дебаунсом и вне Main (см. init). */
     private val searchQueryFlow = MutableStateFlow("")
 
-    private var activeJob: Job? = null
     private var messagesJob: Job? = null
 
-    /**
-     * Id только что сохранённого ассистентского сообщения, ПОКА оно не приехало в окно ленты.
-     * Пока он выставлен, стрим-пузырь не снимается: убираем его атомарно с приходом сообщения
-     * (см. observeMessages) — иначе между isLoading=false и Room-переэмитом окна есть 1–2 кадра,
-     * в которые ответ не отображается нигде («мигание» в конце каждого хода).
-     */
-    private var pendingHandoffId: String? = null
-
-    /** Last user message of the active turn, kept so a failed turn can be retried without re-adding it. */
-    private var lastUserText: String? = null
-
-    /** DB id of [lastUserText] — lets [deleteMessage] invalidate a pending retry if that row is deleted. */
-    private var lastUserMessageId: String? = null
-
-    /** Режим/фаза последнего хода — чтобы ретрай повторял то же самое (план/гоал/чат). */
-    private var lastMode: AgentMode = AgentMode.CHAT
-    private var lastPlanApproved: Boolean = false
+    // Активный ход, ретрай-контекст и стрим-хэндофф переехали в TurnSession/TurnManager (appScope):
+    // ход больше не умирает с экраном, а «Повторить» переживает пересоздание ViewModel.
 
     /** Защита от повторного входа при шаге урока (быстрый двойной тап «Дальше»/квиза). */
     private var lessonBusy = false
-    private var responseStartTime: Long = 0L
 
     init {
         // Лимит витков гоал-мода из настроек — держим в состоянии, чтобы передавать в оркестратор.
@@ -156,20 +142,20 @@ class ChatViewModel(
 
     fun setConversationId(id: String) {
         if (_state.value.conversationId == id) return
-        activeJob?.cancel()
+        // Ход НЕ отменяем — он живёт в TurnManager (appScope) и дорабатывает в фоне; сбрасываем
+        // только подписки экрана и экранное состояние.
         messagesJob?.cancel()
-        resetStreaming()
-        pendingHandoffId = null
-        lastUserText = null
-        lastUserMessageId = null
-        lastMode = AgentMode.CHAT
-        lastPlanApproved = false
+        sessionJob?.cancel()
         lessonBusy = false
         _state.value = ChatUiState.resetFor(id)
+        convIdFlow.value = id
         // Новый чат (id пуст): диалога ещё нет, его создаст ensureConversation при отправке.
         // Коллектор по getMessages("") всегда пуст — не запускаем его.
         if (id.isBlank()) return
         observeMessages(id)
+        observeSession(id)
+        // Вход в диалог гасит бейдж «готово» в списке (Running/ошибку/план-бар markSeen не трогает).
+        turnManager.markSeen(id)
         // Урок-диалог: включаем интерактивные карточки. Если для заголовка есть JSON-урок — переходим в
         // lesson-режим и драйвим шаги контроллером (строгий контракт), иначе свободный путь (l2–l4).
         // Режим агента (план/гоал) НЕ включаем автоматически — только явный выбор в UI.
@@ -250,7 +236,10 @@ class ChatViewModel(
             is ChatIntent.ToggleToolTrace -> _state.update { it.copy(showToolTrace = !it.showToolTrace) }
             is ChatIntent.TogglePin -> togglePin(intent.messageId)
             is ChatIntent.DeleteMessage -> deleteMessage(intent.messageId)
-            is ChatIntent.ClearError -> _state.update { it.copy(error = null, canRetry = false) }
+            is ChatIntent.ClearError -> {
+                currentConversationId()?.let { turnManager.clearError(it) }
+                _state.update { it.copy(error = null, canRetry = false) }
+            }
             is ChatIntent.NavigateBack -> { /* handled by navigation */
             }
 
@@ -261,9 +250,12 @@ class ChatViewModel(
                 _state.update { it.copy(voiceError = null) }
             }
             // Смена режима инвалидирует «Повторить» прошлого хода (иначе ретрай уйдёт в старый режим).
-            is ChatIntent.SetMode -> _state.update { it.copy(agentMode = intent.mode, planAwaitingApproval = false, canRetry = false) }
+            is ChatIntent.SetMode -> {
+                currentConversationId()?.let { turnManager.invalidateRetry(it) }
+                _state.update { it.copy(agentMode = intent.mode, planAwaitingApproval = false, canRetry = false) }
+            }
             is ChatIntent.ApprovePlan -> approvePlan()
-            is ChatIntent.EditPlan -> _state.update { it.copy(planAwaitingApproval = false) }
+            is ChatIntent.EditPlan -> currentConversationId()?.let { turnManager.dismissPlanApproval(it) }
             is ChatIntent.AdvanceLesson -> advanceLesson()
             is ChatIntent.CompleteLessonQuiz -> completeLessonQuiz()
         }
@@ -282,36 +274,27 @@ class ChatViewModel(
     private fun sendMessage() {
         val text = _state.value.inputText.trim()
         if (text.isEmpty()) return
-
-        // Новый ход — новая попытка. lastUserText выставим только после успешного addMessage.
-        lastUserText = null
-        lastUserMessageId = null
-        // responseStartTime фиксирует начало ожидания, чтобы ResponseStatsBar показал «время ответа».
-        responseStartTime = System.currentTimeMillis()
-        launchTurn(resetInput = true) {
-            // Маршрут "chat/new" даёт пустой id — создаём диалог, иначе FK-нарушение при addMessage.
-            val convId = ensureConversation(text)
-            // Сначала ждём сохранения сообщения пользователя в БД
-            val userMsgId = conversationRepository.addMessage(convId, "user", text)
-            // Сообщение уже в истории — запоминаем ход для возможного ретрая (без повторного addMessage).
-            lastUserText = text
-            lastUserMessageId = userMsgId
-            // В план-моде обычная отправка — это фаза ПЛАНИРОВАНИЯ (planApproved=false): план, без инструментов.
-            runAgent(convId, text, _state.value.agentMode, planApproved = false)
+        _state.update { it.copy(inputText = "") }
+        viewModelScope.launch {
+            try {
+                // Маршрут "chat/new" даёт пустой id — создаём диалог ДО launchTurn: сессия ключуется по id.
+                val convId = ensureConversation(text)
+                // В план-моде обычная отправка — это фаза ПЛАНИРОВАНИЯ (planApproved=false): план, без инструментов.
+                turnManager.launchTurn(convId, text, _state.value.agentMode, planApproved = false, goalMaxIterations = _state.value.goalMaxIterations)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("ChatViewModel", "send failed", e)
+                _state.update { it.copy(error = e.message, canRetry = false) }
+            }
         }
     }
 
-    /** План-мод: пользователь одобрил план → запускаем фазу выполнения (инструменты включены). */
+    /** План-мод: пользователь одобрил план → TurnManager запускает фазу выполнения. */
     private fun approvePlan() {
-        val convId = _state.value.conversationId?.takeIf { it.isNotBlank() } ?: return
+        val convId = currentConversationId() ?: return
         if (!_state.value.planAwaitingApproval) return
-        _state.update { it.copy(planAwaitingApproval = false) }
-        val approveMsg = "Одобряю план, выполни его по шагам."
-        launchTurn(resetInput = false) {
-            lastUserMessageId = conversationRepository.addMessage(convId, "user", approveMsg)
-            lastUserText = approveMsg
-            runAgent(convId, approveMsg, AgentMode.PLAN, planApproved = true)
-        }
+        turnManager.approvePlan(convId)
     }
 
     /** «Дальше» по тексту и прохождение квиза одинаково продвигают курсор урока на следующий шаг. */
@@ -344,185 +327,69 @@ class ChatViewModel(
         }
     }
 
-    /**
-     * Повторяет последний ход агента после ошибки. Сообщение пользователя уже сохранено в истории
-     * (его записал sendMessage), поэтому заново его не добавляем — только перезапускаем агента.
-     */
     private fun retry() {
-        val convId = _state.value.conversationId?.takeIf { it.isNotBlank() } ?: return
-        val text = lastUserText ?: return
-        launchTurn(resetInput = false) {
-            runAgent(convId, text, lastMode, lastPlanApproved)
-        }
+        currentConversationId()?.let { turnManager.retry(it) }
     }
+
+    private fun currentConversationId(): String? =
+        _state.value.conversationId?.takeIf { it.isNotBlank() }
 
     /**
-     * Единый запуск хода агента (общий для отправки и ретрая). Дожидается завершения прошлого хода
-     * через cancelAndJoin — два агентных цикла не пересекаются, поэтому инструменты и addMessage не
-     * выполняются параллельно при быстром повторном тапе. [block] содержит специфичную для вызова
-     * подготовку (создание диалога, сохранение сообщения) и сам runAgent; отмена и ошибки
-     * обрабатываются здесь одинаково для обоих путей.
+     * Проекция сессии хода из TurnManager в состояние экрана. Ход живёт в appScope — экран лишь
+     * отражает его. «Мигание» конца хода решается деривацией: пузырь (isLoading) держим, пока
+     * Completed-сообщение не приехало в окно ленты, — подмена атомарна, т.к. messages и статус
+     * сходятся в одном combine и одном _state.update.
      */
-    private fun launchTurn(resetInput: Boolean, block: suspend () -> Unit) {
-        val previous = activeJob
-        activeJob = viewModelScope.launch {
-            // Прошлый ход мог ещё выполнять инструмент/запись — гасим его и ждём, прежде чем стартовать новый.
-            previous?.cancelAndJoin()
-            // Незавершённый handoff прошлого хода больше не актуален: пузырь теперь принадлежит новому ходу.
-            pendingHandoffId = null
-            resetStreaming()
-            _state.update {
-                it.copy(
-                    inputText = if (resetInput) "" else it.inputText,
-                    isLoading = true,
-                    toolTrace = emptyList(),
-                    error = null,
-                    canRetry = false,
-                    // Любой новый ход прячет бар одобрения; для план-планирования он вернётся на завершении.
-                    planAwaitingApproval = false,
-                )
-            }
-            try {
-                block()
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                // Юзер нажал Stop / начал новый ход: отмена — штатный путь, не показываем как ошибку.
-                throw e
-            } catch (e: Exception) {
-                android.util.Log.e("ChatViewModel", "Agent turn error", e)
-                _state.update { it.copy(isLoading = false, error = e.message, canRetry = lastUserText != null) }
-            }
-        }
-    }
-
-    /** Запускает агентный цикл и проецирует его события в состояние. Общий путь для отправки и ретрая. */
-    private suspend fun runAgent(
-        convId: String,
-        userMessage: String,
-        mode: AgentMode = AgentMode.CHAT,
-        planApproved: Boolean = false,
-    ) {
-        lastMode = mode
-        lastPlanApproved = planApproved
-        // Временно гоним всё на NIM; выбор провайдера (GROQ/GITHUB) выпилим позже.
-        val provider = LlmProvider.NIM
-        // Обычный чат-цикл с режимом агента (план-гейт / гоал-петля), скоупленный по привязанному мини-агенту.
-        val flow = agentLoop.execute(convId, userMessage, provider, mode, planApproved, _state.value.goalMaxIterations)
-        flow.collect { event ->
-            when (event) {
-                is AgentEvent.TextDelta -> {
-                    // Аккумулируем в StringBuilder (без O(n²) на конкатенации неизменяемых строк) и
-                    // публикуем в отдельный поток — рекомпозируется только пузырь стрима. Публикация
-                    // под гейтом частоты: toString() копирует ВЕСЬ накопленный текст, и на каждый
-                    // токен это суммарно O(L²) аллокаций за длинный ответ; чаще ~20 раз/сек глазу
-                    // всё равно не нужно. Хвост дофлашивает StateChanged ниже.
-                    streamingBuilder.append(event.content)
-                    val now = SystemClock.uptimeMillis()
-                    if (now - lastStreamPublishAt >= STREAM_PUBLISH_INTERVAL_MS) {
-                        lastStreamPublishAt = now
-                        _streamingText.value = streamingBuilder.toString()
-                    }
+    private fun observeSession(convId: String) {
+        sessionJob?.cancel()
+        sessionJob = viewModelScope.launch {
+            turnManager.session(convId).collectLatest { session ->
+                if (session == null) {
+                    // Сессии нет (не было хода / отменён / просмотрен) — только гасим индикацию,
+                    // остальное состояние (сообщения, статистика) не трогаем.
+                    _state.update { it.copy(isLoading = false, planAwaitingApproval = false) }
+                    return@collectLatest
                 }
+                combine(
+                    session.status,
+                    session.toolTrace,
+                    _state.map { it.messages }.distinctUntilChanged(),
+                ) { status, trace, messages -> Triple(status, trace, messages) }
+                    .collect { (status, trace, messages) ->
+                        when (status) {
+                            is TurnStatus.Running -> _state.update {
+                                it.copy(isLoading = true, toolTrace = trace, error = null, canRetry = false, planAwaitingApproval = false)
+                            }
 
-                is AgentEvent.ToolCompleted -> {
-                    val newTrace = com.aiopenpocket.agent.loop.ToolTrace(
-                        iteration = event.iteration,
-                        toolName = event.name,
-                        arguments = event.arguments,
-                        result = event.result,
-                    )
-                    _state.update { it.copy(toolTrace = it.toolTrace + newTrace) }
-                }
+                            is TurnStatus.Completed -> {
+                                val arrived = status.insertedMessageId == null ||
+                                    messages.any { it.id == status.insertedMessageId }
+                                _state.update {
+                                    it.copy(
+                                        isLoading = !arrived,
+                                        toolTrace = trace,
+                                        error = status.error,
+                                        canRetry = status.canRetry,
+                                        planAwaitingApproval = status.planAwaitingApproval,
+                                        lastResponseStats = ResponseStats(
+                                            responseTimeMs = status.responseTimeMs,
+                                            completionTokens = status.completionTokens,
+                                            contextTokensUsed = status.contextTokensUsed,
+                                        ),
+                                    )
+                                }
+                                // Ответ доехал до ленты — чистая сессия больше не нужна (гасит бейдж
+                                // «готово» в списке; markSeen сам не тронет ошибку/план-бар).
+                                if (arrived && status.insertedMessageId != null) {
+                                    turnManager.markSeen(convId)
+                                }
+                            }
 
-                is AgentEvent.Completed -> {
-                    // Extract render_card specs so the Driven UI cards render inline in chat.
-                    val cardSpecs = event.result.toolTrace
-                        .filter { it.toolName == "render_card" }
-                        .mapNotNull { (it.result as? ToolResult.Success)?.data }
-
-                    // Фаза планирования: маркер [[NEED_INFO]] В НАЧАЛЕ ответа = это уточняющий вопрос, не план.
-                    // Матчим именно префикс (а не contains), чтобы план, упомянувший литерал, не спрятал бар.
-                    val planningPhase = mode == AgentMode.PLAN && !planApproved
-                    val rawText = event.result.text
-                    val needInfo = planningPhase && rawText.trimStart().startsWith(NEED_INFO_MARKER)
-                    val responseText = when {
-                        needInfo -> rawText.trimStart().removePrefix(NEED_INFO_MARKER).trim()
-                            .ifBlank { "Уточни, пожалуйста, детали задачи — что именно нужно сделать?" }
-
-                        planningPhase -> rawText.trim()
-                        else -> rawText
+                            is TurnStatus.Failed -> _state.update {
+                                it.copy(isLoading = false, toolTrace = trace, error = status.message, canRetry = status.canRetry, planAwaitingApproval = false)
+                            }
+                        }
                     }
-                    val insertedId = if (responseText.isNotBlank() || cardSpecs.isNotEmpty()) {
-                        conversationRepository.addMessage(
-                            convId,
-                            "assistant",
-                            responseText,
-                            cardSpec = cardSpecs.firstOrNull(),
-                        )
-                    } else {
-                        null
-                    }
-                    // Any additional cards become their own card-only messages.
-                    cardSpecs.drop(1).forEach { spec ->
-                        conversationRepository.addMessage(convId, "assistant", "", cardSpec = spec)
-                    }
-                    // Бар одобрения — только когда выдан НЕПУСТОЙ настоящий план (не вопрос и не пустой ответ),
-                    // иначе «Выполнить» запустил бы инструменты против несуществующего плана.
-                    val planningDone = planningPhase && !needInfo && responseText.isNotBlank()
-                    // Пустой ответ (любой режим): модель не вернула ни текста, ни карточки. Не оставляем немой
-                    // экран — даём понятное сообщение и «Повторить». В фазе планирования формулировка про план.
-                    val blankReply = responseText.isBlank() && cardSpecs.isEmpty()
-                    val blankError = when {
-                        planningPhase && blankReply -> "Модель не вернула план — попробуй ещё раз."
-                        blankReply -> "Модель вернула пустой ответ — попробуй ещё раз."
-                        else -> null
-                    }
-                    val stats = ResponseStats(
-                        responseTimeMs = System.currentTimeMillis() - responseStartTime,
-                        completionTokens = event.result.completionTokensEstimate,
-                        contextTokensUsed = event.result.promptTokensEstimate,
-                    )
-                    // Handoff без мигания: если сообщение сохранено, но окно ленты его ещё не отдало,
-                    // НЕ снимаем стрим-пузырь сейчас — его атомарно уберёт observeMessages вместе с
-                    // приходом сообщения. Пузырь снимаем сразу только когда вставки не было (пустой
-                    // ответ) или окно уже успело догнать БД.
-                    val windowCaughtUp = insertedId == null ||
-                        _state.value.messages.any { it.id == insertedId }
-                    if (windowCaughtUp) {
-                        resetStreaming()
-                    } else {
-                        pendingHandoffId = insertedId
-                    }
-                    _state.update {
-                        it.copy(
-                            isLoading = if (windowCaughtUp) false else it.isLoading,
-                            toolTrace = event.result.toolTrace,
-                            error = blankError,
-                            canRetry = if (blankReply) lastUserText != null else false,
-                            planAwaitingApproval = planningDone,
-                            lastResponseStats = stats,
-                        )
-                    }
-                }
-
-                is AgentEvent.Error -> {
-                    _state.update { it.copy(isLoading = false, error = event.message, canRetry = lastUserText != null) }
-                }
-
-                is AgentEvent.StateChanged -> when (event.state) {
-                    // Новый виток ReAct стримит свой текст заново. Показываем текст ТЕКУЩЕГО витка —
-                    // именно он и сохранится в историю на финише. Раньше буфер копил преамбулы ВСЕХ
-                    // витков подряд (без разделителей), а сохранялся только последний — при подмене
-                    // пузыря сообщением текст «укорачивался».
-                    AgentState.STREAMING -> resetStreaming()
-                    // Стрим витка закончился (инструменты/финиш/ошибка): дофлашиваем хвост текста,
-                    // который мог не пройти гейт частоты публикации выше.
-                    else -> if (streamingBuilder.isNotEmpty()) {
-                        _streamingText.value = streamingBuilder.toString()
-                    }
-                }
-
-                else -> { /* no-op */
-                }
             }
         }
     }
@@ -533,6 +400,8 @@ class ChatViewModel(
         val newId = conversationRepository.createConversation(title = title)
         _state.update { it.copy(conversationId = newId) }
         observeMessages(newId)
+        observeSession(newId)
+        convIdFlow.value = newId
         return newId
     }
 
@@ -545,13 +414,9 @@ class ChatViewModel(
 
     /** Удаляет сообщение. `state.messages` реактивен (Flow из БД), поэтому лента обновится сама. */
     private fun deleteMessage(messageId: String) {
-        // Если это сообщение и держит текущий «Повторить» — гасим ретрай, иначе он переотправит
-        // текст хода, чей user-ряд в истории только что исчез (агент ответит, не увидев вопроса).
-        if (messageId == lastUserMessageId) {
-            lastUserText = null
-            lastUserMessageId = null
-            _state.update { it.copy(canRetry = false) }
-        }
+        // Если это сообщение держит текущий «Повторить» — TurnManager погасит ретрай, иначе он
+        // переотправит текст хода, чей user-ряд в истории только что исчез.
+        currentConversationId()?.let { turnManager.invalidateRetryFor(it, messageId) }
         viewModelScope.launch {
             conversationRepository.deleteMessage(messageId)
         }
@@ -590,20 +455,11 @@ class ChatViewModel(
                 }
                 .collect { (messages, limit) ->
                     olderLoadInFlight = false
-                    // Атомарная подмена «стрим-пузырь → сохранённое сообщение»: пузырь убираем ТЕМ ЖЕ
-                    // обновлением состояния, которым сообщение попадает в ленту, — ни кадра без ответа
-                    // и ни кадра с дублем (детали — у pendingHandoffId).
-                    val handoffArrived = pendingHandoffId?.let { id -> messages.any { it.id == id } } == true
-                    if (handoffArrived) {
-                        pendingHandoffId = null
-                        resetStreaming()
-                    }
+                    // Снятие стрим-пузыря при приходе сообщения арбитрируется в observeSession: там
+                    // messages участвуют в combine со статусом сессии (isLoading держится, пока
+                    // Completed-сообщение не появилось в окне ленты) — здесь только сама лента.
                     _state.update {
-                        it.copy(
-                            messages = messages,
-                            hasMoreOlder = messages.size >= limit,
-                            isLoading = if (handoffArrived) false else it.isLoading,
-                        )
+                        it.copy(messages = messages, hasMoreOlder = messages.size >= limit)
                     }
                 }
         }
@@ -616,24 +472,12 @@ class ChatViewModel(
         windowLimit.value += WINDOW_PAGE
     }
 
-    /** Сбрасывает накопленный стриминговый текст (и буфер) — общий путь для старта/конца/отмены хода. */
-    private fun resetStreaming() {
-        streamingBuilder.setLength(0)
-        _streamingText.value = ""
-        lastStreamPublishAt = 0L
-    }
-
     private fun cancel() {
-        activeJob?.cancel()
-        resetStreaming()
+        currentConversationId()?.let { turnManager.cancel(it) }
         _state.update { it.copy(isLoading = false) }
     }
 
     companion object {
-        /** Маркер план-планирования: модель ставит его в начало ответа, когда вместо плана задаёт
-         *  уточняющие вопросы. Из текста для пользователя вырезается, бар одобрения тогда не показываем. */
-        private const val NEED_INFO_MARKER = "[[NEED_INFO]]"
-
         /** Урок-онбординг (setup-шаги language/persona/profile) драйвится не чат-контроллером, а экраном онбординга. */
         private const val ONBOARDING_LESSON_ID = "l1_welcome"
 
@@ -643,9 +487,6 @@ class ChatViewModel(
 
         /** Дебаунс поискового ввода перед сканом истории. */
         private const val SEARCH_DEBOUNCE_MS = 250L
-
-        /** Минимальный интервал публикации стрим-текста в UI (~20 обновлений/сек). */
-        private const val STREAM_PUBLISH_INTERVAL_MS = 50L
     }
 }
 
