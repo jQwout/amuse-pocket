@@ -9,6 +9,7 @@ import com.aiopenpocket.agent.tools.DatabaseQueryTool
 import com.aiopenpocket.agent.tools.EmailTool
 import com.aiopenpocket.agent.tools.ExternalFilesTool
 import com.aiopenpocket.agent.tools.FileTools
+import com.aiopenpocket.agent.tools.HeartbeatTool
 import com.aiopenpocket.agent.tools.MemoryTools
 import com.aiopenpocket.agent.tools.NotificationsTool
 import com.aiopenpocket.agent.tools.RenderCardTool
@@ -52,6 +53,10 @@ object AgentToolsModule {
   @Provides
   @IntoSet
   fun provideWorkManagerTool(tool: WorkManagerTool): Tool = tool
+
+  @Provides
+  @IntoSet
+  fun provideHeartbeatTool(tool: HeartbeatTool): Tool = tool
 
   @Provides
   @IntoSet
