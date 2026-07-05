@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AltRoute
 import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Architecture
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Build
@@ -168,6 +169,12 @@ val ROADMAP_LEVELS = listOf(
     "Гоал-мод",
     "Задаёшь цель и критерии — агент сам идёт к ней циклом, сверяясь с результатом.",
     Icons.Default.Flag,
+  ),
+  RoadmapLevel(
+    "heartbeat_and_cron",
+    "Heartbeat и cron",
+    "Как агент живёт без твоих сообщений: расписания, фоновые пробуждения и право молчать.",
+    Icons.Default.Alarm,
   ),
   RoadmapLevel(
     "chaining_and_routing",

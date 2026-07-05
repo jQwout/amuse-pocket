@@ -50,6 +50,7 @@ internal val LIBRARY_LESSON_IDS = listOf(
   "rag",
   "plan_mode",
   "goal_mode",
+  "heartbeat_and_cron",
   "chaining_and_routing",
   "arena_and_swarm",
   "agent_blueprint",
