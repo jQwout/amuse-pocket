@@ -30,12 +30,12 @@
       "git": "ff19983"
     },
     "fonovye-hody-agenta-dde42d": {
-      "hash": "e93d9e1ffd24",
-      "git": "80dd68c"
+      "hash": "28aed04bab82",
+      "git": "83c2dca"
     },
     "heartbeat-napominalki-agenta-5f0442": {
-      "hash": "fe19582a6a20",
-      "git": "8a3b272"
+      "hash": "53d49a359792",
+      "git": "83c2dca"
     },
     "mcp-tools-f77d9b": {
       "hash": "d48d54ab5ef1",
@@ -54,8 +54,8 @@
       "git": "8a3b272"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "35bf1c6a366e",
-      "git": "ff19983"
+      "hash": "211c66854c82",
+      "git": "83c2dca"
     },
     "swappable-persona-e5e65e": {
       "hash": "ac831590d00d",

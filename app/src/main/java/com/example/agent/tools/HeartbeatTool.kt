@@ -115,7 +115,12 @@ class HeartbeatTool(
     val workManager = WorkManager.getInstance(context)
     val workName = workName(id)
     if (interval != null) {
+      // Без initial delay WorkManager запускает первый прогон периодики почти сразу — «каждые 60 мин»
+      // сработало бы мгновенно при планировании. Первый запуск: через delay (если задан) либо через
+      // полный интервал, дальше — с шагом interval.
+      val firstRunDelay = delay ?: interval
       val request = PeriodicWorkRequestBuilder<HeartbeatWorker>(interval, TimeUnit.MINUTES)
+        .setInitialDelay(firstRunDelay, TimeUnit.MINUTES)
         .setInputData(input)
         .build()
       workManager.enqueueUniquePeriodicWork(workName, ExistingPeriodicWorkPolicy.UPDATE, request)
