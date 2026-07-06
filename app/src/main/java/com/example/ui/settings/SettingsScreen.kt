@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Bolt
@@ -32,9 +33,12 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Loop
 import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material.icons.filled.TaskAlt
@@ -247,6 +251,20 @@ fun SettingsScreen(
         personaId = state.personaId,
         displayName = currentPersona?.displayName,
         onClick = { showPersonaSheet = true },
+        modifier = Modifier.padding(horizontal = 20.dp),
+      )
+
+      Spacer(modifier = Modifier.height(28.dp))
+
+      SettingsSectionHeader(
+        icon = Icons.Default.Flag,
+        title = "РЕЖИМЫ АГЕНТА",
+        modifier = Modifier.padding(horizontal = 20.dp),
+      )
+      Spacer(modifier = Modifier.height(12.dp))
+      GoalIterationsCard(
+        value = state.goalMaxIterations,
+        onChange = viewModel::updateGoalMaxIterations,
         modifier = Modifier.padding(horizontal = 20.dp),
       )
 
@@ -556,6 +574,73 @@ private fun ProviderSelectorCard(
           },
         )
       }
+    }
+  }
+}
+
+@Composable
+private fun GoalIterationsCard(
+  value: Int,
+  onChange: (Int) -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  Row(
+    modifier = modifier
+      .fillMaxWidth()
+      .clip(SettingsCardShape)
+      .background(PersonaCardBg)
+      .padding(horizontal = 16.dp, vertical = 14.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Box(
+      modifier = Modifier
+        .size(44.dp)
+        .clip(CircleShape)
+        .background(PurpleAccentDark),
+      contentAlignment = Alignment.Center,
+    ) {
+      Icon(
+        imageVector = Icons.Default.Loop,
+        contentDescription = null,
+        tint = PurpleAccent,
+        modifier = Modifier.size(22.dp),
+      )
+    }
+    Column(
+      modifier = Modifier
+        .weight(1f)
+        .padding(horizontal = 16.dp),
+    ) {
+      Text(
+        text = "Гоал-мод: лимит витков",
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurface,
+      )
+      Text(
+        text = "Сколько кругов петли агент сделает к цели",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+    IconButton(onClick = { onChange(value - 1) }, enabled = value > 1) {
+      Icon(
+        imageVector = Icons.Default.Remove,
+        contentDescription = "Меньше",
+        tint = MaterialTheme.colorScheme.onSurface,
+      )
+    }
+    Text(
+      text = value.toString(),
+      style = MaterialTheme.typography.titleLarge,
+      color = PurpleAccent,
+      modifier = Modifier.padding(horizontal = 8.dp),
+    )
+    IconButton(onClick = { onChange(value + 1) }, enabled = value < 10) {
+      Icon(
+        imageVector = Icons.Default.Add,
+        contentDescription = "Больше",
+        tint = MaterialTheme.colorScheme.onSurface,
+      )
     }
   }
 }

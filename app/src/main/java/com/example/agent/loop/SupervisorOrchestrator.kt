@@ -166,7 +166,7 @@ class SupervisorOrchestrator @Inject constructor(
       ChatMessage(role = "system", content = agent.systemPrompt),
       ChatMessage(role = "user", content = task),
     )
-    return reactLoopRunner.run(conversationId, messages, registry.getSchemasFor(agent.toolNames), provider, emit)
+    return reactLoopRunner.run(conversationId, messages, registry.getSchemasFor(agent.toolNames), provider, emit = emit)
   }
 
   private fun rosterBlock(): String = buildString {

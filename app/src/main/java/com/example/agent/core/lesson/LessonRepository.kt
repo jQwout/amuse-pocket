@@ -23,4 +23,9 @@ class LessonRepository(
     val raw = context.assets.open("lessons/$id.json").bufferedReader().use { it.readText() }
     json.decodeFromString(Lesson.serializer(), raw)
   }
+
+  /** Как [getLesson], но возвращает null, если урока с таким id нет (нет ассета или не парсится). */
+  suspend fun getLessonOrNull(id: String): Lesson? = withContext(Dispatchers.IO) {
+    runCatching { getLesson(id) }.getOrNull()
+  }
 }

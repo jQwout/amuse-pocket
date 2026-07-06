@@ -2,6 +2,7 @@
 
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
+import com.aiopenpocket.agent.core.mcp.missingArg
 import com.aiopenpocket.agent.core.mcp.string
 import com.aiopenpocket.agent.core.mcp.toolSchema
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
@@ -29,7 +30,7 @@ class MemoryTools(
   }
 
   override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult {
-    val action = arguments.string("action") ?: return ToolResult.Error("Missing 'action'")
+    val action = arguments.string("action") ?: return missingArg("action")
     return when (action) {
       "remember_fact" -> rememberFact(arguments)
       "search_memory" -> searchMemory(arguments)
@@ -39,8 +40,8 @@ class MemoryTools(
   }
 
   private suspend fun rememberFact(args: Map<String, JsonElement>): ToolResult {
-    val key = args.string("key") ?: return ToolResult.Error("Missing 'key'")
-    val value = args.string("value") ?: return ToolResult.Error("Missing 'value'")
+    val key = args.string("key") ?: return missingArg("key")
+    val value = args.string("value") ?: return missingArg("value")
     // Категорию задаёт пользователь (через модель) — это недоверенный ввод. Зажимаем в allowlist,
     // чтобы факт не попал в «привилегированную» секцию промпта (system/Инструкции/персона).
     val category = sanitizeCategory(args.string("category"))
@@ -57,7 +58,7 @@ class MemoryTools(
     }
 
   private suspend fun searchMemory(args: Map<String, JsonElement>): ToolResult {
-    val query = args.string("query") ?: return ToolResult.Error("Missing 'query'")
+    val query = args.string("query") ?: return missingArg("query")
     val facts = memoryRepository.searchFacts(query)
     return if (facts.isEmpty()) {
       ToolResult.Success("No facts found for '$query'")

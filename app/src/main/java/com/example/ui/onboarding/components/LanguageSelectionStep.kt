@@ -23,7 +23,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.ui.theme.MyApplicationTheme
 
 /** One selectable language. Only [enabled] languages can be picked (RU only for now). */
 private data class LanguageOption(
@@ -115,5 +117,13 @@ fun LanguageSelectionStep(
         }
       }
     }
+  }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1C1B1F)
+@Composable
+private fun LanguageSelectionStepPreview() {
+  MyApplicationTheme {
+    LanguageSelectionStep(selectedLanguage = "ru", onSelectLanguage = {})
   }
 }
