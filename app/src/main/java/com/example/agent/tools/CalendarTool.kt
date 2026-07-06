@@ -5,6 +5,7 @@ import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.provider.CalendarContract
+import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.mcp.long
@@ -25,6 +26,10 @@ import java.util.TimeZone
 class CalendarTool(
   private val context: Context,
 ) : Tool {
+
+  // delete_event is irreversible; event titles come from other people. Highest action wins.
+  override val riskClass = RiskClass.DESTRUCTIVE
+  override val returnsUntrustedContent = true
 
   override val name = "calendar"
   override val description =
