@@ -168,7 +168,12 @@ class ReactLoopRunner @Inject constructor(
   private fun toolMessageContent(toolName: String, result: ToolResult): String {
     val raw = resultToString(result)
     val untrusted = result is ToolResult.Success && toolRegistry.get(toolName)?.returnsUntrustedContent == true
-    return if (untrusted) "<tool_output tool=\"$toolName\" trust=\"untrusted\">\n$raw\n</tool_output>" else raw
+    if (!untrusted) return raw
+    // Neutralize any envelope tags inside the payload itself, so attacker-supplied content (e.g. an
+    // SMS body containing a literal </tool_output>) cannot close the fence early and smuggle
+    // instructions outside it. Turns <tool_output / </tool_output into <_tool_output / </_tool_output.
+    val fenced = raw.replace(Regex("(?i)<(/?)tool_output"), "<$1_tool_output")
+    return "<tool_output tool=\"$toolName\" trust=\"untrusted\">\n$fenced\n</tool_output>"
   }
 
   /** One-line, length-capped preview of args/results for the loop log (no newlines, no flooding). */
