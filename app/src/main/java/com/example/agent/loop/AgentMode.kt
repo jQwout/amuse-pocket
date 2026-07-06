@@ -8,8 +8,10 @@ package com.aiopenpocket.agent.loop
  * - [CHAT] — обычный ReAct-цикл.
  * - [PLAN] — гейт: сначала план без инструментов, ждём одобрения, потом выполнение с инструментами.
  * - [GOAL] — петля к цели с самопроверкой и лимитом витков.
+ * - [REFLECT] — черновик → критика → итог: отдельный оркестратор ([ReflectionOrchestrator]),
+ *   а не гейт/петля поверх одного хода, поэтому [resolveTurnExecutionPlan] его не обрабатывает.
  */
-enum class AgentMode { CHAT, PLAN, GOAL }
+enum class AgentMode { CHAT, PLAN, GOAL, REFLECT }
 
 /**
  * Какую секцию мода подмешивать в системный промпт. Выводится оркестратором из [AgentMode] и того,

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Article
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Check
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Hub
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Loop
 import androidx.compose.material.icons.filled.ManageSearch
 import androidx.compose.material.icons.filled.Memory
@@ -195,6 +197,8 @@ private fun lessonIcon(key: String): ImageVector = when (key) {
   "target" -> Icons.Default.TrackChanges
   "thermostat", "temperature" -> Icons.Default.Thermostat
   "manage_search", "search" -> Icons.Default.ManageSearch
+  "layers", "context" -> Icons.Default.Layers
+  "auto_awesome", "reflect" -> Icons.Default.AutoAwesome
   "book" -> Icons.Default.MenuBook
   else -> Icons.Default.Article
 }

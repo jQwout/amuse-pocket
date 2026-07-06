@@ -38,6 +38,7 @@ data class LibraryLesson(
 internal val LIBRARY_LESSON_IDS = listOf(
   "how_llm_reads",
   "how_to_ask",
+  "context_engineering",
   "tokens_and_speed",
   "temperature_and_randomness",
   "privacy_and_reliability",
@@ -50,6 +51,7 @@ internal val LIBRARY_LESSON_IDS = listOf(
   "rag",
   "plan_mode",
   "goal_mode",
+  "reflection",
   "heartbeat_and_cron",
   "chaining_and_routing",
   "arena_and_swarm",

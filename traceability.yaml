@@ -53,6 +53,10 @@ features:
     title: "Режимы агента: план-мод и гоал-мод"
     rationale: "План-мод — гейт «сначала план, ждём одобрения, потом выполнение» (инструменты отключены до «ок»); гоал-мод — петля ReAct с самопроверкой и лимитом витков. Через препромпт и UI."
     flows: [chat]
+  - id: rezhim-refleksii-fca3c4
+    title: "Режим агента: рефлексия"
+    rationale: "Рефлексия — режим AgentMode.REFLECT: отдельный оркестратор (ReflectionOrchestrator) крутит цикл черновик → критика → итог поверх ReactLoopRunner, чтобы улучшить качество ответа. Не гейт/петля, как план/гоал, а самостоятельный 3-фазный проход."
+    flows: [chat]
   - id: uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2
     title: "Уроки-концепции в чате (JSON-контракт)"
     rationale: "JSON-уроки (assets/lessons) драйвит чат-контроллер как строгий шаговый контракт (1 шаг = 1 сообщение ассистента): код ведёт шаги, отделяя их от команд LLM. Типы шагов: text, quiz, image (SVG/растр; asset|imageKey первым, фоллбек на URL), и интерактивные reveal/concept/example/fill/sort/match/scenario. Открываются из Библиотеки."
