@@ -5,6 +5,7 @@ package com.aiopenpocket.agent.tools
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.mcp.missingArg
@@ -21,6 +22,8 @@ import kotlinx.serialization.json.JsonElement
 class NotificationsTool(
   private val context: Context,
 ) : Tool {
+
+  override val riskClass = RiskClass.WRITE
 
   override val name = "notifications"
   override val description = "Показывает локальное push-уведомление пользователю."

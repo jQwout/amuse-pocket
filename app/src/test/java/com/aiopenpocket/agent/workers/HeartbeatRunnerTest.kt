@@ -75,6 +75,7 @@ class HeartbeatRunnerTest {
     val reactLoopRunner = ReactLoopRunner(
       FakeLlm(events),
       ToolExecutor(ToolRegistry(emptySet())),
+      ToolRegistry(emptySet()),
       MemoryRepository(db.factDao(), db.episodeDao()),
     )
     val conversationRepository = ConversationRepository(

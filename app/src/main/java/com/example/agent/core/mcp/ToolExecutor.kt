@@ -12,6 +12,8 @@ class ToolExecutor @Inject constructor(
   suspend fun execute(name: String, arguments: Map<String, JsonElement>): ToolResult {
     val tool = registry.get(name)
       ?: return ToolResult.Error("Tool '$name' not found", recoverable = false)
+    // Validate against the declared schema once here, so tools don't each re-check required/enum.
+    SchemaValidator.validate(tool.schema, arguments)?.let { return it }
     return try {
       tool.execute(arguments)
     } catch (e: CancellationException) {
