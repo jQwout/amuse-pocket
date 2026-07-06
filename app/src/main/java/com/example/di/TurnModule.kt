@@ -4,7 +4,9 @@ package com.aiopenpocket.di
 
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.loop.AgentLoopOrchestrator
+import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.loop.ForegroundState
+import com.aiopenpocket.agent.loop.ReflectionOrchestrator
 import com.aiopenpocket.agent.loop.TurnExecutor
 import com.aiopenpocket.agent.loop.TurnManager
 import com.aiopenpocket.agent.loop.TurnNotifier
@@ -23,9 +25,19 @@ object TurnModule {
 
   @Provides
   @SingleIn(AppScope::class)
-  fun provideTurnExecutor(orchestrator: AgentLoopOrchestrator): TurnExecutor =
+  fun provideTurnExecutor(
+    orchestrator: AgentLoopOrchestrator,
+    reflectionOrchestrator: ReflectionOrchestrator,
+  ): TurnExecutor =
     TurnExecutor { conversationId, message, provider, mode, planApproved, goalMaxIterations ->
-      orchestrator.execute(conversationId, message, provider, mode, planApproved, goalMaxIterations)
+      // Режим REFLECT — отдельный 3-фазный оркестратор (черновик → критика → итог) поверх того же
+      // ReactLoopRunner; остальные режимы идут через основной цикл AgentLoopOrchestrator. Точку
+      // диспатча держим здесь (а не в ChatViewModel, как на старой ветке): менеджер уже прокинул mode.
+      if (mode == AgentMode.REFLECT) {
+        reflectionOrchestrator.execute(conversationId, message, provider)
+      } else {
+        orchestrator.execute(conversationId, message, provider, mode, planApproved, goalMaxIterations)
+      }
     }
 
   @Provides
