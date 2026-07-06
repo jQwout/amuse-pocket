@@ -35,9 +35,11 @@ class RenderCardTool : Tool {
             "description" to JsonPrimitive("Параметры шаблона (зависят от template)"),
           )),
         )),
+        // Only `template` is truly required: some cards (e.g. notification_permission) take no
+        // params, and execute already tolerates their absence. Keeping `params` here would make the
+        // central schema check reject those valid, params-less calls.
         "required" to kotlinx.serialization.json.JsonArray(listOf(
           JsonPrimitive("template"),
-          JsonPrimitive("params"),
         )),
       )),
     ),
