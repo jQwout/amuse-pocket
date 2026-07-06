@@ -1,5 +1,7 @@
 package com.aiopenpocket.agent.loop
 
+// @trace rezhim-refleksii-fca3c4
+
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
