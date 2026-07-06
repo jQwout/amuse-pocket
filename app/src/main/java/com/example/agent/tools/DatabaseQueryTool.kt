@@ -21,6 +21,9 @@ class DatabaseQueryTool(
   private val appDatabase: AppDatabase,
 ) : Tool {
 
+  // Rows may include stored external text (e.g. captured messages).
+  override val returnsUntrustedContent = true
+
   override val name = "database_query"
   override val description =
     "Выполняет SQL-запросы к локальной базе данных. " +

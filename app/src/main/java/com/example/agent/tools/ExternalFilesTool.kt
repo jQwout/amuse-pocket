@@ -19,6 +19,9 @@ class ExternalFilesTool(
   private val context: Context,
 ) : Tool {
 
+  // Files chosen via SAF originate outside the app boundary.
+  override val returnsUntrustedContent = true
+
   override val name = "external_files"
   override val description =
     "Читает, пишет и листит файлы по URI через Storage Access Framework (SAF). " +
