@@ -13,6 +13,7 @@ import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.loop.AgentLoopOrchestrator
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.loop.PlanExecuteOrchestrator
+import com.aiopenpocket.agent.loop.ReflectionOrchestrator
 import com.aiopenpocket.agent.loop.SupervisorOrchestrator
 import com.aiopenpocket.data.repository.SettingsRepository
 import com.aiopenpocket.di.AppScope
@@ -40,6 +41,8 @@ class ChatViewModel(
   // Plan-and-Execute остаётся в коде, но больше не на кнопке план-мода (её заменил agentMode-гейт).
   private val planExecuteOrchestrator: PlanExecuteOrchestrator,
   private val supervisorOrchestrator: SupervisorOrchestrator,
+  // Режим REFLECT (черновик → критика → итог): отдельный оркестратор поверх ReactLoopRunner.
+  private val reflectionOrchestrator: ReflectionOrchestrator,
   private val settingsRepository: SettingsRepository,
   private val userPreferencesRepository: UserPreferencesRepository,
   private val lessonRepository: LessonRepository,
@@ -335,6 +338,9 @@ class ChatViewModel(
     val flow = when {
       _state.value.agentId == MiniAgentCatalog.SUPERVISOR_ID ->
         supervisorOrchestrator.execute(convId, userMessage, provider)
+      // Режим REFLECT — отдельный 3-фазный оркестратор (черновик → критика → итог).
+      mode == AgentMode.REFLECT ->
+        reflectionOrchestrator.execute(convId, userMessage, provider)
       else ->
         agentLoop.execute(convId, userMessage, provider, mode, planApproved, _state.value.goalMaxIterations)
     }

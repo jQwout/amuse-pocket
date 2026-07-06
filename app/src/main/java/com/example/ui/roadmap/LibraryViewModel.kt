@@ -35,12 +35,14 @@ data class LibraryLesson(
  */
 private val LIBRARY_LESSON_IDS = listOf(
   "how_llm_reads",
+  "context_engineering",
   "tokens_and_speed",
   "react_loop",
   "chaining_and_routing",
   "workflow_and_agent",
   "plan_mode",
   "goal_mode",
+  "reflection",
   "arena_and_swarm",
   "privacy_and_reliability",
 )
