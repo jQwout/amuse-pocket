@@ -27,6 +27,12 @@ interface HeartbeatDao {
   @Query("UPDATE heartbeats SET status = :status WHERE id = :id")
   suspend fun setStatus(id: String, status: String)
 
-  @Query("UPDATE heartbeats SET status = :status, lastRunAt = :lastRunAt, lastResult = :lastResult WHERE id = :id")
+  // Не воскрешаем отменённую запись: если cancel() выставил 'cancelled', пока agent-ход выполнялся,
+  // record() по завершении не должен вернуть строку в 'scheduled'/'fired' (иначе фантом в списке
+  // активных и вечное «Ждёт» на карточке при уже отменённой WorkManager-задаче).
+  @Query(
+    "UPDATE heartbeats SET status = :status, lastRunAt = :lastRunAt, lastResult = :lastResult " +
+      "WHERE id = :id AND status != 'cancelled'",
+  )
   suspend fun recordRun(id: String, status: String, lastRunAt: Long, lastResult: String?)
 }

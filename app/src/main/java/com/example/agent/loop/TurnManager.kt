@@ -9,7 +9,6 @@ import com.aiopenpocket.agent.core.mcp.ToolResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -181,9 +180,13 @@ class TurnManager(
       val session = sessionsFlow.value[conversationId] ?: TurnSession(conversationId).also { created ->
         sessionsFlow.update { it + (conversationId to created) }
       }
+      // Гасим прошлый ход СРАЗУ под мьютексом, а join ждём уже внутри нового job. Иначе, если новый
+      // job отменят (Stop/clearError) раньше, чем он дойдёт до cancelAndJoin, прошлый ход остался бы
+      // недоотменённым и продолжил бы писать ответ в «остановленный» диалог.
       val previous = session.job
+      previous?.cancel()
       session.job = scope.launch {
-        previous?.cancelAndJoin()
+        previous?.join()
         runTurn(session, userText, mode, planApproved, goalMaxIterations, persistUserMessage)
       }
     }

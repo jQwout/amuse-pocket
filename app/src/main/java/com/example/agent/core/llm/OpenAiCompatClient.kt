@@ -239,8 +239,13 @@ internal suspend fun consumeOpenAiSse(
     }
     val choice = sseChunk.choices.firstOrNull() ?: continue
     choice.delta?.content?.let {
-      if (it.isNotEmpty()) contentSeen = true
-      emit(StreamEvent.TextDelta(it))
+      // Пустая content-дельта (role-priming чанк «content:""» в начале стрима) текста не несёт, но
+      // во внешнем цикле выставила бы emittedAnswer=true и запретила фолбэк ещё до реального ответа —
+      // при обрыве сразу после неё ход умер бы на пустом экране. Пропускаем пустые дельты целиком.
+      if (it.isNotEmpty()) {
+        contentSeen = true
+        emit(StreamEvent.TextDelta(it))
+      }
     }
     choice.delta?.reasoningContent?.let { reasoning.append(it) }
     // Tool-call приходит фрагментами по нескольким дельтам — копим по index.
