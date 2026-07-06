@@ -30,7 +30,9 @@ class RenderCardTool : Tool {
     "reminder — живая карточка напоминания/heartbeat, params: {heartbeat_id} (id из ответа тула heartbeat)."
   override val schema = toolSchema(name, description) {
     string("template", "ID шаблона карточки", required = true, enum = CARD_TEMPLATES)
-    obj("params", "Параметры шаблона (зависят от template)", required = true)
+    // params optional: some cards (e.g. notification_permission) take none, and execute tolerates
+    // their absence. Marking it required would make the central schema check reject valid calls.
+    obj("params", "Параметры шаблона (зависят от template)", required = false)
   }
 
   override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult {
