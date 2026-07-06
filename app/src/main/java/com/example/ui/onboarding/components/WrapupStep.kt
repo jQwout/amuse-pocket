@@ -16,8 +16,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
+import com.aiopenpocket.ui.theme.MyApplicationTheme
 
 /**
  * Closing onboarding step: explains, in a chat-like form, how the chat works —
@@ -84,7 +86,6 @@ private fun AssistantBubble(text: String) {
   }
 }
 
-@Composable
 private fun renderBold(raw: String) = androidx.compose.ui.text.buildAnnotatedString {
   var i = 0
   while (i < raw.length) {
@@ -103,5 +104,13 @@ private fun renderBold(raw: String) = androidx.compose.ui.text.buildAnnotatedStr
     append(raw.substring(start + 2, end))
     pop()
     i = end + 2
+  }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1C1B1F, heightDp = 700)
+@Composable
+private fun WrapupStepPreview() {
+  MyApplicationTheme {
+    WrapupStep(personaId = "sharp_partner", name = "Саша", preferredAddress = "ты")
   }
 }

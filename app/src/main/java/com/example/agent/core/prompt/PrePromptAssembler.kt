@@ -3,6 +3,7 @@
 import android.app.Application
 import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
+import com.aiopenpocket.agent.loop.PromptMode
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
 import com.aiopenpocket.agent.core.skill.SkillRegistry
@@ -22,36 +23,28 @@ class PrePromptAssembler @Inject constructor(
   private val userPreferencesRepository: UserPreferencesRepository,
 ) {
 
-  suspend fun assemble(conversationId: String, currentMessage: String): PromptContext =
+  suspend fun assemble(
+    conversationId: String,
+    currentMessage: String,
+    promptMode: PromptMode = PromptMode.NONE,
+  ): PromptContext =
     withContext(Dispatchers.IO) {
-      val systemBase = try {
-        application.assets.open("prompts/system_base.md").bufferedReader().use { it.readText() }
-      } catch (_: Exception) {
-        DEFAULT_SYSTEM_BASE
-      }
+      val systemBase = loadAsset("prompts/system_base.md") ?: DEFAULT_SYSTEM_BASE
+
+      // Секция режима (план-/гоал-мод) — доверенная инструкция, подмешивается поверх базовой.
+      val modePrompt = loadModePrompt(promptMode)
 
       val conversation = conversationRepository.getConversation(conversationId)
       // Персона: у диалога своя (если задана), иначе — выбранная пользователем на онбординге, иначе дефолт.
       val personaId = conversation?.personaId ?: userPreferencesRepository.getDefaultPersonaId()
       // Язык общения, выбранный на онбординге (по умолчанию русский).
       val language = userPreferencesRepository.getLanguage()
-      val persona = try {
-        application.assets.open("personas/$personaId.md").bufferedReader().use { it.readText() }
-      } catch (_: Exception) {
-        "Характер: Деловой напарник по умолчанию."
-      }
+      val persona = loadAsset("personas/$personaId.md")
+        ?: "Характер: Деловой напарник по умолчанию."
 
       val tutorialPrompt = if (conversation?.isTutorial == true) {
-        val levelId = conversation.title
-        try {
-          application.assets.open("prompts/roadmap/$levelId.md").bufferedReader().use { it.readText() }
-        } catch (_: Exception) {
-          try {
-            application.assets.open("prompts/tutorial.md").bufferedReader().use { it.readText() }
-          } catch (_: Exception) {
-            null
-          }
-        }
+        loadAsset("prompts/roadmap/${conversation.title}.md")
+          ?: loadAsset("prompts/tutorial.md")
       } else null
 
       // Mini-agent bound to this chat (if any): adds a role section and scopes the tool set.
@@ -70,6 +63,10 @@ class PrePromptAssembler @Inject constructor(
       val systemPrompt = buildString {
         appendLine(systemBase)
         appendLine()
+        if (modePrompt != null) {
+          appendLine(modePrompt)
+          appendLine()
+        }
         if (tutorialPrompt != null) {
           appendLine(tutorialPrompt)
           appendLine()
@@ -157,6 +154,21 @@ class PrePromptAssembler @Inject constructor(
         toolNames = agent?.toolNames?.takeIf { it.isNotEmpty() },
       )
     }
+
+  private fun loadAsset(path: String): String? = runCatching {
+    application.assets.open(path).bufferedReader().use { it.readText() }
+  }.getOrNull()
+
+  /** Грузит секцию системного промпта для режима агента (план-/гоал-мод). NONE → null. */
+  private fun loadModePrompt(promptMode: PromptMode): String? {
+    val asset = when (promptMode) {
+      PromptMode.NONE -> return null
+      PromptMode.PLAN_PLANNING -> "prompts/modes/plan_planning.md"
+      PromptMode.PLAN_EXECUTING -> "prompts/modes/plan_executing.md"
+      PromptMode.GOAL -> "prompts/modes/goal.md"
+    }
+    return loadAsset(asset)
+  }
 
   /** Человекочитаемая метка языка для системной секции (код языка из онбординга → название). */
   private fun languageLabel(code: String): String = when (code.lowercase()) {

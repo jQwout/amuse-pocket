@@ -164,7 +164,7 @@ class PlanExecuteOrchestrator @Inject constructor(
       ChatMessage(role = "system", content = systemPrompt),
       ChatMessage(role = "user", content = instruction),
     )
-    return reactLoopRunner.run(conversationId, messages, registry.getAllSchemas(), provider, emit)
+    return reactLoopRunner.run(conversationId, messages, registry.getAllSchemas(), provider, emit = emit)
   }
 
   /** Synthesizer phase: compose the user-facing answer from the step results, via the shared loop. */
@@ -196,7 +196,7 @@ class PlanExecuteOrchestrator @Inject constructor(
     )
     messages += history.map { it.toChatMessage() }
     messages += ChatMessage(role = "user", content = instruction)
-    return reactLoopRunner.run(conversationId, messages, registry.getAllSchemas(), provider, emit)
+    return reactLoopRunner.run(conversationId, messages, registry.getAllSchemas(), provider, emit = emit)
   }
 
   private fun renderPlanHeader(plan: Plan): String = buildString {

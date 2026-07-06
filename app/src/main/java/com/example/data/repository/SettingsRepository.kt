@@ -29,17 +29,15 @@ class SettingsRepository @Inject constructor(
     )
   }
 
-  fun getApiKey(provider: String): String {
-    return prefs.getString("api_key_$provider", "") ?: ""
-  }
+  fun getApiKey(provider: String): String =
+    prefs.getString("api_key_$provider", "").orEmpty()
 
   fun setApiKey(provider: String, key: String) {
     prefs.edit().putString("api_key_$provider", key).apply()
   }
 
-  fun getSelectedProvider(): String {
-    return prefs.getString("selected_provider", "AUTO") ?: "AUTO"
-  }
+  fun getSelectedProvider(): String =
+    prefs.getString("selected_provider", "AUTO") ?: "AUTO"
 
   fun setSelectedProvider(provider: String) {
     prefs.edit().putString("selected_provider", provider).apply()

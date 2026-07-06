@@ -47,15 +47,19 @@ class ReactLoopRunner @Inject constructor(
     messages: MutableList<ChatMessage>,
     tools: List<FunctionSchema>,
     provider: LlmProvider,
+    maxIterations: Int = MAX_ITERATIONS,
     emit: suspend (AgentEvent) -> Unit,
   ): AgentResult {
     val toolTrace = mutableListOf<ToolTrace>()
     var accumulatedText = ""
+    // Текст всех витков подряд — чтобы на лимите витков вернуть НЕпустой ответ (последний виток часто =
+    // только tool_call без текста). На нормальном финише возвращаем итог последнего витка как есть.
+    val transcript = StringBuilder()
     var finished = false
     var lastIteration = 0
     Log.d(TAG, "▶ run conv=$conversationId tools=${tools.size} [${tools.joinToString { it.function.name }}]")
 
-    for (iteration in 1..MAX_ITERATIONS) {
+    for (iteration in 1..maxIterations) {
       lastIteration = iteration
       // Текст и tool-call копятся в рамках одной итерации (одного хода модели). Сбрасываем в начале:
       // преамбула перед tool-call не должна склеиваться с финальным ответом следующей итерации.
@@ -108,6 +112,12 @@ class ReactLoopRunner @Inject constructor(
         },
       )
 
+      // Сохраняем преамбулу этого витка в общий транскрипт (на случай остановки по лимиту витков).
+      if (accumulatedText.isNotBlank()) {
+        if (transcript.isNotEmpty()) transcript.append("\n\n")
+        transcript.append(accumulatedText)
+      }
+
       for (tc in pendingToolCalls) {
         Log.d(TAG, "  → ${tc.name}(${preview(tc.arguments.toString())})")
         emit(AgentEvent.ToolStarted(tc.name, tc.arguments))
@@ -150,8 +160,10 @@ class ReactLoopRunner @Inject constructor(
 
     // Либо модель ответила без инструментов (finished), либо упёрлись в лимит шагов — в обоих случаях
     // отдаём накопленный текст и трейс; терминальное событие выберет вызывающий.
-    if (!finished) Log.w(TAG, "⚠ exhausted MAX_ITERATIONS=$MAX_ITERATIONS")
-    return AgentResult(accumulatedText, toolTrace, AgentState.FINISHED, lastIteration, null)
+    if (!finished) Log.w(TAG, "⚠ exhausted maxIterations=$maxIterations")
+    // На лимите отдаём транскрипт всех витков (а не возможно-пустой текст последнего); на финише — итог.
+    val finalText = if (finished) accumulatedText else transcript.toString().trim().ifBlank { accumulatedText }
+    return AgentResult(finalText, toolTrace, AgentState.FINISHED, lastIteration, null)
   }
 
   private fun resultToString(result: ToolResult): String = when (result) {

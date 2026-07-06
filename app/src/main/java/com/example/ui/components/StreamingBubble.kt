@@ -14,7 +14,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.ui.theme.MyApplicationTheme
 
 @Composable
 fun StreamingBubble(
@@ -60,5 +62,21 @@ fun StreamingBubble(
         }
       }
     }
+  }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1C1B1F)
+@Composable
+private fun StreamingBubbleTypingPreview() {
+  MyApplicationTheme {
+    StreamingBubble(text = "Сейчас разберу твою задачу и распиш", showCursor = true)
+  }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF1C1B1F)
+@Composable
+private fun StreamingBubbleWaitingPreview() {
+  MyApplicationTheme {
+    StreamingBubble(text = "", isWaiting = true)
   }
 }
