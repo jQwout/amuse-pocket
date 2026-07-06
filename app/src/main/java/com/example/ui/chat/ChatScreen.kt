@@ -324,6 +324,7 @@ fun ChatScreen(
           placeholder = when (state.agentMode) {
             AgentMode.PLAN -> "Опиши задачу — агент составит план…"
             AgentMode.GOAL -> "Сформулируй цель…"
+            AgentMode.REFLECT -> "Спроси — агент даст черновик, критику и итог…"
             AgentMode.CHAT -> "Сообщение..."
           },
           onExpand = { composerExpanded = true },
@@ -368,6 +369,7 @@ private fun ModeSelector(
     ModeChip("Чат", selected == AgentMode.CHAT, enabled) { onSelect(AgentMode.CHAT) }
     ModeChip("План", selected == AgentMode.PLAN, enabled) { onSelect(AgentMode.PLAN) }
     ModeChip("Цель", selected == AgentMode.GOAL, enabled) { onSelect(AgentMode.GOAL) }
+    ModeChip("Рефлексия", selected == AgentMode.REFLECT, enabled) { onSelect(AgentMode.REFLECT) }
   }
 }
 
