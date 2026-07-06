@@ -2,8 +2,8 @@
   "version": 1,
   "features": {
     "agent-memory-05e545": {
-      "hash": "54bca7c9eaaf",
-      "git": "7e7be50"
+      "hash": "c99dfcc31010",
+      "git": "660f68b"
     },
     "agent-skills-7189cc": {
       "hash": "6d1595097f23",
@@ -18,28 +18,28 @@
       "git": "3d61a5b"
     },
     "background-tasks-15a34a": {
-      "hash": "0d44e2161dfe",
-      "git": "afd92b7"
+      "hash": "6cc3fa68e3d2",
+      "git": "660f68b"
     },
     "classic-typography-a44c05": {
       "hash": "543c953adb9c",
       "git": "44b0648"
     },
     "driven-ui-cards-0418d0": {
-      "hash": "92cd4bb47813",
-      "git": "ff19983"
+      "hash": "3ff2ae00bed3",
+      "git": "660f68b"
     },
     "fonovye-hody-agenta-dde42d": {
-      "hash": "28aed04bab82",
-      "git": "83c2dca"
+      "hash": "cfb2266d4a05",
+      "git": "660f68b"
     },
     "heartbeat-napominalki-agenta-5f0442": {
-      "hash": "53d49a359792",
-      "git": "83c2dca"
+      "hash": "8dca40017643",
+      "git": "660f68b"
     },
     "mcp-tools-f77d9b": {
-      "hash": "d48d54ab5ef1",
-      "git": "8a3b272"
+      "hash": "be3b403e9dfd",
+      "git": "660f68b"
     },
     "multi-agent-orchestration-27b8e3": {
       "hash": "bd4cf4f2312e",
@@ -49,21 +49,25 @@
       "hash": "5bb7ee8f4da9",
       "git": "80dd68c"
     },
+    "rezhim-refleksii-fca3c4": {
+      "hash": "b01e5edcab24",
+      "git": "660f68b"
+    },
     "rezhimy-agenta-plan-i-goal-ee2361": {
-      "hash": "f131bb6a3e89",
-      "git": "8a3b272"
+      "hash": "b4f1ca7939d3",
+      "git": "660f68b"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "211c66854c82",
-      "git": "83c2dca"
+      "hash": "e8e7048bf7a9",
+      "git": "660f68b"
     },
     "swappable-persona-e5e65e": {
       "hash": "ac831590d00d",
       "git": "afd92b7"
     },
     "uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2": {
-      "hash": "1683a243c980",
-      "git": "8a3b272"
+      "hash": "3d5a53386936",
+      "git": "660f68b"
     },
     "voice-input-1a0dfd": {
       "hash": "ec70865aeaa7",
