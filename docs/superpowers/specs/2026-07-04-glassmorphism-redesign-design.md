@@ -110,12 +110,15 @@ reminders / nutrition / diary). Главного «AI Academy»-агента к�
 **Вкладки:** Обзор / Файлы (glass-сегмент).
 
 **Обзор** (всё read-only, реальные данные):
-- Шапка: иконка `iconFor(iconKey)`, имя `agent.name`, под ним `agent.id` +
-  эффективная модель (глобальный `selected_model` / AUTO).
-- 4 стат-плитки (light glass) — **честные, вместо фейковых из макета**
-  (Статус/Аптайм/Контекст для мини-агентов не существуют): **Модель**,
-  **Temperature** (эффективная / «по умолчанию»), **Тулов: N** (`toolNames.size`),
-  **Навык** (budget/diary/… либо «—»).
+- Шапка: иконка `iconFor(iconKey)`, имя `agent.name`, под ним `agent.id` и
+  описание. **Модель/temperature на карточку НЕ выносим** — они глобальные
+  (Settings), per-agent их нет, а при AUTO модель резолвится цепочкой в рантайме
+  (NIM→GROQ→GITHUB); показывать их у агента = вводить в заблуждение.
+- 3–4 стат-плитки (light glass) — **только per-agent-точные** (Статус/Аптайм/
+  Контекст/Модель/Temperature из макета для мини-агентов либо не существуют, либо
+  глобальны — убраны): **Тулов: N** (`toolNames.size`), **Навык** (budget/diary/…
+  либо «—»), **Heartbeat** (активных: N по `agentId`), **Области состояния**
+  (`stateKeyPrefixes`, напр. `lang:`, `grammar:`).
 - **Препромпт**: `agent.systemPrompt`, read-only, скроллящийся стеклянный инсет.
 - **Heartbeat**: из `HeartbeatDao.observe`/`listActive` по `agentId` — интервал,
   последний запуск, статус, чипсы задач; пустое состояние, если активных нет.
@@ -124,9 +127,11 @@ reminders / nutrition / diary). Главного «AI Academy»-агента к�
   трейс реально существуют); `pre_message` / `post_message` / `on_error` — «скоро»,
   без тумблеров.
 
-**Файлы:** содержимое общей песочницы `filesDir/agent` через `file_tool list_dir`
-(имя, размер, изменён), read-only. Пометка, что папка **общая** для всех агентов
-(per-agent workspace нет).
+**Файлы:** содержимое общей песочницы `filesDir/agent`, read-only (имя, размер,
+изменён). Читаем **через небольшой repository/use-case напрямую по `filesDir`**, а
+не через агентский `file_tool` (у него `riskClass = WRITE` / `returnsUntrustedContent`
+— UI-слой не должен ходить в agent-tool через `ToolExecutor`). Пометка, что папка
+**общая** для всех агентов (per-agent workspace нет).
 
 **Стекло:** весь лист — strong glass; плитки / инсет препромпта / строки — light glass.
 Строится в стеклянном стиле сразу.
@@ -156,7 +161,19 @@ retry+backoff отсутствует (есть провайдер-фолбэк �
   `fix/chat-lag`).
 - Карточка агента: открытие по всем 6 агентам, корректные реальные данные,
   пустые состояния (нет heartbeat / нет файлов).
-- `traxer check` / bless затронутых фич.
+
+### Traxer (обязательно по CLAUDE.md)
+
+Редизайн вводит **новые фичи** — их нужно зарегистрировать, а не только blessить:
+
+- Завести через `traxer id`: (1) glass-дизайн-система (Haze + токены + Aurora +
+  Glass-компоненты), (2) экран-инспектор агента.
+- Внести в `traceability.yaml`: `id`, `title`, `rationale` (= ПОЧЕМУ), для каждой.
+- Проставить `@trace <id>`: для дизайн-системы — в `GlassSurface.kt`/`GlassTokens.kt`;
+  для инспектора — в файле экрана/ViewModel.
+- Коммиты имплементации — с трейлером `Trace: <id>`.
+- В конце — `traxer check`; stale-warnings blessить только после подтверждения, что
+  rationale ещё верен.
 
 ## 5. Вне скоупа
 
