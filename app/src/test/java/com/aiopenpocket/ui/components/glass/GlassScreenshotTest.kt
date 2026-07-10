@@ -1,6 +1,7 @@
 package com.aiopenpocket.ui.components.glass
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -33,7 +34,7 @@ class GlassScreenshotTest {
       MyApplicationTheme {
         val state = rememberGlassState()
         Box(Modifier.fillMaxSize().auroraBackground()) {
-          LazyColumn(Modifier.fillMaxSize().glassSource(state)) {
+          LazyColumn(modifier = Modifier.fillMaxSize().glassSource(state), contentPadding = PaddingValues(top = 72.dp)) {
             item {
               GlassCard(Modifier.fillMaxWidth().padding(16.dp)) {
                 Text("Light glass card", Modifier.padding(16.dp))
