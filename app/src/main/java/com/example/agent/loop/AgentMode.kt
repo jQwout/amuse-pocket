@@ -10,6 +10,9 @@ package com.aiopenpocket.agent.loop
  * - [GOAL] — петля к цели с самопроверкой и лимитом витков.
  * - [REFLECT] — черновик → критика → итог: отдельный оркестратор ([ReflectionOrchestrator]),
  *   а не гейт/петля поверх одного хода, поэтому [resolveTurnExecutionPlan] его не обрабатывает.
+ *
+ * Контракт режима целиком: [resolveTurnExecutionPlan] (как выполнять ход) + [resolveCompletedTurn]
+ * (что значит его результат); REFLECT диспатчится на свой оркестратор в TurnModule.provideTurnExecutor.
  */
 enum class AgentMode { CHAT, PLAN, GOAL, REFLECT }
 

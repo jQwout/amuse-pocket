@@ -5,7 +5,6 @@ package com.aiopenpocket.agent.loop
 import android.os.SystemClock
 import android.util.Log
 import com.aiopenpocket.agent.core.llm.LlmProvider
-import com.aiopenpocket.agent.core.mcp.ToolResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -86,7 +85,7 @@ class TurnManager(
   fun approvePlan(conversationId: String) {
     scope.launch {
       val goalIterations = sessionsFlow.value[conversationId]?.lastGoalMaxIterations ?: 3
-      startTurn(conversationId, APPROVE_PLAN_MESSAGE, AgentMode.PLAN, planApproved = true, goalMaxIterations = goalIterations, persistUserMessage = true)
+      startTurn(conversationId, TurnTexts.APPROVE_PLAN_MESSAGE, AgentMode.PLAN, planApproved = true, goalMaxIterations = goalIterations, persistUserMessage = true)
     }
   }
 
@@ -286,37 +285,16 @@ class TurnManager(
     result: AgentResult,
   ) {
     val convId = session.conversationId
-    // render_card-спеки становятся инлайн-карточками чата.
-    val cardSpecs = result.toolTrace
-      .filter { it.toolName == "render_card" }
-      .mapNotNull { (it.result as? ToolResult.Success)?.data }
-
-    // Фаза планирования: маркер [[NEED_INFO]] В НАЧАЛЕ ответа = уточняющий вопрос, не план.
-    val planningPhase = mode == AgentMode.PLAN && !planApproved
-    val rawText = result.text
-    val needInfo = planningPhase && rawText.trimStart().startsWith(NEED_INFO_MARKER)
-    val responseText = when {
-      needInfo -> rawText.trimStart().removePrefix(NEED_INFO_MARKER).trim()
-        .ifBlank { "Уточни, пожалуйста, детали задачи — что именно нужно сделать?" }
-
-      planningPhase -> rawText.trim()
-      else -> rawText
-    }
-    val insertedId = if (responseText.isNotBlank() || cardSpecs.isNotEmpty()) {
-      persistence.addAssistantMessage(convId, responseText, cardSpecs.firstOrNull())
+    // Все решения (NEED_INFO, blank-ошибки, GOAL-фолбэк, карточки) — в чистой политике; здесь
+    // только применяем: записать, обновить статус, уведомить.
+    val outcome = resolveCompletedTurn(mode, planApproved, result, hasRetryContext = session.lastUserText != null)
+    val insertedId = if (outcome.responseText.isNotBlank() || outcome.cardSpecs.isNotEmpty()) {
+      persistence.addAssistantMessage(convId, outcome.responseText, outcome.cardSpecs.firstOrNull())
     } else {
       null
     }
-    cardSpecs.drop(1).forEach { spec ->
+    outcome.cardSpecs.drop(1).forEach { spec ->
       persistence.addAssistantMessage(convId, "", spec)
-    }
-
-    val planningDone = planningPhase && !needInfo && responseText.isNotBlank()
-    val blankReply = responseText.isBlank() && cardSpecs.isEmpty()
-    val blankError = when {
-      planningPhase && blankReply -> "Модель не вернула план — попробуй ещё раз."
-      blankReply -> "Модель вернула пустой ответ — попробуй ещё раз."
-      else -> null
     }
 
     session.toolTraceFlow.value = result.toolTrace
@@ -327,11 +305,11 @@ class TurnManager(
       responseTimeMs = System.currentTimeMillis() - session.responseStartTime,
       completionTokens = result.completionTokensEstimate,
       contextTokensUsed = result.promptTokensEstimate,
-      error = blankError,
-      canRetry = blankReply && session.lastUserText != null,
-      planAwaitingApproval = planningDone,
+      error = outcome.blankError,
+      canRetry = outcome.canRetry,
+      planAwaitingApproval = outcome.planAwaitingApproval,
     )
-    notifyIfBackground(convId, preview = responseText.take(140).ifBlank { "Готово" }, failed = false)
+    notifyIfBackground(convId, preview = outcome.responseText.take(140).ifBlank { TurnTexts.TURN_DONE_FALLBACK }, failed = false)
   }
 
   private suspend fun finishFailed(session: TurnSession, message: String) {
@@ -354,12 +332,6 @@ class TurnManager(
 
   companion object {
     private const val TAG = "TurnManager"
-
-    /** Маркер план-планирования: модель ставит его в начало ответа-вопроса (вырезается из текста). */
-    internal const val NEED_INFO_MARKER = "[[NEED_INFO]]"
-
-    /** Реплика, которой ход одобрения плана попадает в историю (перенос из ChatViewModel.approvePlan). */
-    internal const val APPROVE_PLAN_MESSAGE = "Одобряю план, выполни его по шагам."
 
     /** Минимальный интервал публикации стрим-текста (~20 обновлений/сек). */
     private const val STREAM_PUBLISH_INTERVAL_MS = 50L
