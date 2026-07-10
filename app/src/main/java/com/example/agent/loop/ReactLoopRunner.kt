@@ -25,8 +25,8 @@ import com.aiopenpocket.di.AppScope
 /**
  * The core ReAct loop (reason → act → observe). It streams [AgentEvent]s through [emit] and RETURNS
  * the final [AgentResult] instead of emitting a terminal Completed/Error — the caller decides what a
- * finished loop means (a whole chat reply, or one step of a plan). Reused by [AgentLoopOrchestrator]
- * for the plain chat turn and by [PlanExecuteOrchestrator] for each plan step.
+ * finished loop means (a whole chat reply, or one phase of a multi-phase orchestrator). Used by
+ * [AgentLoopOrchestrator] for the plain chat turn and by [ReflectionOrchestrator] for draft/revise.
  */
 @SingleIn(AppScope::class)
 class ReactLoopRunner @Inject constructor(

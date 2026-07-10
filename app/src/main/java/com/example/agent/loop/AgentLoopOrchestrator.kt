@@ -23,8 +23,7 @@ import com.aiopenpocket.di.AppScope
 /**
  * Single-turn chat agent: assembles the prompt context, then runs the shared [ReactLoopRunner] over
  * the tool set and emits a terminal Completed/Error. The reasoning loop itself lives in
- * [ReactLoopRunner] so that [com.aiopenpocket.agent.loop.PlanExecuteOrchestrator] can reuse the exact
- * same engine per plan step.
+ * [ReactLoopRunner] so that multi-phase orchestrators ([ReflectionOrchestrator]) reuse the same engine.
  *
  * Поверх базового хода поддерживает режимы агента ([AgentMode]): план-гейт (фаза планирования без
  * инструментов → одобрение → выполнение) и гоал-петля (лимит витков). Решение режима — чистая

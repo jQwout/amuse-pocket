@@ -21,21 +21,20 @@ import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
 
 /**
- * Reflection orchestrator — like [PlanExecuteOrchestrator], a teaching demo built ON TOP of the
- * single [ReactLoopRunner], not a separate engine. Where Plan-and-Execute loops to figure out *what
- * to do*, Reflection loops to make the answer *better*. It runs three phases over one conversation:
+ * Reflection orchestrator — a teaching demo built ON TOP of the single [ReactLoopRunner], not a
+ * separate engine. It runs three phases over one conversation:
  *
  *  1. **Draft** — the shared ReAct loop produces a first-pass answer (full tool set).
  *  2. **Critique** — one tool-less LLM call reads the draft and names concrete weaknesses.
  *  3. **Revise** — the shared ReAct loop rewrites the answer, addressing the critique.
  *
- * Like the plan-mode demo, everything streams as plain [AgentEvent.TextDelta] so the existing chat
- * UI shows the whole draft → critique → final process live, and the accumulated transcript is
- * returned as [AgentResult.text] so it persists as one assistant message. No new card, no new engine.
+ * Everything streams as plain [AgentEvent.TextDelta] so the existing chat UI shows the whole
+ * draft → critique → final process live, and the accumulated transcript is returned as
+ * [AgentResult.text] so it persists as one assistant message. No new card, no new engine.
  *
- * Selected by [AgentMode.REFLECT]: the ViewModel routes REFLECT turns here instead of through
- * [AgentLoopOrchestrator], because a 3-phase loop doesn't fit the single-turn resolveTurnExecutionPlan
- * contract (same reason [PlanExecuteOrchestrator] is a separate orchestrator).
+ * Selected by [AgentMode.REFLECT]: the [com.aiopenpocket.di.TurnModule] TurnExecutor routes REFLECT
+ * turns here instead of through [AgentLoopOrchestrator], because a 3-phase loop doesn't fit the
+ * single-turn resolveTurnExecutionPlan contract.
  */
 @SingleIn(AppScope::class)
 class ReflectionOrchestrator @Inject constructor(

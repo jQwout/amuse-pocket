@@ -42,20 +42,20 @@
       "git": "660f68b"
     },
     "multi-agent-orchestration-27b8e3": {
-      "hash": "bd4cf4f2312e",
-      "git": "8a3b272"
+      "hash": "9e2b2bc64d4b",
+      "git": "f3d7ef0"
     },
     "multi-chat-conversations-b3c93b": {
       "hash": "5bb7ee8f4da9",
       "git": "80dd68c"
     },
     "rezhim-refleksii-fca3c4": {
-      "hash": "b01e5edcab24",
-      "git": "660f68b"
+      "hash": "c4a1d781204e",
+      "git": "f3d7ef0"
     },
     "rezhimy-agenta-plan-i-goal-ee2361": {
-      "hash": "b4f1ca7939d3",
-      "git": "660f68b"
+      "hash": "ae7106e398c6",
+      "git": "f3d7ef0"
     },
     "streaming-llm-chat-6595a1": {
       "hash": "e8e7048bf7a9",
