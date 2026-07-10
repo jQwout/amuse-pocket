@@ -1,8 +1,10 @@
 package com.aiopenpocket.ui.theme
 
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -22,8 +24,11 @@ object GlassTokens {
   /** Радиус backdrop-blur сильного стекла. */
   val BlurRadius: Dp = 20.dp
 
+  /** Форма карточки по умолчанию. */
+  val CardShape: Shape = RoundedCornerShape(20.dp)
+
   /** Блик на грани: светлее сверху, гаснет вниз. */
-  fun borderBrush(): Brush = Brush.verticalGradient(
+  val BorderBrush: Brush = Brush.verticalGradient(
     colors = listOf(
       Color.White.copy(alpha = 0.25f),
       Color.White.copy(alpha = 0.05f),
