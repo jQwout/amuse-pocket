@@ -24,7 +24,10 @@ import dev.chrisbanes.haze.rememberHazeState
  * правки только здесь (Task 1 build-спайк ловит это заранее).
  */
 
-/** Токен связи «источник ↔ стекло». Обёрнут, чтобы вызывающие не импортировали Haze. */
+/**
+ * Токен связи «источник ↔ стекло». Обёрнут, чтобы вызывающие не импортировали Haze.
+ * @trace glass-design-system-21a3fe
+ */
 typealias GlassState = HazeState
 
 @Composable
