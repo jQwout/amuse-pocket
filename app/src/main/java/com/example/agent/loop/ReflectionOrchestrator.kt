@@ -10,13 +10,7 @@ import com.aiopenpocket.agent.core.llm.StreamEvent
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
 import com.aiopenpocket.agent.core.prompt.ConversationAnnotator
 import com.aiopenpocket.agent.core.prompt.PrePromptAssembler
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.buffer
-import kotlinx.coroutines.flow.channelFlow
-import kotlinx.coroutines.flow.flowOn
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
@@ -51,7 +45,7 @@ class ReflectionOrchestrator @Inject constructor(
     conversationId: String,
     userMessage: String,
     provider: LlmProvider = LlmProvider.NIM,
-  ): Flow<AgentEvent> = channelFlow {
+  ): Flow<AgentEvent> = agentTurnFlow(log, TAG, "Reflection failed") {
     // Каждый TextDelta зеркалим в transcript, чтобы сохранённое сообщение совпало с тем, что
     // пользователь видел в стриме (черновик + критика + итог), а не только с финальным ответом.
     val transcript = StringBuilder()
@@ -59,14 +53,14 @@ class ReflectionOrchestrator @Inject constructor(
       if (ev is AgentEvent.TextDelta) transcript.append(ev.content)
       send(ev)
     }
-    // Общий выход по ошибке фазы — тот же контракт, что у AgentLoopOrchestrator: ERROR-состояние
-    // от ReactLoopRunner превращаем в терминальное событие ошибки, а не в мнимый «успех».
+    // Общий выход по ошибке фазы: ERROR-состояние от ReactLoopRunner превращаем в терминальное
+    // событие ошибки, а не в мнимый «успех». Досрочный выход из хода — return@run.
     suspend fun emitError(message: String?) {
       send(AgentEvent.StateChanged(AgentState.ERROR))
       send(AgentEvent.Error(message ?: "Reflection failed"))
     }
 
-    try {
+    run {
       val context = prePromptAssembler.assemble(conversationId, userMessage)
       log.d(TAG, "▶ reflection conv=$conversationId msg=\"${userMessage.take(60)}\"")
 
@@ -83,7 +77,7 @@ class ReflectionOrchestrator @Inject constructor(
       // ReactLoopRunner на сбое стрима не бросает, а возвращает state=ERROR. Не проглатываем: как и
       // обычный чат-цикл, поднимаем ошибку наружу и не тратим critique/revise на пустой черновик.
       if (draft.state == AgentState.ERROR) {
-        return@channelFlow emitError(draft.errorMessage)
+        return@run emitError(draft.errorMessage)
       }
 
       // 2. CRITIQUE — один tool-less вызов: назвать конкретные слабые места черновика.
@@ -101,7 +95,7 @@ class ReflectionOrchestrator @Inject constructor(
       )
       log.d(TAG, "✓ reflection done revisedLen=${revised.text.length}")
       if (revised.state == AgentState.ERROR) {
-        return@channelFlow emitError(revised.errorMessage)
+        return@run emitError(revised.errorMessage)
       }
 
       send(AgentEvent.StateChanged(AgentState.FINISHED))
@@ -121,14 +115,8 @@ class ReflectionOrchestrator @Inject constructor(
       )
       // Как и обычный чат-ход: обновляем заголовок/резюме/теги диалога из лога (no-op, если коротко).
       runCatching { conversationAnnotator.annotate(conversationId) }
-    } catch (e: CancellationException) {
-      throw e
-    } catch (e: Exception) {
-      log.e(TAG, "Reflection failed", e)
-      send(AgentEvent.StateChanged(AgentState.ERROR))
-      send(AgentEvent.Error(e.message ?: "Reflection failed"))
     }
-  }.buffer(Channel.UNLIMITED).flowOn(Dispatchers.IO)
+  }
 
   /** Critique phase: a single tool-less call that returns concrete weaknesses; streamed and returned. */
   private suspend fun runCritic(

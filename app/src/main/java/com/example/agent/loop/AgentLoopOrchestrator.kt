@@ -8,13 +8,7 @@ import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.prompt.ConversationAnnotator
 import com.aiopenpocket.agent.core.prompt.PrePromptAssembler
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.buffer
-import kotlinx.coroutines.flow.channelFlow
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -47,10 +41,9 @@ class AgentLoopOrchestrator @Inject constructor(
     mode: AgentMode = AgentMode.CHAT,
     planApproved: Boolean = false,
     goalMaxIterations: Int = 3,
-  ): Flow<AgentEvent> = channelFlow {
-    // Тот же error-контракт, что у ReflectionOrchestrator: брошенное исключение (assemble,
-    // сериализация, запись в БД) становится in-band AgentEvent.Error, а не raw throw из flow.
-    try {
+  ): Flow<AgentEvent> = agentTurnFlow(log, TAG, "Unknown error") {
+    // Error-контракт (in-band Error, rethrow отмены, buffer+IO) — в agentTurnFlow.
+    run {
       // Контракт режима (гейт план-мода / петля гоал-мода) — чистое решение, покрыто AgentModeTest.
       val turn = resolveTurnExecutionPlan(mode, planApproved, goalMaxIterations, ReactLoopRunner.MAX_ITERATIONS)
 
@@ -100,15 +93,8 @@ class AgentLoopOrchestrator @Inject constructor(
       }
       // After each reply, refresh the chat's title/summary/tags from the raw log (no-op if too short).
       runCatching { conversationAnnotator.annotate(conversationId) }
-    } catch (e: CancellationException) {
-      // Stop / new turn: cancellation is the normal path — let it propagate to cancelAndJoin.
-      throw e
-    } catch (e: Exception) {
-      log.e(TAG, "✗ chat turn failed", e)
-      send(AgentEvent.StateChanged(AgentState.ERROR))
-      send(AgentEvent.Error(e.message ?: "Unknown error"))
     }
-  }.buffer(Channel.UNLIMITED).flowOn(Dispatchers.IO)
+  }
 
   companion object {
     private const val TAG = "AgentLoop"
