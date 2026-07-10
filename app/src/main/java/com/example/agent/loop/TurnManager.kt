@@ -2,7 +2,7 @@ package com.aiopenpocket.agent.loop
 
 // @trace fonovye-hody-agenta-dde42d
 
-import android.util.Log
+import com.aiopenpocket.agent.core.AgentLog
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -38,6 +38,7 @@ class TurnManager(
   private val scope: CoroutineScope,
   /** Монотонные часы для гейта стрима (SystemClock.uptimeMillis в проде, фейк в тестах). */
   private val monotonicNowMs: () -> Long,
+  private val log: AgentLog,
 ) {
 
   /** Guard мапы сессий и подмены job — launchTurn может прилететь с любого потока. */
@@ -222,7 +223,7 @@ class TurnManager(
       // Stop / новый ход: отмена — штатный путь.
       throw e
     } catch (e: Exception) {
-      Log.e(TAG, "Agent turn error", e)
+      log.e(TAG, "Agent turn error", e)
       finishFailed(session, e.message ?: "Unknown error")
     }
   }

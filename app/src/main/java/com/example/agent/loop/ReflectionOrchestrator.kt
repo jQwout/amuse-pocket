@@ -2,6 +2,7 @@ package com.aiopenpocket.agent.loop
 
 // @trace rezhim-refleksii-fca3c4
 
+import com.aiopenpocket.agent.core.AgentLog
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
@@ -43,6 +44,7 @@ class ReflectionOrchestrator @Inject constructor(
   private val prePromptAssembler: PrePromptAssembler,
   private val reactLoopRunner: ReactLoopRunner,
   private val conversationAnnotator: ConversationAnnotator,
+  private val log: AgentLog,
 ) {
 
   fun execute(
@@ -66,7 +68,7 @@ class ReflectionOrchestrator @Inject constructor(
 
     try {
       val context = prePromptAssembler.assemble(conversationId, userMessage)
-      android.util.Log.d(TAG, "▶ reflection conv=$conversationId msg=\"${userMessage.take(60)}\"")
+      log.d(TAG, "▶ reflection conv=$conversationId msg=\"${userMessage.take(60)}\"")
 
       // 1. DRAFT — обычный ReAct-цикл с полным набором тулов. context.history уже заканчивается
       // текущим сообщением пользователя (его персистит вызывающий до execute()).
@@ -77,7 +79,7 @@ class ReflectionOrchestrator @Inject constructor(
       val draft = reactLoopRunner.run(
         conversationId, draftMessages, registry.getAllSchemas(), provider, emit = { tap(it) },
       )
-      android.util.Log.d(TAG, "draft len=${draft.text.length}")
+      log.d(TAG, "draft len=${draft.text.length}")
       // ReactLoopRunner на сбое стрима не бросает, а возвращает state=ERROR. Не проглатываем: как и
       // обычный чат-цикл, поднимаем ошибку наружу и не тратим critique/revise на пустой черновик.
       if (draft.state == AgentState.ERROR) {
@@ -97,7 +99,7 @@ class ReflectionOrchestrator @Inject constructor(
       val revised = reactLoopRunner.run(
         conversationId, reviseMessages, registry.getAllSchemas(), provider, emit = { tap(it) },
       )
-      android.util.Log.d(TAG, "✓ reflection done revisedLen=${revised.text.length}")
+      log.d(TAG, "✓ reflection done revisedLen=${revised.text.length}")
       if (revised.state == AgentState.ERROR) {
         return@channelFlow emitError(revised.errorMessage)
       }
@@ -122,7 +124,7 @@ class ReflectionOrchestrator @Inject constructor(
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
-      android.util.Log.e(TAG, "Reflection failed", e)
+      log.e(TAG, "Reflection failed", e)
       send(AgentEvent.StateChanged(AgentState.ERROR))
       send(AgentEvent.Error(e.message ?: "Reflection failed"))
     }
