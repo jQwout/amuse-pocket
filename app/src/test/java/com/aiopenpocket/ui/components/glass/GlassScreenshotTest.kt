@@ -1,5 +1,7 @@
 package com.aiopenpocket.ui.components.glass
 
+// @trace glass-design-system-21a3fe
+
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -50,5 +52,30 @@ class GlassScreenshotTest {
     }
     composeTestRule.onRoot()
       .captureRoboImage(filePath = "src/test/screenshots/glass_components.png")
+  }
+
+  @Test
+  @Config(qualifiers = RobolectricDeviceQualifiers.Pixel8, sdk = [30])
+  fun glass_components_over_aurora_api30() {
+    composeTestRule.setContent {
+      MyApplicationTheme {
+        val state = rememberGlassState()
+        Box(Modifier.fillMaxSize().auroraBackground()) {
+          LazyColumn(modifier = Modifier.fillMaxSize().glassSource(state), contentPadding = PaddingValues(top = 72.dp)) {
+            item {
+              GlassCard(Modifier.fillMaxWidth().padding(16.dp)) {
+                Text("Light glass card", Modifier.padding(16.dp))
+              }
+            }
+          }
+          GlassSurface(
+            state = state,
+            modifier = Modifier.fillMaxWidth().height(64.dp),
+          ) { Text("Strong glass bar", Modifier.padding(16.dp)) }
+        }
+      }
+    }
+    composeTestRule.onRoot()
+      .captureRoboImage(filePath = "src/test/screenshots/glass_components_api30.png")
   }
 }
