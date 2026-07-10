@@ -41,7 +41,7 @@ data class ChatUiState(
   val isTutorial: Boolean = false,
   /** Roadmap level id (the tutorial conversation title), used to mark completion. */
   val levelId: String? = null,
-  /** Bound mini-agent id; the coordinator routes through the supervisor, others scope the chat loop. */
+  /** Bound mini-agent id — scopes the chat loop's tool set and skill access (see PrePromptAssembler). */
   val agentId: String? = null,
   /** Display name shown in the chat header — the bound agent's name, else the conversation title. */
   val title: String? = null,

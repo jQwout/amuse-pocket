@@ -47,8 +47,8 @@ class AgentLoopOrchestrator @Inject constructor(
     planApproved: Boolean = false,
     goalMaxIterations: Int = 3,
   ): Flow<AgentEvent> = channelFlow {
-    // Same error contract as the Supervisor/Plan-Execute orchestrators: a thrown error (assemble,
-    // serialization, a DB write) becomes an in-band AgentEvent.Error instead of a raw flow throw.
+    // Тот же error-контракт, что у ReflectionOrchestrator: брошенное исключение (assemble,
+    // сериализация, запись в БД) становится in-band AgentEvent.Error, а не raw throw из flow.
     try {
       // Контракт режима (гейт план-мода / петля гоал-мода) — чистое решение, покрыто AgentModeTest.
       val turn = resolveTurnExecutionPlan(mode, planApproved, goalMaxIterations, ReactLoopRunner.MAX_ITERATIONS)
@@ -137,8 +137,8 @@ data class AgentResult(
   /**
    * The assistant message to persist. For the plain chat loop this is the model's final-turn text
    * (any preamble before tool calls is intentionally dropped — see ReactLoopRunner), except on an
-   * iteration-limit stop where the full transcript is returned. For the Supervisor and Plan-Execute
-   * orchestrators it is the full streamed transcript, so the saved message matches what the user watched.
+   * iteration-limit stop where the full transcript is returned. For [ReflectionOrchestrator] it is
+   * the full streamed transcript, so the saved message matches what the user watched.
    */
   val text: String,
   val toolTrace: List<ToolTrace>,
