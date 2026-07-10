@@ -54,14 +54,10 @@ class AgentLoopOrchestrator @Inject constructor(
       val turn = resolveTurnExecutionPlan(mode, planApproved, goalMaxIterations, ReactLoopRunner.MAX_ITERATIONS)
 
       val context = prePromptAssembler.assemble(conversationId, userMessage, turn.promptMode)
-      // В гоал-моде сообщаем модели бюджет витков — иначе goal.md обещает «честно остановиться на лимите»,
-      // но модель не знает, какой виток последний, и обычно уходит в обрыв на tool_call.
-      val systemContent = if (mode == AgentMode.GOAL) {
-        context.systemPrompt + "\n\nБюджет: не более " + turn.maxIterations + " витков (рассуждение, действие, " +
-          "самопроверка). На последнем витке дай финальный ответ или честный частичный итог — не начинай новых действий."
-      } else {
-        context.systemPrompt
-      }
+      // Секция бюджета витков (и любая другая режимная добавка) собрана в resolveTurnExecutionPlan.
+      val systemContent = turn.systemPromptSuffix
+        ?.let { context.systemPrompt + "\n\n" + it }
+        ?: context.systemPrompt
       val messages = mutableListOf<ChatMessage>()
       messages += ChatMessage(role = "system", content = systemContent)
       messages += context.history.map { it.toChatMessage() }

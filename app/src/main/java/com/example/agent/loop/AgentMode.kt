@@ -27,6 +27,8 @@ data class TurnExecutionPlan(
   val usesTools: Boolean,
   val maxIterations: Int,
   val promptMode: PromptMode,
+  /** Доверенная добавка к системному промпту (сейчас — только бюджет витков гоал-мода). */
+  val systemPromptSuffix: String? = null,
 )
 
 /**
@@ -54,5 +56,18 @@ fun resolveTurnExecutionPlan(
     mode == AgentMode.GOAL -> goalMaxIterations.coerceIn(1, chatMaxIterations)
     else -> chatMaxIterations
   }
-  return TurnExecutionPlan(usesTools = !planning, maxIterations = maxIterations, promptMode = promptMode)
+  // В гоал-моде сообщаем модели бюджет витков — иначе goal.md обещает «честно остановиться на
+  // лимите», но модель не знает, какой виток последний, и обычно уходит в обрыв на tool_call.
+  val suffix = if (mode == AgentMode.GOAL) {
+    "Бюджет: не более " + maxIterations + " витков (рассуждение, действие, " +
+      "самопроверка). На последнем витке дай финальный ответ или честный частичный итог — не начинай новых действий."
+  } else {
+    null
+  }
+  return TurnExecutionPlan(
+    usesTools = !planning,
+    maxIterations = maxIterations,
+    promptMode = promptMode,
+    systemPromptSuffix = suffix,
+  )
 }
