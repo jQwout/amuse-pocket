@@ -80,7 +80,7 @@ app/src/main/java/com/example/          # physical directory; ALL files below de
 │   │   ├── profile/               # ExtractUserProfileUseCase.kt — LLM-driven onboarding profile extraction
 │   │   ├── prompt/                # PrePromptAssembler, ContextWindowBuilder, ConversationAnnotator
 │   │   └── skill/                 # Skill.kt, SkillRegistry, AssetSkill, LoadSkillTool, skills/{Budget,Diary,Fitness,Languages}Skill.kt
-│   ├── loop/                      # AgentLoopOrchestrator (main entry, CHAT/PLAN/GOAL modes), ReactLoopRunner (shared ReAct engine), AgentMode, Plan, PlanExecuteOrchestrator (wired but not called from the main flow)
+│   ├── loop/                      # AgentLoopOrchestrator (main entry, CHAT/PLAN/GOAL modes) + ReflectionOrchestrator (REFLECT), ReactLoopRunner (shared ReAct engine), agentTurnFlow (shared flow skeleton), AgentMode + resolveTurnExecutionPlan/resolveCompletedTurn + TurnCompletion (mode contract), TurnManager + TurnSession + StreamingTextBuffer (appScope background turns)
 │   ├── tools/                     # 12 concrete Tool implementations exposed to the LLM (see System Integrations below) + PermissionUtils, ToolDateFormat
 │   └── workers/                   # NotificationWorker.kt — WorkManager Worker for scheduled/periodic notifications
 ├── data/

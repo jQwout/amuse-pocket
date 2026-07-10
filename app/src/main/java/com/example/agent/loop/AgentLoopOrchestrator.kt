@@ -43,57 +43,55 @@ class AgentLoopOrchestrator @Inject constructor(
     goalMaxIterations: Int = 3,
   ): Flow<AgentEvent> = agentTurnFlow(log, TAG, "Unknown error") {
     // Error-контракт (in-band Error, rethrow отмены, buffer+IO) — в agentTurnFlow.
-    run {
-      // Контракт режима (гейт план-мода / петля гоал-мода) — чистое решение, покрыто AgentModeTest.
-      val turn = resolveTurnExecutionPlan(mode, planApproved, goalMaxIterations, ReactLoopRunner.MAX_ITERATIONS)
+    // Контракт режима (гейт план-мода / петля гоал-мода) — чистое решение, покрыто AgentModeTest.
+    val turn = resolveTurnExecutionPlan(mode, planApproved, goalMaxIterations, ReactLoopRunner.MAX_ITERATIONS)
 
-      val context = prePromptAssembler.assemble(conversationId, userMessage, turn.promptMode)
-      // Секция бюджета витков (и любая другая режимная добавка) собрана в resolveTurnExecutionPlan.
-      val systemContent = turn.systemPromptSuffix
-        ?.let { context.systemPrompt + "\n\n" + it }
-        ?: context.systemPrompt
-      val messages = mutableListOf<ChatMessage>()
-      messages += ChatMessage(role = "system", content = systemContent)
-      messages += context.history.map { it.toChatMessage() }
-      // The caller persists the user message to DB before calling execute(),
-      // so it's already included in context.history via ContextWindowBuilder.
+    val context = prePromptAssembler.assemble(conversationId, userMessage, turn.promptMode)
+    // Секция бюджета витков (и любая другая режимная добавка) собрана в resolveTurnExecutionPlan.
+    val systemContent = turn.systemPromptSuffix
+      ?.let { context.systemPrompt + "\n\n" + it }
+      ?: context.systemPrompt
+    val messages = mutableListOf<ChatMessage>()
+    messages += ChatMessage(role = "system", content = systemContent)
+    messages += context.history.map { it.toChatMessage() }
+    // The caller persists the user message to DB before calling execute(),
+    // so it's already included in context.history via ContextWindowBuilder.
 
-      // Гейт план-мода: на фазе планирования инструменты модели не отдаём (она физически ничего не
-      // выполнит). Иначе — обычный набор: scoped для мини-агента, либо полный.
-      val tools = if (!turn.usesTools) {
-        emptyList()
-      } else {
-        context.toolNames?.let { registry.getSchemasFor(it) } ?: registry.getAllSchemas()
-      }
-      log.d(TAG, "▶ chat turn conv=$conversationId mode=$mode scoped=${context.toolNames ?: "all"} maxIter=${turn.maxIterations}")
-      val baseResult = withContext(turnContextHolder.contextElement(conversationId, context.agentId)) {
-        reactLoopRunner.run(
-          conversationId, messages, tools, provider, turn.maxIterations, context.agentId,
-        ) { send(it) }
-      }
-
-      // Token estimates feed the chat's response stats bar; computed at the boundary so the
-      // ReactLoopRunner stays unaware of UI concerns. GOAL-фолбэк пустого текста теперь в
-      // resolveCompletedTurn (TurnManager) — оценка токенов на «пустом» ходе честно даёт 0.
-      val promptTokensEstimate = LlmContextConfig.estimateTokens(context.systemPrompt) +
-        context.history.sumOf { LlmContextConfig.estimateTokens(it.content) }
-      val result = baseResult.copy(
-        promptTokensEstimate = promptTokensEstimate,
-        completionTokensEstimate = LlmContextConfig.estimateTokens(baseResult.text),
-      )
-
-      if (result.state == AgentState.ERROR) {
-        log.w(TAG, "✗ turn error: ${result.errorMessage}")
-        send(AgentEvent.StateChanged(AgentState.ERROR))
-        send(AgentEvent.Error(result.errorMessage ?: "Unknown error"))
-      } else {
-        log.d(TAG, "✓ turn done iters=${result.iterations} textLen=${result.text.length}")
-        send(AgentEvent.StateChanged(AgentState.FINISHED))
-        send(AgentEvent.Completed(result))
-      }
-      // After each reply, refresh the chat's title/summary/tags from the raw log (no-op if too short).
-      runCatching { conversationAnnotator.annotate(conversationId) }
+    // Гейт план-мода: на фазе планирования инструменты модели не отдаём (она физически ничего не
+    // выполнит). Иначе — обычный набор: scoped для мини-агента, либо полный.
+    val tools = if (!turn.usesTools) {
+      emptyList()
+    } else {
+      context.toolNames?.let { registry.getSchemasFor(it) } ?: registry.getAllSchemas()
     }
+    log.d(TAG, "▶ chat turn conv=$conversationId mode=$mode scoped=${context.toolNames ?: "all"} maxIter=${turn.maxIterations}")
+    val baseResult = withContext(turnContextHolder.contextElement(conversationId, context.agentId)) {
+      reactLoopRunner.run(
+        conversationId, messages, tools, provider, turn.maxIterations, context.agentId,
+      ) { send(it) }
+    }
+
+    // Token estimates feed the chat's response stats bar; computed at the boundary so the
+    // ReactLoopRunner stays unaware of UI concerns. GOAL-фолбэк пустого текста теперь в
+    // resolveCompletedTurn (TurnManager) — оценка токенов на «пустом» ходе честно даёт 0.
+    val promptTokensEstimate = LlmContextConfig.estimateTokens(context.systemPrompt) +
+      context.history.sumOf { LlmContextConfig.estimateTokens(it.content) }
+    val result = baseResult.copy(
+      promptTokensEstimate = promptTokensEstimate,
+      completionTokensEstimate = LlmContextConfig.estimateTokens(baseResult.text),
+    )
+
+    if (result.state == AgentState.ERROR) {
+      log.w(TAG, "✗ turn error: ${result.errorMessage}")
+      send(AgentEvent.StateChanged(AgentState.ERROR))
+      send(AgentEvent.Error(result.errorMessage ?: "Unknown error"))
+    } else {
+      log.d(TAG, "✓ turn done iters=${result.iterations} textLen=${result.text.length}")
+      send(AgentEvent.StateChanged(AgentState.FINISHED))
+      send(AgentEvent.Completed(result))
+    }
+    // After each reply, refresh the chat's title/summary/tags from the raw log (no-op if too short).
+    runCatching { conversationAnnotator.annotate(conversationId) }
   }
 
   companion object {
@@ -125,6 +123,11 @@ data class AgentResult(
   val errorMessage: String? = null,
   val promptTokensEstimate: Int = 0,
   val completionTokensEstimate: Int = 0,
+  /**
+   * Цикл остановился, упёршись в лимит витков (а не потому что модель дала финальный ответ). Только
+   * тогда GOAL-мод показывает «частичный итог» вместо пустого ответа (см. resolveCompletedTurn).
+   */
+  val hitIterationLimit: Boolean = false,
 )
 
 data class ToolTrace(

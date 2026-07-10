@@ -7,11 +7,11 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Контракт результата хода: NEED_INFO, план-бар, blank-ошибки, GOAL-фолбэк, render_card. */
+/** Контракт результата хода: NEED_INFO, план-бар, blank-ошибки, GOAL-фолбэк, render_card, REFLECT. */
 class TurnCompletionTest {
 
-  private fun result(text: String, trace: List<ToolTrace> = emptyList()) =
-    AgentResult(text = text, toolTrace = trace, state = AgentState.FINISHED, iterations = 1)
+  private fun result(text: String, trace: List<ToolTrace> = emptyList(), hitLimit: Boolean = false) =
+    AgentResult(text = text, toolTrace = trace, state = AgentState.FINISHED, iterations = 1, hitIterationLimit = hitLimit)
 
   private fun card(spec: String) =
     ToolTrace(iteration = 1, toolName = "render_card", arguments = emptyMap(), result = ToolResult.Success(spec))
@@ -20,15 +20,13 @@ class TurnCompletionTest {
     mode: AgentMode = AgentMode.CHAT,
     planApproved: Boolean = false,
     res: AgentResult,
-    hasRetryContext: Boolean = true,
-  ) = resolveCompletedTurn(mode, planApproved, res, hasRetryContext)
+  ) = resolveCompletedTurn(mode, planApproved, res)
 
   @Test
   fun `обычный ответ проходит как есть`() {
     val out = resolve(res = result("Привет!"))
     assertEquals("Привет!", out.responseText)
     assertNull(out.blankError)
-    assertFalse(out.canRetry)
     assertFalse(out.planAwaitingApproval)
   }
 
@@ -42,15 +40,15 @@ class TurnCompletionTest {
   fun `card-only ответ — не пустой, ошибки нет`() {
     val out = resolve(res = result("", listOf(card("{a}"))))
     assertNull(out.blankError)
-    assertFalse(out.canRetry)
+    assertEquals(listOf("{a}"), out.cardSpecs)
   }
 
   @Test
-  fun `пустой ответ в чате — blank-ошибка, ретрай при наличии контекста`() {
+  fun `пустой ответ в чате — blank-ошибка`() {
+    // canRetry-решение живёт в TurnManager (blankError != null && есть текст пользователя),
+    // покрыто TurnManagerTest; здесь — только чистая политика: пустой ответ → blank-ошибка.
     val out = resolve(res = result(""))
     assertEquals(TurnTexts.BLANK_REPLY_ERROR, out.blankError)
-    assertTrue(out.canRetry)
-    assertFalse(resolve(res = result(""), hasRetryContext = false).canRetry)
   }
 
   @Test
@@ -90,9 +88,33 @@ class TurnCompletionTest {
   }
 
   @Test
-  fun `гоал-мод - пустой ответ на лимите заменяется честным частичным итогом`() {
-    val out = resolve(mode = AgentMode.GOAL, res = result(""))
+  fun `гоал-мод - пустой ответ НА ЛИМИТЕ витков заменяется честным частичным итогом`() {
+    val out = resolve(mode = AgentMode.GOAL, res = result("", hitLimit = true))
     assertEquals(TurnTexts.GOAL_ITERATION_LIMIT_PARTIAL, out.responseText)
     assertNull("непустой фолбэк — это не blank-ошибка", out.blankError)
+  }
+
+  @Test
+  fun `гоал-мод - card-only чистый финиш НЕ приписывает частичный итог`() {
+    // Цикл завершился штатно (не лимит) карточкой без текста: показываем карточку, а не «частично».
+    val out = resolve(mode = AgentMode.GOAL, res = result("", listOf(card("{a}")), hitLimit = false))
+    assertEquals("", out.responseText)
+    assertEquals(listOf("{a}"), out.cardSpecs)
+    assertNull(out.blankError)
+  }
+
+  @Test
+  fun `гоал-мод - пустой чистый финиш (не лимит) даёт обычную blank-ошибку, а не GOAL-итог`() {
+    val out = resolve(mode = AgentMode.GOAL, res = result("", hitLimit = false))
+    assertEquals(TurnTexts.BLANK_REPLY_ERROR, out.blankError)
+    assertFalse(out.responseText == TurnTexts.GOAL_ITERATION_LIMIT_PARTIAL)
+  }
+
+  @Test
+  fun `REFLECT обрабатывается как обычный чат — без план-бара и GOAL-фолбэка`() {
+    val out = resolve(mode = AgentMode.REFLECT, res = result("Итоговый ответ"))
+    assertEquals("Итоговый ответ", out.responseText)
+    assertNull(out.blankError)
+    assertFalse(out.planAwaitingApproval)
   }
 }

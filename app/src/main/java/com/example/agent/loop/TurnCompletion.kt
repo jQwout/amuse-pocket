@@ -29,7 +29,8 @@ object TurnTexts {
 /** Маркер план-планирования: модель ставит его в начало ответа-вопроса (вырезается из текста). */
 const val NEED_INFO_MARKER = "[[NEED_INFO]]"
 
-private const val RENDER_CARD_TOOL = "render_card"
+/** Имя тула инлайн-карточек — общее для извлечения (здесь) и фильтра черновика в ReflectionOrchestrator. */
+internal const val RENDER_CARD_TOOL = "render_card"
 
 /**
  * Что означает завершившийся ход. Второй полюс контракта режимов: [resolveTurnExecutionPlan]
@@ -40,9 +41,12 @@ data class CompletedTurn(
   val responseText: String,
   /** render_card-спеки из трейса — станут инлайн-карточками чата (первая — вместе с текстом). */
   val cardSpecs: List<String>,
-  /** Ошибка «пустой ответ» для баннера (иначе null). */
+  /**
+   * Ошибка «пустой ответ» для баннера (иначе null). Заодно единственный признак «есть что
+   * повторять»: TurnManager включает «Повторить» ровно когда blankError != null и в сессии остался
+   * текст пользователя — отдельного canRetry-поля нет, чтобы два флага не разъезжались.
+   */
   val blankError: String?,
-  val canRetry: Boolean,
   /** План-мод: показан непустой план, ждём «Выполнить»/«Поправить». */
   val planAwaitingApproval: Boolean,
 )
@@ -51,20 +55,24 @@ data class CompletedTurn(
  * Чистое решение по результату хода (симметрично [resolveTurnExecutionPlan], покрыто
  * TurnCompletionTest): NEED_INFO-гейт план-мода, blank-ошибки, GOAL-фолбэк пустого ответа,
  * извлечение render_card. Никакого I/O — TurnManager лишь применяет решение.
+ *
+ * Про [AgentMode.REFLECT]: сюда он тоже доходит (TurnManager отдаёт mode рефлексивных ходов), но
+ * не проходит через [resolveTurnExecutionPlan]. planningPhase=false и GOAL-фолбэк его не касаются —
+ * REFLECT обрабатывается как обычный чат-ответ (покрыто TurnCompletionTest).
  */
 fun resolveCompletedTurn(
   mode: AgentMode,
   planApproved: Boolean,
   result: AgentResult,
-  /** Есть ли сохранённая реплика пользователя для «Повторить» (см. TurnSession.lastUserText). */
-  hasRetryContext: Boolean,
 ): CompletedTurn {
   val cardSpecs = result.toolTrace
     .filter { it.toolName == RENDER_CARD_TOOL }
     .mapNotNull { (it.result as? ToolResult.Success)?.data }
 
-  // Гоал-мод: на лимите витков не отдаём пустой ответ — честный частичный итог (трейс есть в UI).
-  val rawText = if (mode == AgentMode.GOAL && result.text.isBlank()) {
+  // Гоал-мод: если цикл УПЁРСЯ В ЛИМИТ витков с пустым текстом — честный частичный итог вместо
+  // пустоты (трейс есть в UI). Чистый финиш без текста (напр. только render_card или просто пустой
+  // ответ) под фолбэк не подводим — иначе «частичный итог» приписался бы успешному card-only ходу.
+  val rawText = if (mode == AgentMode.GOAL && result.text.isBlank() && result.hitIterationLimit) {
     TurnTexts.GOAL_ITERATION_LIMIT_PARTIAL
   } else {
     result.text
@@ -92,7 +100,6 @@ fun resolveCompletedTurn(
     responseText = responseText,
     cardSpecs = cardSpecs,
     blankError = blankError,
-    canRetry = blankReply && hasRetryContext,
     planAwaitingApproval = planningPhase && !needInfo && responseText.isNotBlank(),
   )
 }
