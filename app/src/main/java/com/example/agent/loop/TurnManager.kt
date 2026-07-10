@@ -280,7 +280,7 @@ class TurnManager(
     val convId = session.conversationId
     // Все решения (NEED_INFO, blank-ошибки, GOAL-фолбэк, карточки) — в чистой политике; здесь
     // только применяем: записать, обновить статус, уведомить.
-    val outcome = resolveCompletedTurn(mode, planApproved, result, hasRetryContext = session.lastUserText != null)
+    val outcome = resolveCompletedTurn(mode, planApproved, result)
     val insertedId = if (outcome.responseText.isNotBlank() || outcome.cardSpecs.isNotEmpty()) {
       persistence.addAssistantMessage(convId, outcome.responseText, outcome.cardSpecs.firstOrNull())
     } else {
@@ -299,7 +299,8 @@ class TurnManager(
       completionTokens = result.completionTokensEstimate,
       contextTokensUsed = result.promptTokensEstimate,
       error = outcome.blankError,
-      canRetry = outcome.canRetry,
+      // «Повторить» — когда есть ошибка пустого ответа и в сессии остался текст пользователя.
+      canRetry = outcome.blankError != null && session.lastUserText != null,
       planAwaitingApproval = outcome.planAwaitingApproval,
     )
     notifyIfBackground(convId, preview = outcome.responseText.take(140).ifBlank { TurnTexts.TURN_DONE_FALLBACK }, failed = false)

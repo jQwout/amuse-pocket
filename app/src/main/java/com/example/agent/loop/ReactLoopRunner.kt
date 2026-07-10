@@ -177,7 +177,8 @@ class ReactLoopRunner @Inject constructor(
     if (!finished) log.w(TAG, "⚠ exhausted maxIterations=$maxIterations")
     // На лимите отдаём транскрипт всех витков (а не возможно-пустой текст последнего); на финише — итог.
     val finalText = if (finished) accumulatedText else transcript.toString().trim().ifBlank { accumulatedText }
-    return AgentResult(finalText, toolTrace, AgentState.FINISHED, lastIteration, null)
+    // hitIterationLimit=!finished — единственный источник «упёрлись в лимит» для GOAL-фолбэка.
+    return AgentResult(finalText, toolTrace, AgentState.FINISHED, lastIteration, null, hitIterationLimit = !finished)
   }
 
   private fun resultToString(result: ToolResult): String = when (result) {
