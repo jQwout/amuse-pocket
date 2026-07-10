@@ -113,7 +113,6 @@ dependencies {
   implementation(libs.coil.compose)
   implementation(libs.coil.svg)
   implementation(libs.haze)
-  implementation(libs.haze.materials)
   implementation(libs.converter.moshi)
   // implementation(libs.firebase.ai)
   implementation(libs.kotlinx.coroutines.android)
