@@ -4,7 +4,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -48,18 +50,21 @@ fun GlassSurface(
   tint: Color = GlassTokens.StrongTint,
   content: @Composable BoxScope.() -> Unit,
 ) {
+  val style = remember(tint) {
+    HazeStyle(
+      backgroundColor = DarkBg,
+      tints = listOf(HazeTint(tint)),
+      blurRadius = GlassTokens.BlurRadius,
+    )
+  }
   Box(
     modifier = modifier
       .clip(shape)
-      .hazeEffect(
-        state = state,
-        style = HazeStyle(
-          backgroundColor = DarkBg,
-          tints = listOf(HazeTint(tint)),
-          blurRadius = GlassTokens.BlurRadius,
-        ),
-      )
-      .border(1.dp, GlassTokens.borderBrush(), shape),
+      .hazeEffect(state = state, style = style) {
+        // Shape-aware blur masking, on top of the outer .clip(shape) above.
+        blurredEdgeTreatment = BlurredEdgeTreatment(shape)
+      }
+      .border(1.dp, GlassTokens.BorderBrush, shape),
     content = content,
   )
 }
