@@ -1,6 +1,6 @@
 package com.aiopenpocket.agent.loop
 
-import android.util.Log
+import com.aiopenpocket.agent.core.AgentLog
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.core.llm.LlmProvider
@@ -37,6 +37,7 @@ class AgentLoopOrchestrator @Inject constructor(
   private val registry: ToolRegistry,
   private val reactLoopRunner: ReactLoopRunner,
   private val turnContextHolder: TurnContextHolder,
+  private val log: AgentLog,
 ) {
 
   fun execute(
@@ -71,7 +72,7 @@ class AgentLoopOrchestrator @Inject constructor(
       } else {
         context.toolNames?.let { registry.getSchemasFor(it) } ?: registry.getAllSchemas()
       }
-      Log.d(TAG, "▶ chat turn conv=$conversationId mode=$mode scoped=${context.toolNames ?: "all"} maxIter=${turn.maxIterations}")
+      log.d(TAG, "▶ chat turn conv=$conversationId mode=$mode scoped=${context.toolNames ?: "all"} maxIter=${turn.maxIterations}")
       val baseResult = withContext(turnContextHolder.contextElement(conversationId, context.agentId)) {
         reactLoopRunner.run(
           conversationId, messages, tools, provider, turn.maxIterations, context.agentId,
@@ -89,11 +90,11 @@ class AgentLoopOrchestrator @Inject constructor(
       )
 
       if (result.state == AgentState.ERROR) {
-        Log.w(TAG, "✗ turn error: ${result.errorMessage}")
+        log.w(TAG, "✗ turn error: ${result.errorMessage}")
         send(AgentEvent.StateChanged(AgentState.ERROR))
         send(AgentEvent.Error(result.errorMessage ?: "Unknown error"))
       } else {
-        Log.d(TAG, "✓ turn done iters=${result.iterations} textLen=${result.text.length}")
+        log.d(TAG, "✓ turn done iters=${result.iterations} textLen=${result.text.length}")
         send(AgentEvent.StateChanged(AgentState.FINISHED))
         send(AgentEvent.Completed(result))
       }
@@ -103,7 +104,7 @@ class AgentLoopOrchestrator @Inject constructor(
       // Stop / new turn: cancellation is the normal path — let it propagate to cancelAndJoin.
       throw e
     } catch (e: Exception) {
-      Log.e(TAG, "✗ chat turn failed", e)
+      log.e(TAG, "✗ chat turn failed", e)
       send(AgentEvent.StateChanged(AgentState.ERROR))
       send(AgentEvent.Error(e.message ?: "Unknown error"))
     }

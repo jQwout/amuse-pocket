@@ -30,12 +30,12 @@
       "git": "660f68b"
     },
     "fonovye-hody-agenta-dde42d": {
-      "hash": "f15e0e010f9c",
-      "git": "908343c"
+      "hash": "767a6bb5fc27",
+      "git": "bf62059"
     },
     "heartbeat-napominalki-agenta-5f0442": {
-      "hash": "8dca40017643",
-      "git": "660f68b"
+      "hash": "e06b57fa94a6",
+      "git": "bf62059"
     },
     "mcp-tools-f77d9b": {
       "hash": "be3b403e9dfd",
@@ -50,16 +50,16 @@
       "git": "80dd68c"
     },
     "rezhim-refleksii-fca3c4": {
-      "hash": "c4a1d781204e",
-      "git": "f3d7ef0"
+      "hash": "208e22552791",
+      "git": "bf62059"
     },
     "rezhimy-agenta-plan-i-goal-ee2361": {
-      "hash": "946f6b6cc284",
-      "git": "42911f0"
+      "hash": "92c37edc4858",
+      "git": "bf62059"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "490c0a1b4f2b",
-      "git": "d419e0d"
+      "hash": "4bc57df676d0",
+      "git": "bf62059"
     },
     "swappable-persona-e5e65e": {
       "hash": "ac831590d00d",

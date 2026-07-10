@@ -60,6 +60,7 @@ object TurnModule {
     persistence: TurnPersistence,
     foreground: ForegroundState,
     notifier: TurnNotifier,
+    log: com.aiopenpocket.agent.core.AgentLog,
   ): TurnManager = TurnManager(
     executor = executor,
     persistence = persistence,
@@ -68,5 +69,6 @@ object TurnModule {
     // Свой скоуп уровня приложения: ход агента живёт, пока жив процесс, а не экран.
     scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     monotonicNowMs = android.os.SystemClock::uptimeMillis,
+    log = log,
   )
 }
