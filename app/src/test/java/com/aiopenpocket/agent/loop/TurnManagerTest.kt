@@ -97,6 +97,7 @@ class TurnManagerTest {
     foreground = { inForeground },
     notifier = notifier,
     scope = CoroutineScope(backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)),
+    monotonicNowMs = { 100_000L },
   )
 
   @Test

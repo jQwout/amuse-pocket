@@ -2,7 +2,6 @@ package com.aiopenpocket.agent.loop
 
 // @trace fonovye-hody-agenta-dde42d
 
-import android.os.SystemClock
 import android.util.Log
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import kotlinx.coroutines.CancellationException
@@ -37,6 +36,8 @@ class TurnManager(
   private val foreground: ForegroundState,
   private val notifier: TurnNotifier,
   private val scope: CoroutineScope,
+  /** Монотонные часы для гейта стрима (SystemClock.uptimeMillis в проде, фейк в тестах). */
+  private val monotonicNowMs: () -> Long,
 ) {
 
   /** Guard мапы сессий и подмены job — launchTurn может прилететь с любого потока. */
@@ -176,7 +177,7 @@ class TurnManager(
     persistUserMessage: Boolean,
   ) {
     mutex.withLock {
-      val session = sessionsFlow.value[conversationId] ?: TurnSession(conversationId).also { created ->
+      val session = sessionsFlow.value[conversationId] ?: TurnSession(conversationId, monotonicNowMs).also { created ->
         sessionsFlow.update { it + (conversationId to created) }
       }
       // Гасим прошлый ход СРАЗУ под мьютексом, а join ждём уже внутри нового job. Иначе, если новый
@@ -238,16 +239,9 @@ class TurnManager(
     val flow = executor.execute(session.conversationId, userText, LlmProvider.NIM, mode, planApproved, goalMaxIterations)
     flow.collect { event ->
       when (event) {
-        is AgentEvent.TextDelta -> {
-          // Аккумулируем в StringBuilder и публикуем под гейтом частоты (~20 пуб/сек):
-          // toString() копирует весь накопленный текст, чаще глазу не нужно.
-          session.streamingBuilder.append(event.content)
-          val now = SystemClock.uptimeMillis()
-          if (now - session.lastStreamPublishAt >= STREAM_PUBLISH_INTERVAL_MS) {
-            session.lastStreamPublishAt = now
-            session.streamingTextFlow.value = session.streamingBuilder.toString()
-          }
-        }
+        is AgentEvent.TextDelta ->
+          // Гейт частоты (~20 пуб/сек) — в StreamingTextBuffer; null = дельта скоплена молча.
+          session.streamBuffer.append(event.content)?.let { session.streamingTextFlow.value = it }
 
         is AgentEvent.ToolCompleted -> {
           val newTrace = ToolTrace(
@@ -267,9 +261,7 @@ class TurnManager(
           // Новый виток ReAct стримит свой текст заново — показываем текст ТЕКУЩЕГО витка.
           AgentState.STREAMING -> resetStreaming(session)
           // Стрим витка закончился: дофлашиваем хвост, не прошедший гейт частоты.
-          else -> if (session.streamingBuilder.isNotEmpty()) {
-            session.streamingTextFlow.value = session.streamingBuilder.toString()
-          }
+          else -> session.streamBuffer.flush()?.let { session.streamingTextFlow.value = it }
         }
 
         else -> { /* no-op */
@@ -325,15 +317,11 @@ class TurnManager(
   }
 
   private fun resetStreaming(session: TurnSession) {
-    session.streamingBuilder.setLength(0)
+    session.streamBuffer.reset()
     session.streamingTextFlow.value = ""
-    session.lastStreamPublishAt = 0L
   }
 
   companion object {
     private const val TAG = "TurnManager"
-
-    /** Минимальный интервал публикации стрим-текста (~20 обновлений/сек). */
-    private const val STREAM_PUBLISH_INTERVAL_MS = 50L
   }
 }
