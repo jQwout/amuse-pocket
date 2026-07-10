@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.dp
 /**
  * Токены глассморфизма. Тема всегда тёмная ([MyApplicationTheme]) — значения
  * статичны, CompositionLocal не нужен.
+ * @trace glass-design-system-21a3fe
  */
 object GlassTokens {
 
