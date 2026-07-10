@@ -79,19 +79,13 @@ class AgentLoopOrchestrator @Inject constructor(
       }
 
       // Token estimates feed the chat's response stats bar; computed at the boundary so the
-      // ReactLoopRunner stays unaware of UI concerns.
+      // ReactLoopRunner stays unaware of UI concerns. GOAL-фолбэк пустого текста теперь в
+      // resolveCompletedTurn (TurnManager) — оценка токенов на «пустом» ходе честно даёт 0.
       val promptTokensEstimate = LlmContextConfig.estimateTokens(context.systemPrompt) +
         context.history.sumOf { LlmContextConfig.estimateTokens(it.content) }
-      // Гоал-мод: на лимите витков не отдаём пустой ответ — честный частичный итог (трейс есть в UI).
-      val finalText = if (mode == AgentMode.GOAL && baseResult.text.isBlank()) {
-        "Достиг лимита витков — задача выполнена частично. Подробности — в трассировке инструментов."
-      } else {
-        baseResult.text
-      }
       val result = baseResult.copy(
-        text = finalText,
         promptTokensEstimate = promptTokensEstimate,
-        completionTokensEstimate = LlmContextConfig.estimateTokens(finalText),
+        completionTokensEstimate = LlmContextConfig.estimateTokens(baseResult.text),
       )
 
       if (result.state == AgentState.ERROR) {
