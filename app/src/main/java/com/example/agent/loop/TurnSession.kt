@@ -39,7 +39,10 @@ sealed interface TurnStatus {
  * пользователь ходит по приложению. Ретрай-контекст тоже здесь — «Повторить» переживает
  * пересоздание ViewModel (раньше терялся при выходе с экрана).
  */
-class TurnSession internal constructor(val conversationId: String) {
+class TurnSession internal constructor(
+  val conversationId: String,
+  monotonicNowMs: () -> Long,
+) {
   internal val statusFlow = MutableStateFlow<TurnStatus>(TurnStatus.Running)
   val status: StateFlow<TurnStatus> = statusFlow.asStateFlow()
 
@@ -51,8 +54,7 @@ class TurnSession internal constructor(val conversationId: String) {
   val toolTrace: StateFlow<List<ToolTrace>> = toolTraceFlow.asStateFlow()
 
   internal var job: Job? = null
-  internal val streamingBuilder = StringBuilder()
-  internal var lastStreamPublishAt = 0L
+  internal val streamBuffer = StreamingTextBuffer(monotonicNowMs)
   internal var responseStartTime = 0L
 
   // Ретрай-контекст последнего хода (см. ChatViewModel до переезда: lastUserText и др.).
