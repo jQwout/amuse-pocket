@@ -3,6 +3,7 @@ package com.aiopenpocket.ui.onboarding.components
 // @trace ai-academy-onboarding-5d51bb
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,16 +19,19 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
+import com.aiopenpocket.ui.theme.GlassTokens
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 
 @Composable
@@ -67,20 +71,39 @@ fun AboutMeStep(
 
     Spacer(modifier = Modifier.size(16.dp))
 
-    OutlinedTextField(
-      value = text,
-      // Потолок на вставку огромного текста — иначе весь кусок уходит одним user-сообщением в LLM
-      // при извлечении профиля. Обрезаем, а не отбрасываем целиком: иначе вставка текста длиннее
-      // лимита молча не давала бы вообще никакого эффекта.
-      onValueChange = { onTextChange(it.take(ABOUT_ME_MAX_LENGTH)) },
-      placeholder = { Text("Например: Я Саша, мне 27, разработчик, увлекаюсь альпинизмом. Обращайся на ты.") },
+    // Стеклянный вид: свой clip/tint/blick-бордер на обёртке, а у самого поля контейнер и
+    // рамка сделаны прозрачными (colors ниже) — иначе под стеклом просвечивал бы ещё и
+    // непрозрачный дефолтный outline M3.
+    Box(
       modifier = Modifier
         .fillMaxWidth()
-        .testTag("about_me_input"),
-      minLines = 5,
-      maxLines = 10,
-      enabled = !isExtracting,
-    )
+        .clip(GlassTokens.CardShape)
+        .background(GlassTokens.LightTint)
+        .border(1.dp, GlassTokens.BorderBrush, GlassTokens.CardShape),
+    ) {
+      OutlinedTextField(
+        value = text,
+        // Потолок на вставку огромного текста — иначе весь кусок уходит одним user-сообщением в LLM
+        // при извлечении профиля. Обрезаем, а не отбрасываем целиком: иначе вставка текста длиннее
+        // лимита молча не давала бы вообще никакого эффекта.
+        onValueChange = { onTextChange(it.take(ABOUT_ME_MAX_LENGTH)) },
+        placeholder = { Text("Например: Я Саша, мне 27, разработчик, увлекаюсь альпинизмом. Обращайся на ты.") },
+        modifier = Modifier
+          .fillMaxWidth()
+          .testTag("about_me_input"),
+        minLines = 5,
+        maxLines = 10,
+        enabled = !isExtracting,
+        colors = OutlinedTextFieldDefaults.colors(
+          focusedContainerColor = Color.Transparent,
+          unfocusedContainerColor = Color.Transparent,
+          disabledContainerColor = Color.Transparent,
+          focusedBorderColor = Color.Transparent,
+          unfocusedBorderColor = Color.Transparent,
+          disabledBorderColor = Color.Transparent,
+        ),
+      )
+    }
 
     if (isExtracting) {
       Row(

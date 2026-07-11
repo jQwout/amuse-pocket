@@ -29,10 +29,15 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
+import com.aiopenpocket.ui.components.glass.GlassSurface
+import com.aiopenpocket.ui.components.glass.auroraBackground
+import com.aiopenpocket.ui.components.glass.glassSource
+import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.ui.theme.PurpleAccent
 import com.aiopenpocket.ui.theme.PurpleAccentDark
@@ -48,104 +53,114 @@ fun PersonaSelectionStep(
   onApply: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  Scaffold(
-    modifier = modifier,
-    containerColor = MaterialTheme.colorScheme.background,
-    topBar = {
-      TopAppBar(
-        title = {
-          Text(
-            text = "AI Academy",
-            color = PurpleAccent,
-            style = MaterialTheme.typography.titleLarge,
-          )
-        },
-        navigationIcon = {
-          IconButton(
-            onClick = onBack,
-            modifier = Modifier.testTag("persona_back"),
-          ) {
-            Icon(
-              imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-              contentDescription = "Назад",
-            )
-          }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-          containerColor = MaterialTheme.colorScheme.background,
-        ),
-      )
-    },
-    bottomBar = {
-      Column(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(horizontal = 16.dp, vertical = 16.dp),
-      ) {
-        if (error != null) {
-          Text(
-            text = error,
-            color = MaterialTheme.colorScheme.error,
-            modifier = Modifier.padding(bottom = 8.dp),
+  val glassState = rememberGlassState()
+  Box(modifier = modifier.fillMaxSize().auroraBackground()) {
+    Scaffold(
+      containerColor = Color.Transparent,
+      topBar = {
+        GlassSurface(state = glassState) {
+          TopAppBar(
+            title = {
+              Text(
+                text = "AI Academy",
+                color = PurpleAccent,
+                style = MaterialTheme.typography.titleLarge,
+              )
+            },
+            navigationIcon = {
+              IconButton(
+                onClick = onBack,
+                modifier = Modifier.testTag("persona_back"),
+              ) {
+                Icon(
+                  imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                  contentDescription = "Назад",
+                )
+              }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+              containerColor = Color.Transparent,
+            ),
           )
         }
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          TextButton(
-            onClick = onBack,
-            modifier = Modifier.testTag("onboarding_back"),
+      },
+      bottomBar = {
+        GlassSurface(state = glassState) {
+          Column(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(horizontal = 16.dp, vertical = 16.dp),
           ) {
-            Text("Назад")
-          }
-          Button(
-            onClick = onApply,
-            enabled = selectedPersonaId.isNotBlank() && !isSaving,
-            shape = RoundedCornerShape(50),
-            colors = ButtonDefaults.buttonColors(
-              containerColor = PurpleAccent,
-              contentColor = PurpleAccentDark,
-            ),
-            modifier = Modifier.testTag("onboarding_next"),
-          ) {
-            if (isSaving) {
-              CircularProgressIndicator(
-                modifier = Modifier.padding(end = 8.dp),
-                strokeWidth = 2.dp,
+            if (error != null) {
+              Text(
+                text = error,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(bottom = 8.dp),
               )
             }
-            Text("Применить")
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              TextButton(
+                onClick = onBack,
+                modifier = Modifier.testTag("onboarding_back"),
+              ) {
+                Text("Назад")
+              }
+              Button(
+                onClick = onApply,
+                enabled = selectedPersonaId.isNotBlank() && !isSaving,
+                shape = RoundedCornerShape(50),
+                colors = ButtonDefaults.buttonColors(
+                  containerColor = PurpleAccent,
+                  contentColor = PurpleAccentDark,
+                ),
+                modifier = Modifier.testTag("onboarding_next"),
+              ) {
+                if (isSaving) {
+                  CircularProgressIndicator(
+                    modifier = Modifier.padding(end = 8.dp),
+                    strokeWidth = 2.dp,
+                  )
+                }
+                Text("Применить")
+              }
+            }
           }
         }
-      }
-    },
-  ) { padding ->
-    Column(
-      modifier = Modifier
-        .fillMaxSize()
-        .padding(padding),
-    ) {
-      Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Text(
-          text = "Выберите характер помощника",
-          style = MaterialTheme.typography.headlineSmall,
-        )
-        Text(
-          text = "Настройте стиль общения вашего ИИ для комфортного обучения.",
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier.padding(top = 8.dp),
-        )
-      }
-      LazyColumn(modifier = Modifier.weight(1f)) {
-        items(PersonaCatalog.all, key = { it.id }) { persona ->
-          PersonaCard(
-            persona = persona,
-            isSelected = persona.id == selectedPersonaId,
-            onSelect = { onSelectPersona(persona.id) },
+      },
+    ) { padding ->
+      Column(
+        modifier = Modifier
+          .fillMaxSize()
+          .padding(padding),
+      ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+          Text(
+            text = "Выберите характер помощника",
+            style = MaterialTheme.typography.headlineSmall,
           )
+          Text(
+            text = "Настройте стиль общения вашего ИИ для комфортного обучения.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp),
+          )
+        }
+        LazyColumn(
+          modifier = Modifier
+            .weight(1f)
+            .glassSource(glassState),
+        ) {
+          items(PersonaCatalog.all, key = { it.id }) { persona ->
+            PersonaCard(
+              persona = persona,
+              isSelected = persona.id == selectedPersonaId,
+              onSelect = { onSelectPersona(persona.id) },
+            )
+          }
         }
       }
     }
