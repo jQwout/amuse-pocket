@@ -115,6 +115,12 @@ import com.aiopenpocket.ui.chat.components.MicButton
 import com.aiopenpocket.ui.chat.components.ToolTracePanel
 import com.aiopenpocket.ui.components.MarkdownText
 import com.aiopenpocket.ui.components.StreamingBubble
+import com.aiopenpocket.ui.components.glass.GlassState
+import com.aiopenpocket.ui.components.glass.GlassSurface
+import com.aiopenpocket.ui.components.glass.auroraBackground
+import com.aiopenpocket.ui.components.glass.glassSource
+import com.aiopenpocket.ui.components.glass.rememberGlassState
+import com.aiopenpocket.ui.theme.GlassTokens
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.voice.input.VoiceInputState
 import dev.zacsweers.metrox.viewmodel.metroViewModel
@@ -128,6 +134,7 @@ fun ChatScreen(
     onNavigateBack: () -> Unit,
     onOpenQuiz: (String) -> Unit = {},
 ) {
+    val glassState = rememberGlassState()
     val viewModel: ChatViewModel = metroViewModel()
     val state by viewModel.state.collectAsState()
     val scope = rememberCoroutineScope()
@@ -310,99 +317,103 @@ fun ChatScreen(
         pendingAnchorId = null
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().auroraBackground()) {
         Scaffold(
+            containerColor = Color.Transparent,
             topBar = {
-                // (3) Полупрозрачная шапка с мягким фейдом по нижней кромке — контент «проступает» под ней
-                // (особенно при скролле истории, когда ввод спрятан и лента занимает место под баром).
-                val barColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
-                Column {
-                    if (searchActive) {
-                        ChatSearchBar(
-                            query = searchQuery,
-                            onQueryChange = {
-                                searchQuery = it
-                                currentMatch = 0
-                                viewModel.setSearchQuery(it)
-                            },
-                            matchCount = matchIndices.size,
-                            currentMatch = if (matchIndices.isEmpty()) 0 else currentMatch + 1,
-                            onPrev = {
-                                if (matchIndices.isNotEmpty()) currentMatch = (currentMatch - 1 + matchIndices.size) % matchIndices.size
-                            },
-                            onNext = { if (matchIndices.isNotEmpty()) currentMatch = (currentMatch + 1) % matchIndices.size },
-                            onClose = { closeSearch() },
-                            containerColor = barColor,
-                        )
-                    } else {
-                        TopAppBar(
-                            title = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(38.dp)
-                                            .clip(CircleShape)
-                                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Icon(
-                                            Icons.Default.AutoAwesome,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(20.dp),
+                // (3) Стеклянная шапка (GlassSurface — сильное стекло с blur) с мягким фейдом по нижней
+                // кромке — контент «проступает» под ней (особенно при скролле истории, когда ввод спрятан
+                // и лента занимает место под баром). Ручная полупрозрачность (старый barColor) убрана —
+                // тонировку и blur теперь даёт GlassSurface (дефолтный тон GlassTokens.StrongTint).
+                GlassSurface(state = glassState) {
+                    Column {
+                        if (searchActive) {
+                            ChatSearchBar(
+                                query = searchQuery,
+                                onQueryChange = {
+                                    searchQuery = it
+                                    currentMatch = 0
+                                    viewModel.setSearchQuery(it)
+                                },
+                                matchCount = matchIndices.size,
+                                currentMatch = if (matchIndices.isEmpty()) 0 else currentMatch + 1,
+                                onPrev = {
+                                    if (matchIndices.isNotEmpty()) currentMatch = (currentMatch - 1 + matchIndices.size) % matchIndices.size
+                                },
+                                onNext = { if (matchIndices.isNotEmpty()) currentMatch = (currentMatch + 1) % matchIndices.size },
+                                onClose = { closeSearch() },
+                                containerColor = Color.Transparent,
+                            )
+                        } else {
+                            TopAppBar(
+                                title = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(38.dp)
+                                                .clip(CircleShape)
+                                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Icon(
+                                                Icons.Default.AutoAwesome,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(20.dp),
+                                            )
+                                        }
+                                        Spacer(Modifier.width(10.dp))
+                                        Text(
+                                            text = state.title ?: "Чат",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
                                         )
                                     }
-                                    Spacer(Modifier.width(10.dp))
-                                    Text(
-                                        text = state.title ?: "Чат",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                }
-                            },
-                            navigationIcon = {
-                                IconButton(onClick = onNavigateBack) {
-                                    Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Назад")
-                                }
-                            },
-                            actions = {
-                                // Поиск по сообщениям чата.
-                                IconButton(onClick = { searchActive = true; viewModel.setSearchActive(true) }) {
-                                    Icon(
-                                        Icons.Default.Search,
-                                        contentDescription = "Поиск по чату",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                                // Переключатель трассы инструментов показываем ТОЛЬКО когда трасса есть — иначе кнопка была бы
-                                // «мёртвой» (раньше это была шестерёнка с пустым меню).
-                                if (state.toolTrace.isNotEmpty()) {
-                                    IconButton(onClick = { viewModel.handleIntent(ChatIntent.ToggleToolTrace) }) {
+                                },
+                                navigationIcon = {
+                                    IconButton(onClick = onNavigateBack) {
+                                        Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Назад")
+                                    }
+                                },
+                                actions = {
+                                    // Поиск по сообщениям чата.
+                                    IconButton(onClick = { searchActive = true; viewModel.setSearchActive(true) }) {
                                         Icon(
-                                            Icons.Default.Build,
-                                            contentDescription = if (state.showToolTrace) "Скрыть инструменты" else "Показать инструменты",
-                                            tint = if (state.showToolTrace) MaterialTheme.colorScheme.primary
-                                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            Icons.Default.Search,
+                                            contentDescription = "Поиск по чату",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     }
-                                }
-                            },
-                            colors = TopAppBarDefaults.topAppBarColors(
-                                containerColor = barColor,
-                            ),
+                                    // Переключатель трассы инструментов показываем ТОЛЬКО когда трасса есть — иначе кнопка была бы
+                                    // «мёртвой» (раньше это была шестерёнка с пустым меню).
+                                    if (state.toolTrace.isNotEmpty()) {
+                                        IconButton(onClick = { viewModel.handleIntent(ChatIntent.ToggleToolTrace) }) {
+                                            Icon(
+                                                Icons.Default.Build,
+                                                contentDescription = if (state.showToolTrace) "Скрыть инструменты" else "Показать инструменты",
+                                                tint = if (state.showToolTrace) MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                },
+                                colors = TopAppBarDefaults.topAppBarColors(
+                                    containerColor = Color.Transparent,
+                                ),
+                            )
+                        }
+                        // Фейд: тонкая градиентная полоса от стеклянной тонировки к прозрачному — мягкая граница.
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(12.dp)
+                                .background(
+                                    Brush.verticalGradient(listOf(GlassTokens.StrongTint, Color.Transparent)),
+                                ),
                         )
                     }
-                    // Фейд: тонкая градиентная полоса от полупрозрачной шапки к прозрачному — мягкая граница.
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(12.dp)
-                            .background(
-                                Brush.verticalGradient(listOf(barColor, Color.Transparent)),
-                            ),
-                    )
                 }
             },
         ) { padding ->
@@ -449,7 +460,10 @@ fun ChatScreen(
                         // До первого автоскролла ленту не показываем: LazyColumn рождается на индексе 0
                         // (старые сообщения), и до снапа юзер видел вспышку начала истории. graphicsLayer
                         // читает флаг на фазе рисования — смена не рекомпозирует ленту.
-                        .graphicsLayer { alpha = if (initialScrollDone) 1f else 0f },
+                        .graphicsLayer { alpha = if (initialScrollDone) 1f else 0f }
+                        // Источник для стеклянной обвязки (топбар/инпут) — сама лента НЕ размывается,
+                        // только читается как backdrop чужим hazeEffect (перф: без RenderEffect в items).
+                        .glassSource(glassState),
                     verticalArrangement = Arrangement.Bottom,
                 ) {
                     items(
@@ -623,6 +637,7 @@ fun ChatScreen(
                                     onSend = { viewModel.handleIntent(ChatIntent.SendMessage) },
                                     onCancel = { viewModel.handleIntent(ChatIntent.CancelRequest) },
                                     isLoading = state.isLoading,
+                                    glassState = glassState,
                                     placeholder = when (state.agentMode) {
                                         AgentMode.PLAN -> "Опиши задачу — агент составит план…"
                                         AgentMode.GOAL -> "Сформулируй цель…"
@@ -1308,6 +1323,7 @@ private fun ChatInput(
     onSend: () -> Unit,
     onCancel: () -> Unit,
     isLoading: Boolean,
+    glassState: GlassState,
     placeholder: String = "Сообщение...",
     onExpand: () -> Unit,
     voiceState: VoiceInputState,
@@ -1337,90 +1353,98 @@ private fun ChatInput(
         }
     }
 
-    // Единая скруглённая рамка: сверху — текст, снизу — панель управления (как в макете).
-    Column(
+    // Единая скруглённая рамка: сверху — текст, снизу — панель управления (как в макете). Blur/tint/
+    // блик-бордер — от GlassSurface; фиолетовый акцент-бордер оставлен поверх как второй, внутренний.
+    val inputShape = RoundedCornerShape(24.dp)
+    GlassSurface(
+        state = glassState,
+        shape = inputShape,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 8.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                shape = RoundedCornerShape(24.dp),
-            )
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 8.dp, vertical = 8.dp),
     ) {
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 24.dp, max = 160.dp)
-                .padding(horizontal = 4.dp, vertical = 4.dp),
-            textStyle = LocalTextStyle.current.copy(color = MaterialTheme.colorScheme.onSurface),
-            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-            maxLines = 6,
-            decorationBox = { inner ->
-                if (value.isEmpty()) {
-                    // Плейсхолдер тонирован под акцент (как фиолетовая рамка), чтобы отличаться от текста.
-                    Text(placeholder, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f))
-                }
-                inner()
-            },
-        )
-        Spacer(Modifier.height(6.dp))
-        // Нижняя панель внутри рамки: слева — развернуть и микрофон, справа — очистить и отправить.
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onExpand, modifier = Modifier.size(36.dp)) {
-                Icon(
-                    Icons.Default.OpenInFull,
-                    contentDescription = "Развернуть",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp),
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                    shape = inputShape,
                 )
-            }
-            Spacer(Modifier.width(4.dp))
-            MicButton(state = voiceState, onClick = ::handleMicTap, modifier = Modifier.size(36.dp))
-            Spacer(Modifier.weight(1f))
-            // Очистить поле — показываем только когда есть текст.
-            if (value.isNotBlank()) {
-                IconButton(onClick = { onValueChange("") }, modifier = Modifier.size(36.dp)) {
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        ) {
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 24.dp, max = 160.dp)
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                textStyle = LocalTextStyle.current.copy(color = MaterialTheme.colorScheme.onSurface),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                maxLines = 6,
+                decorationBox = { inner ->
+                    if (value.isEmpty()) {
+                        // Плейсхолдер тонирован под акцент (как фиолетовая рамка), чтобы отличаться от текста.
+                        Text(placeholder, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f))
+                    }
+                    inner()
+                },
+            )
+            Spacer(Modifier.height(6.dp))
+            // Нижняя панель внутри рамки: слева — развернуть и микрофон, справа — очистить и отправить.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onExpand, modifier = Modifier.size(36.dp)) {
                     Icon(
-                        Icons.Default.Close,
-                        contentDescription = "Очистить",
+                        Icons.Default.OpenInFull,
+                        contentDescription = "Развернуть",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp),
                     )
                 }
                 Spacer(Modifier.width(4.dp))
-            }
-            if (isLoading) {
-                // Прогресс вокруг кнопки «стоп» — даёт пользователю возможность отменить ход.
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp)) {
-                    CircularProgressIndicator(modifier = Modifier.size(44.dp), strokeWidth = 2.dp)
-                    IconButton(onClick = onCancel) {
-                        Icon(Icons.Default.Stop, contentDescription = "Остановить")
+                MicButton(state = voiceState, onClick = ::handleMicTap, modifier = Modifier.size(36.dp))
+                Spacer(Modifier.weight(1f))
+                // Очистить поле — показываем только когда есть текст.
+                if (value.isNotBlank()) {
+                    IconButton(onClick = { onValueChange("") }, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Очистить",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
                     }
+                    Spacer(Modifier.width(4.dp))
                 }
-            } else {
-                // Кнопка-кружок: залита акцентом, когда есть что отправить; иначе приглушена (как в макете).
-                val canSend = value.isNotBlank()
-                IconButton(
-                    onClick = onSend,
-                    enabled = canSend,
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant),
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Default.Send,
-                        contentDescription = "Отправить",
-                        tint = if (canSend) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                if (isLoading) {
+                    // Прогресс вокруг кнопки «стоп» — даёт пользователю возможность отменить ход.
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp)) {
+                        CircularProgressIndicator(modifier = Modifier.size(44.dp), strokeWidth = 2.dp)
+                        IconButton(onClick = onCancel) {
+                            Icon(Icons.Default.Stop, contentDescription = "Остановить")
+                        }
+                    }
+                } else {
+                    // Кнопка-кружок: залита акцентом, когда есть что отправить; иначе приглушена (как в макете).
+                    val canSend = value.isNotBlank()
+                    IconButton(
+                        onClick = onSend,
+                        enabled = canSend,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant),
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Default.Send,
+                            contentDescription = "Отправить",
+                            tint = if (canSend) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
@@ -1538,84 +1562,95 @@ internal fun ChatPreviewScaffold(
     showInput: Boolean = true,
 ) {
     MyApplicationTheme {
-        Scaffold(
-            containerColor = MaterialTheme.colorScheme.background,
-            topBar = {
-                TopAppBar(
-                    title = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    Icons.Default.AutoAwesome,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp),
+        val glassState = rememberGlassState()
+        Box(Modifier.fillMaxSize().auroraBackground()) {
+            Scaffold(
+                containerColor = Color.Transparent,
+                topBar = {
+                    // Тот же glass-каркас шапки, что и в боевом ChatScreen (без поиска — превью его не моделирует).
+                    GlassSurface(state = glassState) {
+                        TopAppBar(
+                            title = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(
+                                            Icons.Default.AutoAwesome,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                    }
+                                    Spacer(Modifier.width(10.dp))
+                                    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                }
+                            },
+                            navigationIcon = {
+                                IconButton(onClick = {}) {
+                                    Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Назад")
+                                }
+                            },
+                            actions = {
+                                IconButton(onClick = {}) {
+                                    Icon(Icons.Default.Search, contentDescription = "Поиск", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            },
+                            colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = Color.Transparent,
+                            ),
+                        )
+                    }
+                },
+            ) { padding ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                ) {
+                    if (stats != null) {
+                        ResponseStatsBar(stats = stats, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+                    }
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .glassSource(glassState),
+                        verticalArrangement = Arrangement.Bottom,
+                    ) {
+                        items(messages, key = { it.id }) { m ->
+                            MessageBubble(message = m, onTogglePin = {}, interactiveCards = interactiveCards)
+                        }
+                        if (streamingText != null || streamingWaiting) {
+                            item(key = "streaming") {
+                                StreamingBubble(
+                                    text = streamingText.orEmpty(),
+                                    showCursor = !streamingText.isNullOrEmpty(),
+                                    isWaiting = streamingWaiting,
                                 )
                             }
-                            Spacer(Modifier.width(10.dp))
-                            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = {}) {
-                            Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Назад")
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = {}) {
-                            Icon(Icons.Default.Search, contentDescription = "Поиск", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    },
-                )
-            },
-        ) { padding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-            ) {
-                if (stats != null) {
-                    ResponseStatsBar(stats = stats, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
-                }
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.Bottom,
-                ) {
-                    items(messages, key = { it.id }) { m ->
-                        MessageBubble(message = m, onTogglePin = {}, interactiveCards = interactiveCards)
-                    }
-                    if (streamingText != null || streamingWaiting) {
-                        item(key = "streaming") {
-                            StreamingBubble(
-                                text = streamingText.orEmpty(),
-                                showCursor = !streamingText.isNullOrEmpty(),
-                                isWaiting = streamingWaiting,
-                            )
                         }
                     }
-                }
-                if (error != null) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f))
-                        TextButton(onClick = {}) {
-                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.size(4.dp))
-                            Text("Повторить")
+                    if (error != null) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f))
+                            TextButton(onClick = {}) {
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.size(4.dp))
+                                Text("Повторить")
+                            }
                         }
                     }
+                    if (showInput) PreviewComposerBar(glassState = glassState)
                 }
-                if (showInput) PreviewComposerBar()
             }
         }
     }
@@ -1623,32 +1658,39 @@ internal fun ChatPreviewScaffold(
 
 /** Статичная визуальная заглушка поля ввода (без микрофона/лаунчеров) — только для превью. */
 @Composable
-private fun PreviewComposerBar(placeholder: String = "Сообщение...") {
-    Column(
+private fun PreviewComposerBar(glassState: GlassState, placeholder: String = "Сообщение...") {
+    val inputShape = RoundedCornerShape(24.dp)
+    GlassSurface(
+        state = glassState,
+        shape = inputShape,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 8.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.7f), RoundedCornerShape(24.dp))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 8.dp, vertical = 8.dp),
     ) {
-        Text(
-            placeholder,
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-            modifier = Modifier.padding(4.dp),
-        )
-        Spacer(Modifier.height(6.dp))
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.OpenInFull, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.weight(1f))
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.AutoMirrored.Default.Send, contentDescription = "Отправить", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.7f), inputShape)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        ) {
+            Text(
+                placeholder,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                modifier = Modifier.padding(4.dp),
+            )
+            Spacer(Modifier.height(6.dp))
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.OpenInFull, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.weight(1f))
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.AutoMirrored.Default.Send, contentDescription = "Отправить", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
     }
