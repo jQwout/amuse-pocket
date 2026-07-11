@@ -77,6 +77,7 @@ class HeartbeatRunnerTest {
       ToolExecutor(ToolRegistry(emptySet())),
       ToolRegistry(emptySet()),
       MemoryRepository(db.factDao(), db.episodeDao()),
+      NoopAgentLog,
     )
     val conversationRepository = ConversationRepository(
       db.conversationDao(),
@@ -96,6 +97,12 @@ class HeartbeatRunnerTest {
     id = "hb1", title = "T", mode = mode, prompt = prompt, message = "msg",
     conversationId = "conv1", kind = kind, intervalMinutes = if (kind == "periodic") 30 else null,
   )
+
+  private object NoopAgentLog : com.aiopenpocket.agent.core.AgentLog {
+    override fun d(tag: String, message: String) {}
+    override fun w(tag: String, message: String) {}
+    override fun e(tag: String, message: String, error: Throwable?) {}
+  }
 
   @Test
   fun `unknown or cancelled heartbeat is a no-op DONE`() = runTest {

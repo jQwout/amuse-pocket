@@ -2,7 +2,7 @@ package com.aiopenpocket.agent.loop
 
 // @trace rezhimy-agenta-plan-i-goal-ee2361
 
-import android.util.Log
+import com.aiopenpocket.agent.core.AgentLog
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.llm.LlmClient
@@ -25,8 +25,8 @@ import com.aiopenpocket.di.AppScope
 /**
  * The core ReAct loop (reason → act → observe). It streams [AgentEvent]s through [emit] and RETURNS
  * the final [AgentResult] instead of emitting a terminal Completed/Error — the caller decides what a
- * finished loop means (a whole chat reply, or one step of a plan). Reused by [AgentLoopOrchestrator]
- * for the plain chat turn and by [PlanExecuteOrchestrator] for each plan step.
+ * finished loop means (a whole chat reply, or one phase of a multi-phase orchestrator). Used by
+ * [AgentLoopOrchestrator] for the plain chat turn and by [ReflectionOrchestrator] for draft/revise.
  */
 @SingleIn(AppScope::class)
 class ReactLoopRunner @Inject constructor(
@@ -34,6 +34,7 @@ class ReactLoopRunner @Inject constructor(
   private val toolExecutor: ToolExecutor,
   private val toolRegistry: ToolRegistry,
   private val memoryRepository: MemoryRepository,
+  private val log: AgentLog,
 ) {
 
   /**
@@ -59,7 +60,7 @@ class ReactLoopRunner @Inject constructor(
     val transcript = StringBuilder()
     var finished = false
     var lastIteration = 0
-    Log.d(TAG, "▶ run conv=$conversationId tools=${tools.size} [${tools.joinToString { it.function.name }}]")
+    log.d(TAG, "▶ run conv=$conversationId tools=${tools.size} [${tools.joinToString { it.function.name }}]")
 
     for (iteration in 1..maxIterations) {
       lastIteration = iteration
@@ -87,16 +88,16 @@ class ReactLoopRunner @Inject constructor(
       }
 
       if (streamError != null) {
-        Log.w(TAG, "✗ iter $iteration stream error: $streamError")
+        log.w(TAG, "✗ iter $iteration stream error: $streamError")
         return AgentResult(accumulatedText, toolTrace, AgentState.ERROR, lastIteration, streamError)
       }
       if (finished) {
-        Log.d(TAG, "✓ finished at iter $iteration (textLen=${accumulatedText.length})")
+        log.d(TAG, "✓ finished at iter $iteration (textLen=${accumulatedText.length})")
         break
       }
       if (pendingToolCalls.isEmpty()) continue
 
-      Log.d(TAG, "iter $iteration: ${pendingToolCalls.size} tool-call(s) [${pendingToolCalls.joinToString { it.name }}]")
+      log.d(TAG, "iter $iteration: ${pendingToolCalls.size} tool-call(s) [${pendingToolCalls.joinToString { it.name }}]")
       emit(AgentEvent.StateChanged(AgentState.EXECUTING_TOOL))
       // Скоуп мини-агента реализован только через то, какие schemas показаны модели (tools) —
       // ToolExecutor сам по себе резолвит имя против ГЛОБАЛЬНОГО ToolRegistry. Без этой проверки
@@ -126,7 +127,7 @@ class ReactLoopRunner @Inject constructor(
       }
 
       for (tc in pendingToolCalls) {
-        Log.d(TAG, "  → ${tc.name}(${preview(tc.arguments.toString())})")
+        log.d(TAG, "  → ${tc.name}(${preview(tc.arguments.toString())})")
         emit(AgentEvent.ToolStarted(tc.name, tc.arguments))
 
         val result = if (tc.name !in allowedToolNames) {
@@ -136,7 +137,7 @@ class ReactLoopRunner @Inject constructor(
         } else {
           toolExecutor.execute(tc.name, tc.arguments)
         }
-        Log.d(TAG, "  ← ${tc.name}: ${preview(resultToString(result))}")
+        log.d(TAG, "  ← ${tc.name}: ${preview(resultToString(result))}")
         toolTrace += ToolTrace(
           iteration = iteration,
           toolName = tc.name,
@@ -160,7 +161,7 @@ class ReactLoopRunner @Inject constructor(
             outcome = result.toString(),
             conversationId = conversationId,
           )
-        }.onFailure { Log.w(TAG, "saveEpisode failed for ${tc.name}: ${it.message}") }
+        }.onFailure { log.w(TAG, "saveEpisode failed for ${tc.name}: ${it.message}") }
 
         // Каждый tool_call должен получить ровно один tool-ответ с тем же id.
         messages += ChatMessage(
@@ -173,10 +174,11 @@ class ReactLoopRunner @Inject constructor(
 
     // Либо модель ответила без инструментов (finished), либо упёрлись в лимит шагов — в обоих случаях
     // отдаём накопленный текст и трейс; терминальное событие выберет вызывающий.
-    if (!finished) Log.w(TAG, "⚠ exhausted maxIterations=$maxIterations")
+    if (!finished) log.w(TAG, "⚠ exhausted maxIterations=$maxIterations")
     // На лимите отдаём транскрипт всех витков (а не возможно-пустой текст последнего); на финише — итог.
     val finalText = if (finished) accumulatedText else transcript.toString().trim().ifBlank { accumulatedText }
-    return AgentResult(finalText, toolTrace, AgentState.FINISHED, lastIteration, null)
+    // hitIterationLimit=!finished — единственный источник «упёрлись в лимит» для GOAL-фолбэка.
+    return AgentResult(finalText, toolTrace, AgentState.FINISHED, lastIteration, null, hitIterationLimit = !finished)
   }
 
   private fun resultToString(result: ToolResult): String = when (result) {

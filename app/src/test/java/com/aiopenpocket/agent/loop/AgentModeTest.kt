@@ -2,6 +2,7 @@ package com.aiopenpocket.agent.loop
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -49,5 +50,18 @@ class AgentModeTest {
   fun goal_iterationLimitIsClampedToChatMax() {
     assertEquals(chatMax, plan(AgentMode.GOAL, goalMax = 99).maxIterations)
     assertEquals(1, plan(AgentMode.GOAL, goalMax = 0).maxIterations)
+  }
+
+  @Test
+  fun goal_promptSuffixNamesTheIterationBudget() {
+    val turn = plan(AgentMode.GOAL, goalMax = 3)
+    assertTrue("суффикс должен называть бюджет витков", turn.systemPromptSuffix!!.contains("не более 3 витков"))
+  }
+
+  @Test
+  fun nonGoalModes_haveNoPromptSuffix() {
+    assertNull(plan(AgentMode.CHAT).systemPromptSuffix)
+    assertNull(plan(AgentMode.PLAN, approved = false).systemPromptSuffix)
+    assertNull(plan(AgentMode.PLAN, approved = true).systemPromptSuffix)
   }
 }

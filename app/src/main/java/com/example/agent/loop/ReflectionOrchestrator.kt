@@ -2,6 +2,7 @@ package com.aiopenpocket.agent.loop
 
 // @trace rezhim-refleksii-fca3c4
 
+import com.aiopenpocket.agent.core.AgentLog
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
@@ -9,33 +10,26 @@ import com.aiopenpocket.agent.core.llm.StreamEvent
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
 import com.aiopenpocket.agent.core.prompt.ConversationAnnotator
 import com.aiopenpocket.agent.core.prompt.PrePromptAssembler
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.buffer
-import kotlinx.coroutines.flow.channelFlow
-import kotlinx.coroutines.flow.flowOn
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
 
 /**
- * Reflection orchestrator — like [PlanExecuteOrchestrator], a teaching demo built ON TOP of the
- * single [ReactLoopRunner], not a separate engine. Where Plan-and-Execute loops to figure out *what
- * to do*, Reflection loops to make the answer *better*. It runs three phases over one conversation:
+ * Reflection orchestrator — a teaching demo built ON TOP of the single [ReactLoopRunner], not a
+ * separate engine. It runs three phases over one conversation:
  *
  *  1. **Draft** — the shared ReAct loop produces a first-pass answer (full tool set).
  *  2. **Critique** — one tool-less LLM call reads the draft and names concrete weaknesses.
  *  3. **Revise** — the shared ReAct loop rewrites the answer, addressing the critique.
  *
- * Like the plan-mode demo, everything streams as plain [AgentEvent.TextDelta] so the existing chat
- * UI shows the whole draft → critique → final process live, and the accumulated transcript is
- * returned as [AgentResult.text] so it persists as one assistant message. No new card, no new engine.
+ * Everything streams as plain [AgentEvent.TextDelta] so the existing chat UI shows the whole
+ * draft → critique → final process live, and the accumulated transcript is returned as
+ * [AgentResult.text] so it persists as one assistant message. No new card, no new engine.
  *
- * Selected by [AgentMode.REFLECT]: the ViewModel routes REFLECT turns here instead of through
- * [AgentLoopOrchestrator], because a 3-phase loop doesn't fit the single-turn resolveTurnExecutionPlan
- * contract (same reason [PlanExecuteOrchestrator] is a separate orchestrator).
+ * Selected by [AgentMode.REFLECT]: the [com.aiopenpocket.di.TurnModule] TurnExecutor routes REFLECT
+ * turns here instead of through [AgentLoopOrchestrator], because a 3-phase loop doesn't fit the
+ * single-turn resolveTurnExecutionPlan contract.
  */
 @SingleIn(AppScope::class)
 class ReflectionOrchestrator @Inject constructor(
@@ -44,13 +38,14 @@ class ReflectionOrchestrator @Inject constructor(
   private val prePromptAssembler: PrePromptAssembler,
   private val reactLoopRunner: ReactLoopRunner,
   private val conversationAnnotator: ConversationAnnotator,
+  private val log: AgentLog,
 ) {
 
   fun execute(
     conversationId: String,
     userMessage: String,
     provider: LlmProvider = LlmProvider.NIM,
-  ): Flow<AgentEvent> = channelFlow {
+  ): Flow<AgentEvent> = agentTurnFlow(log, TAG, "Reflection failed") {
     // Каждый TextDelta зеркалим в transcript, чтобы сохранённое сообщение совпало с тем, что
     // пользователь видел в стриме (черновик + критика + итог), а не только с финальным ответом.
     val transcript = StringBuilder()
@@ -58,76 +53,75 @@ class ReflectionOrchestrator @Inject constructor(
       if (ev is AgentEvent.TextDelta) transcript.append(ev.content)
       send(ev)
     }
-    // Общий выход по ошибке фазы — тот же контракт, что у AgentLoopOrchestrator: ERROR-состояние
-    // от ReactLoopRunner превращаем в терминальное событие ошибки, а не в мнимый «успех».
+    // Общий выход по ошибке фазы: ERROR-состояние от ReactLoopRunner превращаем в терминальное
+    // событие ошибки, а не в мнимый «успех». Досрочный выход из хода — return@agentTurnFlow.
     suspend fun emitError(message: String?) {
       send(AgentEvent.StateChanged(AgentState.ERROR))
       send(AgentEvent.Error(message ?: "Reflection failed"))
     }
 
-    try {
-      val context = prePromptAssembler.assemble(conversationId, userMessage)
-      android.util.Log.d(TAG, "▶ reflection conv=$conversationId msg=\"${userMessage.take(60)}\"")
+    val context = prePromptAssembler.assemble(conversationId, userMessage)
+    log.d(TAG, "▶ reflection conv=$conversationId msg=\"${userMessage.take(60)}\"")
 
-      // 1. DRAFT — обычный ReAct-цикл с полным набором тулов. context.history уже заканчивается
-      // текущим сообщением пользователя (его персистит вызывающий до execute()).
-      tap(AgentEvent.StateChanged(AgentState.STREAMING))
-      tap(AgentEvent.TextDelta("✍️ **Черновик**\n"))
-      val draftMessages = mutableListOf(ChatMessage(role = "system", content = context.systemPrompt))
-      draftMessages += context.history.map { it.toChatMessage() }
-      val draft = reactLoopRunner.run(
-        conversationId, draftMessages, registry.getAllSchemas(), provider, emit = { tap(it) },
-      )
-      android.util.Log.d(TAG, "draft len=${draft.text.length}")
-      // ReactLoopRunner на сбое стрима не бросает, а возвращает state=ERROR. Не проглатываем: как и
-      // обычный чат-цикл, поднимаем ошибку наружу и не тратим critique/revise на пустой черновик.
-      if (draft.state == AgentState.ERROR) {
-        return@channelFlow emitError(draft.errorMessage)
-      }
-
-      // 2. CRITIQUE — один tool-less вызов: назвать конкретные слабые места черновика.
-      tap(AgentEvent.TextDelta("\n\n🔍 **Критика**\n"))
-      val critique = runCritic(userMessage, draft.text, provider) { tap(it) }
-
-      // 3. REVISE — снова общий цикл (полный набор тулов, чтобы при необходимости закрыть ответ
-      // карточкой), переписываем с учётом критики.
-      tap(AgentEvent.TextDelta("\n\n---\n\n✨ **Итог**\n"))
-      val reviseMessages = mutableListOf(ChatMessage(role = "system", content = context.systemPrompt))
-      reviseMessages += context.history.map { it.toChatMessage() }
-      reviseMessages += ChatMessage(role = "user", content = buildReviseInstruction(draft.text, critique))
-      val revised = reactLoopRunner.run(
-        conversationId, reviseMessages, registry.getAllSchemas(), provider, emit = { tap(it) },
-      )
-      android.util.Log.d(TAG, "✓ reflection done revisedLen=${revised.text.length}")
-      if (revised.state == AgentState.ERROR) {
-        return@channelFlow emitError(revised.errorMessage)
-      }
-
-      send(AgentEvent.StateChanged(AgentState.FINISHED))
-      send(
-        AgentEvent.Completed(
-          AgentResult(
-            text = transcript.toString(),
-            // Карточки (render_card) берём только из фазы правки: черновик — выброшенный, его
-            // карточки не должны отрисоваться как финальные. Остальной трейс черновика оставляем для
-            // прозрачности (видно, чем агент пользовался на первом проходе). Критика тулы не вызывает.
-            toolTrace = draft.toolTrace.filterNot { it.toolName == "render_card" } + revised.toolTrace,
-            state = AgentState.FINISHED,
-            // Число фаз (draft → critique → revise), не LLM-раундов — поле только для отладочного лога.
-            iterations = 3,
-          ),
-        ),
-      )
-      // Как и обычный чат-ход: обновляем заголовок/резюме/теги диалога из лога (no-op, если коротко).
-      runCatching { conversationAnnotator.annotate(conversationId) }
-    } catch (e: CancellationException) {
-      throw e
-    } catch (e: Exception) {
-      android.util.Log.e(TAG, "Reflection failed", e)
-      send(AgentEvent.StateChanged(AgentState.ERROR))
-      send(AgentEvent.Error(e.message ?: "Reflection failed"))
+    // 1. DRAFT — обычный ReAct-цикл с полным набором тулов. context.history уже заканчивается
+    // текущим сообщением пользователя (его персистит вызывающий до execute()).
+    tap(AgentEvent.StateChanged(AgentState.STREAMING))
+    tap(AgentEvent.TextDelta("✍️ **Черновик**\n"))
+    val draftMessages = mutableListOf(ChatMessage(role = "system", content = context.systemPrompt))
+    draftMessages += context.history.map { it.toChatMessage() }
+    val draft = reactLoopRunner.run(
+      conversationId, draftMessages, registry.getAllSchemas(), provider, emit = { tap(it) },
+    )
+    log.d(TAG, "draft len=${draft.text.length}")
+    // ReactLoopRunner на сбое стрима не бросает, а возвращает state=ERROR. Не проглатываем: как и
+    // обычный чат-цикл, поднимаем ошибку наружу и не тратим critique/revise на пустой черновик.
+    if (draft.state == AgentState.ERROR) {
+      return@agentTurnFlow emitError(draft.errorMessage)
     }
-  }.buffer(Channel.UNLIMITED).flowOn(Dispatchers.IO)
+
+    // 2. CRITIQUE — один tool-less вызов: назвать конкретные слабые места черновика.
+    tap(AgentEvent.TextDelta("\n\n🔍 **Критика**\n"))
+    val critique = runCritic(userMessage, draft.text, provider) { tap(it) }
+
+    // 3. REVISE — снова общий цикл (полный набор тулов, чтобы при необходимости закрыть ответ
+    // карточкой), переписываем с учётом критики.
+    tap(AgentEvent.TextDelta("\n\n---\n\n✨ **Итог**\n"))
+    val reviseMessages = mutableListOf(ChatMessage(role = "system", content = context.systemPrompt))
+    reviseMessages += context.history.map { it.toChatMessage() }
+    reviseMessages += ChatMessage(role = "user", content = buildReviseInstruction(draft.text, critique))
+    val revised = reactLoopRunner.run(
+      conversationId, reviseMessages, registry.getAllSchemas(), provider, emit = { tap(it) },
+    )
+    log.d(TAG, "✓ reflection done revisedLen=${revised.text.length}")
+    if (revised.state == AgentState.ERROR) {
+      return@agentTurnFlow emitError(revised.errorMessage)
+    }
+    // Пустой финал (revise не дал ни текста, ни карточки): декоративные заголовки ✍/🔍/✨ делают
+    // transcript непустым, поэтому blank-гейт resolveCompletedTurn для REFLECT не сработал бы — юзер
+    // получил бы три заголовка без содержимого. Гасим тем же blank-error + «Повторить», что и обычный ход.
+    val revisedHasCard = revised.toolTrace.any { it.toolName == RENDER_CARD_TOOL }
+    if (revised.text.isBlank() && !revisedHasCard) {
+      return@agentTurnFlow emitError(TurnTexts.BLANK_REPLY_ERROR)
+    }
+
+    send(AgentEvent.StateChanged(AgentState.FINISHED))
+    send(
+      AgentEvent.Completed(
+        AgentResult(
+          text = transcript.toString(),
+          // Карточки (render_card) берём только из фазы правки: черновик — выброшенный, его
+          // карточки не должны отрисоваться как финальные. Остальной трейс черновика оставляем для
+          // прозрачности (видно, чем агент пользовался на первом проходе). Критика тулы не вызывает.
+          toolTrace = draft.toolTrace.filterNot { it.toolName == RENDER_CARD_TOOL } + revised.toolTrace,
+          state = AgentState.FINISHED,
+          // Число фаз (draft → critique → revise), не LLM-раундов — поле только для отладочного лога.
+          iterations = 3,
+        ),
+      ),
+    )
+    // Как и обычный чат-ход: обновляем заголовок/резюме/теги диалога из лога (no-op, если коротко).
+    runCatching { conversationAnnotator.annotate(conversationId) }
+  }
 
   /** Critique phase: a single tool-less call that returns concrete weaknesses; streamed and returned. */
   private suspend fun runCritic(
