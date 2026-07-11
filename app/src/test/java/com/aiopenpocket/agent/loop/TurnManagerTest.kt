@@ -18,16 +18,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
 
-/**
- * TurnManager тестируется на скриптовых фейках портов: без LLM, без Room. Robolectric нужен
- * из-за android.util.Log и android.os.SystemClock внутри менеджера.
- */
+/** TurnManager тестируется на скриптовых фейках портов: без LLM, без Room, без Android. */
 @OptIn(ExperimentalCoroutinesApi::class)
-@RunWith(RobolectricTestRunner::class)
 class TurnManagerTest {
+
+  private object NoopLog : com.aiopenpocket.agent.core.AgentLog {
+    override fun d(tag: String, message: String) {}
+    override fun w(tag: String, message: String) {}
+    override fun e(tag: String, message: String, error: Throwable?) {}
+  }
 
   private class ScriptedExecutor : TurnExecutor {
     data class Call(val convId: String, val message: String, val mode: AgentMode, val planApproved: Boolean)
@@ -97,6 +97,8 @@ class TurnManagerTest {
     foreground = { inForeground },
     notifier = notifier,
     scope = CoroutineScope(backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)),
+    monotonicNowMs = { 100_000L },
+    log = NoopLog,
   )
 
   @Test

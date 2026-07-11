@@ -2,7 +2,6 @@
 
 // @trace rezhimy-agenta-plan-i-goal-ee2361
 
-import android.app.Application
 import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.loop.PromptMode
@@ -19,7 +18,7 @@ import com.aiopenpocket.di.AppScope
 
 @SingleIn(AppScope::class)
 class PrePromptAssembler @Inject constructor(
-  private val application: Application,
+  private val assets: AssetSource,
   private val memoryRepository: MemoryRepository,
   private val conversationRepository: ConversationRepository,
   private val skillRegistry: SkillRegistry,
@@ -204,9 +203,7 @@ class PrePromptAssembler @Inject constructor(
       )
     }
 
-  private fun loadAsset(path: String): String? = runCatching {
-    application.assets.open(path).bufferedReader().use { it.readText() }
-  }.getOrNull()
+  private fun loadAsset(path: String): String? = assets.load(path)
 
   /** Грузит секцию системного промпта для режима агента (план-/гоал-мод). NONE → null. */
   private fun loadModePrompt(promptMode: PromptMode): String? {
