@@ -180,7 +180,7 @@ private fun CapabilityChip(label: String) {
 }
 
 /** Человекочитаемые ярлыки инструментов агента — его «оснащение». Неизвестные имена пропускаем. */
-private fun capabilityLabels(toolNames: Set<String>): List<String> =
+internal fun capabilityLabels(toolNames: Set<String>): List<String> =
   toolNames.mapNotNull { tool ->
     when (tool) {
       "memory_tool" -> "Память"
@@ -197,7 +197,7 @@ private fun capabilityLabels(toolNames: Set<String>): List<String> =
     }
   }.distinct()
 
-private fun iconFor(key: String): ImageVector = when (key) {
+internal fun iconFor(key: String): ImageVector = when (key) {
   "wallet" -> Icons.Default.AccountBalanceWallet
   "translate" -> Icons.Default.Translate
   "checklist" -> Icons.Default.Checklist
