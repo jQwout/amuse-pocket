@@ -10,8 +10,8 @@
       "git": "afd92b7"
     },
     "ai-academy-onboarding-5d51bb": {
-      "hash": "969556971570",
-      "git": "86873a5"
+      "hash": "0de06fbb4ed2",
+      "git": "375e2ec"
     },
     "app-settings-beb470": {
       "hash": "a1c8fc4e76a7",
@@ -46,8 +46,8 @@
       "git": "660f68b"
     },
     "multi-agent-orchestration-27b8e3": {
-      "hash": "9e2b2bc64d4b",
-      "git": "f3d7ef0"
+      "hash": "694d7c29ad0b",
+      "git": "375e2ec"
     },
     "multi-chat-conversations-b3c93b": {
       "hash": "5bb7ee8f4da9",
@@ -62,12 +62,12 @@
       "git": "9c9b98e"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "dc83eb26f5a1",
-      "git": "ac4c94c"
+      "hash": "5626154343ef",
+      "git": "375e2ec"
     },
     "swappable-persona-e5e65e": {
-      "hash": "ac831590d00d",
-      "git": "afd92b7"
+      "hash": "1a8a33f5efe8",
+      "git": "375e2ec"
     },
     "uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2": {
       "hash": "3d5a53386936",
