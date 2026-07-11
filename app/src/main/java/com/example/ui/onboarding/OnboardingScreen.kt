@@ -31,9 +31,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.ui.components.glass.GlassState
+import com.aiopenpocket.ui.components.glass.GlassSurface
+import com.aiopenpocket.ui.components.glass.auroraBackground
+import com.aiopenpocket.ui.components.glass.glassSource
+import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.onboarding.components.AboutMeStep
 import com.aiopenpocket.ui.onboarding.components.IntroStreamingStep
 import com.aiopenpocket.ui.onboarding.components.LanguageSelectionStep
@@ -78,9 +84,11 @@ fun OnboardingScreen(
     )
 }
 
+// internal (not private): the Task 5 glass screenshot test renders this directly on fake
+// OnboardingUiState — it takes no ViewModel, so a harness composable would just duplicate it.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun OnboardingContent(
+internal fun OnboardingContent(
     state: OnboardingUiState,
     editMode: Boolean,
     onClose: (() -> Unit)?,
@@ -98,39 +106,44 @@ private fun OnboardingContent(
         return
     }
 
+    val glassState = rememberGlassState()
     val stepIndex = ONBOARDING_STEP_ORDER.indexOf(state.currentStep).coerceAtLeast(0)
     val progress = (stepIndex + 1) / ONBOARDING_STEP_ORDER.size.toFloat()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(if (editMode) "Настройки урока 1" else "Настройка") },
-                navigationIcon = {
-                    if (editMode) {
-                        IconButton(onClick = { onClose?.invoke() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Закрыть")
+    Box(Modifier.fillMaxSize().auroraBackground()) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                TopAppBar(
+                    title = { Text(if (editMode) "Настройки урока 1" else "Настройка") },
+                    navigationIcon = {
+                        if (editMode) {
+                            IconButton(onClick = { onClose?.invoke() }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Закрыть")
+                            }
                         }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
-            )
-        },
-        bottomBar = { OnboardingBottomBar(state = state, onIntent = onIntent) },
-    ) { padding ->
-        Column(modifier = Modifier
-          .fillMaxSize()
-          .padding(padding)) {
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OnboardingStepBody(
-                state = state,
-                onIntent = onIntent,
-                modifier = Modifier.weight(1f),
-            )
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                    ),
+                )
+            },
+            bottomBar = { OnboardingBottomBar(state = state, glassState = glassState, onIntent = onIntent) },
+        ) { padding ->
+            Column(modifier = Modifier
+              .fillMaxSize()
+              .padding(padding)
+              .glassSource(glassState)) {
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OnboardingStepBody(
+                    state = state,
+                    onIntent = onIntent,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }
@@ -138,42 +151,45 @@ private fun OnboardingContent(
 @Composable
 private fun OnboardingBottomBar(
     state: OnboardingUiState,
+    glassState: GlassState,
     onIntent: (OnboardingIntent) -> Unit,
 ) {
-    Column(modifier = Modifier
-      .fillMaxWidth()
-      .padding(16.dp)) {
-        state.error?.let {
-            Text(
-                text = it,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
-        }
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            if (state.currentStep != OnboardingStep.LANGUAGE) {
-                TextButton(
-                    onClick = { onIntent(OnboardingIntent.PreviousStep) },
-                    modifier = Modifier.testTag("onboarding_back"),
-                ) { Text("Назад") }
+    GlassSurface(state = glassState, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier
+          .fillMaxWidth()
+          .padding(16.dp)) {
+            state.error?.let {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
             }
-            Box(modifier = Modifier.weight(1f))
-            AnimatedVisibility(
-                visible = state.canProceed || state.currentStep != OnboardingStep.INTRO,
-                enter = fadeIn(),
-            ) {
-                Button(
-                    onClick = { onIntent(OnboardingIntent.NextStep) },
-                    enabled = state.canProceed,
-                    modifier = Modifier.testTag("onboarding_next"),
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                if (state.currentStep != OnboardingStep.LANGUAGE) {
+                    TextButton(
+                        onClick = { onIntent(OnboardingIntent.PreviousStep) },
+                        modifier = Modifier.testTag("onboarding_back"),
+                    ) { Text("Назад") }
+                }
+                Box(modifier = Modifier.weight(1f))
+                AnimatedVisibility(
+                    visible = state.canProceed || state.currentStep != OnboardingStep.INTRO,
+                    enter = fadeIn(),
                 ) {
-                    if (state.isSaving) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.padding(end = 8.dp),
-                            strokeWidth = 2.dp,
-                        )
+                    Button(
+                        onClick = { onIntent(OnboardingIntent.NextStep) },
+                        enabled = state.canProceed,
+                        modifier = Modifier.testTag("onboarding_next"),
+                    ) {
+                        if (state.isSaving) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.padding(end = 8.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        }
+                        Text(state.primaryButtonLabel)
                     }
-                    Text(state.primaryButtonLabel)
                 }
             }
         }

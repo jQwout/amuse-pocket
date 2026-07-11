@@ -4,7 +4,6 @@ package com.aiopenpocket.ui.onboarding.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,9 +34,9 @@ import com.aiopenpocket.agent.core.persona.PersonaCatalog
 import com.aiopenpocket.agent.core.persona.PersonaInfo
 import com.aiopenpocket.agent.core.persona.PersonaQuote
 import com.aiopenpocket.agent.core.persona.PersonaStats
+import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.theme.BorderDark
 import com.aiopenpocket.ui.theme.MyApplicationTheme
-import com.aiopenpocket.ui.theme.PersonaCardBg
 import com.aiopenpocket.ui.theme.PersonaQuoteBg
 import com.aiopenpocket.ui.theme.PurpleAccent
 
@@ -49,6 +48,8 @@ fun PersonaCard(
   modifier: Modifier = Modifier,
 ) {
   val shape = RoundedCornerShape(12.dp)
+  // GlassCard's own blick border carries the resting look; the selected card layers a 1.5dp
+  // accent border on top of it (same technique as LanguageSelectionStep).
   val borderModifier = if (isSelected) {
     Modifier.border(1.5.dp, PurpleAccent, shape)
   } else {
@@ -58,34 +59,38 @@ fun PersonaCard(
   Box(
     modifier = modifier
       .fillMaxWidth()
-      .padding(horizontal = 16.dp, vertical = 6.dp)
-      .clip(shape)
-      .then(borderModifier)
-      .background(PersonaCardBg, shape)
-      .clickable(onClick = onSelect)
-      .testTag("persona_card_${persona.id}"),
+      .padding(horizontal = 16.dp, vertical = 6.dp),
   ) {
-    Column(modifier = Modifier.padding(16.dp)) {
-      Text(
-        text = persona.displayName,
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.onSurface,
-      )
-      Text(
-        text = persona.tone,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(top = 4.dp),
-      )
+    GlassCard(
+      onClick = onSelect,
+      shape = shape,
+      modifier = Modifier
+        .fillMaxWidth()
+        .then(borderModifier)
+        .testTag("persona_card_${persona.id}"),
+    ) {
+      Column(modifier = Modifier.padding(16.dp)) {
+        Text(
+          text = persona.displayName,
+          style = MaterialTheme.typography.titleMedium,
+          color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+          text = persona.tone,
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.padding(top = 4.dp),
+        )
 
-      Spacer(modifier = Modifier.height(14.dp))
-      StatsBlock(persona.stats)
+        Spacer(modifier = Modifier.height(14.dp))
+        StatsBlock(persona.stats)
 
-      Spacer(modifier = Modifier.height(14.dp))
-      PerksRow(persona.perks)
+        Spacer(modifier = Modifier.height(14.dp))
+        PerksRow(persona.perks)
 
-      Spacer(modifier = Modifier.height(12.dp))
-      QuotesBlock(persona.quotes)
+        Spacer(modifier = Modifier.height(12.dp))
+        QuotesBlock(persona.quotes)
+      }
     }
 
     if (isSelected) {

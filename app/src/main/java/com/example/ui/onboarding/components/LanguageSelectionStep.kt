@@ -2,10 +2,7 @@ package com.aiopenpocket.ui.onboarding.components
 
 // @trace ai-academy-onboarding-5d51bb
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,11 +20,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.ui.components.glass.GlassCard
+import com.aiopenpocket.ui.theme.GlassTokens
 import com.aiopenpocket.ui.theme.MyApplicationTheme
+import com.aiopenpocket.ui.theme.PurpleAccent
 
 /** One selectable language. Only [enabled] languages can be picked (RU only for now). */
 private data class LanguageOption(
@@ -67,55 +66,67 @@ fun LanguageSelectionStep(
 
     LANGUAGES.forEach { lang ->
       val isSelected = lang.code == selectedLanguage
-      val border = if (isSelected) {
-        BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+      val shape = RoundedCornerShape(14.dp)
+      // GlassCard's own blick border is enough for the resting look; the selected row layers a
+      // 2dp primary accent border on top of it (same technique as PersonaCard).
+      val selectedBorderModifier = if (isSelected) {
+        Modifier.border(2.dp, MaterialTheme.colorScheme.primary, shape)
       } else {
-        BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+        Modifier
       }
-      Row(
+      // Disabled languages ("Скоро") stay inert — no onClick at all, same as the old
+      // clickable(enabled = lang.enabled).
+      val onLanguageClick: (() -> Unit)? = if (lang.enabled) {
+        { onSelectLanguage(lang.code) }
+      } else {
+        null
+      }
+      GlassCard(
+        onClick = onLanguageClick,
+        shape = shape,
+        tint = if (isSelected) PurpleAccent.copy(alpha = 0.18f) else GlassTokens.LightTint,
         modifier = Modifier
           .fillMaxWidth()
           .padding(vertical = 6.dp)
-          .clip(RoundedCornerShape(14.dp))
-          .border(border, RoundedCornerShape(14.dp))
-          .background(
-            if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-            else MaterialTheme.colorScheme.surface,
-          )
-          .clickable(enabled = lang.enabled) { onSelectLanguage(lang.code) }
-          .padding(horizontal = 16.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
+          .then(selectedBorderModifier),
       ) {
-        Text(text = lang.flag, style = MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.size(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-          Text(
-            text = lang.title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-            color = if (lang.enabled) MaterialTheme.colorScheme.onSurface
-            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-          )
-          if (!lang.enabled) {
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Text(text = lang.flag, style = MaterialTheme.typography.headlineSmall)
+          Spacer(Modifier.size(12.dp))
+          Column(modifier = Modifier.weight(1f)) {
             Text(
-              text = "Скоро",
-              style = MaterialTheme.typography.labelSmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+              text = lang.title,
+              style = MaterialTheme.typography.titleMedium,
+              fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+              color = if (lang.enabled) MaterialTheme.colorScheme.onSurface
+              else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+            )
+            if (!lang.enabled) {
+              Text(
+                text = "Скоро",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+              )
+            }
+          }
+          when {
+            isSelected -> Icon(
+              Icons.Default.Check,
+              contentDescription = "Выбрано",
+              tint = MaterialTheme.colorScheme.primary,
+            )
+            !lang.enabled -> Icon(
+              Icons.Default.Lock,
+              contentDescription = "Недоступно",
+              tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+              modifier = Modifier.size(18.dp),
             )
           }
-        }
-        when {
-          isSelected -> Icon(
-            Icons.Default.Check,
-            contentDescription = "Выбрано",
-            tint = MaterialTheme.colorScheme.primary,
-          )
-          !lang.enabled -> Icon(
-            Icons.Default.Lock,
-            contentDescription = "Недоступно",
-            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
-            modifier = Modifier.size(18.dp),
-          )
         }
       }
     }
