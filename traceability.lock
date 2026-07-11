@@ -1,6 +1,10 @@
 {
   "version": 1,
   "features": {
+    "agent-inspector-6e41eb": {
+      "hash": "38d9e7818342",
+      "git": "661d682"
+    },
     "agent-memory-05e545": {
       "hash": "c99dfcc31010",
       "git": "660f68b"
@@ -38,16 +42,16 @@
       "git": "192be33"
     },
     "heartbeat-napominalki-agenta-5f0442": {
-      "hash": "e06b57fa94a6",
-      "git": "bf62059"
+      "hash": "a9fbf9186af8",
+      "git": "661d682"
     },
     "mcp-tools-f77d9b": {
       "hash": "be3b403e9dfd",
       "git": "660f68b"
     },
     "multi-agent-orchestration-27b8e3": {
-      "hash": "694d7c29ad0b",
-      "git": "375e2ec"
+      "hash": "c69bc750f09b",
+      "git": "661d682"
     },
     "multi-chat-conversations-b3c93b": {
       "hash": "5bb7ee8f4da9",
