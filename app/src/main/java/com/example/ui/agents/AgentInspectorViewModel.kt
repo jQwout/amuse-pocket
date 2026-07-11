@@ -1,5 +1,7 @@
 package com.aiopenpocket.ui.agents
 
+// @trace agent-inspector-6e41eb
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.memory.dao.HeartbeatDao

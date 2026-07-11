@@ -1,5 +1,7 @@
 package com.aiopenpocket.ui.agents
 
+// @trace agent-inspector-6e41eb
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
