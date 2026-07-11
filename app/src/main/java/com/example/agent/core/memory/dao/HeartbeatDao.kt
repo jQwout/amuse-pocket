@@ -24,6 +24,9 @@ interface HeartbeatDao {
   @Query("SELECT * FROM heartbeats WHERE status = 'scheduled' ORDER BY createdAt DESC")
   suspend fun listActive(): List<HeartbeatEntity>
 
+  @Query("SELECT * FROM heartbeats WHERE agentId = :agentId AND status = 'scheduled' ORDER BY createdAt DESC")
+  fun observeActiveByAgent(agentId: String): Flow<List<HeartbeatEntity>>
+
   @Query("UPDATE heartbeats SET status = :status WHERE id = :id")
   suspend fun setStatus(id: String, status: String)
 

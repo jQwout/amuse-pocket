@@ -35,11 +35,16 @@ class HeartbeatDaoTest {
   @After
   fun tearDown() = db.close()
 
-  private fun hb(id: String = "hb1", status: String = "scheduled") = HeartbeatEntity(
+  private fun hb(
+    id: String = "hb1",
+    status: String = "scheduled",
+    agentId: String? = null,
+  ) = HeartbeatEntity(
     id = id,
     title = "Проверка бюджета",
     mode = "agent",
     prompt = "проверь бюджет",
+    agentId = agentId,
     conversationId = "conv1",
     kind = "periodic",
     intervalMinutes = 30,
@@ -82,5 +87,23 @@ class HeartbeatDaoTest {
   @Test
   fun `getById returns null for unknown id`() = runTest {
     assertNull(dao.getById("nope"))
+  }
+
+  @Test
+  fun `observeActiveByAgent returns only scheduled heartbeats for given agent`() = runTest {
+    dao.insert(hb(id = "b1", agentId = "budget"))
+    dao.insert(hb(id = "b2", agentId = "budget"))
+    dao.insert(hb(id = "d1", agentId = "diary"))
+    dao.insert(hb(id = "n1", agentId = null))
+
+    val active = dao.observeActiveByAgent("budget").first()
+
+    assertEquals(2, active.size)
+    assertEquals(true, active.all { it.agentId == "budget" })
+
+    dao.insert(hb(id = "b3", agentId = "budget", status = "cancelled"))
+    val stillActive = dao.observeActiveByAgent("budget").first()
+
+    assertEquals(2, stillActive.size)
   }
 }
