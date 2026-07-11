@@ -49,18 +49,20 @@ import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.memory.model.Conversation
 import com.aiopenpocket.ui.components.AcademyBottomNav
 import com.aiopenpocket.ui.components.AcademyTab
+import com.aiopenpocket.ui.components.glass.GlassCard
+import com.aiopenpocket.ui.components.glass.auroraBackground
+import com.aiopenpocket.ui.components.glass.glassSource
+import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.conversations.ConversationsListViewModel
 import com.aiopenpocket.ui.roadmap.ROADMAP_LEVELS
 import com.aiopenpocket.ui.roadmap.RoadmapViewModel
 import com.aiopenpocket.ui.theme.CardDark
-import com.aiopenpocket.ui.theme.PersonaQuoteBg
+import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.ui.theme.PurpleAccent
 import com.aiopenpocket.ui.theme.PurpleAccentDark
 import com.aiopenpocket.ui.util.formatRelativeDate
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import kotlinx.coroutines.launch
-
-private val CardShape = RoundedCornerShape(20.dp)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,6 +75,7 @@ fun HomeScreen(
   onNavigateToSettings: () -> Unit,
   onNavigateToAgents: () -> Unit,
 ) {
+  val glassState = rememberGlassState()
   val conversationsViewModel: ConversationsListViewModel = metroViewModel()
   val roadmapViewModel: RoadmapViewModel = metroViewModel()
   val conversationsState by conversationsViewModel.state.collectAsState()
@@ -99,128 +102,132 @@ fun HomeScreen(
     Unit
   }
 
-  Scaffold(
-    containerColor = PersonaQuoteBg,
-    topBar = {
-      TopAppBar(
-        title = {
-          Text(
-            text = "AI Academy",
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+  Box(Modifier.fillMaxSize().auroraBackground()) {
+    Scaffold(
+      containerColor = Color.Transparent,
+      topBar = {
+        TopAppBar(
+          title = {
+            Text(
+              text = "AI Academy",
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
+            )
+          },
+          colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = Color.Transparent,
+            scrolledContainerColor = Color.Transparent,
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            actionIconContentColor = MaterialTheme.colorScheme.onSurface,
+          ),
+          actions = {
+        IconButton(onClick = onNavigateToConversations) {
+          Icon(
+            imageVector = Icons.Default.History,
+            contentDescription = "История чатов",
+            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
           )
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-          containerColor = PersonaQuoteBg,
-          scrolledContainerColor = PersonaQuoteBg,
-          titleContentColor = MaterialTheme.colorScheme.onSurface,
-          actionIconContentColor = MaterialTheme.colorScheme.onSurface,
-        ),
-        actions = {
-      IconButton(onClick = onNavigateToConversations) {
-        Icon(
-          imageVector = Icons.Default.History,
-          contentDescription = "История чатов",
-          tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-        )
-      }
-      Box(
-        modifier = Modifier
-          .size(40.dp)
-          .clip(CircleShape)
-          .border(2.dp, PurpleAccent, CircleShape)
-          .background(PurpleAccentDark)
-          .clickable(onClick = onNavigateToSettings),
-        contentAlignment = Alignment.Center,
-      ) {
-        Icon(
-          imageVector = Icons.Default.Person,
-          contentDescription = "Профиль",
-          tint = PurpleAccent,
-          modifier = Modifier.size(22.dp),
-        )
-      }
-      Spacer(modifier = Modifier.size(12.dp))
-        },
-      )
-    },
-    bottomBar = {
-      AcademyBottomNav(
-        selectedTab = AcademyTab.Chat,
-        onTabSelected = { tab ->
-          when (tab) {
-            AcademyTab.Chat -> Unit
-            AcademyTab.Path -> onNavigateToRoadmap()
-            AcademyTab.Tools -> onNavigateToSettings()
-          }
-        },
-      )
-    },
-  ) { padding ->
-    LazyColumn(
-      modifier = Modifier
-        .fillMaxSize()
-        .padding(padding)
-        .padding(horizontal = 20.dp),
-      contentPadding = PaddingValues(top = 4.dp, bottom = 12.dp),
-    ) {
-      item {
-        Spacer(modifier = Modifier.height(8.dp))
-        HomeHero()
-        Spacer(modifier = Modifier.height(28.dp))
-      }
-      item {
-        NewChatCard(onClick = openNewChat)
-        Spacer(modifier = Modifier.height(12.dp))
-        AgentsEntryCard(onClick = onNavigateToAgents)
-        Spacer(modifier = Modifier.height(28.dp))
-      }
-
-      item {
-        SectionHeader(
-          title = "НЕДАВНИЕ ЧАТЫ",
-          actionLabel = "Все",
-          onAction = onNavigateToConversations,
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-      }
-      if (recentChats.isEmpty()) {
-        item { EmptyHint(text = "Здесь появятся ваши недавние чаты.") }
-      } else {
-        items(recentChats, key = { it.id }) { chat ->
-          RecentChatCard(chat = chat, onClick = { onOpenChat(chat.id) })
-          Spacer(modifier = Modifier.height(10.dp))
         }
-      }
-
-      item {
-        Spacer(modifier = Modifier.height(20.dp))
-        SectionHeader(
-          title = "ПРОДОЛЖИТЬ ОБУЧЕНИЕ",
-          actionLabel = "Все курсы",
-          onAction = onNavigateToLibrary,
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-      }
-      item {
-        CourseCard(
-          category = "AGENT PATH",
-          title = "Путь агента",
-          description = "Освой оркестрацию AI через пошаговую программу обучения.",
-          progress = overallProgress,
-          onClick = onNavigateToRoadmap,
-        )
-      }
-      if (currentLevel != null) {
-        item {
-          Spacer(modifier = Modifier.height(12.dp))
-          CourseCard(
-            category = "СЛЕДУЮЩИЙ УРОК · ${currentLevelIndex + 1} ИЗ ${ROADMAP_LEVELS.size}",
-            title = currentLevel.title,
-            description = currentLevel.description,
-            progress = overallProgress,
-            onClick = { roadmapViewModel.openLesson(currentLevel.id, onOpenLessonChat) },
+        Box(
+          modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .border(2.dp, PurpleAccent, CircleShape)
+            .background(PurpleAccentDark)
+            .clickable(onClick = onNavigateToSettings),
+          contentAlignment = Alignment.Center,
+        ) {
+          Icon(
+            imageVector = Icons.Default.Person,
+            contentDescription = "Профиль",
+            tint = PurpleAccent,
+            modifier = Modifier.size(22.dp),
           )
+        }
+        Spacer(modifier = Modifier.size(12.dp))
+          },
+        )
+      },
+      bottomBar = {
+        AcademyBottomNav(
+          selectedTab = AcademyTab.Chat,
+          onTabSelected = { tab ->
+            when (tab) {
+              AcademyTab.Chat -> Unit
+              AcademyTab.Path -> onNavigateToRoadmap()
+              AcademyTab.Tools -> onNavigateToSettings()
+            }
+          },
+          glassState = glassState,
+        )
+      },
+    ) { padding ->
+      LazyColumn(
+        modifier = Modifier
+          .fillMaxSize()
+          .padding(padding)
+          .padding(horizontal = 20.dp)
+          .glassSource(glassState),
+        contentPadding = PaddingValues(top = 4.dp, bottom = 12.dp),
+      ) {
+        item {
+          Spacer(modifier = Modifier.height(8.dp))
+          HomeHero()
+          Spacer(modifier = Modifier.height(28.dp))
+        }
+        item {
+          NewChatCard(onClick = openNewChat)
+          Spacer(modifier = Modifier.height(12.dp))
+          AgentsEntryCard(onClick = onNavigateToAgents)
+          Spacer(modifier = Modifier.height(28.dp))
+        }
+
+        item {
+          SectionHeader(
+            title = "НЕДАВНИЕ ЧАТЫ",
+            actionLabel = "Все",
+            onAction = onNavigateToConversations,
+          )
+          Spacer(modifier = Modifier.height(12.dp))
+        }
+        if (recentChats.isEmpty()) {
+          item { EmptyHint(text = "Здесь появятся ваши недавние чаты.") }
+        } else {
+          items(recentChats, key = { it.id }) { chat ->
+            RecentChatCard(chat = chat, onClick = { onOpenChat(chat.id) })
+            Spacer(modifier = Modifier.height(10.dp))
+          }
+        }
+
+        item {
+          Spacer(modifier = Modifier.height(20.dp))
+          SectionHeader(
+            title = "ПРОДОЛЖИТЬ ОБУЧЕНИЕ",
+            actionLabel = "Все курсы",
+            onAction = onNavigateToLibrary,
+          )
+          Spacer(modifier = Modifier.height(12.dp))
+        }
+        item {
+          CourseCard(
+            category = "AGENT PATH",
+            title = "Путь агента",
+            description = "Освой оркестрацию AI через пошаговую программу обучения.",
+            progress = overallProgress,
+            onClick = onNavigateToRoadmap,
+          )
+        }
+        if (currentLevel != null) {
+          item {
+            Spacer(modifier = Modifier.height(12.dp))
+            CourseCard(
+              category = "СЛЕДУЮЩИЙ УРОК · ${currentLevelIndex + 1} ИЗ ${ROADMAP_LEVELS.size}",
+              title = currentLevel.title,
+              description = currentLevel.description,
+              progress = overallProgress,
+              onClick = { roadmapViewModel.openLesson(currentLevel.id, onOpenLessonChat) },
+            )
+          }
         }
       }
     }
@@ -266,99 +273,99 @@ private fun HomeHero() {
 
 @Composable
 private fun NewChatCard(onClick: () -> Unit) {
-  Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .clip(CardShape)
-      .background(CardDark)
-      .clickable(onClick = onClick)
-      .padding(16.dp),
-    verticalAlignment = Alignment.CenterVertically,
+  GlassCard(
+    modifier = Modifier.fillMaxWidth(),
+    onClick = onClick,
   ) {
-    Box(
-      modifier = Modifier
-        .size(44.dp)
-        .clip(CircleShape)
-        .background(PurpleAccent),
-      contentAlignment = Alignment.Center,
+    Row(
+      modifier = Modifier.padding(16.dp),
+      verticalAlignment = Alignment.CenterVertically,
     ) {
+      Box(
+        modifier = Modifier
+          .size(44.dp)
+          .clip(CircleShape)
+          .background(PurpleAccent),
+        contentAlignment = Alignment.Center,
+      ) {
+        Icon(
+          imageVector = Icons.Default.AutoAwesome,
+          contentDescription = null,
+          tint = PurpleAccentDark,
+          modifier = Modifier.size(22.dp),
+        )
+      }
+      Column(
+        modifier = Modifier
+          .weight(1f)
+          .padding(horizontal = 14.dp),
+      ) {
+        Text(
+          text = "Новый чат",
+          style = MaterialTheme.typography.titleMedium,
+          color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+          text = "Спросить AI Academy что угодно",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+        )
+      }
       Icon(
-        imageVector = Icons.Default.AutoAwesome,
+        imageVector = Icons.AutoMirrored.Default.KeyboardArrowRight,
         contentDescription = null,
-        tint = PurpleAccentDark,
-        modifier = Modifier.size(22.dp),
+        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
       )
     }
-    Column(
-      modifier = Modifier
-        .weight(1f)
-        .padding(horizontal = 14.dp),
-    ) {
-      Text(
-        text = "Новый чат",
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.onSurface,
-      )
-      Text(
-        text = "Спросить AI Academy что угодно",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
-      )
-    }
-    Icon(
-      imageVector = Icons.AutoMirrored.Default.KeyboardArrowRight,
-      contentDescription = null,
-      tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-    )
   }
 }
 
 @Composable
 private fun AgentsEntryCard(onClick: () -> Unit) {
-  Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .clip(CardShape)
-      .background(CardDark)
-      .clickable(onClick = onClick)
-      .padding(16.dp),
-    verticalAlignment = Alignment.CenterVertically,
+  GlassCard(
+    modifier = Modifier.fillMaxWidth(),
+    onClick = onClick,
   ) {
-    Box(
-      modifier = Modifier
-        .size(44.dp)
-        .clip(CircleShape)
-        .background(PurpleAccentDark),
-      contentAlignment = Alignment.Center,
+    Row(
+      modifier = Modifier.padding(16.dp),
+      verticalAlignment = Alignment.CenterVertically,
     ) {
+      Box(
+        modifier = Modifier
+          .size(44.dp)
+          .clip(CircleShape)
+          .background(PurpleAccentDark),
+        contentAlignment = Alignment.Center,
+      ) {
+        Icon(
+          imageVector = Icons.Default.Hub,
+          contentDescription = null,
+          tint = PurpleAccent,
+          modifier = Modifier.size(22.dp),
+        )
+      }
+      Column(
+        modifier = Modifier
+          .weight(1f)
+          .padding(horizontal = 14.dp),
+      ) {
+        Text(
+          text = "Агенты",
+          style = MaterialTheme.typography.titleMedium,
+          color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+          text = "Специалисты и координатор, который их распределяет",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+        )
+      }
       Icon(
-        imageVector = Icons.Default.Hub,
+        imageVector = Icons.AutoMirrored.Default.KeyboardArrowRight,
         contentDescription = null,
-        tint = PurpleAccent,
-        modifier = Modifier.size(22.dp),
+        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
       )
     }
-    Column(
-      modifier = Modifier
-        .weight(1f)
-        .padding(horizontal = 14.dp),
-    ) {
-      Text(
-        text = "Агенты",
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.onSurface,
-      )
-      Text(
-        text = "Специалисты и координатор, который их распределяет",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
-      )
-    }
-    Icon(
-      imageVector = Icons.AutoMirrored.Default.KeyboardArrowRight,
-      contentDescription = null,
-      tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-    )
   }
 }
 
@@ -392,52 +399,52 @@ private fun SectionHeader(
 
 @Composable
 private fun RecentChatCard(chat: Conversation, onClick: () -> Unit) {
-  Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .clip(CardShape)
-      .background(CardDark)
-      .clickable(onClick = onClick)
-      .padding(14.dp),
-    verticalAlignment = Alignment.CenterVertically,
+  GlassCard(
+    modifier = Modifier.fillMaxWidth(),
+    onClick = onClick,
   ) {
-    Box(
-      modifier = Modifier
-        .size(40.dp)
-        .clip(CircleShape)
-        .background(PurpleAccentDark),
-      contentAlignment = Alignment.Center,
+    Row(
+      modifier = Modifier.padding(14.dp),
+      verticalAlignment = Alignment.CenterVertically,
     ) {
+      Box(
+        modifier = Modifier
+          .size(40.dp)
+          .clip(CircleShape)
+          .background(PurpleAccentDark),
+        contentAlignment = Alignment.Center,
+      ) {
+        Icon(
+          imageVector = Icons.AutoMirrored.Filled.Chat,
+          contentDescription = null,
+          tint = PurpleAccent,
+          modifier = Modifier.size(20.dp),
+        )
+      }
+      Column(
+        modifier = Modifier
+          .weight(1f)
+          .padding(horizontal = 14.dp),
+      ) {
+        Text(
+          text = chat.title,
+          style = MaterialTheme.typography.titleSmall,
+          color = MaterialTheme.colorScheme.onSurface,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+          text = formatRelativeDate(chat.updatedAt),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+        )
+      }
       Icon(
-        imageVector = Icons.AutoMirrored.Filled.Chat,
+        imageVector = Icons.AutoMirrored.Default.KeyboardArrowRight,
         contentDescription = null,
-        tint = PurpleAccent,
-        modifier = Modifier.size(20.dp),
+        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
       )
     }
-    Column(
-      modifier = Modifier
-        .weight(1f)
-        .padding(horizontal = 14.dp),
-    ) {
-      Text(
-        text = chat.title,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.onSurface,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-      )
-      Text(
-        text = formatRelativeDate(chat.updatedAt),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-      )
-    }
-    Icon(
-      imageVector = Icons.AutoMirrored.Default.KeyboardArrowRight,
-      contentDescription = null,
-      tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-    )
   }
 }
 
@@ -449,86 +456,243 @@ private fun CourseCard(
   progress: Float,
   onClick: () -> Unit,
 ) {
-  Column(
-    modifier = Modifier
-      .fillMaxWidth()
-      .clip(CardShape)
-      .background(CardDark)
-      .clickable(onClick = onClick)
-      .padding(18.dp),
+  GlassCard(
+    modifier = Modifier.fillMaxWidth(),
+    onClick = onClick,
   ) {
-    Row(
-      modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.SpaceBetween,
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
+    // GlassCard's own Column has no contentPadding slot in the frozen API, so this inner Column
+    // is the one place that owns the 18dp inset shared by all the stacked children below (not a
+    // redundant copy of the old outer Column, which GlassCard's clip/background/border replaced).
+    Column(modifier = Modifier.padding(18.dp)) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Text(
+          text = category,
+          style = MaterialTheme.typography.labelSmall,
+          color = PurpleAccent,
+        )
+        Icon(
+          imageVector = Icons.AutoMirrored.Default.KeyboardArrowRight,
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+        )
+      }
+      Spacer(modifier = Modifier.height(10.dp))
       Text(
-        text = category,
-        style = MaterialTheme.typography.labelSmall,
-        color = PurpleAccent,
+        text = title,
+        style = MaterialTheme.typography.titleLarge,
+        color = MaterialTheme.colorScheme.onSurface,
       )
-      Icon(
-        imageVector = Icons.AutoMirrored.Default.KeyboardArrowRight,
-        contentDescription = null,
-        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-      )
-    }
-    Spacer(modifier = Modifier.height(10.dp))
-    Text(
-      text = title,
-      style = MaterialTheme.typography.titleLarge,
-      color = MaterialTheme.colorScheme.onSurface,
-    )
-    Spacer(modifier = Modifier.height(4.dp))
-    Text(
-      text = description,
-      style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-      maxLines = 2,
-      overflow = TextOverflow.Ellipsis,
-    )
-    Spacer(modifier = Modifier.height(16.dp))
-    Row(
-      modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
+      Spacer(modifier = Modifier.height(4.dp))
       Text(
-        text = "Прогресс",
-        style = MaterialTheme.typography.labelMedium,
+        text = description,
+        style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
       )
-      Text(
-        text = "${(progress.coerceIn(0f, 1f) * 100).toInt()}%",
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+      Spacer(modifier = Modifier.height(16.dp))
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+      ) {
+        Text(
+          text = "Прогресс",
+          style = MaterialTheme.typography.labelMedium,
+          color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+        )
+        Text(
+          text = "${(progress.coerceIn(0f, 1f) * 100).toInt()}%",
+          style = MaterialTheme.typography.labelMedium,
+          color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+        )
+      }
+      Spacer(modifier = Modifier.height(8.dp))
+      LinearProgressIndicator(
+        progress = { progress.coerceIn(0f, 1f) },
+        modifier = Modifier
+          .fillMaxWidth()
+          .height(6.dp)
+          .clip(RoundedCornerShape(3.dp)),
+        color = PurpleAccent,
+        trackColor = Color(0xFF3D3A45),
       )
     }
-    Spacer(modifier = Modifier.height(8.dp))
-    LinearProgressIndicator(
-      progress = { progress.coerceIn(0f, 1f) },
-      modifier = Modifier
-        .fillMaxWidth()
-        .height(6.dp)
-        .clip(RoundedCornerShape(3.dp)),
-      color = PurpleAccent,
-      trackColor = Color(0xFF3D3A45),
-    )
   }
 }
 
 @Composable
 private fun EmptyHint(text: String) {
-  Box(
-    modifier = Modifier
-      .fillMaxWidth()
-      .clip(CardShape)
-      .background(CardDark)
-      .padding(18.dp),
-  ) {
+  GlassCard(modifier = Modifier.fillMaxWidth()) {
     Text(
       text = text,
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+      modifier = Modifier.padding(18.dp),
     )
+  }
+}
+
+// ==================================================================================================
+// Превью экрана Home (скриншот-тесты). Тот же визуальный каркас (аврора/GlassCard/GlassSurface-нав),
+// что и в бою, собранный из тех же file-private карточек ([NewChatCard]/[AgentsEntryCard]/
+// [RecentChatCard]/[CourseCard]/[EmptyHint]/[HomeHero]/[SectionHeader]), но с фейковыми данными
+// вместо ViewModel — [HomeScreen] тянет обе VM через metroViewModel(), которому в Robolectric/
+// @Preview неоткуда взять DI-граф. Паттерн — как у ChatPreviewScaffold (ChatScreen.kt).
+// ==================================================================================================
+
+private fun previewConversation(id: String, title: String, updatedAt: Long) = Conversation(
+  id = id,
+  title = title,
+  createdAt = updatedAt,
+  updatedAt = updatedAt,
+  personaId = "preview",
+  summary = null,
+)
+
+internal val previewRecentChats = listOf(
+  previewConversation("c1", "Как работает RAG?", 3_000L),
+  previewConversation("c2", "План на неделю", 2_000L),
+  previewConversation("c3", "Отладка агента", 1_000L),
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun HomePreviewScaffold(
+  recentChats: List<Conversation> = previewRecentChats,
+) {
+  val overallProgress = 0.4f
+  val currentLevelIndex = 2
+  val currentLevel = ROADMAP_LEVELS.getOrNull(currentLevelIndex)
+
+  MyApplicationTheme {
+    val glassState = rememberGlassState()
+    Box(Modifier.fillMaxSize().auroraBackground()) {
+      Scaffold(
+        containerColor = Color.Transparent,
+        topBar = {
+          TopAppBar(
+            title = {
+              Text(
+                text = "AI Academy",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+              )
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+              containerColor = Color.Transparent,
+              scrolledContainerColor = Color.Transparent,
+              titleContentColor = MaterialTheme.colorScheme.onSurface,
+              actionIconContentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            actions = {
+              IconButton(onClick = {}) {
+                Icon(
+                  imageVector = Icons.Default.History,
+                  contentDescription = "История чатов",
+                  tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                )
+              }
+              Box(
+                modifier = Modifier
+                  .size(40.dp)
+                  .clip(CircleShape)
+                  .border(2.dp, PurpleAccent, CircleShape)
+                  .background(PurpleAccentDark)
+                  .clickable(onClick = {}),
+                contentAlignment = Alignment.Center,
+              ) {
+                Icon(
+                  imageVector = Icons.Default.Person,
+                  contentDescription = "Профиль",
+                  tint = PurpleAccent,
+                  modifier = Modifier.size(22.dp),
+                )
+              }
+              Spacer(modifier = Modifier.size(12.dp))
+            },
+          )
+        },
+        bottomBar = {
+          AcademyBottomNav(
+            selectedTab = AcademyTab.Chat,
+            onTabSelected = {},
+            glassState = glassState,
+          )
+        },
+      ) { padding ->
+        LazyColumn(
+          modifier = Modifier
+            .fillMaxSize()
+            .padding(padding)
+            .padding(horizontal = 20.dp)
+            .glassSource(glassState),
+          contentPadding = PaddingValues(top = 4.dp, bottom = 12.dp),
+        ) {
+          item {
+            Spacer(modifier = Modifier.height(8.dp))
+            HomeHero()
+            Spacer(modifier = Modifier.height(28.dp))
+          }
+          item {
+            NewChatCard(onClick = {})
+            Spacer(modifier = Modifier.height(12.dp))
+            AgentsEntryCard(onClick = {})
+            Spacer(modifier = Modifier.height(28.dp))
+          }
+
+          item {
+            SectionHeader(
+              title = "НЕДАВНИЕ ЧАТЫ",
+              actionLabel = "Все",
+              onAction = {},
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+          }
+          if (recentChats.isEmpty()) {
+            item { EmptyHint(text = "Здесь появятся ваши недавние чаты.") }
+          } else {
+            items(recentChats, key = { it.id }) { chat ->
+              RecentChatCard(chat = chat, onClick = {})
+              Spacer(modifier = Modifier.height(10.dp))
+            }
+          }
+
+          item {
+            Spacer(modifier = Modifier.height(20.dp))
+            SectionHeader(
+              title = "ПРОДОЛЖИТЬ ОБУЧЕНИЕ",
+              actionLabel = "Все курсы",
+              onAction = {},
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+          }
+          item {
+            CourseCard(
+              category = "AGENT PATH",
+              title = "Путь агента",
+              description = "Освой оркестрацию AI через пошаговую программу обучения.",
+              progress = overallProgress,
+              onClick = {},
+            )
+          }
+          if (currentLevel != null) {
+            item {
+              Spacer(modifier = Modifier.height(12.dp))
+              CourseCard(
+                category = "СЛЕДУЮЩИЙ УРОК · ${currentLevelIndex + 1} ИЗ ${ROADMAP_LEVELS.size}",
+                title = currentLevel.title,
+                description = currentLevel.description,
+                progress = overallProgress,
+                onClick = {},
+              )
+            }
+          }
+        }
+      }
+    }
   }
 }
