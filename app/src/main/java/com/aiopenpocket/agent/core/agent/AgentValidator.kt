@@ -34,10 +34,12 @@ object AgentValidator {
   const val MAX_DESCRIPTION_CHARS = 240
 
   /**
-   * Cap for a custom skill's inline instruction body. Not enforced by [validate] yet —
-   * [AgentDefinition] only carries skill *ids* ([AgentDefinition.skillIds]); this limit applies to
-   * the user-authored skill *content* a later task's custom skill entity/validator will check.
-   * Declared now (with the rest of the v1 limits) so its value is frozen ahead of that task.
+   * Cap for a custom skill's inline instruction body. Not enforced by [validate] — [AgentDefinition]
+   * only carries skill *ids* ([AgentDefinition.skillIds]), never skill *content* — but by
+   * `com.aiopenpocket.agent.core.skill.validateUserSkill(UserSkillEntity)` (Task 4), which runs
+   * against the real `UserSkillEntity.instructionsMarkdown` inside
+   * [UserAgentRepository.publish]'s transaction. Declared here (with the rest of the v1 limits) so
+   * its value stays the single frozen source both validators agree on.
    */
   const val MAX_CUSTOM_SKILL_CHARS = 40_000
 
@@ -69,7 +71,16 @@ object AgentValidator {
     "concept", "example", "fill", "sort", "match", "scenario",
   )
 
-  fun validate(definition: AgentDefinition): List<ValidationIssue> {
+  /**
+   * [ownedCustomSkillIds] — this specific agent's own Room custom skill ids (Task 4's
+   * `user_skills`), passed by [UserAgentRepository.publish] — the only impure caller with Room
+   * access — so a custom agent can reference a skill it authored itself without [validate] itself
+   * touching Room (it stays pure/stateless). Every other caller (tests, [requirePublishable]'s
+   * default) leaves this empty, so a `skillIds` entry that is neither a known built-in nor
+   * explicitly passed here is still `unknown_skill` — unchanged v1 behavior for anyone who hasn't
+   * wired custom skills through yet.
+   */
+  fun validate(definition: AgentDefinition, ownedCustomSkillIds: Set<String> = emptySet()): List<ValidationIssue> {
     val issues = mutableListOf<ValidationIssue>()
 
     if (!ID_REGEX.matches(definition.id)) {
@@ -127,7 +138,7 @@ object AgentValidator {
       }
     }
     for (skill in definition.skillIds) {
-      if (skill !in KNOWN_SKILL_IDS) {
+      if (skill !in KNOWN_SKILL_IDS && skill !in ownedCustomSkillIds) {
         issues += ValidationIssue("unknown_skill", "Неизвестный навык '$skill'", "skillIds")
       }
     }
@@ -146,8 +157,8 @@ object AgentValidator {
    * of caller. Throws [IllegalArgumentException] listing every [validate] issue rather than just
    * the first, matching [validate]'s own "collect everything" philosophy.
    */
-  fun requirePublishable(def: AgentDefinition) {
-    val issues = validate(def)
+  fun requirePublishable(def: AgentDefinition, ownedCustomSkillIds: Set<String> = emptySet()) {
+    val issues = validate(def, ownedCustomSkillIds)
     require(issues.isEmpty()) {
       "Agent '${def.id}' is not publishable: " + issues.joinToString("; ") { "${it.code} (${it.field}): ${it.message}" }
     }

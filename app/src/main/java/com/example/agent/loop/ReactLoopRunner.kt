@@ -1,8 +1,10 @@
 package com.aiopenpocket.agent.loop
 
 // @trace rezhimy-agenta-plan-i-goal-ee2361
+// @trace user-agent-builder-848153
 
 import com.aiopenpocket.agent.core.AgentLog
+import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.llm.LlmClient
@@ -49,8 +51,8 @@ class ReactLoopRunner @Inject constructor(
     tools: List<FunctionSchema>,
     provider: LlmProvider,
     maxIterations: Int = MAX_ITERATIONS,
-    /** Mini-agent bound to this chat, if any — `load_skill` is confined to this agent's own skill. */
-    boundAgentId: String? = null,
+    /** Agent bound to this chat, if any — `load_skill` is confined to this agent's own [AgentDefinition.skillIds]. */
+    agent: AgentDefinition? = null,
     emit: suspend (AgentEvent) -> Unit,
   ): AgentResult {
     val toolTrace = mutableListOf<ToolTrace>()
@@ -132,7 +134,7 @@ class ReactLoopRunner @Inject constructor(
 
         val result = if (tc.name !in allowedToolNames) {
           ToolResult.Error("Tool '${tc.name}' is not available in this context.", recoverable = false)
-        } else if (tc.name == LOAD_SKILL_TOOL && !isSkillAllowed(tc.arguments, boundAgentId)) {
+        } else if (tc.name == LOAD_SKILL_TOOL && !isSkillAllowed(tc.arguments, agent)) {
           ToolResult.Error("Skill not available for this agent")
         } else {
           toolExecutor.execute(tc.name, tc.arguments)
@@ -187,15 +189,16 @@ class ReactLoopRunner @Inject constructor(
   }
 
   /**
-   * A mini-agent may only load its own skill (its [MiniAgent.id] doubles as that skill's id) —
-   * otherwise a chat scoped to e.g. "budget" could load_skill("diary") and pull another domain's
-   * instructions into context. No bound agent (plain chat) is unrestricted. A missing/malformed
-   * `id` argument is let through so [ToolExecutor] surfaces its own "Missing 'id'" error.
+   * An agent may only load a skill listed in its own [AgentDefinition.skillIds] — built-in or its
+   * own Room custom skill — otherwise a chat scoped to e.g. "budget" could load_skill("diary") and
+   * pull another domain's (or another user agent's) instructions into context. No bound agent
+   * (plain chat) is unrestricted. A missing/malformed `id` argument is let through so
+   * [ToolExecutor] surfaces its own "Missing 'id'" error.
    */
-  private fun isSkillAllowed(arguments: Map<String, kotlinx.serialization.json.JsonElement>, boundAgentId: String?): Boolean {
-    if (boundAgentId == null) return true
+  private fun isSkillAllowed(arguments: Map<String, kotlinx.serialization.json.JsonElement>, agent: AgentDefinition?): Boolean {
+    if (agent == null) return true
     val requestedId = (arguments["id"] as? JsonPrimitive)?.content ?: return true
-    return requestedId == boundAgentId
+    return requestedId in agent.skillIds
   }
 
   /**

@@ -6,6 +6,10 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.aiopenpocket.agent.core.AgentLog
+import com.aiopenpocket.agent.core.agent.AgentDefinition
+import com.aiopenpocket.agent.core.agent.AgentMemoryPolicy
+import com.aiopenpocket.agent.core.agent.AgentSource
+import com.aiopenpocket.agent.core.agent.AgentStatus
 import com.aiopenpocket.agent.core.agent.DefaultAgentResolver
 import com.aiopenpocket.agent.core.agent.UserAgentRepository
 import com.aiopenpocket.agent.core.llm.ChatMessage
@@ -14,19 +18,25 @@ import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.StreamEvent
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
+import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolExecutor
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
+import com.aiopenpocket.agent.core.mcp.ToolResult
+import com.aiopenpocket.agent.core.mcp.toolSchema
+import com.aiopenpocket.agent.core.memory.entity.ConversationEntity
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
 import com.aiopenpocket.agent.core.prompt.AssetSource
 import com.aiopenpocket.agent.core.prompt.ConversationAnnotator
 import com.aiopenpocket.agent.core.prompt.PrePromptAssembler
 import com.aiopenpocket.agent.core.skill.SkillRegistry
+import com.aiopenpocket.agent.core.skill.UserSkillRepository
 import com.aiopenpocket.data.database.AppDatabase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonElement
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -83,27 +93,34 @@ class ReflectionOrchestratorTest {
   @After
   fun tearDown() = db.close()
 
-  private fun orchestrator(llm: ScriptedLlm): ReflectionOrchestrator {
+  /** Fake with a real (empty-args) schema, so [ToolRegistry.getSchemasFor] can scope by name. */
+  private class FakeTool(override val name: String) : Tool {
+    override val description = "fake tool $name"
+    override val schema = toolSchema(name, description) {}
+    override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult = ToolResult.Success("ok:$name")
+  }
+
+  private fun orchestrator(llm: ScriptedLlm, toolRegistry: ToolRegistry = ToolRegistry(emptySet())): ReflectionOrchestrator {
     val memoryRepository = MemoryRepository(db.factDao(), db.episodeDao())
     val conversationRepository = ConversationRepository(db.conversationDao(), db.conversationTagDao(), db.messageDao())
     val assembler = PrePromptAssembler(
       assets = AssetSource { null },
       memoryRepository = memoryRepository,
       conversationRepository = conversationRepository,
-      skillRegistry = SkillRegistry(emptySet()),
+      skillRegistry = SkillRegistry(emptySet(), UserSkillRepository(db.userSkillDao())),
       userPreferencesRepository = UserPreferencesRepository(context),
       agentResolver = DefaultAgentResolver(UserAgentRepository(db, db.userAgentDao())),
     )
     val reactLoopRunner = ReactLoopRunner(
       llm,
-      ToolExecutor(ToolRegistry(emptySet())),
-      ToolRegistry(emptySet()),
+      ToolExecutor(toolRegistry),
+      toolRegistry,
       memoryRepository,
       NoopLog,
     )
     return ReflectionOrchestrator(
       llm,
-      ToolRegistry(emptySet()),
+      toolRegistry,
       assembler,
       reactLoopRunner,
       ConversationAnnotator(llm, conversationRepository),
@@ -135,5 +152,54 @@ class ReflectionOrchestratorTest {
     val completed = events.filterIsInstance<AgentEvent.Completed>().singleOrNull()
     assertTrue("финальный ответ должен попасть в транскрипт", completed?.result?.text?.contains("Итоговый ответ") == true)
     assertNull("успешный ход не должен эмитить Error", events.filterIsInstance<AgentEvent.Error>().firstOrNull())
+  }
+
+  @Test
+  fun `REFLECT не обходит scoped allowlist кастомного агента - чужой тул отклоняется в draft-фазе`() = runTest {
+    // Реестр знает ОБА тула (memory_tool + sms), но агент разрешает только memory_tool — до фикса
+    // ReflectionOrchestrator отдавал draft/revise ПОЛНЫЙ registry.getAllSchemas() без учёта agent,
+    // так что sms прошёл бы как «доступный». Именно это и должен резать scoped tools + agent-гейт.
+    val toolRegistry = ToolRegistry(setOf(FakeTool("memory_tool"), FakeTool("sms")))
+    val userAgentRepository = UserAgentRepository(db, db.userAgentDao())
+    val agent = AgentDefinition(
+      id = "my-agent",
+      source = AgentSource.USER,
+      name = "Мой агент",
+      description = "Кастомный агент с одним разрешённым тулом.",
+      iconKey = "sparkles",
+      systemPrompt = "Ты — тестовый агент.",
+      toolNames = setOf("memory_tool"),
+      skillIds = emptySet(),
+      defaultMode = AgentMode.REFLECT,
+      allowedModes = setOf(AgentMode.CHAT, AgentMode.REFLECT),
+      memoryPolicy = AgentMemoryPolicy(namespace = "agent:my-agent:", includeSharedProfile = false),
+      allowedWidgetTemplates = emptySet(),
+      configVersion = 0L,
+      status = AgentStatus.DRAFT,
+    )
+    userAgentRepository.saveDraft(agent)
+    userAgentRepository.publish(agent.id)
+    db.conversationDao().insert(ConversationEntity(id = "c1", title = "T", agentId = agent.id))
+
+    // Черновик «галлюцинирует» вызов sms — тул вне allowlist агента (только memory_tool). Скриптовый
+    // LLM в тесте не смотрит на переданные ему схемы (как и любая модель может унаследовать имя тула
+    // из истории или просто ошибиться) — именно поэтому проверка обязана быть в рантайме цикла, а не
+    // только в том, что модели показали.
+    val llm = ScriptedLlm(
+      listOf(
+        listOf(StreamEvent.ToolCall("call-1", "sms", emptyMap()), StreamEvent.Finish("tool_calls")),
+        textThenStop("черновой ответ"),
+        textThenStop("критика"),
+        textThenStop("Итоговый ответ"),
+      ),
+    )
+
+    val events = orchestrator(llm, toolRegistry).execute("c1", "вопрос").toList()
+
+    val smsCall = events.filterIsInstance<AgentEvent.ToolCompleted>().single { it.name == "sms" }
+    val error = smsCall.result as? ToolResult.Error
+    assertEquals("Tool 'sms' is not available in this context.", error?.message)
+    // Галлюцинация тула — не фатальная ошибка цикла; ход всё равно доходит до Completed.
+    assertTrue(events.filterIsInstance<AgentEvent.Completed>().isNotEmpty())
   }
 }
