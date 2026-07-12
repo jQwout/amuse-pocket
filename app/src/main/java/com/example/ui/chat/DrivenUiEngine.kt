@@ -59,6 +59,12 @@ import java.util.Locale
 
 private val CardSuccessGreen = Color(0xFF4CAF50)
 
+// Светлая подложка под картинками урока. SVG-диаграммы нарисованы «под светлый фон» (серые подписи
+// #9aa0a6 + светлый текст на цветных заливках). После glass-редизайна пузырь ассистента стал
+// прозрачным поверх тёмной ауроры — и прозрачные SVG «пропадали». Фиксированный светлый фон под
+// картинкой возвращает им читаемость в любой теме (тема к SVG не применяется, см. lesson-format.md).
+private val LessonImageBacking = Color(0xFFF4F4F7)
+
 // Defined structures of Templates
 sealed class DrivenUiCard {
     data class TodoList(val title: String, val items: List<TodoItem>) : DrivenUiCard()
@@ -408,6 +414,11 @@ fun RenderDrivenUiCard(
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
             .padding(16.dp)
     ) {
+        // Подложка карточки нарисована сырым Box.background(surfaceVariant), а не Surface, поэтому
+        // LocalContentColor не выставлялся: тексты без явного цвета (ответ reveal/fill, определение
+        // concept, текст example, пункты sort/match) брали ~чёрный дефолт и тонули на тёмном фоне
+        // glass. Задаём контент-цвет surface явно — как сделал бы Surface(color = surfaceVariant).
+        CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant) {
         when (card) {
             is DrivenUiCard.TodoList -> TodoListCardView(card)
             is DrivenUiCard.WeatherCard -> WeatherCardView(card)
@@ -447,6 +458,7 @@ fun RenderDrivenUiCard(
                     )
                 }
             }
+        }
         }
     }
 }
@@ -1185,7 +1197,10 @@ fun ImageCardView(card: DrivenUiCard.ImageCard) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(16f / 9f)
-                    .clip(RoundedCornerShape(12.dp)),
+                    .clip(RoundedCornerShape(12.dp))
+                    // Светлая подложка: прозрачные SVG рисовались «под светлый фон», а после glass
+                    // пузырь стал прозрачным над тёмной ауророй — без неё диаграмма пропадала.
+                    .background(LessonImageBacking),
                 onError = {
                     // Ассет не загрузился — пробуем сетевой URL, если он задан и ещё не пробовали.
                     if (!useFallback && assetData != null && urlData != null) useFallback = true
