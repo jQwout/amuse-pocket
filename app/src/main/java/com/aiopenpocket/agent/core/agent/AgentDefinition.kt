@@ -49,6 +49,13 @@ data class AgentDefinition(
   val memoryPolicy: AgentMemoryPolicy,
   val allowedWidgetTemplates: Set<String>,
   val hooks: List<AgentHook> = emptyList(),
+  /**
+   * Key prefixes whose facts get injected into the prompt as this agent's persistent state (see
+   * `PrePromptAssembler`'s "agent state" section) — e.g. the languages preset's `goal:`/`lang:`/
+   * `grammar:` prefixes. Always empty for [AgentSource.USER] agents in v1: no builder UI exists yet
+   * to configure it, and [UserAgentEntity] has no column for it (see [UserAgentEntity.toDefinition]).
+   */
+  val stateKeyPrefixes: Set<String> = emptySet(),
   val configVersion: Long,
   val status: AgentStatus,
 ) {

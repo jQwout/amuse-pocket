@@ -6,6 +6,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
+import com.aiopenpocket.agent.core.agent.toDefinition
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.data.repository.AgentFile
 import com.aiopenpocket.ui.components.glass.auroraBackground
@@ -35,7 +36,7 @@ class AgentInspectorSheetScreenshotTest {
 
   @get:Rule val composeTestRule = createComposeRule()
 
-  private val agent = MiniAgentCatalog.get("budget")!!
+  private val agent = MiniAgentCatalog.get("budget")!!.toDefinition()
 
   // Фиксированные (не relative-to-now) таймстемпы: formatRelativeDate рендерит "Сегодня, HH:MM"
   // для недавних значений, а System.currentTimeMillis() даёт разную минуту при каждом прогоне —

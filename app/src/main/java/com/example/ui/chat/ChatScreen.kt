@@ -127,7 +127,6 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.model.Message
-import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.ui.agents.AgentInspectorSheet
 import com.aiopenpocket.ui.agents.AgentInspectorViewModel
@@ -842,7 +841,7 @@ fun ChatScreen(
 
         // Инспектор мини-агента (read-only) — из меню в шапке. Лист сам рисует аврору-фон.
         if (showAgentInspector) {
-            MiniAgentCatalog.get(state.agentId)?.let { agent ->
+            state.agent?.let { agent ->
                 val inspectorState by inspectorViewModel.state.collectAsState()
                 val inspectorSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
                 AgentInspectorSheet(

@@ -6,6 +6,8 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.aiopenpocket.agent.core.AgentLog
+import com.aiopenpocket.agent.core.agent.DefaultAgentResolver
+import com.aiopenpocket.agent.core.agent.UserAgentRepository
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.llm.LlmClient
@@ -90,6 +92,7 @@ class ReflectionOrchestratorTest {
       conversationRepository = conversationRepository,
       skillRegistry = SkillRegistry(emptySet()),
       userPreferencesRepository = UserPreferencesRepository(context),
+      agentResolver = DefaultAgentResolver(UserAgentRepository(db, db.userAgentDao())),
     )
     val reactLoopRunner = ReactLoopRunner(
       llm,

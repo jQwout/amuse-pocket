@@ -18,6 +18,9 @@ import com.aiopenpocket.agent.loop.AgentMode
  * enum collection so it can reuse that same converter instead of needing a second one.
  * [defaultMode]/[status] are plain `.name` strings — Room persists `String` columns natively, no
  * converter needed for those two.
+ *
+ * [AgentDefinition.stateKeyPrefixes] is not stored either — every USER agent's [toDefinition]
+ * reports `emptySet()` for it (no builder UI configures it yet; see that property's own KDoc).
  */
 @Entity(tableName = "user_agents")
 data class UserAgentEntity(
@@ -53,6 +56,7 @@ data class UserAgentEntity(
     memoryPolicy = AgentMemoryPolicy(namespace = memoryNamespace, includeSharedProfile = includeSharedProfile),
     allowedWidgetTemplates = allowedWidgetTemplates.toSet(),
     hooks = emptyList(),
+    stateKeyPrefixes = emptySet(),
     configVersion = configVersion,
     status = AgentStatus.valueOf(status),
   )
