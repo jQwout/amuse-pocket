@@ -3,7 +3,7 @@ package com.aiopenpocket.agent.workers
 // @trace heartbeat-napominalki-agenta-5f0442
 
 import android.util.Log
-import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
+import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
@@ -33,6 +33,7 @@ class HeartbeatRunner(
   private val toolRegistry: ToolRegistry,
   private val conversationRepository: ConversationRepository,
   private val turnNotifier: TurnNotifier,
+  private val agentResolver: AgentResolver,
 ) {
 
   suspend fun handleFire(heartbeatId: String, attempt: Int): FireOutcome {
@@ -55,7 +56,7 @@ class HeartbeatRunner(
   }
 
   private suspend fun fireAgent(hb: HeartbeatEntity, attempt: Int): FireOutcome {
-    val agent = MiniAgentCatalog.get(hb.agentId)
+    val agent = agentResolver.resolve(hb.agentId)
     val systemPrompt = buildString {
       append(agent?.systemPrompt ?: "Ты — полезный ассистент AI Open Pocket.")
       append("\n\nСейчас ты работаешь В ФОНЕ по плановому heartbeat — юзер тебя не вызывал. ")

@@ -4,8 +4,8 @@ package com.aiopenpocket.ui.agents
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.aiopenpocket.agent.core.agent.MiniAgent
-import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
+import com.aiopenpocket.agent.core.agent.AgentDefinition
+import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.di.AppScope
@@ -13,17 +13,23 @@ import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import dev.zacsweers.metro.binding
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
 @ViewModelKey(AgentsViewModel::class)
 class AgentsViewModel(
+  private val agentResolver: AgentResolver,
   private val conversationRepository: ConversationRepository,
   private val userPreferencesRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
-  val agents: List<MiniAgent> = MiniAgentCatalog.all
+  /** Presets, then published custom agents — see [AgentResolver.observeRoster]. */
+  val agents: StateFlow<List<AgentDefinition>> = agentResolver.observeRoster()
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
   /**
    * Агенты, для которых прямо сейчас идёт открытие чата. Защита от быстрого двойного тапа: без неё
@@ -43,7 +49,7 @@ class AgentsViewModel(
     if (!opening.add(agentId)) return
     viewModelScope.launch {
       try {
-        val agent = MiniAgentCatalog.get(agentId) ?: return@launch
+        val agent = agentResolver.resolve(agentId) ?: return@launch
         val existing = conversationRepository.findLatestConversationByAgent(agent.id)
         if (existing != null) {
           onReady(existing.id)

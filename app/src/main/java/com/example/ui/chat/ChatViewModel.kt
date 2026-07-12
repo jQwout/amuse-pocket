@@ -6,7 +6,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.WorkManager
-import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
+import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.lesson.LessonChatController
 import com.aiopenpocket.agent.core.lesson.LessonRepository
@@ -58,6 +58,7 @@ class ChatViewModel(
     private val lessonChatController: LessonChatController,
     private val voiceController: VoiceInputController,
     private val heartbeatDao: HeartbeatDao,
+    private val agentResolver: AgentResolver,
     private val context: Context,
 ) : ViewModel() {
 
@@ -171,7 +172,9 @@ class ChatViewModel(
             val conversation = conversationRepository.getConversation(id)
             val tutorial = conversation?.isTutorial == true
             val title = conversation?.title
-            val agentName = conversation?.agentId?.let { agentId -> MiniAgentCatalog.get(agentId)?.name }
+            // Резолвим полный снапшот (не только имя) один раз здесь — ChatScreen читает state.agent
+            // напрямую вместо повторного обращения к MiniAgentCatalog/AgentResolver в композиции.
+            val agent = conversation?.agentId?.let { agentId -> agentResolver.resolve(agentId) }
             // l1_welcome исключаем: его setup-шаги (language/persona/profile) контроллер не умеет —
             // онбординг идёт через свой экран, не через чат-драйвер.
             val lesson = if (tutorial && title != null && title != ONBOARDING_LESSON_ID) {
@@ -184,7 +187,8 @@ class ChatViewModel(
                     isTutorial = tutorial,
                     levelId = if (tutorial) title else null,
                     agentId = conversation?.agentId,
-                    title = agentName ?: title,
+                    agent = agent,
+                    title = agent?.name ?: title,
                     lessonMode = lesson != null,
                     lesson = lesson,
                 )

@@ -2,7 +2,8 @@
 
 // @trace rezhimy-agenta-plan-i-goal-ee2361
 
-import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
+import com.aiopenpocket.agent.core.agent.AgentDefinition
+import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.loop.PromptMode
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
@@ -23,6 +24,7 @@ class PrePromptAssembler @Inject constructor(
   private val conversationRepository: ConversationRepository,
   private val skillRegistry: SkillRegistry,
   private val userPreferencesRepository: UserPreferencesRepository,
+  private val agentResolver: AgentResolver,
 ) {
 
   suspend fun assemble(
@@ -76,8 +78,11 @@ class PrePromptAssembler @Inject constructor(
           ?: loadAsset("prompts/tutorial.md")
       } else null
 
-      // Mini-agent bound to this chat (if any): adds a role section and scopes the tool set.
-      val agent = MiniAgentCatalog.get(conversation?.agentId)
+      // Mini-agent bound to this chat (if any): adds a role section and scopes the tool set. Resolved
+      // EXACTLY ONCE here (preset or custom, via AgentResolver) — the resulting snapshot is exposed on
+      // PromptContext.agent so later stages (Task 5+: TurnContextHolder/ReactLoopRunner) can reuse it
+      // instead of re-resolving mid-turn.
+      val agent = agentResolver.resolve(conversation?.agentId)
 
       val window = ContextWindowBuilder.buildFromParts(
         head = windowParts.head,
@@ -96,7 +101,16 @@ class PrePromptAssembler @Inject constructor(
       }
       val agentStateKeys = agentState.mapTo(HashSet()) { it.key }
       // Не дублируем в «профиле»/«релевантных фактах» то, что уже показано как состояние агента.
-      val profileToShow = profileFacts.filterNot { it.key in agentStateKeys }
+      // Общий (shared) профиль подмешиваем, только если это разрешает memoryPolicy агента — без
+      // агента (обычный чат) ведём себя как раньше и показываем его всегда. Сам НАБОР фактов и то,
+      // из какого пространства имён они читаются, эта задача не меняет (см. Task 5) — здесь только
+      // решение «показывать ли уже прочитанное».
+      val includeSharedProfile = agent?.memoryPolicy?.includeSharedProfile ?: true
+      val profileToShow = if (includeSharedProfile) {
+        profileFacts.filterNot { it.key in agentStateKeys }
+      } else {
+        emptyList()
+      }
       val relevantFacts = facts.filterNot { it.key in agentStateKeys }
       val systemPrompt = buildString {
         appendLine(systemBase)
@@ -200,6 +214,7 @@ class PrePromptAssembler @Inject constructor(
         history = window.verbatim,
         toolNames = agent?.toolNames?.takeIf { it.isNotEmpty() },
         agentId = agent?.id,
+        agent = agent,
       )
     }
 
@@ -234,6 +249,12 @@ class PrePromptAssembler @Inject constructor(
     val toolNames: Set<String>? = null,
     /** Mini-agent bound to this chat, if any — scopes which skill(s) `load_skill` may load. */
     val agentId: String? = null,
+    /**
+     * The single [AgentResolver]-resolved snapshot for this turn (null for a plain, agent-less
+     * chat) — resolved exactly once in [assemble] so later stages (Task 5+: `TurnContextHolder`,
+     * `ReactLoopRunner`) can reuse this same instance instead of resolving again mid-turn.
+     */
+    val agent: AgentDefinition? = null,
   )
 
   data class PromptMessage(

@@ -180,6 +180,11 @@ object MiniAgentCatalog {
  *
  * [AgentDefinition.memoryPolicy] uses the `agent:$id:` namespace [AgentValidator] requires and
  * includes the shared user profile, matching how mini-agents already read general memory today.
+ *
+ * [AgentDefinition.stateKeyPrefixes] copies [MiniAgent.stateKeyPrefixes] verbatim (as a `Set`) so
+ * `AgentResolver`'s callers keep seeing the preset's deterministic "agent state" memory section
+ * (e.g. the languages agent's `goal:`/`lang:`/`grammar:` prefixes) purely from the resolved
+ * [AgentDefinition] snapshot, with no remaining need to consult [MiniAgentCatalog] directly.
  */
 fun MiniAgent.toDefinition(): AgentDefinition = AgentDefinition(
   id = id,
@@ -198,6 +203,7 @@ fun MiniAgent.toDefinition(): AgentDefinition = AgentDefinition(
   memoryPolicy = AgentMemoryPolicy(namespace = "agent:$id:", includeSharedProfile = true),
   allowedWidgetTemplates = AgentValidator.KNOWN_WIDGET_TEMPLATES,
   hooks = emptyList(),
+  stateKeyPrefixes = stateKeyPrefixes.toSet(),
   configVersion = 1L,
   status = AgentStatus.PUBLISHED,
 )

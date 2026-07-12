@@ -46,8 +46,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import com.aiopenpocket.agent.core.agent.MiniAgent
+import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
+import com.aiopenpocket.agent.core.agent.toDefinition
 import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
 import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.components.glass.auroraBackground
@@ -65,7 +66,8 @@ fun AgentsScreen(
 ) {
   val viewModel: AgentsViewModel = metroViewModel()
   val inspectorViewModel: AgentInspectorViewModel = metroViewModel()
-  var selectedAgent by remember { mutableStateOf<MiniAgent?>(null) }
+  val agents by viewModel.agents.collectAsState()
+  var selectedAgent by remember { mutableStateOf<AgentDefinition?>(null) }
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   val glassState = rememberGlassState()
 
@@ -99,7 +101,7 @@ fun AgentsScreen(
           Spacer(modifier = Modifier.height(20.dp))
         }
 
-        items(viewModel.agents, key = { it.id }) { agent ->
+        items(agents, key = { it.id }) { agent ->
           AgentCard(agent = agent, onClick = { selectedAgent = agent; inspectorViewModel.select(agent.id) })
           Spacer(modifier = Modifier.height(12.dp))
         }
@@ -123,7 +125,7 @@ fun AgentsScreen(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun AgentCard(agent: MiniAgent, onClick: () -> Unit) {
+private fun AgentCard(agent: AgentDefinition, onClick: () -> Unit) {
   GlassCard(
     modifier = Modifier.fillMaxWidth(),
     shape = RoundedCornerShape(16.dp),
@@ -231,14 +233,15 @@ internal fun iconFor(key: String): ImageVector = when (key) {
 // ==================================================================================================
 // Превью экрана Agents (скриншот-тесты). Тот же визуальный каркас (аврора-фон, прозрачный
 // AcademyCollapsingScaffold, GlassCard на карточках), что и в бою, собранный из той же file-private
-// карточки [AgentCard], но с реальными [MiniAgent] из [MiniAgentCatalog] вместо ViewModel —
-// [AgentsScreen] тянет [AgentsViewModel] через metroViewModel(), которому в Robolectric/@Preview
-// неоткуда взять DI-граф. Паттерн — как у HomePreviewScaffold (HomeScreen.kt).
+// карточки [AgentCard], но с презетами из [MiniAgentCatalog] (адаптированными в [AgentDefinition]
+// через [toDefinition]) вместо ViewModel — [AgentsScreen] тянет [AgentsViewModel] через
+// metroViewModel(), которому в Robolectric/@Preview неоткуда взять DI-граф. Паттерн — как у
+// HomePreviewScaffold (HomeScreen.kt).
 // ==================================================================================================
 
 @Composable
 internal fun AgentsPreviewScaffold(
-  agents: List<MiniAgent> = MiniAgentCatalog.all,
+  agents: List<AgentDefinition> = MiniAgentCatalog.all.map { it.toDefinition() },
 ) {
   MyApplicationTheme {
     val glassState = rememberGlassState()

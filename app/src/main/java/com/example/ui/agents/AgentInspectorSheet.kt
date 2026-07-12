@@ -45,7 +45,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.aiopenpocket.agent.core.agent.MiniAgent
+import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.data.repository.AgentFile
 import com.aiopenpocket.ui.components.glass.GlassCard
@@ -69,7 +69,7 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AgentInspectorSheet(
-  agent: MiniAgent,
+  agent: AgentDefinition,
   state: AgentInspectorState,
   sheetState: SheetState,
   onDismiss: () -> Unit,
@@ -100,7 +100,7 @@ internal enum class InspectorTab(val label: String) {
  */
 @Composable
 internal fun AgentInspectorContent(
-  agent: MiniAgent,
+  agent: AgentDefinition,
   state: AgentInspectorState,
   onOpenChat: () -> Unit,
   initialTab: InspectorTab = InspectorTab.Overview,
@@ -128,7 +128,7 @@ internal fun AgentInspectorContent(
 }
 
 @Composable
-private fun InspectorHeader(agent: MiniAgent, onOpenChat: () -> Unit, modifier: Modifier = Modifier) {
+private fun InspectorHeader(agent: AgentDefinition, onOpenChat: () -> Unit, modifier: Modifier = Modifier) {
   Column(modifier = modifier.fillMaxWidth()) {
     Row(verticalAlignment = Alignment.CenterVertically) {
       Box(
@@ -238,7 +238,7 @@ private fun EmptyStateCard(text: String, modifier: Modifier = Modifier) {
 // ==================================================================================================
 
 @Composable
-private fun OverviewTab(agent: MiniAgent, state: AgentInspectorState, modifier: Modifier = Modifier) {
+private fun OverviewTab(agent: AgentDefinition, state: AgentInspectorState, modifier: Modifier = Modifier) {
   Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
     StatGrid(agent = agent, state = state)
     PromptSection(agent = agent)
@@ -249,7 +249,7 @@ private fun OverviewTab(agent: MiniAgent, state: AgentInspectorState, modifier: 
 }
 
 @Composable
-private fun StatGrid(agent: MiniAgent, state: AgentInspectorState, modifier: Modifier = Modifier) {
+private fun StatGrid(agent: AgentDefinition, state: AgentInspectorState, modifier: Modifier = Modifier) {
   Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
       StatTile(label = "Тулов", value = agent.toolNames.size.toString(), modifier = Modifier.weight(1f))
@@ -290,7 +290,7 @@ private fun StatTile(label: String, value: String, modifier: Modifier = Modifier
 }
 
 @Composable
-private fun PromptSection(agent: MiniAgent, modifier: Modifier = Modifier) {
+private fun PromptSection(agent: AgentDefinition, modifier: Modifier = Modifier) {
   Column(modifier = modifier.fillMaxWidth()) {
     SectionLabel("Препромпт")
     Spacer(modifier = Modifier.height(8.dp))
@@ -376,7 +376,7 @@ private fun formatHeartbeatStatus(hb: HeartbeatEntity): String = when (hb.status
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun CapabilitiesSection(agent: MiniAgent, modifier: Modifier = Modifier) {
+private fun CapabilitiesSection(agent: AgentDefinition, modifier: Modifier = Modifier) {
   Column(modifier = modifier.fillMaxWidth()) {
     SectionLabel("Возможности")
     Spacer(modifier = Modifier.height(8.dp))

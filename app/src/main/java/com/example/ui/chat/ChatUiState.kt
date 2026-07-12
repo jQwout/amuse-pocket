@@ -2,6 +2,7 @@ package com.aiopenpocket.ui.chat
 
 // @trace streaming-llm-chat-6595a1
 
+import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.lesson.Lesson
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.core.memory.model.Message
@@ -43,6 +44,8 @@ data class ChatUiState(
   val levelId: String? = null,
   /** Bound mini-agent id — scopes the chat loop's tool set and skill access (see PrePromptAssembler). */
   val agentId: String? = null,
+  /** Resolved snapshot of the bound agent (see AgentResolver) — null for a plain, agent-less chat. */
+  val agent: AgentDefinition? = null,
   /** Display name shown in the chat header — the bound agent's name, else the conversation title. */
   val title: String? = null,
   val voiceState: VoiceInputState = VoiceInputState.Idle,

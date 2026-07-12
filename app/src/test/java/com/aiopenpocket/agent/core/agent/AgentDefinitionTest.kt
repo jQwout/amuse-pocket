@@ -110,6 +110,18 @@ class AgentDefinitionTest {
   }
 
   @Test
+  fun `toDefinition carries stateKeyPrefixes verbatim for agents that declare them, empty otherwise`() {
+    // The languages preset's goal/lang/grammar prefixes drive PrePromptAssembler's deterministic
+    // "agent state" memory section (see MiniAgent.stateKeyPrefixes) - this must survive the jump to
+    // AgentDefinition, or AgentResolver callers would silently lose that feature for this agent.
+    assertEquals(
+      setOf("lang:", "goal:languages", "grammar:"),
+      MiniAgentCatalog.get("languages")!!.toDefinition().stateKeyPrefixes,
+    )
+    assertEquals(emptySet<String>(), MiniAgentCatalog.get("budget")!!.toDefinition().stateKeyPrefixes)
+  }
+
+  @Test
   fun `enabled mirrors PUBLISHED status only`() {
     val base = MiniAgentCatalog.get("budget")!!.toDefinition()
 

@@ -15,9 +15,9 @@ import org.robolectric.annotation.GraphicsMode
  * Скриншот-эталон рестайла Tools/Agents: аврора-фон, прозрачный [AcademyCollapsingScaffold]
  * поверх неё, [GlassCard] на карточках агентов. [AgentsScreen] сам тянет [AgentsViewModel] через
  * metroViewModel(), которому в Robolectric неоткуда взять DI-граф, поэтому рендерим
- * [AgentsPreviewScaffold] — тот же визуальный каркас на реальных [MiniAgent] из
- * [com.aiopenpocket.agent.core.agent.MiniAgentCatalog] (см. паттерн HomePreviewScaffold в
- * HomeScreen.kt).
+ * [AgentsPreviewScaffold] — тот же визуальный каркас на презетах
+ * [com.aiopenpocket.agent.core.agent.MiniAgentCatalog], адаптированными в `AgentDefinition` (см.
+ * паттерн HomePreviewScaffold в HomeScreen.kt).
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
