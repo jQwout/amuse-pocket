@@ -70,7 +70,7 @@ class HeartbeatRunner(
     val tools = toolRegistry.getSchemasFor(SAFE_TOOL_NAMES)
 
     val result = reactLoopRunner.run(
-      hb.conversationId, messages, tools, LlmProvider.NIM, BG_MAX_ITERATIONS, hb.agentId,
+      hb.conversationId, messages, tools, LlmProvider.NIM, BG_MAX_ITERATIONS, agent,
     ) { /* фон: стриминг некому показывать */ }
 
     if (result.state == AgentState.ERROR) {

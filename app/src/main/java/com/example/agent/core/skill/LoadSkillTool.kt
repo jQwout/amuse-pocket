@@ -15,7 +15,11 @@ import com.aiopenpocket.di.AppScope
 /**
  * Меташар: загружает подробную инструкцию навыка по id (уровень 2 progressive disclosure).
  * Для агент-лупа это обычный Tool — результат уходит обратно в контекст как tool-message.
- * Грузить можно только зарегистрированные навыки (whitelist), произвольный текст/путь — нельзя.
+ * Грузить можно только зарегистрированные навыки (whitelist) — built-in ИЛИ agent-owned Room custom
+ * (см. composite [SkillRegistry]), произвольный текст/путь — нельзя. Этот Tool сам по себе не знает,
+ * КАКОМУ агенту разрешён конкретный id — тот скоуп проверяет вызывающий цикл
+ * ([com.aiopenpocket.agent.loop.ReactLoopRunner]'s isSkillAllowed, сверяет id с
+ * [com.aiopenpocket.agent.core.agent.AgentDefinition.skillIds]) ДО того, как этот Tool вообще исполнится.
  */
 @Inject
 @SingleIn(AppScope::class)

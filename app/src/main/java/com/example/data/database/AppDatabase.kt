@@ -8,6 +8,8 @@ import androidx.room.TypeConverters
 import com.aiopenpocket.agent.core.agent.AgentRoomConverters
 import com.aiopenpocket.agent.core.agent.UserAgentDao
 import com.aiopenpocket.agent.core.agent.UserAgentEntity
+import com.aiopenpocket.agent.core.skill.UserSkillDao
+import com.aiopenpocket.agent.core.skill.UserSkillEntity
 import com.aiopenpocket.agent.core.memory.dao.ConversationDao
 import com.aiopenpocket.agent.core.memory.dao.ConversationTagDao
 import com.aiopenpocket.agent.core.memory.dao.EpisodeDao
@@ -26,7 +28,9 @@ import com.aiopenpocket.agent.core.srs.SrsWordEntity
 // @trace user-agent-builder-848153
 
 // UserAgentEntity/userAgentDao() registered for Task 2 (user-agent-builder); version bumped 2 -> 3
-// accordingly. No Migration is added — see the policy comment on DatabaseBindings.provideDatabase.
+// accordingly. UserSkillEntity/userSkillDao() registered for Task 4 (composite SkillRegistry);
+// version bumped 3 -> 4. No Migration is added either time — see the policy comment on
+// DatabaseBindings.provideDatabase.
 @Database(
   entities = [
     ConversationEntity::class,
@@ -37,8 +41,9 @@ import com.aiopenpocket.agent.core.srs.SrsWordEntity
     SrsWordEntity::class,
     HeartbeatEntity::class,
     UserAgentEntity::class,
+    UserSkillEntity::class,
   ],
-  version = 3,
+  version = 4,
   exportSchema = false,
 )
 @TypeConverters(AgentRoomConverters::class)
@@ -51,4 +56,5 @@ abstract class AppDatabase : RoomDatabase() {
   abstract fun srsWordDao(): SrsWordDao
   abstract fun heartbeatDao(): HeartbeatDao
   abstract fun userAgentDao(): UserAgentDao
+  abstract fun userSkillDao(): UserSkillDao
 }

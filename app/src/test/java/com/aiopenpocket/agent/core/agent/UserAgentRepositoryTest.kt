@@ -3,6 +3,7 @@ package com.aiopenpocket.agent.core.agent
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.aiopenpocket.agent.core.skill.UserSkillEntity
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.data.database.AppDatabase
 import kotlinx.coroutines.flow.first
@@ -175,5 +176,77 @@ class UserAgentRepositoryTest {
     assertEquals(preset.systemPrompt, cloned.systemPrompt)
     assertEquals(preset.toolNames, cloned.toolNames)
     assertTrue(repository.observePublished().first().none { it.id == cloned.id })
+  }
+
+  // --- publish(id, skills) atomically writes custom skills (Task 4) --------------------------
+
+  private fun customSkill(
+    id: String,
+    agentId: String,
+    instructions: String = "Делай так: ...",
+  ) = UserSkillEntity(
+    id = id,
+    agentId = agentId,
+    name = "Мой навык",
+    description = "d",
+    whenToUse = "w",
+    instructionsMarkdown = instructions,
+    createdAt = now,
+    updatedAt = now,
+  )
+
+  @Test
+  fun `publish writes custom skills atomically with the agent`() = runTest {
+    val agentDraft = draft().copy(skillIds = setOf("my-skill"))
+    repository.saveDraft(agentDraft)
+    val skill = customSkill(id = "my-skill", agentId = agentDraft.id)
+
+    val published = repository.publish(agentDraft.id, listOf(skill))
+
+    assertEquals(AgentStatus.PUBLISHED, published.status)
+    assertEquals(skill, db.userSkillDao().get("my-skill"))
+  }
+
+  @Test
+  fun `publish rolls back the whole transaction when a custom skill has blank instructions`() = runTest {
+    val agentDraft = draft().copy(skillIds = setOf("bad-skill"))
+    repository.saveDraft(agentDraft)
+    val blankSkill = customSkill(id = "bad-skill", agentId = agentDraft.id, instructions = "   ")
+
+    assertThrows(IllegalArgumentException::class.java) {
+      runBlocking { repository.publish(agentDraft.id, listOf(blankSkill)) }
+    }
+
+    assertNull("invalid skill must not be persisted", db.userSkillDao().get("bad-skill"))
+    assertEquals("agent publish must roll back too", AgentStatus.DRAFT, repository.get(agentDraft.id)?.status)
+    assertEquals(0L, repository.get(agentDraft.id)?.configVersion)
+  }
+
+  @Test
+  fun `publish rolls back when a custom skill id collides with a built-in skill`() = runTest {
+    val agentDraft = draft().copy(skillIds = setOf("budget"))
+    repository.saveDraft(agentDraft)
+    val collidingSkill = customSkill(id = "budget", agentId = agentDraft.id)
+
+    assertThrows(IllegalArgumentException::class.java) {
+      runBlocking { repository.publish(agentDraft.id, listOf(collidingSkill)) }
+    }
+
+    assertEquals(AgentStatus.DRAFT, repository.get(agentDraft.id)?.status)
+  }
+
+  @Test
+  fun `publish rejects a custom skill id already owned by a different agent`() = runTest {
+    db.userSkillDao().upsert(customSkill(id = "shared-id", agentId = "other-agent"))
+    val agentDraft = draft().copy(skillIds = setOf("shared-id"))
+    repository.saveDraft(agentDraft)
+    val hijackAttempt = customSkill(id = "shared-id", agentId = agentDraft.id)
+
+    assertThrows(IllegalArgumentException::class.java) {
+      runBlocking { repository.publish(agentDraft.id, listOf(hijackAttempt)) }
+    }
+
+    assertEquals("other-agent", db.userSkillDao().get("shared-id")?.agentId)
+    assertEquals(AgentStatus.DRAFT, repository.get(agentDraft.id)?.status)
   }
 }

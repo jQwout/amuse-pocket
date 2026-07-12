@@ -145,9 +145,11 @@ class PrePromptAssembler @Inject constructor(
           appendLine()
         }
 
-        // Каталог навыков (уровень 1 progressive disclosure) — доверенный контент. Мини-агент со
-        // своим навыком видит только его (иначе он мог бы load_skill() чужой навык вне своего домена).
-        val skillIds = agent?.toolNames?.takeIf { LOAD_SKILL_TOOL in it }?.let { setOf(agent.id) }
+        // Каталог навыков (уровень 1 progressive disclosure) — доверенный контент. Агент со своими
+        // skillIds видит только их (иначе он мог бы load_skill() чужой навык вне своего скоупа) —
+        // источник истины тот же AgentDefinition.skillIds, что и рантайм-гейт ReactLoopRunner
+        // (isSkillAllowed), а не отдельное "id навыка == id агента" совпадение, как раньше.
+        val skillIds = agent?.toolNames?.takeIf { LOAD_SKILL_TOOL in it }?.let { agent.skillIds }
         val skillCatalog = skillRegistry.catalog(skillIds)
         if (skillCatalog.isNotEmpty()) {
           appendLine("## Доступные навыки")

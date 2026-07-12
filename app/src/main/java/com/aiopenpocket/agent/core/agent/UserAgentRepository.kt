@@ -3,6 +3,8 @@ package com.aiopenpocket.agent.core.agent
 // @trace user-agent-builder-848153
 
 import androidx.room.withTransaction
+import com.aiopenpocket.agent.core.skill.UserSkillEntity
+import com.aiopenpocket.agent.core.skill.validateUserSkill
 import com.aiopenpocket.data.database.AppDatabase
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
@@ -58,23 +60,48 @@ class UserAgentRepository @Inject constructor(
   }
 
   /**
-   * Validates then publishes [id]'s current row, bumping [AgentDefinition.configVersion] by one.
-   * Wrapped in [withTransaction] — not the Room `@Transaction` annotation, which only has an effect
-   * on `@Dao` methods — so the validate-then-write stays atomic as this grows to cover child rows
-   * (custom skills in Task 4, hooks in Task 8). Today it is a single-row upsert, but the wrapper is
-   * already in place for when it is not. Throws (via [AgentValidator.requirePublishable]) and
-   * leaves the stored row untouched when the current definition fails validation — validation runs
-   * strictly before the write, so a rejected publish never partially applies.
+   * Validates then publishes [id]'s current row, bumping [AgentDefinition.configVersion] by one,
+   * together with its [skills] (Task 4's `user_skills` — pass the agent's full current set of
+   * custom skill drafts; each must have [UserSkillEntity.agentId] == [id]). Wrapped in
+   * [withTransaction] — not the Room `@Transaction` annotation, which only has an effect on `@Dao`
+   * methods — so the validate-then-write stays atomic across both tables (hooks join this same
+   * transaction in Task 8). Throws and leaves the stored agent row AND every stored skill row
+   * untouched when either the agent definition ([AgentValidator.requirePublishable]) or any skill
+   * ([validateUserSkill]: blank/oversized markdown, id colliding with a built-in) fails validation,
+   * or when a passed skill's `agentId` doesn't match [id], or when a skill id already belongs to a
+   * DIFFERENT agent (would otherwise silently reassign ownership via upsert) — validation runs
+   * strictly before any write, so a rejected publish never partially applies.
    */
-  suspend fun publish(id: String): AgentDefinition = database.withTransaction {
+  suspend fun publish(id: String, skills: List<UserSkillEntity> = emptyList()): AgentDefinition = database.withTransaction {
     val current = requireNotNull(dao.get(id)) { "Unknown agent id: $id" }
-    AgentValidator.requirePublishable(current.toDefinition())
+    AgentValidator.requirePublishable(current.toDefinition(), ownedCustomSkillIds = skills.map { it.id }.toSet())
+
+    val skillDao = database.userSkillDao()
+    val skillIssues = mutableListOf<ValidationIssue>()
+    for (skill in skills) {
+      require(skill.agentId == id) { "Skill '${skill.id}' does not belong to agent '$id'" }
+      skillIssues += validateUserSkill(skill)
+      val existingOwner = skillDao.get(skill.id)?.agentId
+      if (existingOwner != null && existingOwner != id) {
+        skillIssues += ValidationIssue(
+          code = "skill_owned_by_another_agent",
+          message = "Навык '${skill.id}' уже принадлежит другому агенту",
+          field = "id",
+        )
+      }
+    }
+    require(skillIssues.isEmpty()) {
+      "Agent '$id' custom skills are not publishable: " +
+        skillIssues.joinToString("; ") { "${it.code} (${it.field}): ${it.message}" }
+    }
+
     val published = current.copy(
       status = AgentStatus.PUBLISHED.name,
       configVersion = current.configVersion + 1,
       updatedAt = clock(),
     )
     dao.upsert(published)
+    skills.forEach { skillDao.upsert(it) }
     published.toDefinition()
   }
 

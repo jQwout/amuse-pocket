@@ -1,6 +1,7 @@
 package com.aiopenpocket.agent.loop
 
 // @trace rezhim-refleksii-fca3c4
+// @trace user-agent-builder-848153
 
 import com.aiopenpocket.agent.core.AgentLog
 import com.aiopenpocket.agent.core.llm.ChatMessage
@@ -19,7 +20,7 @@ import com.aiopenpocket.di.AppScope
  * Reflection orchestrator — a teaching demo built ON TOP of the single [ReactLoopRunner], not a
  * separate engine. It runs three phases over one conversation:
  *
- *  1. **Draft** — the shared ReAct loop produces a first-pass answer (full tool set).
+ *  1. **Draft** — the shared ReAct loop produces a first-pass answer (agent-scoped tool set, same as [AgentLoopOrchestrator]).
  *  2. **Critique** — one tool-less LLM call reads the draft and names concrete weaknesses.
  *  3. **Revise** — the shared ReAct loop rewrites the answer, addressing the critique.
  *
@@ -63,14 +64,19 @@ class ReflectionOrchestrator @Inject constructor(
     val context = prePromptAssembler.assemble(conversationId, userMessage)
     log.d(TAG, "▶ reflection conv=$conversationId msg=\"${userMessage.take(60)}\"")
 
-    // 1. DRAFT — обычный ReAct-цикл с полным набором тулов. context.history уже заканчивается
+    // Скоуп мини-агента/custom agent — те же scoped schemas + agent snapshot, что AgentLoopOrchestrator
+    // передаёт обычному чат-ходу. Раньше обе фазы (draft/revise) получали registry.getAllSchemas() без
+    // agent — REFLECT-ход custom агента обходил бы его toolNames/skillIds allowlist целиком.
+    val tools = context.toolNames?.let { registry.getSchemasFor(it) } ?: registry.getAllSchemas()
+
+    // 1. DRAFT — обычный ReAct-цикл со scoped-набором тулов. context.history уже заканчивается
     // текущим сообщением пользователя (его персистит вызывающий до execute()).
     tap(AgentEvent.StateChanged(AgentState.STREAMING))
     tap(AgentEvent.TextDelta("✍️ **Черновик**\n"))
     val draftMessages = mutableListOf(ChatMessage(role = "system", content = context.systemPrompt))
     draftMessages += context.history.map { it.toChatMessage() }
     val draft = reactLoopRunner.run(
-      conversationId, draftMessages, registry.getAllSchemas(), provider, emit = { tap(it) },
+      conversationId, draftMessages, tools, provider, agent = context.agent, emit = { tap(it) },
     )
     log.d(TAG, "draft len=${draft.text.length}")
     // ReactLoopRunner на сбое стрима не бросает, а возвращает state=ERROR. Не проглатываем: как и
@@ -83,14 +89,14 @@ class ReflectionOrchestrator @Inject constructor(
     tap(AgentEvent.TextDelta("\n\n🔍 **Критика**\n"))
     val critique = runCritic(userMessage, draft.text, provider) { tap(it) }
 
-    // 3. REVISE — снова общий цикл (полный набор тулов, чтобы при необходимости закрыть ответ
-    // карточкой), переписываем с учётом критики.
+    // 3. REVISE — снова общий цикл (тот же scoped-набор тулов, чтобы при необходимости закрыть
+    // ответ карточкой в пределах allowlist агента), переписываем с учётом критики.
     tap(AgentEvent.TextDelta("\n\n---\n\n✨ **Итог**\n"))
     val reviseMessages = mutableListOf(ChatMessage(role = "system", content = context.systemPrompt))
     reviseMessages += context.history.map { it.toChatMessage() }
     reviseMessages += ChatMessage(role = "user", content = buildReviseInstruction(draft.text, critique))
     val revised = reactLoopRunner.run(
-      conversationId, reviseMessages, registry.getAllSchemas(), provider, emit = { tap(it) },
+      conversationId, reviseMessages, tools, provider, agent = context.agent, emit = { tap(it) },
     )
     log.d(TAG, "✓ reflection done revisedLen=${revised.text.length}")
     if (revised.state == AgentState.ERROR) {
