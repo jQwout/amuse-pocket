@@ -61,6 +61,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Refresh
@@ -69,6 +70,9 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -112,7 +116,10 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.model.Message
+import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.loop.AgentMode
+import com.aiopenpocket.ui.agents.AgentInspectorSheet
+import com.aiopenpocket.ui.agents.AgentInspectorViewModel
 import com.aiopenpocket.ui.chat.components.MicButton
 import com.aiopenpocket.ui.chat.components.ToolTracePanel
 import com.aiopenpocket.ui.components.MarkdownText
@@ -140,6 +147,11 @@ fun ChatScreen(
     val viewModel: ChatViewModel = metroViewModel()
     val state by viewModel.state.collectAsState()
     val scope = rememberCoroutineScope()
+
+    // Меню/инспектор мини-агента (read-only) — доступны только в чатах, привязанных к агенту.
+    val inspectorViewModel: AgentInspectorViewModel = metroViewModel()
+    var agentMenuExpanded by remember { mutableStateOf(false) }
+    var showAgentInspector by remember { mutableStateOf(false) }
 
     LaunchedEffect(conversationId) {
         viewModel.setConversationId(conversationId)
@@ -421,6 +433,31 @@ fun ChatScreen(
                                                 tint = if (state.showToolTrace) MaterialTheme.colorScheme.primary
                                                 else MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
+                                        }
+                                    }
+                                    // Меню агента: три точки → «Настройки агента» (read-only инспектор). Только для агент-чатов.
+                                    if (state.agentId != null) {
+                                        Box {
+                                            IconButton(onClick = { agentMenuExpanded = true }) {
+                                                Icon(
+                                                    Icons.Default.MoreVert,
+                                                    contentDescription = "Меню агента",
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
+                                            DropdownMenu(
+                                                expanded = agentMenuExpanded,
+                                                onDismissRequest = { agentMenuExpanded = false },
+                                            ) {
+                                                DropdownMenuItem(
+                                                    text = { Text("Настройки агента") },
+                                                    onClick = {
+                                                        agentMenuExpanded = false
+                                                        state.agentId?.let { inspectorViewModel.select(it) }
+                                                        showAgentInspector = true
+                                                    },
+                                                )
+                                            }
                                         }
                                     }
                                 },
@@ -756,6 +793,21 @@ fun ChatScreen(
                     composerExpanded = false
                 },
             )
+        }
+
+        // Инспектор мини-агента (read-only) — из меню в шапке. Лист сам рисует аврору-фон.
+        if (showAgentInspector) {
+            MiniAgentCatalog.get(state.agentId)?.let { agent ->
+                val inspectorState by inspectorViewModel.state.collectAsState()
+                val inspectorSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+                AgentInspectorSheet(
+                    agent = agent,
+                    state = inspectorState,
+                    sheetState = inspectorSheetState,
+                    onDismiss = { showAgentInspector = false },
+                    onOpenChat = { showAgentInspector = false },
+                )
+            }
         }
     }
 }
