@@ -139,4 +139,17 @@ object AgentValidator {
 
     return issues
   }
+
+  /**
+   * Gate [UserAgentRepository.publish] (Task 2) calls before flipping a draft to
+   * [AgentStatus.PUBLISHED], so an unpublishable definition can never reach that status regardless
+   * of caller. Throws [IllegalArgumentException] listing every [validate] issue rather than just
+   * the first, matching [validate]'s own "collect everything" philosophy.
+   */
+  fun requirePublishable(def: AgentDefinition) {
+    val issues = validate(def)
+    require(issues.isEmpty()) {
+      "Agent '${def.id}' is not publishable: " + issues.joinToString("; ") { "${it.code} (${it.field}): ${it.message}" }
+    }
+  }
 }
