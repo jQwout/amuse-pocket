@@ -34,23 +34,24 @@ private val Sans = FontFamily.Default
 private val Base = Typography()
 
 // Полная согласованная шкала Material 3: заголовки — Lora, тело и подписи — системный sans.
-val Typography =
-  Base.copy(
-    displayLarge = Base.displayLarge.copy(fontFamily = Serif),
-    displayMedium = Base.displayMedium.copy(fontFamily = Serif),
-    displaySmall = Base.displaySmall.copy(fontFamily = Serif),
-    headlineLarge = Base.headlineLarge.copy(fontFamily = Serif, fontWeight = FontWeight.SemiBold),
-    headlineMedium = Base.headlineMedium.copy(fontFamily = Serif, fontWeight = FontWeight.SemiBold),
-    headlineSmall = Base.headlineSmall.copy(fontFamily = Serif, fontWeight = FontWeight.Medium),
-    titleLarge = Base.titleLarge.copy(fontFamily = Serif, fontWeight = FontWeight.Medium),
-    // Заголовки всех тиров — serif, чтобы шрифт не «плясал» между карточками (titleMedium/Small
-    // используются как заголовки карточек рядом с titleLarge и заголовком свёрнутого тулбара).
-    titleMedium = Base.titleMedium.copy(fontFamily = Serif, fontWeight = FontWeight.Medium),
-    titleSmall = Base.titleSmall.copy(fontFamily = Serif, fontWeight = FontWeight.Medium),
-    bodyLarge = Base.bodyLarge.copy(fontFamily = Sans),
-    bodyMedium = Base.bodyMedium.copy(fontFamily = Sans),
-    bodySmall = Base.bodySmall.copy(fontFamily = Sans),
-    labelLarge = Base.labelLarge.copy(fontFamily = Sans),
-    labelMedium = Base.labelMedium.copy(fontFamily = Sans),
-    labelSmall = Base.labelSmall.copy(fontFamily = Sans),
-  )
+val Typography = Base
+ // Base.copy(
+ //   displayLarge = Base.displayLarge.copy(fontFamily = Serif),
+ //   displayMedium = Base.displayMedium.copy(fontFamily = Serif),
+ //   displaySmall = Base.displaySmall.copy(fontFamily = Serif),
+ //   headlineLarge = Base.headlineLarge.copy(fontFamily = Serif, fontWeight = FontWeight.SemiBold),
+ //   headlineMedium = Base.headlineMedium.copy(fontFamily = Serif, fontWeight = FontWeight.SemiBold),
+ //   headlineSmall = Base.headlineSmall.copy(fontFamily = Serif, fontWeight = FontWeight.Medium),
+ //   titleLarge = Base.titleLarge.copy(fontFamily = Serif, fontWeight = FontWeight.Medium),
+ //   // Заголовки всех тиров — serif, чтобы шрифт не «плясал» между карточками (titleMedium/Small
+ //   // используются как заголовки карточек рядом с titleLarge и заголовком свёрнутого тулбара).
+ //   titleMedium = Base.titleMedium.copy(fontFamily = Serif, fontWeight = FontWeight.Medium),
+ //   titleSmall = Base.titleSmall.copy(fontFamily = Serif, fontWeight = FontWeight.Medium),
+ //   bodyLarge = Base.bodyLarge.copy(fontFamily = Sans),
+ //   bodyMedium = Base.bodyMedium.copy(fontFamily = Sans),
+ //   bodySmall = Base.bodySmall.copy(fontFamily = Sans),
+ //   labelLarge = Base.labelLarge.copy(fontFamily = Sans),
+ //   labelMedium = Base.labelMedium.copy(fontFamily = Sans),
+ //   labelSmall = Base.labelSmall.copy(fontFamily = Sans),
+ // )
+//

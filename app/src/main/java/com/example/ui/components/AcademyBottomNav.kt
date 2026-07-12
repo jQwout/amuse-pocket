@@ -32,9 +32,9 @@ import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.theme.PurpleAccent
 
 enum class AcademyTab {
-  Chat,
-  Path,
-  Tools,
+    Chat,
+    Path,
+    Tools,
 }
 
 /**
@@ -48,82 +48,82 @@ enum class AcademyTab {
  */
 @Composable
 fun AcademyBottomNav(
-  selectedTab: AcademyTab,
-  onTabSelected: (AcademyTab) -> Unit,
-  modifier: Modifier = Modifier,
-  glassState: GlassState = rememberGlassState(),
+    selectedTab: AcademyTab,
+    onTabSelected: (AcademyTab) -> Unit,
+    modifier: Modifier = Modifier,
+    glassState: GlassState = rememberGlassState(),
 ) {
-  val pillShape = RoundedCornerShape(28.dp)
-  GlassSurface(
-    state = glassState,
-    shape = pillShape,
-    modifier = modifier
-      .fillMaxWidth()
-      .padding(horizontal = 24.dp)
-      .padding(top = 8.dp, bottom = 20.dp)
-      .shadow(16.dp, pillShape, clip = false),
-  ) {
-    Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(horizontal = 8.dp, vertical = 8.dp),
-      horizontalArrangement = Arrangement.SpaceEvenly,
-      verticalAlignment = Alignment.CenterVertically,
+    val pillShape = RoundedCornerShape(28.dp)
+    GlassSurface(
+        state = glassState,
+        shape = pillShape,
+        modifier = modifier
+          .fillMaxWidth()
+          .padding(horizontal = 24.dp)
+          .padding(top = 8.dp, bottom = 20.dp)
+          .shadow(16.dp, pillShape, clip = false),
     ) {
-      AcademyNavItem(
-        icon = Icons.AutoMirrored.Filled.Chat,
-        label = "Чат",
-        selected = selectedTab == AcademyTab.Chat,
-        onClick = { onTabSelected(AcademyTab.Chat) },
-      )
-      AcademyNavItem(
-        icon = Icons.Default.Timeline,
-        label = "Путь",
-        selected = selectedTab == AcademyTab.Path,
-        onClick = { onTabSelected(AcademyTab.Path) },
-      )
-      AcademyNavItem(
-        icon = Icons.Default.Build,
-        label = "Тулы",
-        selected = selectedTab == AcademyTab.Tools,
-        onClick = { onTabSelected(AcademyTab.Tools) },
-      )
+        Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AcademyNavItem(
+                icon = Icons.AutoMirrored.Filled.Chat,
+                label = "Чат",
+                selected = selectedTab == AcademyTab.Chat,
+                onClick = { onTabSelected(AcademyTab.Chat) },
+            )
+            AcademyNavItem(
+                icon = Icons.Default.Timeline,
+                label = "Путь",
+                selected = selectedTab == AcademyTab.Path,
+                onClick = { onTabSelected(AcademyTab.Path) },
+            )
+            AcademyNavItem(
+                icon = Icons.Default.Build,
+                label = "Тулы",
+                selected = selectedTab == AcademyTab.Tools,
+                onClick = { onTabSelected(AcademyTab.Tools) },
+            )
+        }
     }
-  }
 }
 
 @Composable
 private fun AcademyNavItem(
-  icon: ImageVector,
-  label: String,
-  selected: Boolean,
-  onClick: () -> Unit,
+    icon: ImageVector,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
 ) {
-  Column(
-    horizontalAlignment = Alignment.CenterHorizontally,
-    modifier = Modifier
-      .clip(RoundedCornerShape(18.dp))
-      .clickable(onClick = onClick)
-      .then(
-        if (selected) {
-          Modifier
-            .background(PurpleAccent.copy(alpha = 0.18f), RoundedCornerShape(18.dp))
-            .padding(horizontal = 22.dp, vertical = 8.dp)
-        } else {
-          Modifier.padding(horizontal = 22.dp, vertical = 8.dp)
-        },
-      ),
-  ) {
-    Icon(
-      imageVector = icon,
-      contentDescription = label,
-      tint = if (selected) PurpleAccent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-      modifier = Modifier.size(24.dp),
-    )
-    Text(
-      text = label,
-      style = MaterialTheme.typography.labelSmall,
-      color = if (selected) PurpleAccent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-    )
-  }
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+          .clip(RoundedCornerShape(18.dp))
+          .clickable(onClick = onClick)
+          .then(
+            if (selected) {
+              Modifier
+                .background(PurpleAccent.copy(alpha = 0.18f), RoundedCornerShape(18.dp))
+                .padding(horizontal = 22.dp, vertical = 8.dp)
+            } else {
+              Modifier.padding(horizontal = 22.dp, vertical = 8.dp)
+            },
+          ),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = if (selected) PurpleAccent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+            modifier = Modifier.size(24.dp),
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (selected) PurpleAccent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+        )
+    }
 }

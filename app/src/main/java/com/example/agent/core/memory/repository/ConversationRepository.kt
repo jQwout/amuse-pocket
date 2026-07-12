@@ -125,6 +125,11 @@ class ConversationRepository @Inject constructor(
     conversationDao.setFavorite(id, favorite)
   }
 
+  /** Персистит курсор урока на диалоге — независимо от числа сообщений. */
+  suspend fun updateLessonCursor(id: String, stepIndex: Int, finished: Boolean) {
+    conversationDao.updateLessonCursor(id, stepIndex, finished)
+  }
+
   fun getMessages(conversationId: String): Flow<List<Message>> =
     messageDao.getByConversation(conversationId).map { list ->
       list.map { it.toDomain() }
@@ -239,6 +244,8 @@ class ConversationRepository @Inject constructor(
     tags = tags,
     agentId = agentId,
     isFavorite = isFavorite,
+    lessonStepIndex = lessonStepIndex,
+    lessonFinished = lessonFinished,
   )
 
   private fun MessageEntity.toDomain() = Message(

@@ -195,25 +195,39 @@ class ChatViewModel(
 
     /**
      * Стартует урок (публикует шаг 0) или восстанавливает позицию после переоткрытия.
-     * Контракт «1 шаг = 1 assistant-сообщение» позволяет восстановить курсор простым счётом сообщений.
+     * Курсор — явное состояние диалога (lessonStepIndex), а не счёт assistant-сообщений: так свободный
+     * вопрос к LLM во время урока не сдвигает шаг (и удаление сообщения больше не десинхронит урок).
      */
     private suspend fun startOrResumeLesson(id: String, lesson: com.aiopenpocket.agent.core.lesson.Lesson) {
+        // Курсор берём из ЯВНОГО состояния диалога (lessonStepIndex), а не из числа assistant-сообщений:
+        // иначе свободный вопрос к LLM во время урока (лишний ответ) сдвигал бы шаг. См. LessonCursorPersistenceTest.
+        val conversation = conversationRepository.getConversation(id)
+        val persistedIndex = conversation?.lessonStepIndex ?: 0
+        val persistedFinished = conversation?.lessonFinished ?: false
+
         if (lesson.steps.isEmpty()) {
             // Урок без шагов: карточка завершения, чтобы экран не завис пустым — но без дублей при переоткрытии.
-            val alreadyPosted = conversationRepository.getAllMessages(id).any { it.role == "assistant" }
-            if (!alreadyPosted) lessonChatController.postCompletion(id, lesson)
+            if (!persistedFinished) {
+                lessonChatController.postCompletion(id, lesson)
+                conversationRepository.updateLessonCursor(id, stepIndex = 0, finished = true)
+            }
             _state.update { it.copy(lessonStepIndex = 0, lessonFinished = true) }
             return
         }
-        val posted = conversationRepository.getAllMessages(id).count { it.role == "assistant" }
-        if (posted == 0) {
-            lessonChatController.postStep(id, lesson, 0)
+        if (persistedIndex == 0 && !persistedFinished) {
+            // Урок ещё не начат: публикуем первый шаг и фиксируем курсор = 1. Self-heal: если шаг 0 уже
+            // в истории (краш между постом и записью курсора), не постим повторно — только чиним курсор,
+            // чтобы не появился дубль первого шага.
+            val alreadyPosted = conversationRepository.getAllMessages(id).any { it.role == "assistant" }
+            if (!alreadyPosted) lessonChatController.postStep(id, lesson, 0)
+            conversationRepository.updateLessonCursor(id, stepIndex = 1, finished = false)
             _state.update { it.copy(lessonStepIndex = 1, lessonFinished = false) }
         } else {
+            // Возобновление: шаги уже в истории, просто восстанавливаем сохранённый курсор.
             _state.update {
                 it.copy(
-                    lessonStepIndex = posted.coerceAtMost(lesson.steps.size),
-                    lessonFinished = posted > lesson.steps.size,
+                    lessonStepIndex = persistedIndex.coerceAtMost(lesson.steps.size),
+                    lessonFinished = persistedFinished || persistedIndex > lesson.steps.size,
                 )
             }
         }
@@ -266,6 +280,7 @@ class ChatViewModel(
             is ChatIntent.EditPlan -> currentConversationId()?.let { turnManager.dismissPlanApproval(it) }
             is ChatIntent.AdvanceLesson -> advanceLesson()
             is ChatIntent.CompleteLessonQuiz -> completeLessonQuiz()
+            is ChatIntent.AskDuringLesson -> askDuringLesson(intent.text)
         }
     }
 
@@ -311,6 +326,38 @@ class ChatViewModel(
     private fun completeLessonQuiz() = advanceLessonCursor()
 
     /**
+     * Свободный вопрос к LLM во время урока: tool-less TUTOR-ход на том же диалоге ([AgentMode.TUTOR] —
+     * только объясняет, без инструментов). Рамка репетитора — из systemPromptSuffix, а контекст текущего
+     * шага инъектим через systemPromptExtra (карточные шаги пишутся с content="" и в историю НЕ попадают,
+     * см. LessonQuestion + ревью-находку). Курсор урока персистится отдельно (lessonStepIndex), поэтому
+     * лишний assistant-ответ его НЕ двигает (см. LessonCursorPersistenceTest).
+     */
+    private fun askDuringLesson(text: String) {
+        val q = text.trim()
+        if (q.isEmpty()) return
+        val s = _state.value
+        if (!s.lessonMode || s.isLoading) return
+        val convId = s.conversationId?.takeIf { it.isNotBlank() } ?: return
+        val currentStep = s.lesson?.steps?.getOrNull(s.lessonStepIndex - 1)
+        val stepContext = com.aiopenpocket.agent.core.lesson.LessonQuestion
+            .stepContext(lessonTitle = s.lesson?.title.orEmpty(), step = currentStep)
+            .takeIf { it.isNotBlank() }
+        viewModelScope.launch {
+            try {
+                turnManager.launchTurn(
+                    convId, q, AgentMode.TUTOR, planApproved = false,
+                    goalMaxIterations = s.goalMaxIterations, systemPromptExtra = stepContext,
+                )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("ChatViewModel", "lesson ask failed", e)
+                _state.update { it.copy(error = e.message, canRetry = false) }
+            }
+        }
+    }
+
+    /**
      * Публикует следующий шаг урока, либо карточку завершения, если шагов больше нет. За счёт этого квиз
      * работает корректно, даже когда он НЕ последний шаг (после ответа просто идём дальше, а не завершаем).
      */
@@ -324,9 +371,12 @@ class ChatViewModel(
             try {
                 if (s.lessonStepIndex < lesson.steps.size) {
                     lessonChatController.postStep(convId, lesson, s.lessonStepIndex)
-                    _state.update { it.copy(lessonStepIndex = it.lessonStepIndex + 1) }
+                    val newIndex = s.lessonStepIndex + 1
+                    conversationRepository.updateLessonCursor(convId, stepIndex = newIndex, finished = false)
+                    _state.update { it.copy(lessonStepIndex = newIndex) }
                 } else {
                     lessonChatController.postCompletion(convId, lesson)
+                    conversationRepository.updateLessonCursor(convId, stepIndex = s.lessonStepIndex, finished = true)
                     _state.update { it.copy(lessonFinished = true) }
                 }
             } finally {

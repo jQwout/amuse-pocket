@@ -59,8 +59,11 @@ class TurnManager(
     mode: AgentMode,
     planApproved: Boolean,
     goalMaxIterations: Int,
+    systemPromptExtra: String? = null,
   ) {
-    scope.launch { startTurn(conversationId, userText, mode, planApproved, goalMaxIterations, persistUserMessage = true) }
+    scope.launch {
+      startTurn(conversationId, userText, mode, planApproved, goalMaxIterations, persistUserMessage = true, systemPromptExtra = systemPromptExtra)
+    }
   }
 
   /** Останавливает ход и убирает сессию: для UI диалог возвращается в Idle, без ошибки. */
@@ -176,6 +179,7 @@ class TurnManager(
     planApproved: Boolean,
     goalMaxIterations: Int,
     persistUserMessage: Boolean,
+    systemPromptExtra: String? = null,
   ) {
     mutex.withLock {
       val session = sessionsFlow.value[conversationId] ?: TurnSession(conversationId, monotonicNowMs).also { created ->
@@ -188,7 +192,7 @@ class TurnManager(
       previous?.cancel()
       session.job = scope.launch {
         previous?.join()
-        runTurn(session, userText, mode, planApproved, goalMaxIterations, persistUserMessage)
+        runTurn(session, userText, mode, planApproved, goalMaxIterations, persistUserMessage, systemPromptExtra)
       }
     }
   }
@@ -200,6 +204,7 @@ class TurnManager(
     planApproved: Boolean,
     goalMaxIterations: Int,
     persistUserMessage: Boolean,
+    systemPromptExtra: String? = null,
   ) {
     val convId = session.conversationId
     resetStreaming(session)
@@ -218,7 +223,7 @@ class TurnManager(
         session.lastUserText = userText
         session.lastUserMessageId = userMsgId
       }
-      collectTurnEvents(session, userText, mode, planApproved, goalMaxIterations)
+      collectTurnEvents(session, userText, mode, planApproved, goalMaxIterations, systemPromptExtra)
     } catch (e: CancellationException) {
       // Stop / новый ход: отмена — штатный путь.
       throw e
@@ -235,9 +240,10 @@ class TurnManager(
     mode: AgentMode,
     planApproved: Boolean,
     goalMaxIterations: Int,
+    systemPromptExtra: String? = null,
   ) {
     // Временно гоним всё на NIM; выбор провайдера (GROQ/GITHUB) выпилим позже.
-    val flow = executor.execute(session.conversationId, userText, LlmProvider.NIM, mode, planApproved, goalMaxIterations)
+    val flow = executor.execute(session.conversationId, userText, LlmProvider.NIM, mode, planApproved, goalMaxIterations, systemPromptExtra)
     flow.collect { event ->
       when (event) {
         is AgentEvent.TextDelta ->

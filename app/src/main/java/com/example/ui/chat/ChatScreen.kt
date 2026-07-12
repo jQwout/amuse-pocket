@@ -29,20 +29,23 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -67,6 +70,12 @@ import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -108,7 +117,9 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -152,6 +163,16 @@ fun ChatScreen(
     val inspectorViewModel: AgentInspectorViewModel = metroViewModel()
     var agentMenuExpanded by remember { mutableStateOf(false) }
     var showAgentInspector by remember { mutableStateOf(false) }
+
+    // Высоты плавающих стеклянных баров (шапка/композер) меряем через onSizeChanged в разметке ниже
+    // и превращаем в contentPadding ленты (чтобы сообщения скроллились ПОД барами, а крайние не
+    // прятались под стеклом) и в отступ FAB. Держим на уровне функции, чтобы и BoxWithConstraints,
+    // и FAB (вне его) читали bottomPad.
+    val density = LocalDensity.current
+    var topBarHeightPx by remember { mutableStateOf(0) }
+    var bottomBarHeightPx by remember { mutableStateOf(0) }
+    val topPad = with(density) { topBarHeightPx.toDp() }
+    val bottomPad = with(density) { bottomBarHeightPx.toDp() }
 
     LaunchedEffect(conversationId) {
         viewModel.setConversationId(conversationId)
@@ -345,9 +366,106 @@ fun ChatScreen(
                 .auroraBackground()
                 .glassSource(glassState),
         )
-        Scaffold(
-            containerColor = Color.Transparent,
-            topBar = {
+        // Стеклянные бары «плавают» ПОВЕРХ ленты (iOS-стиль): лента заполняет весь Box и скроллится
+        // ПОД шапкой и композером, поэтому за стеклом видны и размываются сами сообщения, а не только
+        // аурора. Высоты баров меряем (onSizeChanged) → contentPadding ленты, чтобы крайние сообщения
+        // вставали у кромки бара, а не прятались под ним.
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            // Высота всего Box (весь экран). Видимый вьюпорт между барами = fullHeight - topPad - bottomPad.
+            val fullHeight = maxHeight
+
+            // Фильтр закреплённых пересчитываем только при смене списка сообщений. Без remember он гоняется
+            // на КАЖДУЮ рекомпозицию тела экрана — а во время стрима это каждый токен (O(n) на токен).
+            // Поднят над лентой: используется верхним оверлеем (PinnedBar), объявленным ниже по коду.
+            val pinned = remember(state.messages) { state.messages.filter { it.isPinned } }
+
+            // ЛЕНТА (задний слой) — заполняет весь Box и скроллится под обоими барами. Свежие сообщения
+            // снизу. Arrangement.Bottom: короткий чат прижимается к низу. contentPadding сверху/снизу =
+            // измеренные высоты баров, чтобы первое/последнее сообщение не уезжали под стекло.
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    // До первого автоскролла ленту не показываем: LazyColumn рождается на индексе 0
+                    // (старые сообщения), и до снапа юзер видел вспышку начала истории. graphicsLayer
+                    // читает флаг на фазе рисования — смена не рекомпозирует ленту.
+                    .graphicsLayer { alpha = if (initialScrollDone) 1f else 0f }
+                    // Источник для стеклянной обвязки (топбар/инпут) — сама лента НЕ размывается,
+                    // только читается как backdrop чужим hazeEffect (перф: без RenderEffect в items).
+                    .glassSource(glassState),
+                contentPadding = PaddingValues(top = topPad, bottom = bottomPad),
+                verticalArrangement = Arrangement.Bottom,
+            ) {
+                items(
+                    state.messages,
+                    key = { it.id },
+                    // Подсказка Compose переиспользовать раскладку пузыря того же типа при скролле — меньше
+                    // пересборок и подлагиваний на длинной ленте.
+                    contentType = { it.role },
+                ) { message ->
+                    // Пер-итемные колбэки запоминаем по id (и по нужным флагам), чтобы они были стабильны между
+                    // рекомпозициями — тогда неизменившиеся пузыри Compose пропускает.
+                    val onTogglePin = remember(message.id) {
+                        { viewModel.handleIntent(ChatIntent.TogglePin(message.id)) }
+                    }
+                    val onDelete = remember(message.id) {
+                        { viewModel.handleIntent(ChatIntent.DeleteMessage(message.id)) }
+                    }
+                    val onLessonComplete = remember(message.id, state.lessonMode, state.levelId) {
+                        {
+                            if (state.lessonMode) {
+                                // JSON-урок: отметить пройденным и вернуться к списку.
+                                viewModel.completeLesson(onNavigateBack)
+                            } else {
+                                // Старый roadmap-урок: финальная карточка ведёт на отдельный экран-квиз.
+                                val levelId = state.levelId
+                                if (levelId != null) onOpenQuiz(levelId) else onNavigateBack()
+                            }
+                        }
+                    }
+                    MessageBubble(
+                        message = message,
+                        onTogglePin = onTogglePin,
+                        onDelete = onDelete,
+                        interactiveCards = state.isTutorial,
+                        highlighted = message.id == currentMatchId,
+                        onChoiceSelected = onChoiceSelected,
+                        onFormSubmitted = onChoiceSelected,
+                        onLessonQuizComplete = onLessonQuizComplete,
+                        onLessonComplete = onLessonComplete,
+                        onCardAction = onCardAction,
+                        observeHeartbeat = observeHeartbeat,
+                        onCancelHeartbeat = onCancelHeartbeat,
+                    )
+                }
+                if (hasStreamingItem) {
+                    item(key = "streaming") {
+                        // Подписка на стриминговый текст ЛОКАЛЬНА для этого итема: дельты токенов рекомпозируют
+                        // только пузырь, а не весь экран.
+                        val streamingText by viewModel.streamingText.collectAsState()
+                        StreamingBubble(
+                            text = streamingText,
+                            showCursor = streamingText.isNotEmpty(),
+                            isWaiting = streamingText.isEmpty(),
+                        )
+                    }
+                    // Резерв под ответ: пустое место в высоту ВИДИМОГО вьюпорта (экран минус оба бара),
+                    // чтобы вопрос прибился к верхней кромке видимой области, а ответ рос в него сверху вниз.
+                    item(key = "tail_spacer") {
+                        Spacer(Modifier.height((fullHeight - topPad - bottomPad).coerceAtLeast(0.dp)))
+                    }
+                }
+            }
+
+            // ВЕРХНИЙ оверлей: стеклянная «таблетка» шапки + стат-бар + закреплённые, под статус-баром.
+            // Высоту меряем (onSizeChanged → topBarHeightPx) → contentPadding.top ленты. statusBarsPadding
+            // живёт на самой таблетке (ребёнок Column), поэтому измеренная высота уже включает его инсет.
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .onSizeChanged { topBarHeightPx = it.height },
+            ) {
                 // Плавающая стеклянная «таблетка» шапки — как нижний навбар: скруглённая, с боковыми
                 // отступами, мягкой тенью и рим-бордером (от GlassSurface). Статус-бар-инсет вынесен на
                 // саму таблетку (statusBarsPadding), поэтому дети (TopAppBar/строка поиска) свой инсет НЕ
@@ -469,20 +587,9 @@ fun ChatScreen(
                         }
                     }
                 }
-            },
-        ) { padding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    // Scaffold уже потребил системные бары в padding; сообщаем об этом, чтобы imePadding
-                    // не двойного счёл нижний инсет и поднимал ввод ровно на высоту клавиатуры.
-                    .consumeWindowInsets(padding)
-                    .imePadding(),
-            ) {
-                // Контекст/токены — закреплённый хедер вверху. Он вне скроллящейся ленты, поэтому
-                // остаётся на месте; показываем его, пока есть статистика (в т.ч. во время загрузки —
-                // тогда виден контекст прошлого хода).
+
+                // Контекст/токены — тонкий прогресс под шапкой. Показываем, пока есть статистика (в т.ч.
+                // во время загрузки — тогда виден контекст прошлого хода).
                 if (state.lastResponseStats != null) {
                     ResponseStatsBar(
                         stats = state.lastResponseStats!!,
@@ -490,97 +597,25 @@ fun ChatScreen(
                     )
                 }
 
-                // Фильтр закреплённых пересчитываем только при смене списка сообщений. Без remember он гоняется
-                // на КАЖДУЮ рекомпозицию тела экрана — а во время стрима это каждый токен (O(n) на токен).
-                val pinned = remember(state.messages) { state.messages.filter { it.isPinned } }
                 if (pinned.isNotEmpty()) {
                     PinnedBar(
                         pinned = pinned,
                         onUnpin = { viewModel.handleIntent(ChatIntent.TogglePin(it)) },
                     )
                 }
+            }
 
-                // Лента сообщений — сверху, занимает всё свободное место. Свежие сообщения снизу.
-                // Arrangement.Bottom: короткий чат (меньше экрана) прижимается к низу, а не висит у
-                // верха с пустотой над полем ввода — как в обычных мессенджерах.
-                BoxWithConstraints(modifier = Modifier.weight(1f)) {
-                    // Высота вьюпорта ленты — размер tail-spacer'а стрим-хода: полный экран, чтобы вопрос
-                    // гарантированно дотягивался до самого верха, а ответ рос в резерв сверху вниз.
-                    val tailSpacerHeight = maxHeight
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            // До первого автоскролла ленту не показываем: LazyColumn рождается на индексе 0
-                            // (старые сообщения), и до снапа юзер видел вспышку начала истории. graphicsLayer
-                            // читает флаг на фазе рисования — смена не рекомпозирует ленту.
-                            .graphicsLayer { alpha = if (initialScrollDone) 1f else 0f }
-                            // Источник для стеклянной обвязки (топбар/инпут) — сама лента НЕ размывается,
-                            // только читается как backdrop чужим hazeEffect (перф: без RenderEffect в items).
-                            .glassSource(glassState),
-                        verticalArrangement = Arrangement.Bottom,
-                    ) {
-                        items(
-                            state.messages,
-                            key = { it.id },
-                            // Подсказка Compose переиспользовать раскладку пузыря того же типа при скролле — меньше
-                            // пересборок и подлагиваний на длинной ленте.
-                            contentType = { it.role },
-                        ) { message ->
-                            // Пер-итемные колбэки запоминаем по id (и по нужным флагам), чтобы они были стабильны между
-                            // рекомпозициями — тогда неизменившиеся пузыри Compose пропускает.
-                            val onTogglePin = remember(message.id) {
-                                { viewModel.handleIntent(ChatIntent.TogglePin(message.id)) }
-                            }
-                            val onDelete = remember(message.id) {
-                                { viewModel.handleIntent(ChatIntent.DeleteMessage(message.id)) }
-                            }
-                            val onLessonComplete = remember(message.id, state.lessonMode, state.levelId) {
-                                {
-                                    if (state.lessonMode) {
-                                        // JSON-урок: отметить пройденным и вернуться к списку.
-                                        viewModel.completeLesson(onNavigateBack)
-                                    } else {
-                                        // Старый roadmap-урок: финальная карточка ведёт на отдельный экран-квиз.
-                                        val levelId = state.levelId
-                                        if (levelId != null) onOpenQuiz(levelId) else onNavigateBack()
-                                    }
-                                }
-                            }
-                            MessageBubble(
-                                message = message,
-                                onTogglePin = onTogglePin,
-                                onDelete = onDelete,
-                                interactiveCards = state.isTutorial,
-                                highlighted = message.id == currentMatchId,
-                                onChoiceSelected = onChoiceSelected,
-                                onFormSubmitted = onChoiceSelected,
-                                onLessonQuizComplete = onLessonQuizComplete,
-                                onLessonComplete = onLessonComplete,
-                                onCardAction = onCardAction,
-                                observeHeartbeat = observeHeartbeat,
-                                onCancelHeartbeat = onCancelHeartbeat,
-                            )
-                        }
-                        if (hasStreamingItem) {
-                            item(key = "streaming") {
-                                // Подписка на стриминговый текст ЛОКАЛЬНА для этого итема: дельты токенов рекомпозируют
-                                // только пузырь, а не весь экран.
-                                val streamingText by viewModel.streamingText.collectAsState()
-                                StreamingBubble(
-                                    text = streamingText,
-                                    showCursor = streamingText.isNotEmpty(),
-                                    isWaiting = streamingText.isEmpty(),
-                                )
-                            }
-                            // Резерв под ответ: пустое место в высоту экрана, чтобы вопрос прибился к верху,
-                            // а ответ рос в него сверху вниз. Исчезает вместе с концом хода (hasStreamingItem).
-                            item(key = "tail_spacer") {
-                                Spacer(Modifier.height(tailSpacerHeight))
-                            }
-                        }
-                    }
-                }
+            // НИЖНИЙ оверлей: композер и все нижние бары. Высоту меряем (onSizeChanged → bottomBarHeightPx)
+            // → contentPadding.bottom ленты и отступ FAB. onSizeChanged СТОИТ ПЕРЕД windowInsetsPadding,
+            // чтобы измеренная высота ВКЛЮЧАЛА нижний инсет (навбар/IME): safeDrawing bottom = max(навбар,
+            // клавиатура), без двойного счёта — navigationBars/imePadding поверх НЕ добавляем.
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .onSizeChanged { bottomBarHeightPx = it.height }
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
+            ) {
 
                 if (state.showToolTrace && state.toolTrace.isNotEmpty()) {
                     ToolTracePanel(
@@ -696,7 +731,8 @@ fun ChatScreen(
                                         AgentMode.PLAN -> "Опиши задачу — агент составит план…"
                                         AgentMode.GOAL -> "Сформулируй цель…"
                                         AgentMode.REFLECT -> "Спроси — агент даст черновик, критику и итог…"
-                                        AgentMode.CHAT -> "Сообщение..."
+                                        // TUTOR не выбирается пользователем (только разовый вопрос в уроке) — как обычный чат.
+                                        AgentMode.CHAT, AgentMode.TUTOR -> "Сообщение..."
                                     },
                                     onExpand = { composerExpanded = true },
                                     voiceState = state.voiceState,
@@ -716,8 +752,18 @@ fun ChatScreen(
                     // урок сами по факту прохождения; исключение — вырожденный quiz без вопросов, ему нужна кнопка.
                     val displayStep = currentStep?.type in
                             setOf("text", "image", "reveal", "concept", "example", "input", "challenge")
-                    val needsManualAdvance = currentStep != null && !state.lessonFinished &&
+                    // !isLoading: во время стрима tutor-ответа не даём листать урок, иначе следующий шаг
+                    // впечатается в живой ход. Кнопка вернётся, когда ответ дойдёт.
+                    val needsManualAdvance = currentStep != null && !state.lessonFinished && !state.isLoading &&
                             (displayStep || (currentStep.type == "quiz" && currentStep.questions.isEmpty()))
+                    // «Спросить» — свободный вопрос к LLM в любой момент урока (пока он не завершён).
+                    // Курсор персистится отдельно (lessonStepIndex), так что вопрос не сдвигает шаги.
+                    if (!state.lessonFinished) {
+                        LessonAskBar(
+                            enabled = !state.isLoading,
+                            onAsk = { viewModel.handleIntent(ChatIntent.AskDuringLesson(it)) },
+                        )
+                    }
                     if (needsManualAdvance) {
                         val isLastStep = state.lessonStepIndex >= (state.lesson?.steps?.size ?: 0)
                         LessonControlBar(
@@ -729,15 +775,14 @@ fun ChatScreen(
             }
         }
 
-        // Плавающая кнопка быстрого скролла вниз — когда уехали вверх по истории. Отступ снизу
-        // увеличен (96dp вместо 16dp): поле ввода всегда внизу экрана, и без этого запаса FAB
-        // садился прямо поверх кнопки «Отправить». Когда во время чтения истории пришло новое
-        // сообщение, кнопка подсвечивается акцентом (вместо прежнего принудительного прыжка вниз).
+        // Плавающая кнопка быстрого скролла вниз — когда уехали вверх по истории. Садится ровно НАД
+        // композером: bottomPad = измеренная высота нижнего оверлея (уже с навбар/IME-инсетом) + 16dp
+        // запаса, иначе FAB налезал бы на кнопку «Отправить». Когда во время чтения истории пришло
+        // новое сообщение, кнопка подсвечивается акцентом (вместо прежнего принудительного прыжка вниз).
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .safeDrawingPadding()
-                .padding(end = 16.dp, bottom = 96.dp),
+                .padding(end = 16.dp, bottom = bottomPad + 16.dp),
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -1101,6 +1146,69 @@ private fun LessonControlBar(
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
         Text(label)
+    }
+}
+
+/**
+ * «Спросить у ИИ» во время урока: свёрнутая пилюля, по тапу разворачивается в поле ввода + отправка.
+ * Вопрос уходит обычным ходом ([ChatIntent.AskDuringLesson]); курсор урока персистится отдельно и не
+ * двигается. Во время ответа (enabled=false) ввод заблокирован, чтобы не плодить параллельные ходы.
+ */
+@Composable
+private fun LessonAskBar(
+    enabled: Boolean,
+    onAsk: (String) -> Unit,
+) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    var text by rememberSaveable { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+
+    fun submit() {
+        val q = text.trim()
+        if (q.isEmpty()) return
+        onAsk(q)
+        text = ""
+        expanded = false
+    }
+
+    if (!expanded) {
+        TextButton(
+            onClick = { expanded = true },
+            enabled = enabled,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+        ) {
+            Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("Спросить у ИИ")
+        }
+    } else {
+        // Развернули поле — сразу поднимаем клавиатуру и ставим курсор (иначе нужен второй тап).
+        LaunchedEffect(Unit) { focusRequester.requestFocus() }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = { expanded = false; text = "" }) {
+                Icon(Icons.Default.Close, contentDescription = "Закрыть")
+            }
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                placeholder = { Text("Спроси про урок…") },
+                singleLine = true,
+                enabled = enabled,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = { submit() }),
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(focusRequester),
+            )
+            IconButton(onClick = { submit() }, enabled = enabled && text.isNotBlank()) {
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Отправить вопрос")
+            }
+        }
     }
 }
 

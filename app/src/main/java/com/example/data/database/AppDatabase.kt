@@ -29,7 +29,7 @@ import com.aiopenpocket.agent.core.srs.SrsWordEntity
     SrsWordEntity::class,
     HeartbeatEntity::class,
   ],
-  version = 1,
+  version = 2,
   exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {

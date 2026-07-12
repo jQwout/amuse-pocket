@@ -18,4 +18,9 @@ data class ConversationEntity(
   val agentId: String? = null,
   /** Закреплён пользователем в избранное — всплывает в начало списка диалогов. */
   val isFavorite: Boolean = false,
+  /** Курсор урока: индекс следующего шага для показа (0 = урок ещё не начат). Явное состояние, а не
+   *  вывод из числа assistant-сообщений — иначе свободный вопрос к LLM во время урока сдвигал бы шаг. */
+  val lessonStepIndex: Int = 0,
+  /** Урок полностью пройден (показана карточка завершения). */
+  val lessonFinished: Boolean = false,
 )

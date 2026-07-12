@@ -35,8 +35,6 @@ fun StreamingBubble(
   ) {
     Box(
       modifier = Modifier
-        .clip(RoundedCornerShape(16.dp))
-        .background(MaterialTheme.colorScheme.surfaceVariant)
         .padding(12.dp),
     ) {
       when {

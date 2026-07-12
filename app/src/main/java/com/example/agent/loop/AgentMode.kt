@@ -14,7 +14,7 @@ package com.aiopenpocket.agent.loop
  * Контракт режима целиком: [resolveTurnExecutionPlan] (как выполнять ход) + [resolveCompletedTurn]
  * (что значит его результат); REFLECT диспатчится на свой оркестратор в TurnModule.provideTurnExecutor.
  */
-enum class AgentMode { CHAT, PLAN, GOAL, REFLECT }
+enum class AgentMode { CHAT, PLAN, GOAL, REFLECT, TUTOR }
 
 /**
  * Какую секцию мода подмешивать в системный промпт. Выводится оркестратором из [AgentMode] и того,
@@ -40,6 +40,7 @@ data class TurnExecutionPlan(
  * - PLAN после одобрения — выполнение: инструменты + полный лимит чата.
  * - GOAL — петля до [goalMaxIterations] (зажата в [1, chatMaxIterations]).
  * - CHAT — обычный цикл на [chatMaxIterations].
+ * - TUTOR — разовый вопрос к LLM во время урока: БЕЗ инструментов, ровно один ход (только объясняет).
  */
 fun resolveTurnExecutionPlan(
   mode: AgentMode,
@@ -48,6 +49,7 @@ fun resolveTurnExecutionPlan(
   chatMaxIterations: Int,
 ): TurnExecutionPlan {
   val planning = mode == AgentMode.PLAN && !planApproved
+  val tutor = mode == AgentMode.TUTOR
   val promptMode = when {
     planning -> PromptMode.PLAN_PLANNING
     mode == AgentMode.PLAN -> PromptMode.PLAN_EXECUTING
@@ -56,19 +58,23 @@ fun resolveTurnExecutionPlan(
   }
   val maxIterations = when {
     planning -> 1
+    tutor -> 1
     mode == AgentMode.GOAL -> goalMaxIterations.coerceIn(1, chatMaxIterations)
     else -> chatMaxIterations
   }
   // В гоал-моде сообщаем модели бюджет витков — иначе goal.md обещает «честно остановиться на
   // лимите», но модель не знает, какой виток последний, и обычно уходит в обрыв на tool_call.
-  val suffix = if (mode == AgentMode.GOAL) {
-    "Бюджет: не более " + maxIterations + " витков (рассуждение, действие, " +
-      "самопроверка). На последнем витке дай финальный ответ или честный частичный итог — не начинай новых действий."
-  } else {
-    null
+  val suffix = when {
+    mode == AgentMode.GOAL ->
+      "Бюджет: не более " + maxIterations + " витков (рассуждение, действие, " +
+        "самопроверка). На последнем витке дай финальный ответ или честный частичный итог — не начинай новых действий."
+    tutor ->
+      "Ты отвечаешь на разовый вопрос ученика во время урока. Коротко объясни по теме урока и остановись — " +
+        "не продолжай урок сам и не задавай встречных заданий."
+    else -> null
   }
   return TurnExecutionPlan(
-    usesTools = !planning,
+    usesTools = !planning && !tutor,
     maxIterations = maxIterations,
     promptMode = promptMode,
     systemPromptSuffix = suffix,

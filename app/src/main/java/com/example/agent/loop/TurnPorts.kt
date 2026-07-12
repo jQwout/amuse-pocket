@@ -17,6 +17,8 @@ fun interface TurnExecutor {
     mode: AgentMode,
     planApproved: Boolean,
     goalMaxIterations: Int,
+    /** Доверенная добавка к системному промпту для этого хода (напр. контекст текущего шага урока). */
+    systemPromptExtra: String?,
   ): Flow<AgentEvent>
 }
 
