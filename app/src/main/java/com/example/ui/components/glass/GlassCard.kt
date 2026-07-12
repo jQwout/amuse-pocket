@@ -35,3 +35,15 @@ fun GlassCard(
     content = content,
   )
 }
+
+/**
+ * Рецепт [GlassCard] как модификатор — для мест, где обернуть контент в [GlassCard] нельзя
+ * (кастомная вёрстка на Column/Box, TextField): скругление + полупрозрачный tint + рим-блик.
+ * Тот же вид, что у карточек на вкладке «Чат».
+ * @trace glass-design-system-21a3fe
+ */
+fun Modifier.glassCardSurface(shape: Shape = GlassTokens.CardShape): Modifier =
+  this
+    .clip(shape)
+    .background(GlassTokens.LightTint)
+    .border(1.dp, GlassTokens.BorderBrush, shape)

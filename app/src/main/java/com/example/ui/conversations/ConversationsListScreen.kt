@@ -3,7 +3,6 @@
 // @trace multi-chat-conversations-b3c93b
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,8 +24,6 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -50,6 +47,8 @@ import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.memory.model.Conversation
 import com.aiopenpocket.agent.loop.TurnStatus
 import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
+import com.aiopenpocket.ui.components.glass.GlassCard
+import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.util.formatDateTime
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import kotlinx.coroutines.launch
@@ -69,8 +68,11 @@ fun ConversationsListScreen(
   // явное «Удалить» в диалоге. Иначе один промах по корзине безвозвратно сносил чат.
   var pendingDelete by remember { mutableStateOf<Conversation?>(null) }
 
+  // Аврора-фон + стекло, как на вкладке «Чат».
+  val glassState = rememberGlassState()
   AcademyCollapsingScaffold(
     title = "Чаты",
+    glassState = glassState,
     navigationIcon = {
       IconButton(onClick = onNavigateBack) {
         Icon(
@@ -186,14 +188,11 @@ private fun ConversationItem(
   onToggleFavorite: () -> Unit,
   onDelete: () -> Unit,
 ) {
-  Card(
+  GlassCard(
     modifier = Modifier
       .fillMaxWidth()
-      .padding(horizontal = 16.dp, vertical = 4.dp)
-      .clickable(onClick = onClick),
-    colors = CardDefaults.cardColors(
-      containerColor = MaterialTheme.colorScheme.surfaceVariant,
-    ),
+      .padding(horizontal = 16.dp, vertical = 4.dp),
+    onClick = onClick,
   ) {
     Row(
       modifier = Modifier

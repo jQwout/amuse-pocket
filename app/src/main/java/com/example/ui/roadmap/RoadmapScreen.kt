@@ -61,8 +61,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.ui.components.AcademyBottomNav
 import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
+import com.aiopenpocket.ui.components.glass.glassCardSurface
+import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.components.AcademyTab
-import com.aiopenpocket.ui.theme.CardDark
 import com.aiopenpocket.ui.theme.PurpleAccent
 import com.aiopenpocket.ui.theme.PurpleAccentDark
 import dev.zacsweers.metrox.viewmodel.metroViewModel
@@ -210,8 +211,10 @@ fun RoadmapScreen(
   val completedCount = progress.size
   val progressFraction = completedCount.toFloat() / ROADMAP_LEVELS.size
 
+  val glassState = rememberGlassState()
   AcademyCollapsingScaffold(
     title = "Путь агента",
+    glassState = glassState,
     bottomBar = {
       AcademyBottomNav(
         selectedTab = AcademyTab.Path,
@@ -222,6 +225,7 @@ fun RoadmapScreen(
             AcademyTab.Tools -> onNavigateToSettings()
           }
         },
+        glassState = glassState,
       )
     },
   ) { padding ->
@@ -411,8 +415,7 @@ private fun PathLevelCard(
   Column(
     modifier = modifier
       .alpha(alpha)
-      .clip(RoundedCornerShape(16.dp))
-      .background(CardDark)
+      .glassCardSurface(RoundedCornerShape(16.dp))
       .then(
         if (!isLocked) Modifier.clickable(onClick = onClick) else Modifier,
       )
@@ -464,8 +467,7 @@ private fun ProTipCard(progressFraction: Float) {
   Column(
     modifier = Modifier
       .fillMaxWidth()
-      .clip(RoundedCornerShape(16.dp))
-      .background(CardDark)
+      .glassCardSurface(RoundedCornerShape(16.dp))
       .padding(16.dp),
   ) {
     Text(

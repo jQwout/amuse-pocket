@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -87,10 +88,11 @@ import com.aiopenpocket.agent.core.persona.PersonaCatalog
 import com.aiopenpocket.ui.onboarding.components.PersonaCard
 import com.aiopenpocket.ui.components.AcademyBottomNav
 import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
+import com.aiopenpocket.ui.components.glass.glassCardSurface
+import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.components.AcademyTab
-import com.aiopenpocket.ui.theme.CardDark
+import com.aiopenpocket.ui.theme.GlassTokens
 import com.aiopenpocket.ui.theme.PersonaCardBg
-import com.aiopenpocket.ui.theme.PersonaQuoteBg
 import com.aiopenpocket.ui.theme.PurpleAccent
 import com.aiopenpocket.ui.theme.PurpleAccentDark
 import dev.zacsweers.metrox.viewmodel.metroViewModel
@@ -112,9 +114,11 @@ fun SettingsScreen(
   val personaSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   val currentPersona = PersonaCatalog.findById(state.personaId)
 
+  // Аврора-фон + стекло, как на вкладке «Чат» — навбар/каркас становятся прозрачными (см. glassState).
+  val glassState = rememberGlassState()
   AcademyCollapsingScaffold(
     title = "Настройки",
-    containerColor = PersonaQuoteBg,
+    glassState = glassState,
     navigationIcon = {
       IconButton(onClick = onNavigateBack) {
         Icon(
@@ -135,8 +139,7 @@ fun SettingsScreen(
     bottomBar = {
       Column(
         modifier = Modifier
-          .fillMaxWidth()
-          .background(PersonaQuoteBg),
+          .fillMaxWidth(),
       ) {
         Column(
           modifier = Modifier
@@ -197,6 +200,7 @@ fun SettingsScreen(
               AcademyTab.Tools -> Unit
             }
           },
+          glassState = glassState,
         )
       }
     },
@@ -305,9 +309,9 @@ fun SettingsScreen(
           .height(52.dp)
           .testTag("settings_scheduled_tasks"),
         shape = SettingsCardShape,
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardDark),
+        border = androidx.compose.foundation.BorderStroke(1.dp, GlassTokens.BorderBrush),
         colors = ButtonDefaults.outlinedButtonColors(
-          containerColor = PersonaCardBg,
+          containerColor = GlassTokens.LightTint,
           contentColor = MaterialTheme.colorScheme.onSurface,
         ),
       ) {
@@ -386,8 +390,7 @@ private fun SettingsInfoCard(modifier: Modifier = Modifier) {
   Box(
     modifier = modifier
       .fillMaxWidth()
-      .clip(SettingsCardShape)
-      .background(PersonaCardBg)
+      .glassCardSurface(SettingsCardShape)
       .padding(horizontal = 20.dp, vertical = 18.dp),
   ) {
     Column {
@@ -461,9 +464,9 @@ private fun ApiKeyField(
     singleLine = true,
     shape = SettingsFieldShape,
     colors = TextFieldDefaults.colors(
-      focusedContainerColor = PersonaCardBg,
-      unfocusedContainerColor = PersonaCardBg,
-      disabledContainerColor = PersonaCardBg,
+      focusedContainerColor = GlassTokens.LightTint,
+      unfocusedContainerColor = GlassTokens.LightTint,
+      disabledContainerColor = GlassTokens.LightTint,
       focusedIndicatorColor = Color.Transparent,
       unfocusedIndicatorColor = Color.Transparent,
       disabledIndicatorColor = Color.Transparent,
@@ -471,7 +474,9 @@ private fun ApiKeyField(
       focusedLabelColor = PurpleAccent,
       unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
     ),
-    modifier = modifier.fillMaxWidth(),
+    modifier = modifier
+      .fillMaxWidth()
+      .border(1.dp, GlassTokens.BorderBrush, SettingsFieldShape),
   )
 }
 
@@ -489,8 +494,7 @@ private fun SelectorCard(
     Row(
       modifier = Modifier
         .fillMaxWidth()
-        .clip(SettingsCardShape)
-        .background(PersonaCardBg)
+        .glassCardSurface(SettingsCardShape)
         .clickable { expanded = true }
         .padding(horizontal = 16.dp, vertical = 18.dp)
         .testTag(testTag),
@@ -561,8 +565,7 @@ private fun GoalIterationsCard(
   Row(
     modifier = modifier
       .fillMaxWidth()
-      .clip(SettingsCardShape)
-      .background(PersonaCardBg)
+      .glassCardSurface(SettingsCardShape)
       .padding(horizontal = 16.dp, vertical = 14.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
@@ -704,8 +707,7 @@ private fun IntegrationRow(
   Row(
     modifier = Modifier
       .fillMaxWidth()
-      .clip(SettingsCardShape)
-      .background(PersonaCardBg)
+      .glassCardSurface(SettingsCardShape)
       .padding(horizontal = 16.dp, vertical = 14.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
@@ -784,8 +786,7 @@ private fun PersonaSelectorCard(
   Row(
     modifier = modifier
       .fillMaxWidth()
-      .clip(SettingsCardShape)
-      .background(PersonaCardBg)
+      .glassCardSurface(SettingsCardShape)
       .clickable(onClick = onClick)
       .padding(horizontal = 16.dp, vertical = 18.dp)
       .testTag("settings_persona_selector"),

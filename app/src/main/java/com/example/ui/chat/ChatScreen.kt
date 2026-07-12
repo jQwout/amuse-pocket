@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -50,6 +51,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.MenuOpen
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Build
@@ -98,10 +100,10 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -115,12 +117,12 @@ import com.aiopenpocket.ui.chat.components.MicButton
 import com.aiopenpocket.ui.chat.components.ToolTracePanel
 import com.aiopenpocket.ui.components.MarkdownText
 import com.aiopenpocket.ui.components.StreamingBubble
+import com.aiopenpocket.ui.components.glass.GlassBackground
 import com.aiopenpocket.ui.components.glass.GlassState
 import com.aiopenpocket.ui.components.glass.GlassSurface
 import com.aiopenpocket.ui.components.glass.auroraBackground
 import com.aiopenpocket.ui.components.glass.glassSource
 import com.aiopenpocket.ui.components.glass.rememberGlassState
-import com.aiopenpocket.ui.theme.GlassTokens
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.voice.input.VoiceInputState
 import dev.zacsweers.metrox.viewmodel.metroViewModel
@@ -161,6 +163,7 @@ fun ChatScreen(
     var searchActive by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var currentMatch by remember { mutableStateOf(0) }
+
     // Закрыть поиск — общий путь для крестика, системной «назад» и смены диалога: помимо локального
     // флага, снимает с ViewModel полное окно истории (см. setSearchActive ниже).
     fun closeSearch() {
@@ -263,6 +266,7 @@ fun ChatScreen(
                 val target = lastItemIndex()
                 if (target >= 0) listState.scrollToItem(target, Int.MAX_VALUE)
             }
+
             state.messages.isNotEmpty() -> hasUnseenNew = true
         }
         if (state.messages.isNotEmpty()) initialScrollDone = true
@@ -317,15 +321,36 @@ fun ChatScreen(
         pendingAnchorId = null
     }
 
-    Box(modifier = Modifier.fillMaxSize().auroraBackground()) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Аурора — ОТДЕЛЬНЫЙ слой-источник для стекла: именно её размывают бары и навбар.
+        // Раньше источником была только лента (glassSource на LazyColumn), а за баром — где ленты
+        // нет — hazeEffect сэмплить было нечего и падал в плоский DarkBg+tint (та самая «мутная
+        // плашка»). Источник обязан быть отдельным слоем: модификатор на корневом Box захватил бы
+        // и сами бары (петля), поэтому аурора вынесена в собственный matchParentSize-слой позади.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .auroraBackground()
+                .glassSource(glassState),
+        )
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
-                // (3) Стеклянная шапка (GlassSurface — сильное стекло с blur) с мягким фейдом по нижней
-                // кромке — контент «проступает» под ней (особенно при скролле истории, когда ввод спрятан
-                // и лента занимает место под баром). Ручная полупрозрачность (старый barColor) убрана —
-                // тонировку и blur теперь даёт GlassSurface (дефолтный тон GlassTokens.StrongTint).
-                GlassSurface(state = glassState) {
+                // Плавающая стеклянная «таблетка» шапки — как нижний навбар: скруглённая, с боковыми
+                // отступами, мягкой тенью и рим-бордером (от GlassSurface). Статус-бар-инсет вынесен на
+                // саму таблетку (statusBarsPadding), поэтому дети (TopAppBar/строка поиска) свой инсет НЕ
+                // добавляют — иначе он задвоился бы и таблетка ушла бы под системные часы/вырез.
+                val barShape = RoundedCornerShape(24.dp)
+                GlassSurface(
+                    state = glassState,
+                    shape = barShape,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 12.dp)
+                        .padding(top = 8.dp, bottom = 8.dp)
+                        .shadow(16.dp, barShape, clip = false),
+                ) {
                     Column {
                         if (searchActive) {
                             ChatSearchBar(
@@ -399,20 +424,12 @@ fun ChatScreen(
                                         }
                                     }
                                 },
+                                windowInsets = WindowInsets(0, 0, 0, 0),
                                 colors = TopAppBarDefaults.topAppBarColors(
                                     containerColor = Color.Transparent,
                                 ),
                             )
                         }
-                        // Фейд: тонкая градиентная полоса от стеклянной тонировки к прозрачному — мягкая граница.
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(12.dp)
-                                .background(
-                                    Brush.verticalGradient(listOf(GlassTokens.StrongTint, Color.Transparent)),
-                                ),
-                        )
                     }
                 }
             },
@@ -450,82 +467,82 @@ fun ChatScreen(
                 // Arrangement.Bottom: короткий чат (меньше экрана) прижимается к низу, а не висит у
                 // верха с пустотой над полем ввода — как в обычных мессенджерах.
                 BoxWithConstraints(modifier = Modifier.weight(1f)) {
-                  // Высота вьюпорта ленты — размер tail-spacer'а стрим-хода: полный экран, чтобы вопрос
-                  // гарантированно дотягивался до самого верха, а ответ рос в резерв сверху вниз.
-                  val tailSpacerHeight = maxHeight
-                  LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        // До первого автоскролла ленту не показываем: LazyColumn рождается на индексе 0
-                        // (старые сообщения), и до снапа юзер видел вспышку начала истории. graphicsLayer
-                        // читает флаг на фазе рисования — смена не рекомпозирует ленту.
-                        .graphicsLayer { alpha = if (initialScrollDone) 1f else 0f }
-                        // Источник для стеклянной обвязки (топбар/инпут) — сама лента НЕ размывается,
-                        // только читается как backdrop чужим hazeEffect (перф: без RenderEffect в items).
-                        .glassSource(glassState),
-                    verticalArrangement = Arrangement.Bottom,
-                ) {
-                    items(
-                        state.messages,
-                        key = { it.id },
-                        // Подсказка Compose переиспользовать раскладку пузыря того же типа при скролле — меньше
-                        // пересборок и подлагиваний на длинной ленте.
-                        contentType = { it.role },
-                    ) { message ->
-                        // Пер-итемные колбэки запоминаем по id (и по нужным флагам), чтобы они были стабильны между
-                        // рекомпозициями — тогда неизменившиеся пузыри Compose пропускает.
-                        val onTogglePin = remember(message.id) {
-                            { viewModel.handleIntent(ChatIntent.TogglePin(message.id)) }
-                        }
-                        val onDelete = remember(message.id) {
-                            { viewModel.handleIntent(ChatIntent.DeleteMessage(message.id)) }
-                        }
-                        val onLessonComplete = remember(message.id, state.lessonMode, state.levelId) {
-                            {
-                                if (state.lessonMode) {
-                                    // JSON-урок: отметить пройденным и вернуться к списку.
-                                    viewModel.completeLesson(onNavigateBack)
-                                } else {
-                                    // Старый roadmap-урок: финальная карточка ведёт на отдельный экран-квиз.
-                                    val levelId = state.levelId
-                                    if (levelId != null) onOpenQuiz(levelId) else onNavigateBack()
+                    // Высота вьюпорта ленты — размер tail-spacer'а стрим-хода: полный экран, чтобы вопрос
+                    // гарантированно дотягивался до самого верха, а ответ рос в резерв сверху вниз.
+                    val tailSpacerHeight = maxHeight
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            // До первого автоскролла ленту не показываем: LazyColumn рождается на индексе 0
+                            // (старые сообщения), и до снапа юзер видел вспышку начала истории. graphicsLayer
+                            // читает флаг на фазе рисования — смена не рекомпозирует ленту.
+                            .graphicsLayer { alpha = if (initialScrollDone) 1f else 0f }
+                            // Источник для стеклянной обвязки (топбар/инпут) — сама лента НЕ размывается,
+                            // только читается как backdrop чужим hazeEffect (перф: без RenderEffect в items).
+                            .glassSource(glassState),
+                        verticalArrangement = Arrangement.Bottom,
+                    ) {
+                        items(
+                            state.messages,
+                            key = { it.id },
+                            // Подсказка Compose переиспользовать раскладку пузыря того же типа при скролле — меньше
+                            // пересборок и подлагиваний на длинной ленте.
+                            contentType = { it.role },
+                        ) { message ->
+                            // Пер-итемные колбэки запоминаем по id (и по нужным флагам), чтобы они были стабильны между
+                            // рекомпозициями — тогда неизменившиеся пузыри Compose пропускает.
+                            val onTogglePin = remember(message.id) {
+                                { viewModel.handleIntent(ChatIntent.TogglePin(message.id)) }
+                            }
+                            val onDelete = remember(message.id) {
+                                { viewModel.handleIntent(ChatIntent.DeleteMessage(message.id)) }
+                            }
+                            val onLessonComplete = remember(message.id, state.lessonMode, state.levelId) {
+                                {
+                                    if (state.lessonMode) {
+                                        // JSON-урок: отметить пройденным и вернуться к списку.
+                                        viewModel.completeLesson(onNavigateBack)
+                                    } else {
+                                        // Старый roadmap-урок: финальная карточка ведёт на отдельный экран-квиз.
+                                        val levelId = state.levelId
+                                        if (levelId != null) onOpenQuiz(levelId) else onNavigateBack()
+                                    }
                                 }
                             }
-                        }
-                        MessageBubble(
-                            message = message,
-                            onTogglePin = onTogglePin,
-                            onDelete = onDelete,
-                            interactiveCards = state.isTutorial,
-                            highlighted = message.id == currentMatchId,
-                            onChoiceSelected = onChoiceSelected,
-                            onFormSubmitted = onChoiceSelected,
-                            onLessonQuizComplete = onLessonQuizComplete,
-                            onLessonComplete = onLessonComplete,
-                            onCardAction = onCardAction,
-                            observeHeartbeat = observeHeartbeat,
-                            onCancelHeartbeat = onCancelHeartbeat,
-                        )
-                    }
-                    if (hasStreamingItem) {
-                        item(key = "streaming") {
-                            // Подписка на стриминговый текст ЛОКАЛЬНА для этого итема: дельты токенов рекомпозируют
-                            // только пузырь, а не весь экран.
-                            val streamingText by viewModel.streamingText.collectAsState()
-                            StreamingBubble(
-                                text = streamingText,
-                                showCursor = streamingText.isNotEmpty(),
-                                isWaiting = streamingText.isEmpty(),
+                            MessageBubble(
+                                message = message,
+                                onTogglePin = onTogglePin,
+                                onDelete = onDelete,
+                                interactiveCards = state.isTutorial,
+                                highlighted = message.id == currentMatchId,
+                                onChoiceSelected = onChoiceSelected,
+                                onFormSubmitted = onChoiceSelected,
+                                onLessonQuizComplete = onLessonQuizComplete,
+                                onLessonComplete = onLessonComplete,
+                                onCardAction = onCardAction,
+                                observeHeartbeat = observeHeartbeat,
+                                onCancelHeartbeat = onCancelHeartbeat,
                             )
                         }
-                        // Резерв под ответ: пустое место в высоту экрана, чтобы вопрос прибился к верху,
-                        // а ответ рос в него сверху вниз. Исчезает вместе с концом хода (hasStreamingItem).
-                        item(key = "tail_spacer") {
-                            Spacer(Modifier.height(tailSpacerHeight))
+                        if (hasStreamingItem) {
+                            item(key = "streaming") {
+                                // Подписка на стриминговый текст ЛОКАЛЬНА для этого итема: дельты токенов рекомпозируют
+                                // только пузырь, а не весь экран.
+                                val streamingText by viewModel.streamingText.collectAsState()
+                                StreamingBubble(
+                                    text = streamingText,
+                                    showCursor = streamingText.isNotEmpty(),
+                                    isWaiting = streamingText.isEmpty(),
+                                )
+                            }
+                            // Резерв под ответ: пустое место в высоту экрана, чтобы вопрос прибился к верху,
+                            // а ответ рос в него сверху вниз. Исчезает вместе с концом хода (hasStreamingItem).
+                            item(key = "tail_spacer") {
+                                Spacer(Modifier.height(tailSpacerHeight))
+                            }
                         }
                     }
-                  }
                 }
 
                 if (state.showToolTrace && state.toolTrace.isNotEmpty()) {
@@ -762,9 +779,7 @@ private fun ChatSearchBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                // Заменяем TopAppBar, который сам отступает под статус-бар; повторяем это, иначе строка
-                // поиска рисуется под системными часами/вырезом.
-                .statusBarsPadding()
+                // Статус-бар-инсет даёт родительская стеклянная «таблетка» (topBar); здесь не дублируем.
                 .padding(horizontal = 4.dp, vertical = 6.dp)
                 .height(48.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -1090,6 +1105,8 @@ private fun MessageBubble(
         MaterialTheme.colorScheme.surfaceVariant
     }
     val alignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart
+    // Системное сообщение — не пузырь: рисуем без клипа и фоновой заливки.
+    val isSystem = message.role == "system"
 
     Box(
         modifier = Modifier
@@ -1099,8 +1116,16 @@ private fun MessageBubble(
     ) {
         Column(
             modifier = Modifier
-                .clip(RoundedCornerShape(16.dp))
-                .background(backgroundColor)
+                // Системное сообщение — без пузыря: клип и фоновую заливку не применяем.
+                .then(
+                    if (isUser) {
+                        Modifier .clip(RoundedCornerShape(16.dp))
+                            .background(backgroundColor)
+                    } else {
+                        Modifier
+
+                    },
+                )
                 // Подсветка текущего совпадения поиска — акцентная рамка вокруг пузыря.
                 .then(
                     if (highlighted) {
@@ -1168,9 +1193,9 @@ private fun MessageBubble(
                     // курсор урока (повтор или пропуск шага). Функциональные карточки (switch/разрешение/reminder)
                     // не часть шагового счёта, поэтому их можно удалять и внутри урока — как и свои сообщения.
                     val isLessonStepContent = interactiveCards &&
-                        card !is DrivenUiCard.SwitchCard &&
-                        card !is DrivenUiCard.NotificationPermissionCard &&
-                        card !is DrivenUiCard.ReminderCard
+                            card !is DrivenUiCard.SwitchCard &&
+                            card !is DrivenUiCard.NotificationPermissionCard &&
+                            card !is DrivenUiCard.ReminderCard
                     if (!isLessonStepContent || isUser) {
                         IconButton(onClick = { showDeleteConfirm = true }, modifier = Modifier.size(32.dp)) {
                             Icon(
@@ -1273,28 +1298,28 @@ private fun ResponseStatsBar(
         .coerceAtLeast(0)
 
     Column(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "⏱ $timeLabel",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = "↩ ~${stats.completionTokens} токенов",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = "контекст: ~${contextRemainingK}k осталось",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Spacer(modifier = Modifier.height(2.dp))
+        // Row(
+        //     modifier = Modifier.fillMaxWidth(),
+        //     horizontalArrangement = Arrangement.spacedBy(12.dp),
+        //     verticalAlignment = Alignment.CenterVertically,
+        // ) {
+        //     Text(
+        //         text = "⏱ $timeLabel",
+        //         style = MaterialTheme.typography.labelSmall,
+        //         color = MaterialTheme.colorScheme.onSurfaceVariant,
+        //     )
+        //     Text(
+        //         text = "↩ ~${stats.completionTokens} токенов",
+        //         style = MaterialTheme.typography.labelSmall,
+        //         color = MaterialTheme.colorScheme.onSurfaceVariant,
+        //     )
+        //     Text(
+        //         text = "контекст: ~${contextRemainingK}k осталось",
+        //         style = MaterialTheme.typography.labelSmall,
+        //         color = MaterialTheme.colorScheme.onSurfaceVariant,
+        //     )
+        // }
+        // Spacer(modifier = Modifier.height(2.dp))
         LinearProgressIndicator(
             progress = { contextUsedFraction },
             modifier = Modifier
@@ -1355,13 +1380,15 @@ private fun ChatInput(
 
     // Единая скруглённая рамка: сверху — текст, снизу — панель управления (как в макете). Blur/tint/
     // блик-бордер — от GlassSurface; фиолетовый акцент-бордер оставлен поверх как второй, внутренний.
+    // Плавающее оформление как у навбара/шапки: боковые отступы + мягкая тень (рим — от GlassSurface).
     val inputShape = RoundedCornerShape(24.dp)
     GlassSurface(
         state = glassState,
         shape = inputShape,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .shadow(16.dp, inputShape, clip = false),
     ) {
         Column(
             modifier = Modifier
@@ -1563,48 +1590,54 @@ internal fun ChatPreviewScaffold(
 ) {
     MyApplicationTheme {
         val glassState = rememberGlassState()
-        Box(Modifier.fillMaxSize().auroraBackground()) {
+        Box(Modifier
+            .fillMaxSize()
+            .auroraBackground()) {
             Scaffold(
                 containerColor = Color.Transparent,
                 topBar = {
                     // Тот же glass-каркас шапки, что и в боевом ChatScreen (без поиска — превью его не моделирует).
-                    GlassSurface(state = glassState) {
-                        TopAppBar(
-                            title = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(38.dp)
-                                            .clip(CircleShape)
-                                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Icon(
-                                            Icons.Default.AutoAwesome,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(20.dp),
-                                        )
-                                    }
-                                    Spacer(Modifier.width(10.dp))
+                    TopAppBar(
+                        title = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        Icons.Default.AutoAwesome,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                GlassBackground {
                                     Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 }
-                            },
-                            navigationIcon = {
-                                IconButton(onClick = {}) {
-                                    Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Назад")
-                                }
-                            },
-                            actions = {
-                                IconButton(onClick = {}) {
-                                    Icon(Icons.Default.Search, contentDescription = "Поиск", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            },
-                            colors = TopAppBarDefaults.topAppBarColors(
-                                containerColor = Color.Transparent,
-                            ),
-                        )
-                    }
+                            }
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = {}) {
+                                Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Назад")
+                            }
+                        },
+                        actions = {
+                            IconButton(onClick = {}) {
+                                Icon(
+                                    Icons.AutoMirrored.Default.MenuOpen,
+                                    contentDescription = "Меню",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = Color.Transparent,
+                        ),
+                    )
                 },
             ) { padding ->
                 Column(
@@ -1680,7 +1713,12 @@ private fun PreviewComposerBar(glassState: GlassState, placeholder: String = "С
             )
             Spacer(Modifier.height(6.dp))
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.OpenInFull, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                Icon(
+                    Icons.Default.OpenInFull,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
                 Spacer(Modifier.weight(1f))
                 Box(
                     modifier = Modifier
@@ -1689,7 +1727,11 @@ private fun PreviewComposerBar(glassState: GlassState, placeholder: String = "С
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.AutoMirrored.Default.Send, contentDescription = "Отправить", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(
+                        Icons.AutoMirrored.Default.Send,
+                        contentDescription = "Отправить",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
