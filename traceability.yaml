@@ -94,3 +94,7 @@ features:
     title: "Инспектор агента (read-mostly)"
     rationale: "Glass-лист (ModalBottomSheet) поверх «Тулов» показывает реальный скоуп мини-агента (тулы/навык/heartbeat/области состояния/препромпт) + файлы общей песочницы — read-only, чтобы юзер видел, на что агент способен и что настроено, ДО открытия чата. Данные детерминированно из MiniAgentCatalog + HeartbeatDao.observeActiveByAgent + AgentFilesRepository (не через ToolExecutor). Редактирование, функциональные хуки и per-agent workspace осознанно отложены."
     flows: [chat]
+  - id: user-agent-builder-848153
+    title: "User agent builder"
+    rationale: "Замкнуть обучение AI Academy в пользовательский результат: безопасно собрать, проверить, сохранить и запустить собственного scoped агента без изменения кода. Preset-каталог остаётся read-only Kotlin; custom agents/skills/hooks — в Room, объединяются с presets через AgentResolver; runtime получает immutable AgentDefinition snapshot, code-enforced ExecutionPolicy (Preview блокирует side effects), per-agent memory/file namespaces и декларативный HookEngine."
+    flows: [chat]
