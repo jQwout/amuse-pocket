@@ -2,6 +2,8 @@ package com.aiopenpocket.agent.core.agent
 
 // @trace multi-agent-orchestration-27b8e3
 
+import com.aiopenpocket.agent.loop.AgentMode
+
 /**
  * A specialist "mini-agent" — the ai-open-pocket take on openQwoutt's mini-apps, reframed as agents.
  * Each one is an identity ([name]/[description]/[iconKey]) bound to a scoped tool set ([toolNames])
@@ -153,3 +155,49 @@ object MiniAgentCatalog {
 
   fun get(id: String?): MiniAgent? = id?.let { target -> all.find { it.id == target } }
 }
+
+// @trace user-agent-builder-848153
+
+/**
+ * Adapts a preset [MiniAgent] into the generic [AgentDefinition] snapshot the runtime consumes, so
+ * `AgentResolver` (later tasks) can treat presets and user-authored agents uniformly.
+ *
+ * Presets are read-only Kotlin, not Room rows: [AgentDefinition.configVersion] is pinned to `1`
+ * and [AgentDefinition.status] to [AgentStatus.PUBLISHED] — a preset is always "already published".
+ * [AgentDefinition.hooks] is empty until Task 8 wires up [com.aiopenpocket.agent.core.hook.AgentHook]
+ * persistence; presets carry no lifecycle hooks in v1.
+ *
+ * Mode scope defaults to every interactive chat mode ([AgentMode.CHAT]/[AgentMode.PLAN]/
+ * [AgentMode.GOAL]/[AgentMode.REFLECT]), starting in [AgentMode.CHAT] — [MiniAgent] carries no
+ * per-agent mode hint. [AgentMode.TUTOR] is deliberately excluded: it is a lesson-internal,
+ * code-driven mode (a single tool-less Q&A turn during a lesson), never selected by the user for
+ * an ordinary mini-agent chat.
+ *
+ * [AgentDefinition.allowedWidgetTemplates] defaults to every known `render_card` template
+ * ([AgentValidator.KNOWN_WIDGET_TEMPLATES]) because presets have never been restricted to a
+ * per-agent widget subset — narrowing this now would regress existing behavior the moment a later
+ * task starts enforcing it.
+ *
+ * [AgentDefinition.memoryPolicy] uses the `agent:$id:` namespace [AgentValidator] requires and
+ * includes the shared user profile, matching how mini-agents already read general memory today.
+ */
+fun MiniAgent.toDefinition(): AgentDefinition = AgentDefinition(
+  id = id,
+  source = AgentSource.PRESET,
+  name = name,
+  description = description,
+  iconKey = iconKey,
+  systemPrompt = systemPrompt,
+  toolNames = toolNames,
+  skillIds = when (id) {
+    "budget", "languages", "diary" -> setOf(id)
+    else -> emptySet()
+  },
+  defaultMode = AgentMode.CHAT,
+  allowedModes = setOf(AgentMode.CHAT, AgentMode.PLAN, AgentMode.GOAL, AgentMode.REFLECT),
+  memoryPolicy = AgentMemoryPolicy(namespace = "agent:$id:", includeSharedProfile = true),
+  allowedWidgetTemplates = AgentValidator.KNOWN_WIDGET_TEMPLATES,
+  hooks = emptyList(),
+  configVersion = 1L,
+  status = AgentStatus.PUBLISHED,
+)
