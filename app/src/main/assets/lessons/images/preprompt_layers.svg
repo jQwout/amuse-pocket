@@ -1,0 +1,21 @@
+<svg viewBox="0 0 800 470" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif">
+  <defs><marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#5B6472"/></marker></defs>
+  <text x="400" y="34" text-anchor="middle" font-size="22" font-weight="bold" fill="#5B6472">Препромпт: собирается слоями на каждый ход</text>
+  <g font-size="17" fill="#FFFFFF">
+    <rect x="140" y="60"  width="380" height="56" rx="10" fill="#4A5568"/>
+    <text x="330" y="94" text-anchor="middle">1. Базовые правила</text>
+    <rect x="140" y="124" width="380" height="56" rx="10" fill="#5A67D8"/>
+    <text x="330" y="158" text-anchor="middle">2. Язык и персона</text>
+    <rect x="140" y="188" width="380" height="56" rx="10" fill="#2B6CB0"/>
+    <text x="330" y="222" text-anchor="middle">3. Каталог навыков</text>
+    <rect x="140" y="252" width="380" height="56" rx="10" fill="#2C7A7B"/>
+    <text x="330" y="286" text-anchor="middle">4. Память: факты, резюме, события</text>
+    <rect x="140" y="316" width="380" height="56" rx="10" fill="#6B46C1"/>
+    <text x="330" y="350" text-anchor="middle">5. Инструкции, как отвечать</text>
+    <rect x="140" y="390" width="380" height="56" rx="10" fill="#C05621"/>
+    <text x="330" y="424" text-anchor="middle">Твоё сообщение</text>
+  </g>
+  <path d="M 560 250 H 640" stroke="#5B6472" stroke-width="4" marker-end="url(#arr)"/>
+  <rect x="648" y="212" width="120" height="76" rx="14" fill="#1A202C"/>
+  <text x="708" y="256" text-anchor="middle" font-size="18" fill="#FFFFFF">Модель</text>
+</svg>
