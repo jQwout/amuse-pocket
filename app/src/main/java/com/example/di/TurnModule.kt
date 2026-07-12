@@ -29,14 +29,14 @@ object TurnModule {
     orchestrator: AgentLoopOrchestrator,
     reflectionOrchestrator: ReflectionOrchestrator,
   ): TurnExecutor =
-    TurnExecutor { conversationId, message, provider, mode, planApproved, goalMaxIterations ->
+    TurnExecutor { conversationId, message, provider, mode, planApproved, goalMaxIterations, systemPromptExtra ->
       // Режим REFLECT — отдельный 3-фазный оркестратор (черновик → критика → итог) поверх того же
       // ReactLoopRunner; остальные режимы идут через основной цикл AgentLoopOrchestrator. Точку
       // диспатча держим здесь (а не в ChatViewModel, как на старой ветке): менеджер уже прокинул mode.
       if (mode == AgentMode.REFLECT) {
         reflectionOrchestrator.execute(conversationId, message, provider)
       } else {
-        orchestrator.execute(conversationId, message, provider, mode, planApproved, goalMaxIterations)
+        orchestrator.execute(conversationId, message, provider, mode, planApproved, goalMaxIterations, systemPromptExtra)
       }
     }
 

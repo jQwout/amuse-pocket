@@ -64,4 +64,15 @@ class AgentModeTest {
     assertNull(plan(AgentMode.PLAN, approved = false).systemPromptSuffix)
     assertNull(plan(AgentMode.PLAN, approved = true).systemPromptSuffix)
   }
+
+  @Test
+  fun tutor_blocksToolsSingleIterationWithTutorSuffix() {
+    // Вопрос к LLM во время урока: репетитор только ОБЪЯСНЯЕТ — никаких инструментов, один виток,
+    // и рамка «объясни и остановись, не продолжай урок».
+    val turn = plan(AgentMode.TUTOR)
+    assertFalse("tutor-ход только объясняет — инструменты отключены", turn.usesTools)
+    assertEquals(1, turn.maxIterations)
+    assertEquals(PromptMode.NONE, turn.promptMode)
+    assertTrue("tutor несёт рамку «только объясняй»", turn.systemPromptSuffix!!.contains("объясни"))
+  }
 }

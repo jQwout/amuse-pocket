@@ -165,11 +165,10 @@ class LessonAssetsValidationTest {
               }
             }
 
-            // Рантайм (LessonChatController.textForStep) берёт prompt ИЛИ hint — пустой пузырь
-            // только когда пусты оба (как и для challenge ниже).
-            "input" -> if (step.prompt.isBlank() && step.hint.isBlank()) err("пустые prompt и hint — пустой пузырь")
-
-            "challenge" -> if (step.instruction.isBlank() && step.task.isBlank()) err("пустые instruction/task — пустой пузырь")
+            // input/challenge (живой ввод) не поддержаны, пока lesson-mode прячет поле ввода:
+            // они рендерятся статичным текстом и обещают взаимодействие, которого нет.
+            "input", "challenge" ->
+              err("тип пока не поддержан: lesson-mode скрывает ввод; используй text с честной практикой")
 
             // Setup-шаги онбординга: чат-контроллер их не умеет (рендерит пустой текст без кнопки).
             "language", "persona", "profile" ->

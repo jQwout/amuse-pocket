@@ -45,6 +45,7 @@ class TurnManagerTest {
       mode: AgentMode,
       planApproved: Boolean,
       goalMaxIterations: Int,
+      systemPromptExtra: String?,
     ): Flow<AgentEvent> {
       val call = Call(conversationId, userMessage, mode, planApproved)
       calls += call

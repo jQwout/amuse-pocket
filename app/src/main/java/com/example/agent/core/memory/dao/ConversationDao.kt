@@ -48,6 +48,10 @@ interface ConversationDao {
   @Query("UPDATE conversations SET isFavorite = :favorite WHERE id = :id")
   suspend fun setFavorite(id: String, favorite: Boolean)
 
+  /** Персистит курсор урока. updatedAt не трогаем: продвижение шага — не «активность диалога». */
+  @Query("UPDATE conversations SET lessonStepIndex = :stepIndex, lessonFinished = :finished WHERE id = :id")
+  suspend fun updateLessonCursor(id: String, stepIndex: Int, finished: Boolean)
+
   @Query("DELETE FROM conversations WHERE id = :id")
   suspend fun delete(id: String)
 }

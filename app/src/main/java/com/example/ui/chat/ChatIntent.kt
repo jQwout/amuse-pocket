@@ -31,4 +31,7 @@ sealed class ChatIntent {
   data object AdvanceLesson : ChatIntent()
   /** Урок: квиз пройден — показать карточку завершения. */
   data object CompleteLessonQuiz : ChatIntent()
+
+  /** Урок: свободный вопрос к LLM прямо во время урока (кнопка «Спросить»). */
+  data class AskDuringLesson(val text: String) : ChatIntent()
 }

@@ -41,16 +41,22 @@ class AgentLoopOrchestrator @Inject constructor(
     mode: AgentMode = AgentMode.CHAT,
     planApproved: Boolean = false,
     goalMaxIterations: Int = 3,
+    systemPromptExtra: String? = null,
   ): Flow<AgentEvent> = agentTurnFlow(log, TAG, "Unknown error") {
     // Error-контракт (in-band Error, rethrow отмены, buffer+IO) — в agentTurnFlow.
     // Контракт режима (гейт план-мода / петля гоал-мода) — чистое решение, покрыто AgentModeTest.
     val turn = resolveTurnExecutionPlan(mode, planApproved, goalMaxIterations, ReactLoopRunner.MAX_ITERATIONS)
 
     val context = prePromptAssembler.assemble(conversationId, userMessage, turn.promptMode)
-    // Секция бюджета витков (и любая другая режимная добавка) собрана в resolveTurnExecutionPlan.
-    val systemContent = turn.systemPromptSuffix
+    // Секция бюджета витков (и любая другая режимная добавка) собрана в resolveTurnExecutionPlan;
+    // systemPromptExtra — доверенный контекст хода (напр. текст текущего шага урока для tutor-вопроса).
+    val withSuffix = turn.systemPromptSuffix
       ?.let { context.systemPrompt + "\n\n" + it }
       ?: context.systemPrompt
+    val systemContent = systemPromptExtra
+      ?.takeIf { it.isNotBlank() }
+      ?.let { withSuffix + "\n\n" + it }
+      ?: withSuffix
     val messages = mutableListOf<ChatMessage>()
     messages += ChatMessage(role = "system", content = systemContent)
     messages += context.history.map { it.toChatMessage() }
