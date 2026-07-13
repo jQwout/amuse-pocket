@@ -1,23 +1,30 @@
 package com.aiopenpocket.data.repository
 
+// @trace user-agent-builder-848153
+
 import android.app.Application
+import com.aiopenpocket.agent.tools.sandboxRoot
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 
 data class AgentFile(val name: String, val sizeBytes: Long, val lastModified: Long)
 
 /**
- * Read-only список файлов из общей песочницы агентов (File(filesDir,"agent")) — тот же каталог,
- * что пишет FileTools. Каталог ОБЩИЙ для всех агентов (не per-agent). Чтение напрямую по filesDir,
- * НЕ через ToolExecutor: UI-слой не ходит в agent-tool-слой.
+ * Read-only список файлов ЛИЧНОЙ песочницы одного агента (`filesDir/agents/{agentId}`, Task 6) —
+ * тот же per-agent каталог и тот же [sandboxRoot], что использует `FileTools`. Каждый агент видит
+ * только свои файлы; старый общий `filesDir/agent` (plain chat, до Task 6) сюда не попадает и не
+ * мигрируется — вне области задачи. Чтение напрямую по filesDir, НЕ через ToolExecutor: UI-слой не
+ * ходит в agent-tool-слой.
  */
 @SingleIn(AppScope::class)
 class AgentFilesRepository @Inject constructor(private val application: Application) {
-  private val sandboxDir: File get() = File(application.filesDir, "agent")
 
-  fun list(): List<AgentFile> =
+  suspend fun list(agentId: String): List<AgentFile> = withContext(Dispatchers.IO) {
+    val sandboxDir: File = sandboxRoot(application.filesDir, agentId)
     sandboxDir.takeIf { it.isDirectory }
       ?.walkTopDown()
       ?.filter { it.isFile }
@@ -25,4 +32,5 @@ class AgentFilesRepository @Inject constructor(private val application: Applicat
       ?.sortedBy { it.name }
       ?.toList()
       .orEmpty()
+  }
 }

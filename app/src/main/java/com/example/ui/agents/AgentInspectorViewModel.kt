@@ -1,6 +1,7 @@
 package com.aiopenpocket.ui.agents
 
 // @trace agent-inspector-6e41eb
+// @trace user-agent-builder-848153
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -13,7 +14,6 @@ import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,7 +26,6 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.withContext
 
 data class AgentInspectorState(
   val activeHeartbeats: List<HeartbeatEntity> = emptyList(),
@@ -34,9 +33,10 @@ data class AgentInspectorState(
 )
 
 /**
- * Инспектор агента: живой снимок его активных heartbeat'ов (Task 1) и файлов общей песочницы
- * (Task 2). agentId приходит ПОСЛЕ конструктора через [select] — тот же паттерн, что convIdFlow
- * в ChatViewModel (ViewModel не берёт runtime-аргументы через metroViewModel()).
+ * Инспектор агента: живой снимок его активных heartbeat'ов (Task 1) и его СОБСТВЕННЫХ файлов из
+ * персональной песочницы `filesDir/agents/{agentId}` (Task 6 — до этого был общий `filesDir/agent`).
+ * agentId приходит ПОСЛЕ конструктора через [select] — тот же паттерн, что convIdFlow в
+ * ChatViewModel (ViewModel не берёт runtime-аргументы через metroViewModel()).
  */
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
@@ -51,7 +51,7 @@ class AgentInspectorViewModel(
   @OptIn(ExperimentalCoroutinesApi::class)
   private val filesFlow: Flow<List<AgentFile>> = agentIdFlow
     .filterNotNull()
-    .mapLatest { withContext(Dispatchers.IO) { agentFilesRepository.list() } }
+    .mapLatest { id -> agentFilesRepository.list(id) }
 
   @OptIn(ExperimentalCoroutinesApi::class)
   private val heartbeatsFlow: Flow<List<HeartbeatEntity>> = agentIdFlow

@@ -1,7 +1,10 @@
 package com.aiopenpocket.data.repository
 
+// @trace user-agent-builder-848153
+
 import android.app.Application
 import java.io.File
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -10,20 +13,29 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
+/**
+ * [AgentFilesRepository] now reads a specific agent's OWN sandbox (`filesDir/agents/{agentId}`,
+ * Task 6) rather than one shared directory — proves `list(agentId)` only ever sees that agent's
+ * files, never a sibling agent's, mirroring the isolation [FileToolsSandboxTest] proves for the
+ * tool side of the same sandbox.
+ */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class AgentFilesRepositoryTest {
 
   private val application: Application = RuntimeEnvironment.getApplication()
 
+  private fun agentDir(agentId: String): File =
+    File(File(application.filesDir, "agents"), agentId).apply { mkdirs() }
+
   @Test
-  fun `list returns files from agent sandbox sorted by name`() {
-    val sandboxDir = File(application.filesDir, "agent").apply { mkdirs() }
+  fun `list returns files from that agent's own sandbox sorted by name`() = runTest {
+    val sandboxDir = agentDir("budget")
     File(sandboxDir, "b.txt").writeText("second")
     File(sandboxDir, "a.txt").writeText("first")
 
     val repo = AgentFilesRepository(application)
-    val files = repo.list()
+    val files = repo.list("budget")
 
     assertEquals(2, files.size)
     assertEquals(listOf("a.txt", "b.txt"), files.map { it.name })
@@ -32,12 +44,34 @@ class AgentFilesRepositoryTest {
   }
 
   @Test
-  fun `list returns empty list when sandbox dir is missing`() {
-    val sandboxDir = File(application.filesDir, "agent")
+  fun `list returns empty list when that agent's sandbox dir is missing`() = runTest {
+    val sandboxDir = File(File(application.filesDir, "agents"), "budget")
     assertTrue(!sandboxDir.exists())
 
     val repo = AgentFilesRepository(application)
 
-    assertEquals(emptyList<AgentFile>(), repo.list())
+    assertEquals(emptyList<AgentFile>(), repo.list("budget"))
+  }
+
+  @Test
+  fun `list never returns another agent's files`() = runTest {
+    File(agentDir("budget"), "report.txt").writeText("budget-data")
+    File(agentDir("diary"), "entry.txt").writeText("diary-data")
+
+    val repo = AgentFilesRepository(application)
+    val budgetFiles = repo.list("budget")
+
+    assertEquals(listOf("report.txt"), budgetFiles.map { it.name })
+  }
+
+  @Test
+  fun `list does not read the legacy shared plain-chat sandbox`() = runTest {
+    val legacySharedDir = File(application.filesDir, "agent").apply { mkdirs() }
+    File(legacySharedDir, "old.txt").writeText("legacy-plain-chat-file")
+    agentDir("budget") // exists but empty
+
+    val repo = AgentFilesRepository(application)
+
+    assertEquals(emptyList<AgentFile>(), repo.list("budget"))
   }
 }

@@ -1,5 +1,7 @@
 package com.aiopenpocket.ui.agents
 
+// @trace user-agent-builder-848153
+
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
@@ -70,14 +72,18 @@ class AgentInspectorViewModelTest {
     status = status,
   )
 
+  private fun agentSandboxDir(agentId: String): File =
+    File(File(RuntimeEnvironment.getApplication().filesDir, "agents"), agentId).apply { mkdirs() }
+
   @Test
-  fun `select loads active heartbeats and sandbox files for the chosen agent`() = runTest {
+  fun `select loads active heartbeats and this agent's own sandbox files`() = runTest {
     heartbeatDao.insert(hb(id = "b1", agentId = "budget"))
     heartbeatDao.insert(hb(id = "b2", agentId = "budget", status = "cancelled"))
     heartbeatDao.insert(hb(id = "d1", agentId = "diary"))
 
-    val sandboxDir = File(RuntimeEnvironment.getApplication().filesDir, "agent").apply { mkdirs() }
-    File(sandboxDir, "report.txt").writeText("data")
+    File(agentSandboxDir("budget"), "report.txt").writeText("data")
+    // Task 6: diary's own sandbox file must NOT leak into budget's inspector state.
+    File(agentSandboxDir("diary"), "diary-secret.txt").writeText("private")
 
     vm.select("budget")
 
