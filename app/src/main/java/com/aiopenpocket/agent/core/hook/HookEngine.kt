@@ -1,0 +1,203 @@
+package com.aiopenpocket.agent.core.hook
+
+// @trace user-agent-builder-848153
+
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
+
+/**
+ * What [HookEngine.evaluate] decided for one [HookEvent] firing, after folding together every
+ * [AgentHook] that matched. Deliberately flat (no per-hook detail) — this is the shape
+ * [com.aiopenpocket.agent.loop.ReactLoopRunner] actually *applies* to the loop; per-hook detail for the
+ * `agent_hook_runs` journal comes from [HookEngine.matched] separately, so this contract can stay
+ * frozen even as the journal's needs evolve.
+ *
+ * [denied] wins over an [HookActionType.ALLOW] unconditionally (see [HookEngine.toDecision]) —
+ * there is no "most specific wins" tie-break, a single matching `DENY` anywhere always denies.
+ */
+data class HookDecision(
+  val addedInstructions: List<String> = emptyList(),
+  val denied: Boolean = false,
+  val approvalRequired: Boolean = false,
+  val stopped: Boolean = false,
+  val logs: List<String> = emptyList(),
+)
+
+/**
+ * Everything an [AgentHook.conditionType] can match against for one lifecycle firing. Fields are
+ * nullable/defaulted because most only apply to a subset of [HookEvent]s — e.g. [toolName] is only
+ * ever populated for [HookEvent.BEFORE_TOOL]/[HookEvent.AFTER_TOOL], so a condition that inspects it
+ * simply never matches a turn-level event, which is exactly why that scoping doesn't need its own
+ * enforcement beyond the action/event matrix.
+ *
+ * Deliberately does NOT carry the live `messages`/`ChatMessage` list or raw tool arguments/results:
+ * hooks are declarative allow/deny/log rules over a small, stable surface, not a place to grow
+ * arbitrary condition logic over full turn state (that would start to smell like the "no user
+ * JS/Kotlin" constraint this whole engine exists to avoid).
+ */
+data class HookContext(
+  val iteration: Int = 0,
+  val toolName: String? = null,
+  val toolSucceeded: Boolean? = null,
+  val errorMessage: String? = null,
+)
+
+/**
+ * Declarative, deterministic lifecycle engine for [AgentHook]s (design spec section 10). Pure: no
+ * I/O, no suspend, no calls to an LLM or a tool, and — critically — no call back into itself. Given
+ * the same inputs it always returns the same [HookDecision]; every side effect (running a tool,
+ * calling the model, writing the `agent_hook_runs` journal) is the CALLER's job
+ * ([com.aiopenpocket.agent.loop.ReactLoopRunner]).
+ *
+ * Rules enforced here (each pinned by a [HookEngineTest] case):
+ * - only hooks declared for the [HookEvent] being evaluated are even considered;
+ * - a disabled hook, or one whose [HookActionType] isn't valid for its own event (the matrix in
+ *   [actionsAllowedFor] — publish time already rejects this via `AgentValidator`, this is
+ *   defense-in-depth against a future caller that bypasses that), never fires;
+ * - candidates are sorted by `(priority, id)` ascending before applying, so authoring order never
+ *   matters and results are reproducible;
+ * - a matching [HookActionType.DENY] always wins over [HookActionType.ALLOW], regardless of order;
+ * - [executedSoFar]/[maxExecutionsPerRun] cap how many hooks can fire across a WHOLE run (many
+ *   [evaluate] calls share one running total, threaded through by the caller) — once spent, further
+ *   matching hooks are silently skipped rather than applied;
+ * - a hook whose condition/action JSON fails to parse fails CLOSED (treated as "doesn't match" or
+ *   "fired with no payload", see [matched]) instead of throwing — this is what makes `ON_ERROR`
+ *   non-recursive: there is no code path here that reacts to a processing failure by evaluating
+ *   [HookEvent.ON_ERROR] again, so a broken `ON_ERROR` hook cannot trigger a second `ON_ERROR` pass.
+ */
+object HookEngine {
+
+  /** Upper bound on how many hooks may actually fire across one [com.aiopenpocket.agent.loop.ReactLoopRunner.run] call. */
+  const val MAX_EXECUTIONS_PER_RUN = 50
+
+  /**
+   * One [AgentHook] that actually fired for a single [evaluate]/[matched] call — enabled, its
+   * [AgentHook.event] matched, its [AgentHook.actionType] valid for that event, its condition
+   * matched, and still within budget. [detail] is the parsed instruction/log text for
+   * [HookActionType.ADD_INSTRUCTION]/[HookActionType.LOG] (empty for payload-less actions);
+   * [error] is set instead when [AgentHook.actionJson] failed to parse (the hook still "fired" —
+   * matched and consumed budget — just with no usable payload).
+   */
+  data class Firing(
+    val hookId: String,
+    val actionType: HookActionType,
+    val detail: String = "",
+    val error: String? = null,
+  )
+
+  /**
+   * The event/action compatibility matrix from the design spec, reused verbatim by
+   * `com.aiopenpocket.agent.core.agent.AgentValidator` so publish-time rejection can never drift
+   * from what the runtime actually enforces.
+   */
+  fun actionsAllowedFor(event: HookEvent): Set<HookActionType> = when (event) {
+    HookEvent.BEFORE_TURN -> BEFORE_TURN_ACTIONS
+    HookEvent.AFTER_TURN -> LOG_AND_STOP
+    HookEvent.BEFORE_TOOL -> BEFORE_TOOL_ACTIONS
+    HookEvent.AFTER_TOOL -> LOG_AND_STOP
+    HookEvent.ON_ERROR -> LOG_AND_STOP
+    HookEvent.ON_COMPLETE -> LOG_ONLY
+  }
+
+  /**
+   * The ordered, budget-limited list of hooks that actually fire for this [event]/[context]. The
+   * primary entry point for [com.aiopenpocket.agent.loop.ReactLoopRunner], which needs per-hook
+   * [AgentHook.id] attribution to journal `agent_hook_runs` rows; [evaluate] is [toDecision] folded
+   * over this same list, so the two can never disagree about which hooks fired.
+   */
+  fun matched(
+    hooks: List<AgentHook>,
+    event: HookEvent,
+    context: HookContext,
+    executedSoFar: Int = 0,
+    maxExecutionsPerRun: Int = MAX_EXECUTIONS_PER_RUN,
+  ): List<Firing> {
+    val allowedActions = actionsAllowedFor(event)
+    val candidates = hooks
+      .asSequence()
+      .filter { it.event == event && it.enabled && it.actionType in allowedActions }
+      .sortedWith(compareBy({ it.priority }, { it.id }))
+      .toList()
+
+    val firings = mutableListOf<Firing>()
+    var executed = executedSoFar
+    for (candidate in candidates) {
+      if (executed >= maxExecutionsPerRun) break
+      val isMatch = runCatching { conditionMatches(candidate.conditionType, candidate.conditionJson, context) }
+        .getOrDefault(false) // malformed conditionJson fails closed: never matches, never throws.
+      if (!isMatch) continue
+
+      var detail = ""
+      var error: String? = null
+      runCatching { extractDetail(candidate.actionType, candidate.actionJson) }
+        .onSuccess { detail = it }
+        .onFailure { error = it.message ?: "invalid action payload" } // malformed actionJson: hook still fires, empty payload.
+      firings += Firing(candidate.id, candidate.actionType, detail, error)
+      executed++
+    }
+    return firings
+  }
+
+  /** Folds [firings] (as returned by [matched]) into the single [HookDecision] the loop applies. */
+  fun toDecision(firings: List<Firing>): HookDecision {
+    val logs = firings.map { firing ->
+      val suffix = when {
+        firing.error != null -> " ERROR: ${firing.error}"
+        firing.detail.isNotBlank() -> " ${firing.detail}"
+        else -> ""
+      }
+      "${firing.hookId}:${firing.actionType.name}$suffix"
+    }
+    return HookDecision(
+      addedInstructions = firings
+        .filter { it.actionType == HookActionType.ADD_INSTRUCTION }
+        .map { it.detail }
+        .filter { it.isNotBlank() },
+      denied = firings.any { it.actionType == HookActionType.DENY },
+      approvalRequired = firings.any { it.actionType == HookActionType.REQUIRE_APPROVAL },
+      stopped = firings.any { it.actionType == HookActionType.STOP },
+      logs = logs,
+    )
+  }
+
+  /** `evaluate(hooks, event, context) == toDecision(matched(hooks, event, context))` — see [matched] for why the split exists. */
+  fun evaluate(
+    hooks: List<AgentHook>,
+    event: HookEvent,
+    context: HookContext,
+    executedSoFar: Int = 0,
+    maxExecutionsPerRun: Int = MAX_EXECUTIONS_PER_RUN,
+  ): HookDecision = toDecision(matched(hooks, event, context, executedSoFar, maxExecutionsPerRun))
+
+  /**
+   * Interprets [AgentHook.conditionType]/[conditionJson] against [context]. Unrecognized types fail
+   * CLOSED (never match) rather than open — a typo'd or future/unsupported conditionType must never
+   * silently behave like "always", which would turn a scoped rule into an unscoped one.
+   */
+  private fun conditionMatches(conditionType: String, conditionJson: String, context: HookContext): Boolean = when (conditionType) {
+    "always" -> true
+    "tool_name_in" -> context.toolName != null && context.toolName in Json.decodeFromString<ToolNameCondition>(conditionJson).names
+    else -> false
+  }
+
+  /** Payload text for the two actions that carry one ({"text": "..."} for both ADD_INSTRUCTION and LOG); every other action is payload-less. */
+  private fun extractDetail(actionType: HookActionType, actionJson: String): String = when (actionType) {
+    HookActionType.ADD_INSTRUCTION, HookActionType.LOG -> Json.decodeFromString<TextPayload>(actionJson).text
+    HookActionType.REQUIRE_APPROVAL, HookActionType.ALLOW, HookActionType.DENY, HookActionType.STOP -> ""
+  }
+
+  private val BEFORE_TURN_ACTIONS = setOf(HookActionType.ADD_INSTRUCTION, HookActionType.LOG, HookActionType.STOP)
+  private val BEFORE_TOOL_ACTIONS =
+    setOf(HookActionType.REQUIRE_APPROVAL, HookActionType.ALLOW, HookActionType.DENY, HookActionType.LOG, HookActionType.STOP)
+  private val LOG_AND_STOP = setOf(HookActionType.LOG, HookActionType.STOP)
+  private val LOG_ONLY = setOf(HookActionType.LOG)
+}
+
+/** `conditionJson` shape for `conditionType == "tool_name_in"`. */
+@Serializable
+private data class ToolNameCondition(val names: Set<String> = emptySet())
+
+/** `actionJson` shape for `ADD_INSTRUCTION`/`LOG` — the only two actions that carry a payload. */
+@Serializable
+private data class TextPayload(val text: String = "")
