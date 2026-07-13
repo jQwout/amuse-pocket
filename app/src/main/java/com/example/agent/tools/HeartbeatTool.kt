@@ -37,6 +37,11 @@ import java.util.concurrent.TimeUnit
  * mode=agent — фоновое пробуждение агента (с задачей из prompt или дефолтным «пульсом»,
  * где агент сам решает, писать ли юзеру — HEARTBEAT_OK = молчать). Источник правды — Room
  * (heartbeats), WorkManager получает только id.
+ *
+ * `schedule` привязывает heartbeat к текущему [turnContextHolder]'у агенту (`agentId`) и сразу же
+ * отклоняет его (Task 22, `user-agent-builder-848153`), если этот агент архивирован/ещё не
+ * опубликован — иначе он бы просто молча Skip'ался при каждом срабатывании в
+ * [com.aiopenpocket.agent.workers.HeartbeatRunner].
  */
 @Inject
 @SingleIn(AppScope::class)
@@ -105,6 +110,20 @@ class HeartbeatTool(
     }
     val conversationId = turnContextHolder.conversationId
       ?: return ToolResult.Error("Нет активного диалога для heartbeat.", recoverable = false)
+
+    // Task 22: reject at CREATION time, not just when it eventually fires (HeartbeatRunner.fireAgent
+    // would otherwise just silently Skip it forever). turnContextHolder.agent is the SAME snapshot
+    // PrePromptAssembler already resolved for THIS turn (Task 5) — re-checking its own .enabled is
+    // enough; there is no separate "unknown agent" case to handle here, since agentId below is always
+    // sourced FROM this already-resolved snapshot (turnContextHolder.agentId == agent?.id), never from
+    // an arbitrary caller-supplied value that could fail to resolve at all.
+    val boundAgent = turnContextHolder.agent
+    if (boundAgent != null && !boundAgent.enabled) {
+      return ToolResult.Error(
+        "Агент «${boundAgent.name}» архивирован или ещё не опубликован — привязать к нему heartbeat нельзя.",
+        recoverable = false,
+      )
+    }
 
     val id = UUID.randomUUID().toString()
     val entity = HeartbeatEntity(
