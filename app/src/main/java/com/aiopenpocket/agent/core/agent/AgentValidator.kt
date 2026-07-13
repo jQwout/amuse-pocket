@@ -43,8 +43,12 @@ object AgentValidator {
    */
   const val MAX_CUSTOM_SKILL_CHARS = 40_000
 
-  /** One lower-alnum, then 2-63 more lower-alnum/hyphen/underscore — 3 to 64 chars total. */
-  private val ID_REGEX = Regex("[a-z0-9][a-z0-9_-]{2,63}")
+  /**
+   * One lower-alnum, then 2-63 more lower-alnum/hyphen/underscore — 3 to 64 chars total. `internal`
+   * (not `private`): also reused by `com.aiopenpocket.agent.tools.sandboxRoot` to fail closed on a
+   * non-conforming `agentId` at the file-sandbox boundary, so the two checks can never drift apart.
+   */
+  internal val ID_REGEX = Regex("[a-z0-9][a-z0-9_-]{2,63}")
 
   /**
    * [com.aiopenpocket.agent.core.mcp.Tool.name] of every tool registered in `AgentToolsModule` /

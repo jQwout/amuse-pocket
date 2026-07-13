@@ -85,8 +85,8 @@ class FileToolsSandboxTest {
 
   @Test
   fun `agent A's sandbox root is separate from agent B's - A does not see B's file by default`() = runTest {
-    seedAgentFile("b", "private.txt", "b-secret")
-    holder.set("conv-a", agent("a"))
+    seedAgentFile("agent-b", "private.txt", "b-secret")
+    holder.set("conv-a", agent("agent-a"))
 
     val result = tool.execute(readFile("private.txt"))
 
@@ -95,8 +95,8 @@ class FileToolsSandboxTest {
 
   @Test
   fun `agent A reads its own file normally`() = runTest {
-    seedAgentFile("a", "private.txt", "a-secret")
-    holder.set("conv-a", agent("a"))
+    seedAgentFile("agent-a", "private.txt", "a-secret")
+    holder.set("conv-a", agent("agent-a"))
 
     val result = tool.execute(readFile("private.txt"))
 
@@ -105,10 +105,10 @@ class FileToolsSandboxTest {
 
   @Test
   fun `agent A cannot reach agent B's file via relative traversal`() = runTest {
-    seedAgentFile("b", "private.txt", "b-secret")
-    holder.set("conv-a", agent("a"))
+    seedAgentFile("agent-b", "private.txt", "b-secret")
+    holder.set("conv-a", agent("agent-a"))
 
-    val result = tool.execute(readFile("../b/private.txt"))
+    val result = tool.execute(readFile("../agent-b/private.txt"))
 
     assertTrue("expected an Error, got $result", result is ToolResult.Error)
     assertFalse(result.toString().contains("b-secret"))
@@ -116,8 +116,8 @@ class FileToolsSandboxTest {
 
   @Test
   fun `agent A cannot reach agent B's file via an absolute path`() = runTest {
-    val bFile = seedAgentFile("b", "private.txt", "b-secret")
-    holder.set("conv-a", agent("a"))
+    val bFile = seedAgentFile("agent-b", "private.txt", "b-secret")
+    holder.set("conv-a", agent("agent-a"))
 
     val result = tool.execute(readFile(bFile.absolutePath))
 
@@ -127,10 +127,10 @@ class FileToolsSandboxTest {
 
   @Test
   fun `agent A cannot reach agent B's file via mixed backslash slash separators`() = runTest {
-    seedAgentFile("b", "private.txt", "b-secret")
-    holder.set("conv-a", agent("a"))
+    seedAgentFile("agent-b", "private.txt", "b-secret")
+    holder.set("conv-a", agent("agent-a"))
 
-    val result = tool.execute(readFile("..\\b/private.txt"))
+    val result = tool.execute(readFile("..\\agent-b/private.txt"))
 
     assertTrue("expected an Error, got $result", result is ToolResult.Error)
     assertFalse(result.toString().contains("b-secret"))
@@ -138,10 +138,10 @@ class FileToolsSandboxTest {
 
   @Test
   fun `agent A cannot reach agent B's file via canonical up-and-back traversal`() = runTest {
-    seedAgentFile("b", "private.txt", "b-secret")
-    holder.set("conv-a", agent("a"))
+    seedAgentFile("agent-b", "private.txt", "b-secret")
+    holder.set("conv-a", agent("agent-a"))
 
-    val result = tool.execute(readFile("a/../../b/private.txt"))
+    val result = tool.execute(readFile("agent-a/../../agent-b/private.txt"))
 
     assertTrue("expected an Error, got $result", result is ToolResult.Error)
     assertFalse(result.toString().contains("b-secret"))
@@ -149,10 +149,10 @@ class FileToolsSandboxTest {
 
   @Test
   fun `agent A cannot list agent B's directory via traversal`() = runTest {
-    seedAgentFile("b", "private.txt", "b-secret")
-    holder.set("conv-a", agent("a"))
+    seedAgentFile("agent-b", "private.txt", "b-secret")
+    holder.set("conv-a", agent("agent-a"))
 
-    val result = tool.execute(listDir("../b"))
+    val result = tool.execute(listDir("../agent-b"))
 
     assertTrue("expected an Error, got $result", result is ToolResult.Error)
     assertFalse(result.toString().contains("private.txt"))
@@ -160,9 +160,9 @@ class FileToolsSandboxTest {
 
   @Test
   fun `agent A's list_dir shows only its own files, never agent B's`() = runTest {
-    seedAgentFile("a", "mine.txt", "a-data")
-    seedAgentFile("b", "private.txt", "b-secret")
-    holder.set("conv-a", agent("a"))
+    seedAgentFile("agent-a", "mine.txt", "a-data")
+    seedAgentFile("agent-b", "private.txt", "b-secret")
+    holder.set("conv-a", agent("agent-a"))
 
     val result = tool.execute(listDir())
 
@@ -173,13 +173,49 @@ class FileToolsSandboxTest {
 
   @Test
   fun `agent A's writes cannot escape its own sandbox via a traversal path`() = runTest {
-    holder.set("conv-a", agent("a"))
+    holder.set("conv-a", agent("agent-a"))
 
     val result = tool.execute(writeFile("../escape.txt", "pwned"))
 
     assertTrue("expected an Error, got $result", result is ToolResult.Error)
     val escapedIntoAgentsRoot = File(File(application.filesDir, "agents"), "escape.txt")
     assertFalse(escapedIntoAgentsRoot.exists())
+  }
+
+  @Test
+  fun `agent A cannot write into agent B's directory via an absolute path`() = runTest {
+    val bDir = seedAgentFile("agent-b", "existing.txt", "b-data").parentFile!!
+    holder.set("conv-a", agent("agent-a"))
+    val bTarget = File(bDir, "pwned.txt")
+
+    val result = tool.execute(writeFile(bTarget.absolutePath, "pwned"))
+
+    assertTrue("expected an Error, got $result", result is ToolResult.Error)
+    assertFalse(bTarget.exists())
+  }
+
+  @Test
+  fun `agent A cannot write into agent B's directory via mixed backslash slash separators`() = runTest {
+    seedAgentFile("agent-b", "existing.txt", "b-data")
+    holder.set("conv-a", agent("agent-a"))
+
+    val result = tool.execute(writeFile("..\\agent-b/pwned.txt", "pwned"))
+
+    assertTrue("expected an Error, got $result", result is ToolResult.Error)
+    val target = File(File(File(application.filesDir, "agents"), "agent-b"), "pwned.txt")
+    assertFalse(target.exists())
+  }
+
+  @Test
+  fun `agent A cannot write into agent B's directory via canonical up-and-back traversal`() = runTest {
+    seedAgentFile("agent-b", "existing.txt", "b-data")
+    holder.set("conv-a", agent("agent-a"))
+
+    val result = tool.execute(writeFile("agent-a/../../agent-b/pwned.txt", "pwned"))
+
+    assertTrue("expected an Error, got $result", result is ToolResult.Error)
+    val target = File(File(File(application.filesDir, "agents"), "agent-b"), "pwned.txt")
+    assertFalse(target.exists())
   }
 
   @Test
@@ -196,13 +232,14 @@ class FileToolsSandboxTest {
   @Test
   fun `custom agent cannot reach the plain-chat shared sandbox via traversal`() = runTest {
     // filesDir/agent (plain chat's shared root) is a sibling of filesDir/agents, two levels up
-    // from filesDir/agents/a - same shape as the agent-to-agent escape, against the legacy root.
+    // from filesDir/agents/agent-a - same shape as the agent-to-agent escape, against the legacy
+    // root.
     // Filename and content deliberately DON'T share a substring: the rejection message legitimately
     // echoes back the attempted PATH (which contains the filename), so asserting against the
     // file's CONTENT (not its name) is what actually proves nothing was read.
     val sharedDir = File(application.filesDir, "agent").apply { mkdirs() }
     File(sharedDir, "legacy-plain-chat.txt").writeText("shared-secret")
-    holder.set("conv-a", agent("a"))
+    holder.set("conv-a", agent("agent-a"))
 
     val result = tool.execute(readFile("../../agent/legacy-plain-chat.txt"))
 
