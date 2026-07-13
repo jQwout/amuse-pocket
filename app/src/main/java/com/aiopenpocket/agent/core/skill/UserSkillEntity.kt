@@ -40,6 +40,37 @@ data class UserSkillEntity(
 }
 
 /**
+ * Cheap projection of [UserSkillEntity] backing [UserSkillDao.getAllMetadata] — every column
+ * [SkillRegistry.ids]/[SkillRegistry.catalog] actually read from a custom skill row, minus
+ * [UserSkillEntity.instructionsMarkdown] (up to [AgentValidator.MAX_CUSTOM_SKILL_CHARS] chars,
+ * pointless to load for a metadata-only catalog line). [name] isn't consumed by [toSkill] below —
+ * kept for parity with the row's other non-markdown columns, so a future metadata-only caller (e.g.
+ * a "my custom skills" list) doesn't need a second projection query.
+ */
+data class UserSkillMetadata(
+  val id: String,
+  val name: String,
+  val description: String,
+  val whenToUse: String,
+) {
+  /**
+   * Wraps this row as a [Skill], mirroring [UserSkillEntity.toSkill] — except [Skill.instructions]
+   * fetches the body lazily from [dao] on demand rather than returning an in-memory value, since this
+   * projection never loaded [UserSkillEntity.instructionsMarkdown] in the first place. No current
+   * caller of [UserSkillRepository.getAll] (only [SkillRegistry.catalog], which reads manifest
+   * fields alone) invokes [Skill.instructions], but this keeps the contract honest instead of
+   * silently returning an empty body if one ever does.
+   */
+  fun toSkill(dao: UserSkillDao): Skill {
+    val meta = this
+    return object : Skill {
+      override val manifest = SkillManifest(id = meta.id, description = meta.description, whenToUse = meta.whenToUse)
+      override suspend fun instructions(): String = dao.get(meta.id)?.instructionsMarkdown.orEmpty()
+    }
+  }
+}
+
+/**
  * v1 publish-time content rules for a custom skill. Kept out of [AgentValidator] (which stays pure
  * over [com.aiopenpocket.agent.core.agent.AgentDefinition] alone and never sees skill bodies —
  * `AgentDefinition.skillIds` is just ids) but mirrors its "collect every issue" style and reuses its
