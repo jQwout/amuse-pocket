@@ -1,6 +1,7 @@
 ﻿package com.aiopenpocket.agent.tools
 
 // @trace mcp-tools-f77d9b
+// @trace user-agent-builder-848153
 
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
@@ -8,6 +9,7 @@ import com.aiopenpocket.agent.core.mcp.missingArg
 import com.aiopenpocket.agent.core.mcp.string
 import com.aiopenpocket.agent.core.mcp.toolSchema
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
+import com.aiopenpocket.agent.loop.TurnContextHolder
 import kotlinx.serialization.json.JsonElement
 import dev.zacsweers.metro.Inject
 import com.aiopenpocket.di.AppScope
@@ -17,6 +19,7 @@ import dev.zacsweers.metro.SingleIn
 @SingleIn(AppScope::class)
 class MemoryTools(
   private val memoryRepository: MemoryRepository,
+  private val turnContextHolder: TurnContextHolder,
 ) : Tool {
 
   override val name = "memory_tool"
@@ -44,11 +47,19 @@ class MemoryTools(
   private suspend fun rememberFact(args: Map<String, JsonElement>): ToolResult {
     val key = args.string("key") ?: return missingArg("key")
     val value = args.string("value") ?: return missingArg("value")
-    // Категорию задаёт пользователь (через модель) — это недоверенный ввод. Зажимаем в allowlist,
-    // чтобы факт не попал в «привилегированную» секцию промпта (system/Инструкции/персона).
-    val category = sanitizeCategory(args.string("category"))
-    val id = memoryRepository.saveFact(key, value, category)
-    return ToolResult.Success("Fact saved: $key = $value (id=$id)")
+    // Изоляция памяти агента — IN CODE, а не промпт-инструкцией (Task 5): пока в ходе привязан
+    // агент со своим namespace, ключ ВСЕГДА уходит под него, что бы модель ни попросила. Без
+    // привязанного агента (обычный чат) поведение не меняется ни на йоту — это ЕДИНСТВЕННЫЙ путь,
+    // который обязан остаться глобальным.
+    val agent = turnContextHolder.agent
+    val storedKey = agent?.memoryPolicy?.namespace?.plus(key) ?: key
+    // Категорию для обычного чата задаёт пользователь (через модель) — недоверенный ввод, зажатый в
+    // allowlist. Для агента со своим namespace категория ПРИНУДИТЕЛЬНО general: profile/preference —
+    // это общий (shared) профиль пользователя, который агент может только читать (см.
+    // PrePromptAssembler.includeSharedProfile), а не дописывать туда через remember_fact.
+    val category = if (agent != null) "general" else sanitizeCategory(args.string("category"))
+    val id = memoryRepository.saveFact(storedKey, value, category)
+    return ToolResult.Success("Fact saved: $storedKey = $value (id=$id)")
   }
 
   /** Только эти категории модель может присваивать фактам. Прочее сводится к general. */
@@ -61,7 +72,15 @@ class MemoryTools(
 
   private suspend fun searchMemory(args: Map<String, JsonElement>): ToolResult {
     val query = args.string("query") ?: return missingArg("query")
-    val facts = memoryRepository.searchFacts(query)
+    // Тот же гейт, что в rememberFact: с bound-агентом поиск не выходит за его namespace — на
+    // уровне DAO/WHERE (MemoryRepository.searchFactsInNamespace), а не постфильтром результата
+    // модели. Обычный чат (agent == null) ищет глобально, как и раньше.
+    val namespace = turnContextHolder.agent?.memoryPolicy?.namespace
+    val facts = if (namespace != null) {
+      memoryRepository.searchFactsInNamespace(namespace, query)
+    } else {
+      memoryRepository.searchFacts(query)
+    }
     return if (facts.isEmpty()) {
       ToolResult.Success("No facts found for '$query'")
     } else {

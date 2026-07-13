@@ -6,7 +6,12 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.WorkManager
 import androidx.work.testing.WorkManagerTestInitHelper
+import com.aiopenpocket.agent.core.agent.AgentDefinition
+import com.aiopenpocket.agent.core.agent.AgentMemoryPolicy
+import com.aiopenpocket.agent.core.agent.AgentSource
+import com.aiopenpocket.agent.core.agent.AgentStatus
 import com.aiopenpocket.agent.core.mcp.ToolResult
+import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.loop.TurnContextHolder
 import com.aiopenpocket.data.database.AppDatabase
 import kotlinx.coroutines.test.runTest
@@ -38,12 +43,30 @@ class HeartbeatToolTest {
     shadowOf(context as Application).grantPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
     WorkManagerTestInitHelper.initializeTestWorkManager(context)
     db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
-    holder = TurnContextHolder().apply { set("conv1", "reminders") }
+    holder = TurnContextHolder().apply { set("conv1", testAgent("reminders")) }
     tool = HeartbeatTool(context, db.heartbeatDao(), holder)
   }
 
   @After
   fun tearDown() = db.close()
+
+  /** Minimal valid [AgentDefinition] — only [AgentDefinition.id] matters to this test. */
+  private fun testAgent(id: String) = AgentDefinition(
+    id = id,
+    source = AgentSource.PRESET,
+    name = id,
+    description = "test agent",
+    iconKey = "sparkles",
+    systemPrompt = "test",
+    toolNames = emptySet(),
+    skillIds = emptySet(),
+    defaultMode = AgentMode.CHAT,
+    allowedModes = setOf(AgentMode.CHAT),
+    memoryPolicy = AgentMemoryPolicy(namespace = "agent:$id:", includeSharedProfile = true),
+    allowedWidgetTemplates = emptySet(),
+    configVersion = 1L,
+    status = AgentStatus.PUBLISHED,
+  )
 
   private fun args(vararg pairs: Pair<String, String>): Map<String, JsonElement> =
     pairs.associate { it.first to JsonPrimitive(it.second) }

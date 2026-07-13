@@ -31,12 +31,14 @@ import com.aiopenpocket.agent.core.prompt.ConversationAnnotator
 import com.aiopenpocket.agent.core.prompt.PrePromptAssembler
 import com.aiopenpocket.agent.core.skill.SkillRegistry
 import com.aiopenpocket.agent.core.skill.UserSkillRepository
+import com.aiopenpocket.agent.tools.MemoryTools
 import com.aiopenpocket.data.database.AppDatabase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -100,7 +102,11 @@ class ReflectionOrchestratorTest {
     override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult = ToolResult.Success("ok:$name")
   }
 
-  private fun orchestrator(llm: ScriptedLlm, toolRegistry: ToolRegistry = ToolRegistry(emptySet())): ReflectionOrchestrator {
+  private fun orchestrator(
+    llm: ScriptedLlm,
+    toolRegistry: ToolRegistry = ToolRegistry(emptySet()),
+    turnContextHolder: TurnContextHolder = TurnContextHolder(),
+  ): ReflectionOrchestrator {
     val memoryRepository = MemoryRepository(db.factDao(), db.episodeDao())
     val conversationRepository = ConversationRepository(db.conversationDao(), db.conversationTagDao(), db.messageDao())
     val assembler = PrePromptAssembler(
@@ -124,6 +130,7 @@ class ReflectionOrchestratorTest {
       assembler,
       reactLoopRunner,
       ConversationAnnotator(llm, conversationRepository),
+      turnContextHolder,
       NoopLog,
     )
   }
@@ -211,5 +218,67 @@ class ReflectionOrchestratorTest {
 
     // Галлюцинация тула — не фатальная ошибка цикла; ход всё равно доходит до Completed.
     assertTrue(events.filterIsInstance<AgentEvent.Completed>().isNotEmpty())
+  }
+
+  @Test
+  fun `REFLECT ход устанавливает контекст агента для memory_tool - remember_fact уходит в его namespace`() = runTest {
+    // Task 5: до фикса ReflectionOrchestrator не оборачивал draft/revise в
+    // turnContextHolder.contextElement(...), так что memory_tool внутри REFLECT-хода видел бы
+    // holder.agent == null (глобальное пространство имён) даже для агента со своим namespace — тот
+    // же класс дыры, что и REFLECT tool-scope до фикса в Task 4, но для памяти, а не allowlist тулов.
+    val turnContextHolder = TurnContextHolder()
+    val memoryRepository = MemoryRepository(db.factDao(), db.episodeDao())
+    val memoryTools = MemoryTools(memoryRepository, turnContextHolder)
+    val toolRegistry = ToolRegistry(setOf(memoryTools))
+    val userAgentRepository = UserAgentRepository(db, db.userAgentDao())
+    val agent = AgentDefinition(
+      id = "my-agent",
+      source = AgentSource.USER,
+      name = "Мой агент",
+      description = "Кастомный агент с доступом к памяти.",
+      iconKey = "sparkles",
+      systemPrompt = "Ты — тестовый агент.",
+      toolNames = setOf("memory_tool"),
+      skillIds = emptySet(),
+      defaultMode = AgentMode.REFLECT,
+      allowedModes = setOf(AgentMode.CHAT, AgentMode.REFLECT),
+      memoryPolicy = AgentMemoryPolicy(namespace = "agent:my-agent:", includeSharedProfile = false),
+      allowedWidgetTemplates = emptySet(),
+      configVersion = 0L,
+      status = AgentStatus.DRAFT,
+    )
+    userAgentRepository.saveDraft(agent)
+    userAgentRepository.publish(agent.id)
+    db.conversationDao().insert(ConversationEntity(id = "c1", title = "T", agentId = agent.id))
+
+    val llm = ScriptedLlm(
+      listOf(
+        // DRAFT итерация 1: модель вызывает remember_fact прямо в ходе черновика.
+        listOf(
+          StreamEvent.ToolCall(
+            "call-1",
+            "memory_tool",
+            mapOf(
+              "action" to JsonPrimitive("remember_fact"),
+              "key" to JsonPrimitive("note"),
+              "value" to JsonPrimitive("secret"),
+            ),
+          ),
+          StreamEvent.Finish("tool_calls"),
+        ),
+        // DRAFT итерация 2: финальный текст черновика (без него цикл продолжал бы крутиться).
+        textThenStop("черновой ответ"),
+        textThenStop("критика"),
+        textThenStop("Итоговый ответ"),
+      ),
+    )
+
+    orchestrator(llm, toolRegistry, turnContextHolder).execute("c1", "запомни note=secret").toList()
+
+    val saved = db.factDao().getByKey("agent:my-agent:note")
+    assertEquals("secret", saved?.value)
+    assertEquals("general", saved?.category)
+    // Без namespace ключ вообще не создаётся — не осталось «утечки» в глобальное пространство.
+    assertNull(db.factDao().getByKey("note"))
   }
 }

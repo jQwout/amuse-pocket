@@ -71,7 +71,7 @@ class AgentLoopOrchestrator @Inject constructor(
       context.toolNames?.let { registry.getSchemasFor(it) } ?: registry.getAllSchemas()
     }
     log.d(TAG, "▶ chat turn conv=$conversationId mode=$mode scoped=${context.toolNames ?: "all"} maxIter=${turn.maxIterations}")
-    val baseResult = withContext(turnContextHolder.contextElement(conversationId, context.agentId)) {
+    val baseResult = withContext(turnContextHolder.contextElement(conversationId, context.agent)) {
       reactLoopRunner.run(
         conversationId, messages, tools, provider, turn.maxIterations, context.agent,
       ) { send(it) }
