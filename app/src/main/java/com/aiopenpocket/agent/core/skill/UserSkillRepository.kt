@@ -20,8 +20,10 @@ class UserSkillRepository @Inject constructor(
 ) {
   suspend fun get(id: String): Skill? = dao.get(id)?.toSkill()
 
-  suspend fun ids(): Set<String> = dao.getAll().mapTo(mutableSetOf()) { it.id }
+  // Metadata-only projection (no instructionsMarkdown) — ids()/catalog() are read on every chat turn
+  // via PrePromptAssembler, so they must stay cheap regardless of how large custom skill bodies get.
+  suspend fun ids(): Set<String> = dao.getAllMetadata().mapTo(mutableSetOf()) { it.id }
 
   /** Every custom skill as a [Skill] — [SkillRegistry.catalog] dedups against built-ins itself. */
-  suspend fun getAll(): List<Skill> = dao.getAll().map { it.toSkill() }
+  suspend fun getAll(): List<Skill> = dao.getAllMetadata().map { it.toSkill(dao) }
 }

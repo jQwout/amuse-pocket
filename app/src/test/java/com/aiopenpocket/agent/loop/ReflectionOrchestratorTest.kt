@@ -155,11 +155,13 @@ class ReflectionOrchestratorTest {
   }
 
   @Test
-  fun `REFLECT не обходит scoped allowlist кастомного агента - чужой тул отклоняется в draft-фазе`() = runTest {
-    // Реестр знает ОБА тула (memory_tool + sms), но агент разрешает только memory_tool — до фикса
-    // ReflectionOrchestrator отдавал draft/revise ПОЛНЫЙ registry.getAllSchemas() без учёта agent,
-    // так что sms прошёл бы как «доступный». Именно это и должен резать scoped tools + agent-гейт.
-    val toolRegistry = ToolRegistry(setOf(FakeTool("memory_tool"), FakeTool("sms")))
+  fun `REFLECT не обходит scoped allowlist кастомного агента - чужой тул отклоняется в draft- и revise-фазах`() = runTest {
+    // Реестр знает ТРИ тула (memory_tool + sms + email), но агент разрешает только memory_tool — до
+    // фикса ReflectionOrchestrator отдавал draft/revise ПОЛНЫЙ registry.getAllSchemas() без учёта
+    // agent, так что sms/email прошли бы как «доступные». Именно это и должен резать scoped tools +
+    // agent-гейт — оба тула вне toolNames агента, и каждый должен быть отклонён НЕЗАВИСИМО в своей
+    // фазе (sms в draft, email в revise), а не только в первой встреченной.
+    val toolRegistry = ToolRegistry(setOf(FakeTool("memory_tool"), FakeTool("sms"), FakeTool("email")))
     val userAgentRepository = UserAgentRepository(db, db.userAgentDao())
     val agent = AgentDefinition(
       id = "my-agent",
@@ -181,15 +183,16 @@ class ReflectionOrchestratorTest {
     userAgentRepository.publish(agent.id)
     db.conversationDao().insert(ConversationEntity(id = "c1", title = "T", agentId = agent.id))
 
-    // Черновик «галлюцинирует» вызов sms — тул вне allowlist агента (только memory_tool). Скриптовый
-    // LLM в тесте не смотрит на переданные ему схемы (как и любая модель может унаследовать имя тула
-    // из истории или просто ошибиться) — именно поэтому проверка обязана быть в рантайме цикла, а не
-    // только в том, что модели показали.
+    // Черновик «галлюцинирует» вызов sms, а финальная правка — email: ОБА тула вне allowlist агента
+    // (только memory_tool). Скриптовый LLM в тесте не смотрит на переданные ему схемы (как и любая
+    // модель может унаследовать имя тула из истории или просто ошибиться) — именно поэтому проверка
+    // обязана быть в рантайме цикла КАЖДОЙ фазы отдельно, а не только в том, что модели показали в draft.
     val llm = ScriptedLlm(
       listOf(
         listOf(StreamEvent.ToolCall("call-1", "sms", emptyMap()), StreamEvent.Finish("tool_calls")),
         textThenStop("черновой ответ"),
         textThenStop("критика"),
+        listOf(StreamEvent.ToolCall("call-2", "email", emptyMap()), StreamEvent.Finish("tool_calls")),
         textThenStop("Итоговый ответ"),
       ),
     )
@@ -197,8 +200,15 @@ class ReflectionOrchestratorTest {
     val events = orchestrator(llm, toolRegistry).execute("c1", "вопрос").toList()
 
     val smsCall = events.filterIsInstance<AgentEvent.ToolCompleted>().single { it.name == "sms" }
-    val error = smsCall.result as? ToolResult.Error
-    assertEquals("Tool 'sms' is not available in this context.", error?.message)
+    val smsError = smsCall.result as? ToolResult.Error
+    assertEquals("Tool 'sms' is not available in this context.", smsError?.message)
+
+    // Тот же гейт, но во ВТОРОЙ фазе (revise) — до фикса ReflectionOrchestrator scoped ровно draft, а
+    // revise получал бы полный registry, так что этот вызов остался бы незамеченным regression'ом.
+    val emailCall = events.filterIsInstance<AgentEvent.ToolCompleted>().single { it.name == "email" }
+    val emailError = emailCall.result as? ToolResult.Error
+    assertEquals("Tool 'email' is not available in this context.", emailError?.message)
+
     // Галлюцинация тула — не фатальная ошибка цикла; ход всё равно доходит до Completed.
     assertTrue(events.filterIsInstance<AgentEvent.Completed>().isNotEmpty())
   }
