@@ -82,14 +82,26 @@ class AgentBuilderViewModel(
 
   // --- Entry points (Task 20 route wiring calls exactly one of these per navigation entry) -------
 
-  /** Convenience for the two builder routes: null [agentId] starts [newDraft], otherwise [loadExisting]. Call once per navigation entry (e.g. from a Compose `LaunchedEffect(agentId)`), not on every recomposition. */
-  fun start(agentId: String?) {
-    if (agentId == null) newDraft() else loadExisting(agentId)
+  /**
+   * Convenience for the two builder routes: null [agentId] starts [newDraft], otherwise
+   * [loadExisting]. Call once per navigation entry (e.g. from a Compose `LaunchedEffect(agentId)`),
+   * not on every recomposition. [sourceContext] (Task 23) only matters for the null-[agentId]
+   * branch — see [newDraft]; it is ignored (never overrides an existing agent's bookkeeping) when
+   * [loadExisting] runs instead.
+   */
+  fun start(agentId: String?, sourceContext: AgentSourceContext = AgentSourceContext.MANUAL) {
+    if (agentId == null) newDraft(sourceContext) else loadExisting(agentId)
   }
 
-  /** Starts a brand-new, empty USER draft under a fresh generated id (`agent_builder`, no id). */
-  fun newDraft() {
-    applyLoaded(AgentDraft.new(id = generateDraftId()))
+  /**
+   * Starts a brand-new, empty USER draft under a fresh generated id (`agent_builder`, no id).
+   * [sourceContext] defaults to [AgentSourceContext.MANUAL] (FAB "create agent" and every other
+   * pre-existing entry point); the AI Academy capstone lesson's completion CTA (Task 23) is the only
+   * caller that passes [AgentSourceContext.ACADEMY_CAPSTONE]. Either way the draft itself is exactly
+   * as blank as [AgentDraft.new] always produces — this is bookkeeping only, never a prefill.
+   */
+  fun newDraft(sourceContext: AgentSourceContext = AgentSourceContext.MANUAL) {
+    applyLoaded(AgentDraft.new(id = generateDraftId(), sourceContext = sourceContext))
   }
 
   /**

@@ -1,6 +1,7 @@
 package com.aiopenpocket.agent.core.lesson
 
 // @trace uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2
+// @trace user-agent-builder-848153
 
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.di.AppScope
@@ -61,12 +62,26 @@ class LessonChatController(
     else -> step.text
   }
 
-  /** Финальная карточка «урок пройден»: её кнопка отметит уровень пройденным и вернёт на список. */
+  /**
+   * Финальная карточка «урок пройден»: её кнопка отметит уровень пройденным и вернёт на список.
+   *
+   * Капстоун Академии (Task 23): если ПОСЛЕДНИЙ шаг урока несёт [LessonStep.primaryAction] (сегодня
+   * только `agent_blueprint` его задаёт — см. её json), прокидываем CTA в params карточки как
+   * `primary_action` (снейк-кейс — та же трансляция camelCase-ассета в snake_case card-params, что и
+   * в [buildFillCardSpec] для `case_sensitive`). У обычных уроков последний шаг primaryAction не
+   * задаёт → params не меняются, и completion-поведение остаётся прежним byte-for-byte.
+   */
   suspend fun postCompletion(conversationId: String, lesson: Lesson) {
     val params = JSONObject()
       .put("title", "Урок «${lesson.title}» пройден!")
       .put("subtitle", "Отличная работа.")
       .put("button_label", "Готово")
+    lesson.steps.lastOrNull()?.primaryAction?.let { action ->
+      params.put(
+        "primary_action",
+        JSONObject().put("type", action.type).put("label", action.label),
+      )
+    }
     val spec = JSONObject().put("template", "lesson_complete").put("params", params).toString()
     conversationRepository.addMessage(conversationId, "assistant", "", cardSpec = spec)
   }

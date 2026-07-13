@@ -20,6 +20,10 @@ import dev.zacsweers.metrox.viewmodel.metroViewModel
 @Composable
 fun AgentBuilderRoute(
   agentId: String?,
+  // AI Academy capstone completion CTA (Task 23): MainActivity's "agent_builder?source={source}"
+  // route resolves its nav arg down to this before falling back to MANUAL. Only read when
+  // [agentId] is null (new draft) — see [AgentBuilderViewModel.start].
+  sourceContext: AgentSourceContext = AgentSourceContext.MANUAL,
   onExit: () -> Unit,
 ) {
   val viewModel: AgentBuilderViewModel = metroViewModel()
@@ -32,7 +36,7 @@ fun AgentBuilderRoute(
 
   // Null agentId -> new draft, otherwise load the existing one. Call once per navigation entry, not
   // on every recomposition (mirrors OnboardingScreen's `LaunchedEffect(editMode) { ... }`).
-  LaunchedEffect(agentId) { viewModel.start(agentId) }
+  LaunchedEffect(agentId, sourceContext) { viewModel.start(agentId, sourceContext) }
 
   // Task 20 brief: Preview must be the TEST step's default run mode. AgentBuilderUiState's own field
   // default is ExecutionMode.LIVE (see its KDoc for why) — Task 19 is frozen/out of this task's file

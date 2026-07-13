@@ -129,6 +129,7 @@ import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.model.Message
 import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.agent.loop.AgentMode
+import com.aiopenpocket.ui.agents.builder.AgentSourceContext
 import com.aiopenpocket.ui.agents.builder.components.riskClassLabel
 import com.aiopenpocket.ui.agents.builder.components.riskColor
 import com.aiopenpocket.ui.chat.components.MicButton
@@ -160,6 +161,11 @@ fun ChatScreen(
     // (com.aiopenpocket.ui.agents.detail.AgentDetailRoute, маршрут "agent/{agentId}") — заменяет
     // старый read-only инспектор-шторку, которая раньше жила прямо в этом экране.
     onOpenAgentDetail: (String) -> Unit = {},
+    // CTA на карточке завершения капстоуна Академии (Task 23, «Собрать этого агента»): открывает
+    // agent_builder с новым пустым черновиком, помеченным sourceContext = ACADEMY_CAPSTONE. Кнопка
+    // существует только на РЕАЛЬНОЙ completion-карточке agent_blueprint (см. DrivenUiEngine/
+    // LessonChatController.postCompletion) — обычные уроки её не показывают.
+    onOpenAgentBuilder: (AgentSourceContext) -> Unit = {},
 ) {
     val glassState = rememberGlassState()
     val viewModel: ChatViewModel = metroViewModel()
@@ -425,6 +431,12 @@ fun ChatScreen(
                             }
                         }
                     }
+                    // CTA капстоуна (Task 23): рендерится ТОЛЬКО когда сама карточка несёт
+                    // primaryAction (см. DrivenUiEngine.LessonCompleteCardView) — это и есть
+                    // capstone-only гейт, здесь мы просто открываем билдер с нужным источником.
+                    val onOpenAgentBuilderTap = remember(message.id) {
+                        { onOpenAgentBuilder(AgentSourceContext.ACADEMY_CAPSTONE) }
+                    }
                     MessageBubble(
                         message = message,
                         onTogglePin = onTogglePin,
@@ -435,6 +447,7 @@ fun ChatScreen(
                         onFormSubmitted = onChoiceSelected,
                         onLessonQuizComplete = onLessonQuizComplete,
                         onLessonComplete = onLessonComplete,
+                        onOpenAgentBuilder = onOpenAgentBuilderTap,
                         onCardAction = onCardAction,
                         observeHeartbeat = observeHeartbeat,
                         onCancelHeartbeat = onCancelHeartbeat,
@@ -1287,6 +1300,7 @@ private fun MessageBubble(
     onFormSubmitted: (String) -> Unit = {},
     onLessonComplete: () -> Unit = {},
     onLessonQuizComplete: () -> Unit = {},
+    onOpenAgentBuilder: () -> Unit = {},
     onCardAction: (String, Boolean) -> Unit = { _, _ -> },
     observeHeartbeat: (String) -> Flow<HeartbeatEntity?> = { kotlinx.coroutines.flow.flowOf(null) },
     onCancelHeartbeat: (String) -> Unit = {},
@@ -1390,6 +1404,7 @@ private fun MessageBubble(
                     onFormSubmitted = onFormSubmitted,
                     onLessonComplete = onLessonComplete,
                     onLessonQuizComplete = onLessonQuizComplete,
+                    onOpenAgentBuilder = onOpenAgentBuilder,
                     onAction = onCardAction,
                     observeHeartbeat = observeHeartbeat,
                     onCancelHeartbeat = onCancelHeartbeat,
