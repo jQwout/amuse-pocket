@@ -1,10 +1,12 @@
 package com.aiopenpocket.agent.tools
 
 // @trace mcp-tools-f77d9b
+// @trace user-agent-builder-848153
 
 import android.content.Context
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
+import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.mcp.missingArg
@@ -23,6 +25,16 @@ class ExternalFilesTool(
 
   // Files chosen via SAF originate outside the app boundary.
   override val returnsUntrustedContent = true
+
+  // Per-call risk (Task 9): same read/write split as file_tool - only write_file mutates the
+  // target document. riskClass stays the WRITE ceiling for callers without per-call arguments (e.g.
+  // episodic-memory logging in ReactLoopRunner); riskFor is what the policy gate actually uses.
+  override val riskClass = RiskClass.WRITE
+
+  override fun riskFor(arguments: Map<String, JsonElement>): RiskClass = when (arguments.string("action")) {
+    "write_file" -> RiskClass.WRITE
+    else -> RiskClass.READ
+  }
 
   override val name = "external_files"
   override val description =

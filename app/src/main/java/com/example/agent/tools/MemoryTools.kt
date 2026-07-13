@@ -3,6 +3,7 @@
 // @trace mcp-tools-f77d9b
 // @trace user-agent-builder-848153
 
+import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.mcp.missingArg
@@ -21,6 +22,13 @@ class MemoryTools(
   private val memoryRepository: MemoryRepository,
   private val turnContextHolder: TurnContextHolder,
 ) : Tool {
+
+  // Per-call risk (Task 9): remember_fact writes; search_memory/recall_episodes only read. An
+  // unrecognized/missing action fails closed to READ - execute() rejects it before anything runs.
+  override fun riskFor(arguments: Map<String, JsonElement>): RiskClass = when (arguments.string("action")) {
+    "remember_fact" -> RiskClass.WRITE
+    else -> RiskClass.READ
+  }
 
   override val name = "memory_tool"
   override val description = "Управление долговременной памятью агента: запоминать факты, искать факты, вспоминать эпизоды."

@@ -16,12 +16,19 @@ import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.StreamEvent
+import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.ToolExecutor
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
+import com.aiopenpocket.agent.core.policy.ExecutionMode
+import com.aiopenpocket.agent.core.policy.ExecutionPolicy
+import com.aiopenpocket.agent.core.policy.PolicyDecision
+import com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator
+import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -45,6 +52,11 @@ import java.util.UUID
  * tool, injecting an ephemeral instruction, halting the run, journaling to `agent_hook_runs`) is
  * applied here. Plain chat (`agent == null`) is untouched: hooks are looked up from the immutable
  * per-turn snapshot ([AgentDefinition.hooks]), never re-queried from Room mid-turn.
+ *
+ * Task 9 adds one more gate between a tool_call and [ToolExecutor]: [ExecutionPolicy] combines the
+ * BEFORE_TOOL [HookDecision] above with the turn's [ExecutionMode] and the tool's per-call
+ * [RiskClass] ([com.aiopenpocket.agent.core.mcp.Tool.riskFor]) into one [PolicyDecision] — Execute,
+ * Simulate (PREVIEW mode), Deny, or AwaitApproval (suspends on [ToolApprovalCoordinator]).
  */
 @SingleIn(AppScope::class)
 class ReactLoopRunner @Inject constructor(
@@ -54,6 +66,7 @@ class ReactLoopRunner @Inject constructor(
   private val memoryRepository: MemoryRepository,
   private val log: AgentLog,
   private val agentHookRepository: AgentHookRepository,
+  private val toolApprovalCoordinator: ToolApprovalCoordinator = ToolApprovalCoordinator(),
 ) {
 
   /**
@@ -70,6 +83,16 @@ class ReactLoopRunner @Inject constructor(
     maxIterations: Int = MAX_ITERATIONS,
     /** Agent bound to this chat, if any — `load_skill` is confined to this agent's own [AgentDefinition.skillIds]. */
     agent: AgentDefinition? = null,
+    /** LIVE (default) executes tools for real; PREVIEW simulates non-READ calls — see [ExecutionPolicy]. */
+    executionMode: ExecutionMode = ExecutionMode.LIVE,
+    /**
+     * False for a headless/background run with no screen that could ever answer an approval prompt
+     * (e.g. [com.aiopenpocket.agent.workers.HeartbeatRunner]) — an AwaitApproval decision becomes an
+     * immediate deny instead of registering with [ToolApprovalCoordinator] and waiting out its
+     * timeout for no one. True (default) for every TurnManager-driven interactive chat turn, where a
+     * screen might really be open — and if it isn't, the coordinator's own timeout still applies.
+     */
+    interactiveApproval: Boolean = true,
     emit: suspend (AgentEvent) -> Unit,
   ): AgentResult {
     val toolTrace = mutableListOf<ToolTrace>()
@@ -230,13 +253,19 @@ class ReactLoopRunner @Inject constructor(
         val result = when {
           tc.name !in allowedToolNames -> ToolResult.Error("Tool '${tc.name}' is not available in this context.", recoverable = false)
           tc.name == LOAD_SKILL_TOOL && !isSkillAllowed(tc.arguments, agent) -> ToolResult.Error("Skill not available for this agent")
-          beforeTool.denied -> ToolResult.Error("Tool '${tc.name}' was denied by an agent hook.", recoverable = false)
-          // Task 9 adds real approval UI/coordinator; until then, "approval required" with no way to
-          // grant it in this context is treated as a deny — never silently executed.
-          beforeTool.approvalRequired ->
-            ToolResult.Error("Tool '${tc.name}' requires approval, which isn't available in this context yet.", recoverable = false)
+          // STOP halts the whole run regardless of this call's own risk/mode — checked ahead of the
+          // policy gate so a STOP+PREVIEW combination reports "stopped", not a misleading Simulate.
           beforeTool.stopped -> ToolResult.Error("Tool '${tc.name}' was not executed: an agent hook stopped the run.", recoverable = false)
-          else -> toolExecutor.execute(tc.name, tc.arguments)
+          else -> gateAndExecute(
+            toolName = tc.name,
+            arguments = tc.arguments,
+            hookDecision = beforeTool,
+            executionMode = executionMode,
+            interactiveApproval = interactiveApproval,
+            runId = runId,
+            conversationId = conversationId,
+            emit = emit,
+          )
         }
         log.d(TAG, "  ← ${tc.name}: ${preview(resultToString(result))}")
         toolTrace += ToolTrace(
@@ -256,7 +285,7 @@ class ReactLoopRunner @Inject constructor(
               put("id", tc.id)
               put("name", tc.name)
               // Record the tool's runtime risk class so side effects are auditable in memory.
-              put("risk", (toolRegistry.get(tc.name)?.riskClass ?: com.aiopenpocket.agent.core.mcp.RiskClass.READ).name)
+              put("risk", (toolRegistry.get(tc.name)?.riskClass ?: RiskClass.READ).name)
               put("arguments", JsonObject(tc.arguments))
             }.toString(),
             outcome = result.toString(),
@@ -305,11 +334,85 @@ class ReactLoopRunner @Inject constructor(
    * (plain chat) is unrestricted. A missing/malformed `id` argument is let through so
    * [ToolExecutor] surfaces its own "Missing 'id'" error.
    */
-  private fun isSkillAllowed(arguments: Map<String, kotlinx.serialization.json.JsonElement>, agent: AgentDefinition?): Boolean {
+  private fun isSkillAllowed(arguments: Map<String, JsonElement>, agent: AgentDefinition?): Boolean {
     if (agent == null) return true
     val requestedId = (arguments["id"] as? JsonPrimitive)?.content ?: return true
     return requestedId in agent.skillIds
   }
+
+  /**
+   * The gate between a hook-cleared tool_call and [ToolExecutor] (Task 9). Classifies this call's
+   * actual risk ([com.aiopenpocket.agent.core.mcp.Tool.riskFor]), asks the pure [ExecutionPolicy]
+   * what to do about it, and carries out exactly that: run for real, fabricate a Simulate envelope,
+   * deny outright, or resolve an approval. [hookDecision] is the SAME [HookDecision] the caller
+   * already computed for this call's `BEFORE_TOOL` firing — its denied/approvalRequired win over
+   * [executionMode]/risk unconditionally (see [ExecutionPolicy.evaluate]'s own doc for why).
+   */
+  private suspend fun gateAndExecute(
+    toolName: String,
+    arguments: Map<String, JsonElement>,
+    hookDecision: HookDecision,
+    executionMode: ExecutionMode,
+    interactiveApproval: Boolean,
+    runId: String,
+    conversationId: String,
+    emit: suspend (AgentEvent) -> Unit,
+  ): ToolResult {
+    val risk = toolRegistry.get(toolName)?.riskFor(arguments) ?: RiskClass.READ
+    val decision = ExecutionPolicy.evaluate(
+      mode = executionMode,
+      risk = risk,
+      hookDecision = hookDecision,
+      toolName = toolName,
+      arguments = arguments,
+      runId = runId,
+      requestId = UUID.randomUUID().toString(),
+      conversationId = conversationId,
+    )
+    return when (decision) {
+      PolicyDecision.Execute -> toolExecutor.execute(toolName, arguments)
+      is PolicyDecision.Simulate -> ToolResult.Success(simulatedResultJson(toolName, arguments))
+      is PolicyDecision.Deny -> ToolResult.Error(decision.reason, recoverable = false)
+      is PolicyDecision.AwaitApproval -> awaitApprovalAndExecute(decision.request, interactiveApproval, emit)
+    }
+  }
+
+  /**
+   * A hook required approval for [request]. A non-interactive run ([interactiveApproval] false — a
+   * background heartbeat, no screen could ever answer) denies immediately without ever registering
+   * with [toolApprovalCoordinator] — no point publishing a request nobody will see and paying its
+   * timeout for nothing. Otherwise emits [AgentEvent.ToolApprovalRequired] (so the chat UI can show a
+   * modal/bar) and suspends on the coordinator; its own timeout, or the app going to background,
+   * both resolve to a deny — never a hang, never a silent execute.
+   */
+  private suspend fun awaitApprovalAndExecute(
+    request: ToolApprovalRequest,
+    interactiveApproval: Boolean,
+    emit: suspend (AgentEvent) -> Unit,
+  ): ToolResult {
+    if (!interactiveApproval) {
+      return ToolResult.Error(
+        "Tool '${request.toolName}' requires approval, which isn't available in a background run.",
+        recoverable = false,
+      )
+    }
+    emit(AgentEvent.ToolApprovalRequired(request))
+    val approved = toolApprovalCoordinator.awaitApproval(request)
+    return if (approved) {
+      toolExecutor.execute(request.toolName, request.arguments)
+    } else {
+      ToolResult.Error("Tool '${request.toolName}' was not approved.", recoverable = true)
+    }
+  }
+
+  /** The synthetic result the model sees for a [PolicyDecision.Simulate] call — no real tool ever ran. */
+  private fun simulatedResultJson(toolName: String, arguments: Map<String, JsonElement>): String =
+    buildJsonObject {
+      put("status", "preview_only")
+      put("executed", false)
+      put("tool", toolName)
+      put("arguments", JsonObject(arguments))
+    }.toString()
 
   /**
    * Builds the tool-result message fed back to the model. Output from tools that return untrusted

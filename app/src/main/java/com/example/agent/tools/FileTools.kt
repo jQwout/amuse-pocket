@@ -52,6 +52,14 @@ class FileTools(
   override val riskClass = RiskClass.WRITE
   override val returnsUntrustedContent = true
 
+  // Per-call risk (Task 9): read_file/list_dir/search_files are read-only; only write_file
+  // actually mutates the sandbox. An unrecognized/missing action fails closed to READ: execute()
+  // below rejects it anyway ("Unknown action"), so nothing is actually written either way.
+  override fun riskFor(arguments: Map<String, JsonElement>): RiskClass = when (arguments.string("action")) {
+    "write_file" -> RiskClass.WRITE
+    else -> RiskClass.READ
+  }
+
   override val name = "file_tool"
   override val description = "Универсальный инструмент для работы с файлами: читает, пишет, показывает список файлов и ищет по содержимому. Используй только внутри sandbox."
   override val schema = toolSchema(name, description) {

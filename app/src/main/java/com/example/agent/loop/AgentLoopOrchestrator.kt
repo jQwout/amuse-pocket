@@ -5,6 +5,8 @@ import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.mcp.ToolResult
+import com.aiopenpocket.agent.core.policy.ExecutionMode
+import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.agent.core.prompt.ConversationAnnotator
 import com.aiopenpocket.agent.core.prompt.PrePromptAssembler
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
@@ -42,6 +44,7 @@ class AgentLoopOrchestrator @Inject constructor(
     planApproved: Boolean = false,
     goalMaxIterations: Int = 3,
     systemPromptExtra: String? = null,
+    executionMode: ExecutionMode = ExecutionMode.LIVE,
   ): Flow<AgentEvent> = agentTurnFlow(log, TAG, "Unknown error") {
     // Error-контракт (in-band Error, rethrow отмены, buffer+IO) — в agentTurnFlow.
     // Контракт режима (гейт план-мода / петля гоал-мода) — чистое решение, покрыто AgentModeTest.
@@ -73,7 +76,7 @@ class AgentLoopOrchestrator @Inject constructor(
     log.d(TAG, "▶ chat turn conv=$conversationId mode=$mode scoped=${context.toolNames ?: "all"} maxIter=${turn.maxIterations}")
     val baseResult = withContext(turnContextHolder.contextElement(conversationId, context.agent)) {
       reactLoopRunner.run(
-        conversationId, messages, tools, provider, turn.maxIterations, context.agent,
+        conversationId, messages, tools, provider, turn.maxIterations, context.agent, executionMode,
       ) { send(it) }
     }
 
@@ -156,4 +159,13 @@ sealed class AgentEvent {
   data class StateChanged(val state: AgentState) : AgentEvent()
   data class Completed(val result: AgentResult) : AgentEvent()
   data class Error(val message: String) : AgentEvent()
+  /**
+   * A `BEFORE_TOOL` hook required approval for this call (Task 9): [request] is what the chat UI
+   * needs to show a modal/bar and what [com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator]
+   * needs to route the user's decision back. Emitted right before
+   * [com.aiopenpocket.agent.loop.ReactLoopRunner] suspends on the coordinator for this same request —
+   * consumers that only need to know a decision is pending (not resolve it) can watch this event
+   * instead of also depending on the coordinator directly.
+   */
+  data class ToolApprovalRequired(val request: ToolApprovalRequest) : AgentEvent()
 }

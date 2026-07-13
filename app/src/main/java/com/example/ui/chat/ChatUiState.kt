@@ -1,11 +1,13 @@
 package com.aiopenpocket.ui.chat
 
 // @trace streaming-llm-chat-6595a1
+// @trace user-agent-builder-848153
 
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.lesson.Lesson
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.core.memory.model.Message
+import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.loop.ToolTrace
 import com.aiopenpocket.voice.input.VoiceInputState
@@ -50,6 +52,15 @@ data class ChatUiState(
   val title: String? = null,
   val voiceState: VoiceInputState = VoiceInputState.Idle,
   val voiceError: String? = null,
+
+  /**
+   * A `BEFORE_TOOL` hook required approval for a tool call in THIS conversation's active run (Task 9)
+   * — null whenever nothing is waiting. [ChatViewModel] derives this from
+   * `ToolApprovalCoordinator.pending`, filtered to this screen's own conversation id, so a pending
+   * approval in a different chat never leaks in here. The tool-approval modal/bar itself (tool name,
+   * risk, arguments, approve/deny buttons) is not wired into ChatScreen yet — see the TODO left there.
+   */
+  val pendingToolApproval: ToolApprovalRequest? = null,
 
   // --- Режим агента (план-/гоал-мод) — эфемерный UI-флаг экрана чата. Заменяет прежний planMode-boolean. ---
   val agentMode: AgentMode = AgentMode.CHAT,

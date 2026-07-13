@@ -1,6 +1,7 @@
 package com.aiopenpocket.agent.tools
 
 // @trace heartbeat-napominalki-agenta-5f0442
+// @trace user-agent-builder-848153
 
 import android.Manifest
 import android.content.Context
@@ -13,6 +14,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.mcp.long
@@ -43,6 +45,14 @@ class HeartbeatTool(
   private val heartbeatDao: HeartbeatDao,
   private val turnContextHolder: TurnContextHolder,
 ) : Tool {
+
+  // Per-call risk (Task 9): list only reads Room; schedule creates a new WorkManager job; cancel
+  // is the irreversible one (the pending fire, and its underlying data, is gone).
+  override fun riskFor(arguments: Map<String, JsonElement>): RiskClass = when (arguments.string("action")) {
+    "schedule" -> RiskClass.WRITE
+    "cancel" -> RiskClass.DESTRUCTIVE
+    else -> RiskClass.READ
+  }
 
   override val name = "heartbeat"
   override val description =

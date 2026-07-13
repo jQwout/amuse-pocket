@@ -1,7 +1,9 @@
 package com.aiopenpocket.agent.loop
 
 // @trace fonovye-hody-agenta-dde42d
+// @trace user-agent-builder-848153
 
+import com.aiopenpocket.agent.core.policy.ExecutionMode
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -63,4 +65,6 @@ class TurnSession internal constructor(
   internal var lastMode: AgentMode = AgentMode.CHAT
   internal var lastPlanApproved: Boolean = false
   internal var lastGoalMaxIterations: Int = 3
+  /** LIVE/PREVIEW последнего хода — «Повторить» и одобрение плана переигрывают в том же режиме. */
+  internal var lastExecutionMode: ExecutionMode = ExecutionMode.LIVE
 }

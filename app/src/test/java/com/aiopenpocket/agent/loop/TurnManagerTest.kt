@@ -1,6 +1,9 @@
 package com.aiopenpocket.agent.loop
 
+// @trace user-agent-builder-848153
+
 import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.policy.ExecutionMode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -30,7 +33,13 @@ class TurnManagerTest {
   }
 
   private class ScriptedExecutor : TurnExecutor {
-    data class Call(val convId: String, val message: String, val mode: AgentMode, val planApproved: Boolean)
+    data class Call(
+      val convId: String,
+      val message: String,
+      val mode: AgentMode,
+      val planApproved: Boolean,
+      val executionMode: ExecutionMode = ExecutionMode.LIVE,
+    )
 
     val calls = mutableListOf<Call>()
     var cancelledCollections = 0
@@ -46,8 +55,9 @@ class TurnManagerTest {
       planApproved: Boolean,
       goalMaxIterations: Int,
       systemPromptExtra: String?,
+      executionMode: ExecutionMode,
     ): Flow<AgentEvent> {
-      val call = Call(conversationId, userMessage, mode, planApproved)
+      val call = Call(conversationId, userMessage, mode, planApproved, executionMode)
       calls += call
       return script(call).onCompletion { if (it is CancellationException) cancelledCollections++ }
     }

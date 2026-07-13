@@ -1,8 +1,10 @@
 package com.aiopenpocket.agent.loop
 
 // @trace fonovye-hody-agenta-dde42d
+// @trace user-agent-builder-848153
 
 import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.policy.ExecutionMode
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -19,6 +21,8 @@ fun interface TurnExecutor {
     goalMaxIterations: Int,
     /** Доверенная добавка к системному промпту для этого хода (напр. контекст текущего шага урока). */
     systemPromptExtra: String?,
+    /** LIVE (по умолчанию у вызывающего TurnManager) или PREVIEW — см. ExecutionPolicy. */
+    executionMode: ExecutionMode,
   ): Flow<AgentEvent>
 }
 
