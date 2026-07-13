@@ -1,26 +1,50 @@
 package com.aiopenpocket.agent.tools
 
 // @trace driven-ui-cards-0418d0
+// @trace user-agent-builder-848153
 
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.mcp.missingArg
 import com.aiopenpocket.agent.core.mcp.string
 import com.aiopenpocket.agent.core.mcp.toolSchema
+import com.aiopenpocket.agent.loop.TurnContextHolder
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import kotlinx.serialization.json.JsonElement
 
-private val CARD_TEMPLATES = listOf(
-  "todo_list", "weather_card", "timer", "chart_bar", "table", "form", "choice", "lesson_quiz",
-  "lesson_complete", "switch", "notification_permission", "reminder", "image", "reveal", "concept",
-  "example", "fill", "sort", "match", "scenario",
+/**
+ * General-purpose templates any agent (preset or user-built) may render — not tied to the AI
+ * Academy lesson flow. This is the subset a builder-created agent is expected to be scoped to by
+ * default (see [com.aiopenpocket.agent.core.agent.AgentDefinition.allowedWidgetTemplates]), though
+ * [RenderCardTool] itself does not hardcode that default — it only enforces whichever allowlist a
+ * bound agent was actually given.
+ */
+val GENERAL_CARD_TEMPLATES = setOf(
+  "todo_list", "weather_card", "timer", "chart_bar", "table", "form", "choice", "switch",
+  "notification_permission", "reminder", "image",
 )
+
+/**
+ * Templates the AI Academy lesson flow renders
+ * ([com.aiopenpocket.agent.core.lesson.LessonChatController] posts these directly via
+ * `cardSpec`, bypassing [RenderCardTool] and this allowlist entirely — see that class for why).
+ * Not offered to a builder agent's [com.aiopenpocket.agent.core.agent.AgentDefinition.allowedWidgetTemplates]
+ * by default.
+ */
+val LESSON_CARD_TEMPLATES = setOf(
+  "lesson_quiz", "lesson_complete", "reveal", "concept", "example", "fill", "sort", "match", "scenario",
+)
+
+/** Every template this tool recognizes at all — the schema `enum` and the "unknown template" guard below. */
+private val CARD_TEMPLATES = (GENERAL_CARD_TEMPLATES + LESSON_CARD_TEMPLATES).toList()
 
 @Inject
 @SingleIn(AppScope::class)
-class RenderCardTool : Tool {
+class RenderCardTool(
+  private val turnContextHolder: TurnContextHolder,
+) : Tool {
 
   override val name = "render_card"
   override val description =
@@ -37,6 +61,25 @@ class RenderCardTool : Tool {
 
   override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult {
     val template = arguments.string("template") ?: return missingArg("template")
+    // Runtime widget allowlist (Task 7, user-agent-builder-848153): the schema's `enum` above only
+    // guides a well-behaved model - it is NOT the security boundary, since a hallucinated or
+    // adversarial tool call can still reach this code with any string. A bound agent's own
+    // AgentDefinition.allowedWidgetTemplates is re-checked here, IN CODE, before any card JSON is
+    // built, so a disallowed template can never reach the chat. Plain chat (no bound agent) is
+    // intentionally exempt from both checks below - kept byte-for-byte the same as before this
+    // task, the same rule MemoryTools/FileTools follow for their own per-agent scoping.
+    val agent = turnContextHolder.agent
+    if (agent != null) {
+      if (template !in CARD_TEMPLATES) {
+        return ToolResult.Error("Unknown card template: '$template'.", recoverable = false)
+      }
+      if (template !in agent.allowedWidgetTemplates) {
+        return ToolResult.Error(
+          "Template '$template' is not allowed for agent '${agent.id}'.",
+          recoverable = false,
+        )
+      }
+    }
     val params = arguments["params"].toString()
     return ToolResult.Success("""{"template":"$template","params":$params}""")
   }
