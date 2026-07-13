@@ -1,11 +1,13 @@
 package com.aiopenpocket.ui.agents
 
 // @trace multi-agent-orchestration-27b8e3
+// @trace user-agent-builder-848153
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.AgentResolver
+import com.aiopenpocket.agent.core.agent.AgentSource
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.di.AppScope
@@ -15,8 +17,21 @@ import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import dev.zacsweers.metro.binding
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+/**
+ * Deterministic roster sections (Task 21) over [AgentResolver.observeRoster]'s single flat list —
+ * «Шаблоны» (read-only presets) and «Мои агенты» (the caller's own PUBLISHED custom agents; drafts
+ * and archived agents never reach [AgentResolver.observeRoster] in the first place, so there is
+ * nothing further to filter out here). Order within each list matches [AgentResolver.observeRoster]'s
+ * own order (presets in catalog order, published customs most-recently-updated first).
+ */
+data class AgentRosterSections(
+  val presets: List<AgentDefinition> = emptyList(),
+  val userAgents: List<AgentDefinition> = emptyList(),
+)
 
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
@@ -27,9 +42,15 @@ class AgentsViewModel(
   private val userPreferencesRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
-  /** Presets, then published custom agents — see [AgentResolver.observeRoster]. */
-  val agents: StateFlow<List<AgentDefinition>> = agentResolver.observeRoster()
-    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+  /** Roster split into «Шаблоны»/«Мои агенты» — see [AgentRosterSections]. */
+  val roster: StateFlow<AgentRosterSections> = agentResolver.observeRoster()
+    .map { all ->
+      AgentRosterSections(
+        presets = all.filter { it.source == AgentSource.PRESET },
+        userAgents = all.filter { it.source == AgentSource.USER },
+      )
+    }
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AgentRosterSections())
 
   /**
    * Агенты, для которых прямо сейчас идёт открытие чата. Защита от быстрого двойного тапа: без неё

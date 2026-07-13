@@ -27,6 +27,7 @@ import com.aiopenpocket.ui.chat.ChatScreen
 import com.aiopenpocket.ui.conversations.ConversationsListScreen
 import com.aiopenpocket.ui.agents.AgentsScreen
 import com.aiopenpocket.ui.agents.builder.AgentBuilderRoute
+import com.aiopenpocket.ui.agents.detail.AgentDetailRoute
 import com.aiopenpocket.ui.home.HomeScreen
 import com.aiopenpocket.ui.memory.MemoryGraphScreen
 import com.aiopenpocket.ui.memory.MemoryPageScreen
@@ -180,7 +181,17 @@ class MainActivity : ComponentActivity() {
                                 }
                                 composable("agents") {
                                     AgentsScreen(
+                                        onOpenAgent = { id -> navController.navigate("agent/$id") },
+                                        onCreateAgent = { navController.navigate("agent_builder") },
+                                        onNavigateBack = { navController.popBackStack() },
+                                    )
+                                }
+                                composable("agent/{agentId}") { backStackEntry ->
+                                    val agentId = backStackEntry.arguments?.getString("agentId") ?: ""
+                                    AgentDetailRoute(
+                                        agentId = agentId,
                                         onOpenChat = { id -> navController.navigate("chat/$id") },
+                                        onNavigateToBuilder = { id -> navController.navigate("agent_builder/$id") },
                                         onNavigateBack = { navController.popBackStack() },
                                     )
                                 }
@@ -270,6 +281,9 @@ class MainActivity : ComponentActivity() {
                                         onNavigateBack = { navController.popBackStack() },
                                         onOpenQuiz = { levelId ->
                                             navController.navigate("quiz/$levelId")
+                                        },
+                                        onOpenAgentDetail = { agentId ->
+                                            navController.navigate("agent/$agentId")
                                         },
                                     )
                                 }

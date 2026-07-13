@@ -12,10 +12,10 @@ import dev.zacsweers.metrox.viewmodel.metroViewModel
 /**
  * Entry point for both builder routes (`agent_builder` and `agent_builder/{agentId}` in
  * `MainActivity`). Obtains [AgentBuilderViewModel] (Task 19) and [AgentBuilderTestViewModel] via the
- * app's Metro `metroViewModel()` factory — mirroring how `AgentsScreen` obtains both
- * `AgentsViewModel` and `AgentInspectorViewModel` the same way — collects their state, and hosts
- * every navigation/lifecycle callback. [AgentBuilderScreen] itself stays a pure projector: it never
- * imports either ViewModel.
+ * app's Metro `metroViewModel()` factory — mirroring how `com.aiopenpocket.ui.agents.detail.AgentDetailRoute`
+ * obtains both `AgentDetailViewModel` and `AgentsViewModel` the same way — collects their state, and
+ * hosts every navigation/lifecycle callback. [AgentBuilderScreen] itself stays a pure projector: it
+ * never imports either ViewModel.
  */
 @Composable
 fun AgentBuilderRoute(
