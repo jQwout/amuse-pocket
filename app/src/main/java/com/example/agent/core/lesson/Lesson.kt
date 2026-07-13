@@ -1,6 +1,7 @@
 package com.aiopenpocket.agent.core.lesson
 
 // @trace uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2
+// @trace user-agent-builder-848153
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
@@ -90,6 +91,28 @@ data class LessonStep(
   val prompt: String = "",
   val hint: String = "",
   val task: String = "",
+  /**
+   * Optional CTA shown on THIS LESSON's completion card (Task 23), authored on its FINAL step by
+   * convention. [com.aiopenpocket.agent.core.lesson.LessonChatController.postCompletion] reads it
+   * off `lesson.steps.lastOrNull()` when building the `lesson_complete` card's `primary_action` —
+   * every OTHER lesson leaves this null on its last step, so their completion card is byte-for-byte
+   * unchanged. Today only `agent_blueprint` (the AI Academy capstone) sets it, to bridge into the
+   * agent builder with a fresh draft tagged `AgentSourceContext.ACADEMY_CAPSTONE`.
+   */
+  val primaryAction: LessonCompletionAction? = null,
+)
+
+/**
+ * [LessonStep.primaryAction] payload. `type` must be a value
+ * [com.aiopenpocket.ui.chat.DrivenUiEngine] recognizes (currently only `"open_agent_builder"`) —
+ * an unrecognized type is rejected at card-parse time as an error card rather than silently
+ * ignored, and [com.aiopenpocket.agent.core.lesson.LessonAssetsValidationTest] lints every lesson
+ * asset for the same rule so a typo fails the build instead of shipping a dead button.
+ */
+@Serializable
+data class LessonCompletionAction(
+  val type: String = "",
+  val label: String = "",
 )
 
 /**

@@ -9,6 +9,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.intOrNull
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -227,6 +228,47 @@ class LessonAssetsValidationTest {
   fun `correct option must not be the giveaway-longest`() {
     val errors = optionSets().mapNotNull { (location, options, correct) ->
       lengthGiveaway(options, correct)?.let { "$location: $it" }
+    }
+    assertTrue(errors.joinToString("\n"), errors.isEmpty())
+  }
+
+  // --- Task 23: agent_blueprint (the AI Academy capstone) bridges into the agent builder ---
+
+  /**
+   * `LessonChatController.postCompletion` reads `lesson.steps.lastOrNull()?.primaryAction` to decide
+   * whether the completion card gets the "Собрать этого агента" CTA (see DrivenUiEngineTest for the
+   * card-parsing side). Here we lint the SOURCE of that data: the capstone asset itself.
+   */
+  @Test
+  fun `capstone lesson's final step carries a valid primary_action`() {
+    val (file, lesson) = parsedLessons().firstOrNull { (f, _) -> f.nameWithoutExtension == "agent_blueprint" }
+      ?: error("agent_blueprint.json не найден среди распарсенных уроков")
+    val action = lesson.steps.lastOrNull()?.primaryAction
+    assertTrue("${file.name}: финальный шаг капстоуна должен нести primaryAction", action != null)
+    assertEquals("open_agent_builder", action?.type)
+    assertTrue("${file.name}: primaryAction.label пуст", action?.label?.isNotBlank() == true)
+  }
+
+  /**
+   * Defense in depth mirroring DrivenUiEngine's own runtime rejection of an unknown `primary_action`
+   * type: a typo'd type here would otherwise ship silently and only surface as a dead/erroring card
+   * at runtime. Also enforces the "capstone-only" rule at the asset level — no OTHER lesson, and no
+   * OTHER step of the capstone itself, may author this field.
+   */
+  @Test
+  fun `primary_action is authored only on the capstone's final step, with a known type`() {
+    val errors = buildList {
+      parsedLessons().forEach { (file, lesson) ->
+        lesson.steps.forEachIndexed { i, step ->
+          val action = step.primaryAction ?: return@forEachIndexed
+          if (action.type != "open_agent_builder") {
+            add("${file.name} шаг $i: неизвестный primaryAction.type='${action.type}' — DrivenUiEngine отвергнет карточку целиком")
+          }
+          if (lesson.id != "agent_blueprint" || i != lesson.steps.lastIndex) {
+            add("${file.name} шаг $i: primaryAction задан вне финального шага капстоуна — CTA должен остаться только там")
+          }
+        }
+      }
     }
     assertTrue(errors.joinToString("\n"), errors.isEmpty())
   }

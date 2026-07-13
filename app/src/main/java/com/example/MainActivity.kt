@@ -20,13 +20,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.aiopenpocket.ui.chat.ChatScreen
 import com.aiopenpocket.ui.conversations.ConversationsListScreen
 import com.aiopenpocket.ui.agents.AgentsScreen
 import com.aiopenpocket.ui.agents.builder.AgentBuilderRoute
+import com.aiopenpocket.ui.agents.builder.AgentSourceContext
 import com.aiopenpocket.ui.agents.detail.AgentDetailRoute
 import com.aiopenpocket.ui.home.HomeScreen
 import com.aiopenpocket.ui.memory.MemoryGraphScreen
@@ -195,9 +198,24 @@ class MainActivity : ComponentActivity() {
                                         onNavigateBack = { navController.popBackStack() },
                                     )
                                 }
-                                composable("agent_builder") {
+                                composable(
+                                    route = "agent_builder?source={source}",
+                                    arguments = listOf(
+                                        // Капстоун Академии (Task 23): ChatScreen's onOpenAgentBuilder навигирует сюда
+                                        // с source=ACADEMY_CAPSTONE. Все прочие входы (FAB "Создать агента" и т.п.)
+                                        // навигируют на голое "agent_builder" — источник берёт defaultValue = MANUAL.
+                                        navArgument("source") {
+                                            type = NavType.StringType
+                                            defaultValue = AgentSourceContext.MANUAL.name
+                                        },
+                                    ),
+                                ) { backStackEntry ->
+                                    val sourceContext = backStackEntry.arguments?.getString("source")
+                                        ?.let { runCatching { AgentSourceContext.valueOf(it) }.getOrNull() }
+                                        ?: AgentSourceContext.MANUAL
                                     AgentBuilderRoute(
                                         agentId = null,
+                                        sourceContext = sourceContext,
                                         onExit = { navController.popBackStack() },
                                     )
                                 }
@@ -284,6 +302,9 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onOpenAgentDetail = { agentId ->
                                             navController.navigate("agent/$agentId")
+                                        },
+                                        onOpenAgentBuilder = { source ->
+                                            navController.navigate("agent_builder?source=${source.name}")
                                         },
                                     )
                                 }

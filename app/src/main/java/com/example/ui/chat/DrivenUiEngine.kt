@@ -1,6 +1,7 @@
 ﻿package com.aiopenpocket.ui.chat
 
 // @trace driven-ui-cards-0418d0
+// @trace user-agent-builder-848153
 
 import android.Manifest
 import android.content.Intent
@@ -75,7 +76,8 @@ sealed class DrivenUiCard {
     data class FormCard(val fields: List<FormField>, val submitLabel: String) : DrivenUiCard()
     data class ChoiceCard(val question: String, val options: List<String>, val answerIndex: Int) : DrivenUiCard()
     data class LessonQuizCard(val questions: List<QuizQuestion>) : DrivenUiCard()
-    data class LessonCompleteCard(val title: String, val subtitle: String, val buttonLabel: String) : DrivenUiCard()
+    /** [primaryAction] is non-null ONLY for the AI Academy capstone's real completion card (Task 23) — see [DrivenUiEngine.parseJsonString]'s `lesson_complete` branch and `LessonChatController.postCompletion`. */
+    data class LessonCompleteCard(val title: String, val subtitle: String, val buttonLabel: String, val primaryAction: LessonPrimaryAction? = null) : DrivenUiCard()
     data class SwitchCard(val label: String, val description: String, val action: String, val initialOn: Boolean) : DrivenUiCard()
     data class NotificationPermissionCard(val title: String, val description: String, val buttonLabel: String) : DrivenUiCard()
     /** Живая карточка heartbeat'а: содержимое подтягивается по [heartbeatId] из Room (см. [ReminderCardView]). */
@@ -96,6 +98,11 @@ data class WeatherDay(val dayName: String, val temp: String, val text: String, v
 data class FormField(val name: String, val label: String, val placeholder: String, val type: String, var value: String = "")
 data class ExamplePart(val text: String, val role: String, val note: String)
 data class MatchPair(val term: String, val def: String)
+/** `lesson_complete` card's optional CTA (Task 23) — see [DrivenUiCard.LessonCompleteCard]. */
+data class LessonPrimaryAction(val type: String, val label: String)
+
+/** `type` values [DrivenUiEngine.parseJsonString] accepts for a `lesson_complete` card's `primary_action` — any other value is rejected as an [DrivenUiCard.ErrorCard], never silently dropped. */
+private val KNOWN_LESSON_PRIMARY_ACTION_TYPES = setOf("open_agent_builder")
 
 private fun JSONArray.toStringList(): List<String> =
     List(length()) { optString(it, "") }
@@ -185,11 +192,30 @@ object DrivenUiEngine {
                     )
                 },
             )
-            "lesson_complete" -> DrivenUiCard.LessonCompleteCard(
-                title = p.optString("title", "Урок пройден!"),
-                subtitle = p.optString("subtitle", ""),
-                buttonLabel = p.optString("button_label", "Продолжить"),
-            )
+            "lesson_complete" -> {
+                // primary_action — опциональный CTA (Task 23): сегодня его кладёт ТОЛЬКО
+                // LessonChatController.postCompletion для капстоуна agent_blueprint; обычные уроки
+                // этот ключ не передают вовсе, и карточка остаётся прежней (primaryAction = null).
+                val actionJson = p.optJSONObject("primary_action")
+                val actionType = actionJson?.optString("type", "").orEmpty()
+                if (actionJson != null && actionType !in KNOWN_LESSON_PRIMARY_ACTION_TYPES) {
+                    // Неизвестный тип отвергаем целиком (как "reminder" без heartbeat_id ниже), а не
+                    // молча игнорируем — битый/устаревший CTA не должен тихо пропадать из виду.
+                    DrivenUiCard.ErrorCard("lesson_complete: неизвестный тип primary_action: '$actionType'")
+                } else {
+                    DrivenUiCard.LessonCompleteCard(
+                        title = p.optString("title", "Урок пройден!"),
+                        subtitle = p.optString("subtitle", ""),
+                        buttonLabel = p.optString("button_label", "Продолжить"),
+                        primaryAction = actionJson?.let {
+                            LessonPrimaryAction(
+                                type = actionType,
+                                label = it.optString("label", "Собрать этого агента"),
+                            )
+                        },
+                    )
+                }
+            }
             "switch" -> DrivenUiCard.SwitchCard(
                 label = p.optString("label", "Переключатель"),
                 description = p.optString("description", ""),
@@ -402,6 +428,9 @@ fun RenderDrivenUiCard(
     onChoiceSelected: (String) -> Unit = {},
     onLessonComplete: () -> Unit = {},
     onLessonQuizComplete: () -> Unit = {},
+    // Капстоун Академии (Task 23): тап по CTA lesson_complete-карточки. Zero-arg — какой
+    // AgentSourceContext это значит, решает вызывающий (ChatScreen), а не движок карточек.
+    onOpenAgentBuilder: () -> Unit = {},
     onAction: (String, Boolean) -> Unit = { _, _ -> },
     observeHeartbeat: (String) -> Flow<HeartbeatEntity?> = { kotlinx.coroutines.flow.flowOf(null) },
     onCancelHeartbeat: (String) -> Unit = {},
@@ -428,7 +457,7 @@ fun RenderDrivenUiCard(
             is DrivenUiCard.FormCard -> FormCardView(card, onFormSubmitted)
             is DrivenUiCard.ChoiceCard -> ChoiceCardView(card, onChoiceSelected)
             is DrivenUiCard.LessonQuizCard -> LessonQuizCardView(card, onLessonQuizComplete)
-            is DrivenUiCard.LessonCompleteCard -> LessonCompleteCardView(card, onLessonComplete)
+            is DrivenUiCard.LessonCompleteCard -> LessonCompleteCardView(card, onLessonComplete, onOpenAgentBuilder)
             is DrivenUiCard.SwitchCard -> SwitchCardView(card, onAction)
             is DrivenUiCard.NotificationPermissionCard -> NotificationPermissionCardView(card)
             is DrivenUiCard.ReminderCard -> ReminderCardView(card, observeHeartbeat, onCancelHeartbeat)
@@ -947,7 +976,8 @@ fun LessonQuizCardView(
 @Composable
 fun LessonCompleteCardView(
     card: DrivenUiCard.LessonCompleteCard,
-    onComplete: () -> Unit
+    onComplete: () -> Unit,
+    onOpenAgentBuilder: () -> Unit = {},
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -973,6 +1003,14 @@ fun LessonCompleteCardView(
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.outline
             )
+        }
+        // Капстоун Академии (Task 23): рендерится, ТОЛЬКО когда саму карточку собрал
+        // LessonChatController.postCompletion для agent_blueprint — обычные уроки primaryAction не
+        // задают, поэтому здесь ничего не появляется и старое поведение не меняется.
+        card.primaryAction?.let { action ->
+            Button(onClick = onOpenAgentBuilder, modifier = Modifier.fillMaxWidth()) {
+                Text(action.label)
+            }
         }
         Button(onClick = onComplete, modifier = Modifier.fillMaxWidth()) {
             Text(card.buttonLabel)

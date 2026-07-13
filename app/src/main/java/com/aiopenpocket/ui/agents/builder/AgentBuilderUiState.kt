@@ -19,6 +19,19 @@ import com.aiopenpocket.agent.loop.AgentMode
 enum class BuilderStep { IDENTITY, INSTRUCTIONS, CAPABILITIES, LOOP, HOOKS, TEST }
 
 /**
+ * Where a draft's content came from when THIS builder session started (Task 23) — pure UI-layer
+ * bookkeeping, never persisted onto [AgentDefinition] itself (out of scope; nothing downstream of
+ * publish needs it). [MANUAL] is every pre-existing entry point (FAB "create agent", "duplicate"
+ * via [AgentBuilderViewModel.cloneFrom], the edit route) and stays the default so none of them
+ * change behavior. [ACADEMY_CAPSTONE] is set ONLY by the AI Academy capstone lesson's completion
+ * CTA ("Собрать этого агента" on `agent_blueprint`'s `lesson_complete` card) — see
+ * `com.aiopenpocket.ui.chat.ChatScreen`'s `onOpenAgentBuilder` wiring. Even then the opened
+ * [AgentDraft] is exactly as blank as [AgentDraft.new] always produces: this task deliberately does
+ * NOT feed the student's free-form lesson chat through an LLM to prefill any field.
+ */
+enum class AgentSourceContext { MANUAL, ACADEMY_CAPSTONE }
+
+/**
  * UI-layer, mutable-friendly mirror of [AgentDefinition] that the six wizard steps read and write
  * one field at a time. Neither this type nor a distinct `AgentValidationError` type existed
  * anywhere in `core` before this task (checked against `AgentDefinition.kt`/`AgentValidator.kt`
@@ -80,6 +93,9 @@ data class AgentDraft(
   val includeSharedProfile: Boolean = false,
   val allowedWidgetTemplates: Set<String> = emptySet(),
   val hooks: List<AgentHook> = emptyList(),
+  /** See [AgentSourceContext]. Never round-tripped through [toDefinition]/[fromDefinition] — it
+   * describes how THIS session's draft was opened, not a property of the published agent. */
+  val sourceContext: AgentSourceContext = AgentSourceContext.MANUAL,
 ) {
   /**
    * Builds the immutable runtime snapshot this draft currently represents — what
@@ -107,8 +123,11 @@ data class AgentDraft(
   )
 
   companion object {
-    /** A brand-new, empty draft under a freshly generated [id] — see [AgentBuilderViewModel.newDraft]. */
-    fun new(id: String): AgentDraft = AgentDraft(id = id)
+    /** A brand-new, empty draft under a freshly generated [id] — see [AgentBuilderViewModel.newDraft].
+     * [sourceContext] defaults to [AgentSourceContext.MANUAL]; the capstone completion CTA is the
+     * only caller (via [AgentBuilderViewModel.newDraft]) that passes [AgentSourceContext.ACADEMY_CAPSTONE]. */
+    fun new(id: String, sourceContext: AgentSourceContext = AgentSourceContext.MANUAL): AgentDraft =
+      AgentDraft(id = id, sourceContext = sourceContext)
 
     /** Mirrors an existing (draft/published/archived) [AgentDefinition] into an editable [AgentDraft]. */
     fun fromDefinition(definition: AgentDefinition): AgentDraft = AgentDraft(
