@@ -4,6 +4,7 @@ package com.aiopenpocket.agent.tools
 // @trace user-agent-builder-848153
 
 import android.app.Application
+import com.aiopenpocket.agent.core.agent.AgentValidator
 import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
@@ -22,14 +23,23 @@ import java.io.IOException
  * Resolves the file-tool sandbox root for a turn (Task 6 of the user-agent-builder plan): the
  * shared `filesDir/agent` plain chat always used, or `filesDir/agents/{agentId}` for a bound
  * custom agent — a private root no other agent (and no plain chat) shares. [agentId] is
- * [com.aiopenpocket.agent.core.agent.AgentDefinition.id], already checked against
- * `AgentValidator`'s `[a-z0-9][a-z0-9_-]{2,63}` regex before it can reach here, so it can't itself
- * carry a path separator or `..` segment — but callers must still canonicalize and verify every
- * resolved *file path* against this root, because the path argument passed to `file_tool` is
- * model-supplied, not validated the way the id is.
+ * [com.aiopenpocket.agent.core.agent.AgentDefinition.id] and is expected to already be checked
+ * against [AgentValidator.ID_REGEX] by the time it gets here (both current callers — [FileTools]'s
+ * own turn-bound agent and [com.aiopenpocket.data.repository.AgentFilesRepository.list] — pass an
+ * already-resolved, already-validated id) — but this resolver re-checks it anyway and throws
+ * [SecurityException] on a non-match instead of trusting the caller: a future caller could pass an
+ * unvalidated string, and `agentId` becoming a path-traversal vector (a path separator or `..`
+ * segment smuggled in as an "id") would defeat the containment [resolveSafePath] does for the
+ * *path* argument, since that check only ever runs relative to whatever root this function hands
+ * back. Fail-closed here means every caller, present or future, gets the guarantee for free instead
+ * of having to remember to validate first.
  */
-internal fun sandboxRoot(filesDir: File, agentId: String?): File =
-  if (agentId == null) File(filesDir, "agent") else File(File(filesDir, "agents"), agentId)
+internal fun sandboxRoot(filesDir: File, agentId: String?): File {
+  if (agentId != null && !AgentValidator.ID_REGEX.matches(agentId)) {
+    throw SecurityException("Invalid agent id: $agentId")
+  }
+  return if (agentId == null) File(filesDir, "agent") else File(File(filesDir, "agents"), agentId)
+}
 
 @Inject
 @SingleIn(AppScope::class)

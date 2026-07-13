@@ -4,8 +4,10 @@ package com.aiopenpocket.data.repository
 
 import android.app.Application
 import java.io.File
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -73,5 +75,18 @@ class AgentFilesRepositoryTest {
     val repo = AgentFilesRepository(application)
 
     assertEquals(emptyList<AgentFile>(), repo.list("budget"))
+  }
+
+  @Test
+  fun `list throws instead of walking outside the sandbox when agentId fails the id-format check`() {
+    // Today's only caller (AgentInspectorViewModel) always passes an already-validated
+    // AgentDefinition.id, but sandboxRoot() must fail closed for any future caller that doesn't -
+    // "../evil" both fails AgentValidator.ID_REGEX and would, if resolved, walk a directory outside
+    // filesDir/agents entirely.
+    val repo = AgentFilesRepository(application)
+
+    assertThrows(SecurityException::class.java) {
+      runBlocking { repo.list("../evil") }
+    }
   }
 }
