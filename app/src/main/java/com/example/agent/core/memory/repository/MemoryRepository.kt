@@ -1,6 +1,7 @@
 ﻿package com.aiopenpocket.agent.core.memory.repository
 
 // @trace agent-memory-05e545
+// @trace user-agent-builder-848153
 
 import com.aiopenpocket.agent.core.memory.dao.EpisodeDao
 import com.aiopenpocket.agent.core.memory.dao.FactDao
@@ -19,26 +20,33 @@ class MemoryRepository @Inject constructor(
   private val factDao: FactDao,
   private val episodeDao: EpisodeDao,
 ) {
-  suspend fun searchFacts(query: String): List<Fact> {
-    // Экранируем спецсимволы LIKE, иначе '%'/'_' в запросе работают как wildcard.
-    val escaped = query
-      .replace("\\", "\\\\")
-      .replace("%", "\\%")
-      .replace("_", "\\_")
-    return factDao.search(escaped).map { it.toDomain() }
-  }
+  suspend fun searchFacts(query: String): List<Fact> =
+    factDao.search(escapeLike(query)).map { it.toDomain() }
 
   suspend fun getFactsByCategory(category: String): List<Fact> =
     factDao.getByCategory(category).map { it.toDomain() }
 
-  suspend fun getFactsByKeyPrefix(prefix: String): List<Fact> {
-    // Экранируем спецсимволы LIKE, как и в searchFacts.
-    val escaped = prefix
-      .replace("\\", "\\\\")
-      .replace("%", "\\%")
-      .replace("_", "\\_")
-    return factDao.getByKeyPrefix(escaped).map { it.toDomain() }
-  }
+  suspend fun getFactsByKeyPrefix(prefix: String): List<Fact> =
+    factDao.getByKeyPrefix(escapeLike(prefix)).map { it.toDomain() }
+
+  /**
+   * [query]-matched facts confined to [namespace] (an agent's `agent:{id}:` key prefix) — the
+   * per-agent counterpart of [searchFacts]. Used by [com.aiopenpocket.agent.tools.MemoryTools]'s
+   * `search_memory` for a bound agent and by `PrePromptAssembler`'s relevant-facts section, so
+   * neither ever sees another agent's (or the global chat's) facts — enforced here at the
+   * DAO/WHERE-clause level, not by trusting the caller (model) to only ask for its own namespace.
+   */
+  suspend fun searchFactsInNamespace(namespace: String, query: String): List<Fact> =
+    factDao.searchInNamespace(escapeLike(namespace), escapeLike(query)).map { it.toDomain() }
+
+  /** Every fact stored under an agent's namespace — same shape as a prefix search, named for callers that want "this agent's whole memory" rather than a query match. */
+  suspend fun getFactsByNamespace(namespace: String): List<Fact> = getFactsByKeyPrefix(namespace)
+
+  /** Escapes LIKE metacharacters (`\`, `%`, `_`) so user-supplied text can't smuggle in wildcards. */
+  private fun escapeLike(raw: String): String = raw
+    .replace("\\", "\\\\")
+    .replace("%", "\\%")
+    .replace("_", "\\_")
 
   suspend fun saveFact(key: String, value: String, category: String): String {
     val id = UUID.randomUUID().toString()

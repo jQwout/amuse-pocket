@@ -12,6 +12,7 @@ import com.aiopenpocket.agent.core.mcp.ToolRegistry
 import com.aiopenpocket.agent.core.prompt.ConversationAnnotator
 import com.aiopenpocket.agent.core.prompt.PrePromptAssembler
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
@@ -39,6 +40,7 @@ class ReflectionOrchestrator @Inject constructor(
   private val prePromptAssembler: PrePromptAssembler,
   private val reactLoopRunner: ReactLoopRunner,
   private val conversationAnnotator: ConversationAnnotator,
+  private val turnContextHolder: TurnContextHolder,
   private val log: AgentLog,
 ) {
 
@@ -75,9 +77,16 @@ class ReflectionOrchestrator @Inject constructor(
     tap(AgentEvent.TextDelta("✍️ **Черновик**\n"))
     val draftMessages = mutableListOf(ChatMessage(role = "system", content = context.systemPrompt))
     draftMessages += context.history.map { it.toChatMessage() }
-    val draft = reactLoopRunner.run(
-      conversationId, draftMessages, tools, provider, agent = context.agent, emit = { tap(it) },
-    )
+    // Тот же snapshot агента, что видят scoped tools/schemas, должны видеть и memory/file-тулы
+    // внутри этого хода (Task 5) — без этой обёртки TurnContextHolder остался бы пустым на
+    // протяжении всего REFLECT-хода, и remember_fact/search_memory работали бы по ГЛОБАЛЬНОМУ
+    // пространству имён даже для агента со своим namespace (тот же класс дыры, что и REFLECT
+    // tool-scope до фикса в Task 4, только для памяти, а не allowlist тулов).
+    val draft = withContext(turnContextHolder.contextElement(conversationId, context.agent)) {
+      reactLoopRunner.run(
+        conversationId, draftMessages, tools, provider, agent = context.agent, emit = { tap(it) },
+      )
+    }
     log.d(TAG, "draft len=${draft.text.length}")
     // ReactLoopRunner на сбое стрима не бросает, а возвращает state=ERROR. Не проглатываем: как и
     // обычный чат-цикл, поднимаем ошибку наружу и не тратим critique/revise на пустой черновик.
@@ -95,9 +104,11 @@ class ReflectionOrchestrator @Inject constructor(
     val reviseMessages = mutableListOf(ChatMessage(role = "system", content = context.systemPrompt))
     reviseMessages += context.history.map { it.toChatMessage() }
     reviseMessages += ChatMessage(role = "user", content = buildReviseInstruction(draft.text, critique))
-    val revised = reactLoopRunner.run(
-      conversationId, reviseMessages, tools, provider, agent = context.agent, emit = { tap(it) },
-    )
+    val revised = withContext(turnContextHolder.contextElement(conversationId, context.agent)) {
+      reactLoopRunner.run(
+        conversationId, reviseMessages, tools, provider, agent = context.agent, emit = { tap(it) },
+      )
+    }
     log.d(TAG, "✓ reflection done revisedLen=${revised.text.length}")
     if (revised.state == AgentState.ERROR) {
       return@agentTurnFlow emitError(revised.errorMessage)

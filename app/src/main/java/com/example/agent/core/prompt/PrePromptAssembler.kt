@@ -1,6 +1,7 @@
 ﻿package com.aiopenpocket.agent.core.prompt
 
 // @trace rezhimy-agenta-plan-i-goal-ee2361
+// @trace user-agent-builder-848153
 
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.AgentResolver
@@ -42,9 +43,10 @@ class PrePromptAssembler @Inject constructor(
       // Язык общения, выбранный на онбординге (по умолчанию русский).
       val languageDeferred = async { userPreferencesRepository.getLanguage() }
       val profileFactsDeferred = async { memoryRepository.getFactsByCategory("profile") }
-      val factsDeferred = async {
-        memoryRepository.searchFacts(currentMessage).take(LlmContextConfig.RELEVANT_FACTS_LIMIT)
-      }
+      // Релевантные факты (searchFacts) НЕ запускаем здесь параллельно с остальными: они зависят от
+      // agent (Task 5 — свой namespace для bound-агента), а agent резолвится только НИЖЕ, после
+      // conversationDeferred. Считаем их последовательно рядом с agentState (см. ниже) — та же
+      // сделка, что и агент resolve сам по себе (уже не в этой параллельной пачке).
       val episodesDeferred = async {
         memoryRepository.getRecentEpisodesForConversation(conversationId, LlmContextConfig.EPISODES_LIMIT)
       }
@@ -63,7 +65,6 @@ class PrePromptAssembler @Inject constructor(
       val conversation = conversationDeferred.await()
       val language = languageDeferred.await()
       val profileFacts = profileFactsDeferred.await()
-      val facts = factsDeferred.await()
       val episodes = episodesDeferred.await()
       val windowParts = windowPartsDeferred.await()
 
@@ -80,9 +81,20 @@ class PrePromptAssembler @Inject constructor(
 
       // Mini-agent bound to this chat (if any): adds a role section and scopes the tool set. Resolved
       // EXACTLY ONCE here (preset or custom, via AgentResolver) — the resulting snapshot is exposed on
-      // PromptContext.agent so later stages (Task 5+: TurnContextHolder/ReactLoopRunner) can reuse it
-      // instead of re-resolving mid-turn.
+      // PromptContext.agent so later stages (TurnContextHolder/ReactLoopRunner — Task 5; FileTools'
+      // sandbox root — Task 6) can reuse it instead of re-resolving mid-turn.
       val agent = agentResolver.resolve(conversation?.agentId)
+
+      // Релевантные факты по тексту сообщения — под namespace агента (Task 5), если он есть, а не
+      // глобально: скоуп применяется В ЗАПРОСЕ (searchFactsInNamespace), а не постфильтром ПОСЛЕ
+      // .take(N) — иначе в топ-N могли бы попасть чужие/глобальные факты и вытеснить действительно
+      // релевантные для ЭТОГО агента ещё до того, как их вообще посмотрели. Без агента (обычный
+      // чат) — ровно старое глобальное поведение.
+      val facts = if (agent != null) {
+        memoryRepository.searchFactsInNamespace(agent.memoryPolicy.namespace, currentMessage)
+      } else {
+        memoryRepository.searchFacts(currentMessage)
+      }.take(LlmContextConfig.RELEVANT_FACTS_LIMIT)
 
       val window = ContextWindowBuilder.buildFromParts(
         head = windowParts.head,
@@ -92,9 +104,12 @@ class PrePromptAssembler @Inject constructor(
 
       // Персистентное состояние агента (цель/прогресс) — факты по префиксам ключей из его роли.
       // Это ДАННЫЕ (недоверенная зона), но собранные детерминированно, а не по match запроса.
+      // Читаем ПОД namespace агента (Task 5): remember_fact теперь всегда пишет туда, так что
+      // голый префикс ("lang:" и т.п.) без namespace больше ничего не найдёт — и, важнее, не
+      // подмешает в промпт совпадающий по префиксу факт ДРУГОГО агента.
       val agentState = if (agent != null && agent.stateKeyPrefixes.isNotEmpty()) {
         agent.stateKeyPrefixes
-          .flatMap { memoryRepository.getFactsByKeyPrefix(it) }
+          .flatMap { memoryRepository.getFactsByKeyPrefix(agent.memoryPolicy.namespace + it) }
           .distinctBy { it.key }
       } else {
         emptyList()
@@ -253,8 +268,8 @@ class PrePromptAssembler @Inject constructor(
     val agentId: String? = null,
     /**
      * The single [AgentResolver]-resolved snapshot for this turn (null for a plain, agent-less
-     * chat) — resolved exactly once in [assemble] so later stages (Task 5+: `TurnContextHolder`,
-     * `ReactLoopRunner`) can reuse this same instance instead of resolving again mid-turn.
+     * chat) — resolved exactly once in [assemble] so later stages (`TurnContextHolder`,
+     * `ReactLoopRunner` — Task 5) can reuse this same instance instead of resolving again mid-turn.
      */
     val agent: AgentDefinition? = null,
   )
