@@ -3,6 +3,8 @@ package com.aiopenpocket.agent.core.agent
 // @trace user-agent-builder-848153
 
 import androidx.room.withTransaction
+import com.aiopenpocket.agent.core.hook.AgentHook
+import com.aiopenpocket.agent.core.hook.AgentHookRepository
 import com.aiopenpocket.agent.core.skill.UserSkillEntity
 import com.aiopenpocket.agent.core.skill.validateUserSkill
 import com.aiopenpocket.data.database.AppDatabase
@@ -29,18 +31,27 @@ import kotlinx.coroutines.flow.map
 class UserAgentRepository @Inject constructor(
   private val database: AppDatabase,
   private val dao: UserAgentDao,
+  private val hookRepository: AgentHookRepository,
 ) {
   private var clock: () -> Long = System::currentTimeMillis
 
-  constructor(database: AppDatabase, dao: UserAgentDao, clock: () -> Long) : this(database, dao) {
+  constructor(
+    database: AppDatabase,
+    dao: UserAgentDao,
+    hookRepository: AgentHookRepository,
+    clock: () -> Long,
+  ) : this(database, dao, hookRepository) {
     this.clock = clock
   }
 
   /** Published USER agents only, most-recently-updated first — what the roster shows. */
   fun observePublished(): Flow<List<AgentDefinition>> =
-    dao.observePublished().map { rows -> rows.map { it.toDefinition() } }
+    dao.observePublished().map { rows -> rows.map { it.toDefinition().withHooks() } }
 
-  suspend fun get(id: String): AgentDefinition? = dao.get(id)?.toDefinition()
+  suspend fun get(id: String): AgentDefinition? = dao.get(id)?.toDefinition()?.withHooks()
+
+  /** Attaches this agent's currently-persisted [AgentHook]s (Task 8) — [UserAgentEntity.toDefinition] itself always returns `hooks = emptyList()`, since hooks live in their own table, not a column on this entity. */
+  private suspend fun AgentDefinition.withHooks(): AgentDefinition = copy(hooks = hookRepository.getForAgent(id))
 
   /**
    * Upserts [definition] as a DRAFT at configVersion 0, regardless of the status/configVersion the
@@ -56,25 +67,34 @@ class UserAgentRepository @Inject constructor(
       updatedAt = now,
     )
     dao.upsert(entity)
-    return entity.toDefinition()
+    return entity.toDefinition().withHooks()
   }
 
   /**
    * Validates then publishes [id]'s current row, bumping [AgentDefinition.configVersion] by one,
    * together with its [skills] (Task 4's `user_skills` — pass the agent's full current set of
-   * custom skill drafts; each must have [UserSkillEntity.agentId] == [id]). Wrapped in
-   * [withTransaction] — not the Room `@Transaction` annotation, which only has an effect on `@Dao`
-   * methods — so the validate-then-write stays atomic across both tables (hooks join this same
-   * transaction in Task 8). Throws and leaves the stored agent row AND every stored skill row
-   * untouched when either the agent definition ([AgentValidator.requirePublishable]) or any skill
-   * ([validateUserSkill]: blank/oversized markdown, id colliding with a built-in) fails validation,
-   * or when a passed skill's `agentId` doesn't match [id], or when a skill id already belongs to a
-   * DIFFERENT agent (would otherwise silently reassign ownership via upsert) — validation runs
-   * strictly before any write, so a rejected publish never partially applies.
+   * custom skill drafts; each must have [UserSkillEntity.agentId] == [id]) and its [hooks] (Task 8's
+   * `agent_hooks` — pass the agent's full current hook set; each must have [AgentHook.agentId] ==
+   * [id]). Wrapped in [withTransaction] — not the Room `@Transaction` annotation, which only has an
+   * effect on `@Dao` methods — so the validate-then-write stays atomic across all three tables.
+   * Throws and leaves the stored agent row, every stored skill row AND every stored hook row
+   * untouched when the agent definition ([AgentValidator.requirePublishable] — this now also checks
+   * [hooks] against the action/event matrix, since they're attached to the definition being
+   * validated), any skill ([validateUserSkill]: blank/oversized markdown, id colliding with a
+   * built-in), a passed skill's/hook's `agentId` not matching [id], or a skill/hook id already
+   * belonging to a DIFFERENT agent (would otherwise silently reassign ownership via upsert) fails —
+   * validation runs strictly before any write, so a rejected publish never partially applies.
    */
-  suspend fun publish(id: String, skills: List<UserSkillEntity> = emptyList()): AgentDefinition = database.withTransaction {
+  suspend fun publish(
+    id: String,
+    skills: List<UserSkillEntity> = emptyList(),
+    hooks: List<AgentHook> = emptyList(),
+  ): AgentDefinition = database.withTransaction {
     val current = requireNotNull(dao.get(id)) { "Unknown agent id: $id" }
-    AgentValidator.requirePublishable(current.toDefinition(), ownedCustomSkillIds = skills.map { it.id }.toSet())
+    AgentValidator.requirePublishable(
+      current.toDefinition().copy(hooks = hooks),
+      ownedCustomSkillIds = skills.map { it.id }.toSet(),
+    )
 
     val skillDao = database.userSkillDao()
     val skillIssues = mutableListOf<ValidationIssue>()
@@ -95,6 +115,23 @@ class UserAgentRepository @Inject constructor(
         skillIssues.joinToString("; ") { "${it.code} (${it.field}): ${it.message}" }
     }
 
+    val hookIssues = mutableListOf<ValidationIssue>()
+    for (hook in hooks) {
+      require(hook.agentId == id) { "Hook '${hook.id}' does not belong to agent '$id'" }
+      val existingOwner = hookRepository.getOwnerAgentId(hook.id)
+      if (existingOwner != null && existingOwner != id) {
+        hookIssues += ValidationIssue(
+          code = "hook_owned_by_another_agent",
+          message = "Хук '${hook.id}' уже принадлежит другому агенту",
+          field = "id",
+        )
+      }
+    }
+    require(hookIssues.isEmpty()) {
+      "Agent '$id' hooks are not publishable: " +
+        hookIssues.joinToString("; ") { "${it.code} (${it.field}): ${it.message}" }
+    }
+
     val published = current.copy(
       status = AgentStatus.PUBLISHED.name,
       configVersion = current.configVersion + 1,
@@ -102,7 +139,8 @@ class UserAgentRepository @Inject constructor(
     )
     dao.upsert(published)
     skills.forEach { skillDao.upsert(it) }
-    published.toDefinition()
+    hookRepository.replaceForAgent(id, hooks)
+    published.toDefinition().withHooks()
   }
 
   /** Archives [id] in place — the row survives (per the [AgentStatus.ARCHIVED] contract), just drops out of [observePublished]. */

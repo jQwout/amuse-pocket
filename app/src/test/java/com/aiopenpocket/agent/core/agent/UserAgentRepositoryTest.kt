@@ -3,6 +3,10 @@ package com.aiopenpocket.agent.core.agent
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.aiopenpocket.agent.core.hook.AgentHook
+import com.aiopenpocket.agent.core.hook.AgentHookRepository
+import com.aiopenpocket.agent.core.hook.HookActionType
+import com.aiopenpocket.agent.core.hook.HookEvent
 import com.aiopenpocket.agent.core.skill.UserSkillEntity
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.data.database.AppDatabase
@@ -40,7 +44,7 @@ class UserAgentRepositoryTest {
     db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
       .allowMainThreadQueries()
       .build()
-    repository = UserAgentRepository(db, db.userAgentDao()) { now }
+    repository = UserAgentRepository(db, db.userAgentDao(), AgentHookRepository(db.agentHookDao())) { now }
   }
 
   @After
@@ -248,5 +252,104 @@ class UserAgentRepositoryTest {
 
     assertEquals("other-agent", db.userSkillDao().get("shared-id")?.agentId)
     assertEquals(AgentStatus.DRAFT, repository.get(agentDraft.id)?.status)
+  }
+
+  // --- publish(id, skills, hooks) atomically writes hooks (Task 8) ---------------------------
+
+  private fun customHook(
+    id: String,
+    agentId: String,
+    event: HookEvent = HookEvent.BEFORE_TOOL,
+    actionType: HookActionType = HookActionType.DENY,
+    priority: Int = 0,
+  ) = AgentHook(
+    id = id,
+    agentId = agentId,
+    event = event,
+    conditionType = "always",
+    conditionJson = "{}",
+    actionType = actionType,
+    actionJson = "{}",
+    priority = priority,
+    enabled = true,
+  )
+
+  @Test
+  fun `a brand new agent carries no hooks`() = runTest {
+    val saved = repository.saveDraft(draft())
+
+    assertTrue(saved.hooks.isEmpty())
+    assertTrue(repository.get(draft().id)!!.hooks.isEmpty())
+  }
+
+  @Test
+  fun `publish writes hooks atomically with the agent`() = runTest {
+    val agentDraft = draft()
+    repository.saveDraft(agentDraft)
+    val hook = customHook(id = "h1", agentId = agentDraft.id)
+
+    val published = repository.publish(agentDraft.id, hooks = listOf(hook))
+
+    assertEquals(AgentStatus.PUBLISHED, published.status)
+    assertEquals(listOf(hook), published.hooks)
+    assertEquals(listOf(hook), repository.get(agentDraft.id)?.hooks)
+  }
+
+  @Test
+  fun `get and observePublished return hooks sorted by priority then id`() = runTest {
+    val agentDraft = draft()
+    repository.saveDraft(agentDraft)
+    val second = customHook(id = "b", agentId = agentDraft.id, priority = 1)
+    val first = customHook(id = "a", agentId = agentDraft.id, priority = 0)
+
+    repository.publish(agentDraft.id, hooks = listOf(second, first))
+
+    assertEquals(listOf("a", "b"), repository.get(agentDraft.id)?.hooks?.map { it.id })
+    assertEquals(listOf("a", "b"), repository.observePublished().first().single().hooks.map { it.id })
+  }
+
+  @Test
+  fun `republishing with a different hook set fully replaces the old one`() = runTest {
+    val agentDraft = draft()
+    repository.saveDraft(agentDraft)
+    repository.publish(agentDraft.id, hooks = listOf(customHook(id = "old", agentId = agentDraft.id)))
+
+    repository.saveDraft(agentDraft)
+    repository.publish(agentDraft.id, hooks = listOf(customHook(id = "new", agentId = agentDraft.id)))
+
+    assertEquals(listOf("new"), repository.get(agentDraft.id)?.hooks?.map { it.id })
+  }
+
+  @Test
+  fun `publish rolls back the whole transaction when a hook's action is invalid for its event`() = runTest {
+    val agentDraft = draft()
+    repository.saveDraft(agentDraft)
+    // DENY is BEFORE_TOOL-only per the action/event matrix - invalid for BEFORE_TURN.
+    val invalidHook = customHook(id = "bad", agentId = agentDraft.id, event = HookEvent.BEFORE_TURN, actionType = HookActionType.DENY)
+
+    assertThrows(IllegalArgumentException::class.java) {
+      runBlocking { repository.publish(agentDraft.id, hooks = listOf(invalidHook)) }
+    }
+
+    assertTrue("invalid hook must not be persisted", repository.get(agentDraft.id)?.hooks.isNullOrEmpty())
+    assertEquals("agent publish must roll back too", AgentStatus.DRAFT, repository.get(agentDraft.id)?.status)
+  }
+
+  @Test
+  fun `publish rejects a hook id already owned by a different agent`() = runTest {
+    val otherAgent = draft(id = "other-agent")
+    repository.saveDraft(otherAgent)
+    repository.publish(otherAgent.id, hooks = listOf(customHook(id = "shared-id", agentId = otherAgent.id)))
+
+    val agentDraft = draft()
+    repository.saveDraft(agentDraft)
+    val hijackAttempt = customHook(id = "shared-id", agentId = agentDraft.id)
+
+    assertThrows(IllegalArgumentException::class.java) {
+      runBlocking { repository.publish(agentDraft.id, hooks = listOf(hijackAttempt)) }
+    }
+
+    assertEquals(AgentStatus.DRAFT, repository.get(agentDraft.id)?.status)
+    assertEquals(otherAgent.id, repository.get(otherAgent.id)?.hooks?.single()?.agentId)
   }
 }

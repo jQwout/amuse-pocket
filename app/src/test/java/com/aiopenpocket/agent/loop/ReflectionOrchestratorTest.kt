@@ -12,6 +12,7 @@ import com.aiopenpocket.agent.core.agent.AgentSource
 import com.aiopenpocket.agent.core.agent.AgentStatus
 import com.aiopenpocket.agent.core.agent.DefaultAgentResolver
 import com.aiopenpocket.agent.core.agent.UserAgentRepository
+import com.aiopenpocket.agent.core.hook.AgentHookRepository
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.llm.LlmClient
@@ -86,6 +87,9 @@ class ReflectionOrchestratorTest {
   private lateinit var context: Context
   private lateinit var db: AppDatabase
 
+  /** Fresh wrapper per call, always backed by the same in-memory [db] - AgentHookRepository is stateless. */
+  private fun agentHookRepository() = AgentHookRepository(db.agentHookDao())
+
   @Before
   fun setUp() {
     context = ApplicationProvider.getApplicationContext()
@@ -115,7 +119,7 @@ class ReflectionOrchestratorTest {
       conversationRepository = conversationRepository,
       skillRegistry = SkillRegistry(emptySet(), UserSkillRepository(db.userSkillDao())),
       userPreferencesRepository = UserPreferencesRepository(context),
-      agentResolver = DefaultAgentResolver(UserAgentRepository(db, db.userAgentDao())),
+      agentResolver = DefaultAgentResolver(UserAgentRepository(db, db.userAgentDao(), agentHookRepository())),
     )
     val reactLoopRunner = ReactLoopRunner(
       llm,
@@ -123,6 +127,7 @@ class ReflectionOrchestratorTest {
       toolRegistry,
       memoryRepository,
       NoopLog,
+      agentHookRepository(),
     )
     return ReflectionOrchestrator(
       llm,
@@ -169,7 +174,7 @@ class ReflectionOrchestratorTest {
     // agent-гейт — оба тула вне toolNames агента, и каждый должен быть отклонён НЕЗАВИСИМО в своей
     // фазе (sms в draft, email в revise), а не только в первой встреченной.
     val toolRegistry = ToolRegistry(setOf(FakeTool("memory_tool"), FakeTool("sms"), FakeTool("email")))
-    val userAgentRepository = UserAgentRepository(db, db.userAgentDao())
+    val userAgentRepository = UserAgentRepository(db, db.userAgentDao(), agentHookRepository())
     val agent = AgentDefinition(
       id = "my-agent",
       source = AgentSource.USER,
@@ -230,7 +235,7 @@ class ReflectionOrchestratorTest {
     val memoryRepository = MemoryRepository(db.factDao(), db.episodeDao())
     val memoryTools = MemoryTools(memoryRepository, turnContextHolder)
     val toolRegistry = ToolRegistry(setOf(memoryTools))
-    val userAgentRepository = UserAgentRepository(db, db.userAgentDao())
+    val userAgentRepository = UserAgentRepository(db, db.userAgentDao(), agentHookRepository())
     val agent = AgentDefinition(
       id = "my-agent",
       source = AgentSource.USER,

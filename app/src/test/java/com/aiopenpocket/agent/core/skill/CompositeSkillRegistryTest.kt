@@ -10,6 +10,7 @@ import com.aiopenpocket.agent.core.agent.AgentMemoryPolicy
 import com.aiopenpocket.agent.core.agent.AgentSource
 import com.aiopenpocket.agent.core.agent.AgentStatus
 import com.aiopenpocket.agent.core.agent.AgentValidator
+import com.aiopenpocket.agent.core.hook.AgentHookRepository
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.llm.LlmClient
@@ -222,6 +223,7 @@ class CompositeSkillRegistryTest {
       toolRegistry,
       MemoryRepository(db.factDao(), db.episodeDao()),
       NoopLog,
+      AgentHookRepository(db.agentHookDao()),
     )
     val result = runner.run(
       conversationId = "c1",

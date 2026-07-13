@@ -5,6 +5,7 @@ package com.aiopenpocket.agent.core.agent
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.aiopenpocket.agent.core.hook.AgentHookRepository
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.data.database.AppDatabase
 import kotlinx.coroutines.flow.first
@@ -39,7 +40,7 @@ class AgentResolverTest {
     db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
       .allowMainThreadQueries()
       .build()
-    userAgentRepository = UserAgentRepository(db, db.userAgentDao())
+    userAgentRepository = UserAgentRepository(db, db.userAgentDao(), AgentHookRepository(db.agentHookDao()))
     resolver = DefaultAgentResolver(userAgentRepository)
   }
 

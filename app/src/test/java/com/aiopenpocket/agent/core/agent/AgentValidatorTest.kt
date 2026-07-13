@@ -1,5 +1,8 @@
 package com.aiopenpocket.agent.core.agent
 
+import com.aiopenpocket.agent.core.hook.AgentHook
+import com.aiopenpocket.agent.core.hook.HookActionType
+import com.aiopenpocket.agent.core.hook.HookEvent
 import com.aiopenpocket.agent.loop.AgentMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -117,6 +120,46 @@ class AgentValidatorTest {
       ),
     )
     assertTrue(issues.none { it.code.startsWith("unknown_") })
+  }
+
+  @Test
+  fun `a hook whose action is invalid for its own event blocks publish`() {
+    // DENY only makes sense for BEFORE_TOOL (the action/event matrix, HookEngine.actionsAllowedFor) -
+    // a hook declaring it for BEFORE_TURN must be rejected here, not silently ignored at runtime.
+    val invalidHook = AgentHook(
+      id = "h1",
+      agentId = "my-test-agent",
+      event = HookEvent.BEFORE_TURN,
+      conditionType = "always",
+      conditionJson = "{}",
+      actionType = HookActionType.DENY,
+      actionJson = "{}",
+      priority = 0,
+      enabled = true,
+    )
+
+    val issues = validator.validate(validDefinition().copy(hooks = listOf(invalidHook)))
+
+    assertTrue(issues.any { it.code == "invalid_hook_action_for_event" })
+  }
+
+  @Test
+  fun `a hook whose action is valid for its own event passes`() {
+    val validHook = AgentHook(
+      id = "h1",
+      agentId = "my-test-agent",
+      event = HookEvent.BEFORE_TOOL,
+      conditionType = "always",
+      conditionJson = "{}",
+      actionType = HookActionType.DENY,
+      actionJson = "{}",
+      priority = 0,
+      enabled = true,
+    )
+
+    val issues = validator.validate(validDefinition().copy(hooks = listOf(validHook)))
+
+    assertTrue(issues.none { it.code == "invalid_hook_action_for_event" })
   }
 
   @Test

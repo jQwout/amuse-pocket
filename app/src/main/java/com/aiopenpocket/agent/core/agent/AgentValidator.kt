@@ -2,6 +2,8 @@ package com.aiopenpocket.agent.core.agent
 
 // @trace user-agent-builder-848153
 
+import com.aiopenpocket.agent.core.hook.HookEngine
+
 /**
  * One rule violation found by [AgentValidator.validate]. [code] is a stable, machine-checkable
  * identifier (assert on it, branch a builder UI on it); [message] is a human-readable (Russian,
@@ -22,10 +24,12 @@ data class ValidationIssue(
  * all at once instead of one round-trip per fix.
  *
  * v1 scope (`user-agent-builder-848153` Task 1): field shape/limits, ID collisions with the
- * read-only preset catalog, default-mode membership, the per-agent memory namespace shape, and
- * known-registry membership for tools/skills/widget templates. Cross-entity checks (duplicate
- * custom agent names, hook wiring, Room round-trips) land with the repository/hook engine in
- * later tasks.
+ * read-only preset catalog, default-mode membership, the per-agent memory namespace shape,
+ * known-registry membership for tools/skills/widget templates, and (Task 8) each hook's
+ * [com.aiopenpocket.agent.core.hook.HookActionType] against its own
+ * [com.aiopenpocket.agent.core.hook.HookEvent]'s action matrix. Checks that need Room (duplicate
+ * custom agent names, hook/skill id ownership collisions) land with the repository instead —
+ * [validate] stays pure/stateless.
  */
 object AgentValidator {
 
@@ -149,6 +153,19 @@ object AgentValidator {
     for (widget in definition.allowedWidgetTemplates) {
       if (widget !in KNOWN_WIDGET_TEMPLATES) {
         issues += ValidationIssue("unknown_widget_template", "Неизвестный шаблон карточки '$widget'", "allowedWidgetTemplates")
+      }
+    }
+
+    // Reuses HookEngine.actionsAllowedFor — the SAME matrix the runtime enforces (Task 8) — so an
+    // agent can never publish a hook the engine would just silently skip at runtime (e.g. a DENY
+    // declared for BEFORE_TURN, where DENY isn't a valid action at all).
+    for (hook in definition.hooks) {
+      if (hook.actionType !in HookEngine.actionsAllowedFor(hook.event)) {
+        issues += ValidationIssue(
+          code = "invalid_hook_action_for_event",
+          message = "Действие ${hook.actionType} недопустимо для события ${hook.event} (hook '${hook.id}')",
+          field = "hooks",
+        )
       }
     }
 

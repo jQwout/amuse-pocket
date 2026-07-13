@@ -8,6 +8,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.aiopenpocket.agent.core.agent.DefaultAgentResolver
 import com.aiopenpocket.agent.core.agent.UserAgentRepository
+import com.aiopenpocket.agent.core.hook.AgentHookRepository
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.llm.LlmClient
@@ -80,13 +81,14 @@ class HeartbeatRunnerTest {
       ToolRegistry(emptySet()),
       MemoryRepository(db.factDao(), db.episodeDao()),
       NoopAgentLog,
+      AgentHookRepository(db.agentHookDao()),
     )
     val conversationRepository = ConversationRepository(
       db.conversationDao(),
       db.conversationTagDao(),
       db.messageDao(),
     )
-    val agentResolver = DefaultAgentResolver(UserAgentRepository(db, db.userAgentDao()))
+    val agentResolver = DefaultAgentResolver(UserAgentRepository(db, db.userAgentDao(), AgentHookRepository(db.agentHookDao())))
     return HeartbeatRunner(
       db.heartbeatDao(),
       reactLoopRunner,
