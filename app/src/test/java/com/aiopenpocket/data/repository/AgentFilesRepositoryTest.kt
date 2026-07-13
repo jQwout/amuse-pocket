@@ -79,7 +79,7 @@ class AgentFilesRepositoryTest {
 
   @Test
   fun `list throws instead of walking outside the sandbox when agentId fails the id-format check`() {
-    // Today's only caller (AgentInspectorViewModel) always passes an already-validated
+    // Today's only caller (AgentDetailViewModel) always passes an already-validated
     // AgentDefinition.id, but sandboxRoot() must fail closed for any future caller that doesn't -
     // "../evil" both fails AgentValidator.ID_REGEX and would, if resolved, walk a directory outside
     // filesDir/agents entirely.

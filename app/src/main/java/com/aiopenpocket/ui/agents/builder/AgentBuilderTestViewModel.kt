@@ -26,9 +26,10 @@ import kotlinx.coroutines.launch
 
 /**
  * Small sibling to [AgentBuilderViewModel] — kept separate rather than folded in, mirroring how
- * `AgentsScreen` already pairs `AgentsViewModel` with `AgentInspectorViewModel` — that owns the TEST
- * step's own runtime concern: a dedicated test conversation for the draft being edited, and running
- * turns against it through the SAME [TurnManager] a real chat uses. [AgentBuilderScreen]/its step
+ * `com.aiopenpocket.ui.agents.detail.AgentDetailRoute` already pairs `AgentDetailViewModel` with
+ * `AgentsViewModel` — that owns the TEST step's own runtime concern: a dedicated test conversation
+ * for the draft being edited, and running turns against it through the SAME [TurnManager] a real
+ * chat uses. [AgentBuilderScreen]/its step
  * composables never talk to [ConversationRepository]/[TurnManager] directly; only this ViewModel and
  * [AgentBuilderRoute] do.
  *
