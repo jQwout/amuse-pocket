@@ -26,6 +26,7 @@ import androidx.navigation.compose.rememberNavController
 import com.aiopenpocket.ui.chat.ChatScreen
 import com.aiopenpocket.ui.conversations.ConversationsListScreen
 import com.aiopenpocket.ui.agents.AgentsScreen
+import com.aiopenpocket.ui.agents.builder.AgentBuilderRoute
 import com.aiopenpocket.ui.home.HomeScreen
 import com.aiopenpocket.ui.memory.MemoryGraphScreen
 import com.aiopenpocket.ui.memory.MemoryPageScreen
@@ -181,6 +182,19 @@ class MainActivity : ComponentActivity() {
                                     AgentsScreen(
                                         onOpenChat = { id -> navController.navigate("chat/$id") },
                                         onNavigateBack = { navController.popBackStack() },
+                                    )
+                                }
+                                composable("agent_builder") {
+                                    AgentBuilderRoute(
+                                        agentId = null,
+                                        onExit = { navController.popBackStack() },
+                                    )
+                                }
+                                composable("agent_builder/{agentId}") { backStackEntry ->
+                                    val agentId = backStackEntry.arguments?.getString("agentId")
+                                    AgentBuilderRoute(
+                                        agentId = agentId,
+                                        onExit = { navController.popBackStack() },
                                     )
                                 }
                                 composable("roadmap") {
