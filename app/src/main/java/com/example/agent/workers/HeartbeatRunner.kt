@@ -1,6 +1,7 @@
 package com.aiopenpocket.agent.workers
 
 // @trace heartbeat-napominalki-agenta-5f0442
+// @trace user-agent-builder-848153
 
 import android.util.Log
 import com.aiopenpocket.agent.core.agent.AgentResolver
@@ -69,8 +70,12 @@ class HeartbeatRunner(
     )
     val tools = toolRegistry.getSchemasFor(SAFE_TOOL_NAMES)
 
+    // interactiveApproval=false (Task 9): this is a headless WorkManager wakeup with no screen that
+    // could ever answer an approval prompt. A hook's REQUIRE_APPROVAL must resolve to an immediate
+    // deny here instead of registering with ToolApprovalCoordinator and burning its timeout for no one.
     val result = reactLoopRunner.run(
       hb.conversationId, messages, tools, LlmProvider.NIM, BG_MAX_ITERATIONS, agent,
+      interactiveApproval = false,
     ) { /* фон: стриминг некому показывать */ }
 
     if (result.state == AgentState.ERROR) {

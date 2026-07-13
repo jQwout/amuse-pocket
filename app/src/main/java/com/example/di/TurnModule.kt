@@ -1,6 +1,7 @@
 package com.aiopenpocket.di
 
 // @trace fonovye-hody-agenta-dde42d
+// @trace user-agent-builder-848153
 
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.loop.AgentLoopOrchestrator
@@ -29,14 +30,14 @@ object TurnModule {
     orchestrator: AgentLoopOrchestrator,
     reflectionOrchestrator: ReflectionOrchestrator,
   ): TurnExecutor =
-    TurnExecutor { conversationId, message, provider, mode, planApproved, goalMaxIterations, systemPromptExtra ->
+    TurnExecutor { conversationId, message, provider, mode, planApproved, goalMaxIterations, systemPromptExtra, executionMode ->
       // Режим REFLECT — отдельный 3-фазный оркестратор (черновик → критика → итог) поверх того же
       // ReactLoopRunner; остальные режимы идут через основной цикл AgentLoopOrchestrator. Точку
       // диспатча держим здесь (а не в ChatViewModel, как на старой ветке): менеджер уже прокинул mode.
       if (mode == AgentMode.REFLECT) {
-        reflectionOrchestrator.execute(conversationId, message, provider)
+        reflectionOrchestrator.execute(conversationId, message, provider, executionMode)
       } else {
-        orchestrator.execute(conversationId, message, provider, mode, planApproved, goalMaxIterations, systemPromptExtra)
+        orchestrator.execute(conversationId, message, provider, mode, planApproved, goalMaxIterations, systemPromptExtra, executionMode)
       }
     }
 

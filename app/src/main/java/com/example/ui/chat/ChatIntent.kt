@@ -1,6 +1,7 @@
 package com.aiopenpocket.ui.chat
 
 // @trace streaming-llm-chat-6595a1
+// @trace user-agent-builder-848153
 
 import com.aiopenpocket.agent.loop.AgentMode
 
@@ -34,4 +35,11 @@ sealed class ChatIntent {
 
   /** Урок: свободный вопрос к LLM прямо во время урока (кнопка «Спросить»). */
   data class AskDuringLesson(val text: String) : ChatIntent()
+
+  /**
+   * Tool-approval бар (Task 9): пользователь разрешил/отклонил `state.pendingToolApproval`. Оба
+   * параметров не несут — резолвят ровно тот запрос, что сейчас лежит в state (см. ChatViewModel).
+   */
+  data object ApproveToolCall : ChatIntent()
+  data object DenyToolCall : ChatIntent()
 }

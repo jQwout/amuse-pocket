@@ -9,6 +9,7 @@ import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.StreamEvent
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
+import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.agent.core.prompt.ConversationAnnotator
 import com.aiopenpocket.agent.core.prompt.PrePromptAssembler
 import kotlinx.coroutines.flow.Flow
@@ -48,6 +49,7 @@ class ReflectionOrchestrator @Inject constructor(
     conversationId: String,
     userMessage: String,
     provider: LlmProvider = LlmProvider.NIM,
+    executionMode: ExecutionMode = ExecutionMode.LIVE,
   ): Flow<AgentEvent> = agentTurnFlow(log, TAG, "Reflection failed") {
     // Каждый TextDelta зеркалим в transcript, чтобы сохранённое сообщение совпало с тем, что
     // пользователь видел в стриме (черновик + критика + итог), а не только с финальным ответом.
@@ -84,7 +86,8 @@ class ReflectionOrchestrator @Inject constructor(
     // tool-scope до фикса в Task 4, только для памяти, а не allowlist тулов).
     val draft = withContext(turnContextHolder.contextElement(conversationId, context.agent)) {
       reactLoopRunner.run(
-        conversationId, draftMessages, tools, provider, agent = context.agent, emit = { tap(it) },
+        conversationId, draftMessages, tools, provider,
+        agent = context.agent, executionMode = executionMode, emit = { tap(it) },
       )
     }
     log.d(TAG, "draft len=${draft.text.length}")
@@ -106,7 +109,8 @@ class ReflectionOrchestrator @Inject constructor(
     reviseMessages += ChatMessage(role = "user", content = buildReviseInstruction(draft.text, critique))
     val revised = withContext(turnContextHolder.contextElement(conversationId, context.agent)) {
       reactLoopRunner.run(
-        conversationId, reviseMessages, tools, provider, agent = context.agent, emit = { tap(it) },
+        conversationId, reviseMessages, tools, provider,
+        agent = context.agent, executionMode = executionMode, emit = { tap(it) },
       )
     }
     log.d(TAG, "✓ reflection done revisedLen=${revised.text.length}")

@@ -1,6 +1,7 @@
 package com.aiopenpocket.agent.tools
 
 // @trace background-tasks-15a34a
+// @trace user-agent-builder-848153
 
 import android.content.Context
 import androidx.work.Data
@@ -32,6 +33,13 @@ class WorkManagerTool(
 ) : Tool {
 
   override val riskClass = RiskClass.WRITE
+
+  // Per-call risk (Task 9): both schedule_* actions only create a new WorkManager job;
+  // cancel_work is the irreversible one (the pending job is gone).
+  override fun riskFor(arguments: Map<String, JsonElement>): RiskClass = when (arguments.string("action")) {
+    "cancel_work" -> RiskClass.DESTRUCTIVE
+    else -> RiskClass.WRITE
+  }
 
   override val name = "work_manager"
   override val description =

@@ -1,6 +1,7 @@
 package com.aiopenpocket.agent.tools
 
 // @trace mcp-tools-f77d9b
+// @trace user-agent-builder-848153
 
 import android.Manifest
 import android.content.ContentUris
@@ -29,6 +30,16 @@ class CalendarTool(
   // delete_event is irreversible; event titles come from other people. Highest action wins.
   override val riskClass = RiskClass.DESTRUCTIVE
   override val returnsUntrustedContent = true
+
+  // Per-call risk (Task 9): list_events only reads the device calendar; create_event writes a new
+  // event; delete_event is the irreversible one. An unrecognized/missing action fails closed to the
+  // tool-wide DESTRUCTIVE ceiling rather than READ - execute() below still rejects it either way.
+  override fun riskFor(arguments: Map<String, JsonElement>): RiskClass = when (arguments.string("action")) {
+    "list_events" -> RiskClass.READ
+    "create_event" -> RiskClass.WRITE
+    "delete_event" -> RiskClass.DESTRUCTIVE
+    else -> riskClass
+  }
 
   override val name = "calendar"
   override val description =

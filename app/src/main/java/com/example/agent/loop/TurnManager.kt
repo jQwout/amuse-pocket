@@ -1,9 +1,11 @@
 package com.aiopenpocket.agent.loop
 
 // @trace fonovye-hody-agenta-dde42d
+// @trace user-agent-builder-848153
 
 import com.aiopenpocket.agent.core.AgentLog
 import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.policy.ExecutionMode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -52,7 +54,11 @@ class TurnManager(
   fun session(conversationId: String): Flow<TurnSession?> =
     sessionsFlow.map { it[conversationId] }.distinctUntilChanged()
 
-  /** Запускает ход: пишет реплику пользователя в историю и гонит агентный цикл до конца. */
+  /**
+   * Запускает ход: пишет реплику пользователя в историю и гонит агентный цикл до конца.
+   * [executionMode] — LIVE (по умолчанию, обычный чат) или PREVIEW (builder-тест, Task 20) — не
+   * заводит параллельный вход: едет тем же трактом, что и обычная отправка.
+   */
   fun launchTurn(
     conversationId: String,
     userText: String,
@@ -60,9 +66,13 @@ class TurnManager(
     planApproved: Boolean,
     goalMaxIterations: Int,
     systemPromptExtra: String? = null,
+    executionMode: ExecutionMode = ExecutionMode.LIVE,
   ) {
     scope.launch {
-      startTurn(conversationId, userText, mode, planApproved, goalMaxIterations, persistUserMessage = true, systemPromptExtra = systemPromptExtra)
+      startTurn(
+        conversationId, userText, mode, planApproved, goalMaxIterations,
+        persistUserMessage = true, systemPromptExtra = systemPromptExtra, executionMode = executionMode,
+      )
     }
   }
 
@@ -77,20 +87,36 @@ class TurnManager(
     }
   }
 
-  /** Повтор последнего хода после ошибки: реплика пользователя уже в истории, addMessage не повторяем. */
+  /**
+   * Повтор последнего хода после ошибки: реплика пользователя уже в истории, addMessage не повторяем.
+   * Повторяет и [TurnSession.lastExecutionMode] прошлой попытки — «Повторить» не должен переиграть
+   * PREVIEW-ход LIVE-ом (или наоборот).
+   */
   fun retry(conversationId: String) {
     scope.launch {
       val session = sessionsFlow.value[conversationId] ?: return@launch
       val text = session.lastUserText ?: return@launch
-      startTurn(conversationId, text, session.lastMode, session.lastPlanApproved, session.lastGoalMaxIterations, persistUserMessage = false)
+      startTurn(
+        conversationId, text, session.lastMode, session.lastPlanApproved, session.lastGoalMaxIterations,
+        persistUserMessage = false, executionMode = session.lastExecutionMode,
+      )
     }
   }
 
-  /** План-мод: пользователь одобрил план → фаза выполнения (инструменты включены). */
+  /**
+   * План-мод: пользователь одобрил план → фаза выполнения (инструменты включены). Выполнение едет в
+   * том же [TurnSession.lastExecutionMode], что и фаза планирования — одобрение PREVIEW-плана не
+   * должно тайком стать LIVE-выполнением.
+   */
   fun approvePlan(conversationId: String) {
     scope.launch {
-      val goalIterations = sessionsFlow.value[conversationId]?.lastGoalMaxIterations ?: 3
-      startTurn(conversationId, TurnTexts.APPROVE_PLAN_MESSAGE, AgentMode.PLAN, planApproved = true, goalMaxIterations = goalIterations, persistUserMessage = true)
+      val session = sessionsFlow.value[conversationId]
+      val goalIterations = session?.lastGoalMaxIterations ?: 3
+      startTurn(
+        conversationId, TurnTexts.APPROVE_PLAN_MESSAGE, AgentMode.PLAN, planApproved = true,
+        goalMaxIterations = goalIterations, persistUserMessage = true,
+        executionMode = session?.lastExecutionMode ?: ExecutionMode.LIVE,
+      )
     }
   }
 
@@ -180,6 +206,7 @@ class TurnManager(
     goalMaxIterations: Int,
     persistUserMessage: Boolean,
     systemPromptExtra: String? = null,
+    executionMode: ExecutionMode = ExecutionMode.LIVE,
   ) {
     mutex.withLock {
       val session = sessionsFlow.value[conversationId] ?: TurnSession(conversationId, monotonicNowMs).also { created ->
@@ -192,7 +219,7 @@ class TurnManager(
       previous?.cancel()
       session.job = scope.launch {
         previous?.join()
-        runTurn(session, userText, mode, planApproved, goalMaxIterations, persistUserMessage, systemPromptExtra)
+        runTurn(session, userText, mode, planApproved, goalMaxIterations, persistUserMessage, systemPromptExtra, executionMode)
       }
     }
   }
@@ -205,6 +232,7 @@ class TurnManager(
     goalMaxIterations: Int,
     persistUserMessage: Boolean,
     systemPromptExtra: String? = null,
+    executionMode: ExecutionMode = ExecutionMode.LIVE,
   ) {
     val convId = session.conversationId
     resetStreaming(session)
@@ -214,6 +242,7 @@ class TurnManager(
     session.lastMode = mode
     session.lastPlanApproved = planApproved
     session.lastGoalMaxIterations = goalMaxIterations
+    session.lastExecutionMode = executionMode
     try {
       if (persistUserMessage) {
         // Новый ход — новая попытка: ретрай-контекст валиден только после успешного addMessage.
@@ -223,7 +252,7 @@ class TurnManager(
         session.lastUserText = userText
         session.lastUserMessageId = userMsgId
       }
-      collectTurnEvents(session, userText, mode, planApproved, goalMaxIterations, systemPromptExtra)
+      collectTurnEvents(session, userText, mode, planApproved, goalMaxIterations, systemPromptExtra, executionMode)
     } catch (e: CancellationException) {
       // Stop / новый ход: отмена — штатный путь.
       throw e
@@ -241,9 +270,10 @@ class TurnManager(
     planApproved: Boolean,
     goalMaxIterations: Int,
     systemPromptExtra: String? = null,
+    executionMode: ExecutionMode = ExecutionMode.LIVE,
   ) {
     // Временно гоним всё на NIM; выбор провайдера (GROQ/GITHUB) выпилим позже.
-    val flow = executor.execute(session.conversationId, userText, LlmProvider.NIM, mode, planApproved, goalMaxIterations, systemPromptExtra)
+    val flow = executor.execute(session.conversationId, userText, LlmProvider.NIM, mode, planApproved, goalMaxIterations, systemPromptExtra, executionMode)
     flow.collect { event ->
       when (event) {
         is AgentEvent.TextDelta ->

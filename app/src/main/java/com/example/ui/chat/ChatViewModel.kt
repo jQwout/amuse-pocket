@@ -1,6 +1,7 @@
 package com.aiopenpocket.ui.chat
 
 // @trace streaming-llm-chat-6595a1
+// @trace user-agent-builder-848153
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
@@ -13,6 +14,7 @@ import com.aiopenpocket.agent.core.lesson.LessonRepository
 import com.aiopenpocket.agent.core.memory.dao.HeartbeatDao
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
+import com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.loop.TurnManager
 import com.aiopenpocket.agent.loop.TurnStatus
@@ -59,6 +61,7 @@ class ChatViewModel(
     private val voiceController: VoiceInputController,
     private val heartbeatDao: HeartbeatDao,
     private val agentResolver: AgentResolver,
+    private val toolApprovalCoordinator: ToolApprovalCoordinator,
     private val context: Context,
 ) : ViewModel() {
 
@@ -115,6 +118,17 @@ class ChatViewModel(
         viewModelScope.launch {
             voiceController.transcripts.collect { transcript ->
                 _state.update { it.copy(inputText = appendTranscript(it.inputText, transcript)) }
+            }
+        }
+        // Tool-approval бар (Task 9): coordinator публикует pending-запросы ГЛОБАЛЬНО (по всем
+        // диалогам сразу, т.к. TurnManager гоняет ходы параллельно) — фильтруем на СВОЙ conversationId,
+        // чтобы approval другого чата никогда не всплыл на этом экране. combine (не просто .collect
+        // на pending) — потому что conversationId тоже меняется (setConversationId/ensureConversation).
+        viewModelScope.launch {
+            combine(convIdFlow, toolApprovalCoordinator.pending) { convId, pending ->
+                pending.firstOrNull { it.conversationId == convId }
+            }.collect { request ->
+                _state.update { it.copy(pendingToolApproval = request) }
             }
         }
         // Поиск по чату: дебаунс ввода (collectLatest + delay — новый символ отменяет хвост) и
@@ -285,7 +299,20 @@ class ChatViewModel(
             is ChatIntent.AdvanceLesson -> advanceLesson()
             is ChatIntent.CompleteLessonQuiz -> completeLessonQuiz()
             is ChatIntent.AskDuringLesson -> askDuringLesson(intent.text)
+            is ChatIntent.ApproveToolCall -> resolveToolApproval(approved = true)
+            is ChatIntent.DenyToolCall -> resolveToolApproval(approved = false)
         }
+    }
+
+    /**
+     * Resolves `state.pendingToolApproval` (Task 9) — a no-op if it's already gone (timed out,
+     * resolved by a background signal, or the run moved on). `resolve` itself checks the request's
+     * own runId, so a stale request left over from an earlier, already-finished run of this same
+     * conversation can never be (mis)approved by a leftover reference here.
+     */
+    private fun resolveToolApproval(approved: Boolean) {
+        val request = _state.value.pendingToolApproval ?: return
+        toolApprovalCoordinator.resolve(request.runId, request.requestId, approved)
     }
 
     private fun toggleVoiceInput() {

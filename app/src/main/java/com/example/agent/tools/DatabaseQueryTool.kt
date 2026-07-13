@@ -1,9 +1,11 @@
 package com.aiopenpocket.agent.tools
 
 // @trace mcp-tools-f77d9b
+// @trace user-agent-builder-848153
 
 import android.database.Cursor
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.mcp.missingArg
@@ -34,6 +36,26 @@ class DatabaseQueryTool(
     string("sql", "SQL-запрос. Разрешены SELECT, INSERT, UPDATE, DELETE.", required = true)
   }
 
+  /**
+   * Per-call risk (Task 9): classifies by the SAME first-token parse [isAllowed]/[executeWrite]
+   * already trust to gate/dispatch SQL - never re-derived by a separate, unchecked substring check
+   * that a crafted argument (e.g. a string literal containing the word "delete") could fool.
+   * DDL (forbidden outright by [isAllowed]) and any other unrecognized verb classify as READ, not
+   * WRITE/DESTRUCTIVE: such a call can never actually mutate anything regardless of mode (it always
+   * hits [isAllowed]'s rejection once it reaches [execute]), so letting it through as READ means that
+   * honest "DDL commands are not allowed" error surfaces in both LIVE and PREVIEW, instead of a
+   * misleading Simulate envelope for a statement that was never going to run at all.
+   */
+  override fun riskFor(arguments: Map<String, JsonElement>): RiskClass {
+    val sql = arguments.string("sql") ?: return riskClass
+    return when (firstSqlToken(sql)) {
+      "select" -> RiskClass.READ
+      "insert", "update" -> RiskClass.WRITE
+      "delete" -> RiskClass.DESTRUCTIVE
+      else -> riskClass
+    }
+  }
+
   override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult {
     val sql = arguments.string("sql") ?: return missingArg("sql")
 
@@ -56,9 +78,18 @@ class DatabaseQueryTool(
     // Разрешаем одну хвостовую ';', но блокируем мульти-стейтменты.
     val clean = sql.trim().trimEnd(';').trim()
     if (';' in clean) return false
-    val firstToken = clean.takeWhile { !it.isWhitespace() }.lowercase()
-    return firstToken !in FORBIDDEN_SQL
+    return firstSqlToken(sql) !in FORBIDDEN_SQL
   }
+
+  /**
+   * The single first-whitespace-delimited keyword of [sql], lowercased - the one signal [isAllowed]
+   * (DDL gate), [execute]/[executeWrite] (SELECT-vs-write dispatch) and [riskFor] (policy
+   * classification) all key off, so none of them can silently disagree with what the others do.
+   * Trailing ';' is stripped first so a single-keyword statement with nothing after it (e.g.
+   * "pragma;") still yields "pragma", not "pragma;".
+   */
+  private fun firstSqlToken(sql: String): String =
+    sql.trim().trimEnd(';').trim().takeWhile { !it.isWhitespace() }.lowercase()
 
   private fun executeSelect(db: SupportSQLiteDatabase, sql: String): ToolResult {
     val cursor: Cursor = db.query(sql)
@@ -87,7 +118,7 @@ class DatabaseQueryTool(
   }
 
   private fun executeWrite(db: SupportSQLiteDatabase, sql: String): ToolResult {
-    val firstToken = sql.trim().takeWhile { !it.isWhitespace() }.lowercase()
+    val firstToken = firstSqlToken(sql)
     return db.compileStatement(sql).use { statement ->
       if (firstToken == "insert") {
         ToolResult.Success("Inserted row (rowid=${statement.executeInsert()})")
