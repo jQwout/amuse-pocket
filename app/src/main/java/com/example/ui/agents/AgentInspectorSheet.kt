@@ -1,6 +1,7 @@
 package com.aiopenpocket.ui.agents
 
 // @trace agent-inspector-6e41eb
+// @trace user-agent-builder-848153
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -58,9 +59,9 @@ import java.util.Locale
 
 /**
  * Read-mostly инспектор мини-агента: glass-лист поверх «Тулов» с двумя вкладками — Обзор
- * (стат-плитки, препромпт, активные heartbeat'ы, возможности, хуки-«на будущее») и Файлы (общая
- * песочница агентов). Ничего не редактируется и не переключается — единственное действие листа —
- * «Открыть чат».
+ * (стат-плитки, препромпт, активные heartbeat'ы, возможности, хуки-«на будущее») и Файлы (личная
+ * песочница ЭТОГО агента, Task 6). Ничего не редактируется и не переключается — единственное
+ * действие листа — «Открыть чат».
  *
  * Тонкая обёртка над [ModalBottomSheet]: весь видимый контент живёт в [AgentInspectorContent],
  * чтобы скриншот-тест мог рендерить его напрямую, в обход капризного под Robolectric
@@ -121,7 +122,7 @@ internal fun AgentInspectorContent(
       Spacer(modifier = Modifier.height(20.dp))
       when (tab) {
         InspectorTab.Overview -> OverviewTab(agent = agent, state = state)
-        InspectorTab.Files -> FilesTab(state = state)
+        InspectorTab.Files -> FilesTab(agentId = agent.id, state = state)
       }
     }
   }
@@ -461,14 +462,14 @@ private fun HookStatusBadge(active: Boolean, modifier: Modifier = Modifier) {
 }
 
 // ==================================================================================================
-// Файлы: общая (не пер-агентная) песочница filesDir/agent.
+// Файлы: личная песочница ЭТОГО агента, filesDir/agents/{agentId} (Task 6) — не общая.
 // ==================================================================================================
 
 @Composable
-private fun FilesTab(state: AgentInspectorState, modifier: Modifier = Modifier) {
+private fun FilesTab(agentId: String, state: AgentInspectorState, modifier: Modifier = Modifier) {
   Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
     Text(
-      text = "Общая песочница агентов (filesDir/agent) — не пер-агент",
+      text = "Песочница агента (filesDir/agents/$agentId)",
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
     )

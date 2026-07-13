@@ -92,7 +92,7 @@ features:
     rationale: "Переиспользуемый glass-слой (Haze 1.7.2 backdrop-blur + токены + аурора-фон + GlassSurface/GlassCard). Вся Haze-поверхность изолирована в GlassSurface.kt, чтобы смена версии Haze не растекалась по экранам. Сильное стекло (blur) — только на неподвижной обвязке; слабое (tint без blur) — безопасно в LazyColumn, чтобы не вернуть лаги стрима чата."
   - id: agent-inspector-6e41eb
     title: "Инспектор агента (read-mostly)"
-    rationale: "Glass-лист (ModalBottomSheet) поверх «Тулов» показывает реальный скоуп мини-агента (тулы/навык/heartbeat/области состояния/препромпт) + файлы общей песочницы — read-only, чтобы юзер видел, на что агент способен и что настроено, ДО открытия чата. Данные детерминированно из MiniAgentCatalog + HeartbeatDao.observeActiveByAgent + AgentFilesRepository (не через ToolExecutor). Редактирование, функциональные хуки и per-agent workspace осознанно отложены."
+    rationale: "Glass-лист (ModalBottomSheet) поверх «Тулов» показывает реальный скоуп мини-агента (тулы/навык/heartbeat/области состояния/препромпт) + личные файлы агента из его собственной песочницы (filesDir/agents/{id}, см. user-agent-builder-848153 Task 6) — read-only, чтобы юзер видел, на что агент способен и что настроено, ДО открытия чата. Данные детерминированно из MiniAgentCatalog + HeartbeatDao.observeActiveByAgent + AgentFilesRepository (не через ToolExecutor). Редактирование и функциональные хуки осознанно отложены."
     flows: [chat]
   - id: user-agent-builder-848153
     title: "User agent builder"
