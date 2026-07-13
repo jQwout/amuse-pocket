@@ -1,6 +1,7 @@
 ﻿package com.aiopenpocket.ui.chat
 
 // @trace streaming-llm-chat-6595a1
+// @trace user-agent-builder-848153
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -117,6 +118,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -124,22 +127,28 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.model.Message
+import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.agent.loop.AgentMode
+import com.aiopenpocket.ui.agents.builder.components.riskClassLabel
+import com.aiopenpocket.ui.agents.builder.components.riskColor
 import com.aiopenpocket.ui.chat.components.MicButton
 import com.aiopenpocket.ui.chat.components.ToolTracePanel
 import com.aiopenpocket.ui.components.MarkdownText
 import com.aiopenpocket.ui.components.StreamingBubble
 import com.aiopenpocket.ui.components.glass.GlassBackground
+import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.components.glass.GlassState
 import com.aiopenpocket.ui.components.glass.GlassSurface
 import com.aiopenpocket.ui.components.glass.auroraBackground
 import com.aiopenpocket.ui.components.glass.glassSource
 import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.theme.MyApplicationTheme
+import com.aiopenpocket.ui.theme.PurpleAccent
 import com.aiopenpocket.voice.input.VoiceInputState
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonElement
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -658,6 +667,18 @@ fun ChatScreen(
                     }
                 }
 
+                // Tool-approval бар (бэкенд — Task 9, UI — Task 21): BEFORE_TOOL-хук потребовал
+                // подтверждения, ход стоит на паузе в ожидании решения. В отличие от PlanApprovalBar/
+                // ModeSelector ниже — сознательно НЕ гейтится на state.agentId == null: подтверждение
+                // тула — ровно то, что триггерят хуки кастомных агентов (Задача 8/9).
+                state.pendingToolApproval?.let { request ->
+                    ToolApprovalBar(
+                        request = request,
+                        onApprove = { viewModel.handleIntent(ChatIntent.ApproveToolCall) },
+                        onDeny = { viewModel.handleIntent(ChatIntent.DenyToolCall) },
+                    )
+                }
+
                 // План-аппрув — над полем ввода. Кнопки «Выполнить/Поправить» доступны, пока ждём решения.
                 if (state.planAwaitingApproval && !state.lessonMode && !state.isTutorial && state.agentId == null) {
                     PlanApprovalBar(
@@ -949,6 +970,85 @@ private fun PlanApprovalBar(
         }
     }
 }
+
+/**
+ * Модал/бар подтверждения тула (Task 9 backend, Task 21 UI): показывается, пока
+ * `state.pendingToolApproval` не null — BEFORE_TOOL-хук агента потребовал разрешения перед вызовом
+ * инструмента. Показывает имя тула, риск-класс (тот же бейдж-стиль, что и на экране агента —
+ * [riskClassLabel]/[riskColor]) и аргументы вызова; «Разрешить»/«Отклонить» шлют
+ * [ChatIntent.ApproveToolCall]/[ChatIntent.DenyToolCall] — ChatViewModel сам резолвит их против
+ * ТЕКУЩЕГО `state.pendingToolApproval`, здесь достаточно просто послать интент.
+ */
+@Composable
+private fun ToolApprovalBar(
+    request: ToolApprovalRequest,
+    onApprove: () -> Unit,
+    onDeny: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    GlassCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .testTag("chat_tool_approval"),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Агенту нужно разрешение",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = PurpleAccent,
+                    modifier = Modifier.weight(1f),
+                )
+                val badgeColor = riskColor(request.riskClass)
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(badgeColor.copy(alpha = 0.15f))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                ) {
+                    Text(
+                        text = riskClassLabel(request.riskClass),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = badgeColor,
+                    )
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = request.toolName,
+                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            if (request.arguments.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = formatToolArguments(request.arguments),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(onClick = onDeny, modifier = Modifier.weight(1f)) {
+                    Text("Отклонить")
+                }
+                Button(onClick = onApprove, modifier = Modifier.weight(1f)) {
+                    Text("Разрешить")
+                }
+            }
+        }
+    }
+}
+
+private fun formatToolArguments(arguments: Map<String, JsonElement>): String =
+    arguments.entries.joinToString(", ") { (key, value) -> "$key: $value" }
 
 /**
  * Панель записи голоса в стиле Telegram/Claude — подменяет поле ввода, пока идёт распознавание.
