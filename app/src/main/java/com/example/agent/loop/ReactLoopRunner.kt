@@ -57,6 +57,12 @@ import java.util.UUID
  * BEFORE_TOOL [HookDecision] above with the turn's [ExecutionMode] and the tool's per-call
  * [RiskClass] ([com.aiopenpocket.agent.core.mcp.Tool.riskFor]) into one [PolicyDecision] — Execute,
  * Simulate (PREVIEW mode), Deny, or AwaitApproval (suspends on [ToolApprovalCoordinator]).
+ *
+ * Task 7 (Structured Plan Engine) adds one more, orthogonal per-run budget: `maxToolCalls` caps real
+ * tool-dispatch attempts across the whole run, independent of [maxIterations] — see that parameter's
+ * own kdoc. [com.aiopenpocket.agent.core.plan.execution.PlanExecutor] is its first caller, passing
+ * each step's own [com.aiopenpocket.agent.core.plan.execution.PlanRunBudget]; every pre-Task-7 caller
+ * is unaffected by the default [Int.MAX_VALUE].
  */
 @SingleIn(AppScope::class)
 class ReactLoopRunner @Inject constructor(
@@ -93,6 +99,18 @@ class ReactLoopRunner @Inject constructor(
      * screen might really be open — and if it isn't, the coordinator's own timeout still applies.
      */
     interactiveApproval: Boolean = true,
+    /**
+     * Hard cap on real tool-dispatch attempts across the WHOLE run (every iteration combined, not
+     * per iteration) — Task 7's per-step [com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
+     * .maxToolCallsPerRun]. Once exhausted, every further tool_call (the one that tipped it over, any
+     * sibling call still pending in the same assistant message, and any call in a later iteration)
+     * gets a synthetic "not executed" [ToolResult.Error] instead of reaching [gateAndExecute] — same
+     * protocol-preserving treatment as a hook [HookDecision.stopped] mid-loop (every tool_call still
+     * gets an answering tool-result so the transcript stays a valid assistant/tool pair sequence) —
+     * and the run stops, exactly like exhausting [maxIterations]. Default [Int.MAX_VALUE] is a strict
+     * no-op for every pre-Task-7 caller.
+     */
+    maxToolCalls: Int = Int.MAX_VALUE,
     emit: suspend (AgentEvent) -> Unit,
   ): AgentResult {
     val toolTrace = mutableListOf<ToolTrace>()
@@ -102,6 +120,9 @@ class ReactLoopRunner @Inject constructor(
     val transcript = StringBuilder()
     var finished = false
     var lastIteration = 0
+    // Per-RUN (across all iterations) real-dispatch counter for maxToolCalls — see its own kdoc above.
+    var toolCallsUsed = 0
+    var toolBudgetExhausted = false
     log.d(TAG, "▶ run conv=$conversationId tools=${tools.size} [${tools.joinToString { it.function.name }}]")
 
     // --- Hook lifecycle plumbing (Task 8) ------------------------------------------------------
@@ -235,9 +256,13 @@ class ReactLoopRunner @Inject constructor(
       for (tc in pendingToolCalls) {
         emit(AgentEvent.ToolStarted(tc.name, tc.arguments))
 
-        if (toolLoopStopped) {
+        if (toolLoopStopped || toolBudgetExhausted) {
           val stoppedResult = ToolResult.Error(
-            "Tool '${tc.name}' was not executed: the run was stopped by an earlier hook this turn.",
+            if (toolBudgetExhausted) {
+              "Tool '${tc.name}' was not executed: this run's tool-call budget ($maxToolCalls) was already used."
+            } else {
+              "Tool '${tc.name}' was not executed: the run was stopped by an earlier hook this turn."
+            },
             recoverable = false,
           )
           toolTrace += ToolTrace(iteration = iteration, toolName = tc.name, arguments = tc.arguments, result = stoppedResult)
@@ -256,16 +281,26 @@ class ReactLoopRunner @Inject constructor(
           // STOP halts the whole run regardless of this call's own risk/mode — checked ahead of the
           // policy gate so a STOP+PREVIEW combination reports "stopped", not a misleading Simulate.
           beforeTool.stopped -> ToolResult.Error("Tool '${tc.name}' was not executed: an agent hook stopped the run.", recoverable = false)
-          else -> gateAndExecute(
-            toolName = tc.name,
-            arguments = tc.arguments,
-            hookDecision = beforeTool,
-            executionMode = executionMode,
-            interactiveApproval = interactiveApproval,
-            runId = runId,
-            conversationId = conversationId,
-            emit = emit,
-          )
+          // Budget gate sits immediately before the real dispatch (plan's Task 7 Step 4: "Stop before
+          // the next ToolExecutor.execute when budget is exhausted") — a call rejected by an EARLIER
+          // branch above never counts against the budget at all.
+          toolCallsUsed >= maxToolCalls -> {
+            toolBudgetExhausted = true
+            ToolResult.Error("Tool '${tc.name}' was not executed: this run's tool-call budget ($maxToolCalls) was already used.", recoverable = false)
+          }
+          else -> {
+            toolCallsUsed++
+            gateAndExecute(
+              toolName = tc.name,
+              arguments = tc.arguments,
+              hookDecision = beforeTool,
+              executionMode = executionMode,
+              interactiveApproval = interactiveApproval,
+              runId = runId,
+              conversationId = conversationId,
+              emit = emit,
+            )
+          }
         }
         log.d(TAG, "  ← ${tc.name}: ${preview(resultToString(result))}")
         toolTrace += ToolTrace(
@@ -307,19 +342,29 @@ class ReactLoopRunner @Inject constructor(
         if (beforeTool.stopped || afterTool.stopped) toolLoopStopped = true
       }
 
-      if (toolLoopStopped) break@runLoop
+      if (toolLoopStopped || toolBudgetExhausted) break@runLoop
     }
 
-    // Либо модель ответила без инструментов (finished), либо упёрлись в лимит шагов — в обоих случаях
-    // отдаём накопленный текст и трейс; терминальное событие выберет вызывающий.
-    if (!finished) log.w(TAG, "⚠ exhausted maxIterations=$maxIterations")
+    // Либо модель ответила без инструментов (finished), либо упёрлись в лимит шагов/tool-call бюджет —
+    // во всех случаях отдаём накопленный текст и трейс; терминальное событие выберет вызывающий.
+    if (toolBudgetExhausted) {
+      log.w(TAG, "⚠ tool-call budget exhausted maxToolCalls=$maxToolCalls")
+    } else if (!finished) {
+      log.w(TAG, "⚠ exhausted maxIterations=$maxIterations")
+    }
     // На лимите отдаём транскрипт всех витков (а не возможно-пустой текст последнего); на финише — итог.
     val finalText = if (finished) accumulatedText else transcript.toString().trim().ifBlank { accumulatedText }
     fireHook(HookEvent.ON_COMPLETE, HookContext(iteration = lastIteration))
     // hitIterationLimit=!finished — единственный источник «упёрлись в лимит» для GOAL-фолбэка (a hook
     // STOP also lands here with hitIterationLimit=true: it halted before a model-driven finish, same
-    // as exhausting maxIterations, so GOAL's existing partial-result fallback applies unchanged).
-    return AgentResult(finalText, toolTrace, AgentState.FINISHED, lastIteration, null, hitIterationLimit = !finished)
+    // as exhausting maxIterations, so GOAL's existing partial-result fallback applies unchanged). A
+    // tool-budget stop ALSO leaves finished=false (this iteration had pending tool calls, so it never
+    // reached the finished=true branch), so hitIterationLimit is already true here too — stoppedByToolBudget
+    // is the additional, precisely-named signal Task 7's PlanExecutor uses to tell budget kinds apart.
+    return AgentResult(
+      finalText, toolTrace, AgentState.FINISHED, lastIteration, null,
+      hitIterationLimit = !finished, stoppedByToolBudget = toolBudgetExhausted,
+    )
   }
 
   private fun resultToString(result: ToolResult): String = when (result) {

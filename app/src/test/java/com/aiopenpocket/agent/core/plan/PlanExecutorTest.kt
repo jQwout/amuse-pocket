@@ -1,0 +1,555 @@
+package com.aiopenpocket.agent.core.plan
+
+// @trace structured-plan-engine-907066
+
+import android.content.Context
+import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
+import com.aiopenpocket.agent.core.agent.AgentDefinition
+import com.aiopenpocket.agent.core.agent.AgentMemoryPolicy
+import com.aiopenpocket.agent.core.agent.AgentSource
+import com.aiopenpocket.agent.core.agent.AgentStatus
+import com.aiopenpocket.agent.core.llm.ChatMessage
+import com.aiopenpocket.agent.core.llm.FunctionSchema
+import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.mcp.Tool
+import com.aiopenpocket.agent.core.mcp.ToolRegistry
+import com.aiopenpocket.agent.core.mcp.ToolResult
+import com.aiopenpocket.agent.core.mcp.toolSchema
+import com.aiopenpocket.agent.core.memory.entity.ConversationEntity
+import com.aiopenpocket.agent.core.plan.execution.PlanExecutor
+import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
+import com.aiopenpocket.agent.core.plan.execution.PlanStepRunner
+import com.aiopenpocket.agent.core.plan.model.AgentPlan
+import com.aiopenpocket.agent.core.plan.model.CompletionRule
+import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
+import com.aiopenpocket.agent.core.plan.model.EvidenceSource
+import com.aiopenpocket.agent.core.plan.model.PlanAuthor
+import com.aiopenpocket.agent.core.plan.model.PlanEvidence
+import com.aiopenpocket.agent.core.plan.model.PlanHorizon
+import com.aiopenpocket.agent.core.plan.model.PlanSnapshot
+import com.aiopenpocket.agent.core.plan.model.PlanStatus
+import com.aiopenpocket.agent.core.plan.model.PlanStep
+import com.aiopenpocket.agent.core.plan.model.PlanStepState
+import com.aiopenpocket.agent.core.plan.model.PlanVersion
+import com.aiopenpocket.agent.core.plan.model.StepStatus
+import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
+import com.aiopenpocket.agent.core.policy.ExecutionMode
+import com.aiopenpocket.agent.core.prompt.AssetSource
+import com.aiopenpocket.agent.loop.AgentEvent
+import com.aiopenpocket.agent.loop.AgentMode
+import com.aiopenpocket.agent.loop.AgentResult
+import com.aiopenpocket.agent.loop.AgentState
+import com.aiopenpocket.data.database.AppDatabase
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonElement
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+/**
+ * [PlanExecutor] Task 7: [PlanExecutor.execute] round-tripped through a real (in-memory) Room
+ * [PlanRepository] (mirrors [PlanRepositoryTest]/[PlanContextProviderTest]'s own setup) for the
+ * precondition/persistence half, a [FakeStepRunner] standing in for [com.aiopenpocket.agent.loop.ReactLoopRunner]
+ * (so no [com.aiopenpocket.agent.core.llm.LlmClient]/[com.aiopenpocket.agent.core.mcp.ToolExecutor]
+ * fake graph is needed at all), plus direct, no-IO unit tests for the pure halves —
+ * [PlanExecutor.Companion.isRunnable], [PlanExecutor.Companion.resolveToolScope],
+ * [PlanExecutor.Companion.buildStepMessages] — that build their inputs by hand.
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
+class PlanExecutorTest {
+
+  private lateinit var db: AppDatabase
+  private lateinit var repository: PlanRepository
+  private lateinit var toolRegistry: ToolRegistry
+  private var now = 10_000L
+
+  @Before
+  fun setUp() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
+    repository = PlanRepository(db, db.planDao()) { now }
+    toolRegistry = ToolRegistry(setOf(FakeTool("memory_tool"), FakeTool("other_tool")))
+  }
+
+  @After
+  fun tearDown() = db.close()
+
+  // --- fakes ----------------------------------------------------------------------------------------
+
+  private class FakeTool(override val name: String) : Tool {
+    override val description = "fake tool $name"
+    override val schema = toolSchema(name, description) {}
+    override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult = ToolResult.Success("ok:$name")
+  }
+
+  /** Records every argument [PlanExecutor] called it with and returns a pre-scripted [AgentResult] — the "fake ReactLoopRunner" for this task, via the [PlanStepRunner] seam. */
+  private class FakeStepRunner(private val result: AgentResult) : PlanStepRunner {
+    var callCount = 0
+      private set
+    var lastMessages: List<ChatMessage>? = null
+      private set
+    var lastTools: List<FunctionSchema>? = null
+      private set
+    var lastMaxIterations: Int? = null
+      private set
+    var lastMaxToolCalls: Int? = null
+      private set
+    var lastInteractiveApproval: Boolean? = null
+      private set
+    var lastExecutionMode: ExecutionMode? = null
+      private set
+
+    override suspend fun run(
+      conversationId: String,
+      messages: MutableList<ChatMessage>,
+      tools: List<FunctionSchema>,
+      provider: LlmProvider,
+      maxIterations: Int,
+      agent: AgentDefinition?,
+      executionMode: ExecutionMode,
+      interactiveApproval: Boolean,
+      maxToolCalls: Int,
+      emit: suspend (AgentEvent) -> Unit,
+    ): AgentResult {
+      callCount++
+      lastMessages = messages.toList()
+      lastTools = tools
+      lastMaxIterations = maxIterations
+      lastMaxToolCalls = maxToolCalls
+      lastInteractiveApproval = interactiveApproval
+      lastExecutionMode = executionMode
+      return result
+    }
+  }
+
+  private object NoAssets : AssetSource {
+    override fun load(path: String): String? = null
+  }
+
+  private fun executor(runner: PlanStepRunner, registry: ToolRegistry = toolRegistry) =
+    PlanExecutor(repository, registry, runner, NoAssets) { now }
+
+  // --- fixtures (mirrors PlanRepositoryTest/PlanContextProviderTest's own builders) ------------------
+
+  private suspend fun insertConversation(id: String = "conv-1") {
+    db.conversationDao().insert(ConversationEntity(id = id, title = "Test conversation"))
+  }
+
+  private fun plan(
+    id: String = "plan-1",
+    conversationId: String = "conv-1",
+    status: PlanStatus = PlanStatus.DRAFT,
+    approvedVersion: Int? = null,
+  ) = AgentPlan(
+    id = id,
+    agentId = "agent-1",
+    conversationId = conversationId,
+    horizon = PlanHorizon.SINGLE_RUN,
+    status = status,
+    approvedVersion = approvedVersion,
+    activeStepId = null,
+    createdAt = 1_000L,
+    updatedAt = 1_000L,
+  )
+
+  private fun step(
+    id: String = "step-1",
+    dependsOn: Set<String> = emptySet(),
+    expectedTools: Set<String> = setOf("memory_tool"),
+  ) = PlanStep(
+    id = id,
+    title = "Title $id",
+    instruction = "Instruction $id",
+    dependsOn = dependsOn,
+    expectedTools = expectedTools,
+    schedule = null,
+    completionRule = CompletionRule(type = CompletionRuleType.TOOL_SUCCEEDED),
+  )
+
+  private fun version(
+    planId: String = "plan-1",
+    version: Int = 1,
+    steps: List<PlanStep> = listOf(step()),
+  ) = PlanVersion(
+    planId = planId,
+    version = version,
+    objective = "Objective",
+    assumptions = emptyList(),
+    constraints = emptyList(),
+    steps = steps,
+    criteria = emptyList(),
+    createdBy = PlanAuthor.AGENT,
+    approvedAt = null,
+  )
+
+  private fun stepState(
+    stepId: String,
+    status: StepStatus,
+    attempts: Int = 0,
+    planId: String = "plan-1",
+    version: Int = 1,
+    nextDueAt: Long? = null,
+  ) = PlanStepState(
+    planId = planId, version = version, stepId = stepId, status = status,
+    attempts = attempts, nextDueAt = nextDueAt, startedAt = null, completedAt = null,
+  )
+
+  private fun agent(toolNames: Set<String> = setOf("memory_tool")) = AgentDefinition(
+    id = "agent-1",
+    source = AgentSource.USER,
+    name = "Тестовый агент",
+    description = "Тестовый агент для PlanExecutorTest.",
+    iconKey = "sparkles",
+    systemPrompt = "Ты — тестовый агент.",
+    toolNames = toolNames,
+    skillIds = emptySet(),
+    defaultMode = AgentMode.GOAL,
+    allowedModes = setOf(AgentMode.GOAL),
+    memoryPolicy = AgentMemoryPolicy(namespace = "agent:agent-1:", includeSharedProfile = false),
+    allowedWidgetTemplates = emptySet(),
+    hooks = emptyList(),
+    configVersion = 1L,
+    status = AgentStatus.PUBLISHED,
+  )
+
+  private fun finishedResult(text: String = "ok") =
+    AgentResult(text = text, toolTrace = emptyList(), state = AgentState.FINISHED, iterations = 1)
+
+  private fun errorResult(message: String) =
+    AgentResult(text = "", toolTrace = emptyList(), state = AgentState.ERROR, iterations = 1, errorMessage = message)
+
+  private fun budgetStoppedResult(hitIterationLimit: Boolean = false, stoppedByToolBudget: Boolean = false) = AgentResult(
+    text = "partial", toolTrace = emptyList(), state = AgentState.FINISHED, iterations = 3,
+    hitIterationLimit = hitIterationLimit, stoppedByToolBudget = stoppedByToolBudget,
+  )
+
+  /** Real repository round-trip: DRAFT -> AWAITING_APPROVAL -> ACTIVE, approvedVersion=1 — mirrors [PlanContextProviderTest]'s own setup flow. */
+  private suspend fun approvedSnapshot(steps: List<PlanStep> = listOf(step()), planId: String = "plan-1"): PlanSnapshot {
+    insertConversation()
+    repository.saveProposal(plan(id = planId), version(planId = planId, steps = steps))
+    repository.approve(planId, 1)
+    return requireNotNull(repository.snapshot(planId))
+  }
+
+  // --- isRunnable: pure, no I/O -----------------------------------------------------------------------
+
+  @Test
+  fun `isRunnable is true when a step has no dependsOn`() {
+    assertTrue(PlanExecutor.isRunnable(step(dependsOn = emptySet()), emptyList()))
+  }
+
+  @Test
+  fun `isRunnable is false when a dependsOn step has no recorded state at all`() {
+    val dependent = step(id = "step-2", dependsOn = setOf("step-1"))
+    assertFalse(PlanExecutor.isRunnable(dependent, emptyList()))
+  }
+
+  @Test
+  fun `isRunnable is false when a dependsOn step is not COMPLETED or SKIPPED`() {
+    val dependent = step(id = "step-2", dependsOn = setOf("step-1"))
+    val states = listOf(stepState(stepId = "step-1", status = StepStatus.EXECUTING))
+    assertFalse(PlanExecutor.isRunnable(dependent, states))
+  }
+
+  @Test
+  fun `isRunnable is true when all dependsOn steps are COMPLETED or SKIPPED`() {
+    val dependent = step(id = "step-3", dependsOn = setOf("step-1", "step-2"))
+    val states = listOf(
+      stepState(stepId = "step-1", status = StepStatus.COMPLETED),
+      stepState(stepId = "step-2", status = StepStatus.SKIPPED),
+    )
+    assertTrue(PlanExecutor.isRunnable(dependent, states))
+  }
+
+  // --- resolveToolScope: pure, no I/O ------------------------------------------------------------------
+
+  @Test
+  fun `resolveToolScope is the intersection of agent toolNames and step expectedTools`() {
+    assertEquals(setOf("b", "c"), PlanExecutor.resolveToolScope(setOf("a", "b", "c"), setOf("b", "c", "d")))
+  }
+
+  @Test
+  fun `resolveToolScope excludes a tool in expectedTools but not agent toolNames (hallucinated-tool guard)`() {
+    val scope = PlanExecutor.resolveToolScope(setOf("memory_tool"), setOf("memory_tool", "tool_agent_does_not_have"))
+    assertEquals(setOf("memory_tool"), scope)
+  }
+
+  @Test
+  fun `resolveToolScope excludes a tool in agent toolNames but not step expectedTools`() {
+    val scope = PlanExecutor.resolveToolScope(setOf("memory_tool", "unrelated_agent_tool"), setOf("memory_tool"))
+    assertEquals(setOf("memory_tool"), scope)
+  }
+
+  @Test
+  fun `resolveToolScope is empty when step expectedTools is empty`() {
+    assertTrue(PlanExecutor.resolveToolScope(setOf("memory_tool", "other_tool"), emptySet()).isEmpty())
+  }
+
+  // --- buildStepMessages: pure, no I/O ------------------------------------------------------------------
+
+  @Test
+  fun `buildStepMessages includes the step instruction, budget numbers and only same-step evidence`() {
+    val s = step(id = "step-1")
+    val v = version(steps = listOf(s))
+    val p = plan().copy(approvedVersion = 1, status = PlanStatus.ACTIVE)
+    val ownEvidence = PlanEvidence(
+      id = "ev-1", planId = "plan-1", version = 1, criterionId = null, stepId = "step-1",
+      source = EvidenceSource.TOOL_RESULT, reference = "ref-1", summary = "Подтверждение шага 1", createdAt = 1L,
+    )
+    val otherStepEvidence = PlanEvidence(
+      id = "ev-2", planId = "plan-1", version = 1, criterionId = null, stepId = "step-9",
+      source = EvidenceSource.TOOL_RESULT, reference = "ref-2", summary = "Чужое подтверждение другого шага", createdAt = 1L,
+    )
+    val snapshot = PlanSnapshot(plan = p, version = v, stepStates = emptyList(), evidence = listOf(ownEvidence, otherStepEvidence))
+    val budget = PlanRunBudget(maxLlmIterationsPerStep = 4, maxToolCallsPerRun = 6, maxRetriesPerStep = 3)
+
+    val messages = PlanExecutor.buildStepMessages("BASE_PROMPT", agent(), snapshot, s, budget, attempt = 2)
+
+    assertEquals(2, messages.size)
+    assertEquals("system", messages[0].role)
+    val system = messages[0].content.orEmpty()
+    assertTrue(system.contains("BASE_PROMPT"))
+    assertTrue(system.contains(s.instruction))
+    assertTrue("evidence for THIS step must be included", system.contains("Подтверждение шага 1"))
+    assertFalse("evidence for a DIFFERENT step must not leak in", system.contains("Чужое подтверждение"))
+    assertTrue(system.contains("4 витков"))
+    assertTrue(system.contains("6 вызовов"))
+    assertEquals("user", messages[1].role)
+    assertTrue(messages[1].content.orEmpty().contains(s.id))
+  }
+
+  // --- execute: preconditions refused (throw, no repository row mutated) -----------------------------
+
+  @Test
+  fun `execute throws when the plan has no approved version`() {
+    val p = plan().copy(approvedVersion = null)
+    val v = version()
+    val snapshot = PlanSnapshot(plan = p, version = v, stepStates = emptyList(), evidence = emptyList())
+
+    assertThrows(IllegalArgumentException::class.java) {
+      runBlocking { executor(FakeStepRunner(finishedResult())).execute(snapshot, v.steps.first(), agent()) }
+    }
+  }
+
+  @Test
+  fun `execute throws when the supplied snapshot is not the approved version (unapproved version refused)`() {
+    // plan.approvedVersion claims v1 is approved, but the supplied snapshot itself shows v2 (e.g. a
+    // pending, not-yet-approved revision) - an internally inconsistent/stale snapshot.
+    val p = plan().copy(approvedVersion = 1, status = PlanStatus.ACTIVE)
+    val v2 = version(version = 2)
+    val snapshot = PlanSnapshot(plan = p, version = v2, stepStates = emptyList(), evidence = emptyList())
+
+    assertThrows(IllegalArgumentException::class.java) {
+      runBlocking { executor(FakeStepRunner(finishedResult())).execute(snapshot, v2.steps.first(), agent()) }
+    }
+  }
+
+  @Test
+  fun `execute throws when the step does not belong to the snapshot's version`() {
+    val p = plan().copy(approvedVersion = 1, status = PlanStatus.ACTIVE)
+    val v = version(version = 1, steps = listOf(step(id = "step-1")))
+    val snapshot = PlanSnapshot(plan = p, version = v, stepStates = emptyList(), evidence = emptyList())
+    val foreignStep = step(id = "not-in-this-version")
+
+    assertThrows(IllegalArgumentException::class.java) {
+      runBlocking { executor(FakeStepRunner(finishedResult())).execute(snapshot, foreignStep, agent()) }
+    }
+  }
+
+  @Test
+  fun `execute throws when the plan is PAUSED (caught by the fresh re-read, not the caller's stale snapshot)`() {
+    val snapshot = runBlocking { approvedSnapshot() }
+    runBlocking { repository.pause("plan-1") }
+
+    assertThrows(IllegalStateException::class.java) {
+      runBlocking { executor(FakeStepRunner(finishedResult())).execute(snapshot, snapshot.version.steps.first(), agent()) }
+    }
+  }
+
+  @Test
+  fun `execute throws when the plan is CANCELLED`() {
+    val snapshot = runBlocking { approvedSnapshot() }
+    runBlocking { repository.cancel("plan-1") }
+
+    assertThrows(IllegalStateException::class.java) {
+      runBlocking { executor(FakeStepRunner(finishedResult())).execute(snapshot, snapshot.version.steps.first(), agent()) }
+    }
+  }
+
+  @Test
+  fun `execute throws when the step has an incomplete dependency`() {
+    val dependent = step(id = "step-2", dependsOn = setOf("step-1"))
+    val snapshot = runBlocking { approvedSnapshot(steps = listOf(step(id = "step-1"), dependent)) }
+    // step-1 has no PlanStepState row at all yet -> not COMPLETED/SKIPPED -> step-2 is not runnable.
+
+    assertThrows(IllegalArgumentException::class.java) {
+      runBlocking { executor(FakeStepRunner(finishedResult())).execute(snapshot, dependent, agent()) }
+    }
+  }
+
+  @Test
+  fun `execute throws when the step is already COMPLETED`() {
+    val snapshot = runBlocking { approvedSnapshot() }
+    runBlocking { repository.updateStepState(stepState(stepId = "step-1", status = StepStatus.COMPLETED)) }
+
+    assertThrows(IllegalStateException::class.java) {
+      runBlocking { executor(FakeStepRunner(finishedResult())).execute(snapshot, snapshot.version.steps.first(), agent()) }
+    }
+  }
+
+  // --- execute: budget boundaries (pre-flight refusal, not a throw) ------------------------------------
+
+  @Test
+  fun `execute refuses without running when retries are already exhausted`() = runTest {
+    val snapshot = approvedSnapshot()
+    repository.updateStepState(stepState(stepId = "step-1", status = StepStatus.READY, attempts = 2))
+    val runner = FakeStepRunner(finishedResult())
+
+    val result = executor(runner).execute(snapshot, snapshot.version.steps.first(), agent(), budget = PlanRunBudget(maxRetriesPerStep = 2))
+
+    assertTrue(result.stoppedByBudget)
+    assertNotNull(result.error)
+    assertEquals("the loop must never even be invoked once retries are exhausted", 0, runner.callCount)
+  }
+
+  @Test
+  fun `execute refuses without running when the deadline has already passed`() = runTest {
+    val snapshot = approvedSnapshot()
+    val runner = FakeStepRunner(finishedResult())
+
+    val result = executor(runner).execute(snapshot, snapshot.version.steps.first(), agent(), budget = PlanRunBudget(deadlineAt = now - 1))
+
+    assertTrue(result.stoppedByBudget)
+    assertEquals(0, runner.callCount)
+  }
+
+  @Test
+  fun `execute passes the step's own maxLlmIterationsPerStep and maxToolCallsPerRun through to the runner`() = runTest {
+    val snapshot = approvedSnapshot()
+    val runner = FakeStepRunner(finishedResult())
+    val budget = PlanRunBudget(maxLlmIterationsPerStep = 7, maxToolCallsPerRun = 9)
+
+    executor(runner).execute(snapshot, snapshot.version.steps.first(), agent(), budget = budget)
+
+    assertEquals(7, runner.lastMaxIterations)
+    assertEquals(9, runner.lastMaxToolCalls)
+  }
+
+  // --- execute: tool scope end-to-end (3-way intersection narrows what the runner even sees) ----------
+
+  @Test
+  fun `execute never lets a hallucinated (out-of-agent-scope) tool reach the runner's schema list`() = runTest {
+    val s = step(expectedTools = setOf("memory_tool", "tool_agent_does_not_have"))
+    val snapshot = approvedSnapshot(steps = listOf(s))
+    val runner = FakeStepRunner(finishedResult())
+
+    executor(runner).execute(snapshot, s, agent(toolNames = setOf("memory_tool", "other_tool")))
+
+    val schemaNames = runner.lastTools.orEmpty().map { it.function.name }.toSet()
+    assertEquals("only the agent-AND-step intersection, never a tool the step names but the agent lacks", setOf("memory_tool"), schemaNames)
+  }
+
+  @Test
+  fun `execute passes zero tool schemas when step expectedTools is empty`() = runTest {
+    val s = step(expectedTools = emptySet())
+    val snapshot = approvedSnapshot(steps = listOf(s))
+    val runner = FakeStepRunner(finishedResult())
+
+    executor(runner).execute(snapshot, s, agent(toolNames = setOf("memory_tool")))
+
+    assertTrue(runner.lastTools.orEmpty().isEmpty())
+  }
+
+  // --- execute: outcome recording -----------------------------------------------------------------------
+
+  @Test
+  fun `execute records COMPLETED and completedAt on a clean finish`() = runTest {
+    val snapshot = approvedSnapshot()
+    val runner = FakeStepRunner(finishedResult(text = "done"))
+
+    val result = executor(runner).execute(snapshot, snapshot.version.steps.first(), agent())
+
+    assertFalse(result.stoppedByBudget)
+    assertNull(result.error)
+    assertEquals("done", result.text)
+    val state = requireNotNull(repository.snapshot("plan-1")).stepStates.single { it.stepId == "step-1" }
+    assertEquals(StepStatus.COMPLETED, state.status)
+    assertNotNull(state.completedAt)
+    assertEquals(1, state.attempts)
+  }
+
+  @Test
+  fun `execute records FAILED (and the error message) on an AgentState ERROR result`() = runTest {
+    val snapshot = approvedSnapshot()
+    val runner = FakeStepRunner(errorResult("boom"))
+
+    val result = executor(runner).execute(snapshot, snapshot.version.steps.first(), agent())
+
+    assertEquals("boom", result.error)
+    assertFalse(result.stoppedByBudget)
+    val state = requireNotNull(repository.snapshot("plan-1")).stepStates.single { it.stepId == "step-1" }
+    assertEquals(StepStatus.FAILED, state.status)
+    assertNull("a FAILED step never gets completedAt", state.completedAt)
+  }
+
+  @Test
+  fun `execute records BLOCKED when the loop stops on hitIterationLimit`() = runTest {
+    val snapshot = approvedSnapshot()
+    val runner = FakeStepRunner(budgetStoppedResult(hitIterationLimit = true))
+
+    val result = executor(runner).execute(snapshot, snapshot.version.steps.first(), agent())
+
+    assertTrue(result.stoppedByBudget)
+    assertNull("a budget cutoff is not itself an 'error'", result.error)
+    val state = requireNotNull(repository.snapshot("plan-1")).stepStates.single { it.stepId == "step-1" }
+    assertEquals(StepStatus.BLOCKED, state.status)
+  }
+
+  @Test
+  fun `execute records BLOCKED when the loop stops on stoppedByToolBudget`() = runTest {
+    val snapshot = approvedSnapshot()
+    val runner = FakeStepRunner(budgetStoppedResult(stoppedByToolBudget = true))
+
+    val result = executor(runner).execute(snapshot, snapshot.version.steps.first(), agent())
+
+    assertTrue(result.stoppedByBudget)
+    val state = requireNotNull(repository.snapshot("plan-1")).stepStates.single { it.stepId == "step-1" }
+    assertEquals(StepStatus.BLOCKED, state.status)
+  }
+
+  // --- execute: only ONE step runs per invocation ---------------------------------------------------
+
+  @Test
+  fun `execute calls the step runner exactly once, with the built system+user messages`() = runTest {
+    val snapshot = approvedSnapshot()
+    val runner = FakeStepRunner(finishedResult())
+
+    executor(runner).execute(snapshot, snapshot.version.steps.first(), agent())
+
+    assertEquals(1, runner.callCount)
+    assertEquals(2, runner.lastMessages?.size)
+  }
+
+  @Test
+  fun `execute passes interactiveApproval=false and executionMode LIVE by default (background-first)`() = runTest {
+    val snapshot = approvedSnapshot()
+    val runner = FakeStepRunner(finishedResult())
+
+    executor(runner).execute(snapshot, snapshot.version.steps.first(), agent())
+
+    assertEquals(false, runner.lastInteractiveApproval)
+    assertEquals(ExecutionMode.LIVE, runner.lastExecutionMode)
+  }
+}
