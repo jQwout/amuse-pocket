@@ -39,7 +39,7 @@ The project was originally exported from Google AI Studio. The app UI is primari
 | **Architecture** | MVVM, single-Activity, ReAct-style agent loop |
 | **DI** | Metro 1.1.1 (via Zac Sweers) — *not* Dagger/Hilt |
 | **Networking** | Ktor Client 2.3.11 (Android engine; version pinned inline in `build.gradle.kts`, not in the version catalog); Retrofit + OkHttp + Moshi also on classpath |
-| **Database** | Room 2.7.0 (KSP codegen); db `queen_chat_db`, currently at schema version 9 |
+| **Database** | Room 2.7.0 (KSP codegen); db `ai_open_pocket_db`, currently at schema version 7 (16 entities, including the Structured Plan Engine's 5 plan tables) |
 | **Serialization** | Kotlinx Serialization JSON 1.6.3 |
 | **Image loading** | Coil Compose 2.7.0 (+ Coil SVG) |
 | **Coroutines** | Kotlinx Coroutines 1.10.2 |
@@ -101,11 +101,16 @@ app/src/main/java/com/example/          # physical directory; ALL files below de
     └── theme/                     # Color.kt / Theme.kt (forced dark, no light palette) / Type.kt (Lora serif headings)
 
 app/src/main/java/com/aiopenpocket/    # NEW code lands here directly — directory matches declared package
-└── voice/
-    ├── AssistInteractionService.kt / AssistSessionService.kt / AssistSession.kt / AssistRecognitionService.kt   # system-wide Android voice-assistant integration (VoiceInteractionService)
-    └── input/
-        ├── VoiceInputController.kt / VoiceInputState.kt   # in-chat SpeechRecognizer wrapper (drives MicButton)
-        └── LocaleMapping.kt                                # app language code → BCP-47 locale for recognition
+├── voice/
+│   ├── AssistInteractionService.kt / AssistSessionService.kt / AssistSession.kt / AssistRecognitionService.kt   # system-wide Android voice-assistant integration (VoiceInteractionService)
+│   └── input/
+│       ├── VoiceInputController.kt / VoiceInputState.kt   # in-chat SpeechRecognizer wrapper (drives MicButton)
+│       └── LocaleMapping.kt                                # app language code → BCP-47 locale for recognition
+├── agent/core/plan/             # Structured Plan Engine (see below): model/ validation/ persistence/ planner/
+│                                 # execution/ schedule/ template/ context/ — plus agent/core/agent/ (AgentDefinition,
+│                                 # AgentResolver, UserAgentRepository), agent/core/hook/ (HookEngine) and
+│                                 # agent/core/policy/ (ExecutionPolicy) from the user-agent-builder feature
+└── ui/plan/                      # PlanCard (chat), PlanListScreen/PlanDetailScreen + their ViewModels
 
 app/src/main/assets/
 ├── config/models.json             # Ranked LLM model catalog (source of truth for model selection — see below)
@@ -174,8 +179,8 @@ The project uses **Metro** rather than Hilt/Dagger:
 - The ViewModel converts intents into coroutine jobs; active LLM turns are cancellable.
 
 ### Data Flow (single chat turn)
-1. `ChatIntent.SendMessage` → `ChatViewModel` calls `AgentLoopOrchestrator.execute(conversationId, message, provider, mode, ...)`.
-2. `PrePromptAssembler` builds the system prompt: base instructions + mode section (PLAN/GOAL, if active) + tutorial section + language directive + persona **or** mini-agent role + skill catalog (scoped to the mini-agent if bound) + user-data section (profile facts, relevant memory facts, recent episodes — marked untrusted) + a trimmed `ContextWindowBuilder` history window.
+1. `ChatIntent.SendMessage` → `ChatViewModel`/`TurnManager` route the turn by `AgentMode`: CHAT/TUTOR go through `AgentLoopOrchestrator.execute(conversationId, message, provider, mode, ...)`; REFLECT goes to `ReflectionOrchestrator`; PLAN/GOAL go to `StructuredPlanOrchestrator` (see Structured Plan Engine below) instead of this pipeline.
+2. For the CHAT/TUTOR path, `PrePromptAssembler` builds the system prompt: base instructions + tutorial section + language directive + persona **or** mini-agent role + skill catalog (scoped to the mini-agent if bound) + a compact active-plan summary (`PlanContextProvider`, only if this conversation has an approved plan) + user-data section (profile facts, relevant memory facts, recent episodes — marked untrusted) + a trimmed `ContextWindowBuilder` history window.
 3. `ReactLoopRunner` runs the shared ReAct loop (reason → tool call → observe, up to `MAX_ITERATIONS = 10`), resolving tool calls through `ToolRegistry` (scoped to the mini-agent's `toolNames` when bound).
 4. `OpenAiCompatClient.streamChat` sends the request via `ProviderFallbackChain.resolve(...)` (see Model Catalog below) and streams SSE deltas back; on failure *before* any content was emitted, it falls through to the next provider/model.
 5. `ConversationRepository` persists messages to Room; `ConversationAnnotator` makes a background LLM call afterward to (re)derive the conversation's title/summary/tags.
@@ -215,7 +220,74 @@ To change which model the agent uses, edit `models.json` and re-rank by `priorit
 
 > Note: `OpenAiCompatClient.kt` (`agent/core/llm/`) is the sole chat-completion client. The old `NvidiaClient.kt` referenced by earlier versions of this doc has been fully deleted, with zero remaining references anywhere in the codebase.
 
-> Note: PLAN/GOAL mode are wired to layer an extra system-prompt section from `assets/prompts/modes/{plan_planning,plan_executing,goal}.md` (`PrePromptAssembler.loadModePrompt`), but those asset files don't currently exist on disk — `loadAsset()` fails silently (`runCatching { ... }.getOrNull()`), so those modes currently run **without** their dedicated instruction section. Worth fixing if you're touching PLAN/GOAL mode.
+### Structured Plan Engine (PLAN/GOAL)
+`AgentMode.PLAN`/`AgentMode.GOAL` are no longer a prompt-only gate/loop over the ordinary ReAct turn —
+that mechanism (an extra system-prompt section from `assets/prompts/modes/{plan_planning,plan_executing,goal}.md`,
+a `[[NEED_INFO]]` text marker, a self-graded GOAL loop) has been fully removed. `com.aiopenpocket.di.TurnModule`'s
+`TurnExecutor` now dispatches both modes straight to `agent/loop/StructuredPlanOrchestrator`
+(`agent/core/plan/**`), bypassing `AgentLoopOrchestrator` entirely — the same way `AgentMode.REFLECT`
+already bypasses it for `ReflectionOrchestrator`. The old feature id `rezhimy-agenta-plan-i-goal-ee2361`
+still marks a few files that predate this replacement (`AgentMode.kt`, `ReactLoopRunner.kt`,
+`PrePromptAssembler.kt`, `AgentLoopOrchestrator.kt`, `TurnCompletion.kt`, `AssetSource.kt`) — kept as
+history, like `agent-inspector-6e41eb`; the live implementation is `structured-plan-engine-907066`.
+
+- **PLAN** (`StructuredPlanOrchestrator.propose` → `PlanPlanner`/`PlanPromptBuilder`) runs one LLM turn
+  with exactly three internal control schemas — `submit_plan`, `propose_plan_revision`,
+  `request_plan_information` (`agent/core/plan/planner/PlanControlSchemas.kt`). These are plain
+  `FunctionSchema`s handed directly to `LlmClient.streamChat`; they are never added to the global
+  `ToolRegistry` multibinding, so a PLAN turn is structurally incapable of calling a real device/app
+  tool. `PlanValidator` rejects a candidate whose steps aren't acyclic, whose `expectedTools` aren't a
+  subset of the agent's own `toolNames`, that exceeds step/criteria limits, or that drops a domain
+  template's required safety constraint. A validated proposal is persisted (`PlanRepository.saveProposal`)
+  as a new `PlanVersion` in `AWAITING_APPROVAL` and never auto-executed.
+- **Approval** is the typed `PlanCommands.approve(planId, version)` call, wired from a real
+  `ChatIntent.ApprovePlan` (`ChatViewModel` → `PlanCard`/`PlanDetailScreen`) — never a synthetic "Одобряю
+  план" chat message. Approving freezes that `PlanVersion` immutable; any later material change
+  (objective/constraints/criteria, step add/remove/reorder, `expectedTools`, `schedule`, `completionRule`
+  — classified by `PlanChangeClassifier`) always drafts a new, higher-numbered pending version and
+  returns the plan to `AWAITING_APPROVAL`, while the previously approved version keeps running.
+- **GOAL** (`StructuredPlanOrchestrator.executeGoal` → `PlanRunner` → `PlanExecutor`) executes only the
+  approved `PlanVersion`, one selected runnable/due step per call. A step's tool scope is
+  `agent.toolNames ∩ step.expectedTools ∩ ExecutionPolicy` (an empty `expectedTools` means the step must
+  not call any tool at all); `PlanRunBudget` replaces the old single `goalMaxIterations` with independent
+  LLM-iteration/tool-call/retry/deadline knobs (the Settings "лимит витков гоал-мода" value now maps onto
+  `PlanRunBudget.maxLlmIterationsPerStep`, see `ChatViewModel.goalRunBudget`).
+- **Verification** (`PlanVerifier`) gates completion on persisted `PlanEvidence`, never a bare "готово"
+  from the model. Deterministic checks (`DeterministicVerifierRegistry`: `TOOL_RESULT`, `MEMORY_FACT`,
+  `USER_CONFIRMATION`) take priority; `MODEL_ASSESSMENT` is the one LLM-judged, tool-less fallback and
+  cannot be routed a deterministic criterion. A `required` criterion blocks `PlanStatus.COMPLETED` until
+  it has matching evidence.
+- **Plan lifecycle hooks** (`ON_PLAN_CREATED`/`ON_PLAN_APPROVED`/`BEFORE_PLAN_STEP`/`AFTER_PLAN_STEP`/
+  `ON_PLAN_BLOCKED`/`ON_PLAN_COMPLETED`) reuse the same declarative `HookEngine` as the turn-level hooks.
+  Every plan event except `BEFORE_PLAN_STEP` is LOG-only; `BEFORE_PLAN_STEP` can additionally `DENY`/
+  `STOP`/`REQUIRE_APPROVAL` (always resolves to a blocked step, since a plan step run is headless/
+  background) or `ADD_INSTRUCTION` (folded into that one step's prompt only). No plan hook can call an
+  LLM/tool, add evidence, or mutate an approved version — it only ever returns a `HookDecision`; applying
+  it is the caller's (`PlanExecutor`/`PlanCommands`) job.
+- **`PROGRAM` plans** (long-running, vs. one-shot `SINGLE_RUN`) advance via a typed heartbeat, never a
+  foreground loop: `PlanScheduler` arms one `HeartbeatTargetType.PLAN_STEP` row per plan (`planId`/
+  `planVersion`/`stepId`), and `HeartbeatRunner.firePlanStep` re-checks the plan is still `ACTIVE` and the
+  heartbeat's `planVersion` still matches the current approved version before resuming — a stale
+  heartbeat (approval moved on since) is skipped, never runs the old step. Background runs always pass
+  `interactiveApproval = false`, so a hook's `REQUIRE_APPROVAL` blocks the step and notifies the user
+  instead of leaving a `WorkManager` job suspended on a screen that isn't there.
+- **Crash recovery** (`PlanRecovery`, run at app startup and inline at the start of every `PlanRunner.run`)
+  repairs a step left `EXECUTING`/`VERIFYING` by a process death. It never re-invokes an LLM/tool: a step
+  is marked `COMPLETED` only if `PlanEvidence` created at-or-after that attempt's `startedAt` already
+  proves it; otherwise it is marked `BLOCKED` for manual review — a side-effecting tool call is never
+  blindly replayed.
+- **Domain templates** (`assets/plan_templates/{budget,nutrition,languages}.json`, via
+  `PlanTemplateRegistry`) carry required safety constraints per agent (e.g. nutrition's "no diagnosis/
+  treatment, stop on alarming symptoms"; budget's "never invent amounts, never initiate a financial
+  transaction"), suggested steps/criteria (prompt guidance only), supported horizons and forbidden tool
+  names. Required constraints are merged into every proposal in code and re-checked by `PlanValidator` as
+  a backstop, not left to the model to faithfully restate.
+- **Persistence**: five Room tables (`agent_plans`, `plan_versions`, `plan_step_states`, `plan_evidence`,
+  `plan_events`) behind `PlanRepository`; `plan_versions.snapshotJson` holds the immutable per-version
+  content, progress/evidence/events are normalized and updated independently.
+- **Out of scope** (unchanged from the design spec): automatic PLAN activation, a parallel DAG executor,
+  multi-agent delegation, autonomous approval of material revisions, real financial transactions/medical
+  prescriptions, and a custom scheduler replacing WorkManager/heartbeat.
 
 ### AI Academy (Onboarding Roadmap)
 A JSON-driven, linear lesson system separate from free chat. `Lesson.kt`/`LessonRepository.kt` load 9 scripts from `assets/lessons/*.json` (welcome, ReAct loop, chaining/routing, tokens & speed, privacy/reliability, arena & swarm, workflow & agent, how LLMs read text, plan mode); each lesson is a sequence of typed steps (`text`, `image`, `quiz`, `reveal`, `concept`, `example`, `fill`, `sort`, `match`, `scenario`) rendered as Driven UI cards and advanced one step per agent turn by `LessonChatController`. `RoadmapScreen` walks the 7 foundational lessons in order; `LibraryScreen` exposes the full catalog; `QuizScreen`/`QuizViewModel` handle end-of-lesson checks. Per-lesson system-prompt sections live in `assets/prompts/roadmap/l1_welcome.md` … `l7_combo.md`, plus a `plan_mode.md` variant.
@@ -279,6 +351,13 @@ The project has light but real coverage, concentrated on the newer agent/LLM plu
      - `agent/core/profile/ExtractUserProfileUseCaseTest.kt` — onboarding profile extraction
      - `agent/loop/AgentModeTest.kt` — CHAT/PLAN/GOAL mode behavior
      - `ui/chat/DrivenUiEngineTest.kt` — card parsing
+     - `agent/core/plan/*.kt` (~14 files) — Structured Plan Engine: state machine/validator/change
+       classifier, planner control-schema reduction, executor tool-scope intersection, deterministic +
+       MODEL_ASSESSMENT verification, plan lifecycle hooks, scheduler due/staleness logic, crash
+       recovery idempotency, domain-template contract checks
+     - `agent/loop/StructuredPlanOrchestratorTest.kt`, `agent/workers/HeartbeatRunnerTest.kt` (typed
+       plan-step heartbeat cases) — PLAN/GOAL turn dispatch and background plan-step resumption
+     - `ui/plan/*.kt` — PlanCard/PlanListViewModel/PlanDetailViewModel + a Roborazzi screenshot test
 
 2. **Instrumented tests** (`app/src/androidTest/java`)
    - `ExampleInstrumentedTest.kt` — basic context/Activity sanity check only.
@@ -304,9 +383,17 @@ The project has light but real coverage, concentrated on the newer agent/LLM plu
 
 - **Bundled API keys** are injected via the Secrets Gradle Plugin from `.env` and become `BuildConfig` fields at compile time — not obfuscated in the APK; treat debug builds as containing plaintext secrets.
 - **User-entered API keys** (per provider) and the selected provider/model are stored in `SettingsRepository`, backed by **`EncryptedSharedPreferences`** (AES256_GCM, KeyStore-backed master key) — encrypted at rest, unlike the plain SharedPreferences used in earlier versions of this app.
-- **Conversations, messages, facts, and episodes** live in the local Room database (`queen_chat_db`, currently schema v9; `fallbackToDestructiveMigration()` is enabled, so schema bumps during development drop and recreate the DB). There is no more "session cookie" concept or `user_cookies` table — that, along with the old `ChatRepository`/`ChatDao`, has been fully removed.
+- **Conversations, messages, facts, and episodes** live in the local Room database (`ai_open_pocket_db`, currently schema v7; `fallbackToDestructiveMigration()` is enabled, so schema bumps during development drop and recreate the DB). There is no more "session cookie" concept or `user_cookies` table — that, along with the old `ChatRepository`/`ChatDao`, has been fully removed.
+- **Structured Plan Engine** (see Architecture Details above) is planning's main safety surface: the
+  PLAN phase is handed only three internal control schemas and never a real tool schema, so it cannot
+  execute a device/app action regardless of what the model outputs; GOAL's per-step tool scope is
+  intersected against both the bound agent's own `toolNames` and `ExecutionPolicy` before any call
+  reaches `ToolExecutor`; a `required` completion criterion cannot be satisfied by the model simply
+  asserting success, only by a persisted `PlanEvidence` row; and a background (heartbeat-driven) run
+  never blocks on a UI approval prompt — a hook that would require one instead blocks the step and
+  notifies the user.
 - **Onboarding/UI preferences** (persona, language, roadmap progress, goal-mode iteration cap) live in an unencrypted AndroidX DataStore (`UserPreferencesRepository`) — not sensitive data.
-- **`database_query` tool** gives the LLM raw SQL access to the app's own Room database (SELECT/INSERT/UPDATE/DELETE only — DDL, multi-statement queries, and result sets beyond 200 rows are blocked). It's scoped to the app's own DB, not system databases, but it's still an LLM-controlled SQL execution path worth keeping in mind when reasoning about prompt-injection risk from tool results or untrusted memory content.
+- **`database_query` tool** gives the LLM raw SQL access to the app's own Room database (SELECT/INSERT/UPDATE/DELETE only — DDL, multi-statement queries, and result sets beyond 200 rows are blocked). It's scoped to the app's own DB, not system databases, but it's still an LLM-controlled SQL execution path worth keeping in mind when reasoning about prompt-injection risk from tool results or untrusted memory content. It carries no table allowlist/blocklist, so an agent holding it (builder: `advancedOnly`, `RiskClass.DESTRUCTIVE`, consent-gated) can also `UPDATE`/`INSERT` the Structured Plan Engine's own tables (`agent_plans`/`plan_versions`/`plan_step_states`/`plan_evidence`/`plan_events`) directly — bypassing `PlanStateMachine`'s approval/immutability/evidence gates entirely. Not reachable via any of the 6 presets (none carry `database_query`), only via a custom agent the user has explicitly granted it to; see the Task 16 audit report for detail.
 - **Debug keystore** is committed to the repo as `debug.keystore.base64`. Do **not** use this for release builds.
 - **Network security:** the app calls one of three chat-completions endpoints depending on the resolved provider — `integrate.api.nvidia.com` (NIM), `api.groq.com` (GROQ), `models.inference.ai.azure.com` (GitHub Models). No certificate pinning is implemented.
 - **Voice services** (`AssistInteractionService`, `AssistSessionService`) are exported but protected by the `BIND_VOICE_INTERACTION` system permission; `RECORD_AUDIO` is a runtime permission gating both system voice assist and in-chat dictation.
