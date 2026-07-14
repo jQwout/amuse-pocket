@@ -80,19 +80,29 @@ object PlanStepRunnerBindings {
  * section 9/10 split: GOAL "выбирает next runnable/due step" (PlanRunner) then "исполняет только этот
  * step" (this class).
  *
- * ## Raw result, not verification — the Task 8 seam
+ * ## Raw result vs. verified outcome — the Task 8 seam
  *
- * [execute] persists a SIMPLE, UNVERIFIED mapping from the underlying [AgentResult] to a terminal
- * [StepStatus] (see [recordOutcome]): a clean finish is provisionally [StepStatus.COMPLETED], an LLM/
- * stream error is [StepStatus.FAILED], a budget cutoff is [StepStatus.BLOCKED]. It never reads
- * [com.aiopenpocket.agent.core.plan.model.PlanStep.completionRule], never checks a whole-plan
- * [com.aiopenpocket.agent.core.plan.model.PlanCriterion], and never writes a
- * [com.aiopenpocket.agent.core.plan.model.PlanEvidence] row — that is exactly `PlanVerifier`'s job
- * (Task 8, design spec section 11). [recordOutcome] is the seam: Task 8 replaces its "clean finish →
- * COMPLETED" branch with a real verifier call that only marks COMPLETED once
- * [com.aiopenpocket.agent.core.plan.model.PlanStep.completionRule] is actually satisfied and evidence
- * is persisted, and the `STEP_VERIFIED` event this class already appends on that branch becomes
- * literally true instead of a placeholder label — see that function's kdoc.
+ * [execute] maps the underlying [AgentResult] to a terminal [StepStatus] (see [recordOutcome]): an
+ * LLM/stream error is [StepStatus.FAILED] and a budget cutoff is [StepStatus.BLOCKED] — both DECIDED
+ * HERE, straight from [AgentResult], unchanged since Task 7. A CLEAN finish is different: it is no
+ * longer provisionally COMPLETED. [recordOutcome] hands a clean finish to `PlanVerifier` (Task 8,
+ * design spec section 11), which checks the plan's [com.aiopenpocket.agent.core.plan.model.PlanCriterion]s
+ * against the run's [AgentResult], persists a [com.aiopenpocket.agent.core.plan.model.PlanEvidence] row
+ * for every one it can newly prove, and returns the [StepStatus] that verification alone earns —
+ * COMPLETED only once every REQUIRED criterion has evidence (plan's Global Constraints: "a required
+ * criterion cannot be satisfied without persisted PlanEvidence"), otherwise READY/BLOCKED/FAILED
+ * depending on why (see `PlanVerifier`'s own kdoc "Outcome priority"). This class still owns ALL
+ * [StepStatus]/[com.aiopenpocket.agent.core.plan.model.PlanEvent] persistence — `PlanVerifier` only
+ * persists evidence and returns a verdict, matching this task's own "isolate the LLM/repository IO"
+ * instruction split across the two classes.
+ *
+ * KNOWN GAP (flagged in the Task 8 report): design spec section 8's transaction order lists
+ * `EXECUTING → VERIFYING` as its own persisted step before evidence/status. This class does not
+ * persist a separate interstitial [StepStatus.VERIFYING] row — [recordOutcome] still writes ONE
+ * [PlanStepState] with the final resolved status, exactly as Task 7 did. `PlanVerifier.stepStatusFor`
+ * DOES validate the final transition as legal FROM [StepStatus.VERIFYING] via
+ * [com.aiopenpocket.agent.core.plan.validation.PlanStateMachine.transitionStep], so the state-machine
+ * graph itself is respected; only the extra persisted row is the simplification.
  *
  * ## Tool scope
  *
@@ -126,6 +136,7 @@ class PlanExecutor @Inject constructor(
   private val toolRegistry: ToolRegistry,
   private val stepRunner: PlanStepRunner,
   private val assets: AssetSource,
+  private val verifier: PlanVerifier,
 ) {
   private var clock: () -> Long = System::currentTimeMillis
 
@@ -135,8 +146,9 @@ class PlanExecutor @Inject constructor(
     toolRegistry: ToolRegistry,
     stepRunner: PlanStepRunner,
     assets: AssetSource,
+    verifier: PlanVerifier,
     clock: () -> Long,
-  ) : this(repository, toolRegistry, stepRunner, assets) {
+  ) : this(repository, toolRegistry, stepRunner, assets, verifier) {
     this.clock = clock
   }
 
@@ -240,7 +252,7 @@ class PlanExecutor @Inject constructor(
       budget.maxToolCallsPerRun,
     ) { }
 
-    return recordOutcome(planId, version, step.id, nextAttempt, nextDueAt, now, agentResult)
+    return recordOutcome(fresh, step, nextAttempt, nextDueAt, now, agentResult, provider)
   }
 
   /**
@@ -259,29 +271,36 @@ class PlanExecutor @Inject constructor(
 
   /**
    * Maps the loop's raw [AgentResult] to a terminal [StepStatus] and persists it — see class kdoc
-   * "Raw result, not verification". [StepStatus.COMPLETED] here is PROVISIONAL: Task 8's `PlanVerifier`
-   * is expected to intercept this exact branch and only mark COMPLETED once
-   * [com.aiopenpocket.agent.core.plan.model.PlanStep.completionRule] is checked and evidence is
-   * persisted — until then this is "the run finished cleanly", not "the step is verified done". The
-   * [PlanEventType.STEP_VERIFIED] event on that branch is this task's best available fit (no
-   * `STEP_COMPLETED`/`STEP_FINISHED` constant exists in [PlanEventType] today — flagged in the task
-   * report) and is exactly what Task 8 should also reconcile once real verification lands.
+   * "Raw result vs. verified outcome". The ERROR/budget branches are decided directly from [result],
+   * exactly as Task 7 left them; a CLEAN finish is handed to [verifier] (Task 8), whose returned
+   * [PlanVerificationResult.stepStatus] is used AS-IS — this function never assigns COMPLETED itself.
+   * [verifier] is only even called on a clean finish: an ERRORed or budget-stopped run was never a
+   * candidate for COMPLETED to begin with, so there is nothing for it to verify (also keeps a stream
+   * error from paying for an extra LLM verification call it cannot need).
    */
   private suspend fun recordOutcome(
-    planId: String,
-    version: Int,
-    stepId: String,
+    snapshot: PlanSnapshot,
+    step: PlanStep,
     attempts: Int,
     nextDueAt: Long?,
     startedAt: Long,
     result: AgentResult,
+    provider: LlmProvider,
   ): PlanStepExecutionResult {
+    val planId = snapshot.plan.id
+    val version = snapshot.version.version
+    val stepId = step.id
     val now = clock()
     val stoppedByBudget = result.hitIterationLimit || result.stoppedByToolBudget
+    val verification = if (result.state != AgentState.ERROR && !stoppedByBudget) {
+      verifier.verify(snapshot, step, result, provider)
+    } else {
+      null
+    }
     val status = when {
       result.state == AgentState.ERROR -> StepStatus.FAILED
       stoppedByBudget -> StepStatus.BLOCKED
-      else -> StepStatus.COMPLETED
+      else -> checkNotNull(verification) { "verification must run on every non-error, non-budget-stopped outcome" }.stepStatus
     }
     repository.updateStepState(
       PlanStepState(
@@ -300,6 +319,7 @@ class PlanExecutor @Inject constructor(
         buildJsonObject {
           put("status", status.name)
           result.errorMessage?.let { put("error", it) }
+          verification?.let { put("verification", describeOutcome(it.outcome)) }
         },
       ),
     )
@@ -308,8 +328,21 @@ class PlanExecutor @Inject constructor(
       text = result.text,
       toolTrace = result.toolTrace,
       stoppedByBudget = stoppedByBudget,
-      error = if (status == StepStatus.FAILED) result.errorMessage else null,
+      error = if (status == StepStatus.FAILED) {
+        result.errorMessage ?: (verification?.outcome as? VerificationOutcome.Failed)?.reason
+      } else {
+        null
+      },
     )
+  }
+
+  /** Human-readable summary of [outcome] for the `STEP_VERIFIED`/`STEP_BLOCKED`/`ERROR` event payload — Task 8's "explanatory evidence/event" for a step that did not reach COMPLETED. */
+  private fun describeOutcome(outcome: VerificationOutcome): String = when (outcome) {
+    is VerificationOutcome.Proven -> "proven: ${outcome.evidence.size} new evidence row(s)"
+    is VerificationOutcome.Retryable -> outcome.reason
+    is VerificationOutcome.NeedsInfo -> outcome.question
+    is VerificationOutcome.NeedsRevision -> outcome.reason
+    is VerificationOutcome.Failed -> outcome.reason
   }
 
   private fun planEvent(
