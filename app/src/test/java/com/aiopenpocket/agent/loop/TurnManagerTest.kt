@@ -284,17 +284,6 @@ class TurnManagerTest {
     assertTrue(executor.calls.all { it.mode == AgentMode.GOAL && it.planId == "plan-42" && it.budget == budget })
   }
 
-  @Test
-  fun `NEED_INFO в фазе планирования вырезается из текста`() = runTest {
-    executor.script = { flowOf(AgentEvent.Completed(finished("[[NEED_INFO]] Какой именно отчёт нужен?"))) }
-    val m = manager()
-
-    m.launchTurn("c1", "сделай отчёт", AgentMode.PLAN)
-    advanceUntilIdle()
-
-    assertEquals("Какой именно отчёт нужен?", persistence.rows.last().content)
-  }
-
   // --- Task 10 (structured-plan-engine-907066): PlanProposed/PlanProgressed/PlanBlocked ----------
 
   @Test

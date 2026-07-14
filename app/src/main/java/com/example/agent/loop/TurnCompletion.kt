@@ -12,14 +12,6 @@ import com.aiopenpocket.agent.core.plan.model.PlanRunOutcome
  * подменить их ресурсами, не трогая логику). Логика на них только ССЫЛАЕТСЯ, не порождает свои.
  */
 object TurnTexts {
-  /** Гоал-мод упёрся в лимит витков с пустым текстом — честный частичный итог вместо пустоты. */
-  const val GOAL_ITERATION_LIMIT_PARTIAL =
-    "Достиг лимита витков — задача выполнена частично. Подробности — в трассировке инструментов."
-
-  /** NEED_INFO-ответ, из которого после вырезания маркера ничего не осталось. */
-  const val NEED_INFO_FALLBACK_QUESTION = "Уточни, пожалуйста, детали задачи — что именно нужно сделать?"
-
-  const val BLANK_PLAN_ERROR = "Модель не вернула план — попробуй ещё раз."
   const val BLANK_REPLY_ERROR = "Модель вернула пустой ответ — попробуй ещё раз."
 
   /** Превью пуша, когда ход завершился без текста (card-only ответ). */
@@ -48,9 +40,6 @@ object TurnTexts {
   }
 }
 
-/** Маркер план-планирования: модель ставит его в начало ответа-вопроса (вырезается из текста). */
-const val NEED_INFO_MARKER = "[[NEED_INFO]]"
-
 /** Имя тула инлайн-карточек — общее для извлечения (здесь) и фильтра черновика в ReflectionOrchestrator. */
 internal const val RENDER_CARD_TOOL = "render_card"
 
@@ -73,58 +62,34 @@ data class CompletedTurn(
 
 /**
  * Чистое решение по результату хода (симметрично [resolveTurnExecutionPlan], покрыто
- * TurnCompletionTest): NEED_INFO-гейт план-мода, blank-ошибки, GOAL-фолбэк пустого ответа,
- * извлечение render_card. Никакого I/O — TurnManager лишь применяет решение.
+ * TurnCompletionTest): blank-ошибки, извлечение render_card. Никакого I/O — TurnManager лишь
+ * применяет решение.
  *
- * Про [AgentMode.REFLECT]: сюда он тоже доходит (TurnManager отдаёт mode рефлексивных ходов), но
- * не проходит через [resolveTurnExecutionPlan]. planningPhase=false и GOAL-фолбэк его не касаются —
- * REFLECT обрабатывается как обычный чат-ответ (покрыто TurnCompletionTest).
+ * Применяется одинаково к CHAT/REFLECT/TUTOR. PLAN/GOAL турны Structured Plan Engine
+ * ([StructuredPlanOrchestrator]) заканчиваются [AgentEvent.PlanProposed]/[AgentEvent.PlanProgressed]/
+ * [AgentEvent.PlanBlocked]/[AgentEvent.Error] и сюда не попадают вовсе (см. kdoc [AgentMode]).
+ *
+ * Task 15 (structured-plan-engine-907066) убрал отсюда старый prompt-only NEED_INFO-гейт план-мода
+ * и GOAL-фолбэк пустого ответа на лимите витков — обе механики принадлежали снятому prompt-only
+ * PLAN/GOAL (значит, и параметры `mode`/`planApproved`, от которых они зависели), а не
+ * CHAT/REFLECT/TUTOR, которые эта функция по-прежнему обслуживает без изменений в поведении.
  *
  * До Task 5 (structured-plan-engine-907066) [CompletedTurn] нёс ещё и `planAwaitingApproval` — флаг
  * «показан непустой план, ждём решения», которым TurnManager поднимал per-turn approval-бар в чате.
  * Тот флаг убран: показан ли план и ждёт ли он решения — теперь состояние persisted AgentPlan в
  * PlanRepository (см. com.aiopenpocket.agent.core.plan.execution.PlanCommands), а не производная
- * одного хода. `planningPhase`/`needInfo` здесь остаются — они по-прежнему решают, как читать
- * responseText/blankError фазы планирования, просто больше не публикуются наружу отдельным полем.
+ * одного хода.
  */
-fun resolveCompletedTurn(
-  mode: AgentMode,
-  planApproved: Boolean,
-  result: AgentResult,
-): CompletedTurn {
+fun resolveCompletedTurn(result: AgentResult): CompletedTurn {
   val cardSpecs = result.toolTrace
     .filter { it.toolName == RENDER_CARD_TOOL }
     .mapNotNull { (it.result as? ToolResult.Success)?.data }
 
-  // Гоал-мод: если цикл УПЁРСЯ В ЛИМИТ витков с пустым текстом — честный частичный итог вместо
-  // пустоты (трейс есть в UI). Чистый финиш без текста (напр. только render_card или просто пустой
-  // ответ) под фолбэк не подводим — иначе «частичный итог» приписался бы успешному card-only ходу.
-  val rawText = if (mode == AgentMode.GOAL && result.text.isBlank() && result.hitIterationLimit) {
-    TurnTexts.GOAL_ITERATION_LIMIT_PARTIAL
-  } else {
-    result.text
-  }
-
-  // Фаза планирования: маркер [[NEED_INFO]] В НАЧАЛЕ ответа = уточняющий вопрос, не план.
-  val planningPhase = mode == AgentMode.PLAN && !planApproved
-  val needInfo = planningPhase && rawText.trimStart().startsWith(NEED_INFO_MARKER)
-  val responseText = when {
-    needInfo -> rawText.trimStart().removePrefix(NEED_INFO_MARKER).trim()
-      .ifBlank { TurnTexts.NEED_INFO_FALLBACK_QUESTION }
-
-    planningPhase -> rawText.trim()
-    else -> rawText
-  }
-
-  val blankReply = responseText.isBlank() && cardSpecs.isEmpty()
-  val blankError = when {
-    planningPhase && blankReply -> TurnTexts.BLANK_PLAN_ERROR
-    blankReply -> TurnTexts.BLANK_REPLY_ERROR
-    else -> null
-  }
+  val blankReply = result.text.isBlank() && cardSpecs.isEmpty()
+  val blankError = if (blankReply) TurnTexts.BLANK_REPLY_ERROR else null
 
   return CompletedTurn(
-    responseText = responseText,
+    responseText = result.text,
     cardSpecs = cardSpecs,
     blankError = blankError,
   )

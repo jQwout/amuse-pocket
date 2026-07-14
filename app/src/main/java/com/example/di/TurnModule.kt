@@ -37,11 +37,11 @@ object TurnModule {
       // Точка диспатча по режиму (а не в ChatViewModel, как на старой ветке): менеджер уже прокинул
       // mode. REFLECT — 3-фазный оркестратор поверх того же ReactLoopRunner. PLAN/GOAL (Task 10,
       // structured-plan-engine-907066) — типовой Structured Plan Engine (PlanPlanner → PlanRunner →
-      // PlanExecutor/PlanVerifier), а не прежний prompt-only гейт/петля AgentLoopOrchestrator (тот
-      // путь остаётся кодом — см. AgentMode kdoc — но с этой точки диспатча больше не достижим).
-      // CHAT/TUTOR — как раньше, основной цикл; planId/budget этой ветке не нужны (сигнатура
-      // AgentLoopOrchestrator.execute их не трогает, дефолты planApproved=false/goalMaxIterations=3
-      // инертны для mode, который сюда никогда не приходит как PLAN/GOAL).
+      // PlanExecutor/PlanVerifier), а не старый prompt-only гейт/петля, которые раньше жили в
+      // AgentLoopOrchestrator: Task 15 (structured-plan-engine-907066) убрал их вместе с
+      // planApproved/goalMaxIterations params и ассетами prompts/modes/*.md — с этой точки диспатча
+      // они и так были недостижимы. CHAT/TUTOR — как раньше, основной цикл; planId/budget этой ветке
+      // не нужны (AgentLoopOrchestrator.execute их не принимает вовсе).
       when (mode) {
         AgentMode.REFLECT -> reflectionOrchestrator.execute(conversationId, message, provider, executionMode)
         AgentMode.PLAN -> structuredPlanOrchestrator.propose(conversationId, message, provider)
