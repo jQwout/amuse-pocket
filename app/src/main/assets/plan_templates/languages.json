@@ -1,0 +1,55 @@
+{
+  "id": "languages-v1",
+  "agentId": "languages",
+  "supportedHorizons": ["PROGRAM"],
+  "requiredConstraints": [
+    "Интервалы повторения и даты due считает только srs_tool — план не должен придумывать или пересчитывать их самостоятельно.",
+    "Достижение учебной цели засчитывается только по подтверждённому пользователем checkpoint (устный/письменный), а не по самооценке модели."
+  ],
+  "suggestedSteps": [
+    {
+      "title": "Входная оценка",
+      "instruction": "Оценить текущий уровень пользователя и сформулировать измеримую учебную цель.",
+      "suggestedExpectedTools": ["memory_tool"]
+    },
+    {
+      "title": "Расписание",
+      "instruction": "Согласовать расписание регулярных занятий и напоминаний о повторениях.",
+      "suggestedExpectedTools": ["memory_tool", "heartbeat"]
+    },
+    {
+      "title": "SRS sessions",
+      "instruction": "Проводить регулярные занятия со srs_tool (due_words, review, add_word) по согласованному расписанию.",
+      "suggestedExpectedTools": ["srs_tool", "heartbeat", "render_card"],
+      "suggestedSchedule": { "kind": "PERIODIC", "intervalMinutes": 1440 }
+    },
+    {
+      "title": "Checkpoint",
+      "instruction": "Провести устную или письменную проверку прогресса и получить от пользователя подтверждение результата.",
+      "suggestedExpectedTools": ["srs_tool", "render_card"]
+    },
+    {
+      "title": "Пересмотр после checkpoint",
+      "instruction": "По результатам checkpoint закрыть достигнутые цели или предложить пересмотр плана (propose_plan_revision).",
+      "suggestedExpectedTools": ["memory_tool"]
+    }
+  ],
+  "suggestedCriteria": [
+    {
+      "description": "Проведено согласованное количество занятий по расписанию.",
+      "suggestedVerifierType": "TOOL_RESULT",
+      "required": true
+    },
+    {
+      "description": "SRS backlog (due_words) закрыт на момент checkpoint.",
+      "suggestedVerifierType": "TOOL_RESULT",
+      "required": true
+    },
+    {
+      "description": "Пользователь подтвердил результат устной или письменной проверки (checkpoint).",
+      "suggestedVerifierType": "USER_CONFIRMATION",
+      "required": true
+    }
+  ],
+  "forbiddenToolNames": []
+}

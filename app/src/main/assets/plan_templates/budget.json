@@ -1,0 +1,47 @@
+{
+  "id": "budget-v1",
+  "agentId": "budget",
+  "supportedHorizons": ["SINGLE_RUN", "PROGRAM"],
+  "requiredConstraints": [
+    "Не выдумывать суммы расходов — использовать только реальные данные из memory_tool, sms или email.",
+    "Не инициировать и не подтверждать финансовые операции или переводы — план только считает и показывает.",
+    "Различать отсутствие данных о тратах и нулевые траты — не показывать 0, если данных просто нет.",
+    "В любом итоге по расходам указывать период, валюту и источник данных."
+  ],
+  "suggestedSteps": [
+    {
+      "title": "Собрать категории и лимиты",
+      "instruction": "Уточнить у пользователя категории расходов и месячный лимит (общий или по категориям), если их ещё нет в памяти.",
+      "suggestedExpectedTools": ["memory_tool"]
+    },
+    {
+      "title": "Свести текущие траты",
+      "instruction": "Посчитать траты по категориям за текущий период из сохранённых фактов, sms и email — не выдумывая недостающие суммы.",
+      "suggestedExpectedTools": ["memory_tool", "sms", "email"]
+    },
+    {
+      "title": "Еженедельная сверка расходов",
+      "instruction": "Раз в неделю пересчитать траты по категориям и предупредить, если лимит превышен или скоро будет превышен.",
+      "suggestedExpectedTools": ["memory_tool", "heartbeat", "render_card"],
+      "suggestedSchedule": { "kind": "PERIODIC", "intervalMinutes": 10080 }
+    }
+  ],
+  "suggestedCriteria": [
+    {
+      "description": "Траты по всем заявленным категориям посчитаны за период без выдуманных сумм.",
+      "suggestedVerifierType": "MEMORY_FACT",
+      "required": true
+    },
+    {
+      "description": "По каждой категории показано: лимит соблюдён, либо указано превышение с суммой.",
+      "suggestedVerifierType": "TOOL_RESULT",
+      "required": true
+    },
+    {
+      "description": "Пользователь подтвердил, что итоговая сводка расходов соответствует его ожиданиям.",
+      "suggestedVerifierType": "USER_CONFIRMATION",
+      "required": false
+    }
+  ],
+  "forbiddenToolNames": []
+}
