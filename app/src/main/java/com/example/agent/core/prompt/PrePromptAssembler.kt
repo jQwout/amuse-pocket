@@ -2,6 +2,7 @@
 
 // @trace rezhimy-agenta-plan-i-goal-ee2361
 // @trace user-agent-builder-848153
+// @trace structured-plan-engine-907066
 
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.AgentResolver
@@ -9,6 +10,7 @@ import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.loop.PromptMode
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
+import com.aiopenpocket.agent.core.plan.context.PlanContextProvider
 import com.aiopenpocket.agent.core.skill.SkillRegistry
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +28,7 @@ class PrePromptAssembler @Inject constructor(
   private val skillRegistry: SkillRegistry,
   private val userPreferencesRepository: UserPreferencesRepository,
   private val agentResolver: AgentResolver,
+  private val planContextProvider: PlanContextProvider,
 ) {
 
   suspend fun assemble(
@@ -59,6 +62,9 @@ class PrePromptAssembler @Inject constructor(
           tailCount = LlmContextConfig.TAIL_MESSAGE_COUNT,
         )
       }
+      // Активный план этого диалога (Task 6) — смотрит только на conversationId, не на
+      // conversation/agent ниже, поэтому тоже независим и идёт в этой же параллельной пачке.
+      val planContextDeferred = async { planContextProvider.forConversation(conversationId) }
 
       val systemBase = systemBaseDeferred.await()
       val modePrompt = modePromptDeferred.await()
@@ -67,6 +73,7 @@ class PrePromptAssembler @Inject constructor(
       val profileFacts = profileFactsDeferred.await()
       val episodes = episodesDeferred.await()
       val windowParts = windowPartsDeferred.await()
+      val planContext = planContextDeferred.await()
 
       // Зависит от conversation (выше), поэтому идёт последовательно за ним.
       // Персона: у диалога своя (если задана), иначе — выбранная пользователем на онбординге, иначе дефолт.
@@ -173,6 +180,15 @@ class PrePromptAssembler @Inject constructor(
               "чтобы получить подробную инструкцию, затем действуй по ней.",
           )
           appendLine(skillCatalog)
+          appendLine()
+        }
+
+        // Активный утверждённый план этого диалога (Task 6) — компактная, эскейпленная сводка;
+        // полный snapshot видят только Planner/Executor/Verifier (design spec section 14). Диалог
+        // без плана НЕ получает эту секцию вообще: planContext == null, ничего не добавляется —
+        // системный промпт обычного чата побайтово не меняется этой задачей.
+        if (planContext != null) {
+          appendLine(PlanContextProvider.render(planContext))
           appendLine()
         }
 
