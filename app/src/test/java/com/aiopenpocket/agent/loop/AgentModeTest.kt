@@ -6,63 +6,28 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Контракт режимов: гейт план-мода и петля гоал-мода. */
+/**
+ * Контракт CHAT/TUTOR-ходов ([resolveTurnExecutionPlan]). PLAN/GOAL идут через Structured Plan
+ * Engine ([StructuredPlanOrchestrator]) и никогда не доходят до этой функции — их собственная
+ * маршрутизация покрыта `com.aiopenpocket.di.TurnModule`'s dispatch (см. [AgentMode] kdoc) и
+ * `StructuredPlanOrchestratorTest`/`PlanRunnerTest`/`PlanPlannerTest`.
+ *
+ * Task 15 (structured-plan-engine-907066) убрал отсюда тесты старого prompt-only план-гейта и
+ * гоал-петли ([resolveTurnExecutionPlan] больше не принимает `planApproved`/`goalMaxIterations` и не
+ * выбирает `PromptMode` — обе механики принадлежали снятому PLAN/GOAL prompt-контракту).
+ */
 class AgentModeTest {
 
   private val chatMax = 10
 
-  private fun plan(mode: AgentMode, approved: Boolean = false, goalMax: Int = 3) =
-    resolveTurnExecutionPlan(mode, planApproved = approved, goalMaxIterations = goalMax, chatMaxIterations = chatMax)
+  private fun plan(mode: AgentMode) = resolveTurnExecutionPlan(mode, chatMaxIterations = chatMax)
 
   @Test
-  fun chat_usesAllToolsFullIterationsNoModePrompt() {
+  fun chat_usesAllToolsFullIterationsNoSuffix() {
     val turn = plan(AgentMode.CHAT)
     assertTrue(turn.usesTools)
     assertEquals(chatMax, turn.maxIterations)
-    assertEquals(PromptMode.NONE, turn.promptMode)
-  }
-
-  @Test
-  fun planPlanning_blocksToolsSingleIteration() {
-    val turn = plan(AgentMode.PLAN, approved = false)
-    assertFalse("в фазе планирования инструменты должны быть отключены (гейт)", turn.usesTools)
-    assertEquals(1, turn.maxIterations)
-    assertEquals(PromptMode.PLAN_PLANNING, turn.promptMode)
-  }
-
-  @Test
-  fun planApproved_enablesToolsAndExecutingPrompt() {
-    val turn = plan(AgentMode.PLAN, approved = true)
-    assertTrue(turn.usesTools)
-    assertEquals(chatMax, turn.maxIterations)
-    assertEquals(PromptMode.PLAN_EXECUTING, turn.promptMode)
-  }
-
-  @Test
-  fun goal_usesToolsLimitedToGoalIterations() {
-    val turn = plan(AgentMode.GOAL, goalMax = 3)
-    assertTrue(turn.usesTools)
-    assertEquals(3, turn.maxIterations)
-    assertEquals(PromptMode.GOAL, turn.promptMode)
-  }
-
-  @Test
-  fun goal_iterationLimitIsClampedToChatMax() {
-    assertEquals(chatMax, plan(AgentMode.GOAL, goalMax = 99).maxIterations)
-    assertEquals(1, plan(AgentMode.GOAL, goalMax = 0).maxIterations)
-  }
-
-  @Test
-  fun goal_promptSuffixNamesTheIterationBudget() {
-    val turn = plan(AgentMode.GOAL, goalMax = 3)
-    assertTrue("суффикс должен называть бюджет витков", turn.systemPromptSuffix!!.contains("не более 3 витков"))
-  }
-
-  @Test
-  fun nonGoalModes_haveNoPromptSuffix() {
-    assertNull(plan(AgentMode.CHAT).systemPromptSuffix)
-    assertNull(plan(AgentMode.PLAN, approved = false).systemPromptSuffix)
-    assertNull(plan(AgentMode.PLAN, approved = true).systemPromptSuffix)
+    assertNull(turn.systemPromptSuffix)
   }
 
   @Test
@@ -72,7 +37,6 @@ class AgentModeTest {
     val turn = plan(AgentMode.TUTOR)
     assertFalse("tutor-ход только объясняет — инструменты отключены", turn.usesTools)
     assertEquals(1, turn.maxIterations)
-    assertEquals(PromptMode.NONE, turn.promptMode)
     assertTrue("tutor несёт рамку «только объясняй»", turn.systemPromptSuffix!!.contains("объясни"))
   }
 }

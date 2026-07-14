@@ -27,7 +27,6 @@ import com.aiopenpocket.agent.core.plan.model.VerifierType
 import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
 import com.aiopenpocket.agent.core.skill.SkillRegistry
 import com.aiopenpocket.agent.core.skill.UserSkillRepository
-import com.aiopenpocket.agent.loop.PromptMode
 import com.aiopenpocket.data.database.AppDatabase
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -48,9 +47,11 @@ import org.robolectric.annotation.Config
  * [com.aiopenpocket.agent.loop.ReflectionOrchestratorTest]'s own [PrePromptAssembler] object graph —
  * no hand-rolled fakes for the repositories.
  *
- * `PrePromptAssemblerModeAssetsTest` (same package) already covers mode-prompt asset existence and
- * is deliberately left untouched — this file is a new, separate behavioral suite for [PrePromptAssembler.assemble]
- * itself, since no such suite existed before this task.
+ * Task 15 (structured-plan-engine-907066): [PrePromptAssembler.assemble] no longer takes a
+ * `promptMode` parameter — the `PromptMode`/`prompts/modes/*.md` mode-prompt mechanism it used to
+ * drive belonged to the old prompt-only PLAN/GOAL contract Task 15 removed, so the
+ * `PrePromptAssemblerModeAssetsTest` suite that once covered that mechanism's asset existence is gone
+ * with it.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -130,7 +131,7 @@ class PrePromptAssemblerTest {
     planRepository.saveProposal(plan(), version("plan-1", "Собрать бюджет на месяц"))
     planRepository.approve("plan-1", 1)
 
-    val result = assembler.assemble("c1", "привет", promptMode = PromptMode.NONE)
+    val result = assembler.assemble("c1", "привет")
 
     assertTrue(result.systemPrompt.contains("## Активный утверждённый план"))
     assertTrue(result.systemPrompt.contains("<plan_data trust=\"structured\">"))
@@ -141,7 +142,7 @@ class PrePromptAssemblerTest {
   fun `assemble omits the plan section entirely for a plain chat with no plan`() = runTest {
     db.conversationDao().insert(ConversationEntity(id = "c1", title = "T"))
 
-    val result = assembler.assemble("c1", "привет", promptMode = PromptMode.NONE)
+    val result = assembler.assemble("c1", "привет")
 
     assertFalse(result.systemPrompt.contains("Активный утверждённый план"))
     assertFalse(result.systemPrompt.contains("plan_data"))
@@ -152,23 +153,9 @@ class PrePromptAssemblerTest {
     db.conversationDao().insert(ConversationEntity(id = "c1", title = "T"))
     planRepository.saveProposal(plan(), version("plan-1", "Ещё не одобренный план"))
 
-    val result = assembler.assemble("c1", "привет", promptMode = PromptMode.NONE)
+    val result = assembler.assemble("c1", "привет")
 
     assertFalse(result.systemPrompt.contains("Активный утверждённый план"))
     assertFalse(result.systemPrompt.contains("Ещё не одобренный план"))
-  }
-
-  @Test
-  fun `assemble still renders the plan section during PLAN_EXECUTING mode, unaffected by mode gating`() = runTest {
-    db.conversationDao().insert(ConversationEntity(id = "c1", title = "T"))
-    planRepository.saveProposal(plan(), version("plan-1", "Собрать бюджет на месяц"))
-    planRepository.approve("plan-1", 1)
-
-    val result = assembler.assemble("c1", "привет", promptMode = PromptMode.PLAN_EXECUTING)
-
-    // The plan section is gated purely on "does this conversation have an approved plan", never on
-    // promptMode — it must still show up unchanged even though this specific call also loads the
-    // (separate, trusted) plan_executing.md mode asset.
-    assertTrue(result.systemPrompt.contains("## Активный утверждённый план"))
   }
 }

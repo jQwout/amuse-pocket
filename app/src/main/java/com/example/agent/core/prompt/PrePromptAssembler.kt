@@ -7,7 +7,6 @@
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
-import com.aiopenpocket.agent.loop.PromptMode
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
 import com.aiopenpocket.agent.core.plan.context.PlanContextProvider
@@ -34,14 +33,11 @@ class PrePromptAssembler @Inject constructor(
   suspend fun assemble(
     conversationId: String,
     currentMessage: String,
-    promptMode: PromptMode = PromptMode.NONE,
   ): PromptContext =
     withContext(Dispatchers.IO) {
       // Независимые друг от друга чтения (БД/DataStore/ассеты) — запускаем разом и ждём вместе,
       // вместо последовательных await: на каждый ход чата это было ~7-8 круговых обращений подряд.
       val systemBaseDeferred = async { loadAsset("prompts/system_base.md") ?: DEFAULT_SYSTEM_BASE }
-      // Секция режима (план-/гоал-мод) — доверенная инструкция, подмешивается поверх базовой.
-      val modePromptDeferred = async { loadModePrompt(promptMode) }
       val conversationDeferred = async { conversationRepository.getConversation(conversationId) }
       // Язык общения, выбранный на онбординге (по умолчанию русский).
       val languageDeferred = async { userPreferencesRepository.getLanguage() }
@@ -67,7 +63,6 @@ class PrePromptAssembler @Inject constructor(
       val planContextDeferred = async { planContextProvider.forConversation(conversationId) }
 
       val systemBase = systemBaseDeferred.await()
-      val modePrompt = modePromptDeferred.await()
       val conversation = conversationDeferred.await()
       val language = languageDeferred.await()
       val profileFacts = profileFactsDeferred.await()
@@ -137,10 +132,6 @@ class PrePromptAssembler @Inject constructor(
       val systemPrompt = buildString {
         appendLine(systemBase)
         appendLine()
-        if (modePrompt != null) {
-          appendLine(modePrompt)
-          appendLine()
-        }
         if (tutorialPrompt != null) {
           appendLine(tutorialPrompt)
           appendLine()
@@ -252,17 +243,6 @@ class PrePromptAssembler @Inject constructor(
     }
 
   private fun loadAsset(path: String): String? = assets.load(path)
-
-  /** Грузит секцию системного промпта для режима агента (план-/гоал-мод). NONE → null. */
-  private fun loadModePrompt(promptMode: PromptMode): String? {
-    val asset = when (promptMode) {
-      PromptMode.NONE -> return null
-      PromptMode.PLAN_PLANNING -> "prompts/modes/plan_planning.md"
-      PromptMode.PLAN_EXECUTING -> "prompts/modes/plan_executing.md"
-      PromptMode.GOAL -> "prompts/modes/goal.md"
-    }
-    return loadAsset(asset)
-  }
 
   /** Человекочитаемая метка языка для системной секции (код языка из онбординга → название). */
   private fun languageLabel(code: String): String = when (code.lowercase()) {

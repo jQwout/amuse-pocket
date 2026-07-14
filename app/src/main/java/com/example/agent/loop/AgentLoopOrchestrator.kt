@@ -22,19 +22,18 @@ import com.aiopenpocket.di.AppScope
  * the tool set and emits a terminal Completed/Error. The reasoning loop itself lives in
  * [ReactLoopRunner] so that multi-phase orchestrators ([ReflectionOrchestrator]) reuse the same engine.
  *
- * Поверх базового хода поддерживает режимы агента ([AgentMode]): план-гейт (фаза планирования без
- * инструментов → одобрение → выполнение) и гоал-петля (лимит витков). Решение режима — чистая
- * [resolveTurnExecutionPlan] (покрыта AgentModeTest).
+ * Поверх базового хода поддерживает [AgentMode.TUTOR] (разовый вопрос без инструментов, один ход);
+ * [AgentMode.CHAT] — обычный цикл. Решение режима — чистая [resolveTurnExecutionPlan] (покрыта
+ * AgentModeTest).
  *
- * Task 10 (structured-plan-engine-907066): [com.aiopenpocket.di.TurnModule]'s `TurnExecutor` no
- * longer dispatches [AgentMode.PLAN]/[AgentMode.GOAL] here — those now go to
- * [StructuredPlanOrchestrator], which runs the typed Structured Plan Engine
- * ([com.aiopenpocket.agent.core.plan.execution.PlanRunner]/`PlanExecutor`/`PlanVerifier`) instead of
- * this class's own prompt-only gate/loop. `execute` itself is UNCHANGED and still accepts
- * `mode`/`planApproved`/`goalMaxIterations` (so [resolveTurnExecutionPlan]'s PLAN/GOAL branches below
- * keep compiling and keep their own tests green) — this is now called ONLY with
- * [AgentMode.CHAT]/[AgentMode.TUTOR] in practice, so those two branches are effectively dead code,
- * intentionally left in place for the legacy prompt-only PLAN/GOAL assets Task 15 retires.
+ * Task 10 (structured-plan-engine-907066): [com.aiopenpocket.di.TurnModule]'s `TurnExecutor` dispatches
+ * [AgentMode.PLAN]/[AgentMode.GOAL] to [StructuredPlanOrchestrator] instead, which runs the typed
+ * Structured Plan Engine ([com.aiopenpocket.agent.core.plan.execution.PlanRunner]/`PlanExecutor`/
+ * `PlanVerifier`) — this class is called ONLY with [AgentMode.CHAT]/[AgentMode.TUTOR]. Task 15
+ * (structured-plan-engine-907066) removed the old prompt-only PLAN/GOAL gate/loop this class used to
+ * carry (`planApproved`/`goalMaxIterations` params, [resolveTurnExecutionPlan]'s PLAN/GOAL branches)
+ * along with the `prompts/modes/*.md` assets it depended on — Structured Plan Engine is now the only
+ * PLAN/GOAL implementation.
  */
 // @trace rezhimy-agenta-plan-i-goal-ee2361
 @SingleIn(AppScope::class)
@@ -52,16 +51,14 @@ class AgentLoopOrchestrator @Inject constructor(
     userMessage: String,
     provider: LlmProvider = LlmProvider.NIM,
     mode: AgentMode = AgentMode.CHAT,
-    planApproved: Boolean = false,
-    goalMaxIterations: Int = 3,
     systemPromptExtra: String? = null,
     executionMode: ExecutionMode = ExecutionMode.LIVE,
   ): Flow<AgentEvent> = agentTurnFlow(log, TAG, "Unknown error") {
     // Error-контракт (in-band Error, rethrow отмены, buffer+IO) — в agentTurnFlow.
-    // Контракт режима (гейт план-мода / петля гоал-мода) — чистое решение, покрыто AgentModeTest.
-    val turn = resolveTurnExecutionPlan(mode, planApproved, goalMaxIterations, ReactLoopRunner.MAX_ITERATIONS)
+    // Контракт режима (CHAT/TUTOR) — чистое решение, покрыто AgentModeTest.
+    val turn = resolveTurnExecutionPlan(mode, ReactLoopRunner.MAX_ITERATIONS)
 
-    val context = prePromptAssembler.assemble(conversationId, userMessage, turn.promptMode)
+    val context = prePromptAssembler.assemble(conversationId, userMessage)
     // Секция бюджета витков (и любая другая режимная добавка) собрана в resolveTurnExecutionPlan;
     // systemPromptExtra — доверенный контекст хода (напр. текст текущего шага урока для tutor-вопроса).
     val withSuffix = turn.systemPromptSuffix
@@ -77,8 +74,8 @@ class AgentLoopOrchestrator @Inject constructor(
     // The caller persists the user message to DB before calling execute(),
     // so it's already included in context.history via ContextWindowBuilder.
 
-    // Гейт план-мода: на фазе планирования инструменты модели не отдаём (она физически ничего не
-    // выполнит). Иначе — обычный набор: scoped для мини-агента, либо полный.
+    // Гейт tutor-хода: модель только объясняет, инструменты не отдаём. Иначе — обычный набор:
+    // scoped для мини-агента, либо полный.
     val tools = if (!turn.usesTools) {
       emptyList()
     } else {
@@ -92,8 +89,7 @@ class AgentLoopOrchestrator @Inject constructor(
     }
 
     // Token estimates feed the chat's response stats bar; computed at the boundary so the
-    // ReactLoopRunner stays unaware of UI concerns. GOAL-фолбэк пустого текста теперь в
-    // resolveCompletedTurn (TurnManager) — оценка токенов на «пустом» ходе честно даёт 0.
+    // ReactLoopRunner stays unaware of UI concerns.
     val promptTokensEstimate = LlmContextConfig.estimateTokens(context.systemPrompt) +
       context.history.sumOf { LlmContextConfig.estimateTokens(it.content) }
     val result = baseResult.copy(
@@ -144,8 +140,9 @@ data class AgentResult(
   val promptTokensEstimate: Int = 0,
   val completionTokensEstimate: Int = 0,
   /**
-   * Цикл остановился, упёршись в лимит витков (а не потому что модель дала финальный ответ). Только
-   * тогда GOAL-мод показывает «частичный итог» вместо пустого ответа (см. resolveCompletedTurn).
+   * Цикл остановился, упёршись в лимит витков (а не потому что модель дала финальный ответ).
+   * [com.aiopenpocket.agent.core.plan.execution.PlanExecutor] читает это (вместе с
+   * [stoppedByToolBudget]) как `stoppedByBudget`, чтобы решить, нужна ли верификация шага плана.
    */
   val hitIterationLimit: Boolean = false,
   /**

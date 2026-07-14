@@ -282,7 +282,7 @@ class TurnManager(
           session.toolTraceFlow.update { it + newTrace }
         }
 
-        is AgentEvent.Completed -> handleCompleted(session, mode, event.result)
+        is AgentEvent.Completed -> handleCompleted(session, event.result)
 
         is AgentEvent.Error -> finishFailed(session, event.message)
 
@@ -294,8 +294,8 @@ class TurnManager(
         }
 
         // Task 10 (structured-plan-engine-907066): PLAN/GOAL терминальные события StructuredPlanOrchestrator
-        // — свой текст, без resolveCompletedTurn (тот остаётся только для CHAT/REFLECT/legacy PLAN/GOAL,
-        // которые сюда как AgentEvent.Completed не приходят с этих режимов после миграции).
+        // — свой текст, без resolveCompletedTurn (тот обслуживает только CHAT/REFLECT/TUTOR, которые
+        // сюда как AgentEvent.Completed приходят; PLAN/GOAL с этих режимов не приходят вовсе).
         is AgentEvent.PlanProposed -> finishPlanMessage(session, TurnTexts.planProposedMessage(event.planId, event.version))
         is AgentEvent.PlanProgressed -> finishPlanMessage(session, TurnTexts.planProgressMessage(event.result))
         is AgentEvent.PlanBlocked -> finishPlanMessage(session, event.reason)
@@ -305,18 +305,15 @@ class TurnManager(
 
   private suspend fun handleCompleted(
     session: TurnSession,
-    mode: AgentMode,
     result: AgentResult,
   ) {
     val convId = session.conversationId
-    // Все решения (NEED_INFO, blank-ошибки, GOAL-фолбэк, карточки) — в чистой политике; здесь
-    // только применяем: записать, обновить статус, уведомить. planApproved жёстко false (Task 10):
-    // этот путь (AgentEvent.Completed) больше не достижим ни для PLAN, ни для GOAL — оба режима
-    // теперь заканчиваются PlanProposed/PlanProgressed/PlanBlocked/Error (см. collectTurnEvents),
-    // так что resolveCompletedTurn's planningPhase-ветка здесь всегда false и её NEED_INFO-логика
-    // не срабатывает — оставлена нетронутой ради CHAT/REFLECT/legacy тестов (AgentModeTest,
-    // TurnCompletionTest), которые её всё ещё покрывают.
-    val outcome = resolveCompletedTurn(mode, planApproved = false, result)
+    // Все решения (blank-ошибки, карточки) — в чистой политике; здесь только применяем: записать,
+    // обновить статус, уведомить. Этот путь (AgentEvent.Completed) обслуживает только CHAT/REFLECT/
+    // TUTOR: PLAN/GOAL теперь заканчиваются PlanProposed/PlanProgressed/PlanBlocked/Error (см.
+    // collectTurnEvents) — Task 15 (structured-plan-engine-907066) убрал mode-зависимые ветки из
+    // resolveCompletedTurn вместе со старым prompt-only PLAN/GOAL, так что mode ему больше не нужен.
+    val outcome = resolveCompletedTurn(result)
     val insertedId = if (outcome.responseText.isNotBlank() || outcome.cardSpecs.isNotEmpty()) {
       persistence.addAssistantMessage(convId, outcome.responseText, outcome.cardSpecs.firstOrNull())
     } else {
