@@ -95,6 +95,18 @@ data class PlanRunResult(
  * silently queuing behind the first, which could otherwise double-run the exact step the second
  * caller expected to observe.
  *
+ * ## Crash recovery (Task 14)
+ *
+ * [Mutex] above only guards concurrency WITHIN one live process; it says nothing about a step left
+ * [StepStatus.EXECUTING] because the PROCESS itself died mid-[PlanExecutor.execute] (no mutex holder
+ * survives to release/retry it). [runLocked] calls `PlanRecovery.recoverSnapshot` once per [run] call,
+ * before [selectStep] ever runs, so such a step is always repaired — to [StepStatus.COMPLETED] if
+ * durable evidence already proves its side effect ran, [StepStatus.BLOCKED] otherwise — before this
+ * loop can pick a next step. Without it, [SELECTABLE_STATUSES] excluding EXECUTING/VERIFYING would
+ * leave a crashed plan deadlocked forever: never selectable again, never reported as blocked either.
+ * See `PlanRecovery`'s own kdoc for why this never re-invokes an LLM/tool and never double-persists
+ * evidence/events on a repeat call.
+ *
  * ## Resolving [PlanRunRequest.planId] when null
  *
  * [run] resolves "the" plan for [PlanRunRequest.conversationId] only when [PlanRunRequest.planId] is
@@ -159,12 +171,28 @@ class PlanRunner @Inject constructor(
     val executedSteps = mutableListOf<String>()
     var stepsLeft = request.budget.maxStepsPerRun
     var pinnedStepId = request.requestedStepId
+    var recovered = false
 
     while (true) {
-      val snapshot = repository.snapshot(planId)
+      var snapshot = repository.snapshot(planId)
         ?: return PlanRunResult(planId, PlanRunOutcome.FAILED, executedSteps, "Plan '$planId' does not exist.")
       check(snapshot.plan.conversationId == request.conversationId) {
         "Plan '$planId' belongs to conversation '${snapshot.plan.conversationId}', not the requested '${request.conversationId}'."
+      }
+
+      // Self-heal (Task 14): a step left EXECUTING/VERIFYING by a process death mid-step is invisible
+      // to selectStep's own SELECTABLE_STATUSES below — without this, a crashed step would deadlock
+      // this plan forever, never selected again and never reported as blocked. Reuses PlanRecovery's
+      // repair logic directly (this class already holds the SAME PlanRepository instance) rather than
+      // taking on PlanRecovery/PlanScheduleSync as a new constructor dependency of its own; only once
+      // per run call — a live run's own step transitions can never themselves leave a stuck row for a
+      // LATER iteration of this same loop to find. See PlanRecovery's class kdoc "Where this runs".
+      if (!recovered) {
+        recovered = true
+        if (PlanRecovery.recoverSnapshot(repository, snapshot, clock())) {
+          snapshot = repository.snapshot(planId)
+            ?: return PlanRunResult(planId, PlanRunOutcome.FAILED, executedSteps, "Plan '$planId' vanished during recovery.")
+        }
       }
 
       statusStop(snapshot)?.let { return it.copy(executedStepIds = executedSteps.toList()) }
