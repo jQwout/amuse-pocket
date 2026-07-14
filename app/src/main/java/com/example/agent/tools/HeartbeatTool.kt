@@ -8,12 +8,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
-import androidx.work.Data
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
 import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
@@ -23,8 +17,8 @@ import com.aiopenpocket.agent.core.mcp.string
 import com.aiopenpocket.agent.core.mcp.toolSchema
 import com.aiopenpocket.agent.core.memory.dao.HeartbeatDao
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
+import com.aiopenpocket.agent.core.plan.schedule.HeartbeatScheduler
 import com.aiopenpocket.agent.loop.TurnContextHolder
-import com.aiopenpocket.agent.workers.HeartbeatWorker
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -36,7 +30,17 @@ import java.util.concurrent.TimeUnit
  * Напоминалки и heartbeat агента. mode=push — статичный пуш в назначенное время;
  * mode=agent — фоновое пробуждение агента (с задачей из prompt или дефолтным «пульсом»,
  * где агент сам решает, писать ли юзеру — HEARTBEAT_OK = молчать). Источник правды — Room
- * (heartbeats), WorkManager получает только id.
+ * (heartbeats); фактическое планирование/отмена WorkManager-задачи вынесены в
+ * [HeartbeatScheduler] (Task 11 of the Structured Plan Engine) — this class only ever builds/persists
+ * the [HeartbeatEntity] and asks [HeartbeatScheduler] to arm/cancel it, never touches `WorkManager`
+ * directly itself anymore.
+ *
+ * This class remains the LLM-facing GENERIC scheduler only — it never accepts a `planId`/
+ * `planVersion`/`stepId` argument from the model (design spec `2026-07-12-structured-plan-engine-design.md`
+ * section 12.1: "LLM не передаёт произвольные planId/version/stepId напрямую в HeartbeatTool"). A
+ * typed [com.aiopenpocket.agent.core.memory.entity.HeartbeatTargetType.PLAN_STEP] heartbeat is only
+ * ever created by [com.aiopenpocket.agent.core.plan.schedule.PlanScheduler], which calls
+ * [HeartbeatScheduler] directly and never goes through this tool's `execute`.
  *
  * `schedule` привязывает heartbeat к текущему [turnContextHolder]'у агенту (`agentId`) и сразу же
  * отклоняет его (Task 22, `user-agent-builder-848153`), если этот агент архивирован/ещё не
@@ -49,6 +53,7 @@ class HeartbeatTool(
   private val context: Context,
   private val heartbeatDao: HeartbeatDao,
   private val turnContextHolder: TurnContextHolder,
+  private val heartbeatScheduler: HeartbeatScheduler,
 ) : Tool {
 
   // Per-call risk (Task 9): list only reads Room; schedule creates a new WorkManager job; cancel
@@ -139,27 +144,7 @@ class HeartbeatTool(
       intervalMinutes = interval,
     )
     heartbeatDao.insert(entity)
-
-    val input = Data.Builder().putString(HeartbeatWorker.KEY_HEARTBEAT_ID, id).build()
-    val workManager = WorkManager.getInstance(context)
-    val workName = workName(id)
-    if (interval != null) {
-      // Без initial delay WorkManager запускает первый прогон периодики почти сразу — «каждые 60 мин»
-      // сработало бы мгновенно при планировании. Первый запуск: через delay (если задан) либо через
-      // полный интервал, дальше — с шагом interval.
-      val firstRunDelay = delay ?: interval
-      val request = PeriodicWorkRequestBuilder<HeartbeatWorker>(interval, TimeUnit.MINUTES)
-        .setInitialDelay(firstRunDelay, TimeUnit.MINUTES)
-        .setInputData(input)
-        .build()
-      workManager.enqueueUniquePeriodicWork(workName, ExistingPeriodicWorkPolicy.UPDATE, request)
-    } else {
-      val request = OneTimeWorkRequestBuilder<HeartbeatWorker>()
-        .setInitialDelay(delay ?: 0L, TimeUnit.MINUTES)
-        .setInputData(input)
-        .build()
-      workManager.enqueueUniqueWork(workName, ExistingWorkPolicy.REPLACE, request)
-    }
+    heartbeatScheduler.schedule(entity)
 
     val schedule = if (interval != null) "каждые $interval мин" else "через $delay мин"
     return ToolResult.Success(
@@ -170,7 +155,7 @@ class HeartbeatTool(
 
   private suspend fun cancel(args: Map<String, JsonElement>): ToolResult {
     val id = args.string("heartbeat_id") ?: return missingArg("heartbeat_id")
-    WorkManager.getInstance(context).cancelUniqueWork(workName(id))
+    heartbeatScheduler.cancel(id)
     heartbeatDao.setStatus(id, "cancelled")
     return ToolResult.Success("Отменено: $id")
   }

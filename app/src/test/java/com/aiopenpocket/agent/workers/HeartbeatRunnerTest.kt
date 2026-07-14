@@ -2,6 +2,7 @@ package com.aiopenpocket.agent.workers
 
 // @trace heartbeat-napominalki-agenta-5f0442
 // @trace user-agent-builder-848153
+// @trace structured-plan-engine-907066
 
 import android.app.Application
 import android.content.Context
@@ -29,9 +30,33 @@ import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.mcp.toolSchema
 import com.aiopenpocket.agent.core.memory.entity.ConversationEntity
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
+import com.aiopenpocket.agent.core.memory.entity.HeartbeatTargetType
+import com.aiopenpocket.agent.core.memory.model.Fact
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
+import com.aiopenpocket.agent.core.plan.execution.MemoryFactLookup
+import com.aiopenpocket.agent.core.plan.execution.PlanEvidenceSink
+import com.aiopenpocket.agent.core.plan.execution.PlanExecutor
+import com.aiopenpocket.agent.core.plan.execution.PlanRunner
+import com.aiopenpocket.agent.core.plan.execution.PlanScheduleSync
+import com.aiopenpocket.agent.core.plan.execution.PlanStepRunner
+import com.aiopenpocket.agent.core.plan.execution.PlanVerifier
+import com.aiopenpocket.agent.core.plan.model.AgentPlan
+import com.aiopenpocket.agent.core.plan.model.CompletionRule
+import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
+import com.aiopenpocket.agent.core.plan.model.PlanAuthor
+import com.aiopenpocket.agent.core.plan.model.PlanHorizon
+import com.aiopenpocket.agent.core.plan.model.PlanStatus
+import com.aiopenpocket.agent.core.plan.model.PlanStep
+import com.aiopenpocket.agent.core.plan.model.PlanVersion
+import com.aiopenpocket.agent.core.plan.model.StepStatus
+import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
+import com.aiopenpocket.agent.core.policy.ExecutionMode
+import com.aiopenpocket.agent.core.prompt.AssetSource
+import com.aiopenpocket.agent.loop.AgentEvent
 import com.aiopenpocket.agent.loop.AgentMode
+import com.aiopenpocket.agent.loop.AgentResult
+import com.aiopenpocket.agent.loop.AgentState
 import com.aiopenpocket.agent.loop.ReactLoopRunner
 import com.aiopenpocket.agent.loop.TurnContextHolder
 import com.aiopenpocket.agent.loop.TurnNotifier
@@ -92,10 +117,48 @@ class HeartbeatRunnerTest {
     }
   }
 
+  // --- Task 11: typed plan-step heartbeat doubles -------------------------------------------------
+
+  /** Records every sync/cancel call instead of touching real WorkManager scheduling — mirrors
+   * `PlanApprovalTest`'s own `RecordingPlanScheduleSync`. */
+  private class RecordingPlanScheduleSync : PlanScheduleSync {
+    val synced = mutableListOf<String>()
+    val cancelled = mutableListOf<String>()
+    override suspend fun sync(planId: String) {
+      synced += planId
+    }
+    override suspend fun cancel(planId: String) {
+      cancelled += planId
+    }
+  }
+
+  private object NoPlanAssets : AssetSource {
+    override fun load(path: String): String? = null
+  }
+
+  private object NoMemoryFacts : MemoryFactLookup {
+    override suspend fun getFactsByKeyPrefix(prefix: String): List<Fact> = emptyList()
+  }
+
+  /** Every fixture plan in this file has zero criteria, so `PlanVerifier` never reaches its
+   * MODEL_ASSESSMENT branch — mirrors `PlanRunnerTest`'s own `UnusedLlmClient` (a real call would be a
+   * test-setup bug, not something to silently tolerate). */
+  private object UnusedPlanLlmClient : LlmClient {
+    override fun streamChat(messages: List<ChatMessage>, tools: List<FunctionSchema>, provider: LlmProvider): Flow<StreamEvent> =
+      throw IllegalStateException("LlmClient must not be called: no MODEL_ASSESSMENT criterion in this file.")
+  }
+
   /** Bundles a [HeartbeatRunner] with the [FakeLlm] double it was wired to, for tests that need to
    * inspect what actually reached the "model" (e.g. the system prompt) — [runner] itself only
-   * returns the former, which is all the pre-Task-22 tests ever needed. */
-  private data class Doubles(val runner: HeartbeatRunner, val llm: FakeLlm)
+   * returns the former, which is all the pre-Task-22 tests ever needed. [planRepository]/
+   * [planScheduleSync] (Task 11) let a plan-step test set up/approve a plan and assert on
+   * sync/cancel calls without each test re-wiring its own copies. */
+  private data class Doubles(
+    val runner: HeartbeatRunner,
+    val llm: FakeLlm,
+    val planRepository: PlanRepository,
+    val planScheduleSync: RecordingPlanScheduleSync,
+  )
 
   private lateinit var context: Context
   private lateinit var db: AppDatabase
@@ -141,6 +204,22 @@ class HeartbeatRunnerTest {
       db.messageDao(),
     )
     val agentResolver = DefaultAgentResolver(UserAgentRepository(db, db.userAgentDao(), AgentHookRepository(db.agentHookDao())))
+    // Task 11: the SAME reactLoopRunner (and thus the SAME fakeLlm/events script) backs a typed
+    // plan-step run too — production's own PlanStepRunnerBindings is nothing more than
+    // `PlanStepRunner(reactLoopRunner::run)`, so a plan-step test scripts `events` exactly like a
+    // generic agent-mode test does, and gets the REAL ToolExecutor/HookEngine/ExecutionPolicy
+    // machinery underneath (not a step-runner fake that would bypass hook enforcement entirely).
+    val planRepository = PlanRepository(db, db.planDao())
+    val planExecutor = PlanExecutor(
+      planRepository,
+      toolRegistry,
+      PlanStepRunner(reactLoopRunner::run),
+      NoPlanAssets,
+      PlanVerifier(PlanEvidenceSink(planRepository::addEvidence), NoMemoryFacts, UnusedPlanLlmClient, NoPlanAssets),
+      AgentHookRepository(db.agentHookDao()),
+    )
+    val planRunner = PlanRunner(planRepository, planExecutor, agentResolver)
+    val planScheduleSync = RecordingPlanScheduleSync()
     val runner = HeartbeatRunner(
       db.heartbeatDao(),
       reactLoopRunner,
@@ -149,12 +228,54 @@ class HeartbeatRunnerTest {
       notifier,
       agentResolver,
       turnContextHolder,
+      planRepository,
+      planRunner,
+      planScheduleSync,
     )
-    return Doubles(runner, fakeLlm)
+    return Doubles(runner, fakeLlm, planRepository, planScheduleSync)
   }
 
   private fun runner(events: List<StreamEvent>): HeartbeatRunner =
     runnerWithRegistry(events, ToolRegistry(emptySet())).runner
+
+  // --- Task 11: typed plan-step fixtures (mirrors PlanRunnerTest's own builders, trimmed) ---------
+
+  private fun plan(
+    id: String = "plan-1",
+    conversationId: String = "conv1",
+    agentId: String? = null,
+    status: PlanStatus = PlanStatus.DRAFT,
+    approvedVersion: Int? = null,
+  ) = AgentPlan(
+    id = id, agentId = agentId, conversationId = conversationId, horizon = PlanHorizon.PROGRAM,
+    status = status, approvedVersion = approvedVersion, activeStepId = null,
+    createdAt = 1_000L, updatedAt = 1_000L,
+  )
+
+  private fun planStep(id: String = "step-1", expectedTools: Set<String> = emptySet()) = PlanStep(
+    id = id, title = "Title $id", instruction = "Instruction $id",
+    dependsOn = emptySet(), expectedTools = expectedTools, schedule = null,
+    completionRule = CompletionRule(type = CompletionRuleType.TOOL_SUCCEEDED),
+  )
+
+  private fun planVersion(planId: String = "plan-1", version: Int = 1, steps: List<PlanStep> = listOf(planStep())) = PlanVersion(
+    planId = planId, version = version, objective = "Objective", assumptions = emptyList(),
+    constraints = emptyList(), steps = steps, criteria = emptyList(), createdBy = PlanAuthor.AGENT, approvedAt = null,
+  )
+
+  /** A typed [HeartbeatTargetType.PLAN_STEP] row, ready to insert and fire via [HeartbeatRunner.handleFire]. */
+  private fun planHeartbeat(
+    id: String = "hb1",
+    planId: String = "plan-1",
+    planVersion: Int = 1,
+    planStepId: String = "step-1",
+    conversationId: String = "conv1",
+    agentId: String? = null,
+  ) = HeartbeatEntity(
+    id = id, title = "Шаг плана", mode = "agent", conversationId = conversationId, kind = "one_time",
+    status = "scheduled", agentId = agentId,
+    targetType = HeartbeatTargetType.PLAN_STEP.name, planId = planId, planVersion = planVersion, planStepId = planStepId,
+  )
 
   private fun hb(mode: String, prompt: String? = null, kind: String = "one_time") = HeartbeatEntity(
     id = "hb1", title = "T", mode = mode, prompt = prompt, message = "msg",
@@ -398,5 +519,120 @@ class HeartbeatRunnerTest {
     // interactiveApproval=false (Task 9) must turn the hook's REQUIRE_APPROVAL into an immediate
     // deny — no screen exists in the background to ever approve it — so the tool never actually runs.
     assertEquals(0, guardedTool.callCount)
+  }
+
+  // --- Task 11: typed plan-step heartbeats --------------------------------------------------------
+
+  @Test
+  fun `typed plan-step heartbeat routes to PlanRunner and runs exactly that step, not a free-text turn`() = runTest {
+    val (runner, llm, planRepository, planScheduleSync) = runnerWithRegistry(
+      listOf(StreamEvent.Finish("stop")),
+      ToolRegistry(emptySet()),
+    )
+    planRepository.saveProposal(plan(id = "plan-1"), planVersion(planId = "plan-1", steps = listOf(planStep(id = "step-1"))))
+    planRepository.approve("plan-1", 1)
+    db.heartbeatDao().insert(planHeartbeat())
+
+    val outcome = runner.handleFire("hb1", attempt = 0)
+
+    assertEquals(FireOutcome.DONE, outcome)
+    // PlanExecutor.buildStepMessages' own last line is "Выполни шаг [step-1] «...» сейчас." — proof
+    // this went through the plan-step prompt, never fireAgent's PULSE_PROMPT/task-based framing.
+    val userMessage = llm.calls.single().last { it.role == "user" }
+    assertTrue(userMessage.content!!.contains("[step-1]"))
+    assertEquals(PlanStatus.COMPLETED, planRepository.snapshot("plan-1")!!.plan.status)
+    assertEquals(listOf("plan-1"), planScheduleSync.cancelled) // terminal outcome -> scheduler torn down
+    assertEquals("fired", db.heartbeatDao().getById("hb1")?.status)
+  }
+
+  @Test
+  fun `typed plan-step heartbeat never blocks on approval - a BEFORE_PLAN_STEP REQUIRE_APPROVAL hook resolves to BLOCKED instead of waiting`() = runTest {
+    val requireApprovalHook = AgentHook(
+      id = "hook-1",
+      agentId = "plan-agent",
+      event = HookEvent.BEFORE_PLAN_STEP,
+      conditionType = "always",
+      conditionJson = "{}",
+      actionType = HookActionType.REQUIRE_APPROVAL,
+      actionJson = "{}",
+      priority = 0,
+      enabled = true,
+    )
+    val agent = publishCustomAgent("plan-agent", hooks = listOf(requireApprovalHook))
+    val (runner, llm, planRepository, planScheduleSync) = runnerWithRegistry(emptyList(), ToolRegistry(emptySet()))
+    planRepository.saveProposal(
+      plan(id = "plan-1", agentId = agent.id),
+      planVersion(planId = "plan-1", steps = listOf(planStep(id = "step-1"))),
+    )
+    planRepository.approve("plan-1", 1)
+    db.heartbeatDao().insert(planHeartbeat(agentId = agent.id))
+
+    val outcome = runner.handleFire("hb1", attempt = 0)
+
+    assertEquals(FireOutcome.DONE, outcome) // never RETRY — resolves immediately, never waits on a screen
+    assertTrue("the step turn's LLM must never even be called once BEFORE_PLAN_STEP blocks it", llm.calls.isEmpty())
+    assertEquals(StepStatus.BLOCKED, planRepository.snapshot("plan-1")!!.stepStates.single().status)
+    assertTrue(
+      "user must be told the plan step needs attention",
+      notifier.calls.any { it.preview.contains("Шаг плана требует внимания") },
+    )
+    // Plan stays ACTIVE (a blocked STEP never flips whole-plan status) -> re-synced, not cancelled
+    // outright; PlanScheduler itself (tested separately) finds nothing selectable and cancels.
+    assertEquals(listOf("plan-1"), planScheduleSync.synced)
+    assertTrue(planScheduleSync.cancelled.isEmpty())
+  }
+
+  @Test
+  fun `a plain reminder heartbeat and a typed plan-step heartbeat dispatch independently through the same runner`() = runTest {
+    db.heartbeatDao().insert(hb(mode = "push"))
+    val (runner, _, planRepository, _) = runnerWithRegistry(listOf(StreamEvent.Finish("stop")), ToolRegistry(emptySet()))
+    planRepository.saveProposal(plan(id = "plan-1"), planVersion(planId = "plan-1", steps = listOf(planStep(id = "step-1"))))
+    planRepository.approve("plan-1", 1)
+    db.heartbeatDao().insert(planHeartbeat(id = "hb-plan"))
+
+    assertEquals(FireOutcome.DONE, runner.handleFire("hb1", attempt = 0)) // the plain push
+    assertEquals(FireOutcome.DONE, runner.handleFire("hb-plan", attempt = 0)) // the typed plan step
+
+    assertEquals("fired", db.heartbeatDao().getById("hb1")?.status)
+    assertEquals("fired", db.heartbeatDao().getById("hb-plan")?.status)
+    assertEquals(2, notifier.calls.size) // both independently notified — plain push text, plan-completion text
+    assertEquals(PlanStatus.COMPLETED, planRepository.snapshot("plan-1")!!.plan.status)
+  }
+
+  @Test
+  fun `a stale plan-step heartbeat (approved version has moved on) is skipped, not executed`() = runTest {
+    val (runner, llm, planRepository, planScheduleSync) = runnerWithRegistry(listOf(StreamEvent.Finish("stop")), ToolRegistry(emptySet()))
+    planRepository.saveProposal(plan(id = "plan-1"), planVersion(planId = "plan-1", version = 1, steps = listOf(planStep(id = "step-1"))))
+    planRepository.approve("plan-1", 1)
+    // Material revision approved as v2 while the heartbeat below still references v1.
+    planRepository.saveProposal(
+      plan(id = "plan-1", status = PlanStatus.ACTIVE, approvedVersion = 1),
+      planVersion(planId = "plan-1", version = 2, steps = listOf(planStep(id = "step-1"))),
+    )
+    planRepository.approve("plan-1", 2)
+    db.heartbeatDao().insert(planHeartbeat(planVersion = 1)) // stale: references v1, plan is now on v2
+
+    val outcome = runner.handleFire("hb1", attempt = 0)
+
+    assertEquals(FireOutcome.DONE, outcome)
+    assertTrue("a stale heartbeat must never reach the LLM", llm.calls.isEmpty())
+    assertEquals("error", db.heartbeatDao().getById("hb1")?.status)
+    assertTrue("a stale heartbeat's own skip must not itself touch the scheduler", planScheduleSync.synced.isEmpty())
+    assertTrue(planScheduleSync.cancelled.isEmpty())
+  }
+
+  @Test
+  fun `a plan-step heartbeat for a paused plan is skipped, not executed`() = runTest {
+    val (runner, llm, planRepository, _) = runnerWithRegistry(listOf(StreamEvent.Finish("stop")), ToolRegistry(emptySet()))
+    planRepository.saveProposal(plan(id = "plan-1"), planVersion(planId = "plan-1", steps = listOf(planStep(id = "step-1"))))
+    planRepository.approve("plan-1", 1)
+    planRepository.pause("plan-1")
+    db.heartbeatDao().insert(planHeartbeat())
+
+    val outcome = runner.handleFire("hb1", attempt = 0)
+
+    assertEquals(FireOutcome.DONE, outcome)
+    assertTrue("a paused plan's step must never reach the LLM", llm.calls.isEmpty())
+    assertEquals("error", db.heartbeatDao().getById("hb1")?.status)
   }
 }
