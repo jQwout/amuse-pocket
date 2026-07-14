@@ -1,7 +1,10 @@
 package com.aiopenpocket.agent.core.hook
 
 // @trace user-agent-builder-848153
+// @trace structured-plan-engine-907066
 
+import com.aiopenpocket.agent.core.plan.model.PlanStatus
+import com.aiopenpocket.agent.core.plan.model.StepStatus
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
@@ -35,12 +38,32 @@ data class HookDecision(
  * hooks are declarative allow/deny/log rules over a small, stable surface, not a place to grow
  * arbitrary condition logic over full turn state (that would start to smell like the "no user
  * JS/Kotlin" constraint this whole engine exists to avoid).
+ *
+ * [planId]/[planVersion]/[stepId]/[planStatus]/[stepStatus]/[evidenceIds]/[background] (Task 9 of
+ * the Structured Plan Engine) are the plan-lifecycle counterpart of [iteration]/[toolName]: only
+ * populated for [HookEvent.ON_PLAN_CREATED]/[HookEvent.ON_PLAN_APPROVED]/[HookEvent.BEFORE_PLAN_STEP]/
+ * [HookEvent.AFTER_PLAN_STEP]/[HookEvent.ON_PLAN_BLOCKED]/[HookEvent.ON_PLAN_COMPLETED] firings, always
+ * default/`null` for the original turn-level events. All seven are defaulted so every existing
+ * turn-hook call site ([com.aiopenpocket.agent.loop.ReactLoopRunner]'s `HookContext(iteration = ...)`
+ * constructions) compiles and behaves exactly as before — this is the SAME [HookContext]
+ * [HookEngine.matched] always accepted, extended in place rather than taught a second context type
+ * (`com.aiopenpocket.agent.core.plan.execution.PlanHookContext` is a small typed builder for THIS
+ * shape, not a competing one — see its own kdoc). No condition type reads these yet (mirrors
+ * [toolSucceeded]/[errorMessage] having no dedicated reader either, until [HookEvent.ON_ERROR]/
+ * `AFTER_TOOL`-specific conditions are added) — they exist so a future condition type can.
  */
 data class HookContext(
   val iteration: Int = 0,
   val toolName: String? = null,
   val toolSucceeded: Boolean? = null,
   val errorMessage: String? = null,
+  val planId: String? = null,
+  val planVersion: Int? = null,
+  val stepId: String? = null,
+  val planStatus: PlanStatus? = null,
+  val stepStatus: StepStatus? = null,
+  val evidenceIds: List<String> = emptyList(),
+  val background: Boolean = false,
 )
 
 /**
@@ -89,7 +112,19 @@ object HookEngine {
   /**
    * The event/action compatibility matrix from the design spec, reused verbatim by
    * `com.aiopenpocket.agent.core.agent.AgentValidator` so publish-time rejection can never drift
-   * from what the runtime actually enforces.
+   * from what the runtime actually enforces. `com.aiopenpocket.ui.agents.builder.components.HookEditorDialog`
+   * also derives its per-event action picker from this same function, for the same reason.
+   *
+   * The six plan-lifecycle events (Task 9; design spec section 12.2 Step 3) are deliberately
+   * LOG-only except [HookEvent.BEFORE_PLAN_STEP] — a plan hook is declarative-only (never mutates
+   * the approved plan, never adds evidence), so [HookEvent.ON_PLAN_CREATED]/[HookEvent.ON_PLAN_APPROVED]/
+   * [HookEvent.AFTER_PLAN_STEP]/[HookEvent.ON_PLAN_BLOCKED]/[HookEvent.ON_PLAN_COMPLETED] can only ever
+   * journal an audit entry, never deny/stop/approve/instruct after the fact. Only
+   * [HookEvent.BEFORE_PLAN_STEP] — the one point where a decision can still change what happens next —
+   * gets the richer [BEFORE_PLAN_STEP_ACTIONS] set (mirrors [HookEvent.BEFORE_TOOL]'s own reasoning,
+   * but with [HookActionType.ADD_INSTRUCTION] instead of [HookActionType.ALLOW]: a plan step has no
+   * "ALLOW" concept of its own since it isn't a single tool call, but CAN still receive an ephemeral
+   * instruction the way [HookEvent.BEFORE_TURN] can).
    */
   fun actionsAllowedFor(event: HookEvent): Set<HookActionType> = when (event) {
     HookEvent.BEFORE_TURN -> BEFORE_TURN_ACTIONS
@@ -98,6 +133,12 @@ object HookEngine {
     HookEvent.AFTER_TOOL -> LOG_AND_STOP
     HookEvent.ON_ERROR -> LOG_AND_STOP
     HookEvent.ON_COMPLETE -> LOG_ONLY
+    HookEvent.ON_PLAN_CREATED -> LOG_ONLY
+    HookEvent.ON_PLAN_APPROVED -> LOG_ONLY
+    HookEvent.BEFORE_PLAN_STEP -> BEFORE_PLAN_STEP_ACTIONS
+    HookEvent.AFTER_PLAN_STEP -> LOG_ONLY
+    HookEvent.ON_PLAN_BLOCKED -> LOG_ONLY
+    HookEvent.ON_PLAN_COMPLETED -> LOG_ONLY
   }
 
   /**
@@ -190,6 +231,9 @@ object HookEngine {
   private val BEFORE_TURN_ACTIONS = setOf(HookActionType.ADD_INSTRUCTION, HookActionType.LOG, HookActionType.STOP)
   private val BEFORE_TOOL_ACTIONS =
     setOf(HookActionType.REQUIRE_APPROVAL, HookActionType.ALLOW, HookActionType.DENY, HookActionType.LOG, HookActionType.STOP)
+  private val BEFORE_PLAN_STEP_ACTIONS = setOf(
+    HookActionType.ADD_INSTRUCTION, HookActionType.REQUIRE_APPROVAL, HookActionType.DENY, HookActionType.LOG, HookActionType.STOP,
+  )
   private val LOG_AND_STOP = setOf(HookActionType.LOG, HookActionType.STOP)
   private val LOG_ONLY = setOf(HookActionType.LOG)
 }
