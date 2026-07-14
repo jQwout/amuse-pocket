@@ -24,7 +24,17 @@ import com.aiopenpocket.agent.core.mcp.ToolRegistry
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.mcp.toolSchema
 import com.aiopenpocket.agent.core.memory.dao.HeartbeatDao
+import com.aiopenpocket.agent.core.memory.entity.ConversationEntity
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
+import com.aiopenpocket.agent.core.plan.model.AgentPlan
+import com.aiopenpocket.agent.core.plan.model.CompletionRule
+import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
+import com.aiopenpocket.agent.core.plan.model.PlanAuthor
+import com.aiopenpocket.agent.core.plan.model.PlanHorizon
+import com.aiopenpocket.agent.core.plan.model.PlanStatus
+import com.aiopenpocket.agent.core.plan.model.PlanStep
+import com.aiopenpocket.agent.core.plan.model.PlanVersion
+import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
 import com.aiopenpocket.agent.core.skill.SkillRegistry
 import com.aiopenpocket.agent.core.skill.UserSkillEntity
 import com.aiopenpocket.agent.core.skill.UserSkillRepository
@@ -78,7 +88,9 @@ class AgentDetailViewModelTest {
   private lateinit var agentHookRepository: AgentHookRepository
   private lateinit var heartbeatDao: HeartbeatDao
   private lateinit var agentFilesRepository: AgentFilesRepository
+  private lateinit var planRepository: PlanRepository
   private lateinit var vm: AgentDetailViewModel
+  private var now = 10_000L
 
   @Before
   fun setUp() {
@@ -91,6 +103,7 @@ class AgentDetailViewModelTest {
     userAgentRepository = UserAgentRepository(db, db.userAgentDao(), agentHookRepository)
     heartbeatDao = db.heartbeatDao()
     agentFilesRepository = AgentFilesRepository(RuntimeEnvironment.getApplication())
+    planRepository = PlanRepository(db, db.planDao()) { now }
     vm = AgentDetailViewModel(
       agentResolver = DefaultAgentResolver(userAgentRepository),
       userAgentRepository = userAgentRepository,
@@ -99,6 +112,7 @@ class AgentDetailViewModelTest {
       agentHookRepository = agentHookRepository,
       heartbeatDao = heartbeatDao,
       agentFilesRepository = agentFilesRepository,
+      planRepository = planRepository,
     )
   }
 
@@ -274,5 +288,82 @@ class AgentDetailViewModelTest {
 
     assertEquals(AgentStatus.ARCHIVED, state.definition?.status)
     assertFalse(state.canArchive)
+  }
+
+  // --- Планы section (Task 12, structured-plan-engine-907066) ----------------------------------------
+
+  private suspend fun insertConversation(id: String) {
+    db.conversationDao().insert(ConversationEntity(id = id, title = "Test conversation $id"))
+  }
+
+  private fun planFixture(id: String, agentId: String, conversationId: String = id) = AgentPlan(
+    id = id,
+    agentId = agentId,
+    conversationId = conversationId,
+    horizon = PlanHorizon.SINGLE_RUN,
+    status = PlanStatus.DRAFT,
+    approvedVersion = null,
+    activeStepId = null,
+    createdAt = 1_000L,
+    updatedAt = 1_000L,
+  )
+
+  private fun versionFixture(planId: String) = PlanVersion(
+    planId = planId,
+    version = 1,
+    objective = "Objective $planId",
+    assumptions = emptyList(),
+    constraints = emptyList(),
+    steps = listOf(
+      PlanStep(
+        id = "step-1",
+        title = "Step 1",
+        instruction = "Do it",
+        dependsOn = emptySet(),
+        expectedTools = emptySet(),
+        schedule = null,
+        completionRule = CompletionRule(type = CompletionRuleType.USER_CONFIRMED),
+      ),
+    ),
+    criteria = emptyList(),
+    createdBy = PlanAuthor.AGENT,
+    approvedAt = null,
+  )
+
+  @Test
+  fun `plans section shows counts and rows bucketed by status for this agent only`() = runTest(testDispatcher) {
+    insertConversation("plan-pending")
+    insertConversation("plan-active")
+    insertConversation("plan-done")
+    insertConversation("plan-other-agent")
+
+    // Same agent: one AWAITING_APPROVAL (counts as active), one ACTIVE, one CANCELLED (completed).
+    planRepository.saveProposal(planFixture("plan-pending", agentId = "budget"), versionFixture("plan-pending"))
+    planRepository.saveProposal(planFixture("plan-active", agentId = "budget"), versionFixture("plan-active"))
+    planRepository.approve("plan-active", 1)
+    planRepository.saveProposal(planFixture("plan-done", agentId = "budget"), versionFixture("plan-done"))
+    planRepository.approve("plan-done", 1)
+    planRepository.cancel("plan-done")
+    // A different agent's plan must never leak into "budget"'s counts.
+    planRepository.saveProposal(planFixture("plan-other-agent", agentId = "other-agent"), versionFixture("plan-other-agent"))
+
+    vm.select("budget")
+    val state = vm.state.first { it.plans.size == 3 }
+
+    assertEquals(setOf("plan-pending", "plan-active", "plan-done"), state.plans.map { it.planId }.toSet())
+    assertEquals(2, state.activePlansCount)
+    assertEquals(0, state.pausedPlansCount)
+    assertEquals(1, state.completedPlansCount)
+  }
+
+  @Test
+  fun `a preset agent with no plans gets an empty plans list`() = runTest(testDispatcher) {
+    vm.select("budget")
+    val state = vm.state.first { it.definition != null }
+
+    assertTrue(state.plans.isEmpty())
+    assertEquals(0, state.activePlansCount)
+    assertEquals(0, state.pausedPlansCount)
+    assertEquals(0, state.completedPlansCount)
   }
 }

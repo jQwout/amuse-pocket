@@ -35,6 +35,8 @@ import com.aiopenpocket.ui.home.HomeScreen
 import com.aiopenpocket.ui.memory.MemoryGraphScreen
 import com.aiopenpocket.ui.memory.MemoryPageScreen
 import com.aiopenpocket.ui.onboarding.OnboardingScreen
+import com.aiopenpocket.ui.plan.PlanDetailRoute
+import com.aiopenpocket.ui.plan.PlanListRoute
 import com.aiopenpocket.ui.roadmap.LibraryScreen
 import com.aiopenpocket.ui.roadmap.QuizScreen
 import com.aiopenpocket.ui.roadmap.RoadmapScreen
@@ -196,6 +198,23 @@ class MainActivity : ComponentActivity() {
                                         onOpenChat = { id -> navController.navigate("chat/$id") },
                                         onNavigateToBuilder = { id -> navController.navigate("agent_builder/$id") },
                                         onNavigateBack = { navController.popBackStack() },
+                                        onOpenPlan = { planId -> navController.navigate("plan/$planId") },
+                                        onOpenPlanList = { id -> navController.navigate("plans/$id") },
+                                    )
+                                }
+                                composable("plans/{agentId}") { backStackEntry ->
+                                    val agentId = backStackEntry.arguments?.getString("agentId") ?: ""
+                                    PlanListRoute(
+                                        agentId = agentId,
+                                        onOpenPlan = { planId -> navController.navigate("plan/$planId") },
+                                        onNavigateBack = { navController.popBackStack() },
+                                    )
+                                }
+                                composable("plan/{planId}") { backStackEntry ->
+                                    val planId = backStackEntry.arguments?.getString("planId") ?: ""
+                                    PlanDetailRoute(
+                                        planId = planId,
+                                        onNavigateBack = { navController.popBackStack() },
                                     )
                                 }
                                 composable(
@@ -305,6 +324,9 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onOpenAgentBuilder = { source ->
                                             navController.navigate("agent_builder?source=${source.name}")
+                                        },
+                                        onOpenPlanDetail = { planId ->
+                                            navController.navigate("plan/$planId")
                                         },
                                     )
                                 }
