@@ -2,6 +2,9 @@ package com.aiopenpocket.agent.core.plan.execution
 
 // @trace structured-plan-engine-907066
 
+import com.aiopenpocket.agent.core.hook.AgentHookRepository
+import com.aiopenpocket.agent.core.hook.HookEvent
+import com.aiopenpocket.agent.core.plan.model.PlanSnapshot
 import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.BindingContainer
@@ -9,6 +12,7 @@ import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.SingleIn
+import java.util.UUID
 
 /**
  * Background/heartbeat hook for a plan's [com.aiopenpocket.agent.core.plan.model.PlanStep.schedule]
@@ -69,6 +73,7 @@ interface PlanScheduleSync {
 class PlanCommands @Inject constructor(
   private val repository: PlanRepository,
   private val scheduler: PlanScheduleSync,
+  private val hookRepository: AgentHookRepository,
 ) {
 
   /**
@@ -76,11 +81,42 @@ class PlanCommands @Inject constructor(
    * [com.aiopenpocket.agent.core.plan.model.PlanStatus.ACTIVE]. Throws (via [PlanRepository.approve])
    * if [version] is not the plan's current pending version — approving a stale/superseded draft is
    * always rejected, never silently redirected to "the latest one instead". On success, arms
-   * [scheduler] for this plan (a no-op today — see [PlanScheduleSync] kdoc).
+   * [scheduler] for this plan (a no-op today — see [PlanScheduleSync] kdoc) and fires
+   * [HookEvent.ON_PLAN_APPROVED] (Task 9) — see [firePlanApproved].
    */
   suspend fun approve(planId: String, version: Int) {
-    repository.approve(planId, version)
+    val snapshot = repository.approve(planId, version)
     scheduler.sync(planId)
+    firePlanApproved(snapshot)
+  }
+
+  /**
+   * Fires [HookEvent.ON_PLAN_APPROVED] for the agent [snapshot] belongs to, if any. LOG-only per the
+   * action matrix ([com.aiopenpocket.agent.core.hook.HookEngine.actionsAllowedFor]), so this is
+   * purely an audit-journal side effect via `firePlanHook` (`PlanHookContext.kt`) — [approve] never
+   * branches on its result. Unlike [PlanExecutor], which reuses an already-loaded
+   * [com.aiopenpocket.agent.core.agent.AgentDefinition]'s own hook list, [PlanCommands] never loads a
+   * full [com.aiopenpocket.agent.core.agent.AgentDefinition] (only a `planId`/`version`), so this
+   * fetches the declarative hook set straight from [hookRepository] instead — same data, cheaper
+   * than resolving a whole agent just to reach its `.hooks` field. No-op for a plan with no
+   * [com.aiopenpocket.agent.core.plan.model.AgentPlan.agentId] (a conversation with no bound agent —
+   * mirrors `ReactLoopRunner`'s own "plain chat never touches the hook engine" precedent) or for an
+   * agent with no hooks configured (`firePlanHook`'s own short-circuit).
+   */
+  private suspend fun firePlanApproved(snapshot: PlanSnapshot) {
+    val agentId = snapshot.plan.agentId ?: return
+    firePlanHook(
+      hookRepository = hookRepository,
+      hooks = hookRepository.getForAgent(agentId),
+      event = HookEvent.ON_PLAN_APPROVED,
+      context = PlanHookContext(
+        planId = snapshot.plan.id,
+        planVersion = snapshot.version.version,
+        planStatus = snapshot.plan.status,
+      ),
+      conversationId = snapshot.plan.conversationId,
+      runId = UUID.randomUUID().toString(),
+    )
   }
 
   /**

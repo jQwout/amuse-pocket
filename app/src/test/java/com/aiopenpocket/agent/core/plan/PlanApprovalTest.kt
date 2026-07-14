@@ -5,6 +5,7 @@ package com.aiopenpocket.agent.core.plan
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.aiopenpocket.agent.core.hook.AgentHookRepository
 import com.aiopenpocket.agent.core.memory.entity.ConversationEntity
 import com.aiopenpocket.agent.core.plan.execution.PlanCommands
 import com.aiopenpocket.agent.core.plan.execution.PlanScheduleSync
@@ -52,6 +53,7 @@ class PlanApprovalTest {
   private lateinit var db: AppDatabase
   private lateinit var repository: PlanRepository
   private lateinit var scheduler: RecordingPlanScheduleSync
+  private lateinit var hookRepository: AgentHookRepository
   private lateinit var commands: PlanCommands
   private var now = 10_000L
 
@@ -61,7 +63,8 @@ class PlanApprovalTest {
     db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
     repository = PlanRepository(db, db.planDao()) { now }
     scheduler = RecordingPlanScheduleSync()
-    commands = PlanCommands(repository, scheduler)
+    hookRepository = AgentHookRepository(db.agentHookDao())
+    commands = PlanCommands(repository, scheduler, hookRepository)
   }
 
   @After

@@ -3,6 +3,10 @@ package com.aiopenpocket.agent.core.plan.execution
 // @trace structured-plan-engine-907066
 
 import com.aiopenpocket.agent.core.agent.AgentDefinition
+import com.aiopenpocket.agent.core.hook.AgentHook
+import com.aiopenpocket.agent.core.hook.AgentHookRepository
+import com.aiopenpocket.agent.core.hook.HookDecision
+import com.aiopenpocket.agent.core.hook.HookEvent
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.llm.LlmProvider
@@ -18,6 +22,9 @@ import com.aiopenpocket.agent.core.plan.model.PlanStep
 import com.aiopenpocket.agent.core.plan.model.PlanStepState
 import com.aiopenpocket.agent.core.plan.model.StepStatus
 import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
+import com.aiopenpocket.agent.core.plan.validation.PlanStateMachine
+import com.aiopenpocket.agent.core.plan.validation.PlanStepCommand
+import com.aiopenpocket.agent.core.plan.validation.StepTransitionResult
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.agent.core.prompt.AssetSource
 import com.aiopenpocket.agent.loop.AgentEvent
@@ -129,6 +136,22 @@ object PlanStepRunnerBindings {
  * the later `READY → EXECUTING` write) — Task 10's own plan text explicitly assigns a "per-conversation
  * Mutex or repository lease so foreground and heartbeat cannot execute the same plan concurrently" to
  * itself, confirming that gap is intentionally left for Task 10, not silently accepted as finished here.
+ *
+ * ## Plan-lifecycle hooks (Task 9)
+ *
+ * [execute] fires [HookEvent.BEFORE_PLAN_STEP] once the pre-flight checks/budget above have all
+ * passed but before this step is marked [StepStatus.EXECUTING], and [recordOutcome] fires
+ * [HookEvent.AFTER_PLAN_STEP] (always) then [HookEvent.ON_PLAN_BLOCKED]/[HookEvent.ON_PLAN_COMPLETED]
+ * (conditionally) right after the step's outcome is persisted — see `firePlanHook` (`PlanHookContext.kt`)
+ * for the shared engine-firing/journaling glue, reused verbatim from
+ * [com.aiopenpocket.agent.loop.ReactLoopRunner]'s own pattern. A [HookEvent.BEFORE_PLAN_STEP]
+ * `DENY`/`STOP`/`REQUIRE_APPROVAL` routes through [PlanStateMachine.transitionStep] via
+ * [PlanStepCommand.Block] exactly like every other status write in this class — never a hand-picked
+ * [StepStatus] — and an `ADD_INSTRUCTION` is folded into [buildStepMessages] as an ephemeral,
+ * non-persisted addition to THIS run's prompt only. None of this can mutate the approved
+ * [com.aiopenpocket.agent.core.plan.model.PlanVersion] or add
+ * [com.aiopenpocket.agent.core.plan.model.PlanEvidence] — the only writes a plan hook can trigger are
+ * the same [PlanStepState]/[PlanEvent] rows this class already writes via [PlanRepository].
  */
 @SingleIn(AppScope::class)
 class PlanExecutor @Inject constructor(
@@ -137,6 +160,7 @@ class PlanExecutor @Inject constructor(
   private val stepRunner: PlanStepRunner,
   private val assets: AssetSource,
   private val verifier: PlanVerifier,
+  private val hookRepository: AgentHookRepository,
 ) {
   private var clock: () -> Long = System::currentTimeMillis
 
@@ -147,8 +171,9 @@ class PlanExecutor @Inject constructor(
     stepRunner: PlanStepRunner,
     assets: AssetSource,
     verifier: PlanVerifier,
+    hookRepository: AgentHookRepository,
     clock: () -> Long,
-  ) : this(repository, toolRegistry, stepRunner, assets, verifier) {
+  ) : this(repository, toolRegistry, stepRunner, assets, verifier, hookRepository) {
     this.clock = clock
   }
 
@@ -166,6 +191,9 @@ class PlanExecutor @Inject constructor(
    * A retry-budget/deadline refusal is NOT a throw — see [refuseByBudget] — because unlike the cases
    * above (all caller/programmer errors: the caller should never have selected this step/version to
    * begin with), running out of retries or missing a deadline is a normal, expected runtime outcome.
+   * Neither is a [HookEvent.BEFORE_PLAN_STEP] hook denying this step (Task 9) — see [blockByHook] —
+   * for the same reason: an agent owner configuring a declarative hook that blocks a step is an
+   * ordinary runtime decision, not a caller/programmer mistake.
    */
   suspend fun execute(
     snapshot: PlanSnapshot,
@@ -218,6 +246,37 @@ class PlanExecutor @Inject constructor(
       return refuseByBudget(planId, version, step.id, now, "Deadline ${budget.deadlineAt} has already passed (now=$now).")
     }
 
+    // Plan-lifecycle hooks (Task 9): hooks come from the SAME immutable per-run AgentDefinition
+    // snapshot ReactLoopRunner itself uses, never re-queried from Room mid-run. hookRunId is shared
+    // by every firing this ONE execute() call makes (BEFORE_PLAN_STEP here, AFTER_PLAN_STEP/
+    // ON_PLAN_BLOCKED/ON_PLAN_COMPLETED inside recordOutcome) so the agent_hook_runs journal can
+    // correlate them to one step attempt, mirroring ReactLoopRunner's own per-run runId.
+    val hooks = agent?.hooks.orEmpty()
+    val hookRunId = UUID.randomUUID().toString()
+    val beforeStep = firePlanHook(
+      hookRepository = hookRepository,
+      hooks = hooks,
+      event = HookEvent.BEFORE_PLAN_STEP,
+      context = PlanHookContext(
+        planId = planId,
+        planVersion = version,
+        planStatus = fresh.plan.status,
+        stepId = step.id,
+        stepStatus = currentState?.status,
+        background = !interactiveApproval,
+      ),
+      conversationId = fresh.plan.conversationId,
+      runId = hookRunId,
+    )
+    // DENY/STOP transition the step to BLOCKED with a reason (design spec section 12.2).
+    // REQUIRE_APPROVAL resolves the same way: every execute() call is background/headless today (see
+    // interactiveApproval's own kdoc), and "REQUIRE_APPROVAL в background становится blocked" per the
+    // same spec section — there is no UI to actually suspend on here, unlike ReactLoopRunner's
+    // interactive BEFORE_TOOL path.
+    if (beforeStep.denied || beforeStep.stopped || beforeStep.approvalRequired) {
+      return blockByHook(planId, version, step.id, currentState, now, hookBlockReason(beforeStep))
+    }
+
     // Persist step start safely (Step 5): READY/PENDING -> EXECUTING, attempts+1, STEP_STARTED event.
     val nextAttempt = attempts + 1
     val nextDueAt = currentState?.nextDueAt
@@ -238,7 +297,10 @@ class PlanExecutor @Inject constructor(
       appendLine()
       appendLine(assets.load(EXECUTOR_PROMPT_ASSET) ?: DEFAULT_EXECUTOR_PROMPT)
     }
-    val messages = buildStepMessages(systemBase, agent, fresh, step, budget, nextAttempt)
+    // beforeStep.addedInstructions: a BEFORE_PLAN_STEP ADD_INSTRUCTION hook, folded into THIS run's
+    // prompt only (buildStepMessages does not persist it anywhere) — never touches the approved
+    // PlanVersion/PlanStep.instruction itself.
+    val messages = buildStepMessages(systemBase, agent, fresh, step, budget, nextAttempt, beforeStep.addedInstructions)
 
     val agentResult = stepRunner.run(
       fresh.plan.conversationId,
@@ -252,7 +314,7 @@ class PlanExecutor @Inject constructor(
       budget.maxToolCallsPerRun,
     ) { }
 
-    return recordOutcome(fresh, step, nextAttempt, nextDueAt, now, agentResult, provider)
+    return recordOutcome(fresh, step, nextAttempt, nextDueAt, now, agentResult, provider, hooks, hookRunId)
   }
 
   /**
@@ -267,6 +329,58 @@ class PlanExecutor @Inject constructor(
   private suspend fun refuseByBudget(planId: String, version: Int, stepId: String, now: Long, reason: String): PlanStepExecutionResult {
     repository.appendEvent(planEvent(planId, version, stepId, PlanEventType.ERROR, now, buildJsonObject { put("reason", reason) }))
     return PlanStepExecutionResult(stepId = stepId, text = "", toolTrace = emptyList(), stoppedByBudget = true, error = reason)
+  }
+
+  /**
+   * A [HookEvent.BEFORE_PLAN_STEP] hook denied/stopped/required approval for this step attempt
+   * (design spec section 12.2: "DENY/STOP в BEFORE_PLAN_STEP переводит step в blocked state с
+   * причиной"). Routes the write through [PlanStateMachine.transitionStep] like every other
+   * [StepStatus] this class ever persists — never a hand-picked value. [PlanStepCommand.Block] is
+   * only legal from [StepStatus.READY]/[StepStatus.VERIFYING] (a step that never had a
+   * [PlanStepState] row yet is treated as [StepStatus.READY]: [execute]'s own [isRunnable] check
+   * already proved its dependencies are satisfied). When the current status makes [PlanStepCommand.Block]
+   * illegal (e.g. [StepStatus.FAILED], mid-retry), this does NOT force an illegal write — same
+   * "refuse rather than corrupt state" convention as [refuseByBudget] — it only records WHY nothing
+   * changed; the hook's own firing is already journaled by [firePlanHook] either way, so the denial
+   * itself is never silently lost.
+   */
+  private suspend fun blockByHook(
+    planId: String,
+    version: Int,
+    stepId: String,
+    currentState: PlanStepState?,
+    now: Long,
+    reason: String,
+  ): PlanStepExecutionResult {
+    val currentStatus = currentState?.status ?: StepStatus.READY
+    when (val transition = PlanStateMachine.transitionStep(currentStatus, PlanStepCommand.Block(reason))) {
+      is StepTransitionResult.Allowed -> {
+        repository.updateStepState(
+          PlanStepState(
+            planId = planId, version = version, stepId = stepId, status = transition.status,
+            attempts = currentState?.attempts ?: 0, nextDueAt = currentState?.nextDueAt,
+            startedAt = currentState?.startedAt, completedAt = null,
+          ),
+        )
+        repository.appendEvent(planEvent(planId, version, stepId, PlanEventType.STEP_BLOCKED, now, buildJsonObject { put("reason", reason) }))
+      }
+      is StepTransitionResult.Rejected -> {
+        repository.appendEvent(
+          planEvent(
+            planId, version, stepId, PlanEventType.ERROR, now,
+            buildJsonObject { put("reason", "$reason (cannot block from $currentStatus: ${transition.error.reason})") },
+          ),
+        )
+      }
+    }
+    return PlanStepExecutionResult(stepId = stepId, text = "", toolTrace = emptyList(), stoppedByBudget = false, error = reason)
+  }
+
+  private fun hookBlockReason(decision: HookDecision): String = when {
+    decision.denied -> "Blocked by a BEFORE_PLAN_STEP hook (DENY)."
+    decision.stopped -> "Blocked by a BEFORE_PLAN_STEP hook (STOP)."
+    decision.approvalRequired -> "Blocked by a BEFORE_PLAN_STEP hook (REQUIRE_APPROVAL is not available in a background run)."
+    else -> "Blocked by a BEFORE_PLAN_STEP hook."
   }
 
   /**
@@ -286,6 +400,8 @@ class PlanExecutor @Inject constructor(
     startedAt: Long,
     result: AgentResult,
     provider: LlmProvider,
+    hooks: List<AgentHook>,
+    hookRunId: String,
   ): PlanStepExecutionResult {
     val planId = snapshot.plan.id
     val version = snapshot.version.version
@@ -302,12 +418,11 @@ class PlanExecutor @Inject constructor(
       stoppedByBudget -> StepStatus.BLOCKED
       else -> checkNotNull(verification) { "verification must run on every non-error, non-budget-stopped outcome" }.stepStatus
     }
-    repository.updateStepState(
-      PlanStepState(
-        planId = planId, version = version, stepId = stepId, status = status, attempts = attempts,
-        nextDueAt = nextDueAt, startedAt = startedAt, completedAt = if (status == StepStatus.COMPLETED) now else null,
-      ),
+    val updatedState = PlanStepState(
+      planId = planId, version = version, stepId = stepId, status = status, attempts = attempts,
+      nextDueAt = nextDueAt, startedAt = startedAt, completedAt = if (status == StepStatus.COMPLETED) now else null,
     )
+    repository.updateStepState(updatedState)
     val eventType = when (status) {
       StepStatus.FAILED -> PlanEventType.ERROR
       StepStatus.BLOCKED -> PlanEventType.STEP_BLOCKED
@@ -323,6 +438,29 @@ class PlanExecutor @Inject constructor(
         },
       ),
     )
+
+    // Plan-lifecycle hooks (Task 9), continued from execute()'s BEFORE_PLAN_STEP: AFTER_PLAN_STEP
+    // always fires once this step's outcome is persisted (design spec section 12.2: "persist
+    // evidence/progress → AFTER_PLAN_STEP"), then ON_PLAN_BLOCKED/ON_PLAN_COMPLETED conditionally —
+    // both LOG-only per the action matrix, so there is nothing to "apply" beyond the agent_hook_runs
+    // journal firePlanHook already writes.
+    val provenEvidenceIds = (verification?.outcome as? VerificationOutcome.Proven)?.evidence?.map { it.id }.orEmpty()
+    val stepContext = PlanHookContext(
+      planId = planId, planVersion = version, planStatus = snapshot.plan.status,
+      stepId = stepId, stepStatus = status, evidenceIds = provenEvidenceIds, background = true,
+    )
+    firePlanHook(hookRepository, hooks, HookEvent.AFTER_PLAN_STEP, stepContext, snapshot.plan.conversationId, hookRunId)
+    when {
+      status == StepStatus.BLOCKED ->
+        firePlanHook(hookRepository, hooks, HookEvent.ON_PLAN_BLOCKED, stepContext, snapshot.plan.conversationId, hookRunId)
+      // Whole-plan completion is normally PlanRunner's call (Task 10) — see this class's own kdoc
+      // "never decides whole-plan completion" and PlanStatus.COMPLETED remains exclusively
+      // PlanStateMachine's to assign. isWholePlanComplete only decides whether to fire this
+      // declarative, LOG-only hook; it never touches PlanStatus/AgentPlan itself.
+      status == StepStatus.COMPLETED && isWholePlanComplete(snapshot.version.steps, snapshot.stepStates, updatedState) ->
+        firePlanHook(hookRepository, hooks, HookEvent.ON_PLAN_COMPLETED, stepContext, snapshot.plan.conversationId, hookRunId)
+    }
+
     return PlanStepExecutionResult(
       stepId = stepId,
       text = result.text,
@@ -387,6 +525,24 @@ class PlanExecutor @Inject constructor(
     private val RUNNABLE_DEP_STATUSES = setOf(StepStatus.COMPLETED, StepStatus.SKIPPED)
 
     /**
+     * Whether every one of [steps] is COMPLETED/SKIPPED in [stepStates] once [updatedStep] (this
+     * call's own freshly-resolved [PlanStepState], not yet reflected in the pre-call [stepStates]
+     * snapshot) replaces its stale entry — the local signal [recordOutcome] uses to decide whether to
+     * fire [HookEvent.ON_PLAN_COMPLETED] (design spec section 12.2: "AFTER_PLAN_STEP →
+     * ON_PLAN_COMPLETED или ON_PLAN_BLOCKED"). Deliberately does NOT touch [PlanStatus] — that stays
+     * `PlanStateMachine`/`PlanRunner`'s (Task 10) job; this only decides whether to fire a purely
+     * declarative, LOG-only hook. Pure, no I/O — same slightly-stale-for-OTHER-steps caveat as every
+     * other read in this class off of the [execute]-time snapshot (class kdoc "Staleness").
+     */
+    internal fun isWholePlanComplete(steps: List<PlanStep>, stepStates: List<PlanStepState>, updatedStep: PlanStepState): Boolean {
+      if (steps.isEmpty()) return false
+      val statusByStepId = (stepStates.filterNot { it.stepId == updatedStep.stepId } + updatedStep).associate { it.stepId to it.status }
+      return steps.all { statusByStepId[it.id] in PLAN_COMPLETE_STEP_STATUSES }
+    }
+
+    private val PLAN_COMPLETE_STEP_STATUSES = setOf(StepStatus.COMPLETED, StepStatus.SKIPPED)
+
+    /**
      * Two of the plan's Global Constraint three-way `agent.toolNames ∩ step.expectedTools ∩
      * ExecutionPolicy` intersection — see class kdoc "Tool scope" for why the third leg is not (and
      * should not be) computed here. Pure, no I/O.
@@ -402,6 +558,12 @@ class PlanExecutor @Inject constructor(
      * Do NOT give the executor the right to revise the plan (plan Step 3): structurally true already
      * (planner control schemas are never registered in the global [ToolRegistry] a step could ever be
      * scoped into — plan's Global Constraints), and restated in `executor.md` for the model itself.
+     *
+     * [hookInstructions] (Task 9) is a [HookEvent.BEFORE_PLAN_STEP] `ADD_INSTRUCTION` hook's text, if
+     * any — folded into THIS run's system message only, exactly like [HookEvent.BEFORE_TURN]'s own
+     * ephemeral instruction in [com.aiopenpocket.agent.loop.ReactLoopRunner]. Defaulted to
+     * [emptyList] so every pre-Task-9 caller (including this function's own direct unit tests) is
+     * unaffected.
      */
     internal fun buildStepMessages(
       systemBase: String,
@@ -410,6 +572,7 @@ class PlanExecutor @Inject constructor(
       step: PlanStep,
       budget: PlanRunBudget,
       attempt: Int,
+      hookInstructions: List<String> = emptyList(),
     ): MutableList<ChatMessage> {
       val compactContext = CompactPlanContext(
         planId = snapshot.plan.id,
@@ -452,6 +615,11 @@ class PlanExecutor @Inject constructor(
           "До ${budget.maxLlmIterationsPerStep} витков модели, до ${budget.maxToolCallsPerRun} вызовов " +
             "инструментов. Попытка $attempt из ${budget.maxRetriesPerStep}.",
         )
+        if (hookInstructions.isNotEmpty()) {
+          appendLine()
+          appendLine("## Дополнительные указания")
+          hookInstructions.forEach { appendLine("- $it") }
+        }
       }
       return mutableListOf(
         ChatMessage(role = "system", content = systemContent),

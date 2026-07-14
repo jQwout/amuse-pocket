@@ -1,6 +1,7 @@
 package com.aiopenpocket.ui.agents.builder.components
 
 // @trace user-agent-builder-848153
+// @trace structured-plan-engine-907066
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -242,6 +243,17 @@ internal fun hookConditionSummary(hook: AgentHook): String =
     "всегда"
   }
 
+/**
+ * Task 9 (Structured Plan Engine) adds the six plan-lifecycle [HookEvent]s here so this exhaustive
+ * `when` keeps compiling and every event is selectable in the picker above — the `FilterChip` loop
+ * already iterates ALL [HookEvent.entries] and the action picker already derives from
+ * [HookEngine.actionsAllowedFor], so both just work once this label exists. NOT done here (design
+ * spec section 12.2 / plan Task 9 Step 4's "hide plan events when both PLAN and GOAL are absent from
+ * `AgentDefinition.allowedModes`"): this dialog has no `allowedModes` parameter today, and threading
+ * it through (`HookEditorDialog` → `HooksStep` → the builder wizard's in-progress `AgentDefinition`)
+ * is a separate, larger UI change than this task's engine/firing scope — flagged as a follow-up, not
+ * silently dropped.
+ */
 internal fun hookEventLabel(event: HookEvent): String = when (event) {
   HookEvent.BEFORE_TURN -> "Перед ходом"
   HookEvent.AFTER_TURN -> "После хода"
@@ -249,6 +261,12 @@ internal fun hookEventLabel(event: HookEvent): String = when (event) {
   HookEvent.AFTER_TOOL -> "После инструмента"
   HookEvent.ON_ERROR -> "При ошибке"
   HookEvent.ON_COMPLETE -> "По завершении"
+  HookEvent.ON_PLAN_CREATED -> "План создан"
+  HookEvent.ON_PLAN_APPROVED -> "План одобрен"
+  HookEvent.BEFORE_PLAN_STEP -> "Перед шагом плана"
+  HookEvent.AFTER_PLAN_STEP -> "После шага плана"
+  HookEvent.ON_PLAN_BLOCKED -> "План заблокирован"
+  HookEvent.ON_PLAN_COMPLETED -> "План завершён"
 }
 
 internal fun hookActionLabel(action: HookActionType): String = when (action) {

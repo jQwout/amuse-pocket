@@ -9,6 +9,7 @@ import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.AgentMemoryPolicy
 import com.aiopenpocket.agent.core.agent.AgentSource
 import com.aiopenpocket.agent.core.agent.AgentStatus
+import com.aiopenpocket.agent.core.hook.AgentHookRepository
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.llm.LlmClient
@@ -88,6 +89,7 @@ class PlanExecutorTest {
   private lateinit var db: AppDatabase
   private lateinit var repository: PlanRepository
   private lateinit var toolRegistry: ToolRegistry
+  private lateinit var hookRepository: AgentHookRepository
   private var now = 10_000L
 
   @Before
@@ -96,6 +98,7 @@ class PlanExecutorTest {
     db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
     repository = PlanRepository(db, db.planDao()) { now }
     toolRegistry = ToolRegistry(setOf(FakeTool("memory_tool"), FakeTool("other_tool")))
+    hookRepository = AgentHookRepository(db.agentHookDao())
   }
 
   @After
@@ -168,7 +171,7 @@ class PlanExecutorTest {
   private fun verifier() = PlanVerifier(PlanEvidenceSink(repository::addEvidence), NoMemoryFacts, UnusedLlmClient, NoAssets) { now }
 
   private fun executor(runner: PlanStepRunner, registry: ToolRegistry = toolRegistry) =
-    PlanExecutor(repository, registry, runner, NoAssets, verifier()) { now }
+    PlanExecutor(repository, registry, runner, NoAssets, verifier(), hookRepository) { now }
 
   // --- fixtures (mirrors PlanRepositoryTest/PlanContextProviderTest's own builders) ------------------
 
@@ -339,6 +342,44 @@ class PlanExecutorTest {
     assertTrue(PlanExecutor.resolveToolScope(setOf("memory_tool", "other_tool"), emptySet()).isEmpty())
   }
 
+  // --- isWholePlanComplete: pure, no I/O (Task 9 - ON_PLAN_COMPLETED trigger) --------------------------
+
+  @Test
+  fun `isWholePlanComplete is false for a plan with no steps`() {
+    assertFalse(PlanExecutor.isWholePlanComplete(emptyList(), emptyList(), stepState(stepId = "step-1", status = StepStatus.COMPLETED)))
+  }
+
+  @Test
+  fun `isWholePlanComplete is true when the just-updated step is the only step and is COMPLETED`() {
+    val updated = stepState(stepId = "step-1", status = StepStatus.COMPLETED)
+    assertTrue(PlanExecutor.isWholePlanComplete(listOf(step(id = "step-1")), emptyList(), updated))
+  }
+
+  @Test
+  fun `isWholePlanComplete is false when another step is not COMPLETED or SKIPPED`() {
+    val steps = listOf(step(id = "step-1"), step(id = "step-2"))
+    val staleStates = listOf(stepState(stepId = "step-2", status = StepStatus.READY))
+    val updated = stepState(stepId = "step-1", status = StepStatus.COMPLETED)
+    assertFalse(PlanExecutor.isWholePlanComplete(steps, staleStates, updated))
+  }
+
+  @Test
+  fun `isWholePlanComplete is true when every step is COMPLETED or SKIPPED, mixing the fresh update with prior state`() {
+    val steps = listOf(step(id = "step-1"), step(id = "step-2"))
+    val staleStates = listOf(stepState(stepId = "step-2", status = StepStatus.SKIPPED))
+    val updated = stepState(stepId = "step-1", status = StepStatus.COMPLETED)
+    assertTrue(PlanExecutor.isWholePlanComplete(steps, staleStates, updated))
+  }
+
+  @Test
+  fun `isWholePlanComplete uses the updated step's status, not a stale stepStates entry for the same id`() {
+    val steps = listOf(step(id = "step-1"))
+    // Stale snapshot still says READY; the fresh outcome (updated) says COMPLETED - updated must win.
+    val staleStates = listOf(stepState(stepId = "step-1", status = StepStatus.READY))
+    val updated = stepState(stepId = "step-1", status = StepStatus.COMPLETED)
+    assertTrue(PlanExecutor.isWholePlanComplete(steps, staleStates, updated))
+  }
+
   // --- buildStepMessages: pure, no I/O ------------------------------------------------------------------
 
   @Test
@@ -370,6 +411,23 @@ class PlanExecutorTest {
     assertTrue(system.contains("6 вызовов"))
     assertEquals("user", messages[1].role)
     assertTrue(messages[1].content.orEmpty().contains(s.id))
+  }
+
+  @Test
+  fun `buildStepMessages folds hookInstructions into the system message without adding a message`() {
+    val s = step(id = "step-1")
+    val v = version(steps = listOf(s))
+    val p = plan().copy(approvedVersion = 1, status = PlanStatus.ACTIVE)
+    val snapshot = PlanSnapshot(plan = p, version = v, stepStates = emptyList(), evidence = emptyList())
+
+    val withoutHook = PlanExecutor.buildStepMessages("BASE_PROMPT", agent(), snapshot, s, PlanRunBudget(), attempt = 1)
+    assertFalse("no hookInstructions (default) must not add a section", withoutHook[0].content.orEmpty().contains("Дополнительные указания"))
+
+    val withHook = PlanExecutor.buildStepMessages(
+      "BASE_PROMPT", agent(), snapshot, s, PlanRunBudget(), attempt = 1, hookInstructions = listOf("EPHEMERAL_HOOK_TEXT"),
+    )
+    assertEquals("a hook instruction must not add a THIRD message", 2, withHook.size)
+    assertTrue(withHook[0].content.orEmpty().contains("EPHEMERAL_HOOK_TEXT"))
   }
 
   // --- execute: preconditions refused (throw, no repository row mutated) -----------------------------
