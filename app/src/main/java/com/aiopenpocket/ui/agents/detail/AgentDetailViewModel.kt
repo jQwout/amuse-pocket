@@ -17,6 +17,10 @@ import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
 import com.aiopenpocket.agent.core.memory.dao.HeartbeatDao
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
+import com.aiopenpocket.agent.core.plan.model.PlanSnapshot
+import com.aiopenpocket.agent.core.plan.model.PlanStatus
+import com.aiopenpocket.agent.core.plan.model.StepStatus
+import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
 import com.aiopenpocket.agent.core.skill.SkillRegistry
 import com.aiopenpocket.data.repository.AgentFile
 import com.aiopenpocket.data.repository.AgentFilesRepository
@@ -34,6 +38,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -59,6 +64,16 @@ data class AgentDetailHookRow(
   val recentRuns: List<AgentHookRunEntity>,
 )
 
+/** One resolved row for the Планы section (Task 12) — a flattened, display-ready projection of one [PlanSnapshot] for this agent. */
+data class AgentDetailPlanRow(
+  val planId: String,
+  val objective: String,
+  val status: PlanStatus,
+  val stepsCompleted: Int,
+  val stepsTotal: Int,
+  val updatedAt: Long,
+)
+
 data class AgentDetailState(
   val isLoading: Boolean = true,
   val definition: AgentDefinition? = null,
@@ -67,6 +82,8 @@ data class AgentDetailState(
   val hooks: List<AgentDetailHookRow> = emptyList(),
   val activeHeartbeats: List<HeartbeatEntity> = emptyList(),
   val files: List<AgentFile> = emptyList(),
+  /** Every plan ever proposed for this agent (Task 12, `PlanRepository.observeByAgent`) — sorted newest-updated first. Empty for a preset with no plans, honestly (see `AgentDetailScreen`'s empty-state card). */
+  val plans: List<AgentDetailPlanRow> = emptyList(),
   /**
    * True when [tools]/[skills] contains a row the CURRENT build no longer registers (e.g. the
    * definition was authored against a newer build, then the APK was downgraded). The rest of the
@@ -96,6 +113,14 @@ val AgentDetailState.canArchive: Boolean
 /** True while [AgentDetailState.definition] is currently live in the roster ([AgentStatus.PUBLISHED]). */
 val AgentDetailState.isEnabled: Boolean get() = definition?.status == AgentStatus.PUBLISHED
 
+private val TERMINAL_PLAN_STATUSES = setOf(PlanStatus.COMPLETED, PlanStatus.CANCELLED, PlanStatus.FAILED)
+
+/** Планы section counts (Task 12) — every non-terminal, non-paused status (including a pending proposal) counts as "active", mirroring `PlanListState`'s own three-bucket split. */
+val AgentDetailState.activePlansCount: Int
+  get() = plans.count { it.status !in TERMINAL_PLAN_STATUSES && it.status != PlanStatus.PAUSED }
+val AgentDetailState.pausedPlansCount: Int get() = plans.count { it.status == PlanStatus.PAUSED }
+val AgentDetailState.completedPlansCount: Int get() = plans.count { it.status in TERMINAL_PLAN_STATUSES }
+
 /**
  * Full-screen agent detail (Task 21) — supersedes the deleted glass bottom-sheet inspector
  * (`com.aiopenpocket.ui.agents.AgentInspectorViewModel`/`AgentInspectorSheet`) with a real screen
@@ -114,6 +139,11 @@ val AgentDetailState.isEnabled: Boolean get() = definition?.status == AgentStatu
  * recognizes (e.g. authored against a newer build, then the APK was downgraded) never crashes
  * resolution — [resolveToolRow]/[resolveSkillRow] fail closed into an "недоступен" row instead, and
  * [AgentDetailState.hasInvalidCapabilities] flips true so the screen can warn without blocking.
+ *
+ * [AgentDetailState.plans] (Task 12) is, like [AgentDetailState.activeHeartbeats], a LIVE
+ * subscription independent of [reload] — [PlanRepository.observeByAgent] rather than a one-shot
+ * resolver call, so approving/pausing/resuming/cancelling a plan (from chat or `plan/{planId}`)
+ * updates this screen's Планы section without navigating back to it.
  */
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
@@ -126,6 +156,7 @@ class AgentDetailViewModel(
   private val agentHookRepository: AgentHookRepository,
   private val heartbeatDao: HeartbeatDao,
   private val agentFilesRepository: AgentFilesRepository,
+  private val planRepository: PlanRepository,
 ) : ViewModel() {
 
   private val agentIdFlow = MutableStateFlow<String?>(null)
@@ -139,11 +170,21 @@ class AgentDetailViewModel(
     viewModelScope.launch {
       heartbeatsFlow().collect { hb -> _state.update { it.copy(activeHeartbeats = hb) } }
     }
+    // Планы агента (Task 12) — та же живая подписка, что и у heartbeat'ов: PlanRepository.observeByAgent
+    // сама переустанавливается на смену agentId, reload() её не трогает и не дублирует.
+    viewModelScope.launch {
+      plansFlow().collect { rows -> _state.update { it.copy(plans = rows) } }
+    }
   }
 
   @OptIn(ExperimentalCoroutinesApi::class)
   private fun heartbeatsFlow(): Flow<List<HeartbeatEntity>> = agentIdFlow
     .flatMapLatest { id -> if (id == null) flowOf(emptyList()) else heartbeatDao.observeActiveByAgent(id) }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  private fun plansFlow(): Flow<List<AgentDetailPlanRow>> = agentIdFlow
+    .flatMapLatest { id -> if (id == null) flowOf(emptyList()) else planRepository.observeByAgent(id) }
+    .map { snapshots -> snapshots.map { it.toPlanRow() }.sortedByDescending { row -> row.updatedAt } }
 
   /** Открывает экран для [agentId]; вызывается один раз из `LaunchedEffect(agentId)` на маршруте. */
   fun select(agentId: String) {
@@ -295,4 +336,18 @@ class AgentDetailViewModel(
     /** Cap on how many recent `agent_hook_runs` rows the Хуки section shows per hook (the repository itself keeps up to 100 — see [AgentHookRepository.KEEP_RUNS]). */
     private const val RECENT_RUNS_SHOWN = 5
   }
+}
+
+/** Mirrors `com.aiopenpocket.ui.plan.PlanListViewModel`'s own `PlanSnapshot.toRow()` — kept local (not shared) since the two rows carry slightly different fields and neither depends on the other's package. */
+private fun PlanSnapshot.toPlanRow(): AgentDetailPlanRow {
+  val doneStatuses = setOf(StepStatus.COMPLETED, StepStatus.SKIPPED)
+  val statusByStepId = stepStates.associateBy { it.stepId }
+  return AgentDetailPlanRow(
+    planId = plan.id,
+    objective = version.objective,
+    status = plan.status,
+    stepsCompleted = version.steps.count { statusByStepId[it.id]?.status in doneStatuses },
+    stepsTotal = version.steps.size,
+    updatedAt = plan.updatedAt,
+  )
 }

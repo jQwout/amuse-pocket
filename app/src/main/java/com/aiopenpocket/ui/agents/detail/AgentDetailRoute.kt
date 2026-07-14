@@ -23,6 +23,8 @@ import dev.zacsweers.metrox.viewmodel.metroViewModel
  * - `onEdit`: opens the builder directly on this (necessarily [com.aiopenpocket.agent.core.agent.AgentSource.USER]) agent's own id.
  * - `onArchive`/`onToggleEnabled`: no navigation at all — [AgentDetailViewModel] mutates in place and
  *   reloads its own state; the screen just re-renders.
+ * - `onOpenPlan`/`onOpenPlanList` (Task 12): open `plan/{planId}`/`plans/{agentId}` — the latter
+ *   already closes over THIS route's own `agentId`, matching `onOpenChat`'s own shape.
  */
 @Composable
 fun AgentDetailRoute(
@@ -30,6 +32,8 @@ fun AgentDetailRoute(
   onOpenChat: (String) -> Unit,
   onNavigateToBuilder: (String) -> Unit,
   onNavigateBack: () -> Unit,
+  onOpenPlan: (String) -> Unit = {},
+  onOpenPlanList: (String) -> Unit = {},
 ) {
   val viewModel: AgentDetailViewModel = metroViewModel()
   val agentsViewModel: AgentsViewModel = metroViewModel()
@@ -46,5 +50,7 @@ fun AgentDetailRoute(
     onToggleEnabled = viewModel::toggleEnabled,
     onArchive = viewModel::archive,
     onNavigateBack = onNavigateBack,
+    onOpenPlan = onOpenPlan,
+    onOpenPlanList = { onOpenPlanList(agentId) },
   )
 }

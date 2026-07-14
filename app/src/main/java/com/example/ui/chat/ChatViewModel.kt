@@ -17,6 +17,7 @@ import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.plan.execution.PlanCommands
 import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
+import com.aiopenpocket.agent.core.plan.model.PlanSnapshot
 import com.aiopenpocket.agent.core.plan.model.PlanStatus
 import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
 import com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator
@@ -141,6 +142,9 @@ class ChatViewModel(
         // Task 10 (structured-plan-engine-907066): approval-бар плана — реактивно из PlanRepository,
         // не из событий хода (см. observePendingPlanApproval kdoc).
         observePendingPlanApproval()
+        // Task 12: живой прогресс-бар плана в чате — та же реактивная подписка, но для
+        // ACTIVE/PAUSED вместо AWAITING_APPROVAL (см. observeActivePlan kdoc).
+        observeActivePlan()
         // Поиск по чату: дебаунс ввода (collectLatest + delay — новый символ отменяет хвост) и
         // contains-скан на Default. Раньше скан шёл прямо в композиции на каждый введённый символ —
         // на длинной истории это десятки мс на Main и пропуски кадров. contains(ignoreCase) в
@@ -171,8 +175,9 @@ class ChatViewModel(
     /**
      * Task 10 (structured-plan-engine-907066): reactive derivation of `ChatUiState.pendingPlanApproval`
      * straight from [PlanRepository.observeByConversation] — NOT from any `AgentEvent`
-     * `StructuredPlanOrchestrator` emits. This is what actually raises `ChatScreen`'s `PlanApprovalBar`
-     * (Task 5 built the bar gated on this field but nothing ever populated it until this task).
+     * `StructuredPlanOrchestrator` emits. This is what actually raises `ChatScreen`'s plan card
+     * (Task 5 built the original bar gated on this field but nothing ever populated it until this
+     * task; Task 12 later replaced that bar with `com.aiopenpocket.ui.plan.PlanCard`).
      * Reacting to the repository directly (rather than a one-shot turn event) means: re-opening a
      * conversation that already has a pending plan shows the bar immediately, and any OTHER path that
      * ever calls [PlanRepository.saveProposal] for this conversation (not just this screen's own PLAN
@@ -195,6 +200,30 @@ class ChatViewModel(
                     ?.let { PendingPlanApproval(it.plan.id, it.version.version) }
             }.distinctUntilChanged().collect { pending ->
                 _state.update { it.copy(pendingPlanApproval = pending) }
+            }
+        }
+    }
+
+    /**
+     * Task 12 (structured-plan-engine-907066): reactive derivation of `ChatUiState.activePlanId` —
+     * mirrors [observePendingPlanApproval] but picks the conversation's ACTIVE/PAUSED plan instead of
+     * its AWAITING_APPROVAL one, so `PlanCard` in the chat stream can keep showing live progress once
+     * GOAL has started executing an approved plan (a case [pendingPlanApproval] never covers, since it
+     * only ever holds a plan awaiting a decision). Only the plan id is kept in state — the card itself
+     * subscribes to the full [PlanSnapshot] via [observePlan], the same "card owns its own live
+     * subscription" shape as `ReminderCardView`/[observeHeartbeat].
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun observeActivePlan() {
+        viewModelScope.launch {
+            convIdFlow.flatMapLatest { id ->
+                if (id.isBlank()) flowOf(emptyList()) else planRepository.observeByConversation(id)
+            }.map { snapshots ->
+                snapshots.filter { it.plan.status == PlanStatus.ACTIVE || it.plan.status == PlanStatus.PAUSED }
+                    .maxByOrNull { it.plan.updatedAt }
+                    ?.plan?.id
+            }.distinctUntilChanged().collect { activePlanId ->
+                _state.update { it.copy(activePlanId = activePlanId) }
             }
         }
     }
@@ -578,6 +607,10 @@ class ChatViewModel(
     /** Живая подписка карточки reminder — см. [ReminderCardView]. */
     // @trace heartbeat-napominalki-agenta-5f0442
     fun observeHeartbeat(id: String): Flow<HeartbeatEntity?> = heartbeatDao.observe(id)
+
+    /** Живая подписка [com.aiopenpocket.ui.plan.PlanCard] — см. его же kdoc "never trusts a field copied into a chat message". */
+    // @trace structured-plan-engine-907066
+    fun observePlan(planId: String): Flow<PlanSnapshot?> = planRepository.observe(planId)
 
     /** Отмена из карточки: гасим WorkManager-задачу и фиксируем статус в Room (карточка сама перерисуется). */
     // @trace heartbeat-napominalki-agenta-5f0442

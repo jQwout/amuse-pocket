@@ -128,6 +128,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.model.Message
+import com.aiopenpocket.agent.core.plan.model.PlanSnapshot
 import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.ui.agents.builder.AgentSourceContext
@@ -144,6 +145,7 @@ import com.aiopenpocket.ui.components.glass.GlassSurface
 import com.aiopenpocket.ui.components.glass.auroraBackground
 import com.aiopenpocket.ui.components.glass.glassSource
 import com.aiopenpocket.ui.components.glass.rememberGlassState
+import com.aiopenpocket.ui.plan.PlanCard
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.ui.theme.PurpleAccent
 import com.aiopenpocket.voice.input.VoiceInputState
@@ -167,6 +169,9 @@ fun ChatScreen(
     // существует только на РЕАЛЬНОЙ completion-карточке agent_blueprint (см. DrivenUiEngine/
     // LessonChatController.postCompletion) — обычные уроки её не показывают.
     onOpenAgentBuilder: (AgentSourceContext) -> Unit = {},
+    // Тап «Открыть →» на живой карточке плана (Task 12, structured-plan-engine-907066) — открывает
+    // com.aiopenpocket.ui.plan.PlanDetailRoute, маршрут "plan/{planId}".
+    onOpenPlanDetail: (String) -> Unit = {},
 ) {
     val glassState = rememberGlassState()
     val viewModel: ChatViewModel = metroViewModel()
@@ -199,6 +204,8 @@ fun ChatScreen(
     // Живая карточка reminder: подписка на heartbeat + отмена — стабильные ссылки на методы ViewModel.
     val observeHeartbeat: (String) -> Flow<HeartbeatEntity?> = remember { viewModel::observeHeartbeat }
     val onCancelHeartbeat: (String) -> Unit = remember { viewModel::cancelHeartbeat }
+    // Живая карточка плана (Task 12): PlanCard подписывается на PlanSnapshot по id сама — см. её kdoc.
+    val observePlan: (String) -> Flow<PlanSnapshot?> = remember { viewModel::observePlan }
     var composerExpanded by remember { mutableStateOf(false) }
 
     // --- Полнотекстовый поиск по сообщениям чата (иконка-лупа в тулбаре). ---
@@ -682,7 +689,7 @@ fun ChatScreen(
                 }
 
                 // Tool-approval бар (бэкенд — Task 9, UI — Task 21): BEFORE_TOOL-хук потребовал
-                // подтверждения, ход стоит на паузе в ожидании решения. В отличие от PlanApprovalBar/
+                // подтверждения, ход стоит на паузе в ожидании решения. В отличие от PlanCard/
                 // ModeSelector ниже — сознательно НЕ гейтится на state.agentId == null: подтверждение
                 // тула — ровно то, что триггерят хуки кастомных агентов (Задача 8/9).
                 state.pendingToolApproval?.let { request ->
@@ -693,15 +700,26 @@ fun ChatScreen(
                     )
                 }
 
-                // План-аппрув — над полем ввода. Кнопки «Выполнить/Поправить» доступны, пока ждём решения.
-                // Task 5: гейтится на typed state.pendingPlanApproval (planId+version из PlanRepository),
-                // а не на per-turn boolean — см. ChatUiState/ChatViewModel. Пока PLAN-мод не заводит
-                // persisted AgentPlan (Task 10), это поле всегда null и бар не показывается.
-                val pendingPlan = state.pendingPlanApproval
-                if (pendingPlan != null && !state.lessonMode && !state.isTutorial && state.agentId == null) {
-                    PlanApprovalBar(
-                        onApprove = { viewModel.handleIntent(ChatIntent.ApprovePlan(pendingPlan.planId, pendingPlan.version)) },
-                        onEdit = { viewModel.handleIntent(ChatIntent.EditPlan) },
+                // Живая карточка плана (Task 12) — над полем ввода. Показывает proposal-превью
+                // (Одобрить/Попросить правки) пока pendingPlanApproval не null, иначе компактный
+                // прогресс, пока activePlanId (ACTIVE/PAUSED) не null; сама подписывается на полный
+                // PlanSnapshot по id через viewModel.observePlan — см. PlanCard.kt kdoc. Действия идут
+                // напрямую типизированными ChatIntent-командами в PlanRepository/PlanCommands (Task 5),
+                // никакого второго механизма approval здесь не заводится.
+                val livePlanId = state.pendingPlanApproval?.planId ?: state.activePlanId
+                if (livePlanId != null && !state.lessonMode && !state.isTutorial && state.agentId == null) {
+                    PlanCard(
+                        planId = livePlanId,
+                        observePlan = observePlan,
+                        onApprove = { planId, version -> viewModel.handleIntent(ChatIntent.ApprovePlan(planId, version)) },
+                        onRequestChanges = { planId, version, feedback ->
+                            viewModel.handleIntent(ChatIntent.RequestPlanChanges(planId, version, feedback))
+                        },
+                        onPause = { planId -> viewModel.handleIntent(ChatIntent.PausePlan(planId)) },
+                        onResume = { planId -> viewModel.handleIntent(ChatIntent.ResumePlan(planId)) },
+                        onCancel = { planId -> viewModel.handleIntent(ChatIntent.CancelPlan(planId)) },
+                        onOpenDetail = onOpenPlanDetail,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     )
                 }
 
@@ -957,36 +975,6 @@ private fun ModeChip(
         enabled = enabled,
         label = { Text(label) },
     )
-}
-
-@Composable
-private fun PlanApprovalBar(
-    onApprove: () -> Unit,
-    onEdit: () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    ) {
-        Text(
-            text = "План готов. Выполнить?",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Spacer(Modifier.height(6.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f)) {
-                Text("Поправить")
-            }
-            Button(onClick = onApprove, modifier = Modifier.weight(1f)) {
-                Text("Выполнить")
-            }
-        }
-    }
 }
 
 /**
@@ -1413,6 +1401,7 @@ private fun MessageBubble(
                     onAction = onCardAction,
                     observeHeartbeat = observeHeartbeat,
                     onCancelHeartbeat = onCancelHeartbeat,
+                    lessonCard = interactiveCards,
                 )
             } else {
                 MarkdownText(text = displayText, compact = true, selectable = true)

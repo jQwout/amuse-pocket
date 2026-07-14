@@ -79,6 +79,15 @@ data class ChatUiState(
   val agentMode: AgentMode = AgentMode.CHAT,
   /** План-мод (Task 5): план показан, ждём «Выполнить»/«Поправить» — null, пока решать нечего. */
   val pendingPlanApproval: PendingPlanApproval? = null,
+  /**
+   * Task 12 (structured-plan-engine-907066): id of THIS conversation's currently ACTIVE/PAUSED plan,
+   * if any — populated by `ChatViewModel.observeActivePlan`, the same reactive
+   * `PlanRepository.observeByConversation` subscription style as [pendingPlanApproval] but filtered to
+   * the opposite pair of statuses. Drives `PlanCard`'s compact-progress branch in the chat stream once
+   * a plan has been approved and GOAL has started executing it; [pendingPlanApproval] alone never
+   * covers that case since it only ever holds an AWAITING_APPROVAL plan.
+   */
+  val activePlanId: String? = null,
   /** Лимит витков гоал-мода (из настроек). */
   val goalMaxIterations: Int = 3,
 

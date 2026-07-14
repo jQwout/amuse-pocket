@@ -58,6 +58,7 @@ import com.aiopenpocket.agent.core.agent.toDefinition
 import com.aiopenpocket.agent.core.hook.AgentHookRunEntity
 import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
+import com.aiopenpocket.agent.core.plan.model.PlanStatus
 import com.aiopenpocket.data.repository.AgentFile
 import com.aiopenpocket.ui.agents.builder.components.riskClassLabel
 import com.aiopenpocket.ui.agents.builder.components.riskColor
@@ -65,6 +66,7 @@ import com.aiopenpocket.ui.agents.iconFor
 import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
 import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.components.glass.rememberGlassState
+import com.aiopenpocket.ui.plan.PlanStatusBadge
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.ui.theme.PurpleAccent
 import com.aiopenpocket.ui.theme.PurpleAccentDark
@@ -77,9 +79,15 @@ import java.util.Locale
  * [AcademyCollapsingScaffold]'s own aurora backdrop (same glass full-screen pattern as
  * `RoadmapScreen`/other tabs), replacing the old glass bottom-sheet inspector. One continuous
  * scroll, no nested tabs/sheets: Header → Actions → clickable stat tiles → full препромпт →
- * Инструменты → Навыки → Heartbeat → Хуки → Файлы.
+ * Планы → Инструменты → Навыки → Heartbeat → Хуки → Файлы.
  *
- * // TODO(Фаза B): Планы section — PlanRepository not built yet.
+ * The Планы section (Task 12, structured-plan-engine-907066) shows active/paused/completed
+ * counts plus the full list ([AgentDetailState.plans], sourced from
+ * `com.aiopenpocket.agent.core.plan.persistence.PlanRepository.observeByAgent`); tapping a row opens
+ * `plan/{planId}` ([onOpenPlan]), and "Все планы" opens the full `plans/{agentId}` roster
+ * ([onOpenPlanList], zero-arg like [onOpenChat] — the route wrapper already closes over this
+ * agent's own id). A PRESET agent that has never had a plan proposed for it gets an honest empty
+ * card, same as the Инструменты/Навыки/Хуки sections' own empty states.
  */
 @Composable
 fun AgentDetailScreen(
@@ -90,6 +98,8 @@ fun AgentDetailScreen(
   onToggleEnabled: () -> Unit,
   onArchive: () -> Unit,
   onNavigateBack: () -> Unit,
+  onOpenPlan: (String) -> Unit = {},
+  onOpenPlanList: () -> Unit = {},
 ) {
   val glassState = rememberGlassState()
   AcademyCollapsingScaffold(
@@ -174,8 +184,8 @@ fun AgentDetailScreen(
       Spacer(modifier = Modifier.height(24.dp))
       PromptSection(agent = agent)
       Spacer(modifier = Modifier.height(24.dp))
-
-      // TODO(Фаза B): Планы section — PlanRepository not built yet.
+      PlansSection(state = state, onOpenPlan = onOpenPlan, onOpenPlanList = onOpenPlanList)
+      Spacer(modifier = Modifier.height(24.dp))
 
       Column(modifier = Modifier.onGloballyPositioned { toolsTop = it.positionInRoot().y.toInt() }) {
         ToolsSection(tools = state.tools)
@@ -412,6 +422,88 @@ private fun PromptSection(agent: AgentDefinition, modifier: Modifier = Modifier)
       ) {
         Text(text = if (expanded) "Свернуть" else "Развернуть")
       }
+    }
+  }
+}
+
+@Composable
+private fun PlansSection(
+  state: AgentDetailState,
+  onOpenPlan: (String) -> Unit,
+  onOpenPlanList: () -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  Column(modifier = modifier.fillMaxWidth().testTag("agent_detail_plans")) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+      SectionLabel("Планы")
+      Spacer(modifier = Modifier.weight(1f))
+      if (state.plans.isNotEmpty()) {
+        TextButton(onClick = onOpenPlanList, modifier = Modifier.testTag("agent_detail_plans_see_all")) {
+          Text(text = "Все планы", style = MaterialTheme.typography.labelMedium)
+        }
+      }
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+    if (state.plans.isEmpty()) {
+      // Честная пустая карточка — у пресетов и у ещё не запустивших план USER-агентов планов просто нет.
+      EmptyStateCard("у агента нет планов")
+    } else {
+      // Обычный Row (как StatTiles выше), не FlowRow: три ФИКСИРОВАННЫЕ плитки, перенос не нужен —
+      // RowScope.weight здесь однозначно доступен, в отличие от FlowRowScope.
+      Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        PlanCountTile(label = "Активные", count = state.activePlansCount, modifier = Modifier.weight(1f).testTag("agent_detail_plans_active_count"))
+        PlanCountTile(label = "На паузе", count = state.pausedPlansCount, modifier = Modifier.weight(1f).testTag("agent_detail_plans_paused_count"))
+        PlanCountTile(label = "Завершённые", count = state.completedPlansCount, modifier = Modifier.weight(1f).testTag("agent_detail_plans_completed_count"))
+      }
+      Spacer(modifier = Modifier.height(8.dp))
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        state.plans.forEach { row -> PlanRow(row, onClick = { onOpenPlan(row.planId) }) }
+      }
+    }
+  }
+}
+
+@Composable
+private fun PlanCountTile(label: String, count: Int, modifier: Modifier = Modifier) {
+  GlassCard(modifier = modifier, shape = RoundedCornerShape(16.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+      Text(text = count.toString(), style = MaterialTheme.typography.headlineSmall, color = PurpleAccent)
+      Spacer(modifier = Modifier.height(2.dp))
+      Text(
+        text = label,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+      )
+    }
+  }
+}
+
+@Composable
+private fun PlanRow(row: AgentDetailPlanRow, onClick: () -> Unit, modifier: Modifier = Modifier) {
+  GlassCard(
+    modifier = modifier.fillMaxWidth().testTag("agent_detail_plan_${row.planId}"),
+    shape = RoundedCornerShape(14.dp),
+    onClick = onClick,
+  ) {
+    Row(
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Column(modifier = Modifier.weight(1f).padding(end = 10.dp)) {
+        Text(
+          text = row.objective,
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurface,
+          maxLines = 2,
+          overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+          text = "${row.stepsCompleted}/${row.stepsTotal} шагов",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+        )
+      }
+      PlanStatusBadge(row.status)
     }
   }
 }
@@ -828,6 +920,24 @@ internal fun samplePreviewState(): AgentDetailState {
     ),
     files = listOf(
       AgentFile(name = "budget_report.txt", sizeBytes = 2_048, lastModified = PREVIEW_FIXED_TIMESTAMP),
+    ),
+    plans = listOf(
+      AgentDetailPlanRow(
+        planId = "plan-active-1",
+        objective = "Составить бюджет на месяц и отслеживать траты по категориям",
+        status = PlanStatus.ACTIVE,
+        stepsCompleted = 2,
+        stepsTotal = 5,
+        updatedAt = PREVIEW_FIXED_TIMESTAMP,
+      ),
+      AgentDetailPlanRow(
+        planId = "plan-completed-1",
+        objective = "Проверить подписки и отменить лишние",
+        status = PlanStatus.COMPLETED,
+        stepsCompleted = 3,
+        stepsTotal = 3,
+        updatedAt = PREVIEW_FIXED_TIMESTAMP,
+      ),
     ),
     hasInvalidCapabilities = false,
   )
