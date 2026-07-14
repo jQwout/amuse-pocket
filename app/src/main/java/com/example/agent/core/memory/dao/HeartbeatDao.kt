@@ -1,6 +1,7 @@
 package com.aiopenpocket.agent.core.memory.dao
 
 // @trace heartbeat-napominalki-agenta-5f0442
+// @trace structured-plan-engine-907066
 
 import androidx.room.Dao
 import androidx.room.Insert
@@ -26,6 +27,17 @@ interface HeartbeatDao {
 
   @Query("SELECT * FROM heartbeats WHERE agentId = :agentId AND status = 'scheduled' ORDER BY createdAt DESC")
   fun observeActiveByAgent(agentId: String): Flow<List<HeartbeatEntity>>
+
+  /**
+   * Every heartbeat currently targeting [planId] (any status except 'cancelled') — Task 11's
+   * [com.aiopenpocket.agent.core.plan.schedule.PlanScheduler] reads this on every `sync`/`cancel` to
+   * find the previously-armed row to reuse (same step/version still current) and any stale rows to
+   * cancel (a superseded version, or a step that is no longer the next-due one). Not filtered to
+   * `targetType = 'PLAN_STEP'` — a plan can never legitimately own a `GENERIC_AGENT` row, so this is
+   * equivalent in practice, but filtering on `planId` alone keeps this query oblivious to that enum.
+   */
+  @Query("SELECT * FROM heartbeats WHERE planId = :planId AND status != 'cancelled'")
+  suspend fun listForPlan(planId: String): List<HeartbeatEntity>
 
   @Query("UPDATE heartbeats SET status = :status WHERE id = :id")
   suspend fun setStatus(id: String, status: String)

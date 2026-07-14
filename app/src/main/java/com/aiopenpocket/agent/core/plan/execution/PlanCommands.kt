@@ -7,10 +7,7 @@ import com.aiopenpocket.agent.core.hook.HookEvent
 import com.aiopenpocket.agent.core.plan.model.PlanSnapshot
 import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
 import com.aiopenpocket.di.AppScope
-import dev.zacsweers.metro.BindingContainer
-import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.Inject
-import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.SingleIn
 import java.util.UUID
 
@@ -22,10 +19,10 @@ import java.util.UUID
  * unit-testable with a plain fake. [sync] (re)arms whatever due/periodic work an ACTIVE plan's steps
  * need; [cancel] tears it down — both idempotent from the caller's point of view.
  *
- * Task 5 binds [providePlanScheduleSync] below to a no-op — nothing schedules yet, so there is
- * nothing to arm or cancel. Task 11 ("Refactor heartbeat scheduling into a typed PlanScheduler")
- * replaces just that one binding with a WorkManager-backed implementation; [PlanCommands]' call
- * sites do not change.
+ * Task 5 bound this to a no-op — nothing scheduled yet, so there was nothing to arm or cancel. Task 11
+ * ("Refactor heartbeat scheduling into a typed PlanScheduler") replaces that binding with the real,
+ * WorkManager-backed [com.aiopenpocket.agent.core.plan.schedule.PlanScheduler] (bound in that class's
+ * own file, `PlanSchedulerBindings`) — [PlanCommands]' call sites below did not change at all.
  */
 interface PlanScheduleSync {
   suspend fun sync(planId: String)
@@ -81,7 +78,7 @@ class PlanCommands @Inject constructor(
    * [com.aiopenpocket.agent.core.plan.model.PlanStatus.ACTIVE]. Throws (via [PlanRepository.approve])
    * if [version] is not the plan's current pending version — approving a stale/superseded draft is
    * always rejected, never silently redirected to "the latest one instead". On success, arms
-   * [scheduler] for this plan (a no-op today — see [PlanScheduleSync] kdoc) and fires
+   * [scheduler] for this plan (Task 11 — see [PlanScheduleSync] kdoc) and fires
    * [HookEvent.ON_PLAN_APPROVED] (Task 9) — see [firePlanApproved].
    */
   suspend fun approve(planId: String, version: Int) {
@@ -152,18 +149,5 @@ class PlanCommands @Inject constructor(
   suspend fun cancel(planId: String) {
     repository.cancel(planId)
     scheduler.cancel(planId)
-  }
-}
-
-/** Task 5's binding for [PlanScheduleSync] — see that interface's kdoc for why it is a no-op until Task 11. */
-@ContributesTo(AppScope::class)
-@BindingContainer
-object PlanScheduleSyncBindings {
-
-  @Provides
-  @SingleIn(AppScope::class)
-  fun providePlanScheduleSync(): PlanScheduleSync = object : PlanScheduleSync {
-    override suspend fun sync(planId: String) = Unit
-    override suspend fun cancel(planId: String) = Unit
   }
 }

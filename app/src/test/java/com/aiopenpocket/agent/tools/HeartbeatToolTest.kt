@@ -11,6 +11,7 @@ import com.aiopenpocket.agent.core.agent.AgentMemoryPolicy
 import com.aiopenpocket.agent.core.agent.AgentSource
 import com.aiopenpocket.agent.core.agent.AgentStatus
 import com.aiopenpocket.agent.core.mcp.ToolResult
+import com.aiopenpocket.agent.core.plan.schedule.WorkManagerHeartbeatScheduler
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.loop.TurnContextHolder
 import com.aiopenpocket.data.database.AppDatabase
@@ -44,7 +45,11 @@ class HeartbeatToolTest {
     WorkManagerTestInitHelper.initializeTestWorkManager(context)
     db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
     holder = TurnContextHolder().apply { set("conv1", testAgent("reminders")) }
-    tool = HeartbeatTool(context, db.heartbeatDao(), holder)
+    // Task 11: WorkManager mechanics moved out of HeartbeatTool into HeartbeatScheduler — the REAL
+    // WorkManagerHeartbeatScheduler is used here (not a fake) since WorkManagerTestInitHelper above
+    // already makes a real WorkManager instance safe to drive in Robolectric, preserving this test's
+    // original coverage of the actual schedule/cancel plumbing.
+    tool = HeartbeatTool(context, db.heartbeatDao(), holder, WorkManagerHeartbeatScheduler(context))
   }
 
   @After

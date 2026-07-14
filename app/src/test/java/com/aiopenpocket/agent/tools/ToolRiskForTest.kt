@@ -8,6 +8,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
+import com.aiopenpocket.agent.core.plan.schedule.WorkManagerHeartbeatScheduler
 import com.aiopenpocket.agent.loop.TurnContextHolder
 import com.aiopenpocket.data.database.AppDatabase
 import kotlinx.serialization.json.JsonElement
@@ -56,7 +57,10 @@ class ToolRiskForTest {
     memoryTools = MemoryTools(MemoryRepository(db.factDao(), db.episodeDao()), holder)
     calendarTool = CalendarTool(context)
     databaseQueryTool = DatabaseQueryTool(db)
-    heartbeatTool = HeartbeatTool(context, db.heartbeatDao(), holder)
+    // Task 11: HeartbeatTool now needs a HeartbeatScheduler too — riskFor() never touches it (see
+    // this class's own kdoc), so the real WorkManagerHeartbeatScheduler is fine to construct here
+    // (its constructor does not itself touch WorkManager.getInstance()).
+    heartbeatTool = HeartbeatTool(context, db.heartbeatDao(), holder, WorkManagerHeartbeatScheduler(context))
     workManagerTool = WorkManagerTool(context)
   }
 

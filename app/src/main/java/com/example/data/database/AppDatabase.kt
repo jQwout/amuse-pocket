@@ -42,8 +42,11 @@ import com.aiopenpocket.agent.core.srs.SrsWordEntity
 // version bumped 3 -> 4. AgentHookEntity/AgentHookRunEntity/agentHookDao() registered for Task 8
 // (declarative HookEngine); version bumped 4 -> 5. AgentPlanEntity/PlanVersionEntity/
 // PlanStepStateEntity/PlanEvidenceEntity/PlanEventEntity/planDao() registered for Task 3 of the
-// Structured Plan Engine (structured-plan-engine-907066); version bumped 5 -> 6. No Migration is
-// added either time — see the policy comment on DatabaseBindings.provideDatabase.
+// Structured Plan Engine (structured-plan-engine-907066); version bumped 5 -> 6. HeartbeatEntity
+// gained its typed plan-target columns (targetType/planId/planVersion/planStepId) for Task 11's typed
+// heartbeat scheduling — no new entity/table, just new nullable columns on an existing one; version
+// bumped 6 -> 7. No Migration is added any of these times — see the policy comment on
+// DatabaseBindings.provideDatabase.
 @Database(
   entities = [
     ConversationEntity::class,
@@ -63,7 +66,7 @@ import com.aiopenpocket.agent.core.srs.SrsWordEntity
     PlanEvidenceEntity::class,
     PlanEventEntity::class,
   ],
-  version = 6,
+  version = 7,
   exportSchema = false,
 )
 @TypeConverters(AgentRoomConverters::class)
