@@ -2,6 +2,7 @@ package com.aiopenpocket.agent.loop
 
 // @trace fonovye-hody-agenta-dde42d
 // @trace user-agent-builder-848153
+// @trace structured-plan-engine-907066
 
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import kotlinx.coroutines.Job
@@ -20,6 +21,10 @@ sealed interface TurnStatus {
    * Ход завершился. [insertedMessageId] — id сохранённого ассистентского сообщения; null, если
    * вставки не было (пустой ответ). Пузырь стрима экран держит, ПОКА сообщение не приехало в окно
    * ленты, — это заменяет прежний pendingHandoffId и убирает «мигание» конца хода.
+   *
+   * Больше не несёт план-approval флаг (Task 5, structured-plan-engine-907066): «план ждёт
+   * одобрения» — теперь состояние persisted AgentPlan в PlanRepository, а не per-turn сигнал этого
+   * класса. См. com.aiopenpocket.agent.core.plan.execution.PlanCommands и ChatUiState.pendingPlanApproval.
    */
   data class Completed(
     val insertedMessageId: String?,
@@ -29,8 +34,6 @@ sealed interface TurnStatus {
     /** Сообщение об ошибке «пустой ответ» (иначе null). */
     val error: String?,
     val canRetry: Boolean,
-    /** План-мод: показан непустой план, ждём «Выполнить»/«Поправить». */
-    val planAwaitingApproval: Boolean,
   ) : TurnStatus
 
   data class Failed(val message: String, val canRetry: Boolean) : TurnStatus
@@ -63,8 +66,7 @@ class TurnSession internal constructor(
   internal var lastUserText: String? = null
   internal var lastUserMessageId: String? = null
   internal var lastMode: AgentMode = AgentMode.CHAT
-  internal var lastPlanApproved: Boolean = false
   internal var lastGoalMaxIterations: Int = 3
-  /** LIVE/PREVIEW последнего хода — «Повторить» и одобрение плана переигрывают в том же режиме. */
+  /** LIVE/PREVIEW последнего хода — «Повторить» переигрывает в том же режиме. */
   internal var lastExecutionMode: ExecutionMode = ExecutionMode.LIVE
 }

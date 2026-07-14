@@ -2,6 +2,7 @@ package com.aiopenpocket.ui.chat
 
 // @trace streaming-llm-chat-6595a1
 // @trace user-agent-builder-848153
+// @trace structured-plan-engine-907066
 
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.lesson.Lesson
@@ -18,6 +19,17 @@ data class ResponseStats(
   val contextTokensUsed: Int,
   val contextBudget: Int = LlmContextConfig.HISTORY_TOKEN_BUDGET,
 )
+
+/**
+ * Task 5 (structured-plan-engine-907066): identifies the exact [com.aiopenpocket.agent.core.plan.model.PlanVersion]
+ * a `PlanApprovalBar`/PlanCard is currently showing the user, so `ChatIntent.ApprovePlan`/
+ * `RequestPlanChanges` always target that precise version — never "whatever is pending now".
+ * Replaces the Фаза A per-turn `planAwaitingApproval: Boolean`: whether a plan awaits a decision is
+ * no longer a byproduct of the last chat turn, it is `PlanRepository`'s own persisted state (see
+ * `PlanCommands`). Nothing populates this yet outside explicit user actions clearing it — the
+ * structured PLAN/GOAL orchestrator migration that fills it from a real proposal is Task 10.
+ */
+data class PendingPlanApproval(val planId: String, val version: Int)
 
 data class ChatUiState(
   val conversationId: String? = null,
@@ -64,8 +76,8 @@ data class ChatUiState(
 
   // --- Режим агента (план-/гоал-мод) — эфемерный UI-флаг экрана чата. Заменяет прежний planMode-boolean. ---
   val agentMode: AgentMode = AgentMode.CHAT,
-  /** План-мод: план показан, ждём «Выполнить»/«Поправить». */
-  val planAwaitingApproval: Boolean = false,
+  /** План-мод (Task 5): план показан, ждём «Выполнить»/«Поправить» — null, пока решать нечего. */
+  val pendingPlanApproval: PendingPlanApproval? = null,
   /** Лимит витков гоал-мода (из настроек). */
   val goalMaxIterations: Int = 3,
 

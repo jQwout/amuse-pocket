@@ -4,10 +4,16 @@ import com.aiopenpocket.agent.core.mcp.ToolResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Контракт результата хода: NEED_INFO, план-бар, blank-ошибки, GOAL-фолбэк, render_card, REFLECT. */
+/**
+ * Контракт результата хода: NEED_INFO, blank-ошибки, GOAL-фолбэк, render_card, REFLECT.
+ *
+ * До Task 5 (structured-plan-engine-907066) [CompletedTurn] нёс ещё `planAwaitingApproval` — с тех
+ * пор убран (см. TurnCompletion.kt kdoc): показан ли план и ждёт ли решения, теперь состояние
+ * PlanRepository, а не производная одного хода. Тесты фазы планирования (`план-фаза - ...`) ниже
+ * по-прежнему покрывают responseText/blankError этой фазы — просто больше не проверяют убранный флаг.
+ */
 class TurnCompletionTest {
 
   private fun result(text: String, trace: List<ToolTrace> = emptyList(), hitLimit: Boolean = false) =
@@ -27,7 +33,6 @@ class TurnCompletionTest {
     val out = resolve(res = result("Привет!"))
     assertEquals("Привет!", out.responseText)
     assertNull(out.blankError)
-    assertFalse(out.planAwaitingApproval)
   }
 
   @Test
@@ -52,31 +57,27 @@ class TurnCompletionTest {
   }
 
   @Test
-  fun `план-фаза - непустой план поднимает план-бар и триммится`() {
+  fun `план-фаза - непустой план триммится`() {
     val out = resolve(mode = AgentMode.PLAN, res = result("  1. шаг\n"))
     assertEquals("1. шаг", out.responseText)
-    assertTrue(out.planAwaitingApproval)
   }
 
   @Test
-  fun `план-фаза - NEED_INFO вырезается и НЕ поднимает план-бар`() {
+  fun `план-фаза - NEED_INFO вырезается`() {
     val out = resolve(mode = AgentMode.PLAN, res = result("[[NEED_INFO]] Какой отчёт нужен?"))
     assertEquals("Какой отчёт нужен?", out.responseText)
-    assertFalse(out.planAwaitingApproval)
   }
 
   @Test
   fun `план-фаза - NEED_INFO с пустым остатком даёт фолбэк-вопрос`() {
     val out = resolve(mode = AgentMode.PLAN, res = result("[[NEED_INFO]]"))
     assertEquals(TurnTexts.NEED_INFO_FALLBACK_QUESTION, out.responseText)
-    assertFalse(out.planAwaitingApproval)
   }
 
   @Test
   fun `план-фаза - пустой ответ даёт план-ошибку`() {
     val out = resolve(mode = AgentMode.PLAN, res = result(""))
     assertEquals(TurnTexts.BLANK_PLAN_ERROR, out.blankError)
-    assertFalse(out.planAwaitingApproval)
   }
 
   @Test
@@ -84,7 +85,6 @@ class TurnCompletionTest {
     val out = resolve(mode = AgentMode.PLAN, planApproved = true, res = result("[[NEED_INFO]] х"))
     // После одобрения маркер не интерпретируется — фаза планирования закончилась.
     assertEquals("[[NEED_INFO]] х", out.responseText)
-    assertFalse(out.planAwaitingApproval)
   }
 
   @Test
@@ -111,10 +111,9 @@ class TurnCompletionTest {
   }
 
   @Test
-  fun `REFLECT обрабатывается как обычный чат — без план-бара и GOAL-фолбэка`() {
+  fun `REFLECT обрабатывается как обычный чат — без GOAL-фолбэка`() {
     val out = resolve(mode = AgentMode.REFLECT, res = result("Итоговый ответ"))
     assertEquals("Итоговый ответ", out.responseText)
     assertNull(out.blankError)
-    assertFalse(out.planAwaitingApproval)
   }
 }

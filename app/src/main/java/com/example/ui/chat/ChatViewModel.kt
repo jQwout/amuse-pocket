@@ -2,6 +2,7 @@ package com.aiopenpocket.ui.chat
 
 // @trace streaming-llm-chat-6595a1
 // @trace user-agent-builder-848153
+// @trace structured-plan-engine-907066
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
@@ -14,6 +15,7 @@ import com.aiopenpocket.agent.core.lesson.LessonRepository
 import com.aiopenpocket.agent.core.memory.dao.HeartbeatDao
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
+import com.aiopenpocket.agent.core.plan.execution.PlanCommands
 import com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.loop.TurnManager
@@ -54,6 +56,7 @@ import kotlinx.coroutines.withContext
 class ChatViewModel(
     private val conversationRepository: ConversationRepository,
     private val turnManager: TurnManager,
+    private val planCommands: PlanCommands,
     private val settingsRepository: SettingsRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val lessonRepository: LessonRepository,
@@ -177,7 +180,7 @@ class ChatViewModel(
         if (id.isBlank()) return
         observeMessages(id)
         observeSession(id)
-        // Вход в диалог гасит бейдж «готово» в списке (Running/ошибку/план-бар markSeen не трогает).
+        // Вход в диалог гасит бейдж «готово» в списке (Running/ошибку markSeen не трогает).
         turnManager.markSeen(id)
         // Урок-диалог: включаем интерактивные карточки. Если для заголовка есть JSON-урок — переходим в
         // lesson-режим и драйвим шаги контроллером (строгий контракт), иначе свободный путь (l2–l4).
@@ -292,10 +295,15 @@ class ChatViewModel(
             // Смена режима инвалидирует «Повторить» прошлого хода (иначе ретрай уйдёт в старый режим).
             is ChatIntent.SetMode -> {
                 currentConversationId()?.let { turnManager.invalidateRetry(it) }
-                _state.update { it.copy(agentMode = intent.mode, planAwaitingApproval = false, canRetry = false) }
+                _state.update { it.copy(agentMode = intent.mode, pendingPlanApproval = null, canRetry = false) }
             }
-            is ChatIntent.ApprovePlan -> approvePlan()
-            is ChatIntent.EditPlan -> currentConversationId()?.let { turnManager.dismissPlanApproval(it) }
+            is ChatIntent.ApprovePlan -> approvePlanCommand(intent.planId, intent.version)
+            is ChatIntent.RequestPlanChanges -> requestPlanChanges(intent.planId, intent.version, intent.feedback)
+            is ChatIntent.PausePlan -> runPlanCommand { planCommands.pause(intent.planId) }
+            is ChatIntent.ResumePlan -> runPlanCommand { planCommands.resume(intent.planId) }
+            is ChatIntent.CancelPlan -> runPlanCommand { planCommands.cancel(intent.planId) }
+            // «Поправить» — чисто локальный жест (см. ChatIntent.EditPlan kdoc): прячет бар, PlanRepository не трогает.
+            is ChatIntent.EditPlan -> _state.update { it.copy(pendingPlanApproval = null) }
             is ChatIntent.AdvanceLesson -> advanceLesson()
             is ChatIntent.CompleteLessonQuiz -> completeLessonQuiz()
             is ChatIntent.AskDuringLesson -> askDuringLesson(intent.text)
@@ -344,11 +352,36 @@ class ChatViewModel(
         }
     }
 
-    /** План-мод: пользователь одобрил план → TurnManager запускает фазу выполнения. */
-    private fun approvePlan() {
-        val convId = currentConversationId() ?: return
-        if (!_state.value.planAwaitingApproval) return
-        turnManager.approvePlan(convId)
+    /**
+     * Task 5 (structured-plan-engine-907066): typed plan commands go straight to [PlanCommands] —
+     * no [TurnManager] turn, no magic chat message. Approval alone does not start execution (design
+     * spec §9: "после approval остаётся в Plan UI, но не запускает исполнение автоматически") — GOAL
+     * separately picks up the approved version on its own turn (Task 10). [runPlanCommand] mirrors
+     * [sendMessage]'s own cancellation/error handling so a rejected command (e.g. approving a
+     * superseded version — see `PlanRepository.approve`) surfaces the same way any other action
+     * failure does on this screen, instead of crashing the ViewModel's scope.
+     */
+    private fun runPlanCommand(action: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                action()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("ChatViewModel", "plan command failed", e)
+                _state.update { it.copy(error = e.message ?: "Не удалось выполнить действие с планом") }
+            }
+        }
+    }
+
+    private fun approvePlanCommand(planId: String, version: Int) = runPlanCommand {
+        planCommands.approve(planId, version)
+        _state.update { it.copy(pendingPlanApproval = null) }
+    }
+
+    private fun requestPlanChanges(planId: String, version: Int, feedback: String) = runPlanCommand {
+        planCommands.requestChanges(planId, version, feedback)
+        _state.update { it.copy(pendingPlanApproval = null) }
     }
 
     /** «Дальше» по тексту и прохождение квиза одинаково продвигают курсор урока на следующий шаг. */
@@ -436,7 +469,7 @@ class ChatViewModel(
                 if (session == null) {
                     // Сессии нет (не было хода / отменён / просмотрен) — только гасим индикацию,
                     // остальное состояние (сообщения, статистика) не трогаем.
-                    _state.update { it.copy(isLoading = false, planAwaitingApproval = false) }
+                    _state.update { it.copy(isLoading = false) }
                     return@collectLatest
                 }
                 combine(
@@ -447,7 +480,7 @@ class ChatViewModel(
                     .collect { (status, trace, messages) ->
                         when (status) {
                             is TurnStatus.Running -> _state.update {
-                                it.copy(isLoading = true, toolTrace = trace, error = null, canRetry = false, planAwaitingApproval = false)
+                                it.copy(isLoading = true, toolTrace = trace, error = null, canRetry = false)
                             }
 
                             is TurnStatus.Completed -> {
@@ -459,7 +492,6 @@ class ChatViewModel(
                                         toolTrace = trace,
                                         error = status.error,
                                         canRetry = status.canRetry,
-                                        planAwaitingApproval = status.planAwaitingApproval,
                                         lastResponseStats = ResponseStats(
                                             responseTimeMs = status.responseTimeMs,
                                             completionTokens = status.completionTokens,
@@ -468,14 +500,14 @@ class ChatViewModel(
                                     )
                                 }
                                 // Ответ доехал до ленты — чистая сессия больше не нужна (гасит бейдж
-                                // «готово» в списке; markSeen сам не тронет ошибку/план-бар).
+                                // «готово» в списке; markSeen сам не тронет ошибку/canRetry).
                                 if (arrived && status.insertedMessageId != null) {
                                     turnManager.markSeen(convId)
                                 }
                             }
 
                             is TurnStatus.Failed -> _state.update {
-                                it.copy(isLoading = false, toolTrace = trace, error = status.message, canRetry = status.canRetry, planAwaitingApproval = false)
+                                it.copy(isLoading = false, toolTrace = trace, error = status.message, canRetry = status.canRetry)
                             }
                         }
                     }

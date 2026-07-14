@@ -2,6 +2,7 @@
 
 // @trace streaming-llm-chat-6595a1
 // @trace user-agent-builder-848153
+// @trace structured-plan-engine-907066
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -693,9 +694,13 @@ fun ChatScreen(
                 }
 
                 // План-аппрув — над полем ввода. Кнопки «Выполнить/Поправить» доступны, пока ждём решения.
-                if (state.planAwaitingApproval && !state.lessonMode && !state.isTutorial && state.agentId == null) {
+                // Task 5: гейтится на typed state.pendingPlanApproval (planId+version из PlanRepository),
+                // а не на per-turn boolean — см. ChatUiState/ChatViewModel. Пока PLAN-мод не заводит
+                // persisted AgentPlan (Task 10), это поле всегда null и бар не показывается.
+                val pendingPlan = state.pendingPlanApproval
+                if (pendingPlan != null && !state.lessonMode && !state.isTutorial && state.agentId == null) {
                     PlanApprovalBar(
-                        onApprove = { viewModel.handleIntent(ChatIntent.ApprovePlan) },
+                        onApprove = { viewModel.handleIntent(ChatIntent.ApprovePlan(pendingPlan.planId, pendingPlan.version)) },
                         onEdit = { viewModel.handleIntent(ChatIntent.EditPlan) },
                     )
                 }
