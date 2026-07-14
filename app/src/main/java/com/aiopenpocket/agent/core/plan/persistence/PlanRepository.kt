@@ -109,6 +109,16 @@ class PlanRepository @Inject constructor(
   fun observeByAgent(agentId: String): Flow<List<PlanSnapshot>> =
     dao.observePlansByAgent(agentId).map { plans -> plans.mapNotNull { toSnapshot(it) } }
 
+  /**
+   * Every plan not yet in a terminal [PlanStatus] (design spec section 4) — Task 14's
+   * `com.aiopenpocket.agent.core.plan.execution.PlanRecovery.recover`'s own candidate list for its
+   * app-startup sweep. Not part of Task 3's original surface (that task's [observeByConversation]/
+   * [observeByAgent] both need a caller-supplied scope); added here because a process-death recovery
+   * pass runs with no conversation/agent in hand and needs to enumerate literally every plan that
+   * COULD have a step left stuck EXECUTING/VERIFYING.
+   */
+  suspend fun getNonTerminalPlans(): List<AgentPlan> = dao.getNonTerminalPlans().map { it.toDomain() }
+
   /** Full version history for [planId], oldest first — includes superseded/never-approved drafts. */
   suspend fun getVersions(planId: String): List<PlanVersion> = dao.getVersionsForPlan(planId).map { it.toDomain() }
 

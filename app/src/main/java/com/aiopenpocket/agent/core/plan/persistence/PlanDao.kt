@@ -34,6 +34,17 @@ interface PlanDao {
   @Query("SELECT * FROM agent_plans WHERE agentId = :agentId ORDER BY updatedAt DESC")
   fun observePlansByAgent(agentId: String): Flow<List<AgentPlanEntity>>
 
+  /**
+   * Every plan not yet in a terminal [com.aiopenpocket.agent.core.plan.model.PlanStatus] (COMPLETED/
+   * CANCELLED/FAILED never have a legal outgoing transition — `PlanStateMachine`). Task 14's
+   * [com.aiopenpocket.agent.core.plan.execution.PlanRecovery.recover] is the only caller: its
+   * app-startup sweep has no caller-supplied `conversationId`/`agentId` to scope by, unlike every
+   * other plan-listing query above, so it needs the one true "every plan that could still have a
+   * step stuck EXECUTING/VERIFYING" candidate list.
+   */
+  @Query("SELECT * FROM agent_plans WHERE status NOT IN ('COMPLETED', 'CANCELLED', 'FAILED')")
+  suspend fun getNonTerminalPlans(): List<AgentPlanEntity>
+
   /** [PlanRepository.approve]'s "one active execution per conversation" guard (design spec sections 2, 10). */
   @Query(
     "SELECT COUNT(*) FROM agent_plans WHERE conversationId = :conversationId AND status = 'ACTIVE' AND id != :excludePlanId",

@@ -109,7 +109,25 @@ object PlanStepRunnerBindings {
  * [PlanStepState] with the final resolved status, exactly as Task 7 did. `PlanVerifier.stepStatusFor`
  * DOES validate the final transition as legal FROM [StepStatus.VERIFYING] via
  * [com.aiopenpocket.agent.core.plan.validation.PlanStateMachine.transitionStep], so the state-machine
- * graph itself is respected; only the extra persisted row is the simplification.
+ * graph itself is respected; only the extra persisted row is the simplification. Consequence for Task
+ * 14 crash-safety (see below): a process death strictly inside [verifier]'s own MODEL_ASSESSMENT LLM
+ * call never leaves a physically-persisted [StepStatus.VERIFYING] row to recover — it looks
+ * identical to any other crash mid-[stepRunner] call, still [StepStatus.EXECUTING]. `PlanRecovery`
+ * degrades safely for that window (no fresh evidence yet → blocked for manual review) rather than
+ * reaching the more precise "rerun verifier only" outcome design section 16 describes.
+ *
+ * ## Crash safety (Task 14 — `com.aiopenpocket.agent.core.plan.execution.PlanRecovery`)
+ *
+ * [execute]'s pre-flight write (`repository.updateStepState(..., status = StepStatus.EXECUTING, ...)`,
+ * "Persist step start safely" below) happens BEFORE [stepRunner] ever runs, and [recordOutcome]'s own
+ * terminal write happens strictly AFTER it returns — so a process death anywhere from the moment
+ * [stepRunner] is invoked until [recordOutcome] finishes always leaves EXACTLY the tell-tale
+ * [StepStatus.EXECUTING] row [PlanRecovery] looks for, never a half-written one. This ordering was
+ * already true as of Task 7 (nothing here changes it) — Task 14 relies on it rather than
+ * re-implementing it: `PlanRecovery.recoverSnapshot` is what turns a stuck EXECUTING row back into
+ * [StepStatus.COMPLETED] (durable evidence already proves the side effect ran) or [StepStatus.BLOCKED]
+ * (no durable proof — never silently re-run), using ONLY [PlanRepository]/`PlanStateMachine`, never
+ * this class or [PlanStepRunner]/`PlanVerifier` again for that same attempt.
  *
  * ## Tool scope
  *
