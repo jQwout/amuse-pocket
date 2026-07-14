@@ -27,6 +27,8 @@ import com.aiopenpocket.agent.core.mcp.toolSchema
 import com.aiopenpocket.agent.core.memory.entity.ConversationEntity
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
+import com.aiopenpocket.agent.core.plan.context.PlanContextProvider
+import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
 import com.aiopenpocket.agent.core.prompt.AssetSource
 import com.aiopenpocket.agent.core.prompt.ConversationAnnotator
 import com.aiopenpocket.agent.core.prompt.PrePromptAssembler
@@ -120,6 +122,7 @@ class ReflectionOrchestratorTest {
       skillRegistry = SkillRegistry(emptySet(), UserSkillRepository(db.userSkillDao())),
       userPreferencesRepository = UserPreferencesRepository(context),
       agentResolver = DefaultAgentResolver(UserAgentRepository(db, db.userAgentDao(), agentHookRepository())),
+      planContextProvider = PlanContextProvider(PlanRepository(db, db.planDao())),
     )
     val reactLoopRunner = ReactLoopRunner(
       llm,
