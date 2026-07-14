@@ -25,16 +25,25 @@ import com.aiopenpocket.agent.core.memory.entity.EpisodeEntity
 import com.aiopenpocket.agent.core.memory.entity.FactEntity
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.entity.MessageEntity
+import com.aiopenpocket.agent.core.plan.persistence.AgentPlanEntity
+import com.aiopenpocket.agent.core.plan.persistence.PlanDao
+import com.aiopenpocket.agent.core.plan.persistence.PlanEventEntity
+import com.aiopenpocket.agent.core.plan.persistence.PlanEvidenceEntity
+import com.aiopenpocket.agent.core.plan.persistence.PlanStepStateEntity
+import com.aiopenpocket.agent.core.plan.persistence.PlanVersionEntity
 import com.aiopenpocket.agent.core.srs.SrsWordDao
 import com.aiopenpocket.agent.core.srs.SrsWordEntity
 
 // @trace user-agent-builder-848153
+// @trace structured-plan-engine-907066
 
 // UserAgentEntity/userAgentDao() registered for Task 2 (user-agent-builder); version bumped 2 -> 3
 // accordingly. UserSkillEntity/userSkillDao() registered for Task 4 (composite SkillRegistry);
 // version bumped 3 -> 4. AgentHookEntity/AgentHookRunEntity/agentHookDao() registered for Task 8
-// (declarative HookEngine); version bumped 4 -> 5. No Migration is added either time — see the
-// policy comment on DatabaseBindings.provideDatabase.
+// (declarative HookEngine); version bumped 4 -> 5. AgentPlanEntity/PlanVersionEntity/
+// PlanStepStateEntity/PlanEvidenceEntity/PlanEventEntity/planDao() registered for Task 3 of the
+// Structured Plan Engine (structured-plan-engine-907066); version bumped 5 -> 6. No Migration is
+// added either time — see the policy comment on DatabaseBindings.provideDatabase.
 @Database(
   entities = [
     ConversationEntity::class,
@@ -48,8 +57,13 @@ import com.aiopenpocket.agent.core.srs.SrsWordEntity
     UserSkillEntity::class,
     AgentHookEntity::class,
     AgentHookRunEntity::class,
+    AgentPlanEntity::class,
+    PlanVersionEntity::class,
+    PlanStepStateEntity::class,
+    PlanEvidenceEntity::class,
+    PlanEventEntity::class,
   ],
-  version = 5,
+  version = 6,
   exportSchema = false,
 )
 @TypeConverters(AgentRoomConverters::class)
@@ -64,4 +78,5 @@ abstract class AppDatabase : RoomDatabase() {
   abstract fun userAgentDao(): UserAgentDao
   abstract fun userSkillDao(): UserSkillDao
   abstract fun agentHookDao(): AgentHookDao
+  abstract fun planDao(): PlanDao
 }
