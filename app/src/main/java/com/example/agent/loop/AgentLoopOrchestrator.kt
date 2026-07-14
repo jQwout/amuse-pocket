@@ -137,6 +137,16 @@ data class AgentResult(
    * тогда GOAL-мод показывает «частичный итог» вместо пустого ответа (см. resolveCompletedTurn).
    */
   val hitIterationLimit: Boolean = false,
+  /**
+   * Task 7 (Structured Plan Engine): true when [ReactLoopRunner]'s `maxToolCalls` budget — not
+   * `maxIterations` — is what actually stopped the run. [hitIterationLimit] is already `true` in
+   * this case too (the loop never reached a model-driven finish), so every existing caller keyed on
+   * [hitIterationLimit] is unaffected; this is the additional, precisely-named signal
+   * [com.aiopenpocket.agent.core.plan.execution.PlanExecutor] uses to tell the two budget kinds
+   * apart when it fills in [com.aiopenpocket.agent.core.plan.execution.PlanStepExecutionResult
+   * .stoppedByBudget].
+   */
+  val stoppedByToolBudget: Boolean = false,
 )
 
 data class ToolTrace(
