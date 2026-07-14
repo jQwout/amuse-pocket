@@ -1,18 +1,28 @@
 package com.aiopenpocket.agent.loop
 
 // @trace rezhimy-agenta-plan-i-goal-ee2361
+// @trace structured-plan-engine-907066
 
 /**
  * Режим работы агента в чате (эфемерный UI-флаг, как plan-mode в Claude Code).
  *
  * - [CHAT] — обычный ReAct-цикл.
- * - [PLAN] — гейт: сначала план без инструментов, ждём одобрения, потом выполнение с инструментами.
- * - [GOAL] — петля к цели с самопроверкой и лимитом витков.
+ * - [PLAN] — план по Structured Plan Engine: без инструментов, заканчивается persisted proposal'ом.
+ * - [GOAL] — выполнение одобренного плана по шагам (Structured Plan Engine).
  * - [REFLECT] — черновик → критика → итог: отдельный оркестратор ([ReflectionOrchestrator]),
  *   а не гейт/петля поверх одного хода, поэтому [resolveTurnExecutionPlan] его не обрабатывает.
  *
- * Контракт режима целиком: [resolveTurnExecutionPlan] (как выполнять ход) + [resolveCompletedTurn]
- * (что значит его результат); REFLECT диспатчится на свой оркестратор в TurnModule.provideTurnExecutor.
+ * Task 10 (structured-plan-engine-907066): [com.aiopenpocket.di.TurnModule]'s `TurnExecutor`
+ * dispatches [PLAN]/[GOAL] to `com.aiopenpocket.agent.loop.StructuredPlanOrchestrator`
+ * (`propose`/`executeGoal`), exactly like it already dispatches [REFLECT] to
+ * [ReflectionOrchestrator] — never to [AgentLoopOrchestrator]/[resolveTurnExecutionPlan] below.
+ * [resolveTurnExecutionPlan]'s PLAN/GOAL branches (and [resolveCompletedTurn]'s matching ones) are
+ * the OLD prompt-only implementation: kept compiling and covered by their existing tests (unchanged
+ * behavior contract), but unreachable from the live chat path — Task 15 removes them once the legacy
+ * PLAN/GOAL prompt assets they depend on are also retired.
+ *
+ * Контракт режима целиком (для [CHAT]/[TUTOR], и for legacy PLAN/GOAL still tested but dead):
+ * [resolveTurnExecutionPlan] (как выполнять ход) + [resolveCompletedTurn] (что значит его результат).
  */
 enum class AgentMode { CHAT, PLAN, GOAL, REFLECT, TUTOR }
 

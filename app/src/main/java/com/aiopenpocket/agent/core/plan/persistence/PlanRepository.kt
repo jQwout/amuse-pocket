@@ -213,6 +213,44 @@ class PlanRepository @Inject constructor(
 
   suspend fun cancel(planId: String) = applySimpleTransition(planId, PlanCommand.Cancel)
 
+  /**
+   * Attempts [PlanStatus.ACTIVE] -> [PlanStatus.COMPLETED] via [PlanStateMachine.tryComplete]'s
+   * evidence gate (design spec section 4/11) — the whole-plan analogue of `PlanExecutor`'s own
+   * per-step verification (`PlanVerifier`), called by
+   * `com.aiopenpocket.agent.core.plan.execution.PlanRunner` (Task 10) once a run finds every step
+   * COMPLETED/SKIPPED. `PlanExecutor.recordOutcome`'s own kdoc explicitly leaves this write to
+   * "PlanRunner, Task 10" ("Whole-plan completion is normally PlanRunner's call... PlanStatus.COMPLETED
+   * remains exclusively PlanStateMachine's to assign") — before this method, nothing in the codebase
+   * could ever persist [PlanStatus.COMPLETED] at all.
+   *
+   * Unlike [approve]/[pause]/[resume]/[cancel]/[requestRevision] (which THROW on an illegal command),
+   * a not-yet-satisfied evidence gate or a non-ACTIVE current status is NOT an error here —
+   * [tryComplete] is meant to be probed opportunistically after every step, and "not ready yet" is the
+   * ordinary case, not a caller mistake (mirrors [PlanStateMachine.tryComplete]'s own non-throwing
+   * [PlanTransitionResult.Rejected] for that same reason). Returns [planId]'s current [PlanSnapshot]
+   * either way (transitioned or not) — the caller tells which happened by comparing
+   * [PlanSnapshot.plan]'s status to what it was before calling this. No-op (snapshot unchanged) when
+   * [planId] has no [AgentPlan.approvedVersion] yet — an unapproved plan can never be this method's
+   * concern.
+   */
+  suspend fun tryComplete(planId: String): PlanSnapshot = database.withTransaction {
+    val planEntity = requireNotNull(dao.getPlan(planId)) { "Unknown plan id: $planId" }
+    val currentStatus = PlanStatus.valueOf(planEntity.status)
+    val versionNumber = planEntity.approvedVersion
+    if (versionNumber != null) {
+      val versionEntity = dao.getVersion(planId, versionNumber)
+      if (versionEntity != null) {
+        val criteria = versionEntity.toDomain().criteria
+        val evidence = dao.getEvidence(planId, versionNumber).map { it.toDomain() }
+        val result = PlanStateMachine.tryComplete(currentStatus, criteria, evidence)
+        if (result is PlanTransitionResult.Allowed) {
+          dao.upsertPlan(planEntity.copy(status = result.status.name, updatedAt = clock()))
+        }
+      }
+    }
+    requireNotNull(toSnapshot(requireNotNull(dao.getPlan(planId)))) { "Plan '$planId' vanished mid-completion-check." }
+  }
+
   /** Non-material (design spec section 6): persists whatever next [PlanStepState] the caller computed — this method does not itself call `PlanStateMachine.transitionStep`, since the caller already did. */
   suspend fun updateStepState(state: PlanStepState) = database.withTransaction {
     dao.upsertStepState(PlanStepStateEntity.fromDomain(state))

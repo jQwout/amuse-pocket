@@ -1,8 +1,10 @@
 package com.aiopenpocket.agent.loop
 
 // @trace user-agent-builder-848153
+// @trace structured-plan-engine-907066
 
 import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -37,7 +39,9 @@ class TurnManagerTest {
       val convId: String,
       val message: String,
       val mode: AgentMode,
-      val planApproved: Boolean,
+      /** Task 10 (structured-plan-engine-907066): replaces the old `planApproved: Boolean`. */
+      val planId: String?,
+      val budget: PlanRunBudget = PlanRunBudget(),
       val executionMode: ExecutionMode = ExecutionMode.LIVE,
     )
 
@@ -52,12 +56,12 @@ class TurnManagerTest {
       userMessage: String,
       provider: LlmProvider,
       mode: AgentMode,
-      planApproved: Boolean,
-      goalMaxIterations: Int,
+      planId: String?,
+      budget: PlanRunBudget,
       systemPromptExtra: String?,
       executionMode: ExecutionMode,
     ): Flow<AgentEvent> {
-      val call = Call(conversationId, userMessage, mode, planApproved, executionMode)
+      val call = Call(conversationId, userMessage, mode, planId, budget, executionMode)
       calls += call
       return script(call).onCompletion { if (it is CancellationException) cancelledCollections++ }
     }
@@ -117,7 +121,7 @@ class TurnManagerTest {
     executor.script = { flowOf(AgentEvent.Completed(finished("Привет!"))) }
     val m = manager()
 
-    m.launchTurn("c1", "Здравствуй", AgentMode.CHAT, planApproved = false, goalMaxIterations = 3)
+    m.launchTurn("c1", "Здравствуй", AgentMode.CHAT)
     advanceUntilIdle()
 
     assertEquals(listOf("user" to "Здравствуй", "assistant" to "Привет!"), persistence.rows.map { it.role to it.content })
@@ -129,7 +133,7 @@ class TurnManagerTest {
   @Test
   fun `ход живёт без подписчиков — никто не собирает флоу, ответ всё равно в БД`() = runTest {
     executor.script = { flowOf(AgentEvent.TextDelta("ок"), AgentEvent.Completed(finished("ок"))) }
-    manager().launchTurn("c1", "вопрос", AgentMode.CHAT, false, 3)
+    manager().launchTurn("c1", "вопрос", AgentMode.CHAT)
     advanceUntilIdle()
 
     assertEquals("ок", persistence.rows.last().content)
@@ -143,9 +147,9 @@ class TurnManagerTest {
     }
     val m = manager()
 
-    m.launchTurn("c1", "первый", AgentMode.CHAT, false, 3)
+    m.launchTurn("c1", "первый", AgentMode.CHAT)
     advanceUntilIdle()
-    m.launchTurn("c1", "второй", AgentMode.CHAT, false, 3)
+    m.launchTurn("c1", "второй", AgentMode.CHAT)
     advanceUntilIdle()
 
     assertEquals(1, executor.cancelledCollections)
@@ -160,8 +164,8 @@ class TurnManagerTest {
     }
     val m = manager()
 
-    m.launchTurn("a", "вопрос a", AgentMode.CHAT, false, 3)
-    m.launchTurn("b", "вопрос b", AgentMode.CHAT, false, 3)
+    m.launchTurn("a", "вопрос a", AgentMode.CHAT)
+    m.launchTurn("b", "вопрос b", AgentMode.CHAT)
     advanceUntilIdle()
 
     assertEquals(0, executor.cancelledCollections)
@@ -175,7 +179,7 @@ class TurnManagerTest {
     executor.script = { flow { emit(AgentEvent.TextDelta("...")); awaitCancellation() } }
     val m = manager()
 
-    m.launchTurn("c1", "вопрос", AgentMode.CHAT, false, 3)
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT)
     advanceUntilIdle()
     m.cancel("c1")
     advanceUntilIdle()
@@ -199,7 +203,7 @@ class TurnManagerTest {
     }
     val m = manager()
 
-    m.launchTurn("c1", "вопрос", AgentMode.CHAT, false, 3)
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT)
     advanceUntilIdle()
 
     assertEquals("финальный текст", m.sessions.value.getValue("c1").streamingText.value)
@@ -216,7 +220,7 @@ class TurnManagerTest {
     }
     val m = manager()
 
-    m.launchTurn("c1", "который час", AgentMode.CHAT, false, 3)
+    m.launchTurn("c1", "который час", AgentMode.CHAT)
     advanceUntilIdle()
 
     assertEquals(listOf("get_time"), m.sessions.value.getValue("c1").toolTrace.value.map { it.toolName })
@@ -227,7 +231,7 @@ class TurnManagerTest {
     executor.script = { flowOf(AgentEvent.Error("сеть упала")) }
     val m = manager()
 
-    m.launchTurn("c1", "вопрос", AgentMode.CHAT, false, 3)
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT)
     advanceUntilIdle()
 
     val status = m.sessions.value.getValue("c1").status.value as TurnStatus.Failed
@@ -245,7 +249,7 @@ class TurnManagerTest {
     }
     val m = manager()
 
-    m.launchTurn("c1", "вопрос", AgentMode.CHAT, false, 3)
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT)
     advanceUntilIdle()
     m.retry("c1")
     advanceUntilIdle()
@@ -257,24 +261,27 @@ class TurnManagerTest {
   }
 
   /**
-   * Task 5 (structured-plan-engine-907066): TurnManager.approvePlan (magic-message «Одобряю план,
+   * Task 10 (structured-plan-engine-907066): TurnManager.approvePlan (magic-message «Одобряю план,
    * выполни его по шагам.» triggering a tool-using turn) is gone — approval is now a typed
    * PlanCommands.approve(planId, version) call that never touches TurnManager at all (see
    * ChatViewModel.approvePlanCommand / PlanApprovalTest). What remains TurnManager's job is that
-   * planApproved, no longer remembered by TurnSession, is always replayed false.
+   * retry replays the SAME planId/budget as the original call — no more special-casing (the old
+   * `planApproved` forced-false-on-retry hack is gone along with the field itself, since approval is
+   * no longer per-turn state at all).
    */
   @Test
-  fun `retry в план-моде повторяет фазу планирования - planApproved больше не запоминается`() = runTest {
+  fun `retry повторяет тот же planId и budget, что и оригинальный ход`() = runTest {
     executor.script = { flowOf(AgentEvent.Error("сеть упала")) }
     val m = manager()
+    val budget = PlanRunBudget(maxLlmIterationsPerStep = 5)
 
-    m.launchTurn("c1", "сделай X", AgentMode.PLAN, planApproved = false, goalMaxIterations = 3)
+    m.launchTurn("c1", "сделай X", AgentMode.GOAL, planId = "plan-42", budget = budget)
     advanceUntilIdle()
     m.retry("c1")
     advanceUntilIdle()
 
     assertEquals(2, executor.calls.size)
-    assertTrue(executor.calls.all { !it.planApproved })
+    assertTrue(executor.calls.all { it.mode == AgentMode.GOAL && it.planId == "plan-42" && it.budget == budget })
   }
 
   @Test
@@ -282,10 +289,62 @@ class TurnManagerTest {
     executor.script = { flowOf(AgentEvent.Completed(finished("[[NEED_INFO]] Какой именно отчёт нужен?"))) }
     val m = manager()
 
-    m.launchTurn("c1", "сделай отчёт", AgentMode.PLAN, planApproved = false, goalMaxIterations = 3)
+    m.launchTurn("c1", "сделай отчёт", AgentMode.PLAN)
     advanceUntilIdle()
 
     assertEquals("Какой именно отчёт нужен?", persistence.rows.last().content)
+  }
+
+  // --- Task 10 (structured-plan-engine-907066): PlanProposed/PlanProgressed/PlanBlocked ----------
+
+  @Test
+  fun `PlanProposed пишет сообщение о предложенном плане и завершает ход без ошибки`() = runTest {
+    executor.script = { flowOf(AgentEvent.PlanProposed("plan-1", 2)) }
+    val m = manager()
+
+    m.launchTurn("c1", "сделай X", AgentMode.PLAN)
+    advanceUntilIdle()
+
+    val assistant = persistence.rows.single { it.role == "assistant" }
+    assertTrue(assistant.content.contains("2")) // версия
+    val status = m.sessions.value.getValue("c1").status.value as TurnStatus.Completed
+    assertNull(status.error)
+    assertTrue(!status.canRetry)
+  }
+
+  @Test
+  fun `PlanProgressed COMPLETED пишет прогресс без ошибки`() = runTest {
+    val result = com.aiopenpocket.agent.core.plan.execution.PlanRunResult(
+      planId = "plan-1",
+      outcome = com.aiopenpocket.agent.core.plan.model.PlanRunOutcome.COMPLETED,
+      executedStepIds = listOf("step-1"),
+      blockedReason = null,
+    )
+    executor.script = { flowOf(AgentEvent.PlanProgressed(result)) }
+    val m = manager()
+
+    m.launchTurn("c1", "продолжай", AgentMode.GOAL, planId = "plan-1")
+    advanceUntilIdle()
+
+    val assistant = persistence.rows.single { it.role == "assistant" }
+    assertTrue(assistant.content.isNotBlank())
+    val status = m.sessions.value.getValue("c1").status.value as TurnStatus.Completed
+    assertNull(status.error)
+    assertTrue(!status.canRetry)
+  }
+
+  @Test
+  fun `PlanBlocked пишет причину как обычное сообщение, без ошибки и без canRetry`() = runTest {
+    executor.script = { flowOf(AgentEvent.PlanBlocked("plan-1", "Уточни бюджет поездки")) }
+    val m = manager()
+
+    m.launchTurn("c1", "сделай X", AgentMode.PLAN)
+    advanceUntilIdle()
+
+    assertEquals("Уточни бюджет поездки", persistence.rows.single { it.role == "assistant" }.content)
+    val status = m.sessions.value.getValue("c1").status.value as TurnStatus.Completed
+    assertNull(status.error)
+    assertTrue(!status.canRetry)
   }
 
   @Test
@@ -293,7 +352,7 @@ class TurnManagerTest {
     executor.script = { flowOf(AgentEvent.Completed(finished(""))) }
     val m = manager()
 
-    m.launchTurn("c1", "вопрос", AgentMode.CHAT, false, 3)
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT)
     advanceUntilIdle()
 
     val status = m.sessions.value.getValue("c1").status.value as TurnStatus.Completed
@@ -310,7 +369,7 @@ class TurnManagerTest {
     executor.script = { flowOf(AgentEvent.Completed(finished("вот карточки", listOf(card1, card2)))) }
     val m = manager()
 
-    m.launchTurn("c1", "покажи", AgentMode.CHAT, false, 3)
+    m.launchTurn("c1", "покажи", AgentMode.CHAT)
     advanceUntilIdle()
 
     val assistant = persistence.rows.filter { it.role == "assistant" }
@@ -324,7 +383,7 @@ class TurnManagerTest {
     executor.script = { flowOf(AgentEvent.Error("упало")) }
     val m = manager()
 
-    m.launchTurn("c1", "вопрос", AgentMode.CHAT, false, 3)
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT)
     advanceUntilIdle()
     val userMsgId = persistence.rows.first().id
 
@@ -342,7 +401,7 @@ class TurnManagerTest {
     executor.script = { flowOf(AgentEvent.Error("упало")) }
     val m = manager()
 
-    m.launchTurn("c1", "вопрос", AgentMode.CHAT, false, 3)
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT)
     advanceUntilIdle()
     m.clearError("c1")
     advanceUntilIdle()
@@ -354,7 +413,7 @@ class TurnManagerTest {
   fun `markSeen убирает чисто завершённую сессию, но не Running`() = runTest {
     executor.script = { flow { emit(AgentEvent.TextDelta("...")); awaitCancellation() } }
     val m = manager()
-    m.launchTurn("c1", "вопрос", AgentMode.CHAT, false, 3)
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT)
     advanceUntilIdle()
 
     m.markSeen("c1")
@@ -362,7 +421,7 @@ class TurnManagerTest {
     assertTrue(m.sessions.value.containsKey("c1")) // Running не трогаем
 
     executor.script = { flowOf(AgentEvent.Completed(finished("готово"))) }
-    m.launchTurn("c1", "ещё вопрос", AgentMode.CHAT, false, 3)
+    m.launchTurn("c1", "ещё вопрос", AgentMode.CHAT)
     advanceUntilIdle()
     m.markSeen("c1")
     advanceUntilIdle()
@@ -372,7 +431,7 @@ class TurnManagerTest {
     // этой сессии (см. TurnManager.markSeen kdoc) — оно состояние PlanRepository. Чисто завершённая
     // план-фаза больше не держит сессию особняком от CHAT и тоже убирается markSeen.
     executor.script = { flowOf(AgentEvent.Completed(finished("1. план"))) }
-    m.launchTurn("c1", "сделай X", AgentMode.PLAN, false, 3)
+    m.launchTurn("c1", "сделай X", AgentMode.PLAN)
     advanceUntilIdle()
     m.markSeen("c1")
     advanceUntilIdle()
@@ -387,8 +446,8 @@ class TurnManagerTest {
     }
     val m = manager()
 
-    m.launchTurn("a", "вопрос", AgentMode.CHAT, false, 3)
-    m.launchTurn("b", "вопрос", AgentMode.CHAT, false, 3)
+    m.launchTurn("a", "вопрос", AgentMode.CHAT)
+    m.launchTurn("b", "вопрос", AgentMode.CHAT)
     advanceUntilIdle()
 
     // badges — производный Flow: сессии уже наполнены, поэтому первая же эмиссия несёт оба статуса.
@@ -404,12 +463,12 @@ class TurnManagerTest {
     val m = manager()
 
     inForeground = true
-    m.launchTurn("c1", "вопрос", AgentMode.CHAT, false, 3)
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT)
     advanceUntilIdle()
     assertEquals(0, notifier.shown.size)
 
     inForeground = false
-    m.launchTurn("c2", "вопрос", AgentMode.CHAT, false, 3)
+    m.launchTurn("c2", "вопрос", AgentMode.CHAT)
     advanceUntilIdle()
 
     assertEquals(1, notifier.shown.size)
@@ -424,7 +483,7 @@ class TurnManagerTest {
   fun `падение хода в фоне тоже уведомляет`() = runTest {
     executor.script = { flowOf(AgentEvent.Error("сеть упала")) }
     inForeground = false
-    manager().launchTurn("c1", "вопрос", AgentMode.CHAT, false, 3)
+    manager().launchTurn("c1", "вопрос", AgentMode.CHAT)
     advanceUntilIdle()
 
     val shown = notifier.shown.single()

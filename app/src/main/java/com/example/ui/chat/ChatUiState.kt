@@ -26,8 +26,9 @@ data class ResponseStats(
  * `RequestPlanChanges` always target that precise version — never "whatever is pending now".
  * Replaces the Фаза A per-turn `planAwaitingApproval: Boolean`: whether a plan awaits a decision is
  * no longer a byproduct of the last chat turn, it is `PlanRepository`'s own persisted state (see
- * `PlanCommands`). Nothing populates this yet outside explicit user actions clearing it — the
- * structured PLAN/GOAL orchestrator migration that fills it from a real proposal is Task 10.
+ * `PlanCommands`). Populated by `ChatViewModel.observePendingPlanApproval` (Task 10) — a reactive
+ * subscription to `PlanRepository.observeByConversation`, not a one-shot turn event — so it is
+ * always in sync with the repository regardless of which turn/path last called `saveProposal`.
  */
 data class PendingPlanApproval(val planId: String, val version: Int)
 

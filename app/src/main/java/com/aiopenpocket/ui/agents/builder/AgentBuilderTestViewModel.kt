@@ -93,18 +93,18 @@ class AgentBuilderTestViewModel(
   fun sendTestMessage(text: String, mode: AgentMode, executionMode: ExecutionMode) {
     val convId = _testConversationId.value ?: return
     if (text.isBlank()) return
+    // Task 10 (structured-plan-engine-907066): planId/budget default (null / PlanRunBudget()) — the
+    // builder's TEST step has no plan-id concept of its own yet; StructuredPlanOrchestrator resolves
+    // whatever plan (if any) the test conversation already has, same as an ordinary chat GOAL turn.
     turnManager.launchTurn(
       conversationId = convId,
       userText = text,
       mode = mode,
-      planApproved = false,
-      goalMaxIterations = DEFAULT_GOAL_MAX_ITERATIONS,
       executionMode = executionMode,
     )
   }
 
   companion object {
     private const val TEST_CONVERSATION_TITLE = "Тест агента"
-    private const val DEFAULT_GOAL_MAX_ITERATIONS = 3
   }
 }

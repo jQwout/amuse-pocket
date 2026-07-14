@@ -4,6 +4,8 @@ package com.aiopenpocket.agent.loop
 // @trace structured-plan-engine-907066
 
 import com.aiopenpocket.agent.core.mcp.ToolResult
+import com.aiopenpocket.agent.core.plan.execution.PlanRunResult
+import com.aiopenpocket.agent.core.plan.model.PlanRunOutcome
 
 /**
  * Все пользовательские тексты слоя ходов — единственное место (задел под i18n: UI-слой сможет
@@ -22,6 +24,28 @@ object TurnTexts {
 
   /** Превью пуша, когда ход завершился без текста (card-only ответ). */
   const val TURN_DONE_FALLBACK = "Готово"
+
+  /**
+   * Task 10 (structured-plan-engine-907066): PLAN turn persisted a proposal —
+   * [com.aiopenpocket.ui.chat.ChatViewModel]'s own reactive subscription to
+   * `PlanRepository.observeByConversation` is what actually raises the approval bar
+   * (`ChatUiState.pendingPlanApproval`); this text is only the chat-history record of the event.
+   */
+  fun planProposedMessage(planId: String, version: Int): String =
+    "📋 План предложен (версия $version). Проверь его выше и одобри, чтобы начать выполнение."
+
+  /** Task 10: GOAL turn's [PlanRunResult] rendered as a plain assistant message — one branch per [PlanRunOutcome]. */
+  fun planProgressMessage(result: PlanRunResult): String = when (result.outcome) {
+    PlanRunOutcome.COMPLETED -> "✅ План выполнен: все шаги завершены."
+    PlanRunOutcome.PARTIAL -> if (result.executedStepIds.isEmpty()) {
+      result.blockedReason ?: "Пока нет шагов, готовых к выполнению."
+    } else {
+      "Выполнено шагов: ${result.executedStepIds.joinToString()}. " +
+        (result.blockedReason ?: "Продолжи, когда будешь готов.")
+    }
+    PlanRunOutcome.FAILED -> result.blockedReason ?: "Выполнение шага плана завершилось ошибкой."
+    PlanRunOutcome.CANCELLED -> "Выполнение плана отменено."
+  }
 }
 
 /** Маркер план-планирования: модель ставит его в начало ответа-вопроса (вырезается из текста). */
