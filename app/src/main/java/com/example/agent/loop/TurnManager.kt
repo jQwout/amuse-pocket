@@ -2,6 +2,7 @@ package com.aiopenpocket.agent.loop
 
 // @trace fonovye-hody-agenta-dde42d
 // @trace user-agent-builder-848153
+// @trace structured-plan-engine-907066
 
 import com.aiopenpocket.agent.core.AgentLog
 import com.aiopenpocket.agent.core.llm.LlmProvider
@@ -91,40 +92,21 @@ class TurnManager(
    * Повтор последнего хода после ошибки: реплика пользователя уже в истории, addMessage не повторяем.
    * Повторяет и [TurnSession.lastExecutionMode] прошлой попытки — «Повторить» не должен переиграть
    * PREVIEW-ход LIVE-ом (или наоборот).
+   *
+   * planApproved жёстко false (Task 5, structured-plan-engine-907066): TurnSession больше не помнит
+   * «прошлый ход был фазой выполнения одобренного плана» — единственный путь, которым planApproved=true
+   * когда-либо возникал (magic-message approvePlan), удалён. Ретрай план-мода всегда переигрывает
+   * фазу ПЛАНИРОВАНИЯ; параметр planApproved у startTurn/runTurn остаётся для будущего Task 10
+   * (см. AgentMode.resolveTurnExecutionPlan), но сейчас через TurnManager всегда приходит false.
    */
   fun retry(conversationId: String) {
     scope.launch {
       val session = sessionsFlow.value[conversationId] ?: return@launch
       val text = session.lastUserText ?: return@launch
       startTurn(
-        conversationId, text, session.lastMode, session.lastPlanApproved, session.lastGoalMaxIterations,
+        conversationId, text, session.lastMode, false, session.lastGoalMaxIterations,
         persistUserMessage = false, executionMode = session.lastExecutionMode,
       )
-    }
-  }
-
-  /**
-   * План-мод: пользователь одобрил план → фаза выполнения (инструменты включены). Выполнение едет в
-   * том же [TurnSession.lastExecutionMode], что и фаза планирования — одобрение PREVIEW-плана не
-   * должно тайком стать LIVE-выполнением.
-   */
-  fun approvePlan(conversationId: String) {
-    scope.launch {
-      val session = sessionsFlow.value[conversationId]
-      val goalIterations = session?.lastGoalMaxIterations ?: 3
-      startTurn(
-        conversationId, TurnTexts.APPROVE_PLAN_MESSAGE, AgentMode.PLAN, planApproved = true,
-        goalMaxIterations = goalIterations, persistUserMessage = true,
-        executionMode = session?.lastExecutionMode ?: ExecutionMode.LIVE,
-      )
-    }
-  }
-
-  /** «Поправить» вместо «Выполнить»: бар одобрения прячем, сессию и ретрай не трогаем. */
-  fun dismissPlanApproval(conversationId: String) {
-    val session = sessionsFlow.value[conversationId] ?: return
-    session.statusFlow.update { status ->
-      if (status is TurnStatus.Completed) status.copy(planAwaitingApproval = false) else status
     }
   }
 
@@ -165,16 +147,21 @@ class TurnManager(
 
   /**
    * Ход просмотрен (вход в диалог, либо ответ доехал до ленты) — чисто завершённую сессию убираем,
-   * чтобы бейдж «готово» в списке погас. Running/Failed/план-бар/blank-error не трогаем: они ещё
-   * нужны экрану (индикация, ретрай, одобрение).
+   * чтобы бейдж «готово» в списке погас. Running/Failed/blank-error не трогаем: они ещё нужны
+   * экрану (индикация, ретрай).
+   *
+   * До Task 5 (structured-plan-engine-907066) сюда же входил `!status.planAwaitingApproval` — план,
+   * ждущий одобрения, держал сессию видимой, чтобы approval-бар не исчезал сам. Тот флаг убран
+   * из TurnStatus.Completed вместе с magic-message approvePlan; «ждёт ли решения план» теперь
+   * состояние PlanRepository (см. PlanCommands), а не этой сессии, так что markSeen её больше не
+   * особит — чисто завершённый ход (включая план-фазу без ошибки) убирается как обычно.
    */
   fun markSeen(conversationId: String) {
     scope.launch {
       mutex.withLock {
         val session = sessionsFlow.value[conversationId] ?: return@withLock
         val status = session.status.value
-        val cleanlyDone = status is TurnStatus.Completed &&
-          status.error == null && !status.planAwaitingApproval && !status.canRetry
+        val cleanlyDone = status is TurnStatus.Completed && status.error == null && !status.canRetry
         if (cleanlyDone) {
           sessionsFlow.update { it - conversationId }
         }
@@ -193,7 +180,7 @@ class TurnManager(
   }
 
   /**
-   * Единая точка старта (отправка/ретрай/одобрение плана). Прошлый ход этого же диалога мог ещё
+   * Единая точка старта (отправка/ретрай). Прошлый ход этого же диалога мог ещё
    * выполнять инструмент или запись — гасим его и ждём внутри нового job, прежде чем стартовать
    * (перенос семантики прежнего ChatViewModel.launchTurn, но с ключом-диалогом вместо одного
    * глобального activeJob).
@@ -240,7 +227,6 @@ class TurnManager(
     session.responseStartTime = System.currentTimeMillis()
     session.statusFlow.value = TurnStatus.Running
     session.lastMode = mode
-    session.lastPlanApproved = planApproved
     session.lastGoalMaxIterations = goalMaxIterations
     session.lastExecutionMode = executionMode
     try {
@@ -337,7 +323,6 @@ class TurnManager(
       error = outcome.blankError,
       // «Повторить» — когда есть ошибка пустого ответа и в сессии остался текст пользователя.
       canRetry = outcome.blankError != null && session.lastUserText != null,
-      planAwaitingApproval = outcome.planAwaitingApproval,
     )
     notifyIfBackground(convId, preview = outcome.responseText.take(140).ifBlank { TurnTexts.TURN_DONE_FALLBACK }, failed = false)
   }

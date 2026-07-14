@@ -34,8 +34,8 @@
       "git": "bdf6383"
     },
     "fonovye-hody-agenta-dde42d": {
-      "hash": "6382ac105b6a",
-      "git": "9c9b98e"
+      "hash": "b8bfff2b4a1f",
+      "git": "d1a0ef7"
     },
     "glass-design-system-21a3fe": {
       "hash": "e03e8ac6081b",
@@ -66,8 +66,12 @@
       "git": "9c9b98e"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "5626154343ef",
-      "git": "375e2ec"
+      "hash": "07516e0b28ed",
+      "git": "d1a0ef7"
+    },
+    "structured-plan-engine-907066": {
+      "hash": "9c2e7d500c03",
+      "git": "d1a0ef7"
     },
     "swappable-persona-e5e65e": {
       "hash": "1a8a33f5efe8",
@@ -78,8 +82,8 @@
       "git": "660f68b"
     },
     "user-agent-builder-848153": {
-      "hash": "a86991418c63",
-      "git": "5f441b4"
+      "hash": "98590895a564",
+      "git": "d1a0ef7"
     },
     "voice-input-1a0dfd": {
       "hash": "ec70865aeaa7",

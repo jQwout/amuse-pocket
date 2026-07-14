@@ -1,6 +1,7 @@
 package com.aiopenpocket.agent.loop
 
 // @trace rezhimy-agenta-plan-i-goal-ee2361
+// @trace structured-plan-engine-907066
 
 import com.aiopenpocket.agent.core.mcp.ToolResult
 
@@ -18,9 +19,6 @@ object TurnTexts {
 
   const val BLANK_PLAN_ERROR = "Модель не вернула план — попробуй ещё раз."
   const val BLANK_REPLY_ERROR = "Модель вернула пустой ответ — попробуй ещё раз."
-
-  /** Реплика, которой ход одобрения плана попадает в историю. */
-  const val APPROVE_PLAN_MESSAGE = "Одобряю план, выполни его по шагам."
 
   /** Превью пуша, когда ход завершился без текста (card-only ответ). */
   const val TURN_DONE_FALLBACK = "Готово"
@@ -47,8 +45,6 @@ data class CompletedTurn(
    * текст пользователя — отдельного canRetry-поля нет, чтобы два флага не разъезжались.
    */
   val blankError: String?,
-  /** План-мод: показан непустой план, ждём «Выполнить»/«Поправить». */
-  val planAwaitingApproval: Boolean,
 )
 
 /**
@@ -59,6 +55,13 @@ data class CompletedTurn(
  * Про [AgentMode.REFLECT]: сюда он тоже доходит (TurnManager отдаёт mode рефлексивных ходов), но
  * не проходит через [resolveTurnExecutionPlan]. planningPhase=false и GOAL-фолбэк его не касаются —
  * REFLECT обрабатывается как обычный чат-ответ (покрыто TurnCompletionTest).
+ *
+ * До Task 5 (structured-plan-engine-907066) [CompletedTurn] нёс ещё и `planAwaitingApproval` — флаг
+ * «показан непустой план, ждём решения», которым TurnManager поднимал per-turn approval-бар в чате.
+ * Тот флаг убран: показан ли план и ждёт ли он решения — теперь состояние persisted AgentPlan в
+ * PlanRepository (см. com.aiopenpocket.agent.core.plan.execution.PlanCommands), а не производная
+ * одного хода. `planningPhase`/`needInfo` здесь остаются — они по-прежнему решают, как читать
+ * responseText/blankError фазы планирования, просто больше не публикуются наружу отдельным полем.
  */
 fun resolveCompletedTurn(
   mode: AgentMode,
@@ -100,6 +103,5 @@ fun resolveCompletedTurn(
     responseText = responseText,
     cardSpecs = cardSpecs,
     blankError = blankError,
-    planAwaitingApproval = planningPhase && !needInfo && responseText.isNotBlank(),
   )
 }

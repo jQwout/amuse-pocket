@@ -256,37 +256,35 @@ class TurnManagerTest {
     assertTrue(m.sessions.value.getValue("c1").status.value is TurnStatus.Completed)
   }
 
+  /**
+   * Task 5 (structured-plan-engine-907066): TurnManager.approvePlan (magic-message «Одобряю план,
+   * выполни его по шагам.» triggering a tool-using turn) is gone — approval is now a typed
+   * PlanCommands.approve(planId, version) call that never touches TurnManager at all (see
+   * ChatViewModel.approvePlanCommand / PlanApprovalTest). What remains TurnManager's job is that
+   * planApproved, no longer remembered by TurnSession, is always replayed false.
+   */
   @Test
-  fun `approvePlan запускает фазу выполнения с planApproved`() = runTest {
-    executor.script = { call ->
-      if (!call.planApproved) flowOf(AgentEvent.Completed(finished("1. шаг один")))
-      else flowOf(AgentEvent.Completed(finished("сделано")))
-    }
+  fun `retry в план-моде повторяет фазу планирования - planApproved больше не запоминается`() = runTest {
+    executor.script = { flowOf(AgentEvent.Error("сеть упала")) }
     val m = manager()
 
     m.launchTurn("c1", "сделай X", AgentMode.PLAN, planApproved = false, goalMaxIterations = 3)
     advanceUntilIdle()
-    assertTrue((m.sessions.value.getValue("c1").status.value as TurnStatus.Completed).planAwaitingApproval)
-
-    m.approvePlan("c1")
+    m.retry("c1")
     advanceUntilIdle()
 
-    val exec = executor.calls[1]
-    assertEquals(AgentMode.PLAN, exec.mode)
-    assertTrue(exec.planApproved)
-    assertTrue(persistence.rows.any { it.role == "user" && it.content == "Одобряю план, выполни его по шагам." })
+    assertEquals(2, executor.calls.size)
+    assertTrue(executor.calls.all { !it.planApproved })
   }
 
   @Test
-  fun `NEED_INFO в фазе планирования вырезается и не показывает план-бар`() = runTest {
+  fun `NEED_INFO в фазе планирования вырезается из текста`() = runTest {
     executor.script = { flowOf(AgentEvent.Completed(finished("[[NEED_INFO]] Какой именно отчёт нужен?"))) }
     val m = manager()
 
     m.launchTurn("c1", "сделай отчёт", AgentMode.PLAN, planApproved = false, goalMaxIterations = 3)
     advanceUntilIdle()
 
-    val status = m.sessions.value.getValue("c1").status.value as TurnStatus.Completed
-    assertTrue(!status.planAwaitingApproval)
     assertEquals("Какой именно отчёт нужен?", persistence.rows.last().content)
   }
 
@@ -353,7 +351,7 @@ class TurnManagerTest {
   }
 
   @Test
-  fun `markSeen убирает чисто завершённую сессию, но не Running и не план-бар`() = runTest {
+  fun `markSeen убирает чисто завершённую сессию, но не Running`() = runTest {
     executor.script = { flow { emit(AgentEvent.TextDelta("...")); awaitCancellation() } }
     val m = manager()
     m.launchTurn("c1", "вопрос", AgentMode.CHAT, false, 3)
@@ -370,25 +368,15 @@ class TurnManagerTest {
     advanceUntilIdle()
     assertNull(m.sessions.value["c1"]) // чистое Completed — убрали
 
+    // Task 5 (structured-plan-engine-907066): «ждёт ли план решения» больше не поле TurnStatus.Completed
+    // этой сессии (см. TurnManager.markSeen kdoc) — оно состояние PlanRepository. Чисто завершённая
+    // план-фаза больше не держит сессию особняком от CHAT и тоже убирается markSeen.
     executor.script = { flowOf(AgentEvent.Completed(finished("1. план"))) }
     m.launchTurn("c1", "сделай X", AgentMode.PLAN, false, 3)
     advanceUntilIdle()
     m.markSeen("c1")
     advanceUntilIdle()
-    assertTrue(m.sessions.value.containsKey("c1")) // план ждёт одобрения — бейдж/бар живут
-  }
-
-  @Test
-  fun `dismissPlanApproval прячет план-бар не убивая сессию`() = runTest {
-    executor.script = { flowOf(AgentEvent.Completed(finished("1. план"))) }
-    val m = manager()
-
-    m.launchTurn("c1", "сделай X", AgentMode.PLAN, false, 3)
-    advanceUntilIdle()
-    m.dismissPlanApproval("c1")
-    advanceUntilIdle()
-
-    assertTrue(!(m.sessions.value.getValue("c1").status.value as TurnStatus.Completed).planAwaitingApproval)
+    assertNull(m.sessions.value["c1"]) // чисто завершённая план-фаза тоже убирается
   }
 
   @Test
