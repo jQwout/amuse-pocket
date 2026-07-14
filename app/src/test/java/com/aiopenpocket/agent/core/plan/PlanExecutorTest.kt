@@ -11,20 +11,29 @@ import com.aiopenpocket.agent.core.agent.AgentSource
 import com.aiopenpocket.agent.core.agent.AgentStatus
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.FunctionSchema
+import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.llm.StreamEvent
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.mcp.toolSchema
 import com.aiopenpocket.agent.core.memory.entity.ConversationEntity
+import com.aiopenpocket.agent.core.memory.model.Fact
+import com.aiopenpocket.agent.core.plan.execution.MemoryFactLookup
+import com.aiopenpocket.agent.core.plan.execution.PlanEvidenceSink
 import com.aiopenpocket.agent.core.plan.execution.PlanExecutor
 import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
 import com.aiopenpocket.agent.core.plan.execution.PlanStepRunner
+import com.aiopenpocket.agent.core.plan.execution.PlanVerifier
 import com.aiopenpocket.agent.core.plan.model.AgentPlan
 import com.aiopenpocket.agent.core.plan.model.CompletionRule
 import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
+import com.aiopenpocket.agent.core.plan.model.CriterionVerifier
 import com.aiopenpocket.agent.core.plan.model.EvidenceSource
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
+import com.aiopenpocket.agent.core.plan.model.PlanCriterion
+import com.aiopenpocket.agent.core.plan.model.PlanEventType
 import com.aiopenpocket.agent.core.plan.model.PlanEvidence
 import com.aiopenpocket.agent.core.plan.model.PlanHorizon
 import com.aiopenpocket.agent.core.plan.model.PlanSnapshot
@@ -33,6 +42,7 @@ import com.aiopenpocket.agent.core.plan.model.PlanStep
 import com.aiopenpocket.agent.core.plan.model.PlanStepState
 import com.aiopenpocket.agent.core.plan.model.PlanVersion
 import com.aiopenpocket.agent.core.plan.model.StepStatus
+import com.aiopenpocket.agent.core.plan.model.VerifierType
 import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.agent.core.prompt.AssetSource
@@ -40,10 +50,15 @@ import com.aiopenpocket.agent.loop.AgentEvent
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.loop.AgentResult
 import com.aiopenpocket.agent.loop.AgentState
+import com.aiopenpocket.agent.loop.ToolTrace
 import com.aiopenpocket.data.database.AppDatabase
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -138,8 +153,22 @@ class PlanExecutorTest {
     override fun load(path: String): String? = null
   }
 
+  /** No plan in this file configures a MEMORY_FACT criterion — [PlanVerifier] must never call this. */
+  private object NoMemoryFacts : MemoryFactLookup {
+    override suspend fun getFactsByKeyPrefix(prefix: String): List<Fact> = emptyList()
+  }
+
+  /** No plan in this file configures a MODEL_ASSESSMENT criterion — [PlanVerifier] must never call this. */
+  private object UnusedLlmClient : LlmClient {
+    override fun streamChat(messages: List<ChatMessage>, tools: List<FunctionSchema>, provider: LlmProvider): Flow<StreamEvent> =
+      throw IllegalStateException("LlmClient must not be called: this test has no MODEL_ASSESSMENT criteria.")
+  }
+
+  /** Real [PlanEvidenceSink] backed by the same in-memory [repository] every other assertion reads back from. */
+  private fun verifier() = PlanVerifier(PlanEvidenceSink(repository::addEvidence), NoMemoryFacts, UnusedLlmClient, NoAssets) { now }
+
   private fun executor(runner: PlanStepRunner, registry: ToolRegistry = toolRegistry) =
-    PlanExecutor(repository, registry, runner, NoAssets) { now }
+    PlanExecutor(repository, registry, runner, NoAssets, verifier()) { now }
 
   // --- fixtures (mirrors PlanRepositoryTest/PlanContextProviderTest's own builders) ------------------
 
@@ -182,6 +211,7 @@ class PlanExecutorTest {
     planId: String = "plan-1",
     version: Int = 1,
     steps: List<PlanStep> = listOf(step()),
+    criteria: List<PlanCriterion> = emptyList(),
   ) = PlanVersion(
     planId = planId,
     version = version,
@@ -189,9 +219,17 @@ class PlanExecutorTest {
     assumptions = emptyList(),
     constraints = emptyList(),
     steps = steps,
-    criteria = emptyList(),
+    criteria = criteria,
     createdBy = PlanAuthor.AGENT,
     approvedAt = null,
+  )
+
+  /** Task 8: a [PlanCriterion] whose [VerifierType.TOOL_RESULT] verifier config names [toolName] — mirrors the "toolName" config key [com.aiopenpocket.agent.core.plan.execution.DeterministicVerifierRegistry] reads. */
+  private fun toolResultCriterion(id: String = "c1", toolName: String = "memory_tool", required: Boolean = true) = PlanCriterion(
+    id = id,
+    description = "Критерий $id: вызван $toolName",
+    verifier = CriterionVerifier(type = VerifierType.TOOL_RESULT, config = buildJsonObject { put("toolName", toolName) }),
+    required = required,
   )
 
   private fun stepState(
@@ -224,8 +262,8 @@ class PlanExecutorTest {
     status = AgentStatus.PUBLISHED,
   )
 
-  private fun finishedResult(text: String = "ok") =
-    AgentResult(text = text, toolTrace = emptyList(), state = AgentState.FINISHED, iterations = 1)
+  private fun finishedResult(text: String = "ok", toolTrace: List<ToolTrace> = emptyList()) =
+    AgentResult(text = text, toolTrace = toolTrace, state = AgentState.FINISHED, iterations = 1)
 
   private fun errorResult(message: String) =
     AgentResult(text = "", toolTrace = emptyList(), state = AgentState.ERROR, iterations = 1, errorMessage = message)
@@ -236,9 +274,13 @@ class PlanExecutorTest {
   )
 
   /** Real repository round-trip: DRAFT -> AWAITING_APPROVAL -> ACTIVE, approvedVersion=1 — mirrors [PlanContextProviderTest]'s own setup flow. */
-  private suspend fun approvedSnapshot(steps: List<PlanStep> = listOf(step()), planId: String = "plan-1"): PlanSnapshot {
+  private suspend fun approvedSnapshot(
+    steps: List<PlanStep> = listOf(step()),
+    planId: String = "plan-1",
+    criteria: List<PlanCriterion> = emptyList(),
+  ): PlanSnapshot {
     insertConversation()
-    repository.saveProposal(plan(id = planId), version(planId = planId, steps = steps))
+    repository.saveProposal(plan(id = planId), version(planId = planId, steps = steps, criteria = criteria))
     repository.approve(planId, 1)
     return requireNotNull(repository.snapshot(planId))
   }
@@ -527,6 +569,77 @@ class PlanExecutorTest {
     assertTrue(result.stoppedByBudget)
     val state = requireNotNull(repository.snapshot("plan-1")).stepStates.single { it.stepId == "step-1" }
     assertEquals(StepStatus.BLOCKED, state.status)
+  }
+
+  // --- execute: Task 8 verification gate (PlanVerifier slotted into recordOutcome) -------------------
+
+  @Test
+  fun `execute does NOT complete when a required TOOL_RESULT criterion has no matching tool call`() = runTest {
+    val criterion = toolResultCriterion()
+    val snapshot = approvedSnapshot(criteria = listOf(criterion))
+    val runner = FakeStepRunner(finishedResult()) // clean finish, but zero tool calls in the trace
+
+    val result = executor(runner).execute(snapshot, snapshot.version.steps.first(), agent())
+
+    assertFalse(result.stoppedByBudget)
+    assertNull("a Retryable outcome is not itself an 'error'", result.error)
+    val after = requireNotNull(repository.snapshot("plan-1"))
+    val state = after.stepStates.single { it.stepId == "step-1" }
+    assertEquals("an unmet required criterion must not complete the step", StepStatus.READY, state.status)
+    assertNull("a step that did not complete never gets completedAt", state.completedAt)
+    assertTrue("no PlanEvidence should be persisted for a criterion nothing satisfied", after.evidence.none { it.criterionId == criterion.id })
+
+    // Task 8: "a failed required criterion leaves the step NOT completed... with an explanatory
+    // evidence/event" - the STEP_VERIFIED event PlanExecutor already appends on this branch must now
+    // carry a non-blank explanation of WHY, not just the bare status.
+    val event = repository.getEvents("plan-1").last { it.stepId == "step-1" && it.type == PlanEventType.STEP_VERIFIED }
+    val explanation = (event.payload["verification"] as? JsonPrimitive)?.content
+    assertTrue("event payload must explain why verification did not complete the step", !explanation.isNullOrBlank())
+  }
+
+  @Test
+  fun `execute completes and persists exactly one PlanEvidence when the required TOOL_RESULT criterion's tool succeeded`() = runTest {
+    val criterion = toolResultCriterion(toolName = "memory_tool")
+    val snapshot = approvedSnapshot(criteria = listOf(criterion))
+    val trace = listOf(ToolTrace(iteration = 1, toolName = "memory_tool", arguments = emptyMap(), result = ToolResult.Success("saved")))
+    val runner = FakeStepRunner(finishedResult(toolTrace = trace))
+
+    val result = executor(runner).execute(snapshot, snapshot.version.steps.first(), agent())
+
+    assertFalse(result.stoppedByBudget)
+    val after = requireNotNull(repository.snapshot("plan-1"))
+    val state = after.stepStates.single { it.stepId == "step-1" }
+    assertEquals(StepStatus.COMPLETED, state.status)
+    assertNotNull(state.completedAt)
+    val matching = after.evidence.filter { it.criterionId == criterion.id }
+    assertEquals("exactly one PlanEvidence for the satisfied criterion, not one per check", 1, matching.size)
+    assertEquals(EvidenceSource.TOOL_RESULT, matching.single().source)
+  }
+
+  @Test
+  fun `execute does NOT complete when a required TOOL_RESULT criterion's tool call errored (failed tool does not prove criterion)`() = runTest {
+    val criterion = toolResultCriterion(toolName = "memory_tool")
+    val snapshot = approvedSnapshot(criteria = listOf(criterion))
+    val trace = listOf(ToolTrace(iteration = 1, toolName = "memory_tool", arguments = emptyMap(), result = ToolResult.Error("boom")))
+    val runner = FakeStepRunner(finishedResult(toolTrace = trace))
+
+    executor(runner).execute(snapshot, snapshot.version.steps.first(), agent())
+
+    val after = requireNotNull(repository.snapshot("plan-1"))
+    assertEquals(StepStatus.READY, after.stepStates.single { it.stepId == "step-1" }.status)
+    assertTrue(after.evidence.none { it.criterionId == criterion.id })
+  }
+
+  @Test
+  fun `execute completes on a clean finish when the only criteria are optional and unmet (optional criteria don't block completion)`() = runTest {
+    val optional = toolResultCriterion(id = "optional-1", toolName = "never_called_tool", required = false)
+    val snapshot = approvedSnapshot(criteria = listOf(optional))
+    val runner = FakeStepRunner(finishedResult()) // no tool calls -> optional criterion stays unsatisfied
+
+    executor(runner).execute(snapshot, snapshot.version.steps.first(), agent())
+
+    val after = requireNotNull(repository.snapshot("plan-1"))
+    assertEquals(StepStatus.COMPLETED, after.stepStates.single { it.stepId == "step-1" }.status)
   }
 
   // --- execute: only ONE step runs per invocation ---------------------------------------------------
