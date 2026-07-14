@@ -6,6 +6,7 @@ package com.aiopenpocket.agent.loop
 
 import com.aiopenpocket.agent.core.AgentLog
 import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -59,19 +60,24 @@ class TurnManager(
    * Запускает ход: пишет реплику пользователя в историю и гонит агентный цикл до конца.
    * [executionMode] — LIVE (по умолчанию, обычный чат) или PREVIEW (builder-тест, Task 20) — не
    * заводит параллельный вход: едет тем же трактом, что и обычная отправка.
+   *
+   * [planId]/[budget] (Task 10, structured-plan-engine-907066) заменяют прежние
+   * `planApproved`/`goalMaxIterations`: [AgentMode.GOAL] читает [planId] (null = StructuredPlanOrchestrator
+   * сам резолвит план диалога) и многомерный [PlanRunBudget] вместо одного числа витков. Оба
+   * игнорируются CHAT/TUTOR/REFLECT.
    */
   fun launchTurn(
     conversationId: String,
     userText: String,
     mode: AgentMode,
-    planApproved: Boolean,
-    goalMaxIterations: Int,
+    planId: String? = null,
+    budget: PlanRunBudget = PlanRunBudget(),
     systemPromptExtra: String? = null,
     executionMode: ExecutionMode = ExecutionMode.LIVE,
   ) {
     scope.launch {
       startTurn(
-        conversationId, userText, mode, planApproved, goalMaxIterations,
+        conversationId, userText, mode, planId, budget,
         persistUserMessage = true, systemPromptExtra = systemPromptExtra, executionMode = executionMode,
       )
     }
@@ -93,18 +99,17 @@ class TurnManager(
    * Повторяет и [TurnSession.lastExecutionMode] прошлой попытки — «Повторить» не должен переиграть
    * PREVIEW-ход LIVE-ом (или наоборот).
    *
-   * planApproved жёстко false (Task 5, structured-plan-engine-907066): TurnSession больше не помнит
-   * «прошлый ход был фазой выполнения одобренного плана» — единственный путь, которым planApproved=true
-   * когда-либо возникал (magic-message approvePlan), удалён. Ретрай план-мода всегда переигрывает
-   * фазу ПЛАНИРОВАНИЯ; параметр planApproved у startTurn/runTurn остаётся для будущего Task 10
-   * (см. AgentMode.resolveTurnExecutionPlan), но сейчас через TurnManager всегда приходит false.
+   * Task 10 (structured-plan-engine-907066): повторяет [TurnSession.lastPlanId]/[TurnSession.lastBudget]
+   * как есть — никакой спецлогики больше не нужно (в отличие от прежнего жёсткого `planApproved=false`):
+   * approval теперь persisted-состояние PlanRepository, а не флаг хода, так что ретрай план-мода
+   * просто заново вызывает propose()/executeGoal() с теми же аргументами, что и оригинальный ход.
    */
   fun retry(conversationId: String) {
     scope.launch {
       val session = sessionsFlow.value[conversationId] ?: return@launch
       val text = session.lastUserText ?: return@launch
       startTurn(
-        conversationId, text, session.lastMode, false, session.lastGoalMaxIterations,
+        conversationId, text, session.lastMode, session.lastPlanId, session.lastBudget,
         persistUserMessage = false, executionMode = session.lastExecutionMode,
       )
     }
@@ -189,8 +194,8 @@ class TurnManager(
     conversationId: String,
     userText: String,
     mode: AgentMode,
-    planApproved: Boolean,
-    goalMaxIterations: Int,
+    planId: String?,
+    budget: PlanRunBudget,
     persistUserMessage: Boolean,
     systemPromptExtra: String? = null,
     executionMode: ExecutionMode = ExecutionMode.LIVE,
@@ -206,7 +211,7 @@ class TurnManager(
       previous?.cancel()
       session.job = scope.launch {
         previous?.join()
-        runTurn(session, userText, mode, planApproved, goalMaxIterations, persistUserMessage, systemPromptExtra, executionMode)
+        runTurn(session, userText, mode, planId, budget, persistUserMessage, systemPromptExtra, executionMode)
       }
     }
   }
@@ -215,8 +220,8 @@ class TurnManager(
     session: TurnSession,
     userText: String,
     mode: AgentMode,
-    planApproved: Boolean,
-    goalMaxIterations: Int,
+    planId: String?,
+    budget: PlanRunBudget,
     persistUserMessage: Boolean,
     systemPromptExtra: String? = null,
     executionMode: ExecutionMode = ExecutionMode.LIVE,
@@ -227,7 +232,8 @@ class TurnManager(
     session.responseStartTime = System.currentTimeMillis()
     session.statusFlow.value = TurnStatus.Running
     session.lastMode = mode
-    session.lastGoalMaxIterations = goalMaxIterations
+    session.lastPlanId = planId
+    session.lastBudget = budget
     session.lastExecutionMode = executionMode
     try {
       if (persistUserMessage) {
@@ -238,7 +244,7 @@ class TurnManager(
         session.lastUserText = userText
         session.lastUserMessageId = userMsgId
       }
-      collectTurnEvents(session, userText, mode, planApproved, goalMaxIterations, systemPromptExtra, executionMode)
+      collectTurnEvents(session, userText, mode, planId, budget, systemPromptExtra, executionMode)
     } catch (e: CancellationException) {
       // Stop / новый ход: отмена — штатный путь.
       throw e
@@ -253,13 +259,13 @@ class TurnManager(
     session: TurnSession,
     userText: String,
     mode: AgentMode,
-    planApproved: Boolean,
-    goalMaxIterations: Int,
+    planId: String?,
+    budget: PlanRunBudget,
     systemPromptExtra: String? = null,
     executionMode: ExecutionMode = ExecutionMode.LIVE,
   ) {
     // Временно гоним всё на NIM; выбор провайдера (GROQ/GITHUB) выпилим позже.
-    val flow = executor.execute(session.conversationId, userText, LlmProvider.NIM, mode, planApproved, goalMaxIterations, systemPromptExtra, executionMode)
+    val flow = executor.execute(session.conversationId, userText, LlmProvider.NIM, mode, planId, budget, systemPromptExtra, executionMode)
     flow.collect { event ->
       when (event) {
         is AgentEvent.TextDelta ->
@@ -276,7 +282,7 @@ class TurnManager(
           session.toolTraceFlow.update { it + newTrace }
         }
 
-        is AgentEvent.Completed -> handleCompleted(session, mode, planApproved, event.result)
+        is AgentEvent.Completed -> handleCompleted(session, mode, event.result)
 
         is AgentEvent.Error -> finishFailed(session, event.message)
 
@@ -287,8 +293,12 @@ class TurnManager(
           else -> session.streamBuffer.flush()?.let { session.streamingTextFlow.value = it }
         }
 
-        else -> { /* no-op */
-        }
+        // Task 10 (structured-plan-engine-907066): PLAN/GOAL терминальные события StructuredPlanOrchestrator
+        // — свой текст, без resolveCompletedTurn (тот остаётся только для CHAT/REFLECT/legacy PLAN/GOAL,
+        // которые сюда как AgentEvent.Completed не приходят с этих режимов после миграции).
+        is AgentEvent.PlanProposed -> finishPlanMessage(session, TurnTexts.planProposedMessage(event.planId, event.version))
+        is AgentEvent.PlanProgressed -> finishPlanMessage(session, TurnTexts.planProgressMessage(event.result))
+        is AgentEvent.PlanBlocked -> finishPlanMessage(session, event.reason)
       }
     }
   }
@@ -296,13 +306,17 @@ class TurnManager(
   private suspend fun handleCompleted(
     session: TurnSession,
     mode: AgentMode,
-    planApproved: Boolean,
     result: AgentResult,
   ) {
     val convId = session.conversationId
     // Все решения (NEED_INFO, blank-ошибки, GOAL-фолбэк, карточки) — в чистой политике; здесь
-    // только применяем: записать, обновить статус, уведомить.
-    val outcome = resolveCompletedTurn(mode, planApproved, result)
+    // только применяем: записать, обновить статус, уведомить. planApproved жёстко false (Task 10):
+    // этот путь (AgentEvent.Completed) больше не достижим ни для PLAN, ни для GOAL — оба режима
+    // теперь заканчиваются PlanProposed/PlanProgressed/PlanBlocked/Error (см. collectTurnEvents),
+    // так что resolveCompletedTurn's planningPhase-ветка здесь всегда false и её NEED_INFO-логика
+    // не срабатывает — оставлена нетронутой ради CHAT/REFLECT/legacy тестов (AgentModeTest,
+    // TurnCompletionTest), которые её всё ещё покрывают.
+    val outcome = resolveCompletedTurn(mode, planApproved = false, result)
     val insertedId = if (outcome.responseText.isNotBlank() || outcome.cardSpecs.isNotEmpty()) {
       persistence.addAssistantMessage(convId, outcome.responseText, outcome.cardSpecs.firstOrNull())
     } else {
@@ -325,6 +339,31 @@ class TurnManager(
       canRetry = outcome.blankError != null && session.lastUserText != null,
     )
     notifyIfBackground(convId, preview = outcome.responseText.take(140).ifBlank { TurnTexts.TURN_DONE_FALLBACK }, failed = false)
+  }
+
+  /**
+   * Task 10 (structured-plan-engine-907066): shared tail for [AgentEvent.PlanProposed]/
+   * [AgentEvent.PlanProgressed]/[AgentEvent.PlanBlocked] — persists [text] as a plain assistant
+   * message (no card yet — a dedicated `agent_plan` PlanCard is Task 12's Plan UI, not this task)
+   * and completes the session, mirroring [handleCompleted]'s own "insert, update status, notify"
+   * bookkeeping. No token/toolTrace stats: a plan turn's LLM calls happen inside
+   * `com.aiopenpocket.agent.core.plan.planner.PlanPlanner`/`com.aiopenpocket.agent.core.plan.execution.PlanExecutor`,
+   * not this loop, and are not surfaced here. Always `canRetry = false` — unlike a blank/network
+   * error, there is nothing to retry: the user can just send another PLAN/GOAL turn.
+   */
+  private suspend fun finishPlanMessage(session: TurnSession, text: String) {
+    val convId = session.conversationId
+    val insertedId = persistence.addAssistantMessage(convId, text, cardSpec = null)
+    session.toolTraceFlow.value = emptyList()
+    session.statusFlow.value = TurnStatus.Completed(
+      insertedMessageId = insertedId,
+      responseTimeMs = System.currentTimeMillis() - session.responseStartTime,
+      completionTokens = 0,
+      contextTokensUsed = 0,
+      error = null,
+      canRetry = false,
+    )
+    notifyIfBackground(convId, preview = text.take(140).ifBlank { TurnTexts.TURN_DONE_FALLBACK }, failed = false)
   }
 
   private suspend fun finishFailed(session: TurnSession, message: String) {

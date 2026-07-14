@@ -16,6 +16,9 @@ import com.aiopenpocket.agent.core.memory.dao.HeartbeatDao
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.plan.execution.PlanCommands
+import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
+import com.aiopenpocket.agent.core.plan.model.PlanStatus
+import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
 import com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.loop.TurnManager
@@ -57,6 +60,7 @@ class ChatViewModel(
     private val conversationRepository: ConversationRepository,
     private val turnManager: TurnManager,
     private val planCommands: PlanCommands,
+    private val planRepository: PlanRepository,
     private val settingsRepository: SettingsRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val lessonRepository: LessonRepository,
@@ -134,6 +138,9 @@ class ChatViewModel(
                 _state.update { it.copy(pendingToolApproval = request) }
             }
         }
+        // Task 10 (structured-plan-engine-907066): approval-бар плана — реактивно из PlanRepository,
+        // не из событий хода (см. observePendingPlanApproval kdoc).
+        observePendingPlanApproval()
         // Поиск по чату: дебаунс ввода (collectLatest + delay — новый символ отменяет хвост) и
         // contains-скан на Default. Раньше скан шёл прямо в композиции на каждый введённый символ —
         // на длинной истории это десятки мс на Main и пропуски кадров. contains(ignoreCase) в
@@ -158,6 +165,37 @@ class ChatViewModel(
                     }
                     _state.update { it.copy(searchMatches = matches) }
                 }
+        }
+    }
+
+    /**
+     * Task 10 (structured-plan-engine-907066): reactive derivation of `ChatUiState.pendingPlanApproval`
+     * straight from [PlanRepository.observeByConversation] — NOT from any `AgentEvent`
+     * `StructuredPlanOrchestrator` emits. This is what actually raises `ChatScreen`'s `PlanApprovalBar`
+     * (Task 5 built the bar gated on this field but nothing ever populated it until this task).
+     * Reacting to the repository directly (rather than a one-shot turn event) means: re-opening a
+     * conversation that already has a pending plan shows the bar immediately, and any OTHER path that
+     * ever calls [PlanRepository.saveProposal] for this conversation (not just this screen's own PLAN
+     * turn) is picked up the same way.
+     *
+     * `distinctUntilChanged` (on the DERIVED [PendingPlanApproval]?, not the raw snapshot list) is
+     * what lets [ChatIntent.EditPlan]'s local-only dismiss (`pendingPlanApproval = null` without
+     * touching the repository — see its own kdoc) stick until the pending plan/version genuinely
+     * changes: Room's per-TABLE invalidation would otherwise re-emit (and re-show the bar) on ANY
+     * unrelated write to the plan tables, even one for a different plan entirely.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun observePendingPlanApproval() {
+        viewModelScope.launch {
+            convIdFlow.flatMapLatest { id ->
+                if (id.isBlank()) flowOf(emptyList()) else planRepository.observeByConversation(id)
+            }.map { snapshots ->
+                snapshots.filter { it.plan.status == PlanStatus.AWAITING_APPROVAL }
+                    .maxByOrNull { it.plan.updatedAt }
+                    ?.let { PendingPlanApproval(it.plan.id, it.version.version) }
+            }.distinctUntilChanged().collect { pending ->
+                _state.update { it.copy(pendingPlanApproval = pending) }
+            }
         }
     }
 
@@ -341,8 +379,11 @@ class ChatViewModel(
             try {
                 // Маршрут "chat/new" даёт пустой id — создаём диалог ДО launchTurn: сессия ключуется по id.
                 val convId = ensureConversation(text)
-                // В план-моде обычная отправка — это фаза ПЛАНИРОВАНИЯ (planApproved=false): план, без инструментов.
-                turnManager.launchTurn(convId, text, _state.value.agentMode, planApproved = false, goalMaxIterations = _state.value.goalMaxIterations)
+                // Task 10 (structured-plan-engine-907066): planId=null — StructuredPlanOrchestrator сам
+                // резолвит план диалога (PLAN предложит/пересмотрит текущий; GOAL продолжит ACTIVE или
+                // предложит новый, если approved плана ещё нет). goalMaxIterations из настроек мапится на
+                // maxLlmIterationsPerStep — тот же «бюджет рассуждения», просто теперь на ОДИН шаг плана.
+                turnManager.launchTurn(convId, text, _state.value.agentMode, budget = goalRunBudget(_state.value.goalMaxIterations))
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -351,6 +392,15 @@ class ChatViewModel(
             }
         }
     }
+
+    /**
+     * Task 10 (structured-plan-engine-907066): maps the user's "лимит витков гоал-мода" setting
+     * (`ChatUiState.goalMaxIterations`, from [com.aiopenpocket.agent.core.identity.UserPreferencesRepository])
+     * onto [PlanRunBudget.maxLlmIterationsPerStep] — the closest surviving analogue now that a whole
+     * GOAL turn is no longer one bounded ReAct loop but a run over one plan STEP at a time. The
+     * Settings screen/repository for this value are unchanged; only where it lands downstream moved.
+     */
+    private fun goalRunBudget(maxIterations: Int) = PlanRunBudget(maxLlmIterationsPerStep = maxIterations)
 
     /**
      * Task 5 (structured-plan-engine-907066): typed plan commands go straight to [PlanCommands] —
@@ -408,10 +458,9 @@ class ChatViewModel(
             .takeIf { it.isNotBlank() }
         viewModelScope.launch {
             try {
-                turnManager.launchTurn(
-                    convId, q, AgentMode.TUTOR, planApproved = false,
-                    goalMaxIterations = s.goalMaxIterations, systemPromptExtra = stepContext,
-                )
+                // TUTOR игнорирует planId/budget (диспатчится на AgentLoopOrchestrator, не на
+                // StructuredPlanOrchestrator) — оставлены дефолтными.
+                turnManager.launchTurn(convId, q, AgentMode.TUTOR, systemPromptExtra = stepContext)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {

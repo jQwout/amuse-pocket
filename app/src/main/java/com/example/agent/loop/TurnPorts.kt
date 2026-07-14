@@ -2,14 +2,22 @@ package com.aiopenpocket.agent.loop
 
 // @trace fonovye-hody-agenta-dde42d
 // @trace user-agent-builder-848153
+// @trace structured-plan-engine-907066
 
 import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Порт исполнения хода — узкий шов между TurnManager и AgentLoopOrchestrator,
- * чтобы менеджер тестировался скриптовым фейком без LLM/Room.
+ * Порт исполнения хода — узкий шов между TurnManager и AgentLoopOrchestrator/ReflectionOrchestrator/
+ * StructuredPlanOrchestrator, чтобы менеджер тестировался скриптовым фейком без LLM/Room.
+ *
+ * Task 10 (structured-plan-engine-907066): `planApproved`/`goalMaxIterations` убраны — approval
+ * больше не per-turn флаг (см. PlanCommands), а [AgentMode.GOAL] бюджет теперь многомерный
+ * [PlanRunBudget], а не один `goalMaxIterations`. [planId] — какой план исполняет GOAL (null =
+ * StructuredPlanOrchestrator сам резолвит план диалога); [budget] используется только PLAN/GOAL-веткой
+ * диспатча в TurnModule, CHAT/TUTOR/REFLECT его не читают.
  */
 fun interface TurnExecutor {
   fun execute(
@@ -17,8 +25,8 @@ fun interface TurnExecutor {
     userMessage: String,
     provider: LlmProvider,
     mode: AgentMode,
-    planApproved: Boolean,
-    goalMaxIterations: Int,
+    planId: String?,
+    budget: PlanRunBudget,
     /** Доверенная добавка к системному промпту для этого хода (напр. контекст текущего шага урока). */
     systemPromptExtra: String?,
     /** LIVE (по умолчанию у вызывающего TurnManager) или PREVIEW — см. ExecutionPolicy. */

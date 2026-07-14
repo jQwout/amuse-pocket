@@ -2,12 +2,14 @@ package com.aiopenpocket.di
 
 // @trace fonovye-hody-agenta-dde42d
 // @trace user-agent-builder-848153
+// @trace structured-plan-engine-907066
 
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.loop.AgentLoopOrchestrator
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.loop.ForegroundState
 import com.aiopenpocket.agent.loop.ReflectionOrchestrator
+import com.aiopenpocket.agent.loop.StructuredPlanOrchestrator
 import com.aiopenpocket.agent.loop.TurnExecutor
 import com.aiopenpocket.agent.loop.TurnManager
 import com.aiopenpocket.agent.loop.TurnNotifier
@@ -29,15 +31,25 @@ object TurnModule {
   fun provideTurnExecutor(
     orchestrator: AgentLoopOrchestrator,
     reflectionOrchestrator: ReflectionOrchestrator,
+    structuredPlanOrchestrator: StructuredPlanOrchestrator,
   ): TurnExecutor =
-    TurnExecutor { conversationId, message, provider, mode, planApproved, goalMaxIterations, systemPromptExtra, executionMode ->
-      // Режим REFLECT — отдельный 3-фазный оркестратор (черновик → критика → итог) поверх того же
-      // ReactLoopRunner; остальные режимы идут через основной цикл AgentLoopOrchestrator. Точку
-      // диспатча держим здесь (а не в ChatViewModel, как на старой ветке): менеджер уже прокинул mode.
-      if (mode == AgentMode.REFLECT) {
-        reflectionOrchestrator.execute(conversationId, message, provider, executionMode)
-      } else {
-        orchestrator.execute(conversationId, message, provider, mode, planApproved, goalMaxIterations, systemPromptExtra, executionMode)
+    TurnExecutor { conversationId, message, provider, mode, planId, budget, systemPromptExtra, executionMode ->
+      // Точка диспатча по режиму (а не в ChatViewModel, как на старой ветке): менеджер уже прокинул
+      // mode. REFLECT — 3-фазный оркестратор поверх того же ReactLoopRunner. PLAN/GOAL (Task 10,
+      // structured-plan-engine-907066) — типовой Structured Plan Engine (PlanPlanner → PlanRunner →
+      // PlanExecutor/PlanVerifier), а не прежний prompt-only гейт/петля AgentLoopOrchestrator (тот
+      // путь остаётся кодом — см. AgentMode kdoc — но с этой точки диспатча больше не достижим).
+      // CHAT/TUTOR — как раньше, основной цикл; planId/budget этой ветке не нужны (сигнатура
+      // AgentLoopOrchestrator.execute их не трогает, дефолты planApproved=false/goalMaxIterations=3
+      // инертны для mode, который сюда никогда не приходит как PLAN/GOAL).
+      when (mode) {
+        AgentMode.REFLECT -> reflectionOrchestrator.execute(conversationId, message, provider, executionMode)
+        AgentMode.PLAN -> structuredPlanOrchestrator.propose(conversationId, message, provider)
+        AgentMode.GOAL -> structuredPlanOrchestrator.executeGoal(conversationId, planId, message, provider, budget)
+        else -> orchestrator.execute(
+          conversationId, message, provider, mode,
+          systemPromptExtra = systemPromptExtra, executionMode = executionMode,
+        )
       }
     }
 

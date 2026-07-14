@@ -7,9 +7,9 @@ import com.aiopenpocket.agent.loop.ToolTrace
 /**
  * Per-step run budget (design spec `2026-07-12-structured-plan-engine-design.md` section 10:
  * "Бюджет задаётся раздельно... Это заменяет один неоднозначный `goalMaxIterations`") — replaces the
- * single ambiguous whole-turn `goalMaxIterations` with four independently-tunable knobs, all scoped
- * to ONE [PlanExecutor.execute] call for ONE step, never to a whole GOAL run across many steps (that
- * whole-run budget/loop belongs to `PlanRunner`, Task 10).
+ * single ambiguous whole-turn `goalMaxIterations` with independently-tunable knobs. Every field
+ * except [maxStepsPerRun] is scoped to ONE [PlanExecutor.execute] call for ONE step; [maxStepsPerRun]
+ * is Task 10's own addition — the one dimension that spans a WHOLE `PlanRunner.run` (see its own kdoc).
  *
  * [maxLlmIterationsPerStep] feeds [com.aiopenpocket.agent.loop.ReactLoopRunner.run]'s own
  * `maxIterations`; [maxToolCallsPerRun] feeds its new `maxToolCalls` (this same task's Step 4). Both
@@ -21,6 +21,16 @@ data class PlanRunBudget(
   val maxToolCallsPerRun: Int = 5,
   val maxRetriesPerStep: Int = 2,
   val deadlineAt: Long? = null,
+  /**
+   * Task 10 (`com.aiopenpocket.agent.core.plan.execution.PlanRunner`): how many
+   * [PlanExecutor.execute] calls one `PlanRunner.run` may make before stopping with
+   * [com.aiopenpocket.agent.core.plan.model.PlanRunOutcome.PARTIAL], even if further runnable/due
+   * steps remain. Defaults to 1 so the ordinary interactive GOAL chat turn (design spec section 9:
+   * "GOAL... исполняет только этот step") advances exactly one step per user "send" — a background
+   * caller (Task 11's heartbeat, or a future "catch up" action) asks for a larger value explicitly
+   * when it wants one run to sweep several due steps.
+   */
+  val maxStepsPerRun: Int = 1,
 )
 
 /**

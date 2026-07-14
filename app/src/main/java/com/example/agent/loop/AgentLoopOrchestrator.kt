@@ -5,6 +5,7 @@ import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.mcp.ToolResult
+import com.aiopenpocket.agent.core.plan.execution.PlanRunResult
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.agent.core.prompt.ConversationAnnotator
@@ -24,6 +25,16 @@ import com.aiopenpocket.di.AppScope
  * Поверх базового хода поддерживает режимы агента ([AgentMode]): план-гейт (фаза планирования без
  * инструментов → одобрение → выполнение) и гоал-петля (лимит витков). Решение режима — чистая
  * [resolveTurnExecutionPlan] (покрыта AgentModeTest).
+ *
+ * Task 10 (structured-plan-engine-907066): [com.aiopenpocket.di.TurnModule]'s `TurnExecutor` no
+ * longer dispatches [AgentMode.PLAN]/[AgentMode.GOAL] here — those now go to
+ * [StructuredPlanOrchestrator], which runs the typed Structured Plan Engine
+ * ([com.aiopenpocket.agent.core.plan.execution.PlanRunner]/`PlanExecutor`/`PlanVerifier`) instead of
+ * this class's own prompt-only gate/loop. `execute` itself is UNCHANGED and still accepts
+ * `mode`/`planApproved`/`goalMaxIterations` (so [resolveTurnExecutionPlan]'s PLAN/GOAL branches below
+ * keep compiling and keep their own tests green) — this is now called ONLY with
+ * [AgentMode.CHAT]/[AgentMode.TUTOR] in practice, so those two branches are effectively dead code,
+ * intentionally left in place for the legacy prompt-only PLAN/GOAL assets Task 15 retires.
  */
 // @trace rezhimy-agenta-plan-i-goal-ee2361
 @SingleIn(AppScope::class)
@@ -178,4 +189,40 @@ sealed class AgentEvent {
    * instead of also depending on the coordinator directly.
    */
   data class ToolApprovalRequired(val request: ToolApprovalRequest) : AgentEvent()
+
+  /**
+   * Task 10 (structured-plan-engine-907066): a PLAN turn
+   * ([com.aiopenpocket.agent.loop.StructuredPlanOrchestrator.propose]) persisted a new/revised
+   * proposal — [planId]/[version] identify exactly the [com.aiopenpocket.agent.core.plan.model.PlanVersion]
+   * `TurnManager` should describe in the assistant message it persists for this event.
+   * [com.aiopenpocket.agent.core.plan.persistence.PlanRepository.saveProposal] has already run by the
+   * time this is sent — [com.aiopenpocket.ui.chat.ChatViewModel]'s own reactive subscription to
+   * `PlanRepository.observeByConversation` (not this event) is what populates
+   * `com.aiopenpocket.ui.chat.ChatUiState.pendingPlanApproval`; this event only drives the persisted
+   * chat message.
+   */
+  data class PlanProposed(val planId: String, val version: Int) : AgentEvent()
+
+  /**
+   * Task 10: a GOAL turn ([com.aiopenpocket.agent.loop.StructuredPlanOrchestrator.executeGoal]) ran
+   * [com.aiopenpocket.agent.core.plan.execution.PlanRunner] for zero or more steps and stopped
+   * (budget used up, nothing runnable/due right now, or the whole plan reached
+   * [com.aiopenpocket.agent.core.plan.model.PlanStatus.COMPLETED]) without a hard failure. Wraps the
+   * whole [PlanRunResult] (rather than flattening its fields here) so `TurnManager` can render every
+   * outcome — [com.aiopenpocket.agent.core.plan.model.PlanRunOutcome.PARTIAL] included — without this
+   * event needing its own copy of that type's fields.
+   */
+  data class PlanProgressed(val result: PlanRunResult) : AgentEvent()
+
+  /**
+   * Task 10: a PLAN/GOAL turn could not proceed at all and needs something from the user before it
+   * can — the planner asked a clarifying question
+   * ([com.aiopenpocket.agent.core.plan.planner.PlanProposalResult.NeedsInfo], no plan was persisted
+   * for it), or GOAL found the conversation's plan paused/awaiting a different
+   * approval/needing revision. Deliberately NOT [AgentEvent.Error]: this is an ordinary, expected
+   * turn outcome (mirrors how the old `[[NEED_INFO]]` marker was never treated as an error either),
+   * not an app/LLM failure — `TurnManager` persists [reason] as a plain assistant message, no
+   * `canRetry` banner.
+   */
+  data class PlanBlocked(val planId: String, val reason: String) : AgentEvent()
 }

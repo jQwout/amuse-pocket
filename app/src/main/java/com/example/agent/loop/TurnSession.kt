@@ -4,6 +4,7 @@ package com.aiopenpocket.agent.loop
 // @trace user-agent-builder-848153
 // @trace structured-plan-engine-907066
 
+import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -66,7 +67,14 @@ class TurnSession internal constructor(
   internal var lastUserText: String? = null
   internal var lastUserMessageId: String? = null
   internal var lastMode: AgentMode = AgentMode.CHAT
-  internal var lastGoalMaxIterations: Int = 3
+  /**
+   * Task 10 (structured-plan-engine-907066): заменяют прежний `lastGoalMaxIterations` — GOAL больше
+   * не описывается одним числом витков, а [planId]/[budget] нужны и PLAN-ретраю (какой план
+   * ре-предложить), и GOAL-ретраю (какой план продолжить и в каких рамках). null-планId —
+   * StructuredPlanOrchestrator сам резолвит план диалога, как и в оригинальном ходе.
+   */
+  internal var lastPlanId: String? = null
+  internal var lastBudget: PlanRunBudget = PlanRunBudget()
   /** LIVE/PREVIEW последнего хода — «Повторить» переигрывает в том же режиме. */
   internal var lastExecutionMode: ExecutionMode = ExecutionMode.LIVE
 }
