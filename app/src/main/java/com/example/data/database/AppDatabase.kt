@@ -13,6 +13,8 @@ import com.aiopenpocket.agent.core.hook.AgentHookEntity
 import com.aiopenpocket.agent.core.hook.AgentHookRunEntity
 import com.aiopenpocket.agent.core.skill.UserSkillDao
 import com.aiopenpocket.agent.core.skill.UserSkillEntity
+import com.aiopenpocket.agent.core.storage.AgentStorageDao
+import com.aiopenpocket.agent.core.storage.AgentStorageEntity
 import com.aiopenpocket.agent.core.memory.dao.ConversationDao
 import com.aiopenpocket.agent.core.memory.dao.ConversationTagDao
 import com.aiopenpocket.agent.core.memory.dao.EpisodeDao
@@ -45,8 +47,11 @@ import com.aiopenpocket.agent.core.srs.SrsWordEntity
 // Structured Plan Engine (structured-plan-engine-907066); version bumped 5 -> 6. HeartbeatEntity
 // gained its typed plan-target columns (targetType/planId/planVersion/planStepId) for Task 11's typed
 // heartbeat scheduling — no new entity/table, just new nullable columns on an existing one; version
-// bumped 6 -> 7. No Migration is added any of these times — see the policy comment on
-// DatabaseBindings.provideDatabase.
+// bumped 6 -> 7. AgentStorageEntity/agentStorageDao() registered for Part B of the database_query
+// security hardening (user-agent-builder-848153) — storage_tool's per-agent key-value store, the
+// structured write path database_query's Part A SELECT-only restriction pushes agents toward instead
+// of raw SQL; version bumped 7 -> 8. No Migration is added any of these times — see the policy
+// comment on DatabaseBindings.provideDatabase.
 @Database(
   entities = [
     ConversationEntity::class,
@@ -65,8 +70,9 @@ import com.aiopenpocket.agent.core.srs.SrsWordEntity
     PlanStepStateEntity::class,
     PlanEvidenceEntity::class,
     PlanEventEntity::class,
+    AgentStorageEntity::class,
   ],
-  version = 7,
+  version = 8,
   exportSchema = false,
 )
 @TypeConverters(AgentRoomConverters::class)
@@ -82,4 +88,5 @@ abstract class AppDatabase : RoomDatabase() {
   abstract fun userSkillDao(): UserSkillDao
   abstract fun agentHookDao(): AgentHookDao
   abstract fun planDao(): PlanDao
+  abstract fun agentStorageDao(): AgentStorageDao
 }

@@ -324,8 +324,14 @@ class HeartbeatRunner(
     private const val TAG = "HeartbeatRunner"
     const val BG_MAX_ITERATIONS = 5
     const val MAX_ATTEMPTS = 3
-    /** Чтение + уведомления. Исключены: sms/email/файлы/alarm/сам heartbeat (самовоспроизводство)/render_card. */
-    val SAFE_TOOL_NAMES = setOf("memory_tool", "database_query", "calendar", "step_counter", "notifications")
+    /**
+     * Чтение + уведомления + storage_tool (per-agent изолирован в коде через TurnContextHolder — так
+     * же безопасен в фоне, как memory_tool). Исключены: sms/email/файлы/alarm/сам heartbeat
+     * (самовоспроизводство)/render_card.
+     */
+    val SAFE_TOOL_NAMES = setOf(
+      "memory_tool", "database_query", "calendar", "step_counter", "notifications", "storage_tool",
+    )
     val PULSE_PROMPT = """
       Это плановый heartbeat. Посмотри доступные данные (память, базу) и реши: есть ли
       что-то полезное или срочное для юзера прямо сейчас? Если есть — коротко сообщи.

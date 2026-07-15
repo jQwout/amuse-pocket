@@ -58,6 +58,18 @@ object ToolCatalog {
       consequence = "Может сохранять факты о тебе в долговременную память агента.",
     ),
     ToolCatalogEntry(
+      name = "storage_tool",
+      label = "Хранилище агента",
+      riskClass = RiskClass.WRITE,
+      permission = null,
+      // Part B of the database_query security hardening (user-agent-builder-848153, 2026-07-15): the
+      // structured write path database_query's Part A restriction pushes agents toward. Isolated
+      // per-agent IN CODE (agentId comes only from TurnContextHolder, never a tool argument) — safe as
+      // a default (non-advanced) tool for exactly the same reason memory_tool already is one.
+      consequence = "Сохраняет и читает собственные данные агента (заметки, счётчики) в изолированном " +
+        "хранилище — другие агенты его не видят.",
+    ),
+    ToolCatalogEntry(
       name = "file_tool",
       label = "Файлы агента",
       riskClass = RiskClass.WRITE,
@@ -146,7 +158,15 @@ object ToolCatalog {
       label = "SQL-запросы к базе",
       riskClass = RiskClass.DESTRUCTIVE,
       permission = null,
-      consequence = "Выполняет произвольные SQL-запросы к локальной базе приложения — включая INSERT/UPDATE/DELETE.",
+      // Read-only since Part A of the database_query security hardening (user-agent-builder-848153,
+      // 2026-07-15): only SELECT against a fixed table allowlist now runs at all — INSERT/UPDATE/
+      // DELETE are rejected outright, not just risk-classified differently. riskClass is deliberately
+      // LEFT at DESTRUCTIVE regardless (not downgraded to READ): this catalog's own doc-comment above
+      // reports the worst case a tool COULD reach, and an over-cautious label here costs nothing,
+      // whereas a future write path re-added to the tool without this catalog entry being revisited
+      // would otherwise silently under-warn.
+      consequence = "Выполняет только SELECT-запросы (чтение) к локальной базе приложения, по " +
+        "фиксированному списку таблиц — системные таблицы агентов недоступны. Запись не поддерживается.",
       advancedOnly = true,
     ),
     ToolCatalogEntry(
