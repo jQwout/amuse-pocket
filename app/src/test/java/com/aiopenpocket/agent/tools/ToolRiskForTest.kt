@@ -27,7 +27,11 @@ import org.robolectric.annotation.Config
  * database_query, heartbeat, work_manager. Each maps a DIFFERENT [RiskClass] per action/statement —
  * this is exactly what `com.aiopenpocket.agent.core.policy.ExecutionPolicy` gates PREVIEW-mode
  * simulation and approval on, so a wrong mapping here is a real safety-classification bug, not
- * cosmetics.
+ * cosmetics. database_query is the one exception since Part A's SELECT-only hardening
+ * (`user-agent-builder-848153`): it no longer varies by verb (always [RiskClass.READ] — see that
+ * section below) because every verb besides SELECT is now rejected outright rather than merely
+ * risk-classified differently; kept in this suite anyway as a regression guard against that
+ * classification ever silently drifting back.
  *
  * [riskFor] never touches any of these tools' injected dependencies (it only parses `arguments`),
  * but most of their constructors need a real Context/Room to build at all — one Robolectric fixture
@@ -143,7 +147,11 @@ class ToolRiskForTest {
     assertEquals(RiskClass.DESTRUCTIVE, calendarTool.riskFor(args("action" to "delete_event")))
   }
 
-  // --- database_query: SELECT=READ, INSERT/UPDATE=WRITE, DELETE=DESTRUCTIVE -------------------
+  // --- database_query: Part A hardening (user-agent-builder-848153) made it SELECT-only, so every
+  // call - whatever verb the `sql` argument names - now classifies as READ. INSERT/UPDATE/DELETE are
+  // no longer just risk-classified differently, they are REJECTED OUTRIGHT by execute() before ever
+  // running (see DatabaseQueryToolTest for that rejection behavior); riskFor's job here is only to
+  // prove the classification itself never drifts back to WRITE/DESTRUCTIVE for any input shape.
 
   @Test
   fun `database_query SELECT is READ`() {
@@ -156,18 +164,18 @@ class ToolRiskForTest {
   }
 
   @Test
-  fun `database_query INSERT is WRITE`() {
-    assertEquals(RiskClass.WRITE, databaseQueryTool.riskFor(args("sql" to "INSERT INTO facts(key) VALUES ('x')")))
+  fun `database_query INSERT classifies as READ - execute() rejects it outright, it can never actually write`() {
+    assertEquals(RiskClass.READ, databaseQueryTool.riskFor(args("sql" to "INSERT INTO facts(key) VALUES ('x')")))
   }
 
   @Test
-  fun `database_query UPDATE is WRITE`() {
-    assertEquals(RiskClass.WRITE, databaseQueryTool.riskFor(args("sql" to "UPDATE facts SET value='x' WHERE key='y'")))
+  fun `database_query UPDATE classifies as READ - execute() rejects it outright, it can never actually write`() {
+    assertEquals(RiskClass.READ, databaseQueryTool.riskFor(args("sql" to "UPDATE facts SET value='x' WHERE key='y'")))
   }
 
   @Test
-  fun `database_query DELETE is DESTRUCTIVE`() {
-    assertEquals(RiskClass.DESTRUCTIVE, databaseQueryTool.riskFor(args("sql" to "DELETE FROM facts WHERE key='y'")))
+  fun `database_query DELETE classifies as READ - execute() rejects it outright, it can never actually write`() {
+    assertEquals(RiskClass.READ, databaseQueryTool.riskFor(args("sql" to "DELETE FROM facts WHERE key='y'")))
   }
 
   @Test
