@@ -56,13 +56,14 @@ object AgentValidator {
 
   /**
    * [com.aiopenpocket.agent.core.mcp.Tool.name] of every tool registered in `AgentToolsModule` /
-   * `SkillModule` (verified against that source 2026-07-12). No single tool-name catalog exists to
-   * import instead yet — kept in sync by hand until a later task exports one.
+   * `SkillModule` (verified against that source 2026-07-15 — `storage_tool` added by Part B of the
+   * database_query security hardening, `user-agent-builder-848153`). No single tool-name catalog
+   * exists to import instead yet — kept in sync by hand until a later task exports one.
    */
   val KNOWN_TOOL_NAMES: Set<String> = setOf(
     "memory_tool", "file_tool", "external_files", "database_query", "render_card",
     "notifications", "heartbeat", "work_manager", "calendar", "alarm", "email", "sms",
-    "step_counter", "srs_tool", "load_skill",
+    "step_counter", "srs_tool", "load_skill", "storage_tool",
   )
 
   /** `SkillManifest.id` of every `Skill` bean in `SkillModule` (verified against that source 2026-07-12). */
