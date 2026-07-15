@@ -5,7 +5,7 @@ package com.aiopenpocket.agent.core.llm
 import android.util.Log
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.engine.android.Android
+import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.header
@@ -33,11 +33,14 @@ import com.aiopenpocket.di.AppScope
 @SingleIn(AppScope::class)
 class OpenAiCompatClient(
   private val fallbackChain: ProviderFallbackChain,
+  // Движок инъектится (а не создаётся здесь), чтобы тест фолбэка подменял транспорт MockEngine'ом:
+  // цепочку моделей нельзя проверить, не управляя ответами. Прод-движок — в LlmModule.
+  engine: HttpClientEngine,
 ) : LlmClient {
 
   private val json = openAiCompatJson()
 
-  private val httpClient = HttpClient(Android) {
+  private val httpClient = HttpClient(engine) {
     install(ContentNegotiation) {
       json(json)
     }
@@ -101,6 +104,8 @@ class OpenAiCompatClient(
         )
 
         val callStart = System.currentTimeMillis()
+        // HTTP 200 ещё не значит «ответ»: провайдер умеет закрыть стрим, не прислав ни токена.
+        var emptyAttempt = false
         httpClient.preparePost(p.baseUrl) {
           header("Authorization", "Bearer $apiKey")
           contentType(ContentType.Application.Json)
@@ -126,23 +131,39 @@ class OpenAiCompatClient(
             onParseError = { Log.w(TAG, "$tag skipping unparseable SSE chunk: ${it.message}") },
           ) { event ->
             when (event) {
-              is StreamEvent.TextDelta -> { textChars += event.content.length; emittedAnswer = true }
+              is StreamEvent.TextDelta -> {
+                textChars += event.content.length
+                emittedAnswer = true
+                emit(event)
+              }
               is StreamEvent.ToolCall -> {
                 toolCalls++
                 emittedAnswer = true
                 Log.d(TAG, "$tag tool_call: ${event.name}")
+                emit(event)
               }
+              // Finish придерживаем до конца попытки: он терминальный, а пустая попытка уходит в
+              // фолбэк — потребитель не должен увидеть конец хода раньше ответа следующей модели.
               is StreamEvent.Finish -> finishReason = event.reason
-              else -> {}
+              is StreamEvent.Error -> emit(event)
             }
-            emit(event)
           }
           val ms = System.currentTimeMillis() - callStart
+          emptyAttempt = textChars == 0 && toolCalls == 0
           Log.i(
             TAG,
             "$attempt $tag ✓ done in ${ms}ms textChars=$textChars toolCalls=$toolCalls finish=$finishReason" +
-              if (textChars == 0 && toolCalls == 0) "  ⚠ EMPTY RESPONSE" else "",
+              if (emptyAttempt) "  ⚠ EMPTY RESPONSE" else "",
           )
+          if (!emptyAttempt) emit(StreamEvent.Finish(finishReason))
+        }
+        if (emptyAttempt) {
+          // Ни текста, ни тул-колла при HTTP 200 — это не ответ, а молчание (живой случай: NIM так
+          // отдаёт деградировавшую модель). Берём следующую модель вместо того, чтобы закончить ход
+          // пустым сообщением, имея в цепочке живые модели.
+          lastError = IllegalStateException("Empty response from $tag")
+          lastErrorCode = "empty_response"
+          continue
         }
         return@flow
       } catch (e: Exception) {

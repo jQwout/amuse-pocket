@@ -141,6 +141,8 @@ dependencies {
   testImplementation(libs.androidx.junit)
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
+  // Подменяет транспорт Ktor в тестах OpenAiCompatClient (фолбэк по цепочке моделей) — без сети.
+  testImplementation("io.ktor:ktor-client-mock:2.3.11")
   testImplementation(libs.robolectric)
   testImplementation(libs.androidx.work.testing)
   testImplementation(libs.roborazzi)
