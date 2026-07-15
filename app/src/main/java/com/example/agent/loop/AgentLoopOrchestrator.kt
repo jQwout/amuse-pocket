@@ -32,7 +32,7 @@ import com.aiopenpocket.di.AppScope
  * `PlanVerifier`) — this class is called ONLY with [AgentMode.CHAT]/[AgentMode.TUTOR]. Task 15
  * (structured-plan-engine-907066) removed the old prompt-only PLAN/GOAL gate/loop this class used to
  * carry (`planApproved`/`goalMaxIterations` params, [resolveTurnExecutionPlan]'s PLAN/GOAL branches)
- * along with the `prompts/modes/*.md` assets it depended on — Structured Plan Engine is now the only
+ * along with the `prompts/modes` assets it depended on — Structured Plan Engine is now the only
  * PLAN/GOAL implementation.
  */
 // @trace rezhimy-agenta-plan-i-goal-ee2361

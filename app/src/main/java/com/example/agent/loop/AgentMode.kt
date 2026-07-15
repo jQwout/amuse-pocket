@@ -19,7 +19,7 @@ package com.aiopenpocket.agent.loop
  * [ReflectionOrchestrator] — never to [AgentLoopOrchestrator]/[resolveTurnExecutionPlan] below, which
  * now only ever runs for [CHAT]/[TUTOR]. Task 15 (structured-plan-engine-907066) removed the OLD
  * prompt-only PLAN/GOAL gate/loop that used to live in [resolveTurnExecutionPlan]/[resolveCompletedTurn]
- * (and the `prompts/modes/*.md` assets it depended on) — Structured Plan Engine is now the only
+ * (and the `prompts/modes` assets it depended on) — Structured Plan Engine is now the only
  * PLAN/GOAL implementation.
  *
  * Контракт режима (для [CHAT]/[TUTOR]): [resolveTurnExecutionPlan] (как выполнять ход) +

@@ -299,6 +299,12 @@ class TurnManager(
         is AgentEvent.PlanProposed -> finishPlanMessage(session, TurnTexts.planProposedMessage(event.planId, event.version))
         is AgentEvent.PlanProgressed -> finishPlanMessage(session, TurnTexts.planProgressMessage(event.result))
         is AgentEvent.PlanBlocked -> finishPlanMessage(session, event.reason)
+
+        // Ходу эти события не нужны: панель трейса рисуется по ToolCompleted, а бар approval'а
+        // ChatViewModel берёт из ToolApprovalCoordinator.pending (фильтруя по своему conversationId),
+        // а не из потока событий хода. Ветки явные, а не else: новое событие цикла обязано уронить
+        // компиляцию здесь, а не потеряться молча.
+        is AgentEvent.ToolStarted, is AgentEvent.ToolApprovalRequired -> Unit
       }
     }
   }
