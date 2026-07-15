@@ -14,6 +14,8 @@ import dev.zacsweers.metro.BindingContainer
 import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.SingleIn
+import io.ktor.client.engine.HttpClientEngine
+import io.ktor.client.engine.android.Android
 
 @ContributesTo(AppScope::class)
 @BindingContainer
@@ -22,6 +24,11 @@ object LlmModule {
   @Provides
   @SingleIn(AppScope::class)
   fun provideLlmClient(client: OpenAiCompatClient): LlmClient = client
+
+  /** Прод-транспорт [OpenAiCompatClient]; в тестах его место занимает MockEngine. */
+  @Provides
+  @SingleIn(AppScope::class)
+  fun provideLlmHttpEngine(): HttpClientEngine = Android.create()
 
   @Provides
   @SingleIn(AppScope::class)
