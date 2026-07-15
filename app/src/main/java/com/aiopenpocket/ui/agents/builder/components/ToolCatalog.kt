@@ -12,7 +12,7 @@ import com.aiopenpocket.agent.core.mcp.RiskClass
  * [com.aiopenpocket.ui.agents.builder.components.RiskConsentDialog].
  *
  * [riskClass] here is a DELIBERATE judgment call, not a verbatim copy of each tool's own
- * `Tool.riskClass` (verified against `app/src/main/java/com/example/agent/tools/*.kt` 2026-07-13):
+ * `Tool.riskClass` (verified against `app/src/main/java/com/example/agent/tools` 2026-07-13):
  * several tools (`memory_tool`, `heartbeat`, `database_query`) never override their base
  * `Tool.riskClass` (so it defaults to [RiskClass.READ]) even though their `riskFor(arguments)`
  * override escalates per call — e.g. `heartbeat`'s `cancel` action is [RiskClass.DESTRUCTIVE] despite

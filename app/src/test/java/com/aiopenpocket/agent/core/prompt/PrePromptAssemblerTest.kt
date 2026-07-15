@@ -48,7 +48,7 @@ import org.robolectric.annotation.Config
  * no hand-rolled fakes for the repositories.
  *
  * Task 15 (structured-plan-engine-907066): [PrePromptAssembler.assemble] no longer takes a
- * `promptMode` parameter — the `PromptMode`/`prompts/modes/*.md` mode-prompt mechanism it used to
+ * `promptMode` parameter — the `PromptMode`/`prompts/modes` mode-prompt mechanism it used to
  * drive belonged to the old prompt-only PLAN/GOAL contract Task 15 removed, so the
  * `PrePromptAssemblerModeAssetsTest` suite that once covered that mechanism's asset existence is gone
  * with it.

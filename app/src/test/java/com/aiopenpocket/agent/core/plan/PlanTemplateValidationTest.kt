@@ -31,7 +31,7 @@ import java.io.File
 /**
  * Task 13 contract/validation tests for the three bundled domain [PlanTemplate] assets (design spec
  * `2026-07-12-structured-plan-engine-design.md` section 13: budget/nutrition/languages). Reads the
- * REAL `app/src/main/assets/plan_templates/*.json` files through the REAL [AssetPlanTemplateRegistry]
+ * REAL `app/src/main/assets/plan_templates` files through the REAL [AssetPlanTemplateRegistry]
  * (Task 4) via a `java.io.File`-backed [AssetSource] — same "read bundled JSON on the plain JVM, no
  * Robolectric" posture `com.aiopenpocket.agent.core.lesson.LessonAssetsValidationTest` already uses
  * for lesson assets, and the same "pure JUnit, no Android" posture as [PlanValidatorTest]/
