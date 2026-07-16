@@ -18,6 +18,10 @@ import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.data.database.AppDatabase
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asExecutor
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.flow.first
@@ -60,6 +64,10 @@ class AgentsViewModelTest {
     val context = ApplicationProvider.getApplicationContext<Context>()
     db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
       .allowMainThreadQueries()
+      // Room по умолчанию исполняет запросы на СВОИХ реальных executor'ах, за которыми виртуальные
+      // часы runTest не следят: тест читал бы состояние раньше, чем ViewModel успел его получить.
+      .setQueryExecutor(testDispatcher.asExecutor())
+      .setTransactionExecutor(testDispatcher.asExecutor())
       .build()
     userAgentRepository = UserAgentRepository(db, db.userAgentDao(), AgentHookRepository(db.agentHookDao()))
     conversationRepository = ConversationRepository(db.conversationDao(), db.conversationTagDao(), db.messageDao())
@@ -122,14 +130,27 @@ class AgentsViewModelTest {
 
   // --- Open chat ---------------------------------------------------------------------------------
 
+  /**
+   * Ждёт onReady по-настоящему, а не advanceUntilIdle(): openAgentChat читает персону из
+   * UserPreferencesRepository, то есть из DataStore, а тот живёт на СВОЁМ Dispatchers.IO — за ним
+   * виртуальные часы runTest не следят (executor'ы, в отличие от Room, ему не подменить), и
+   * advanceUntilIdle() возвращался бы раньше, чем колбэк успевал сработать.
+   */
+  private suspend fun awaitReady(timeoutMs: Long = 5_000, get: () -> String?): String =
+    withContext(Dispatchers.Default) {
+      withTimeout(timeoutMs) {
+        while (get() == null) delay(10)
+        get()!!
+      }
+    }
+
   @Test
   fun `openAgentChat creates a conversation carrying the agent id`() = runTest(testDispatcher) {
     var readyId: String? = null
 
     vm.openAgentChat("budget") { id -> readyId = id }
-    advanceUntilIdle()
 
-    val conversationId = requireNotNull(readyId) { "onReady was never invoked" }
+    val conversationId = awaitReady { readyId }
     val conversation = conversationRepository.getConversation(conversationId)
     assertEquals("budget", conversation?.agentId)
     assertNotNull(conversation)
@@ -141,11 +162,10 @@ class AgentsViewModelTest {
     var secondId: String? = null
 
     vm.openAgentChat("budget") { id -> firstId = id }
-    advanceUntilIdle()
+    val first = awaitReady { firstId }
     vm.openAgentChat("budget") { id -> secondId = id }
-    advanceUntilIdle()
+    val second = awaitReady { secondId }
 
-    assertNotNull(firstId)
-    assertEquals(firstId, secondId)
+    assertEquals(first, second)
   }
 }

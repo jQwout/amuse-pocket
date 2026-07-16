@@ -14,6 +14,7 @@ import com.aiopenpocket.agent.core.skill.SkillRegistry
 import com.aiopenpocket.agent.core.skill.UserSkillRepository
 import com.aiopenpocket.data.database.AppDatabase
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -61,6 +62,11 @@ class AgentBuilderViewModelTest {
     val context = ApplicationProvider.getApplicationContext<Context>()
     db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
       .allowMainThreadQueries()
+      // Room по умолчанию исполняет запросы на СВОИХ реальных executor'ах, за которыми виртуальные
+      // часы runTest не следят: advanceUntilIdle() возвращался бы раньше, чем автосейв/publish
+      // успели записать, и тест читал бы пустую базу. Сажаем Room на тот же тестовый диспетчер.
+      .setQueryExecutor(testDispatcher.asExecutor())
+      .setTransactionExecutor(testDispatcher.asExecutor())
       .build()
     userAgentRepository = UserAgentRepository(db, db.userAgentDao(), AgentHookRepository(db.agentHookDao()))
     agentResolver = DefaultAgentResolver(userAgentRepository)
