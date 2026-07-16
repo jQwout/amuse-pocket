@@ -298,7 +298,7 @@ class PlanStateMachineTest {
   fun `a required criterion without evidence blocks completion`() {
     val criteria = listOf(criterion("c1", required = true))
 
-    val result = PlanStateMachine.tryComplete(PlanStatus.ACTIVE, criteria, evidence = emptyList())
+    val result = PlanStateMachine.tryComplete(PlanStatus.ACTIVE, criteria, evidence = emptyList(), steps = emptyList(), stepStates = emptyList())
 
     assertTrue(result is PlanTransitionResult.Rejected)
   }
@@ -307,7 +307,7 @@ class PlanStateMachineTest {
   fun `a required criterion with matching evidence allows completion`() {
     val criteria = listOf(criterion("c1", required = true))
 
-    val result = PlanStateMachine.tryComplete(PlanStatus.ACTIVE, criteria, evidence = listOf(evidence("c1")))
+    val result = PlanStateMachine.tryComplete(PlanStatus.ACTIVE, criteria, evidence = listOf(evidence("c1")), steps = emptyList(), stepStates = emptyList())
 
     assertEquals(PlanTransitionResult.Allowed(PlanStatus.COMPLETED), result)
   }
@@ -316,7 +316,7 @@ class PlanStateMachineTest {
   fun `a non-required criterion without evidence does not block completion`() {
     val criteria = listOf(criterion("c1", required = false))
 
-    val result = PlanStateMachine.tryComplete(PlanStatus.ACTIVE, criteria, evidence = emptyList())
+    val result = PlanStateMachine.tryComplete(PlanStatus.ACTIVE, criteria, evidence = emptyList(), steps = emptyList(), stepStates = emptyList())
 
     assertEquals(PlanTransitionResult.Allowed(PlanStatus.COMPLETED), result)
   }
@@ -346,7 +346,7 @@ class PlanStateMachineTest {
       assertEquals(
         "horizon=$horizon",
         PlanTransitionResult.Allowed(PlanStatus.COMPLETED),
-        PlanStateMachine.tryComplete(PlanStatus.ACTIVE, criteria, provenEvidence),
+        PlanStateMachine.tryComplete(PlanStatus.ACTIVE, criteria, provenEvidence, steps = emptyList(), stepStates = emptyList()),
       )
     }
   }
