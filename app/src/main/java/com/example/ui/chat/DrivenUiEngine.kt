@@ -16,6 +16,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.animation.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -65,6 +66,33 @@ private val CardSuccessGreen = Color(0xFF4CAF50)
 // прозрачным поверх тёмной ауроры — и прозрачные SVG «пропадали». Фиксированный светлый фон под
 // картинкой возвращает им читаемость в любой теме (тема к SVG не применяется, см. lesson-format.md).
 private val LessonImageBacking = Color(0xFFF4F4F7)
+
+// Тёмная тема: карточки урока рисуем светлым серебром с тёмным текстом (а не тёмным surfaceVariant
+// «тёмное-на-тёмном»). LessonCardTheme переопределяет surface-семейство схемы для поддерева карточки,
+// чтобы существующие onSurfaceVariant/outline/surface внутри сами стали «под светлую карточку».
+private val LessonCardSilver = Color(0xFFDCDCE4)   // фон карточки (surfaceVariant)
+private val LessonCardPanel = Color(0xFFCBCDD8)    // внутренние панели (surface)
+private val LessonCardInk = Color(0xFF2A2730)      // текст (onSurface/onSurfaceVariant)
+private val LessonCardOutline = Color(0xFF6B6B75)  // подписи и разделители (outline)
+
+/** В тёмной теме подменяет surface-семейство схемы на светлое серебро для поддерева карточки урока. */
+@Composable
+private fun LessonCardTheme(enabled: Boolean, content: @Composable () -> Unit) {
+    if (!enabled) {
+        content()
+        return
+    }
+    MaterialTheme(
+        colorScheme = MaterialTheme.colorScheme.copy(
+            surface = LessonCardPanel,
+            surfaceVariant = LessonCardSilver,
+            onSurface = LessonCardInk,
+            onSurfaceVariant = LessonCardInk,
+            outline = LessonCardOutline,
+        ),
+        content = content,
+    )
+}
 
 // Defined structures of Templates
 sealed class DrivenUiCard {
@@ -434,19 +462,24 @@ fun RenderDrivenUiCard(
     onAction: (String, Boolean) -> Unit = { _, _ -> },
     observeHeartbeat: (String) -> Flow<HeartbeatEntity?> = { kotlinx.coroutines.flow.flowOf(null) },
     onCancelHeartbeat: (String) -> Unit = {},
+    /** true → карточка урока: в тёмной теме рисуем светлым серебром с тёмным текстом. */
+    lessonCard: Boolean = false,
 ) {
+    val useLightCard = lessonCard && isSystemInDarkTheme()
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .background(
+                if (useLightCard) LessonCardSilver
+                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            )
             .padding(16.dp)
     ) {
-        // Подложка карточки нарисована сырым Box.background(surfaceVariant), а не Surface, поэтому
-        // LocalContentColor не выставлялся: тексты без явного цвета (ответ reveal/fill, определение
-        // concept, текст example, пункты sort/match) брали ~чёрный дефолт и тонули на тёмном фоне
-        // glass. Задаём контент-цвет surface явно — как сделал бы Surface(color = surfaceVariant).
+        LessonCardTheme(useLightCard) {
+        // Контент-цвет surface явно — как сделал бы Surface(color = surfaceVariant): тексты без явного
+        // цвета (ответ reveal/fill, определение concept, пункты sort/match) не берут ~чёрный дефолт.
         CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant) {
         when (card) {
             is DrivenUiCard.TodoList -> TodoListCardView(card)
@@ -487,6 +520,7 @@ fun RenderDrivenUiCard(
                     )
                 }
             }
+        }
         }
         }
     }
