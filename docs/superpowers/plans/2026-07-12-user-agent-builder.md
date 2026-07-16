@@ -1,5 +1,11 @@
 # User Agent Builder Implementation Plan
 
+> **SUPERSEDED 2026-07-13:** этот план слит с планом Structured Plan Engine в
+> `docs/superpowers/plans/2026-07-12-agents-platform.md` — исполнять ТОТ план.
+> Tasks 0–2 отсюда выполнены (коммиты `84adc0c`, `1ced5b1`, `148a847`); Tasks 3–15
+> перенесены туда (3–9 с теми же номерами; 10→19, 11→20, 12→21 переписан на
+> полноэкранный AgentDetailScreen вместо шторки, 13→22, 14→23, 15→24).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Дать продвинутому пользователю возможность собрать, безопасно проверить, сохранить и запустить собственного агента с prompt, scoped tools, skills, memory, widgets и декларативными lifecycle hooks.
