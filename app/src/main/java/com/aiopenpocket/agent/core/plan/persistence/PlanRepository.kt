@@ -301,6 +301,9 @@ class PlanRepository @Inject constructor(
 
   /**
    * [PlanCommand.ProposalValidated] directly when legal ([PlanStatus.DRAFT]/[PlanStatus.NEEDS_REVISION]).
+   * When [current] is [PlanStatus.AWAITING_APPROVAL] — the planner re-proposing before the user got
+   * round to approving — folds in [PlanCommand.RequestChanges] first, so the fresh version supersedes
+   * the pending one instead of being refused.
    * When [current] is [PlanStatus.ACTIVE]/[PlanStatus.PAUSED] — a material revision proposed while the
    * plan is executing — first folds in [PlanCommand.MaterialChangeDetected] (design spec section 4:
    * ACTIVE/PAUSED -> NEEDS_REVISION on a material revision) before applying
@@ -316,6 +319,17 @@ class PlanRepository @Inject constructor(
       val flagged = PlanStateMachine.transition(current, PlanCommand.MaterialChangeDetected("New plan version proposed"))
       if (flagged is PlanTransitionResult.Allowed) {
         val proposed = PlanStateMachine.transition(flagged.status, PlanCommand.ProposalValidated)
+        if (proposed is PlanTransitionResult.Allowed) return proposed.status
+      }
+    }
+
+    // Ещё не одобренный план правят снова (design spec section 4: AWAITING_APPROVAL --edit--> DRAFT
+    // --valid proposal--> AWAITING_APPROVAL). Новая версия просто вытесняет висящую: это та же правка,
+    // что и RequestChanges от пользователя, только инициированная планировщиком.
+    if (current == PlanStatus.AWAITING_APPROVAL) {
+      val reopened = PlanStateMachine.transition(current, PlanCommand.RequestChanges("Superseded by a newer proposal"))
+      if (reopened is PlanTransitionResult.Allowed) {
+        val proposed = PlanStateMachine.transition(reopened.status, PlanCommand.ProposalValidated)
         if (proposed is PlanTransitionResult.Allowed) return proposed.status
       }
     }
