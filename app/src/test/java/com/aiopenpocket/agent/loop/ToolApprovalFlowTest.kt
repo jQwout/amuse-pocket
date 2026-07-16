@@ -29,6 +29,7 @@ import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
 import com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator
 import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.data.database.AppDatabase
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -157,7 +158,11 @@ class ToolApprovalFlowTest {
     val coordinator = ToolApprovalCoordinator()
     val runner = runner(ScriptedLlm(toolCallThenStop("fake_tool")), toolRegistry, coordinator)
 
-    val resultDeferred = async {
+    // Dispatchers.Default, а не виртуальные часы runTest: пока тело теста ждёт публикации запроса,
+    // runTest перематывает время вперёд и 120-секундный таймаут approval-а срабатывает мгновенно —
+    // ход отказывался ждать ещё до resolve(), и оба теста ниже проверяли бы таймаут вместо решения
+    // пользователя (deny-тест так и проходил — по неверной причине). Здесь нужны реальные часы.
+    val resultDeferred = async(Dispatchers.Default) {
       runner.run(
         conversationId = "c1",
         messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
@@ -188,7 +193,11 @@ class ToolApprovalFlowTest {
     val coordinator = ToolApprovalCoordinator()
     val runner = runner(ScriptedLlm(toolCallThenStop("fake_tool")), toolRegistry, coordinator)
 
-    val resultDeferred = async {
+    // Dispatchers.Default, а не виртуальные часы runTest: пока тело теста ждёт публикации запроса,
+    // runTest перематывает время вперёд и 120-секундный таймаут approval-а срабатывает мгновенно —
+    // ход отказывался ждать ещё до resolve(), и оба теста ниже проверяли бы таймаут вместо решения
+    // пользователя (deny-тест так и проходил — по неверной причине). Здесь нужны реальные часы.
+    val resultDeferred = async(Dispatchers.Default) {
       runner.run(
         conversationId = "c1",
         messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
