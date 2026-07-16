@@ -142,6 +142,12 @@ val ROADMAP_LEVELS = listOf(
     Icons.Default.Build,
   ),
   RoadmapLevel(
+    "tool_approval_and_limits",
+    "Подтверждение инструментов",
+    "Почему одни действия агент делает молча, а перед другими ждёт твоего «ок»: классы риска и согласие.",
+    Icons.Default.Shield,
+  ),
+  RoadmapLevel(
     "memory_and_context",
     "Память и контекст",
     "Почему модель будто забывает разговор и как агент помнит тебя тремя видами памяти.",
@@ -172,6 +178,12 @@ val ROADMAP_LEVELS = listOf(
     Icons.Default.Flag,
   ),
   RoadmapLevel(
+    "structured_plans",
+    "Структурированные планы",
+    "Большая задача как список проверяемых шагов: одобрение плана, статусы и правило «сделал — докажи».",
+    Icons.Default.Checklist,
+  ),
+  RoadmapLevel(
     "heartbeat_and_cron",
     "Heartbeat и cron",
     "Как агент живёт без твоих сообщений: расписания, фоновые пробуждения и право молчать.",
@@ -188,6 +200,18 @@ val ROADMAP_LEVELS = listOf(
     "Арена и рой агентов",
     "Несколько прогонов или агентов сразу: сравнить лучший ответ и поделить задачу.",
     Icons.Default.Groups,
+  ),
+  RoadmapLevel(
+    "hooks_and_lifecycle",
+    "Хуки и жизненный цикл",
+    "Правила «на событие хода — сделай» без кода: события, действия и приоритет запрета.",
+    Icons.Default.Bolt,
+  ),
+  RoadmapLevel(
+    "build_your_agent",
+    "Собери своего агента",
+    "Как все части курса складываются в собственного агента через конструктор из шести шагов.",
+    Icons.Default.Build,
   ),
   RoadmapLevel(
     "agent_blueprint",
