@@ -155,7 +155,8 @@ class PlanRepository @Inject constructor(
       }
 
       val now = clock()
-      dao.upsertVersion(PlanVersionEntity.fromDomain(version))
+      // План — ПЕРЕД версией: plan_versions.planId ссылается на agent_plans.id, и у нового плана
+      // родительской строки ещё нет — обратный порядок роняет вставку по FK.
       dao.upsertPlan(
         AgentPlanEntity(
           id = plan.id,
@@ -169,6 +170,7 @@ class PlanRepository @Inject constructor(
           updatedAt = now,
         ),
       )
+      dao.upsertVersion(PlanVersionEntity.fromDomain(version))
     }
   }
 
