@@ -26,6 +26,8 @@ fun StreamingBubble(
   modifier: Modifier = Modifier,
   showCursor: Boolean = false,
   isWaiting: Boolean = false,
+  /** Тот же множитель, что у [MarkdownText] в пузыре: подмена стрима готовым сообщением не должна менять размер текста. */
+  fontScale: Float = 1f,
 ) {
   Box(
     modifier = modifier
@@ -42,9 +44,9 @@ fun StreamingBubble(
           val displayText = if (showCursor) "$text▌" else text
           Text(
             text = displayText,
-            style = MaterialTheme.typography.bodySmall,
-            // Тот же цвет, что у сохранённого сообщения (plain-путь MarkdownText / markdown m3 —
-            // onBackground): подмена пузыря сообщением не должна менять вид текста.
+            style = MaterialTheme.typography.bodySmall.scaledBy(fontScale),
+            // Тот же цвет и размер, что у сохранённого сообщения (plain-путь MarkdownText / markdown
+            // m3 — onBackground): подмена пузыря сообщением не должна менять вид текста.
             color = MaterialTheme.colorScheme.onBackground,
           )
         }

@@ -1,0 +1,40 @@
+package com.aiopenpocket.ui.components
+
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+class MarkdownScaleTest {
+
+  @Test
+  fun `scale of 1 returns the same style untouched`() {
+    val base = TextStyle(fontSize = 14.sp, lineHeight = 20.sp)
+    assertEquals(base, base.scaledBy(1f))
+  }
+
+  @Test
+  fun `fontSize and lineHeight are multiplied by the scale`() {
+    val scaled = TextStyle(fontSize = 14.sp, lineHeight = 20.sp).scaledBy(1.5f)
+    assertEquals(21f, scaled.fontSize.value, 0.001f)
+    assertEquals(30f, scaled.lineHeight.value, 0.001f)
+  }
+
+  @Test
+  fun `unspecified lineHeight stays unspecified`() {
+    val scaled = TextStyle(fontSize = 14.sp).scaledBy(1.3f)
+    assertEquals(18.2f, scaled.fontSize.value, 0.001f)
+    assertEquals(TextUnit.Unspecified, scaled.lineHeight)
+  }
+
+  @Test
+  fun `em-relative lineHeight is left as-is, not multiplied`() {
+    // lineHeight в em масштабируется автоматически вместе с fontSize — второй раз множить нельзя.
+    val base = TextStyle(fontSize = 14.sp, lineHeight = 1.4.em)
+    val scaled = base.scaledBy(1.3f)
+    assertEquals(18.2f, scaled.fontSize.value, 0.001f)
+    assertEquals(1.4f, scaled.lineHeight.value, 0.001f)
+  }
+}

@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.ui.settings.ChatFontScale
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.flow.Flow
@@ -74,6 +75,23 @@ class UserPreferencesRepository @Inject constructor(
   suspend fun setGoalModeMaxIterations(value: Int) {
     context.userPreferencesDataStore.edit { prefs ->
       prefs[KEY_GOAL_MODE_MAX_ITERATIONS] = value.coerceIn(1, GOAL_MODE_MAX_ITERATIONS_CAP)
+    }
+  }
+
+  /** Пресет размера шрифта сообщений в чате. Хранится по имени enum; неизвестное значение → MEDIUM. */
+  val chatFontScale: Flow<ChatFontScale> =
+    context.userPreferencesDataStore.data.map { prefs ->
+      ChatFontScale.fromName(prefs[KEY_CHAT_FONT_SCALE])
+    }
+
+  suspend fun getChatFontScale(): ChatFontScale =
+    context.userPreferencesDataStore.data
+      .map { prefs -> ChatFontScale.fromName(prefs[KEY_CHAT_FONT_SCALE]) }
+      .first()
+
+  suspend fun setChatFontScale(value: ChatFontScale) {
+    context.userPreferencesDataStore.edit { prefs ->
+      prefs[KEY_CHAT_FONT_SCALE] = value.name
     }
   }
 
@@ -141,6 +159,7 @@ class UserPreferencesRepository @Inject constructor(
     private val KEY_ROADMAP_PROGRESS = stringPreferencesKey("roadmap_progress")
     private val KEY_LANGUAGE = stringPreferencesKey("language")
     private val KEY_GOAL_MODE_MAX_ITERATIONS = intPreferencesKey("goal_mode_max_iterations")
+    private val KEY_CHAT_FONT_SCALE = stringPreferencesKey("chat_font_scale")
 
     /** Roadmap level id of the onboarding lesson; completed automatically after onboarding. */
     const val ONBOARDING_LEVEL_ID = "l1_welcome"

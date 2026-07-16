@@ -113,6 +113,12 @@ class ChatViewModel(
                 _state.update { it.copy(goalMaxIterations = n) }
             }
         }
+        // Размер шрифта чата из настроек — применяется к тексту пузырей; меняется на лету.
+        viewModelScope.launch {
+            userPreferencesRepository.chatFontScale.collect { scale ->
+                _state.update { it.copy(chatFontScale = scale) }
+            }
+        }
         viewModelScope.launch {
             voiceController.state.collect { vs ->
                 _state.update {
