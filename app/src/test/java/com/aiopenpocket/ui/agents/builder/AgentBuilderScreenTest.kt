@@ -8,6 +8,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.hook.HookActionType
 import com.aiopenpocket.agent.core.hook.HookEvent
@@ -178,7 +179,9 @@ class AgentBuilderScreenTest {
     )
 
     // calendar: DESTRUCTIVE risk, in the default (non-"Advanced tools") set - must gate on consent.
-    composeTestRule.onNodeWithTag("agent_builder_tool_calendar").performClick()
+    // performScrollTo обязателен: «Календарь» девятый в списке и лежит НИЖЕ сгиба, а клик по узлу за
+    // пределами вьюпорта молча промахивается (диалог не открывался, а тест винил продуктовый код).
+    composeTestRule.onNodeWithTag("agent_builder_tool_calendar").performScrollTo().performClick()
     composeTestRule.onNodeWithText("Включить «Календарь»?").assertExists()
     assertEquals("must not update the draft before the dialog is answered", 0, updateCalls)
 
@@ -197,7 +200,7 @@ class AgentBuilderScreenTest {
       onUpdateDraft = { transform -> lastToolNames = transform(draft).toolNames },
     )
 
-    composeTestRule.onNodeWithTag("agent_builder_tool_calendar").performClick()
+    composeTestRule.onNodeWithTag("agent_builder_tool_calendar").performScrollTo().performClick()
     composeTestRule.onNodeWithText("Включить").performClick()
 
     assertEquals(setOf("calendar"), lastToolNames)
