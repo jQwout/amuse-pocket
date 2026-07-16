@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
@@ -291,6 +292,24 @@ fun SettingsScreen(
         value = state.goalMaxIterations,
         onChange = viewModel::updateGoalMaxIterations,
         modifier = Modifier.padding(horizontal = 20.dp),
+      )
+
+      Spacer(modifier = Modifier.height(28.dp))
+
+      SettingsSectionHeader(
+        icon = Icons.Default.FormatSize,
+        title = "РАЗМЕР ШРИФТА В ЧАТЕ",
+        modifier = Modifier.padding(horizontal = 20.dp),
+      )
+      Spacer(modifier = Modifier.height(12.dp))
+      SelectorCard(
+        selected = state.chatFontScale.label,
+        options = ChatFontScale.entries.map { it.label },
+        onSelect = { label ->
+          ChatFontScale.entries.firstOrNull { it.label == label }?.let(viewModel::updateChatFontScale)
+        },
+        modifier = Modifier.padding(horizontal = 20.dp),
+        testTag = "settings_chat_font_selector",
       )
 
       Spacer(modifier = Modifier.height(28.dp))

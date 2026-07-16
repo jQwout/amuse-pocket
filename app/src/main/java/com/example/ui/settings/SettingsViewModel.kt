@@ -45,6 +45,7 @@ class SettingsViewModel(
           availableModels = listOf("AUTO") + catalog.models.map { it.name },
           personaId = userPreferencesRepository.getDefaultPersonaId(),
           goalMaxIterations = userPreferencesRepository.getGoalModeMaxIterations(),
+          chatFontScale = userPreferencesRepository.getChatFontScale(),
           personas = PersonaCatalog.all.map { it.id },
         )
       }
@@ -75,6 +76,10 @@ class SettingsViewModel(
     _state.update { it.copy(goalMaxIterations = value.coerceIn(1, 10), saved = false) }
   }
 
+  fun updateChatFontScale(value: ChatFontScale) {
+    _state.update { it.copy(chatFontScale = value, saved = false) }
+  }
+
   fun save() {
     val current = _state.value
     settingsRepository.setApiKey("NVIDIA", current.nvidiaKey)
@@ -85,12 +90,14 @@ class SettingsViewModel(
       // «Сохранено» показываем только после реальной записи в DataStore (suspend), а не до неё.
       userPreferencesRepository.setDefaultPersonaId(current.personaId)
       userPreferencesRepository.setGoalModeMaxIterations(current.goalMaxIterations)
+      userPreferencesRepository.setChatFontScale(current.chatFontScale)
       // ...и только если пользователь не успел изменить поля во время записи (иначе соврём «Сохранено»).
       _state.update { s ->
         val unchanged = s.nvidiaKey == current.nvidiaKey && s.groqKey == current.groqKey &&
           s.githubKey == current.githubKey &&
           s.selectedModel == current.selectedModel &&
-          s.personaId == current.personaId && s.goalMaxIterations == current.goalMaxIterations
+          s.personaId == current.personaId && s.goalMaxIterations == current.goalMaxIterations &&
+          s.chatFontScale == current.chatFontScale
         if (unchanged) s.copy(saved = true) else s
       }
     }

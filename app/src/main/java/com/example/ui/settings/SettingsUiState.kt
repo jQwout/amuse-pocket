@@ -14,5 +14,7 @@ data class SettingsUiState(
   val personas: List<String> = emptyList(),
   /** Лимит витков гоал-мода (петля ReAct до достижения цели). */
   val goalMaxIterations: Int = 3,
+  /** Пресет размера шрифта сообщений в чате. */
+  val chatFontScale: ChatFontScale = ChatFontScale.DEFAULT,
   val saved: Boolean = false,
 )

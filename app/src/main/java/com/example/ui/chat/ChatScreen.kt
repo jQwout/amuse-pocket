@@ -451,6 +451,7 @@ fun ChatScreen(
                         onDelete = onDelete,
                         interactiveCards = state.isTutorial,
                         highlighted = message.id == currentMatchId,
+                        fontScale = state.chatFontScale.scale,
                         onChoiceSelected = onChoiceSelected,
                         onFormSubmitted = onChoiceSelected,
                         onLessonQuizComplete = onLessonQuizComplete,
@@ -470,6 +471,7 @@ fun ChatScreen(
                             text = streamingText,
                             showCursor = streamingText.isNotEmpty(),
                             isWaiting = streamingText.isEmpty(),
+                            fontScale = state.chatFontScale.scale,
                         )
                     }
                     // Резерв под ответ: пустое место в высоту ВИДИМОГО вьюпорта (экран минус оба бара),
@@ -1289,6 +1291,7 @@ private fun MessageBubble(
     onDelete: () -> Unit = {},
     interactiveCards: Boolean = false,
     highlighted: Boolean = false,
+    fontScale: Float = 1f,
     onChoiceSelected: (String) -> Unit = {},
     onFormSubmitted: (String) -> Unit = {},
     onLessonComplete: () -> Unit = {},
@@ -1388,7 +1391,7 @@ private fun MessageBubble(
             }
             if (interactive) {
                 if (message.content.isNotBlank()) {
-                    MarkdownText(text = message.content, compact = true, selectable = true)
+                    MarkdownText(text = message.content, compact = true, selectable = true, fontScale = fontScale)
                     Spacer(modifier = Modifier.height(8.dp))
                 }
                 RenderDrivenUiCard(
@@ -1404,7 +1407,7 @@ private fun MessageBubble(
                     lessonCard = interactiveCards,
                 )
             } else {
-                MarkdownText(text = displayText, compact = true, selectable = true)
+                MarkdownText(text = displayText, compact = true, selectable = true, fontScale = fontScale)
             }
             AnimatedVisibility(visible = showActions) {
                 Row(

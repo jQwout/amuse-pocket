@@ -11,6 +11,7 @@ import com.aiopenpocket.agent.core.memory.model.Message
 import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.loop.ToolTrace
+import com.aiopenpocket.ui.settings.ChatFontScale
 import com.aiopenpocket.voice.input.VoiceInputState
 
 data class ResponseStats(
@@ -90,6 +91,8 @@ data class ChatUiState(
   val activePlanId: String? = null,
   /** Лимит витков гоал-мода (из настроек). */
   val goalMaxIterations: Int = 3,
+  /** Пресет размера шрифта сообщений — из Настроек, применяется к тексту пузырей. */
+  val chatFontScale: ChatFontScale = ChatFontScale.DEFAULT,
 
   // --- Урок, который драйвит чат-контроллер по JSON-контракту ---
   /** True, если этот чат — JSON-урок (есть assets/lessons/{title}.json). */
