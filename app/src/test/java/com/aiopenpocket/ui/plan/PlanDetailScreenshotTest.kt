@@ -48,17 +48,19 @@ class PlanDetailScreenshotTest {
   }
 
   /**
-   * AWAITING_APPROVAL renders no pause/resume/cancel row at all (see [PlanDetailState.canPause]/
-   * [canResume]/[canCancel]) — approve/request-changes stay chat-only (`PlanCard`'s own kdoc).
+   * AWAITING_APPROVAL: пауза/продолжение бессмысленны (план ещё не исполняется — см.
+   * [PlanDetailState.canPause]/[canResume]), а отменить предложение можно — [canCancel] разрешает
+   * любой нетерминальный статус, и design spec section 8 перечисляет Cancel среди действий над
+   * планом на одобрении. Approve/request-changes остаются только в чате (`PlanCard`'s own kdoc).
    */
   @Test
-  fun plan_detail_awaiting_approval_shows_no_lifecycle_actions() {
+  fun plan_detail_awaiting_approval_offers_cancel_but_not_pause_or_resume() {
     composeTestRule.setContent {
       PlanDetailPreviewScaffold(state = awaitingApprovalState())
     }
     composeTestRule.onNodeWithTag("plan_pause").assertDoesNotExist()
     composeTestRule.onNodeWithTag("plan_resume").assertDoesNotExist()
-    composeTestRule.onNodeWithTag("plan_cancel").assertDoesNotExist()
+    composeTestRule.onNodeWithTag("plan_cancel").assertExists()
   }
 
   /** Pause/Cancel are wired to the real `onPause`/`onCancel` callbacks a route would pass in — proven here by simply not crashing on click against no-op lambdas; `PlanDetailViewModelTest` covers the actual dispatch to `PlanCommands`. */
