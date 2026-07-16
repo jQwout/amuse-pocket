@@ -16,7 +16,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.animation.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -74,6 +73,14 @@ private val LessonCardSilver = Color(0xFFDCDCE4)   // фон карточки (s
 private val LessonCardPanel = Color(0xFFCBCDD8)    // внутренние панели (surface)
 private val LessonCardInk = Color(0xFF2A2730)      // текст (onSurface/onSurfaceVariant)
 private val LessonCardOutline = Color(0xFF6B6B75)  // подписи и разделители (outline)
+// Семантические цвета квизов (fill/sort/match/scenario красят «выбрано/неверно» через primary/error):
+// дефолтные PurpleAccent/CancelRed рассчитаны на тёмный фон и на светлом серебре блёкнут — берём
+// тёмные насыщенные версии, читаемые на LessonCardSilver, со светлым on-цветом для контейнерных use.
+private val LessonCardPrimary = Color(0xFF5B3FA6)  // primary (выбрано/верно) — тёмно-фиолетовый
+private val LessonCardOnPrimary = Color(0xFFF3EEFF)
+private val LessonCardError = Color(0xFFB3261E)    // error (неверно) — тёмно-красный (M3 light error)
+private val LessonCardOnError = Color(0xFFFFFFFF)
+private val LessonCardSecondary = Color(0xFF544F63) // secondary (редкие иконки-акценты)
 
 /** В тёмной теме подменяет surface-семейство схемы на светлое серебро для поддерева карточки урока. */
 @Composable
@@ -89,6 +96,11 @@ private fun LessonCardTheme(enabled: Boolean, content: @Composable () -> Unit) {
             onSurface = LessonCardInk,
             onSurfaceVariant = LessonCardInk,
             outline = LessonCardOutline,
+            primary = LessonCardPrimary,
+            onPrimary = LessonCardOnPrimary,
+            error = LessonCardError,
+            onError = LessonCardOnError,
+            secondary = LessonCardSecondary,
         ),
         content = content,
     )
@@ -465,7 +477,11 @@ fun RenderDrivenUiCard(
     /** true → карточка урока: в тёмной теме рисуем светлым серебром с тёмным текстом. */
     lessonCard: Boolean = false,
 ) {
-    val useLightCard = lessonCard && isSystemInDarkTheme()
+    // Приложение форсит тёмную тему всегда (Theme.kt: darkTheme=true, LightColorScheme=DarkColorScheme),
+    // НЕЗАВИСИМО от системной темы устройства. Поэтому гейт — только по lessonCard, а не по
+    // isSystemInDarkTheme(): иначе у юзера с системной светлой темой карточка урока оставалась бы
+    // тёмной на тёмной ауроре (ровно та нечитаемость, которую этот код и чинит).
+    val useLightCard = lessonCard
     Box(
         modifier = Modifier
             .fillMaxWidth()
