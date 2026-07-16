@@ -4,6 +4,8 @@ package com.aiopenpocket.agent.core.plan.validation
 
 import com.aiopenpocket.agent.core.plan.model.PlanCriterion
 import com.aiopenpocket.agent.core.plan.model.PlanEvidence
+import com.aiopenpocket.agent.core.plan.model.PlanStep
+import com.aiopenpocket.agent.core.plan.model.PlanStepState
 import com.aiopenpocket.agent.core.plan.model.PlanStatus
 import com.aiopenpocket.agent.core.plan.model.PlanVersion
 import com.aiopenpocket.agent.core.plan.model.StepStatus
@@ -202,6 +204,8 @@ object PlanStateMachine {
     current: PlanStatus,
     criteria: List<PlanCriterion>,
     evidence: List<PlanEvidence>,
+    steps: List<PlanStep>,
+    stepStates: List<PlanStepState>,
   ): PlanTransitionResult {
     val unsatisfied = unsatisfiedRequiredCriteria(criteria, evidence)
     if (unsatisfied.isNotEmpty()) {
@@ -213,7 +217,31 @@ object PlanStateMachine {
         ),
       )
     }
+    val unfinished = unfinishedSteps(steps, stepStates)
+    if (unfinished.isNotEmpty()) {
+      return PlanTransitionResult.Rejected(
+        InvalidPlanTransition(
+          from = current,
+          command = PlanCommand.Complete,
+          reason = "Steps still to run: ${unfinished.joinToString { it.id }}",
+        ),
+      )
+    }
     return transition(current, PlanCommand.Complete)
+  }
+
+  /**
+   * Every step in [steps] that is not yet [StepStatus.COMPLETED]/[StepStatus.SKIPPED] per
+   * [stepStates] — a step with no state row at all counts as unfinished. Empty means the step gate
+   * does not block [PlanStatus.COMPLETED].
+   *
+   * Без этого гейта план без критериев (или с уже закрытыми) объявлялся бы завершённым сразу после
+   * ПЕРВОГО шага, и остальные шаги не выполнялись бы никогда: «все критерии доказаны» — условие
+   * необходимое, но не достаточное.
+   */
+  fun unfinishedSteps(steps: List<PlanStep>, stepStates: List<PlanStepState>): List<PlanStep> {
+    val statusByStepId = stepStates.associate { it.stepId to it.status }
+    return steps.filter { statusByStepId[it.id] !in FINISHED_STEP_STATUSES }
   }
 
   /**
@@ -384,4 +412,7 @@ object PlanStateMachine {
     // Terminal: COMPLETED/SKIPPED never have a legal outgoing transition.
     StepStatus.COMPLETED, StepStatus.SKIPPED -> null
   }
+
+  /** «Шаг отработан» — та же пара статусов, что у PlanExecutor.isWholePlanComplete/PlanRunner. */
+  private val FINISHED_STEP_STATUSES = setOf(StepStatus.COMPLETED, StepStatus.SKIPPED)
 }

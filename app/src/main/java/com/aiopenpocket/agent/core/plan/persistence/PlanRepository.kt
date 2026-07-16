@@ -252,9 +252,16 @@ class PlanRepository @Inject constructor(
     if (versionNumber != null) {
       val versionEntity = dao.getVersion(planId, versionNumber)
       if (versionEntity != null) {
-        val criteria = versionEntity.toDomain().criteria
+        val version = versionEntity.toDomain()
         val evidence = dao.getEvidence(planId, versionNumber).map { it.toDomain() }
-        val result = PlanStateMachine.tryComplete(currentStatus, criteria, evidence)
+        val stepStates = dao.getStepStates(planId, versionNumber).map { it.toDomain() }
+        val result = PlanStateMachine.tryComplete(
+          current = currentStatus,
+          criteria = version.criteria,
+          evidence = evidence,
+          steps = version.steps,
+          stepStates = stepStates,
+        )
         if (result is PlanTransitionResult.Allowed) {
           dao.upsertPlan(planEntity.copy(status = result.status.name, updatedAt = clock()))
         }
