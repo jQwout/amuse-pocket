@@ -1,4 +1,4 @@
-package com.aiopenpocket.ui.settings
+package com.aiopenpocket.agent.core.identity
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

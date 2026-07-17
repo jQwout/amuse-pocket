@@ -2,6 +2,7 @@
 
 // @trace app-settings-beb470
 
+import com.aiopenpocket.agent.core.identity.ChatFontScale
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -302,12 +303,14 @@ fun SettingsScreen(
         modifier = Modifier.padding(horizontal = 20.dp),
       )
       Spacer(modifier = Modifier.height(12.dp))
+      // Список опций и обратный маппинг label→enum запоминаем один раз (не пересобираем на каждую
+      // рекомпозицию); SelectorCard оперирует строками, поэтому выбранный label резолвим по map.
+      val fontOptions = remember { ChatFontScale.entries.map { it.label } }
+      val fontByLabel = remember { ChatFontScale.entries.associateBy { it.label } }
       SelectorCard(
         selected = state.chatFontScale.label,
-        options = ChatFontScale.entries.map { it.label },
-        onSelect = { label ->
-          ChatFontScale.entries.firstOrNull { it.label == label }?.let(viewModel::updateChatFontScale)
-        },
+        options = fontOptions,
+        onSelect = { label -> fontByLabel[label]?.let(viewModel::updateChatFontScale) },
         modifier = Modifier.padding(horizontal = 20.dp),
         testTag = "settings_chat_font_selector",
       )

@@ -13,6 +13,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,9 +43,13 @@ fun StreamingBubble(
       when {
         text.isNotEmpty() -> {
           val displayText = if (showCursor) "$text▌" else text
+          // Масштаб кегля запоминаем по (тема, fontScale): стрим рекомпозируется на каждый токен,
+          // без remember scaledBy аллоцировал бы TextStyle на каждую дельту при не-дефолтном размере.
+          val baseStyle = MaterialTheme.typography.bodySmall
+          val style = remember(baseStyle, fontScale) { baseStyle.scaledBy(fontScale) }
           Text(
             text = displayText,
-            style = MaterialTheme.typography.bodySmall.scaledBy(fontScale),
+            style = style,
             // Тот же цвет и размер, что у сохранённого сообщения (plain-путь MarkdownText / markdown
             // m3 — onBackground): подмена пузыря сообщением не должна менять вид текста.
             color = MaterialTheme.colorScheme.onBackground,

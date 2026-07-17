@@ -11,7 +11,7 @@ import com.aiopenpocket.agent.core.memory.model.Message
 import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.loop.ToolTrace
-import com.aiopenpocket.ui.settings.ChatFontScale
+import com.aiopenpocket.agent.core.identity.ChatFontScale
 import com.aiopenpocket.voice.input.VoiceInputState
 
 data class ResponseStats(

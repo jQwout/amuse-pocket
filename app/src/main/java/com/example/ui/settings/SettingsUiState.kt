@@ -2,6 +2,8 @@
 
 // @trace app-settings-beb470
 
+import com.aiopenpocket.agent.core.identity.ChatFontScale
+
 data class SettingsUiState(
   val nvidiaKey: String = "",
   val groqKey: String = "",

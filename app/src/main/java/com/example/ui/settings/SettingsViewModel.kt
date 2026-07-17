@@ -2,6 +2,7 @@
 
 // @trace app-settings-beb470
 
+import com.aiopenpocket.agent.core.identity.ChatFontScale
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
@@ -92,13 +93,11 @@ class SettingsViewModel(
       userPreferencesRepository.setGoalModeMaxIterations(current.goalMaxIterations)
       userPreferencesRepository.setChatFontScale(current.chatFontScale)
       // ...и только если пользователь не успел изменить поля во время записи (иначе соврём «Сохранено»).
+      // Сравниваем всё состояние целиком (без флага saved): любое новое поле настройки попадает в
+      // проверку автоматически, без ручного дописывания клаузы. availableModels/personas грузятся
+      // один раз в init и update-методами не меняются — в s и current они равны.
       _state.update { s ->
-        val unchanged = s.nvidiaKey == current.nvidiaKey && s.groqKey == current.groqKey &&
-          s.githubKey == current.githubKey &&
-          s.selectedModel == current.selectedModel &&
-          s.personaId == current.personaId && s.goalMaxIterations == current.goalMaxIterations &&
-          s.chatFontScale == current.chatFontScale
-        if (unchanged) s.copy(saved = true) else s
+        if (s.copy(saved = false) == current.copy(saved = false)) s.copy(saved = true) else s
       }
     }
   }

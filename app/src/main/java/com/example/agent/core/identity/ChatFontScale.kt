@@ -1,4 +1,4 @@
-package com.aiopenpocket.ui.settings
+package com.aiopenpocket.agent.core.identity
 
 // @trace chat-font-size-setting-c72418
 
