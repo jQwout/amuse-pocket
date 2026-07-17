@@ -11,7 +11,6 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.aiopenpocket.di.AppScope
-import com.aiopenpocket.ui.settings.ChatFontScale
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.flow.Flow
@@ -84,10 +83,7 @@ class UserPreferencesRepository @Inject constructor(
       ChatFontScale.fromName(prefs[KEY_CHAT_FONT_SCALE])
     }
 
-  suspend fun getChatFontScale(): ChatFontScale =
-    context.userPreferencesDataStore.data
-      .map { prefs -> ChatFontScale.fromName(prefs[KEY_CHAT_FONT_SCALE]) }
-      .first()
+  suspend fun getChatFontScale(): ChatFontScale = chatFontScale.first()
 
   suspend fun setChatFontScale(value: ChatFontScale) {
     context.userPreferencesDataStore.edit { prefs ->

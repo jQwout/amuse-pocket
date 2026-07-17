@@ -54,13 +54,17 @@ fun MarkdownText(
   modifier: Modifier = Modifier,
   compact: Boolean = false,
   selectable: Boolean = false,
-  /** Множитель кегля поверх темы — регулируемый размер шрифта чата (см. [com.aiopenpocket.ui.settings.ChatFontScale]). 1f = без изменений, дефолт для всех не-чатовых вызовов. */
+  /** Множитель кегля поверх темы — регулируемый размер шрифта чата (см. [com.aiopenpocket.agent.core.identity.ChatFontScale]). 1f = без изменений, дефолт для всех не-чатовых вызовов. */
   fontScale: Float = 1f,
 ) {
   // Типографику и набор компонентов запоминаем (remember): иначе они аллоцируются на каждую
   // рекомпозицию каждого пузыря — заметный джанк при скролле длинной ленты. Ключи типографики —
   // тема и compact; набор компонентов от темы не зависит, поэтому создаётся один раз.
-  val typo = MaterialTheme.typography
+  // Размер шрифта чата масштабируем на уровне ВСЕЙ темы один раз (а не каждый markdown-стиль по
+  // отдельности): любой стиль, выведенный из typo.*, автоматически в нужном кегле, и будущий стиль
+  // не забудешь отмасштабировать. scaledBy(1f) возвращает ту же тему — дефолтный размер без аллокаций.
+  val baseTypo = MaterialTheme.typography
+  val typo = remember(baseTypo, fontScale) { baseTypo.scaledBy(fontScale) }
 
   // Быстрый путь для обычного текста (а это большинство сообщений чата): без markdown-разметки
   // рендерим лёгким Text. Тяжёлый AST-рендер Markdown измеряется не за один кадр — из-за этого при
@@ -70,7 +74,7 @@ fun MarkdownText(
   // поиска, панель действий, пин, смена окна) — O(n) по всей строке на каждый кадр.
   val isMarkdown = remember(text) { looksLikeMarkdown(text) }
   if (!isMarkdown) {
-    val style = (if (compact) typo.bodySmall else typo.bodyLarge).scaledBy(fontScale)
+    val style = if (compact) typo.bodySmall else typo.bodyLarge
     val plain: @Composable () -> Unit = {
       Text(
         text = text,
@@ -83,7 +87,7 @@ fun MarkdownText(
     return
   }
 
-  val typography = remember(typo, compact, fontScale) { buildMarkdownTypography(typo, compact, fontScale) }
+  val typography = remember(typo, compact) { buildMarkdownTypography(typo, compact) }
 
   // Перенос текста в ячейках таблицы: переопределяем header/row-блоки, разрешая многострочность
   // (дефолт обрезает ячейку одной строкой и ставит «…»). Узкие таблицы по-прежнему скроллятся
@@ -136,7 +140,7 @@ fun MarkdownText(
     retainState = true,
     immediate = true,
   )
-  val bodyStyle = (if (compact) typo.bodySmall else typo.bodyLarge).scaledBy(fontScale)
+  val bodyStyle = if (compact) typo.bodySmall else typo.bodyLarge
   val render: @Composable () -> Unit = {
     Markdown(
       markdownState = markdownState,
@@ -200,24 +204,26 @@ private fun looksLikeMarkdown(text: String): Boolean {
  * заголовки прижаты к title-тирам и ниже, чтобы не вылезали display-кегли 57sp); обычная — дефолты
  * библиотеки 0.41.0 (поэтому те же поля, что фабрика задаёт сама).
  */
-private fun buildMarkdownTypography(typo: Typography, compact: Boolean, fontScale: Float = 1f): MarkdownTypography {
-  val code = typo.bodyMedium.copy(fontFamily = FontFamily.Monospace).scaledBy(fontScale)
-  val quote = typo.bodyMedium.plus(SpanStyle(fontStyle = FontStyle.Italic)).scaledBy(fontScale)
+private fun buildMarkdownTypography(typo: Typography, compact: Boolean): MarkdownTypography {
+  // typo УЖЕ отмасштабирован вызывающей стороной (MarkdownText: typo.scaledBy(fontScale)) — здесь
+  // просто выводим markdown-стили из него; масштаб размножать по полям не нужно.
+  val code = typo.bodyMedium.copy(fontFamily = FontFamily.Monospace)
+  val quote = typo.bodyMedium.plus(SpanStyle(fontStyle = FontStyle.Italic))
   val textLink = TextLinkStyles(
     style = typo.bodyLarge.copy(
       fontWeight = FontWeight.Bold,
       textDecoration = TextDecoration.Underline,
-    ).scaledBy(fontScale).toSpanStyle(),
+    ).toSpanStyle(),
   )
   return if (compact) {
-    val body = typo.bodySmall.scaledBy(fontScale)
+    val body = typo.bodySmall
     DefaultMarkdownTypography(
-      h1 = typo.titleMedium.scaledBy(fontScale),
-      h2 = typo.titleSmall.scaledBy(fontScale),
-      h3 = typo.bodyMedium.copy(fontWeight = FontWeight.Bold).scaledBy(fontScale),
-      h4 = typo.bodyMedium.copy(fontWeight = FontWeight.Bold).scaledBy(fontScale),
-      h5 = typo.bodySmall.copy(fontWeight = FontWeight.Bold).scaledBy(fontScale),
-      h6 = typo.bodySmall.copy(fontWeight = FontWeight.Bold).scaledBy(fontScale),
+      h1 = typo.titleMedium,
+      h2 = typo.titleSmall,
+      h3 = typo.bodyMedium.copy(fontWeight = FontWeight.Bold),
+      h4 = typo.bodyMedium.copy(fontWeight = FontWeight.Bold),
+      h5 = typo.bodySmall.copy(fontWeight = FontWeight.Bold),
+      h6 = typo.bodySmall.copy(fontWeight = FontWeight.Bold),
       text = body,
       code = code,
       inlineCode = body.copy(fontFamily = FontFamily.Monospace),
@@ -227,17 +233,17 @@ private fun buildMarkdownTypography(typo: Typography, compact: Boolean, fontScal
       bullet = body,
       list = body,
       textLink = textLink,
-      table = typo.labelSmall.scaledBy(fontScale),
+      table = typo.labelSmall,
     )
   } else {
-    val body = typo.bodyLarge.scaledBy(fontScale)
+    val body = typo.bodyLarge
     DefaultMarkdownTypography(
-      h1 = typo.displayLarge.scaledBy(fontScale),
-      h2 = typo.displayMedium.scaledBy(fontScale),
-      h3 = typo.displaySmall.scaledBy(fontScale),
-      h4 = typo.headlineMedium.scaledBy(fontScale),
-      h5 = typo.headlineSmall.scaledBy(fontScale),
-      h6 = typo.titleLarge.scaledBy(fontScale),
+      h1 = typo.displayLarge,
+      h2 = typo.displayMedium,
+      h3 = typo.displaySmall,
+      h4 = typo.headlineMedium,
+      h5 = typo.headlineSmall,
+      h6 = typo.titleLarge,
       text = body,
       code = code,
       inlineCode = body.copy(fontFamily = FontFamily.Monospace),
@@ -251,6 +257,31 @@ private fun buildMarkdownTypography(typo: Typography, compact: Boolean, fontScal
     )
   }
 }
+
+/**
+ * Масштабирует ВСЮ [Typography] один раз — каждый её текст-стиль через [scaledBy]. Так регулируемый
+ * размер шрифта чата применяется на границе темы, а не размножается по 15 markdown-полям; любой
+ * стиль, выведенный из результата, автоматически в нужном кегле. `scale == 1f` возвращает ту же тему.
+ */
+internal fun Typography.scaledBy(scale: Float): Typography =
+  if (scale == 1f) this
+  else copy(
+    displayLarge = displayLarge.scaledBy(scale),
+    displayMedium = displayMedium.scaledBy(scale),
+    displaySmall = displaySmall.scaledBy(scale),
+    headlineLarge = headlineLarge.scaledBy(scale),
+    headlineMedium = headlineMedium.scaledBy(scale),
+    headlineSmall = headlineSmall.scaledBy(scale),
+    titleLarge = titleLarge.scaledBy(scale),
+    titleMedium = titleMedium.scaledBy(scale),
+    titleSmall = titleSmall.scaledBy(scale),
+    bodyLarge = bodyLarge.scaledBy(scale),
+    bodyMedium = bodyMedium.scaledBy(scale),
+    bodySmall = bodySmall.scaledBy(scale),
+    labelLarge = labelLarge.scaledBy(scale),
+    labelMedium = labelMedium.scaledBy(scale),
+    labelSmall = labelSmall.scaledBy(scale),
+  )
 
 /**
  * Умножает кегль (и абсолютный `sp`-межстрочный интервал) стиля на [scale]. `scale == 1f` возвращает

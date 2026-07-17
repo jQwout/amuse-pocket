@@ -1,10 +1,12 @@
 package com.aiopenpocket.ui.components
 
+import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Test
 
 class MarkdownScaleTest {
@@ -36,5 +38,22 @@ class MarkdownScaleTest {
     val scaled = base.scaledBy(1.3f)
     assertEquals(18.2f, scaled.fontSize.value, 0.001f)
     assertEquals(1.4f, scaled.lineHeight.value, 0.001f)
+  }
+
+  @Test
+  fun `Typography scaledBy multiplies every text style`() {
+    val typo = Typography(
+      bodySmall = TextStyle(fontSize = 14.sp),
+      displayLarge = TextStyle(fontSize = 57.sp),
+    )
+    val scaled = typo.scaledBy(1.5f)
+    assertEquals(21f, scaled.bodySmall.fontSize.value, 0.001f)
+    assertEquals(85.5f, scaled.displayLarge.fontSize.value, 0.001f)
+  }
+
+  @Test
+  fun `Typography scaledBy of 1 returns the same instance`() {
+    val typo = Typography()
+    assertSame(typo, typo.scaledBy(1f))
   }
 }

@@ -2,7 +2,6 @@ package com.aiopenpocket.agent.core.identity
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import com.aiopenpocket.ui.settings.ChatFontScale
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
