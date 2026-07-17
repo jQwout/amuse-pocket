@@ -15,6 +15,11 @@
         android:name="android.hardware.sensor.stepcounter"
         android:required="false" />
 
+    <!-- READ_SMS подразумевает телефонию, но приложение работает и без неё (планшеты/ChromeOS). -->
+    <uses-feature
+        android:name="android.hardware.telephony"
+        android:required="false" />
+
     <!-- Чтобы SpeechRecognizer находил системный recognition-сервис на Android 11+. -->
     <queries>
         <intent>
