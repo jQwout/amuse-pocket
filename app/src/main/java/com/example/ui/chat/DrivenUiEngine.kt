@@ -1376,7 +1376,7 @@ fun ExampleCardView(card: DrivenUiCard.ExampleCard) {
             ) {
                 if (part.role.isNotBlank()) {
                     Text(
-                        text = part.role.uppercase(Locale.getDefault()),
+                        text = part.role.uppercase(Locale.ROOT),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,

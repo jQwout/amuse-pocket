@@ -4,6 +4,7 @@ package com.aiopenpocket.voice
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.service.voice.VoiceInteractionSession
 import com.aiopenpocket.MainActivity
@@ -28,8 +29,14 @@ class AssistSession(context: Context) : VoiceInteractionSession(context) {
             action = MainActivity.ACTION_OPEN_NEW_CHAT
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
-        // startAssistantActivity запускает активити в контексте помощника
-        // (работает в том числе поверх экрана блокировки, если это разрешено).
-        startAssistantActivity(intent)
+        // startAssistantActivity запускает активити в контексте помощника (работает в том числе
+        // поверх экрана блокировки), но добавлен только в API 26. На 24–25 (minSdk=24) его нет —
+        // падаем на обычный запуск: intent уже с FLAG_ACTIVITY_NEW_TASK, поэтому стартует из
+        // контекста сессии.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startAssistantActivity(intent)
+        } else {
+            context.startActivity(intent)
+        }
     }
 }
