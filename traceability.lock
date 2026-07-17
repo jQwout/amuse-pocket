@@ -27,7 +27,7 @@
     },
     "chat-font-size-setting-c72418": {
       "hash": "39240a79ecd0",
-      "git": "4c0db0b"
+      "git": "b49d906"
     },
     "classic-typography-a44c05": {
       "hash": "543c953adb9c",
@@ -70,8 +70,8 @@
       "git": "9c9b98e"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "79d5d92265ec",
-      "git": "4c0db0b"
+      "hash": "da42958a72ed",
+      "git": "b49d906"
     },
     "structured-plan-engine-907066": {
       "hash": "314a33755619",
