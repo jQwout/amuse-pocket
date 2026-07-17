@@ -17,3 +17,6 @@ build_check.log
 
 # superpowers local tooling state (brainstorm/sdd caches)
 .superpowers/
+
+# harness git worktrees (transient; nested checkout breaks Android Studio indexing)
+.claude/worktrees/
