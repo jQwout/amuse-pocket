@@ -4,20 +4,15 @@ package com.aiopenpocket.ui.agents.builder.components
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.AgentValidator
 import com.aiopenpocket.agent.core.agent.ValidationIssue
 import com.aiopenpocket.ui.agents.builder.AgentDraft
-import com.aiopenpocket.ui.components.glass.glassCardSurface
 
 /**
  * Step 2/6: the agent's system prompt — its personality and rules of engagement, injected the same
@@ -44,24 +39,16 @@ fun InstructionsStep(
       modifier = Modifier.padding(top = 6.dp, bottom = 16.dp),
     )
 
-    OutlinedTextField(
+    BuilderTextField(
       value = draft.systemPrompt,
       onValueChange = { text ->
         onUpdateDraft { it.copy(systemPrompt = text.take(AgentValidator.MAX_SYSTEM_PROMPT_CHARS)) }
       },
-      placeholder = { Text("Например: Ты — заботливый ассистент по бегу. Планируешь тренировки, следишь за самочувствием...") },
+      placeholder = "Например: Ты — заботливый ассистент по бегу. Планируешь тренировки, следишь за самочувствием...",
       isError = errors.any { it.field == "systemPrompt" },
       minLines = 8,
       maxLines = 14,
-      modifier = Modifier
-        .fillMaxWidth()
-        .weight(1f, fill = false)
-        .glassCardSurface(),
-      colors = OutlinedTextFieldDefaults.colors(
-        focusedContainerColor = Color.Transparent,
-        unfocusedContainerColor = Color.Transparent,
-        errorContainerColor = Color.Transparent,
-      ),
+      modifier = Modifier.weight(1f, fill = false),
     )
     Text(
       text = "${draft.systemPrompt.length} / ${AgentValidator.MAX_SYSTEM_PROMPT_CHARS}",

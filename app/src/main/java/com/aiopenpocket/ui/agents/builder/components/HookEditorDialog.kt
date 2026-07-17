@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -22,8 +21,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,13 +31,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.hook.HookActionType
 import com.aiopenpocket.agent.core.hook.HookEngine
 import com.aiopenpocket.agent.core.hook.HookEvent
-import com.aiopenpocket.ui.components.glass.glassCardSurface
 import java.util.UUID
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
@@ -153,19 +148,12 @@ fun HookEditorDialog(
 
         if (needsPayload) {
           Spacer(modifier = Modifier.height(16.dp))
-          OutlinedTextField(
+          BuilderTextField(
             value = payloadText,
             onValueChange = { payloadText = it },
-            label = { Text(if (effectiveActionType == HookActionType.ADD_INSTRUCTION) "Текст инструкции" else "Текст в лог") },
+            label = if (effectiveActionType == HookActionType.ADD_INSTRUCTION) "Текст инструкции" else "Текст в лог",
             minLines = 2,
             maxLines = 4,
-            modifier = Modifier
-              .fillMaxWidth()
-              .glassCardSurface(),
-            colors = OutlinedTextFieldDefaults.colors(
-              focusedContainerColor = Color.Transparent,
-              unfocusedContainerColor = Color.Transparent,
-            ),
           )
         }
 

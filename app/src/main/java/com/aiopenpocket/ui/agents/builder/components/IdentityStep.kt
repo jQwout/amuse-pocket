@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -19,20 +18,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.AgentValidator
 import com.aiopenpocket.agent.core.agent.ValidationIssue
 import com.aiopenpocket.ui.agents.builder.AgentDraft
 import com.aiopenpocket.ui.agents.iconFor
-import com.aiopenpocket.ui.components.glass.glassCardSurface
 import com.aiopenpocket.ui.theme.PurpleAccent
 
 /** Every icon key the identity step lets a user pick — mirrors [com.aiopenpocket.ui.agents.iconFor]'s known keys. */
@@ -121,21 +116,13 @@ private fun LabeledField(
   maxLines: Int = 1,
 ) {
   Column {
-    OutlinedTextField(
+    BuilderTextField(
       value = value,
       onValueChange = onValueChange,
-      label = { Text(label) },
+      label = label,
       isError = isError,
       minLines = minLines,
       maxLines = maxLines,
-      modifier = Modifier
-        .fillMaxWidth()
-        .glassCardSurface(),
-      colors = OutlinedTextFieldDefaults.colors(
-        focusedContainerColor = Color.Transparent,
-        unfocusedContainerColor = Color.Transparent,
-        errorContainerColor = Color.Transparent,
-      ),
     )
     Text(
       text = "${value.length} / $maxChars",
