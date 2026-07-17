@@ -87,7 +87,9 @@ fun AgentBuilderScreen(
       containerColor = Color.Transparent,
       topBar = {
         TopAppBar(
-          title = { Text(stepTitle(state.step)) },
+          // Стабильный заголовок визарда: имя шага уже есть заголовком-H1 в теле каждого шага —
+          // дублировать его ещё и в тулбаре («Инструкции» / «Инструкции») незачем.
+          title = { Text("Конструктор агента") },
           navigationIcon = {
             IconButton(onClick = onExit) {
               Icon(imageVector = Icons.Default.Close, contentDescription = "Закрыть")
@@ -232,13 +234,4 @@ private fun BuilderBottomBar(
       }
     }
   }
-}
-
-private fun stepTitle(step: BuilderStep): String = when (step) {
-  BuilderStep.IDENTITY -> "Личность агента"
-  BuilderStep.INSTRUCTIONS -> "Инструкции"
-  BuilderStep.CAPABILITIES -> "Возможности"
-  BuilderStep.LOOP -> "Режимы работы"
-  BuilderStep.HOOKS -> "Хуки"
-  BuilderStep.TEST -> "Проверка и публикация"
 }
