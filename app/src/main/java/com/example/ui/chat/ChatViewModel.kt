@@ -246,7 +246,10 @@ class ChatViewModel(
         messagesJob?.cancel()
         sessionJob?.cancel()
         lessonBusy = false
-        _state.value = ChatUiState.resetFor(id)
+        // Переносим pref-производные поля (шрифт/лимит витков) в новое состояние — иначе resetFor
+        // сбросил бы их в дефолт, а реактивный коллектор из DataStore на неизменном значении не
+        // переэмитит, и настройка застряла бы на дефолте.
+        _state.update { prev -> ChatUiState.resetFor(id, prev.chatFontScale, prev.goalMaxIterations) }
         convIdFlow.value = id
         // Новый чат (id пуст): диалога ещё нет, его создаст ensureConversation при отправке.
         // Коллектор по getMessages("") всегда пуст — не запускаем его.

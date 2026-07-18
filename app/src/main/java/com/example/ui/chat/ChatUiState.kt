@@ -104,6 +104,21 @@ data class ChatUiState(
   val lessonFinished: Boolean = false,
 ) {
   companion object {
-    fun resetFor(id: String) = ChatUiState(conversationId = id)
+    /**
+     * Свежее состояние для диалога [id]: разговорные поля сбрасываются, но pref-производные
+     * ([chatFontScale], [goalMaxIterations] — из Настроек) СОХРАНЯЮТСЯ. Их кладёт реактивный
+     * коллектор в ChatViewModel.init, а DataStore-Flow на неизменном значении повторно не эмитит —
+     * без явного переноса они застряли бы на дефолте после первого же переключения диалога
+     * (баг «смена размера шрифта в чате не работает»).
+     */
+    fun resetFor(
+      id: String,
+      chatFontScale: ChatFontScale,
+      goalMaxIterations: Int,
+    ) = ChatUiState(
+      conversationId = id,
+      chatFontScale = chatFontScale,
+      goalMaxIterations = goalMaxIterations,
+    )
   }
 }
