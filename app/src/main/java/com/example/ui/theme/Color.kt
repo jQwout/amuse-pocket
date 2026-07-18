@@ -1,25 +1,28 @@
-﻿package com.aiopenpocket.ui.theme
+package com.aiopenpocket.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val DarkBg = Color(0xFF1C1B1F)
-val DarkOnBg = Color(0xFFE6E1E5)
-val PurpleAccent = Color(0xFFD0BCFF)
-val PurpleAccentDark = Color(0xFF381E72)
-val CardDark = Color(0xFF2B2930)
-val PersonaCardBg = Color(0xFF1A1A1A)
-val PersonaQuoteBg = Color(0xFF121212)
-val BorderDark = Color(0xFF49454F)
-val UserBubbleBg = Color(0xFF4A4458)
-val UserBubbleFg = Color(0xFFE8DEF8)
-val CancelRed = Color(0xFFF2B8B5)
-val CancelRedBg = Color(0xFF8C1D18)
+// ── Brand accent (lime) ──
+val LimeSignal   = Color(0xFFC4E85C) // акцент тёмной темы
+val LimeButton   = Color(0xFFB7E24A) // заливка кнопок (светлая)
+val LimeOnDark   = Color(0xFF0E1400) // текст/иконка на лайме (тёмная)
+val OliveAccent  = Color(0xFF4E6B0C) // акцент светлой темы (текст/иконки)
+val OliveOnLight = Color(0xFF1B2600) // текст на лайм-кнопке (светлая)
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+// ── Dark neutrals ──
+val InkBg        = Color(0xFF0A0A0A) // фон
+val InkSurface   = Color(0xFF131313) // карточки/панели
+val InkSurface2  = Color(0xFF1C1C1C) // приподнятые поверхности / user bubble
+val InkText      = Color(0xFFEDEDED)
+val InkTextSub   = Color(0xFFA0A0A0)
+val InkTextDim   = Color(0xFF6B6B6B)
+val InkOutline   = Color(0x1AFFFFFF) // rgba(255,255,255,0.10)
 
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
-
+// ── Light neutrals ──
+val PaperBg      = Color(0xFFFAFAF8) // тёплая бумага (не чистый белый)
+val PaperSurface = Color(0xFFFFFFFF)
+val PaperSurface2= Color(0xFFF0F0EB)
+val PaperText    = Color(0xFF1A1A1A)
+val PaperTextSub = Color(0xFF5C5C5C)
+val PaperTextDim = Color(0xFF8C8C8C)
+val PaperOutline = Color(0x1F000000) // rgba(0,0,0,0.12)

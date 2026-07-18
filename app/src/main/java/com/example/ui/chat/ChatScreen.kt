@@ -147,7 +147,7 @@ import com.aiopenpocket.ui.components.glass.glassSource
 import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.plan.PlanCard
 import com.aiopenpocket.ui.theme.MyApplicationTheme
-import com.aiopenpocket.ui.theme.PurpleAccent
+import com.aiopenpocket.ui.theme.ThemeMode
 import com.aiopenpocket.voice.input.VoiceInputState
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import kotlinx.coroutines.flow.Flow
@@ -373,7 +373,7 @@ fun ChatScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         // Аурора — ОТДЕЛЬНЫЙ слой-источник для стекла: именно её размывают бары и навбар.
         // Раньше источником была только лента (glassSource на LazyColumn), а за баром — где ленты
-        // нет — hazeEffect сэмплить было нечего и падал в плоский DarkBg+tint (та самая «мутная
+        // нет — hazeEffect сэмплить было нечего и падал в плоский MaterialTheme.colorScheme.background+tint (та самая «мутная
         // плашка»). Источник обязан быть отдельным слоем: модификатор на корневом Box захватил бы
         // и сами бары (петля), поэтому аурора вынесена в собственный matchParentSize-слой позади.
         Box(
@@ -1006,7 +1006,7 @@ private fun ToolApprovalBar(
                 Text(
                     text = "Агенту нужно разрешение",
                     style = MaterialTheme.typography.labelLarge,
-                    color = PurpleAccent,
+                    color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f),
                 )
                 val badgeColor = riskColor(request.riskClass)
@@ -1824,7 +1824,7 @@ internal fun ChatPreviewScaffold(
     error: String? = null,
     showInput: Boolean = true,
 ) {
-    MyApplicationTheme {
+    MyApplicationTheme(mode = ThemeMode.DARK) {
         val glassState = rememberGlassState()
         Box(Modifier
             .fillMaxSize()

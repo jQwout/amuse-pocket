@@ -64,8 +64,6 @@ import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
 import com.aiopenpocket.ui.components.glass.glassCardSurface
 import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.components.AcademyTab
-import com.aiopenpocket.ui.theme.PurpleAccent
-import com.aiopenpocket.ui.theme.PurpleAccentDark
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 data class RoadmapLevel(
@@ -310,8 +308,8 @@ private fun PathTimelineItem(
 ) {
   val isLocked = status == LevelStatus.LOCKED
   val lineColor = when (status) {
-    LevelStatus.COMPLETED -> PurpleAccent.copy(alpha = 0.6f)
-    LevelStatus.CURRENT -> PurpleAccent.copy(alpha = 0.4f)
+    LevelStatus.COMPLETED -> MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+    LevelStatus.CURRENT -> MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
     LevelStatus.LOCKED -> MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
   }
 
@@ -374,19 +372,19 @@ private fun TimelineNode(
         Box(
           modifier = Modifier
             .size(44.dp)
-            .background(PurpleAccent.copy(alpha = 0.15f), CircleShape),
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), CircleShape),
         )
         Box(
           modifier = Modifier
             .size(36.dp)
-            .background(PurpleAccentDark, CircleShape)
-            .border(2.dp, PurpleAccent, CircleShape),
+            .background(MaterialTheme.colorScheme.onPrimary, CircleShape)
+            .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
           contentAlignment = Alignment.Center,
         ) {
           Icon(
             imageVector = level.icon,
             contentDescription = null,
-            tint = PurpleAccent,
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(18.dp),
           )
         }
@@ -396,14 +394,14 @@ private fun TimelineNode(
       Box(
         modifier = Modifier
           .size(36.dp)
-          .background(PurpleAccent.copy(alpha = 0.2f), CircleShape)
-          .border(1.dp, PurpleAccent.copy(alpha = 0.5f), CircleShape),
+          .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape)
+          .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), CircleShape),
         contentAlignment = Alignment.Center,
       ) {
         Icon(
           imageVector = Icons.Default.Check,
           contentDescription = "Пройдено",
-          tint = PurpleAccent,
+          tint = MaterialTheme.colorScheme.primary,
           modifier = Modifier.size(18.dp),
         )
       }
@@ -452,16 +450,16 @@ private fun PathLevelCard(
       Text(
         text = level.title,
         style = MaterialTheme.typography.titleMedium,
-        color = if (status == LevelStatus.CURRENT) PurpleAccent else MaterialTheme.colorScheme.onSurface,
+        color = if (status == LevelStatus.CURRENT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
       )
       if (status == LevelStatus.CURRENT) {
         Text(
           text = "АКТИВНО",
           style = MaterialTheme.typography.labelSmall,
-          color = PurpleAccent,
+          color = MaterialTheme.colorScheme.primary,
           modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(PurpleAccentDark)
+            .background(MaterialTheme.colorScheme.onPrimary)
             .padding(horizontal = 8.dp, vertical = 2.dp),
         )
       }
@@ -469,10 +467,10 @@ private fun PathLevelCard(
         Text(
           text = "ПРОЙДЕНО",
           style = MaterialTheme.typography.labelSmall,
-          color = PurpleAccent.copy(alpha = 0.8f),
+          color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
           modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(PurpleAccentDark.copy(alpha = 0.6f))
+            .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f))
             .padding(horizontal = 8.dp, vertical = 2.dp),
         )
       }
@@ -497,7 +495,7 @@ private fun ProTipCard(progressFraction: Float) {
     Text(
       text = "СОВЕТ",
       style = MaterialTheme.typography.labelSmall,
-      color = PurpleAccent,
+      color = MaterialTheme.colorScheme.primary,
     )
     Spacer(modifier = Modifier.height(8.dp))
     Text(
@@ -518,7 +516,7 @@ private fun ProTipCard(progressFraction: Float) {
         .fillMaxWidth()
         .height(4.dp)
         .clip(RoundedCornerShape(2.dp)),
-      color = PurpleAccent,
+      color = MaterialTheme.colorScheme.primary,
       trackColor = Color(0xFF3D3A45),
     )
   }

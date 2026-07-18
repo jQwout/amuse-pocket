@@ -39,8 +39,7 @@ import com.aiopenpocket.ui.components.glass.auroraBackground
 import com.aiopenpocket.ui.components.glass.glassSource
 import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.theme.MyApplicationTheme
-import com.aiopenpocket.ui.theme.PurpleAccent
-import com.aiopenpocket.ui.theme.PurpleAccentDark
+import com.aiopenpocket.ui.theme.ThemeMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,7 +62,7 @@ fun PersonaSelectionStep(
             title = {
               Text(
                 text = "AI Academy",
-                color = PurpleAccent,
+                color = MaterialTheme.colorScheme.primary,
                 style = MaterialTheme.typography.titleLarge,
               )
             },
@@ -114,8 +113,8 @@ fun PersonaSelectionStep(
                 enabled = selectedPersonaId.isNotBlank() && !isSaving,
                 shape = RoundedCornerShape(50),
                 colors = ButtonDefaults.buttonColors(
-                  containerColor = PurpleAccent,
-                  contentColor = PurpleAccentDark,
+                  containerColor = MaterialTheme.colorScheme.primary,
+                  contentColor = MaterialTheme.colorScheme.onPrimary,
                 ),
                 modifier = Modifier.testTag("onboarding_next"),
               ) {
@@ -170,7 +169,7 @@ fun PersonaSelectionStep(
 @Preview(showBackground = true, backgroundColor = 0xFF1C1B1F)
 @Composable
 private fun PersonaSelectionStepPreview() {
-  MyApplicationTheme {
+  MyApplicationTheme(mode = ThemeMode.DARK) {
     PersonaSelectionStep(
       selectedPersonaId = "sharp_partner",
       isSaving = false,

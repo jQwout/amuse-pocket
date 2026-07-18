@@ -21,6 +21,7 @@ import com.aiopenpocket.agent.core.plan.model.PlanVersion
 import com.aiopenpocket.agent.core.plan.model.StepStatus
 import com.aiopenpocket.agent.core.plan.model.VerifierType
 import com.aiopenpocket.ui.theme.MyApplicationTheme
+import com.aiopenpocket.ui.theme.ThemeMode
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -59,7 +60,7 @@ class PlanCardTest {
   private fun render(snapshot: PlanSnapshot) {
     val flow: Flow<PlanSnapshot?> = MutableStateFlow(snapshot)
     composeTestRule.setContent {
-      MyApplicationTheme {
+      MyApplicationTheme(mode = ThemeMode.DARK) {
         PlanCard(
           planId = snapshot.plan.id,
           observePlan = { flow },

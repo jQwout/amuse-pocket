@@ -87,7 +87,8 @@ class MainActivity : ComponentActivity() {
             CompositionLocalProvider(
                 LocalMetroViewModelFactory provides appGraph.metroViewModelFactory,
             ) {
-                MyApplicationTheme {
+                val themeMode by remember { appGraph.themeRepository.mode }.collectAsState()
+                MyApplicationTheme(mode = themeMode) {
                     val userPreferencesRepository = remember { appGraph.userPreferencesRepository }
                     val onboardingCompleted by userPreferencesRepository.onboardingCompleted
                         .collectAsState(initial = null)

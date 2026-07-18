@@ -56,10 +56,8 @@ import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.conversations.ConversationsListViewModel
 import com.aiopenpocket.ui.roadmap.ROADMAP_LEVELS
 import com.aiopenpocket.ui.roadmap.RoadmapViewModel
-import com.aiopenpocket.ui.theme.CardDark
 import com.aiopenpocket.ui.theme.MyApplicationTheme
-import com.aiopenpocket.ui.theme.PurpleAccent
-import com.aiopenpocket.ui.theme.PurpleAccentDark
+import com.aiopenpocket.ui.theme.ThemeMode
 import com.aiopenpocket.ui.util.formatRelativeDate
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import kotlinx.coroutines.launch
@@ -134,15 +132,15 @@ fun HomeScreen(
                             modifier = Modifier
                               .size(40.dp)
                               .clip(CircleShape)
-                              .border(2.dp, PurpleAccent, CircleShape)
-                              .background(PurpleAccentDark)
+                              .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                              .background(MaterialTheme.colorScheme.onPrimary)
                               .clickable(onClick = onNavigateToSettings),
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Person,
                                 contentDescription = "Профиль",
-                                tint = PurpleAccent,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(22.dp),
                             )
                         }
@@ -246,13 +244,13 @@ private fun HomeHero() {
             modifier = Modifier
               .size(72.dp)
               .clip(CircleShape)
-              .background(CardDark),
+              .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = Icons.Default.AutoAwesome,
                 contentDescription = null,
-                tint = PurpleAccent,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(32.dp),
             )
         }
@@ -287,13 +285,13 @@ private fun NewChatCard(onClick: () -> Unit) {
                 modifier = Modifier
                   .size(44.dp)
                   .clip(CircleShape)
-                  .background(PurpleAccent),
+                  .background(MaterialTheme.colorScheme.primary),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.Default.AutoAwesome,
                     contentDescription = null,
-                    tint = PurpleAccentDark,
+                    tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(22.dp),
                 )
             }
@@ -336,13 +334,13 @@ private fun AgentsEntryCard(onClick: () -> Unit) {
                 modifier = Modifier
                   .size(44.dp)
                   .clip(CircleShape)
-                  .background(PurpleAccentDark),
+                  .background(MaterialTheme.colorScheme.onPrimary),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.Default.Hub,
                     contentDescription = null,
-                    tint = PurpleAccent,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(22.dp),
                 )
             }
@@ -390,7 +388,7 @@ private fun SectionHeader(
         Text(
             text = actionLabel,
             style = MaterialTheme.typography.labelLarge,
-            color = PurpleAccent,
+            color = MaterialTheme.colorScheme.primary,
             modifier = Modifier
               .clip(RoundedCornerShape(8.dp))
               .clickable(onClick = onAction)
@@ -413,13 +411,13 @@ private fun RecentChatCard(chat: Conversation, onClick: () -> Unit) {
                 modifier = Modifier
                   .size(40.dp)
                   .clip(CircleShape)
-                  .background(PurpleAccentDark),
+                  .background(MaterialTheme.colorScheme.onPrimary),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Chat,
                     contentDescription = null,
-                    tint = PurpleAccent,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -474,7 +472,7 @@ private fun CourseCard(
                 Text(
                     text = category,
                     style = MaterialTheme.typography.labelSmall,
-                    color = PurpleAccent,
+                    color = MaterialTheme.colorScheme.primary,
                 )
                 Icon(
                     imageVector = Icons.AutoMirrored.Default.KeyboardArrowRight,
@@ -519,7 +517,7 @@ private fun CourseCard(
                   .fillMaxWidth()
                   .height(6.dp)
                   .clip(RoundedCornerShape(3.dp)),
-                color = PurpleAccent,
+                color = MaterialTheme.colorScheme.primary,
                 trackColor = Color(0xFF3D3A45),
             )
         }
@@ -570,7 +568,7 @@ internal fun HomePreviewScaffold(
     val currentLevelIndex = 2
     val currentLevel = ROADMAP_LEVELS.getOrNull(currentLevelIndex)
 
-    MyApplicationTheme {
+    MyApplicationTheme(mode = ThemeMode.DARK) {
         val glassState = rememberGlassState()
         Box(Modifier
           .fillMaxSize()
@@ -604,15 +602,15 @@ internal fun HomePreviewScaffold(
                                 modifier = Modifier
                                   .size(40.dp)
                                   .clip(CircleShape)
-                                  .border(2.dp, PurpleAccent, CircleShape)
-                                  .background(PurpleAccentDark)
+                                  .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                  .background(MaterialTheme.colorScheme.onPrimary)
                                   .clickable(onClick = {}),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Person,
                                     contentDescription = "Профиль",
-                                    tint = PurpleAccent,
+                                    tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(22.dp),
                                 )
                             }

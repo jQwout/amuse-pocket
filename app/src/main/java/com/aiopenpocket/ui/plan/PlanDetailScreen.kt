@@ -45,7 +45,7 @@ import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
 import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.theme.MyApplicationTheme
-import com.aiopenpocket.ui.theme.PurpleAccent
+import com.aiopenpocket.ui.theme.ThemeMode
 import com.aiopenpocket.ui.util.formatRelativeDate
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import kotlinx.serialization.json.JsonObject
@@ -82,7 +82,7 @@ fun PlanDetailScreen(
   ) { padding ->
     if (state.isLoading && state.objective == null) {
       Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(color = PurpleAccent)
+        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
       }
       return@AcademyCollapsingScaffold
     }
@@ -315,7 +315,7 @@ private fun StepRow(number: Int, row: PlanStepRow, showDueDate: Boolean, modifie
         Text(
           text = "Следующий срок: ${formatRelativeDate(row.nextDueAt)}",
           style = MaterialTheme.typography.labelSmall,
-          color = PurpleAccent,
+          color = MaterialTheme.colorScheme.primary,
         )
       }
     }
@@ -390,7 +390,7 @@ private fun planEventLabel(type: PlanEventType): String = when (type) {
 
 @Composable
 private fun SectionLabel(text: String) {
-  Text(text = text, style = MaterialTheme.typography.labelLarge, color = PurpleAccent)
+  Text(text = text, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
 }
 
 @Composable
@@ -497,7 +497,7 @@ internal fun samplePlanDetailState(): PlanDetailState = PlanDetailState(
 
 @Composable
 internal fun PlanDetailPreviewScaffold(state: PlanDetailState = samplePlanDetailState()) {
-  MyApplicationTheme {
+  MyApplicationTheme(mode = ThemeMode.DARK) {
     PlanDetailScreen(state = state, onPause = {}, onResume = {}, onCancel = {}, onNavigateBack = {})
   }
 }

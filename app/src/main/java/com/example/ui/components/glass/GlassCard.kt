@@ -42,6 +42,7 @@ fun GlassCard(
  * Тот же вид, что у карточек на вкладке «Чат».
  * @trace glass-design-system-21a3fe
  */
+@Composable
 fun Modifier.glassCardSurface(shape: Shape = GlassTokens.CardShape): Modifier =
   this
     .clip(shape)

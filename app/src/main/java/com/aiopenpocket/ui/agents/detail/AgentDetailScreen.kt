@@ -68,8 +68,7 @@ import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.plan.PlanStatusBadge
 import com.aiopenpocket.ui.theme.MyApplicationTheme
-import com.aiopenpocket.ui.theme.PurpleAccent
-import com.aiopenpocket.ui.theme.PurpleAccentDark
+import com.aiopenpocket.ui.theme.ThemeMode
 import com.aiopenpocket.ui.util.formatRelativeDate
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -118,7 +117,7 @@ fun AgentDetailScreen(
         contentAlignment = Alignment.Center,
       ) {
         if (state.isLoading) {
-          CircularProgressIndicator(color = PurpleAccent)
+          CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
         } else {
           Text(
             text = "Агент не найден",
@@ -216,13 +215,13 @@ private fun HeaderSection(agent: AgentDefinition, onOpenChat: () -> Unit, modifi
         modifier = Modifier
           .size(56.dp)
           .clip(CircleShape)
-          .background(PurpleAccent.copy(alpha = 0.18f)),
+          .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
         contentAlignment = Alignment.Center,
       ) {
         Icon(
           imageVector = iconFor(agent.iconKey),
           contentDescription = null,
-          tint = PurpleAccent,
+          tint = MaterialTheme.colorScheme.primary,
           modifier = Modifier.size(28.dp),
         )
       }
@@ -241,7 +240,7 @@ private fun HeaderSection(agent: AgentDefinition, onOpenChat: () -> Unit, modifi
         Text(
           text = "${statusLabel(agent.status)} · v${agent.configVersion}",
           style = MaterialTheme.typography.labelMedium,
-          color = PurpleAccent,
+          color = MaterialTheme.colorScheme.primary,
         )
       }
     }
@@ -253,8 +252,8 @@ private fun HeaderSection(agent: AgentDefinition, onOpenChat: () -> Unit, modifi
         .height(48.dp),
       shape = RoundedCornerShape(14.dp),
       colors = ButtonDefaults.buttonColors(
-        containerColor = PurpleAccent,
-        contentColor = PurpleAccentDark,
+        containerColor = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
       ),
     ) {
       Icon(
@@ -314,7 +313,7 @@ private fun ActionChip(label: String, onClick: () -> Unit, modifier: Modifier = 
     Text(
       text = label,
       style = MaterialTheme.typography.labelLarge,
-      color = PurpleAccent,
+      color = MaterialTheme.colorScheme.primary,
       modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
     )
   }
@@ -374,7 +373,7 @@ private fun StatTiles(
 private fun StatTile(label: String, value: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
   GlassCard(modifier = modifier, shape = RoundedCornerShape(16.dp), onClick = onClick) {
     Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
-      Text(text = value, style = MaterialTheme.typography.headlineSmall, color = PurpleAccent)
+      Text(text = value, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
       Spacer(modifier = Modifier.height(2.dp))
       Text(
         text = label,
@@ -467,7 +466,7 @@ private fun PlansSection(
 private fun PlanCountTile(label: String, count: Int, modifier: Modifier = Modifier) {
   GlassCard(modifier = modifier, shape = RoundedCornerShape(16.dp)) {
     Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
-      Text(text = count.toString(), style = MaterialTheme.typography.headlineSmall, color = PurpleAccent)
+      Text(text = count.toString(), style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
       Spacer(modifier = Modifier.height(2.dp))
       Text(
         text = label,
@@ -662,7 +661,7 @@ private fun HeartbeatRow(hb: HeartbeatEntity, modifier: Modifier = Modifier) {
       ) {
         MetaText(formatInterval(hb))
         MetaText(hb.lastRunAt?.let { formatRelativeDate(it) } ?: "—")
-        MetaText(text = formatHeartbeatStatus(hb), color = PurpleAccent)
+        MetaText(text = formatHeartbeatStatus(hb), color = MaterialTheme.colorScheme.primary)
       }
     }
   }
@@ -807,7 +806,7 @@ private fun FileRow(file: AgentFile, modifier: Modifier = Modifier) {
       Icon(
         imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
         contentDescription = null,
-        tint = PurpleAccent,
+        tint = MaterialTheme.colorScheme.primary,
         modifier = Modifier.size(20.dp),
       )
       Column(
@@ -831,7 +830,7 @@ private fun FileRow(file: AgentFile, modifier: Modifier = Modifier) {
       Text(
         text = formatBytes(file.sizeBytes),
         style = MaterialTheme.typography.labelMedium,
-        color = PurpleAccent,
+        color = MaterialTheme.colorScheme.primary,
       )
     }
   }
@@ -846,7 +845,7 @@ private fun formatBytes(bytes: Long): String = when {
 
 @Composable
 private fun SectionLabel(text: String) {
-  Text(text = text, style = MaterialTheme.typography.labelLarge, color = PurpleAccent)
+  Text(text = text, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
 }
 
 @Composable
@@ -945,7 +944,7 @@ internal fun samplePreviewState(): AgentDetailState {
 
 @Composable
 internal fun AgentDetailPreviewScaffold(state: AgentDetailState = samplePreviewState()) {
-  MyApplicationTheme {
+  MyApplicationTheme(mode = ThemeMode.DARK) {
     AgentDetailScreen(
       state = state,
       onOpenChat = {},

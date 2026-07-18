@@ -9,7 +9,9 @@ import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.llm.ModelCatalogLoader
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
 import com.aiopenpocket.data.repository.SettingsRepository
+import com.aiopenpocket.data.repository.ThemeRepository
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.ui.theme.ThemeMode
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
@@ -27,6 +29,7 @@ class SettingsViewModel(
   private val settingsRepository: SettingsRepository,
   private val userPreferencesRepository: UserPreferencesRepository,
   private val modelCatalogLoader: ModelCatalogLoader,
+  private val themeRepository: ThemeRepository,
 ) : ViewModel() {
 
   private val _state = MutableStateFlow(SettingsUiState())
@@ -47,6 +50,7 @@ class SettingsViewModel(
           personaId = userPreferencesRepository.getDefaultPersonaId(),
           goalMaxIterations = userPreferencesRepository.getGoalModeMaxIterations(),
           chatFontScale = userPreferencesRepository.getChatFontScale(),
+          themeMode = themeRepository.mode.value,
           personas = PersonaCatalog.all.map { it.id },
         )
       }
@@ -79,6 +83,12 @@ class SettingsViewModel(
 
   fun updateChatFontScale(value: ChatFontScale) {
     _state.update { it.copy(chatFontScale = value, saved = false) }
+  }
+
+  /** Тему применяем сразу (реактивно через ThemeRepository), а не по кнопке «Сохранить». */
+  fun updateThemeMode(value: ThemeMode) {
+    themeRepository.setMode(value)
+    _state.update { it.copy(themeMode = value) }
   }
 
   fun save() {

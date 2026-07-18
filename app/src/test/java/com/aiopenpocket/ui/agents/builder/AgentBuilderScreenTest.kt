@@ -14,6 +14,7 @@ import com.aiopenpocket.agent.core.hook.HookActionType
 import com.aiopenpocket.agent.core.hook.HookEvent
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.ui.theme.MyApplicationTheme
+import com.aiopenpocket.ui.theme.ThemeMode
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -61,7 +62,7 @@ class AgentBuilderScreenTest {
     onArchive: () -> Unit = {},
   ) {
     composeTestRule.setContent {
-      MyApplicationTheme {
+      MyApplicationTheme(mode = ThemeMode.DARK) {
         AgentBuilderScreen(
           state = state,
           availableSkillIds = availableSkillIds,

@@ -52,8 +52,7 @@ import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
 import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.theme.MyApplicationTheme
-import com.aiopenpocket.ui.theme.PurpleAccent
-import com.aiopenpocket.ui.theme.PurpleAccentDark
+import com.aiopenpocket.ui.theme.ThemeMode
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 /**
@@ -89,8 +88,8 @@ fun AgentsScreen(
         onClick = onCreateAgent,
         icon = { Icon(imageVector = Icons.Default.Add, contentDescription = null) },
         text = { Text("Создать агента") },
-        containerColor = PurpleAccent,
-        contentColor = PurpleAccentDark,
+        containerColor = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
       )
     },
   ) { padding ->
@@ -139,7 +138,7 @@ fun AgentsScreen(
 
 @Composable
 private fun RosterSectionLabel(text: String) {
-  Text(text = text, style = MaterialTheme.typography.labelLarge, color = PurpleAccent)
+  Text(text = text, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -151,7 +150,7 @@ private fun AgentCard(agent: AgentDefinition, onClick: () -> Unit) {
     onClick = onClick,
   ) {
     // GlassCard's own Column has no contentPadding slot in the frozen API, so this inner Column
-    // is the one place that owns the 16dp inset the old CardDark Column used to apply directly
+    // is the one place that owns the 16dp inset the old MaterialTheme.colorScheme.surfaceVariant Column used to apply directly
     // (same pattern as Home's CourseCard).
     Column(modifier = Modifier.padding(16.dp)) {
       Row(
@@ -163,13 +162,13 @@ private fun AgentCard(agent: AgentDefinition, onClick: () -> Unit) {
           modifier = Modifier
             .size(44.dp)
             .clip(CircleShape)
-            .background(PurpleAccent.copy(alpha = 0.18f)),
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
           contentAlignment = Alignment.Center,
         ) {
           Icon(
             imageVector = iconFor(agent.iconKey),
             contentDescription = null,
-            tint = PurpleAccent,
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(22.dp),
           )
         }
@@ -213,10 +212,10 @@ private fun CapabilityChip(label: String) {
   Text(
     text = label,
     style = MaterialTheme.typography.labelSmall,
-    color = PurpleAccent,
+    color = MaterialTheme.colorScheme.primary,
     modifier = Modifier
       .clip(RoundedCornerShape(8.dp))
-      .background(PurpleAccent.copy(alpha = 0.12f))
+      .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
       .padding(horizontal = 8.dp, vertical = 4.dp),
   )
 }
@@ -263,7 +262,7 @@ internal fun AgentsPreviewScaffold(
   presets: List<AgentDefinition> = MiniAgentCatalog.all.map { it.toDefinition() },
   userAgents: List<AgentDefinition> = emptyList(),
 ) {
-  MyApplicationTheme {
+  MyApplicationTheme(mode = ThemeMode.DARK) {
     val glassState = rememberGlassState()
     AcademyCollapsingScaffold(
       title = "Агенты",
@@ -281,8 +280,8 @@ internal fun AgentsPreviewScaffold(
           onClick = {},
           icon = { Icon(imageVector = Icons.Default.Add, contentDescription = null) },
           text = { Text("Создать агента") },
-          containerColor = PurpleAccent,
-          contentColor = PurpleAccentDark,
+          containerColor = MaterialTheme.colorScheme.primary,
+          contentColor = MaterialTheme.colorScheme.onPrimary,
         )
       },
     ) { padding ->

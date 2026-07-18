@@ -29,7 +29,6 @@ import androidx.compose.ui.unit.dp
 import com.aiopenpocket.ui.components.glass.GlassState
 import com.aiopenpocket.ui.components.glass.GlassSurface
 import com.aiopenpocket.ui.components.glass.rememberGlassState
-import com.aiopenpocket.ui.theme.PurpleAccent
 
 enum class AcademyTab {
     Chat,
@@ -107,7 +106,7 @@ private fun AcademyNavItem(
           .then(
             if (selected) {
               Modifier
-                .background(PurpleAccent.copy(alpha = 0.18f), RoundedCornerShape(18.dp))
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f), RoundedCornerShape(18.dp))
                 .padding(horizontal = 22.dp, vertical = 8.dp)
             } else {
               Modifier.padding(horizontal = 22.dp, vertical = 8.dp)
@@ -117,13 +116,13 @@ private fun AcademyNavItem(
         Icon(
             imageVector = icon,
             contentDescription = label,
-            tint = if (selected) PurpleAccent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+            tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
             modifier = Modifier.size(24.dp),
         )
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = if (selected) PurpleAccent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
         )
     }
 }

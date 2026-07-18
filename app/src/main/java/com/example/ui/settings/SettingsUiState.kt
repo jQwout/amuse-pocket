@@ -3,6 +3,7 @@
 // @trace app-settings-beb470
 
 import com.aiopenpocket.agent.core.identity.ChatFontScale
+import com.aiopenpocket.ui.theme.ThemeMode
 
 data class SettingsUiState(
   val nvidiaKey: String = "",
@@ -18,5 +19,7 @@ data class SettingsUiState(
   val goalMaxIterations: Int = 3,
   /** Пресет размера шрифта сообщений в чате. */
   val chatFontScale: ChatFontScale = ChatFontScale.DEFAULT,
+  /** Режим темы: Светлая/Тёмная/Системная. */
+  val themeMode: ThemeMode = ThemeMode.SYSTEM,
   val saved: Boolean = false,
 )

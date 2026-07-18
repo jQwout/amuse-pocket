@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Loop
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Settings
@@ -94,9 +95,7 @@ import com.aiopenpocket.ui.components.glass.glassCardSurface
 import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.components.AcademyTab
 import com.aiopenpocket.ui.theme.GlassTokens
-import com.aiopenpocket.ui.theme.PersonaCardBg
-import com.aiopenpocket.ui.theme.PurpleAccent
-import com.aiopenpocket.ui.theme.PurpleAccentDark
+import com.aiopenpocket.ui.theme.ThemeMode
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 private val SettingsCardShape = RoundedCornerShape(16.dp)
@@ -174,8 +173,8 @@ fun SettingsScreen(
               .testTag("settings_save_button"),
             shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(
-              containerColor = PurpleAccent,
-              contentColor = PurpleAccentDark,
+              containerColor = MaterialTheme.colorScheme.primary,
+              contentColor = MaterialTheme.colorScheme.onPrimary,
             ),
           ) {
             Text(
@@ -187,7 +186,7 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(8.dp))
             Text(
               text = "Сохранено",
-              color = PurpleAccent,
+              color = MaterialTheme.colorScheme.primary,
               style = MaterialTheme.typography.bodyMedium,
               modifier = Modifier.align(Alignment.CenterHorizontally),
             )
@@ -269,6 +268,31 @@ fun SettingsScreen(
       Spacer(modifier = Modifier.height(28.dp))
 
       SettingsSectionHeader(
+        icon = Icons.Default.Palette,
+        title = "ТЕМА",
+        modifier = Modifier.padding(horizontal = 20.dp),
+      )
+      Spacer(modifier = Modifier.height(12.dp))
+      // SelectorCard оперирует строками — держим порядок и обратный маппинг label→enum (как у шрифта).
+      val themeLabels = remember {
+        linkedMapOf(
+          ThemeMode.LIGHT to "Светлая",
+          ThemeMode.DARK to "Тёмная",
+          ThemeMode.SYSTEM to "Системная",
+        )
+      }
+      val themeByLabel = remember { themeLabels.entries.associate { (mode, label) -> label to mode } }
+      SelectorCard(
+        selected = themeLabels.getValue(state.themeMode),
+        options = themeLabels.values.toList(),
+        onSelect = { label -> themeByLabel[label]?.let(viewModel::updateThemeMode) },
+        modifier = Modifier.padding(horizontal = 20.dp),
+        testTag = "settings_theme_selector",
+      )
+
+      Spacer(modifier = Modifier.height(28.dp))
+
+      SettingsSectionHeader(
         icon = Icons.Default.Psychology,
         title = "ПЕРСОНА",
         modifier = Modifier.padding(horizontal = 20.dp),
@@ -340,7 +364,7 @@ fun SettingsScreen(
         Icon(
           imageVector = Icons.Default.CalendarMonth,
           contentDescription = null,
-          tint = PurpleAccent,
+          tint = MaterialTheme.colorScheme.primary,
           modifier = Modifier.size(20.dp),
         )
         Spacer(modifier = Modifier.size(12.dp))
@@ -368,7 +392,7 @@ fun SettingsScreen(
     ModalBottomSheet(
       onDismissRequest = { showPersonaSheet = false },
       sheetState = personaSheetState,
-      containerColor = PersonaCardBg,
+      containerColor = MaterialTheme.colorScheme.surface,
     ) {
       Column(
         modifier = Modifier
@@ -419,7 +443,7 @@ private fun SettingsInfoCard(modifier: Modifier = Modifier) {
       Text(
         text = "AI ACADEMY",
         style = MaterialTheme.typography.labelLarge,
-        color = PurpleAccent,
+        color = MaterialTheme.colorScheme.primary,
       )
       Spacer(modifier = Modifier.height(4.dp))
       Text(
@@ -445,13 +469,13 @@ private fun SettingsSectionHeader(
     Icon(
       imageVector = icon,
       contentDescription = null,
-      tint = PurpleAccent,
+      tint = MaterialTheme.colorScheme.primary,
       modifier = Modifier.size(18.dp),
     )
     Text(
       text = title,
       style = MaterialTheme.typography.labelLarge,
-      color = PurpleAccent,
+      color = MaterialTheme.colorScheme.primary,
     )
   }
 }
@@ -492,8 +516,8 @@ private fun ApiKeyField(
       focusedIndicatorColor = Color.Transparent,
       unfocusedIndicatorColor = Color.Transparent,
       disabledIndicatorColor = Color.Transparent,
-      cursorColor = PurpleAccent,
-      focusedLabelColor = PurpleAccent,
+      cursorColor = MaterialTheme.colorScheme.primary,
+      focusedLabelColor = MaterialTheme.colorScheme.primary,
       unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
     ),
     modifier = modifier
@@ -526,13 +550,13 @@ private fun SelectorCard(
         modifier = Modifier
           .size(44.dp)
           .clip(CircleShape)
-          .background(PurpleAccentDark),
+          .background(MaterialTheme.colorScheme.onPrimary),
         contentAlignment = Alignment.Center,
       ) {
         Icon(
           imageVector = Icons.Default.Bolt,
           contentDescription = null,
-          tint = PurpleAccent,
+          tint = MaterialTheme.colorScheme.primary,
           modifier = Modifier.size(22.dp),
         )
       }
@@ -558,14 +582,14 @@ private fun SelectorCard(
       onDismissRequest = { expanded = false },
       modifier = Modifier
         .fillMaxWidth(0.9f)
-        .background(PersonaCardBg),
+        .background(MaterialTheme.colorScheme.surface),
     ) {
       options.forEach { option ->
         DropdownMenuItem(
           text = {
             Text(
               text = option,
-              color = if (option == selected) PurpleAccent else MaterialTheme.colorScheme.onSurface,
+              color = if (option == selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             )
           },
           onClick = {
@@ -595,13 +619,13 @@ private fun GoalIterationsCard(
       modifier = Modifier
         .size(44.dp)
         .clip(CircleShape)
-        .background(PurpleAccentDark),
+        .background(MaterialTheme.colorScheme.onPrimary),
       contentAlignment = Alignment.Center,
     ) {
       Icon(
         imageVector = Icons.Default.Loop,
         contentDescription = null,
-        tint = PurpleAccent,
+        tint = MaterialTheme.colorScheme.primary,
         modifier = Modifier.size(22.dp),
       )
     }
@@ -631,7 +655,7 @@ private fun GoalIterationsCard(
     Text(
       text = value.toString(),
       style = MaterialTheme.typography.titleLarge,
-      color = PurpleAccent,
+      color = MaterialTheme.colorScheme.primary,
       modifier = Modifier.padding(horizontal = 8.dp),
     )
     IconButton(onClick = { onChange(value + 1) }, enabled = value < 10) {
@@ -737,13 +761,13 @@ private fun IntegrationRow(
       modifier = Modifier
         .size(44.dp)
         .clip(CircleShape)
-        .background(PurpleAccentDark),
+        .background(MaterialTheme.colorScheme.onPrimary),
       contentAlignment = Alignment.Center,
     ) {
       Icon(
         imageVector = icon,
         contentDescription = null,
-        tint = PurpleAccent,
+        tint = MaterialTheme.colorScheme.primary,
         modifier = Modifier.size(22.dp),
       )
     }
@@ -769,8 +793,8 @@ private fun IntegrationRow(
         onClick = onRequest,
         shape = RoundedCornerShape(10.dp),
         colors = ButtonDefaults.buttonColors(
-          containerColor = PurpleAccent,
-          contentColor = PurpleAccentDark,
+          containerColor = MaterialTheme.colorScheme.primary,
+          contentColor = MaterialTheme.colorScheme.onPrimary,
         ),
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
       ) {
@@ -818,13 +842,13 @@ private fun PersonaSelectorCard(
       modifier = Modifier
         .size(44.dp)
         .clip(CircleShape)
-        .background(PurpleAccentDark),
+        .background(MaterialTheme.colorScheme.onPrimary),
       contentAlignment = Alignment.Center,
     ) {
       Icon(
         imageVector = Icons.Default.Psychology,
         contentDescription = null,
-        tint = PurpleAccent,
+        tint = MaterialTheme.colorScheme.primary,
         modifier = Modifier.size(22.dp),
       )
     }
