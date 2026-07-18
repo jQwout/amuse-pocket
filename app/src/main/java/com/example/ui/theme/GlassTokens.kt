@@ -40,7 +40,10 @@ object GlassTokens {
 
   /** 3 статичных пятна: фиолет сверху-слева, тёмный фиолет справа, глубокий синий снизу. */
   val AuroraSpots: List<AuroraSpot> = listOf(
-    AuroraSpot(PurpleAccent.copy(alpha = 0.22f), Offset(0.15f, 0.10f), 0.60f),
+    // Верхне-левое светлое пятно приглушено (0.22 → 0.14): на 0.22 near-white текст заголовков/
+    // описаний в верхней части каждого экрана терял контраст на светлой лаванде. Аврора остаётся,
+    // просто мягче.
+    AuroraSpot(PurpleAccent.copy(alpha = 0.14f), Offset(0.15f, 0.10f), 0.60f),
     AuroraSpot(PurpleAccentDark.copy(alpha = 0.45f), Offset(0.90f, 0.25f), 0.70f),
     AuroraSpot(Color(0xFF1B2A4A).copy(alpha = 0.55f), Offset(0.50f, 0.95f), 0.90f),
   )
