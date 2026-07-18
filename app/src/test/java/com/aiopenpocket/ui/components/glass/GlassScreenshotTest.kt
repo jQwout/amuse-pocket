@@ -15,6 +15,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.ui.theme.MyApplicationTheme
+import com.aiopenpocket.ui.theme.ThemeMode
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Rule
@@ -33,7 +34,7 @@ class GlassScreenshotTest {
 
   @Test fun glass_components_over_aurora() {
     composeTestRule.setContent {
-      MyApplicationTheme {
+      MyApplicationTheme(mode = ThemeMode.DARK) {
         val state = rememberGlassState()
         Box(Modifier.fillMaxSize().auroraBackground()) {
           LazyColumn(modifier = Modifier.fillMaxSize().glassSource(state), contentPadding = PaddingValues(top = 72.dp)) {
@@ -54,11 +55,38 @@ class GlassScreenshotTest {
       .captureRoboImage(filePath = "src/test/screenshots/glass_components.png")
   }
 
+  /**
+   * Тот же кадр в светлой теме — исполняемое доказательство переключения: бумажная база,
+   * аврора погашена (пустой список пятен), тинты карточек флипнуты в тёмные.
+   */
+  @Test fun glass_components_light() {
+    composeTestRule.setContent {
+      MyApplicationTheme(mode = ThemeMode.LIGHT) {
+        val state = rememberGlassState()
+        Box(Modifier.fillMaxSize().auroraBackground()) {
+          LazyColumn(modifier = Modifier.fillMaxSize().glassSource(state), contentPadding = PaddingValues(top = 72.dp)) {
+            item {
+              GlassCard(Modifier.fillMaxWidth().padding(16.dp)) {
+                Text("Light glass card", Modifier.padding(16.dp))
+              }
+            }
+          }
+          GlassSurface(
+            state = state,
+            modifier = Modifier.fillMaxWidth().height(64.dp),
+          ) { Text("Strong glass bar", Modifier.padding(16.dp)) }
+        }
+      }
+    }
+    composeTestRule.onRoot()
+      .captureRoboImage(filePath = "src/test/screenshots/glass_components_light.png")
+  }
+
   @Test
   @Config(qualifiers = RobolectricDeviceQualifiers.Pixel8, sdk = [30])
   fun glass_components_over_aurora_api30() {
     composeTestRule.setContent {
-      MyApplicationTheme {
+      MyApplicationTheme(mode = ThemeMode.DARK) {
         val state = rememberGlassState()
         Box(Modifier.fillMaxSize().auroraBackground()) {
           LazyColumn(modifier = Modifier.fillMaxSize().glassSource(state), contentPadding = PaddingValues(top = 72.dp)) {

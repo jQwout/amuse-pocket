@@ -14,6 +14,7 @@ import com.aiopenpocket.ui.onboarding.components.LanguageSelectionStep
 import com.aiopenpocket.ui.onboarding.components.PersonaCard
 import com.aiopenpocket.ui.onboarding.components.PersonaSelectionStep
 import com.aiopenpocket.ui.theme.MyApplicationTheme
+import com.aiopenpocket.ui.theme.ThemeMode
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Rule
@@ -43,7 +44,7 @@ class OnboardingGlassScreenshotTest {
   @Test
   fun onboarding_language_glass_screenshot() {
     composeTestRule.setContent {
-      MyApplicationTheme {
+      MyApplicationTheme(mode = ThemeMode.DARK) {
         Box(Modifier.fillMaxSize().auroraBackground()) {
           LanguageSelectionStep(selectedLanguage = "ru", onSelectLanguage = {})
         }
@@ -57,7 +58,7 @@ class OnboardingGlassScreenshotTest {
   @Test
   fun onboarding_persona_card_glass_screenshot() {
     composeTestRule.setContent {
-      MyApplicationTheme {
+      MyApplicationTheme(mode = ThemeMode.DARK) {
         Box(Modifier.fillMaxSize().auroraBackground()) {
           Column(modifier = Modifier.fillMaxWidth()) {
             PersonaCard(persona = PersonaCatalog.all[0], isSelected = true, onSelect = {})
@@ -74,7 +75,7 @@ class OnboardingGlassScreenshotTest {
   @Test
   fun onboarding_about_me_glass_screenshot() {
     composeTestRule.setContent {
-      MyApplicationTheme {
+      MyApplicationTheme(mode = ThemeMode.DARK) {
         Box(Modifier.fillMaxSize().auroraBackground()) {
           AboutMeStep(
             personaId = "sharp_partner",
@@ -94,7 +95,7 @@ class OnboardingGlassScreenshotTest {
   @Test
   fun onboarding_persona_step_glass_screenshot() {
     composeTestRule.setContent {
-      MyApplicationTheme {
+      MyApplicationTheme(mode = ThemeMode.DARK) {
         PersonaSelectionStep(
           selectedPersonaId = "sharp_partner",
           isSaving = false,
@@ -113,7 +114,7 @@ class OnboardingGlassScreenshotTest {
   @Test
   fun onboarding_language_step_chrome_glass_screenshot() {
     composeTestRule.setContent {
-      MyApplicationTheme {
+      MyApplicationTheme(mode = ThemeMode.DARK) {
         OnboardingContent(
           state = OnboardingUiState(currentStep = OnboardingStep.LANGUAGE, selectedLanguage = "ru"),
           editMode = false,
@@ -130,7 +131,7 @@ class OnboardingGlassScreenshotTest {
   @Test
   fun onboarding_profile_step_chrome_glass_screenshot() {
     composeTestRule.setContent {
-      MyApplicationTheme {
+      MyApplicationTheme(mode = ThemeMode.DARK) {
         OnboardingContent(
           state = OnboardingUiState(
             currentStep = OnboardingStep.PROFILE,

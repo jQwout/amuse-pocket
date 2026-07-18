@@ -37,7 +37,7 @@ import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
 import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.theme.MyApplicationTheme
-import com.aiopenpocket.ui.theme.PurpleAccent
+import com.aiopenpocket.ui.theme.ThemeMode
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 /**
@@ -77,7 +77,7 @@ fun PlanListScreen(
       Spacer(Modifier.height(12.dp))
       if (state.isLoading && total == 0) {
         Box(modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
-          CircularProgressIndicator(color = PurpleAccent)
+          CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
         }
         return@AcademyCollapsingScaffold
       }
@@ -109,7 +109,7 @@ private fun CountsRow(state: PlanListState, modifier: Modifier = Modifier) {
 private fun CountTile(label: String, count: Int, modifier: Modifier = Modifier) {
   GlassCard(modifier = modifier, shape = RoundedCornerShape(16.dp)) {
     Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
-      Text(text = count.toString(), style = MaterialTheme.typography.headlineSmall, color = PurpleAccent)
+      Text(text = count.toString(), style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
       Spacer(modifier = Modifier.height(2.dp))
       Text(
         text = label,
@@ -124,7 +124,7 @@ private fun CountTile(label: String, count: Int, modifier: Modifier = Modifier) 
 private fun PlanListSection(title: String, rows: List<PlanListRow>, onOpenPlan: (String) -> Unit, modifier: Modifier = Modifier) {
   if (rows.isEmpty()) return
   Column(modifier = modifier.fillMaxWidth()) {
-    Text(text = title, style = MaterialTheme.typography.labelLarge, color = PurpleAccent)
+    Text(text = title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
     Spacer(modifier = Modifier.height(8.dp))
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
       rows.forEach { row -> PlanListRowCard(row, onClick = { onOpenPlan(row.planId) }) }
@@ -254,7 +254,7 @@ internal fun samplePlanListState(): PlanListState = PlanListState(
 
 @Composable
 internal fun PlanListPreviewScaffold(state: PlanListState = samplePlanListState()) {
-  MyApplicationTheme {
+  MyApplicationTheme(mode = ThemeMode.DARK) {
     PlanListScreen(state = state, onOpenPlan = {}, onNavigateBack = {})
   }
 }

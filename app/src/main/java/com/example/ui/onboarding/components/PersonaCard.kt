@@ -35,10 +35,8 @@ import com.aiopenpocket.agent.core.persona.PersonaInfo
 import com.aiopenpocket.agent.core.persona.PersonaQuote
 import com.aiopenpocket.agent.core.persona.PersonaStats
 import com.aiopenpocket.ui.components.glass.GlassCard
-import com.aiopenpocket.ui.theme.BorderDark
 import com.aiopenpocket.ui.theme.MyApplicationTheme
-import com.aiopenpocket.ui.theme.PersonaQuoteBg
-import com.aiopenpocket.ui.theme.PurpleAccent
+import com.aiopenpocket.ui.theme.ThemeMode
 
 @Composable
 fun PersonaCard(
@@ -51,7 +49,7 @@ fun PersonaCard(
   // GlassCard's own blick border carries the resting look; the selected card layers a 1.5dp
   // accent border on top of it (same technique as LanguageSelectionStep).
   val borderModifier = if (isSelected) {
-    Modifier.border(1.5.dp, PurpleAccent, shape)
+    Modifier.border(1.5.dp, MaterialTheme.colorScheme.primary, shape)
   } else {
     Modifier
   }
@@ -99,7 +97,7 @@ fun PersonaCard(
           .align(Alignment.TopEnd)
           .padding(12.dp)
           .clip(CircleShape)
-          .background(PurpleAccent)
+          .background(MaterialTheme.colorScheme.primary)
           .padding(4.dp),
         contentAlignment = Alignment.Center,
       ) {
@@ -144,7 +142,7 @@ private fun StatRow(label: String, value: Int) {
         .weight(1f)
         .height(6.dp)
         .clip(RoundedCornerShape(3.dp))
-        .background(PersonaQuoteBg),
+        .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
       Box(
         modifier = Modifier
@@ -179,8 +177,8 @@ private fun PerksRow(perks: List<String>) {
       Box(
         modifier = Modifier
           .clip(RoundedCornerShape(6.dp))
-          .background(PersonaQuoteBg)
-          .border(0.5.dp, BorderDark, RoundedCornerShape(6.dp))
+          .background(MaterialTheme.colorScheme.surfaceVariant)
+          .border(0.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(6.dp))
           .padding(horizontal = 10.dp, vertical = 5.dp),
       ) {
         Text(
@@ -206,7 +204,7 @@ private fun QuoteRow(quote: PersonaQuote) {
     modifier = Modifier
       .fillMaxWidth()
       .clip(RoundedCornerShape(8.dp))
-      .background(PersonaQuoteBg)
+      .background(MaterialTheme.colorScheme.surfaceVariant)
       .padding(horizontal = 12.dp, vertical = 8.dp),
   ) {
     Text(
@@ -226,7 +224,7 @@ private fun QuoteRow(quote: PersonaQuote) {
 @Preview(showBackground = true, backgroundColor = 0xFF1C1B1F, heightDp = 540)
 @Composable
 private fun PersonaCardPreview() {
-  MyApplicationTheme {
+  MyApplicationTheme(mode = ThemeMode.DARK) {
     PersonaCard(persona = PersonaCatalog.all.first(), isSelected = true, onSelect = {})
   }
 }

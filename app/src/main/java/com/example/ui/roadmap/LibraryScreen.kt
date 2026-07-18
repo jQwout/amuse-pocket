@@ -52,9 +52,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import com.aiopenpocket.ui.theme.CardDark
-import com.aiopenpocket.ui.theme.PurpleAccent
-import com.aiopenpocket.ui.theme.PurpleAccentDark
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 @Composable
@@ -135,7 +132,7 @@ private fun LibraryCard(
     modifier = Modifier
       .fillMaxWidth()
       .clip(RoundedCornerShape(16.dp))
-      .background(CardDark)
+      .background(MaterialTheme.colorScheme.surfaceVariant)
       .clickable(onClick = onClick)
       .padding(16.dp),
     verticalAlignment = Alignment.CenterVertically,
@@ -144,13 +141,13 @@ private fun LibraryCard(
       modifier = Modifier
         .size(44.dp)
         .clip(CircleShape)
-        .background(PurpleAccentDark),
+        .background(MaterialTheme.colorScheme.onPrimary),
       contentAlignment = Alignment.Center,
     ) {
       Icon(
         imageVector = lessonIcon(lesson.iconKey),
         contentDescription = null,
-        tint = PurpleAccent,
+        tint = MaterialTheme.colorScheme.primary,
         modifier = Modifier.size(22.dp),
       )
     }
@@ -175,7 +172,7 @@ private fun LibraryCard(
       Icon(
         imageVector = Icons.Default.Check,
         contentDescription = "Пройдено",
-        tint = PurpleAccent,
+        tint = MaterialTheme.colorScheme.primary,
         modifier = Modifier.size(20.dp),
       )
     }

@@ -21,7 +21,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
-import com.aiopenpocket.ui.theme.DarkBg
 import com.aiopenpocket.ui.theme.GlassTokens
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
@@ -60,9 +59,11 @@ fun GlassSurface(
   border: Brush? = GlassTokens.BorderBrush,
   content: @Composable BoxScope.() -> Unit,
 ) {
-  val style = remember(tint) {
+  // Тему нельзя читать внутри remember{} — поднимаем цвет фона в composable-скоуп и кладём в ключи.
+  val backgroundColor = MaterialTheme.colorScheme.background
+  val style = remember(tint, backgroundColor) {
     HazeStyle(
-      backgroundColor = DarkBg,
+      backgroundColor = backgroundColor,
       tints = listOf(HazeTint(tint)),
       blurRadius = GlassTokens.BlurRadius,
     )

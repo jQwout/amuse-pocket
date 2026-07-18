@@ -26,7 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.theme.GlassTokens
 import com.aiopenpocket.ui.theme.MyApplicationTheme
-import com.aiopenpocket.ui.theme.PurpleAccent
+import com.aiopenpocket.ui.theme.ThemeMode
 
 /** One selectable language. Only [enabled] languages can be picked (RU only for now). */
 private data class LanguageOption(
@@ -84,7 +84,7 @@ fun LanguageSelectionStep(
       GlassCard(
         onClick = onLanguageClick,
         shape = shape,
-        tint = if (isSelected) PurpleAccent.copy(alpha = 0.18f) else GlassTokens.LightTint,
+        tint = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else GlassTokens.LightTint,
         modifier = Modifier
           .fillMaxWidth()
           .padding(vertical = 6.dp)
@@ -136,7 +136,7 @@ fun LanguageSelectionStep(
 @Preview(showBackground = true, backgroundColor = 0xFF1C1B1F)
 @Composable
 private fun LanguageSelectionStepPreview() {
-  MyApplicationTheme {
+  MyApplicationTheme(mode = ThemeMode.DARK) {
     LanguageSelectionStep(selectedLanguage = "ru", onSelectLanguage = {})
   }
 }

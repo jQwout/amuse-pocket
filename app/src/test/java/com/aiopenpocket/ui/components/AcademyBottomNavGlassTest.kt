@@ -10,6 +10,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import com.aiopenpocket.ui.components.glass.auroraBackground
 import com.aiopenpocket.ui.theme.MyApplicationTheme
+import com.aiopenpocket.ui.theme.ThemeMode
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Rule
@@ -33,7 +34,7 @@ class AcademyBottomNavGlassTest {
   @Test
   fun bottom_nav_over_aurora() {
     composeTestRule.setContent {
-      MyApplicationTheme {
+      MyApplicationTheme(mode = ThemeMode.DARK) {
         Box(Modifier.fillMaxSize().auroraBackground()) {
           AcademyBottomNav(
             selectedTab = AcademyTab.Chat,

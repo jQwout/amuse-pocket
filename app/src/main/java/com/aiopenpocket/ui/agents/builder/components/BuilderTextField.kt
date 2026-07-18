@@ -13,7 +13,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.ui.theme.GlassTokens
-import com.aiopenpocket.ui.theme.PurpleAccent
 
 /**
  * Единое поле ввода визарда конструктора агента. Раньше каждый шаг рисовал свой
@@ -56,10 +55,10 @@ fun BuilderTextField(
       unfocusedIndicatorColor = Color.Transparent,
       errorIndicatorColor = Color.Transparent,
       disabledIndicatorColor = Color.Transparent,
-      cursorColor = PurpleAccent,
+      cursorColor = MaterialTheme.colorScheme.primary,
       focusedTextColor = MaterialTheme.colorScheme.onSurface,
       unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-      focusedLabelColor = PurpleAccent,
+      focusedLabelColor = MaterialTheme.colorScheme.primary,
       unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
       focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
       unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,

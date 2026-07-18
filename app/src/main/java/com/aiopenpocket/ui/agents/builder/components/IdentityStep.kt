@@ -28,7 +28,6 @@ import com.aiopenpocket.agent.core.agent.AgentValidator
 import com.aiopenpocket.agent.core.agent.ValidationIssue
 import com.aiopenpocket.ui.agents.builder.AgentDraft
 import com.aiopenpocket.ui.agents.iconFor
-import com.aiopenpocket.ui.theme.PurpleAccent
 
 /** Every icon key the identity step lets a user pick — mirrors [com.aiopenpocket.ui.agents.iconFor]'s known keys. */
 private val ICON_KEYS = listOf("wallet", "translate", "checklist", "alarm", "restaurant", "book", "robot")
@@ -139,14 +138,14 @@ private fun IconChoice(iconKey: String, selected: Boolean, onClick: () -> Unit) 
     modifier = Modifier
       .size(48.dp)
       .clip(CircleShape)
-      .background(PurpleAccent.copy(alpha = if (selected) 0.35f else 0.10f))
+      .background(MaterialTheme.colorScheme.primary.copy(alpha = if (selected) 0.35f else 0.10f))
       .clickable(onClick = onClick),
     contentAlignment = Alignment.Center,
   ) {
     Icon(
       imageVector = iconFor(iconKey),
       contentDescription = iconKey,
-      tint = PurpleAccent,
+      tint = MaterialTheme.colorScheme.primary,
     )
   }
 }

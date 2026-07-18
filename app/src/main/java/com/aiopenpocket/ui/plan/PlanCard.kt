@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import com.aiopenpocket.ui.theme.LimeSignal
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -35,7 +36,6 @@ import com.aiopenpocket.agent.core.plan.model.PlanStatus
 import com.aiopenpocket.agent.core.plan.model.PlanStep
 import com.aiopenpocket.agent.core.plan.model.StepStatus
 import com.aiopenpocket.ui.components.glass.GlassCard
-import com.aiopenpocket.ui.theme.PurpleAccent
 import com.aiopenpocket.ui.util.formatRelativeDate
 import kotlinx.coroutines.flow.Flow
 
@@ -56,7 +56,7 @@ fun planStatusLabel(status: PlanStatus): String = when (status) {
 fun planStatusColor(status: PlanStatus): Color = when (status) {
   PlanStatus.DRAFT, PlanStatus.NEEDS_INFO, PlanStatus.NEEDS_REVISION -> Color(0xFF9E9E9E)
   PlanStatus.AWAITING_APPROVAL -> Color(0xFF42A5F5)
-  PlanStatus.ACTIVE -> PurpleAccent
+  PlanStatus.ACTIVE -> LimeSignal
   PlanStatus.PAUSED -> Color(0xFFFFA726)
   PlanStatus.COMPLETED -> Color(0xFF4CAF50)
   PlanStatus.CANCELLED -> Color(0xFF9E9E9E)
@@ -78,7 +78,7 @@ fun stepStatusLabel(status: StepStatus): String = when (status) {
 /** Accent color for a [StepStatus] badge — mirrors [planStatusColor]'s palette conventions. */
 fun stepStatusColor(status: StepStatus): Color = when (status) {
   StepStatus.PENDING, StepStatus.READY -> Color(0xFF9E9E9E)
-  StepStatus.EXECUTING, StepStatus.VERIFYING -> PurpleAccent
+  StepStatus.EXECUTING, StepStatus.VERIFYING -> LimeSignal
   StepStatus.BLOCKED -> Color(0xFFFFA726)
   StepStatus.COMPLETED, StepStatus.SKIPPED -> Color(0xFF4CAF50)
   StepStatus.FAILED -> Color(0xFFE53935)
