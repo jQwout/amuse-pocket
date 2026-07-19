@@ -118,6 +118,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
@@ -1592,6 +1593,7 @@ private fun ChatInput(
     onPermissionDenied: () -> Unit,
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
     var pendingStart by remember { mutableStateOf(false) }
     val micPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -1695,7 +1697,8 @@ private fun ChatInput(
                     // Кнопка-кружок: залита акцентом, когда есть что отправить; иначе приглушена (как в макете).
                     val canSend = value.isNotBlank()
                     IconButton(
-                        onClick = onSend,
+                        // Отправка сворачивает клавиатуру: снимаем фокус с поля -> IME скрывается.
+                        onClick = { focusManager.clearFocus(); onSend() },
                         enabled = canSend,
                         modifier = Modifier
                             .size(44.dp)
@@ -1727,6 +1730,7 @@ private fun FullScreenComposer(
     onCollapse: () -> Unit,
     onSend: () -> Unit,
 ) {
+    val focusManager = LocalFocusManager.current
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
@@ -1773,7 +1777,7 @@ private fun FullScreenComposer(
                     .padding(16.dp),
                 horizontalArrangement = Arrangement.End,
             ) {
-                Button(onClick = onSend, enabled = value.isNotBlank()) {
+                Button(onClick = { focusManager.clearFocus(); onSend() }, enabled = value.isNotBlank()) {
                     Text("Отправить")
                     Spacer(Modifier.width(8.dp))
                     Icon(Icons.AutoMirrored.Default.Send, contentDescription = null, modifier = Modifier.size(18.dp))
