@@ -87,10 +87,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
 import com.aiopenpocket.ui.onboarding.components.PersonaCard
 import com.aiopenpocket.ui.components.AcademyBottomNav
 import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
+import com.aiopenpocket.ui.components.MarkdownText
 import com.aiopenpocket.ui.components.glass.glassCardSurface
 import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.components.AcademyTab
@@ -323,20 +325,14 @@ fun SettingsScreen(
 
       SettingsSectionHeader(
         icon = Icons.Default.FormatSize,
-        title = "РАЗМЕР ШРИФТА В ЧАТЕ",
+        title = "РАЗМЕР ТЕКСТА",
         modifier = Modifier.padding(horizontal = 20.dp),
       )
       Spacer(modifier = Modifier.height(12.dp))
-      // Список опций и обратный маппинг label→enum запоминаем один раз (не пересобираем на каждую
-      // рекомпозицию); SelectorCard оперирует строками, поэтому выбранный label резолвим по map.
-      val fontOptions = remember { ChatFontScale.entries.map { it.label } }
-      val fontByLabel = remember { ChatFontScale.entries.associateBy { it.label } }
-      SelectorCard(
-        selected = state.chatFontScale.label,
-        options = fontOptions,
-        onSelect = { label -> fontByLabel[label]?.let(viewModel::updateChatFontScale) },
+      ChatFontSizeCard(
+        selected = state.chatFontScale,
+        onSelect = viewModel::updateChatFontScale,
         modifier = Modifier.padding(horizontal = 20.dp),
-        testTag = "settings_chat_font_selector",
       )
 
       Spacer(modifier = Modifier.height(28.dp))
@@ -524,6 +520,81 @@ private fun ApiKeyField(
       .fillMaxWidth()
       .border(1.dp, GlassTokens.BorderBrush, SettingsFieldShape),
   )
+}
+
+/**
+ * Размер шрифта чата: сегмент-контрол (буквы «A» растущего кегля между фланкирующими A/A) +
+ * живой пузырь-превью, отрисованный тем же [MarkdownText], что и настоящий чат — размер точь-в-точь.
+ * Применение по «Сохранить»: [onSelect] обновляет только состояние (как раньше делал SelectorCard),
+ * персист — в SettingsViewModel.save(). Превью реагирует на выбор мгновенно (читает [selected]).
+ * `internal` (не `private`) ради скриншот-теста в том же пакете.
+ */
+@Composable
+internal fun ChatFontSizeCard(
+  selected: ChatFontScale,
+  onSelect: (ChatFontScale) -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  Column(modifier = modifier) {
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .testTag("settings_chat_font_selector"),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      // Фланкирующая маленькая «A» — левый край оси размера.
+      Text(text = "A", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      Row(
+        modifier = Modifier
+          .weight(1f)
+          .padding(horizontal = 12.dp)
+          .clip(SettingsCardShape)
+          .background(MaterialTheme.colorScheme.surfaceVariant)
+          .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+      ) {
+        ChatFontScale.entries.forEach { preset ->
+          val isSelected = preset == selected
+          Box(
+            modifier = Modifier
+              .weight(1f)
+              .clip(SettingsFieldShape)
+              .background(if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent)
+              .clickable { onSelect(preset) }
+              .padding(vertical = 10.dp)
+              .testTag("font_segment_${preset.name}"),
+            contentAlignment = Alignment.Center,
+          ) {
+            // «A» кеглем самого пресета — сегменты растут слева направо.
+            Text(
+              text = "A",
+              fontSize = (15 * preset.scale).sp,
+              color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+            )
+          }
+        }
+      }
+      // Фланкирующая крупная «A» — правый край оси.
+      Text(text = "A", fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    // Живой пузырь-превью: тот же MarkdownText(fontScale), что и в бою — размер совпадает с чатом.
+    Box(
+      modifier = Modifier
+        .clip(RoundedCornerShape(20.dp))
+        .background(MaterialTheme.colorScheme.surfaceVariant)
+        .padding(horizontal = 16.dp, vertical = 14.dp)
+        .testTag("settings_chat_font_preview"),
+    ) {
+      MarkdownText(
+        text = "Пример текста ответа — так агент будет выглядеть в чате.",
+        compact = true,
+        fontScale = selected.scale,
+      )
+    }
+  }
 }
 
 @Composable
