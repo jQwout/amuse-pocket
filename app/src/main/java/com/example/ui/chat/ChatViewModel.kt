@@ -76,6 +76,12 @@ class ChatViewModel(
     private val _state = MutableStateFlow(ChatUiState())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
 
+    // Текст ввода — ОТДЕЛЬНЫЙ поток (не поле _state), по тому же принципу, что и streamingText ниже:
+    // каждое нажатие клавиши иначе меняло бы идентичность state и рекомпозировало ВСЁ тело чата
+    // (лента/оверлеи), а не только композер. Читается узким скоупом у поля ввода в ChatScreen.
+    private val _inputText = MutableStateFlow("")
+    val inputText: StateFlow<String> = _inputText.asStateFlow()
+
     /** Текущий conversationId для подписок на сессию хода (пустой = чат ещё не создан). */
     private val convIdFlow = MutableStateFlow("")
     private var sessionJob: Job? = null
@@ -131,7 +137,7 @@ class ChatViewModel(
         }
         viewModelScope.launch {
             voiceController.transcripts.collect { transcript ->
-                _state.update { it.copy(inputText = appendTranscript(it.inputText, transcript)) }
+                _inputText.update { appendTranscript(it, transcript) }
             }
         }
         // Tool-approval бар (Task 9): coordinator публикует pending-запросы ГЛОБАЛЬНО (по всем
@@ -250,6 +256,7 @@ class ChatViewModel(
         // сбросил бы их в дефолт, а реактивный коллектор из DataStore на неизменном значении не
         // переэмитит, и настройка застряла бы на дефолте.
         _state.update { prev -> ChatUiState.resetFor(id, prev.chatFontScale, prev.goalMaxIterations) }
+        _inputText.value = "" // черновик ввода между диалогами не переносим (раньше это делал resetFor)
         convIdFlow.value = id
         // Новый чат (id пуст): диалога ещё нет, его создаст ensureConversation при отправке.
         // Коллектор по getMessages("") всегда пуст — не запускаем его.
@@ -333,7 +340,7 @@ class ChatViewModel(
     /** Sends [text] into the conversation as a user message (used by interactive cards). */
     fun sendUserMessage(text: String) {
         if (text.isBlank()) return
-        _state.update { it.copy(inputText = text) }
+        _inputText.value = text
         sendMessage()
     }
 
@@ -348,7 +355,7 @@ class ChatViewModel(
 
     fun handleIntent(intent: ChatIntent) {
         when (intent) {
-            is ChatIntent.UpdateInput -> _state.update { it.copy(inputText = intent.text) }
+            is ChatIntent.UpdateInput -> { _inputText.value = intent.text }
             is ChatIntent.SendMessage -> sendMessage()
             is ChatIntent.CancelRequest -> cancel()
             is ChatIntent.RetryRequest -> retry()
@@ -410,9 +417,9 @@ class ChatViewModel(
     }
 
     private fun sendMessage() {
-        val text = _state.value.inputText.trim()
+        val text = _inputText.value.trim()
         if (text.isEmpty()) return
-        _state.update { it.copy(inputText = "") }
+        _inputText.value = ""
         viewModelScope.launch {
             try {
                 // Маршрут "chat/new" даёт пустой id — создаём диалог ДО launchTurn: сессия ключуется по id.

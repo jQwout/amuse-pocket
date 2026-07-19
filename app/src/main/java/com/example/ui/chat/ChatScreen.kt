@@ -29,7 +29,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -120,6 +119,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -387,9 +387,11 @@ fun ChatScreen(
         // ПОД шапкой и композером, поэтому за стеклом видны и размываются сами сообщения, а не только
         // аурора. Высоты баров меряем (onSizeChanged) → contentPadding ленты, чтобы крайние сообщения
         // вставали у кромки бара, а не прятались под ним.
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            // Высота всего Box (весь экран). Видимый вьюпорт между барами = fullHeight - topPad - bottomPad.
-            val fullHeight = maxHeight
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Высота окна для tail-спейсера. Берём из LocalWindowInfo, а НЕ из BoxWithConstraints: тот —
+            // SubcomposeLayout и субкомпозировал весь экран на каждую рекомпозицию тела (дорого при печати).
+            // Видимый вьюпорт между барами = fullHeight - topPad - bottomPad.
+            val fullHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
 
             // Фильтр закреплённых пересчитываем только при смене списка сообщений. Без remember он гоняется
             // на КАЖДУЮ рекомпозицию тела экрана — а во время стрима это каждый токен (O(n) на токен).
@@ -758,8 +760,11 @@ fun ChatScreen(
                                     onDone = { viewModel.handleIntent(ChatIntent.ToggleVoiceInput) },
                                 )
                             } else {
+                                // inputText — из отдельного потока, читаем узким скоупом: печать
+                                // рекомпозирует только композер, а не всё тело чата (лента/оверлеи).
+                                val inputText by viewModel.inputText.collectAsState()
                                 ChatInput(
-                                    value = state.inputText,
+                                    value = inputText,
                                     onValueChange = { viewModel.handleIntent(ChatIntent.UpdateInput(it)) },
                                     onSend = { viewModel.handleIntent(ChatIntent.SendMessage) },
                                     onCancel = { viewModel.handleIntent(ChatIntent.CancelRequest) },
@@ -866,8 +871,9 @@ fun ChatScreen(
             exit = fadeOut(animationSpec = tween(160)) +
                     scaleOut(targetScale = 0.92f, animationSpec = tween(180)),
         ) {
+            val inputText by viewModel.inputText.collectAsState()
             FullScreenComposer(
-                value = state.inputText,
+                value = inputText,
                 onValueChange = { viewModel.handleIntent(ChatIntent.UpdateInput(it)) },
                 onClear = { viewModel.handleIntent(ChatIntent.UpdateInput("")) },
                 onCollapse = { composerExpanded = false },

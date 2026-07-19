@@ -38,7 +38,6 @@ data class ChatUiState(
   val messages: List<Message> = emptyList(),
   /** True, пока в БД есть сообщения старше текущего окна (см. пагинацию в ChatViewModel). */
   val hasMoreOlder: Boolean = false,
-  val inputText: String = "",
   /**
    * Индексы сообщений (в [messages]), содержащих текущий поисковый запрос. Считаются во
    * ViewModel с дебаунсом на Dispatchers.Default — раньше скан шёл в композиции на каждый

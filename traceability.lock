@@ -75,11 +75,11 @@
     },
     "streaming-llm-chat-6595a1": {
       "hash": "da42958a72ed",
-      "git": "a84a22b"
+      "git": "8312904"
     },
     "structured-plan-engine-907066": {
-      "hash": "ee2005a62a2a",
-      "git": "a84a22b"
+      "hash": "1faa2234e28c",
+      "git": "8312904"
     },
     "swappable-persona-e5e65e": {
       "hash": "04658767fa08",
@@ -91,7 +91,7 @@
     },
     "user-agent-builder-848153": {
       "hash": "fd5aa4b3d5fe",
-      "git": "a84a22b"
+      "git": "8312904"
     },
     "voice-input-1a0dfd": {
       "hash": "f7bf264dc5bc",
