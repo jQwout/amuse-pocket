@@ -42,7 +42,6 @@ import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.model.Message
 import com.aiopenpocket.ui.chat.DrivenUiCard
 import com.aiopenpocket.ui.chat.DrivenUiEngine
-import com.aiopenpocket.ui.chat.RenderDrivenUiCard
 import com.aiopenpocket.ui.chat.ResponseStats
 import com.aiopenpocket.ui.chat.toMarkdown
 import com.aiopenpocket.ui.components.MarkdownText
