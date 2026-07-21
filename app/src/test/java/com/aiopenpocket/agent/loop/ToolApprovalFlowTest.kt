@@ -30,6 +30,7 @@ import com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator
 import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.data.database.AppDatabase
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -57,6 +58,7 @@ import org.robolectric.annotation.Config
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
+@OptIn(ExperimentalCoroutinesApi::class) // UnconfinedTestDispatcher
 class ToolApprovalFlowTest {
 
   private object NoopLog : AgentLog {
