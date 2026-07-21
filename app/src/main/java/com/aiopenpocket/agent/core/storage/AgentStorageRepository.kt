@@ -18,7 +18,8 @@ import dev.zacsweers.metro.SingleIn
  * model could set - this repository is not itself where that guarantee lives.
  */
 @SingleIn(AppScope::class)
-class AgentStorageRepository @Inject constructor(
+@Inject
+class AgentStorageRepository(
   private val dao: AgentStorageDao,
 ) {
   /** Per-key upsert (not a whole-collection replace) - see [AgentStorageEntity]'s kdoc. */

@@ -147,7 +147,7 @@ val AgentDetailState.completedPlansCount: Int get() = plans.count { it.status in
  */
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
-@ViewModelKey(AgentDetailViewModel::class)
+@ViewModelKey
 class AgentDetailViewModel(
   private val agentResolver: AgentResolver,
   private val userAgentRepository: UserAgentRepository,

@@ -33,19 +33,20 @@ object DatabaseBindings {
     fun provideDatabase(application: Application): AppDatabase =
         // Pre-release policy (unchanged by Task 2/4/8/plan-Task 3/plan-Task 11/the database_query
         // hardening's Part B, just corrected to describe it honestly): schema is not versioned toward a
-        // stable baseline yet — AppDatabase.version is currently 8 (bumped from 2 -> 3 by the
+        // stable baseline yet — AppDatabase.version is currently 9 (bumped from 2 -> 3 by the
         // user-agent-builder feature's user_agents table, 3 -> 4 by its user_skills table, 4 -> 5 by its
         // agent_hooks/agent_hook_runs tables, 5 -> 6 by the Structured Plan Engine's agent_plans/
         // plan_versions/plan_step_states/plan_evidence/plan_events tables, 6 -> 7 by that same engine's
         // typed heartbeat columns on the existing heartbeats table — targetType/planId/planVersion/
-        // planStepId, 7 -> 8 by storage_tool's agent_storage table). Every schema change just bumps this
+        // planStepId, 7 -> 8 by storage_tool's agent_storage table, 8 -> 9 by dropping the isPinned
+        // column when message pinning was removed). Every schema change just bumps this
         // number; Room recreates the DB from scratch (fallbackToDestructiveMigration) instead of
         // migrating, so any local dev data — including custom agent drafts, their custom skills/hooks,
         // any in-progress plan, and any agent's stored KV state — can be lost on upgrade. Acceptable
         // pre-release (no production users yet, confirmed 2026-07-12). Real Migration + addMigrations +
         // schema export start from the first release's baseline, not before.
         Room.databaseBuilder(application, AppDatabase::class.java, "ai_open_pocket_db")
-            .fallbackToDestructiveMigration()
+            .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
 
     @Provides

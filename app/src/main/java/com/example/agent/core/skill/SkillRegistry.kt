@@ -20,7 +20,8 @@ import com.aiopenpocket.di.AppScope
  * набор мог измениться.
  */
 @SingleIn(AppScope::class)
-class SkillRegistry @Inject constructor(
+@Inject
+class SkillRegistry(
   builtIn: Set<@JvmSuppressWildcards Skill>,
   private val userSkillRepository: UserSkillRepository,
 ) {

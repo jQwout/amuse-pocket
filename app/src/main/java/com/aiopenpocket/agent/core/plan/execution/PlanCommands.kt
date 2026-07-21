@@ -67,7 +67,8 @@ interface PlanScheduleSync {
  * no path that calls this class to *create* that approval.
  */
 @SingleIn(AppScope::class)
-class PlanCommands @Inject constructor(
+@Inject
+class PlanCommands(
   private val repository: PlanRepository,
   private val scheduler: PlanScheduleSync,
   private val hookRepository: AgentHookRepository,

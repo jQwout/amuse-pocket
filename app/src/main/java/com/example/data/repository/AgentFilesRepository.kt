@@ -21,7 +21,8 @@ data class AgentFile(val name: String, val sizeBytes: Long, val lastModified: Lo
  * ходит в agent-tool-слой.
  */
 @SingleIn(AppScope::class)
-class AgentFilesRepository @Inject constructor(private val application: Application) {
+@Inject
+class AgentFilesRepository(private val application: Application) {
 
   suspend fun list(agentId: String): List<AgentFile> = withContext(Dispatchers.IO) {
     val sandboxDir: File = sandboxRoot(application.filesDir, agentId)

@@ -56,7 +56,7 @@ import kotlinx.coroutines.withContext
 
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
-@ViewModelKey(ChatViewModel::class)
+@ViewModelKey
 class ChatViewModel(
     private val conversationRepository: ConversationRepository,
     private val turnManager: TurnManager,

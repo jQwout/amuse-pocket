@@ -22,7 +22,8 @@ import kotlinx.serialization.json.JsonPrimitive
  * - возвращает `null`, если в ответе не удалось найти/разобрать JSON-объект (профиль не извлёкся);
  * - иначе — профиль с уже обрезанными (trim) полями.
  */
-class ExtractUserProfileUseCase @Inject constructor(
+@Inject
+class ExtractUserProfileUseCase(
   private val llmClient: LlmClient,
 ) {
 

@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
 
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
-@ViewModelKey(QuizViewModel::class)
+@ViewModelKey
 class QuizViewModel(
   private val userPreferencesRepository: UserPreferencesRepository,
 ) : ViewModel() {

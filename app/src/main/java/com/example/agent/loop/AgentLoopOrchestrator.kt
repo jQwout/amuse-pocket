@@ -37,7 +37,8 @@ import com.aiopenpocket.di.AppScope
  */
 // @trace rezhimy-agenta-plan-i-goal-ee2361
 @SingleIn(AppScope::class)
-class AgentLoopOrchestrator @Inject constructor(
+@Inject
+class AgentLoopOrchestrator(
   private val prePromptAssembler: PrePromptAssembler,
   private val conversationAnnotator: ConversationAnnotator,
   private val registry: ToolRegistry,

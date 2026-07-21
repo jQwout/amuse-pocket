@@ -6,7 +6,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonElement
 import dev.zacsweers.metro.Inject
 
-class ToolExecutor @Inject constructor(
+@Inject
+class ToolExecutor(
   private val registry: ToolRegistry,
 ) {
   suspend fun execute(name: String, arguments: Map<String, JsonElement>): ToolResult {

@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AltRoute
+import androidx.compose.material.icons.automirrored.filled.ManageSearch
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Architecture
@@ -38,7 +39,6 @@ import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Loop
-import androidx.compose.material.icons.filled.ManageSearch
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.TrackChanges
@@ -161,7 +161,7 @@ val ROADMAP_LEVELS = listOf(
     "rag",
     "RAG: ответы по твоей базе",
     "Почему модель не знает твои файлы и как поиск нужных кусков перед ответом это чинит.",
-    Icons.Default.ManageSearch,
+    Icons.AutoMirrored.Filled.ManageSearch,
   ),
   RoadmapLevel(
     "plan_mode",

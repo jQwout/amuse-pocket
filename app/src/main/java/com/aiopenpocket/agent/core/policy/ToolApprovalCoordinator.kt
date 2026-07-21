@@ -34,7 +34,8 @@ import java.util.concurrent.ConcurrentHashMap
  * bookkeeping, it just doesn't force a `false` value into a deferred nobody will read.
  */
 @SingleIn(AppScope::class)
-class ToolApprovalCoordinator @Inject constructor() {
+@Inject
+class ToolApprovalCoordinator() {
 
   private class Entry(val request: ToolApprovalRequest, val deferred: CompletableDeferred<Boolean>)
 

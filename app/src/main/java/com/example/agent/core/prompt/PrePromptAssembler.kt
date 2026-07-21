@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.agent.core.prompt
+package com.aiopenpocket.agent.core.prompt
 
 // @trace rezhimy-agenta-plan-i-goal-ee2361
 // @trace user-agent-builder-848153
@@ -20,7 +20,8 @@ import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
 
 @SingleIn(AppScope::class)
-class PrePromptAssembler @Inject constructor(
+@Inject
+class PrePromptAssembler(
   private val assets: AssetSource,
   private val memoryRepository: MemoryRepository,
   private val conversationRepository: ConversationRepository,

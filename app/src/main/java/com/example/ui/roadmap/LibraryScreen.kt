@@ -20,8 +20,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material.icons.automirrored.filled.ManageSearch
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AccountTree
-import androidx.compose.material.icons.filled.Article
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Build
@@ -33,9 +35,7 @@ import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Loop
-import androidx.compose.material.icons.filled.ManageSearch
 import androidx.compose.material.icons.filled.Memory
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.TrackChanges
@@ -193,9 +193,9 @@ private fun lessonIcon(key: String): ImageVector = when (key) {
   "edit", "chat" -> Icons.Default.EditNote
   "target" -> Icons.Default.TrackChanges
   "thermostat", "temperature" -> Icons.Default.Thermostat
-  "manage_search", "search" -> Icons.Default.ManageSearch
+  "manage_search", "search" -> Icons.AutoMirrored.Filled.ManageSearch
   "layers", "context" -> Icons.Default.Layers
   "auto_awesome", "reflect" -> Icons.Default.AutoAwesome
-  "book" -> Icons.Default.MenuBook
-  else -> Icons.Default.Article
+  "book" -> Icons.AutoMirrored.Filled.MenuBook
+  else -> Icons.AutoMirrored.Filled.Article
 }

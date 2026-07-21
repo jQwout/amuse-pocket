@@ -45,7 +45,8 @@ import dev.zacsweers.metro.SingleIn
  * upstream and continue passing the result in here — either way [build]'s signature stays the seam.
  */
 @SingleIn(AppScope::class)
-class PlanPromptBuilder @Inject constructor(
+@Inject
+class PlanPromptBuilder(
   private val assets: AssetSource,
 ) {
 

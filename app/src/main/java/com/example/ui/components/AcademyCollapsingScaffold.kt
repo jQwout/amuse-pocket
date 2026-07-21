@@ -67,7 +67,7 @@ fun AcademyCollapsingScaffold(
           },
           navigationIcon = navigationIcon,
           actions = actions,
-          colors = TopAppBarDefaults.largeTopAppBarColors(
+          colors = TopAppBarDefaults.topAppBarColors(
             containerColor = effectiveContainer,
             // Тот же цвет в свёрнутом состоянии — без elevation-tint (или прозрачный поверх авроры).
             scrolledContainerColor = effectiveContainer,

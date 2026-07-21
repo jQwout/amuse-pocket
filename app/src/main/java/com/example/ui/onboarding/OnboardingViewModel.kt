@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
 
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
-@ViewModelKey(OnboardingViewModel::class)
+@ViewModelKey
 class OnboardingViewModel(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val memoryRepository: MemoryRepository,

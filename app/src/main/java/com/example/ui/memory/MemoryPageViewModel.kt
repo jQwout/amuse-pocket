@@ -28,7 +28,7 @@ data class MemoryPageState(
 /** Read-only view of a single conversation's memory: its annotation (title/summary/tags) + log. */
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
-@ViewModelKey(MemoryPageViewModel::class)
+@ViewModelKey
 class MemoryPageViewModel(
   private val conversationRepository: ConversationRepository,
 ) : ViewModel() {

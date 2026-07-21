@@ -42,7 +42,7 @@ import kotlinx.coroutines.launch
  */
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
-@ViewModelKey(AgentBuilderTestViewModel::class)
+@ViewModelKey
 class AgentBuilderTestViewModel(
   private val conversationRepository: ConversationRepository,
   private val turnManager: TurnManager,

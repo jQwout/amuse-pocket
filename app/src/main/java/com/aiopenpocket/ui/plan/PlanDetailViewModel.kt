@@ -96,7 +96,7 @@ val PlanDetailState.canCancel: Boolean get() = status != null && status !in TERM
  */
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
-@ViewModelKey(PlanDetailViewModel::class)
+@ViewModelKey
 class PlanDetailViewModel(
   private val planRepository: PlanRepository,
   private val planCommands: PlanCommands,

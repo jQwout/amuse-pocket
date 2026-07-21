@@ -64,7 +64,7 @@ internal val LIBRARY_LESSON_IDS = listOf(
 
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
-@ViewModelKey(LibraryViewModel::class)
+@ViewModelKey
 class LibraryViewModel(
   private val lessonRepository: LessonRepository,
   private val conversationRepository: ConversationRepository,
