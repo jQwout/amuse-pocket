@@ -57,6 +57,10 @@ fun GlassSurface(
   shape: Shape = RectangleShape,
   tint: Color = GlassTokens.LightTint,
   border: Brush? = GlassTokens.BorderBrush,
+  // Перф-переключатель: true — настоящий backdrop-blur (hazeEffect, RenderEffect). false — дешёвый
+  // полупрозрачный tint без блюра. Экран чата гасит блюр на время скролла/стрима (per-frame re-blur
+  // ленты под баром — главный кандидат в источники джанка) и возвращает его в покое.
+  blurEnabled: Boolean = true,
   content: @Composable BoxScope.() -> Unit,
 ) {
   // Тему нельзя читать внутри remember{} — поднимаем цвет фона в composable-скоуп и кладём в ключи.
@@ -71,10 +75,20 @@ fun GlassSurface(
   Box(
     modifier = modifier
       .clip(shape)
-      .hazeEffect(state = state, style = style) {
-        // Shape-aware blur masking, on top of the outer .clip(shape) above.
-        blurredEdgeTreatment = BlurredEdgeTreatment(shape)
-      }
+      .then(
+        if (blurEnabled) {
+          Modifier.hazeEffect(state = state, style = style) {
+            // Shape-aware blur masking, on top of the outer .clip(shape) above.
+            blurredEdgeTreatment = BlurredEdgeTreatment(shape)
+          }
+        } else {
+          // Без блюра бар держим читаемым: почти непрозрачная база темы + та же tint-плёнка,
+          // что и в blur-режиме (никакого RenderEffect — рисуем только два background-слоя).
+          Modifier
+            .background(backgroundColor.copy(alpha = 0.85f))
+            .background(tint)
+        },
+      )
       // Рим-блик по грани. Для скруглённых плавающих баров/навбара — приятная кромка; для
       // edge-to-edge поверхностей передаём border = null, иначе прямая линия режет во всю ширину.
       .then(if (border != null) Modifier.border(1.dp, border, shape) else Modifier),

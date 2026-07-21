@@ -50,7 +50,8 @@ import com.aiopenpocket.agent.core.srs.SrsWordEntity
 // bumped 6 -> 7. AgentStorageEntity/agentStorageDao() registered for Part B of the database_query
 // security hardening (user-agent-builder-848153) — storage_tool's per-agent key-value store, the
 // structured write path database_query's Part A SELECT-only restriction pushes agents toward instead
-// of raw SQL; version bumped 7 -> 8. No Migration is added any of these times — see the policy
+// of raw SQL; version bumped 7 -> 8. Message-pinning removed — MessageEntity lost its
+// isPinned column; version bumped 8 -> 9. No Migration is added any of these times — see the policy
 // comment on DatabaseBindings.provideDatabase.
 @Database(
   entities = [
@@ -72,7 +73,7 @@ import com.aiopenpocket.agent.core.srs.SrsWordEntity
     PlanEventEntity::class,
     AgentStorageEntity::class,
   ],
-  version = 8,
+  version = 9,
   exportSchema = false,
 )
 @TypeConverters(AgentRoomConverters::class)

@@ -9,6 +9,5 @@ data class Message(
   val content: String,
   val toolCallsJson: String?,
   val cardSpec: String? = null,
-  val isPinned: Boolean = false,
   val createdAt: Long,
 )

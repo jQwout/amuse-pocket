@@ -30,6 +30,5 @@ data class MessageEntity(
   val toolCallsJson: String? = null,
   /** Driven UI card spec ({"template":...,"params":...}) rendered as markdown in chat. */
   val cardSpec: String? = null,
-  val isPinned: Boolean = false,
   val createdAt: Long = System.currentTimeMillis(),
 )

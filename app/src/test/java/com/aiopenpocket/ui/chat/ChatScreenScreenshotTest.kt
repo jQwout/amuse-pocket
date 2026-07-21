@@ -61,4 +61,13 @@ class ChatScreenScreenshotTest {
     }
     composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/chat_streaming.png")
   }
+
+  /** Настоящий [ChatInput] (не заглушка) в трёх состояниях: пусто / с текстом / идёт ответ. */
+  @Test
+  fun chat_input_states_screenshot() {
+    composeTestRule.setContent {
+      ChatInputStatesPreview()
+    }
+    composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/chat_input_states.png")
+  }
 }
