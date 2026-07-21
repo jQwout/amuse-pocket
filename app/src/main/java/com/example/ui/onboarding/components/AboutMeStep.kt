@@ -55,6 +55,9 @@ fun AboutMeStep(
     Text(
       text = "Расскажи о себе",
       style = MaterialTheme.typography.headlineSmall,
+      // Явный цвет, а не ambient LocalContentColor: без него заголовок наследует near-black
+      // вне корневого Surface (в т.ч. в скриншот-тесте) и тонет.
+      color = MaterialTheme.colorScheme.onBackground,
     )
     Text(
       text = "Один свободный ответ — я разберу его и заполню профиль. " +
@@ -137,18 +140,23 @@ private const val ABOUT_ME_MAX_LENGTH = 2000
 
 @Composable
 private fun PersonaAskBubble(personaName: String, line: String) {
+  // Тема-зависимый акцент: лайм на тёмной, оливка на светлой — читается на обеих подложках.
+  val accent = MaterialTheme.colorScheme.primary
+  val shape = RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomEnd = 16.dp, bottomStart = 16.dp)
   Column(
     modifier = Modifier
       .fillMaxWidth()
-      .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomEnd = 16.dp, bottomStart = 16.dp))
+      .clip(shape)
       .background(MaterialTheme.colorScheme.surfaceVariant)
+      // Тонкая лаймовая грань отделяет карточку от ауроры — без неё тёмное на тёмном сливается.
+      .border(1.dp, accent.copy(alpha = 0.22f), shape)
       .padding(14.dp),
   ) {
     Text(
       text = personaName,
       style = MaterialTheme.typography.labelMedium,
       fontWeight = FontWeight.SemiBold,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      color = accent,
     )
     Box(modifier = Modifier.padding(top = 4.dp)) {
       Text(

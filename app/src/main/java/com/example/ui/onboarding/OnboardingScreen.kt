@@ -240,6 +240,8 @@ private fun OnboardingStepBody(
             Text(
                 text = "Закрепим пройденное",
                 style = MaterialTheme.typography.headlineSmall,
+                // Явный цвет, а не ambient LocalContentColor — иначе заголовок тонет вне корневого Surface.
+                color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.padding(vertical = 16.dp),
             )
             // Источник квиза онбординга — хардкод LESSON_QUIZZES, НЕ assets/lessons/l1_welcome.json

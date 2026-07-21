@@ -112,6 +112,7 @@ fun QuizContent(
         text = question.question,
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurface,
       )
       Spacer(Modifier.height(8.dp))
 
@@ -130,24 +131,36 @@ fun QuizContent(
         val isCorrect = hasKey && i == question.correctIndex
         val isPicked = selected == i
         val borderColor = when {
-          !answered -> MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+          !answered -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
           isCorrect -> CorrectGreen
           hasKey && isPicked -> MaterialTheme.colorScheme.error
           isPicked -> MaterialTheme.colorScheme.outline
           else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+        }
+        // Полупрозрачная подложка отделяет вариант от ауроры (иначе тёмное на тёмном сливается);
+        // у отвеченных верный/неверный дополнительно подсвечены цветным wash'ем — усиливает фидбек.
+        val optionBg = when {
+          answered && isCorrect -> CorrectGreen.copy(alpha = 0.12f)
+          answered && hasKey && isPicked -> MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
+          else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
         }
         Row(
           modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .clip(RoundedCornerShape(12.dp))
+            .background(optionBg)
             .border(1.5.dp, borderColor, RoundedCornerShape(12.dp))
             .clickable(enabled = selected == null) { answers[qIndex] = i }
             .padding(14.dp),
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically,
         ) {
-          Text(text = option, style = MaterialTheme.typography.bodyLarge)
+          Text(
+            text = option,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+          )
           when {
             answered && isCorrect -> Icon(Icons.Default.Check, null, tint = CorrectGreen)
             answered && hasKey && isPicked -> Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.error)
