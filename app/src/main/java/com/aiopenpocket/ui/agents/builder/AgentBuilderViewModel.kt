@@ -40,7 +40,7 @@ import kotlinx.coroutines.launch
 @OptIn(FlowPreview::class)
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
-@ViewModelKey(AgentBuilderViewModel::class)
+@ViewModelKey
 class AgentBuilderViewModel(
   private val userAgentRepository: UserAgentRepository,
   private val agentResolver: AgentResolver,

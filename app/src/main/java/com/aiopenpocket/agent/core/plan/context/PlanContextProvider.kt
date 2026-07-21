@@ -85,7 +85,8 @@ data class CompactPlanContext(
  * a revision is in flight.
  */
 @SingleIn(AppScope::class)
-class PlanContextProvider @Inject constructor(
+@Inject
+class PlanContextProvider(
   private val repository: PlanRepository,
 ) {
 

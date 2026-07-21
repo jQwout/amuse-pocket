@@ -65,7 +65,8 @@ import java.util.UUID
  * is unaffected by the default [Int.MAX_VALUE].
  */
 @SingleIn(AppScope::class)
-class ReactLoopRunner @Inject constructor(
+@Inject
+class ReactLoopRunner(
   private val llmClient: LlmClient,
   private val toolExecutor: ToolExecutor,
   private val toolRegistry: ToolRegistry,

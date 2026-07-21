@@ -17,7 +17,8 @@ import kotlinx.coroutines.flow.asStateFlow
  * ([SettingsRepository]): не тянем инициализацию MasterKey на старте ради выбора темы.
  */
 @SingleIn(AppScope::class)
-class ThemeRepository @Inject constructor(
+@Inject
+class ThemeRepository(
   context: Context,
 ) {
 

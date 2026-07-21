@@ -15,7 +15,8 @@ import dev.zacsweers.metro.SingleIn
  * repository stays a plain lookup surface for [SkillRegistry].
  */
 @SingleIn(AppScope::class)
-class UserSkillRepository @Inject constructor(
+@Inject
+class UserSkillRepository(
   private val dao: UserSkillDao,
 ) {
   suspend fun get(id: String): Skill? = dao.get(id)?.toSkill()

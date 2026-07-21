@@ -35,7 +35,8 @@ import com.aiopenpocket.di.AppScope
  * single-turn resolveTurnExecutionPlan contract.
  */
 @SingleIn(AppScope::class)
-class ReflectionOrchestrator @Inject constructor(
+@Inject
+class ReflectionOrchestrator(
   private val llmClient: LlmClient,
   private val registry: ToolRegistry,
   private val prePromptAssembler: PrePromptAssembler,

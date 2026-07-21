@@ -14,7 +14,8 @@ import dev.zacsweers.metro.SingleIn
  * is the only writer of the journal ([recordRun], once per [HookEngine.Firing] it applies).
  */
 @SingleIn(AppScope::class)
-class AgentHookRepository @Inject constructor(
+@Inject
+class AgentHookRepository(
   private val dao: AgentHookDao,
 ) {
   /** Every hook owned by [agentId], already sorted `(priority, id)` — the same order [HookEngine] itself applies. */

@@ -25,7 +25,8 @@ import java.util.concurrent.ConcurrentHashMap
  * overlap (see [ConversationRepository.getConversationIdsByTags]) without any explicit graph.
  */
 @SingleIn(AppScope::class)
-class ConversationAnnotator @Inject constructor(
+@Inject
+class ConversationAnnotator(
   private val llmClient: LlmClient,
   private val conversationRepository: ConversationRepository,
 ) {

@@ -12,7 +12,8 @@ import com.aiopenpocket.di.AppScope
  * "<lang>:<term>" identity so re-adding a word updates it in place.
  */
 @SingleIn(AppScope::class)
-class SrsRepository @Inject constructor(
+@Inject
+class SrsRepository(
   private val dao: SrsWordDao,
 ) {
   suspend fun upsert(word: SrsWord) {

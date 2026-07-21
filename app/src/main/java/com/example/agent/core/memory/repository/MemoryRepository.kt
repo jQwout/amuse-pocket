@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.agent.core.memory.repository
+package com.aiopenpocket.agent.core.memory.repository
 
 // @trace agent-memory-05e545
 // @trace user-agent-builder-848153
@@ -16,7 +16,8 @@ import com.aiopenpocket.di.AppScope
 import java.util.UUID
 
 @SingleIn(AppScope::class)
-class MemoryRepository @Inject constructor(
+@Inject
+class MemoryRepository(
   private val factDao: FactDao,
   private val episodeDao: EpisodeDao,
 ) {

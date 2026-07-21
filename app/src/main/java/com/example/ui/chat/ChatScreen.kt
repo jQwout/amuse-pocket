@@ -1379,7 +1379,7 @@ private fun MessageBubble(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
                 RenderDrivenUiCard(
-                    card = card!!,
+                    card = card,
                     onChoiceSelected = onChoiceSelected,
                     onFormSubmitted = onFormSubmitted,
                     onLessonComplete = onLessonComplete,

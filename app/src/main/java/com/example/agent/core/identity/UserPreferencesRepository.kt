@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.agent.core.identity
+package com.aiopenpocket.agent.core.identity
 
 // @trace app-settings-beb470
 
@@ -22,7 +22,8 @@ private val Context.userPreferencesDataStore: DataStore<Preferences> by preferen
 )
 
 @SingleIn(AppScope::class)
-class UserPreferencesRepository @Inject constructor(
+@Inject
+class UserPreferencesRepository(
   private val context: Context,
 ) {
   val onboardingCompleted: Flow<Boolean> =

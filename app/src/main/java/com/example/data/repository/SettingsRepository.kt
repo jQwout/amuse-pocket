@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.data.repository
+package com.aiopenpocket.data.repository
 
 // @trace app-settings-beb470
 
@@ -11,7 +11,8 @@ import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
 
 @SingleIn(AppScope::class)
-class SettingsRepository @Inject constructor(
+@Inject
+class SettingsRepository(
   private val context: Context,
 ) {
 

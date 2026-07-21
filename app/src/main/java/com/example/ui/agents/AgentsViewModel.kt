@@ -35,7 +35,7 @@ data class AgentRosterSections(
 
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
-@ViewModelKey(AgentsViewModel::class)
+@ViewModelKey
 class AgentsViewModel(
   private val agentResolver: AgentResolver,
   private val conversationRepository: ConversationRepository,

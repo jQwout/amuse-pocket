@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.agent.core.memory.repository
+package com.aiopenpocket.agent.core.memory.repository
 
 // @trace multi-chat-conversations-b3c93b
 
@@ -23,7 +23,8 @@ import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
 
 @SingleIn(AppScope::class)
-class ConversationRepository @Inject constructor(
+@Inject
+class ConversationRepository(
   private val conversationDao: ConversationDao,
   private val conversationTagDao: ConversationTagDao,
   private val messageDao: MessageDao,

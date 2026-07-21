@@ -7,6 +7,7 @@ import android.util.Log
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
@@ -43,10 +44,13 @@ data class ModelEntry(
 )
 
 @SingleIn(AppScope::class)
-class ModelCatalogLoader @Inject constructor(
+@Inject
+class ModelCatalogLoader(
   private val application: Application,
 ) {
   // base_url / max_tokens in JSON are snake_case; map them to the camelCase DTO fields.
+  // namingStrategy всё ещё @ExperimentalSerializationApi — единственная причина opt-in здесь.
+  @OptIn(ExperimentalSerializationApi::class)
   private val json = Json {
     ignoreUnknownKeys = true
     isLenient = true

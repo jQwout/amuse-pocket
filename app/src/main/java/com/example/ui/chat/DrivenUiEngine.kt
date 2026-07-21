@@ -23,6 +23,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.PlaylistAddCheck
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -574,7 +576,7 @@ fun TodoListCardView(card: DrivenUiCard.TodoList) {
     val itemsState = remember(card) { mutableStateListOf<TodoItem>().apply { addAll(card.items) } }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        CardTitleRow(icon = Icons.Default.PlaylistAddCheck, title = card.title)
+        CardTitleRow(icon = Icons.AutoMirrored.Filled.PlaylistAddCheck, title = card.title)
         CardDivider()
 
         if (itemsState.isEmpty()) {
@@ -942,7 +944,7 @@ fun FormCardView(
                 .fillMaxWidth()
                 .testTag("form_submit_button")
         ) {
-            Icon(imageVector = Icons.Default.Send, contentDescription = null)
+            Icon(imageVector = Icons.AutoMirrored.Filled.Send, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
             Text(card.submitLabel)
         }

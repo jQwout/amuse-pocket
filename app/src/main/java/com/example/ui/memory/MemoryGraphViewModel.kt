@@ -24,7 +24,7 @@ import kotlinx.coroutines.launch
  */
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
-@ViewModelKey(MemoryGraphViewModel::class)
+@ViewModelKey
 class MemoryGraphViewModel(
   private val conversationRepository: ConversationRepository,
 ) : ViewModel() {

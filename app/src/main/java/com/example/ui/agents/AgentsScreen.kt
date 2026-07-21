@@ -23,11 +23,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Checklist
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Translate
@@ -244,7 +244,7 @@ internal fun iconFor(key: String): ImageVector = when (key) {
   "checklist" -> Icons.Default.Checklist
   "alarm" -> Icons.Default.Alarm
   "restaurant" -> Icons.Default.Restaurant
-  "book" -> Icons.Default.MenuBook
+  "book" -> Icons.AutoMirrored.Filled.MenuBook
   else -> Icons.Default.SmartToy
 }
 

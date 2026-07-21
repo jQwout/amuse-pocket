@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
-@ViewModelKey(RoadmapViewModel::class)
+@ViewModelKey
 class RoadmapViewModel(
   private val userPreferencesRepository: UserPreferencesRepository,
   private val conversationRepository: ConversationRepository,

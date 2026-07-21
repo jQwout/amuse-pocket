@@ -25,7 +25,8 @@ import kotlin.coroutines.CoroutineContext
  * already had.
  */
 @SingleIn(AppScope::class)
-class TurnContextHolder @Inject constructor() {
+@Inject
+class TurnContextHolder() {
   data class Ctx(val conversationId: String?, val agent: AgentDefinition?)
 
   private val threadLocal = ThreadLocal<Ctx?>()

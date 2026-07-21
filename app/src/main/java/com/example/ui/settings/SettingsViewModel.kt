@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.ui.settings
+package com.aiopenpocket.ui.settings
 
 // @trace app-settings-beb470
 
@@ -24,7 +24,7 @@ import kotlinx.coroutines.launch
 
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
-@ViewModelKey(SettingsViewModel::class)
+@ViewModelKey
 class SettingsViewModel(
   private val settingsRepository: SettingsRepository,
   private val userPreferencesRepository: UserPreferencesRepository,

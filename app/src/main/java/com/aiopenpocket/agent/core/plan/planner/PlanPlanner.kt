@@ -115,7 +115,8 @@ sealed interface PlanProposalResult {
  * 5/6/10 should confirm this reading before wiring a caller.
  */
 @SingleIn(AppScope::class)
-class PlanPlanner @Inject constructor(
+@Inject
+class PlanPlanner(
   private val llmClient: LlmClient,
   private val agentResolver: AgentResolver,
   private val templateRegistry: PlanTemplateRegistry,

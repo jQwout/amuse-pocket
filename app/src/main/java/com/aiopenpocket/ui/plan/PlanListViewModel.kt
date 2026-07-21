@@ -77,7 +77,7 @@ data class PlanListState(
  */
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
-@ViewModelKey(PlanListViewModel::class)
+@ViewModelKey
 class PlanListViewModel(
   private val planRepository: PlanRepository,
 ) : ViewModel() {

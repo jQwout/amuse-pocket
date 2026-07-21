@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.ui.conversations
+package com.aiopenpocket.ui.conversations
 
 // @trace multi-chat-conversations-b3c93b
 
@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
-@ViewModelKey(ConversationsListViewModel::class)
+@ViewModelKey
 class ConversationsListViewModel(
   private val conversationRepository: ConversationRepository,
   private val userPreferencesRepository: UserPreferencesRepository,

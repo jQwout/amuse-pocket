@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.agent.core.mcp
+package com.aiopenpocket.agent.core.mcp
 
 // @trace mcp-tools-f77d9b
 
@@ -8,7 +8,8 @@ import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
 
 @SingleIn(AppScope::class)
-class ToolRegistry @Inject constructor(
+@Inject
+class ToolRegistry(
   tools: Set<@JvmSuppressWildcards Tool>,
 ) {
   private val toolMap = tools.associateBy { it.name }
