@@ -18,6 +18,16 @@ object TurnTexts {
   const val TURN_DONE_FALLBACK = "Готово"
 
   /**
+   * Прогресс в пузыре стрима, пока агент работает инструментом между витками ReAct. Без него
+   * преамбула прошлого витка гасла в пустоту на следующем витке (resetStreaming) и выглядела как
+   * «ответ пишется, потом затирается». [TOOL_PROGRESS] — общий (до того как известно имя),
+   * [toolProgress] — с именем инструмента.
+   */
+  const val TOOL_PROGRESS = "Использую инструмент…"
+
+  fun toolProgress(toolName: String): String = "Использую инструмент: $toolName…"
+
+  /**
    * Task 10 (structured-plan-engine-907066): PLAN turn persisted a proposal —
    * [com.aiopenpocket.ui.chat.ChatViewModel]'s own reactive subscription to
    * `PlanRepository.observeByConversation` is what actually raises the approval bar

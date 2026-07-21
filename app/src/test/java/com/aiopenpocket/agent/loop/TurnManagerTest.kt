@@ -210,6 +210,30 @@ class TurnManagerTest {
   }
 
   @Test
+  fun `во время работы инструмента пузырь показывает прогресс, а не преамбулу`() = runTest {
+    // Ход с инструментом: преамбула первого витка, затем EXECUTING_TOOL + ToolStarted, и застываем
+    // на исполнении инструмента. Проверяем ровно то, что видит пользователь в этот момент.
+    executor.script = {
+      flow {
+        emit(AgentEvent.StateChanged(AgentState.STREAMING))
+        emit(AgentEvent.TextDelta("Сейчас посмотрю твои заметки"))
+        emit(AgentEvent.StateChanged(AgentState.EXECUTING_TOOL))
+        emit(AgentEvent.ToolStarted("search_files", emptyMap()))
+        awaitCancellation()
+      }
+    }
+    val m = manager()
+
+    m.launchTurn("c1", "найди мои заметки", AgentMode.CHAT)
+    advanceUntilIdle()
+
+    // Регрессия: раньше в этот момент оставалась преамбула (а на следующем витке гасла в пустоту —
+    // «ответ пишется, потом затирается»). Теперь на месте пузыря — прогресс с именем инструмента.
+    val shown = m.sessions.value.getValue("c1").streamingText.value
+    assertTrue("ожидали прогресс инструмента, а пузырь показывал: '$shown'", shown.contains("search_files"))
+  }
+
+  @Test
   fun `ToolCompleted добавляется в трейс сессии по ходу`() = runTest {
     val trace = ToolTrace(iteration = 1, toolName = "get_time", arguments = emptyMap(), result = com.aiopenpocket.agent.core.mcp.ToolResult.Success("12:00"))
     executor.script = {
