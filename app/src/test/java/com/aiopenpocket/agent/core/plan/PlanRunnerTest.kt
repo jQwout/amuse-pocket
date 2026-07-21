@@ -58,6 +58,7 @@ import com.aiopenpocket.agent.loop.AgentState
 import com.aiopenpocket.agent.loop.ToolTrace
 import com.aiopenpocket.data.database.AppDatabase
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -89,6 +90,7 @@ import org.robolectric.annotation.Config
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
+@OptIn(ExperimentalCoroutinesApi::class) // advanceUntilIdle
 class PlanRunnerTest {
 
   private lateinit var db: AppDatabase
