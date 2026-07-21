@@ -72,6 +72,10 @@ import com.aiopenpocket.ui.agents.builder.components.riskColor
 import com.aiopenpocket.ui.components.glass.GlassCard
 import kotlinx.serialization.json.JsonElement
 
+/**
+ * Строка поиска в шапке: поле ввода + счётчик совпадений и стрелки навигации (пред/след), крестик —
+ * закрыть поиск. Скролл к совпадениям и подсветка пузыря — на стороне ChatScreen.
+ */
 @Composable
 internal fun ChatSearchBar(
     query: String,
