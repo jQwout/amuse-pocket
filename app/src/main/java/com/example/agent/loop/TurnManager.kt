@@ -287,9 +287,19 @@ class TurnManager(
         is AgentEvent.Error -> finishFailed(session, event.message)
 
         is AgentEvent.StateChanged -> when (event.state) {
-          // Новый виток ReAct стримит свой текст заново — показываем текст ТЕКУЩЕГО витка.
-          AgentState.STREAMING -> resetStreaming(session)
-          // Стрим витка закончился: дофлашиваем хвост, не прошедший гейт частоты.
+          // Новый виток ReAct копит текст заново — чистим ТОЛЬКО буфер. Видимый пузырь НЕ гасим:
+          // между витками там стоит прогресс вызова инструмента, и его перезапишет первый TextDelta
+          // нового витка. Раньше здесь было ещё и обнуление пузыря (resetStreaming), из-за чего
+          // преамбула прошлого витка «затиралась в пустоту» — выглядело как «ответ пишется, потом
+          // исчезает» (виден только на ходах с инструментом: без него виток один, стирать нечего).
+          AgentState.STREAMING -> session.streamBuffer.reset()
+          // Агент ушёл исполнять инструмент: на месте пузыря показываем прогресс, а не преамбулу.
+          // Буфер чистим, чтобы поздний flush не вернул преамбулу поверх прогресса.
+          AgentState.EXECUTING_TOOL -> {
+            session.streamBuffer.reset()
+            session.streamingTextFlow.value = TurnTexts.TOOL_PROGRESS
+          }
+          // Стрим витка закончился (FINISHED и пр.): дофлашиваем хвост, не прошедший гейт частоты.
           else -> session.streamBuffer.flush()?.let { session.streamingTextFlow.value = it }
         }
 
@@ -300,11 +310,13 @@ class TurnManager(
         is AgentEvent.PlanProgressed -> finishPlanMessage(session, TurnTexts.planProgressMessage(event.result))
         is AgentEvent.PlanBlocked -> finishPlanMessage(session, event.reason)
 
-        // Ходу эти события не нужны: панель трейса рисуется по ToolCompleted, а бар approval'а
-        // ChatViewModel берёт из ToolApprovalCoordinator.pending (фильтруя по своему conversationId),
-        // а не из потока событий хода. Ветки явные, а не else: новое событие цикла обязано уронить
-        // компиляцию здесь, а не потеряться молча.
-        is AgentEvent.ToolStarted, is AgentEvent.ToolApprovalRequired -> Unit
+        // Уточняем прогресс именем инструмента (EXECUTING_TOOL мгновением раньше показал общий текст).
+        is AgentEvent.ToolStarted -> session.streamingTextFlow.value = TurnTexts.toolProgress(event.name)
+
+        // Ходу не нужны: бар approval'а ChatViewModel берёт из ToolApprovalCoordinator.pending
+        // (фильтруя по своему conversationId), а не из потока событий хода. Ветка явная, а не else:
+        // новое событие цикла обязано уронить компиляцию здесь, а не потеряться молча.
+        is AgentEvent.ToolApprovalRequired -> Unit
       }
     }
   }
