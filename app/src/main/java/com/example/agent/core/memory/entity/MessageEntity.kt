@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.agent.core.memory.entity
+package com.aiopenpocket.agent.core.memory.entity
 
 // @trace multi-chat-conversations-b3c93b
 

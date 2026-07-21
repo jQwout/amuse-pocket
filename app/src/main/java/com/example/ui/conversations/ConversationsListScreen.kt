@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.ui.conversations
+package com.aiopenpocket.ui.conversations
 
 // @trace multi-chat-conversations-b3c93b
 

@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket
+package com.aiopenpocket
 
 import android.app.Application
 import coil.ImageLoader

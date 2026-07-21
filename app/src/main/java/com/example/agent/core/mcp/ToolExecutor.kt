@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.agent.core.mcp
+package com.aiopenpocket.agent.core.mcp
 
 // @trace mcp-tools-f77d9b
 

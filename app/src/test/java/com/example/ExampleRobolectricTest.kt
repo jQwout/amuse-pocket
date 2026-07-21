@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket
+package com.aiopenpocket
 
 import android.content.Context
 import androidx.test.core.app.ActivityScenario

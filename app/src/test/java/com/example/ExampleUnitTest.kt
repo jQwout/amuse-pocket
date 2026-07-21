@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket
+package com.aiopenpocket
 
 import org.junit.Assert.*
 import org.junit.Test

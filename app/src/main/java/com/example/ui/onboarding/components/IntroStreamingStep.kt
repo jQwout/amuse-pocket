@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.ui.onboarding.components
+package com.aiopenpocket.ui.onboarding.components
 
 // @trace ai-academy-onboarding-5d51bb
 

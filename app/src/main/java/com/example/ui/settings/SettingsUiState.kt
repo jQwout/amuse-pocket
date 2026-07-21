@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.ui.settings
+package com.aiopenpocket.ui.settings
 
 // @trace app-settings-beb470
 

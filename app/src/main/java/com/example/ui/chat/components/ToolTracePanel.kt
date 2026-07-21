@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.ui.chat.components
+package com.aiopenpocket.ui.chat.components
 
 // @trace mcp-tools-f77d9b
 

@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.agent.core.prompt
+package com.aiopenpocket.agent.core.prompt
 
 // @trace streaming-llm-chat-6595a1
 

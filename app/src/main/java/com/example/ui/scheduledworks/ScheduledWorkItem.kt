@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.ui.scheduledworks
+package com.aiopenpocket.ui.scheduledworks
 
 // @trace background-tasks-15a34a
 

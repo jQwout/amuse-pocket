@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.agent.tools
+package com.aiopenpocket.agent.tools
 
 // @trace mcp-tools-f77d9b
 // @trace user-agent-builder-848153
