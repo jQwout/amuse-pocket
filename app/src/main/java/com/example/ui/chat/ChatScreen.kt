@@ -7,7 +7,11 @@
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.ActivityResultRegistry
+import androidx.activity.result.ActivityResultRegistryOwner
+import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -55,7 +59,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.MenuOpen
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Build
@@ -67,7 +70,6 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInFull
-import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
@@ -99,6 +101,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -126,6 +129,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityOptionsCompat
 import androidx.core.content.ContextCompat
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.model.Message
@@ -139,7 +143,6 @@ import com.aiopenpocket.ui.chat.components.MicButton
 import com.aiopenpocket.ui.chat.components.ToolTracePanel
 import com.aiopenpocket.ui.components.MarkdownText
 import com.aiopenpocket.ui.components.StreamingBubble
-import com.aiopenpocket.ui.components.glass.GlassBackground
 import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.components.glass.GlassState
 import com.aiopenpocket.ui.components.glass.GlassSurface
@@ -234,6 +237,13 @@ fun ChatScreen(
 
     val listState = rememberLazyListState()
     val hasStreamingItem = state.isLoading
+
+    // Перф-диагностика лага: настоящий backdrop-blur (Haze) на шапке и композере пере-считывается
+    // каждый кадр, пока под баром что-то движется (скролл ленты / стрим ответа) — единственная
+    // непрерывно GPU-тяжёлая работа на экране. Гасим блюр на это время (дешёвый tint), возвращаем в
+    // покое. Если на устройстве скролл/печать заметно глаже — виновник блюр (иначе см. markdown-парс).
+    val isScrolling by remember { derivedStateOf { listState.isScrollInProgress } }
+    val glassBlurEnabled = !isScrolling && !hasStreamingItem
 
     val inputVisible = !state.lessonMode && !searchActive
     val showScrollDown by remember {
@@ -393,11 +403,6 @@ fun ChatScreen(
             // Видимый вьюпорт между барами = fullHeight - topPad - bottomPad.
             val fullHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
 
-            // Фильтр закреплённых пересчитываем только при смене списка сообщений. Без remember он гоняется
-            // на КАЖДУЮ рекомпозицию тела экрана — а во время стрима это каждый токен (O(n) на токен).
-            // Поднят над лентой: используется верхним оверлеем (PinnedBar), объявленным ниже по коду.
-            val pinned = remember(state.messages) { state.messages.filter { it.isPinned } }
-
             // ЛЕНТА (задний слой) — заполняет весь Box и скроллится под обоими барами. Свежие сообщения
             // снизу. Arrangement.Bottom: короткий чат прижимается к низу. contentPadding сверху/снизу =
             // измеренные высоты баров, чтобы первое/последнее сообщение не уезжали под стекло.
@@ -424,9 +429,6 @@ fun ChatScreen(
                 ) { message ->
                     // Пер-итемные колбэки запоминаем по id (и по нужным флагам), чтобы они были стабильны между
                     // рекомпозициями — тогда неизменившиеся пузыри Compose пропускает.
-                    val onTogglePin = remember(message.id) {
-                        { viewModel.handleIntent(ChatIntent.TogglePin(message.id)) }
-                    }
                     val onDelete = remember(message.id) {
                         { viewModel.handleIntent(ChatIntent.DeleteMessage(message.id)) }
                     }
@@ -450,7 +452,6 @@ fun ChatScreen(
                     }
                     MessageBubble(
                         message = message,
-                        onTogglePin = onTogglePin,
                         onDelete = onDelete,
                         interactiveCards = state.isTutorial,
                         highlighted = message.id == currentMatchId,
@@ -485,7 +486,7 @@ fun ChatScreen(
                 }
             }
 
-            // ВЕРХНИЙ оверлей: стеклянная «таблетка» шапки + стат-бар + закреплённые, под статус-баром.
+            // ВЕРХНИЙ оверлей: стеклянная «таблетка» шапки + стат-бар, под статус-баром.
             // Высоту меряем (onSizeChanged → topBarHeightPx) → contentPadding.top ленты. statusBarsPadding
             // живёт на самой таблетке (ребёнок Column), поэтому измеренная высота уже включает его инсет.
             Column(
@@ -502,6 +503,7 @@ fun ChatScreen(
                 GlassSurface(
                     state = glassState,
                     shape = barShape,
+                    blurEnabled = glassBlurEnabled,
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
@@ -607,13 +609,6 @@ fun ChatScreen(
                     ResponseStatsBar(
                         stats = state.lastResponseStats!!,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                    )
-                }
-
-                if (pinned.isNotEmpty()) {
-                    PinnedBar(
-                        pinned = pinned,
-                        onUnpin = { viewModel.handleIntent(ChatIntent.TogglePin(it)) },
                     )
                 }
             }
@@ -770,6 +765,7 @@ fun ChatScreen(
                                     onCancel = { viewModel.handleIntent(ChatIntent.CancelRequest) },
                                     isLoading = state.isLoading,
                                     glassState = glassState,
+                                    blurEnabled = glassBlurEnabled,
                                     placeholder = when (state.agentMode) {
                                         AgentMode.PLAN -> "Опиши задачу — агент составит план…"
                                         AgentMode.GOAL -> "Сформулируй цель…"
@@ -1294,7 +1290,6 @@ private fun LessonAskBar(
 @Composable
 private fun MessageBubble(
     message: Message,
-    onTogglePin: () -> Unit,
     onDelete: () -> Unit = {},
     interactiveCards: Boolean = false,
     highlighted: Boolean = false,
@@ -1308,9 +1303,8 @@ private fun MessageBubble(
     observeHeartbeat: (String) -> Flow<HeartbeatEntity?> = { kotlinx.coroutines.flow.flowOf(null) },
     onCancelHeartbeat: (String) -> Unit = {},
 ) {
-    // Панель действий (закрепить/удалить) — по ТАПУ на пузырь, не по long-press: long-press занят
-    // выделением текста (SelectionContainer внутри MarkdownText), и раньше оба обработчика конфликтовали —
-    // закрепление срабатывало от простой попытки выделить текст («закрепление активируется без причины»).
+    // Панель действий (удалить) — по ТАПУ на пузырь, не по long-press: long-press занят выделением
+    // текста (SelectionContainer внутри MarkdownText), с ним обработчик тапа не конфликтует.
     var showActions by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val isUser = message.role == "user"
@@ -1375,27 +1369,10 @@ private fun MessageBubble(
                         Modifier
                     },
                 )
-                // Тап по пузырю — раскрыть/спрятать панель действий (закрепить/удалить).
+                // Тап по пузырю — раскрыть/спрятать панель действий (удалить).
                 .clickable(onClick = { showActions = !showActions })
                 .padding(12.dp),
         ) {
-            if (message.isPinned) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.PushPin,
-                        contentDescription = "Закреплено",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(14.dp),
-                    )
-                    Spacer(modifier = Modifier.size(4.dp))
-                    Text(
-                        text = "Закреплено",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-            }
             if (interactive) {
                 if (message.content.isNotBlank()) {
                     MarkdownText(text = message.content, compact = true, selectable = true, fontScale = fontScale)
@@ -1423,14 +1400,6 @@ private fun MessageBubble(
                         .padding(top = 6.dp),
                     horizontalArrangement = Arrangement.End,
                 ) {
-                    IconButton(onClick = { onTogglePin(); showActions = false }, modifier = Modifier.size(32.dp)) {
-                        Icon(
-                            imageVector = Icons.Default.PushPin,
-                            contentDescription = if (message.isPinned) "Открепить" else "Закрепить",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
                     // В уроке шаг чата ведёт себя по счётчику ассистентских сообщений
                     // (ChatViewModel.startOrResumeLesson) — удаление любого из них десинхронизирует
                     // курсор урока (повтор или пропуск шага). Функциональные карточки (switch/разрешение/reminder)
@@ -1468,61 +1437,6 @@ private fun MessageBubble(
                 TextButton(onClick = { showDeleteConfirm = false }) { Text("Отмена") }
             },
         )
-    }
-}
-
-@Composable
-private fun PinnedBar(
-    pinned: List<Message>,
-    onUnpin: (String) -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = Icons.Default.PushPin,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(16.dp),
-            )
-            Spacer(modifier = Modifier.size(6.dp))
-            Text(
-                text = "Закреплённые (${pinned.size})",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        pinned.forEach { msg ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = pinnedSnippet(msg),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                IconButton(
-                    onClick = { onUnpin(msg.id) },
-                    modifier = Modifier.size(28.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Открепить",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-            }
-        }
     }
 }
 
@@ -1578,12 +1492,6 @@ private fun ResponseStatsBar(
     }
 }
 
-private fun pinnedSnippet(message: Message): String {
-    val base = message.content.ifBlank { if (message.cardSpec != null) "📋 Карточка" else "" }
-    val firstLine = base.lineSequence().firstOrNull { it.isNotBlank() }?.trim().orEmpty()
-    return if (message.role == "user") "Вы: $firstLine" else firstLine
-}
-
 @Composable
 private fun ChatInput(
     value: String,
@@ -1592,6 +1500,7 @@ private fun ChatInput(
     onCancel: () -> Unit,
     isLoading: Boolean,
     glassState: GlassState,
+    blurEnabled: Boolean = true,
     placeholder: String = "Сообщение...",
     onExpand: () -> Unit,
     voiceState: VoiceInputState,
@@ -1629,6 +1538,7 @@ private fun ChatInput(
     GlassSurface(
         state = glassState,
         shape = inputShape,
+        blurEnabled = blurEnabled,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp)
@@ -1694,7 +1604,6 @@ private fun ChatInput(
                 if (isLoading) {
                     // Прогресс вокруг кнопки «стоп» — даёт пользователю возможность отменить ход.
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp)) {
-                        CircularProgressIndicator(modifier = Modifier.size(44.dp), strokeWidth = 2.dp)
                         IconButton(onClick = onCancel) {
                             Icon(Icons.Default.Stop, contentDescription = "Остановить")
                         }
@@ -1805,7 +1714,6 @@ internal fun previewMessage(
     role: String,
     content: String,
     cardSpec: String? = null,
-    isPinned: Boolean = false,
 ) = Message(
     id = "$role-${content.hashCode()}-${cardSpec?.hashCode() ?: 0}",
     conversationId = "preview",
@@ -1813,14 +1721,15 @@ internal fun previewMessage(
     content = content,
     toolCallsJson = null,
     cardSpec = cardSpec,
-    isPinned = isPinned,
     createdAt = 0L,
 )
 
 /**
- * Каркас чата для превью: закреплённая шапка + лента пузырей (+ опц. стрим-пузырь, стат-бар, ошибка)
- * + мок поля ввода. Настоящий [ChatInput] тянет rememberLauncherForActivityResult, который падает в
- * @Preview без ActivityResultRegistry, поэтому ввод здесь — визуальная заглушка [PreviewComposerBar].
+ * Каркас чата для превью — та же раскладка, что и в боевом [ChatScreen]: аврора-слой-источник, лента
+ * во весь экран под ПЛАВАЮЩИМИ стеклянными барами (таблетка-шапка сверху, композер снизу), высоты
+ * баров меряются в contentPadding. Blur (Haze/RenderEffect) в @Preview не рендерится — на устройстве
+ * бары матовые, здесь только tint. Композер — НАСТОЯЩИЙ [ChatInput] (не заглушка): его
+ * rememberLauncherForActivityResult разблокирован фейковым [PreviewActivityResultRegistryOwner].
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1836,83 +1745,126 @@ internal fun ChatPreviewScaffold(
 ) {
     MyApplicationTheme(mode = ThemeMode.DARK) {
         val glassState = rememberGlassState()
-        Box(Modifier
-            .fillMaxSize()
-            .auroraBackground()) {
-            Scaffold(
-                containerColor = Color.Transparent,
-                topBar = {
-                    // Тот же glass-каркас шапки, что и в боевом ChatScreen (без поиска — превью его не моделирует).
-                    TopAppBar(
-                        title = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(38.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Icon(
-                                        Icons.Default.AutoAwesome,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(20.dp),
-                                    )
-                                }
-                                Spacer(Modifier.width(10.dp))
-                                GlassBackground {
-                                    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        },
-                        navigationIcon = {
-                            IconButton(onClick = {}) {
-                                Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Назад")
-                            }
-                        },
-                        actions = {
-                            IconButton(onClick = {}) {
-                                Icon(
-                                    Icons.AutoMirrored.Default.MenuOpen,
-                                    contentDescription = "Меню",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color.Transparent,
-                        ),
-                    )
-                },
-            ) { padding ->
-                Column(
+        // Та же схема мер, что в боевом ChatScreen: высоты плавающих баров → contentPadding ленты,
+        // чтобы крайние сообщения вставали у кромки бара, а не прятались под стеклом.
+        val density = LocalDensity.current
+        var topBarHeightPx by remember { mutableStateOf(0) }
+        var bottomBarHeightPx by remember { mutableStateOf(0) }
+        val topPad = with(density) { topBarHeightPx.toDp() }
+        val bottomPad = with(density) { bottomBarHeightPx.toDp() }
+
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Аурора — ОТДЕЛЬНЫЙ слой-источник для стекла (как в бою): её размывают бары.
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .auroraBackground()
+                    .glassSource(glassState),
+            )
+            Box(modifier = Modifier.fillMaxSize()) {
+                // Лента на весь экран: скроллится ПОД плавающими барами (за стеклом видны сообщения).
+                LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(padding),
+                        .glassSource(glassState),
+                    contentPadding = PaddingValues(top = topPad, bottom = bottomPad),
+                    verticalArrangement = Arrangement.Bottom,
                 ) {
-                    if (stats != null) {
-                        ResponseStatsBar(stats = stats, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+                    items(messages, key = { it.id }) { m ->
+                        MessageBubble(message = m, interactiveCards = interactiveCards)
                     }
-                    LazyColumn(
+                    if (streamingText != null || streamingWaiting) {
+                        item(key = "streaming") {
+                            StreamingBubble(
+                                text = streamingText.orEmpty(),
+                                showCursor = !streamingText.isNullOrEmpty(),
+                                isWaiting = streamingWaiting,
+                            )
+                        }
+                    }
+                }
+
+                // ВЕРХНИЙ плавающий бар: стеклянная «таблетка» шапки + стат-бар.
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .onSizeChanged { topBarHeightPx = it.height },
+                ) {
+                    val barShape = RoundedCornerShape(24.dp)
+                    GlassSurface(
+                        state = glassState,
+                        shape = barShape,
                         modifier = Modifier
-                            .weight(1f)
-                            .glassSource(glassState),
-                        verticalArrangement = Arrangement.Bottom,
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = 12.dp)
+                            .padding(top = 8.dp, bottom = 8.dp)
+                            .shadow(16.dp, barShape, clip = false),
                     ) {
-                        items(messages, key = { it.id }) { m ->
-                            MessageBubble(message = m, onTogglePin = {}, interactiveCards = interactiveCards)
-                        }
-                        if (streamingText != null || streamingWaiting) {
-                            item(key = "streaming") {
-                                StreamingBubble(
-                                    text = streamingText.orEmpty(),
-                                    showCursor = !streamingText.isNullOrEmpty(),
-                                    isWaiting = streamingWaiting,
-                                )
-                            }
-                        }
+                        TopAppBar(
+                            title = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(
+                                            Icons.Default.AutoAwesome,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                    }
+                                    Spacer(Modifier.width(10.dp))
+                                    Text(
+                                        text = title,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            },
+                            navigationIcon = {
+                                IconButton(onClick = {}) {
+                                    Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Назад")
+                                }
+                            },
+                            actions = {
+                                IconButton(onClick = {}) {
+                                    Icon(
+                                        Icons.Default.Search,
+                                        contentDescription = "Поиск по чату",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            },
+                            windowInsets = WindowInsets(0, 0, 0, 0),
+                            colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = Color.Transparent,
+                            ),
+                        )
                     }
+                    if (stats != null) {
+                        ResponseStatsBar(
+                            stats = stats,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        )
+                    }
+                }
+
+                // НИЖНИЙ плавающий бар: ошибка + режимы + композер (визуальная заглушка).
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .onSizeChanged { bottomBarHeightPx = it.height }
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
+                ) {
                     if (error != null) {
                         Row(
                             modifier = Modifier
@@ -1928,56 +1880,27 @@ internal fun ChatPreviewScaffold(
                             }
                         }
                     }
-                    if (showInput) PreviewComposerBar(glassState = glassState)
-                }
-            }
-        }
-    }
-}
-
-/** Статичная визуальная заглушка поля ввода (без микрофона/лаунчеров) — только для превью. */
-@Composable
-private fun PreviewComposerBar(glassState: GlassState, placeholder: String = "Сообщение...") {
-    val inputShape = RoundedCornerShape(24.dp)
-    GlassSurface(
-        state = glassState,
-        shape = inputShape,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 8.dp),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.7f), inputShape)
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-        ) {
-            Text(
-                placeholder,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                modifier = Modifier.padding(4.dp),
-            )
-            Spacer(Modifier.height(6.dp))
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.OpenInFull,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(Modifier.weight(1f))
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Default.Send,
-                        contentDescription = "Отправить",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    if (showInput) {
+                        ModeSelector(selected = AgentMode.CHAT, enabled = true, onSelect = {})
+                        // НАСТОЯЩИЙ ChatInput, а не заглушка — превью обязано показывать боевой компонент.
+                        // Провайдер подменяет ActivityResultRegistryOwner, иначе rememberLauncherForActivityResult падает.
+                        CompositionLocalProvider(
+                            LocalActivityResultRegistryOwner provides PreviewActivityResultRegistryOwner,
+                        ) {
+                            ChatInput(
+                                value = "",
+                                onValueChange = {},
+                                onSend = {},
+                                onCancel = {},
+                                isLoading = false,
+                                glassState = glassState,
+                                onExpand = {},
+                                voiceState = VoiceInputState.Idle,
+                                onVoiceToggle = {},
+                                onPermissionDenied = {},
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -1991,7 +1914,7 @@ internal val previewChatMessages = listOf(
         "Конечно. Вот черновик:\n\n- **Пн** — планирование\n- **Вт** — глубокая работа\n- **Ср** — встречи\n\nПоправить под тебя?",
     ),
     previewMessage("user", "Добавь спорт по утрам."),
-    previewMessage("assistant", "Готово — добавил утренние тренировки во все будни. Ещё что-нибудь?", isPinned = true),
+    previewMessage("assistant", "Готово — добавил утренние тренировки во все будни. Ещё что-нибудь?"),
 )
 
 /** Шаги урока с интерактивными карточками — общие для @Preview и скриншот-теста. */
@@ -2066,5 +1989,93 @@ private fun ChatScreenLessonPreview() {
 @Composable
 private fun ChatScreenEmptyPreview() {
     ChatPreviewScaffold(title = "Новый чат", messages = emptyList())
+}
+
+/**
+ * Фейковый [ActivityResultRegistryOwner] для @Preview настоящего [ChatInput]: он дёргает
+ * rememberLauncherForActivityResult (разрешение RECORD_AUDIO), а без owner'а падает в превью.
+ * onLaunch — no-op: в превью кнопку никто не жмёт, регистрации лаунчера достаточно, чтобы не крешить.
+ */
+private val PreviewActivityResultRegistryOwner = object : ActivityResultRegistryOwner {
+    override val activityResultRegistry: ActivityResultRegistry =
+        object : ActivityResultRegistry() {
+            override fun <I, O> onLaunch(
+                requestCode: Int,
+                contract: ActivityResultContract<I, O>,
+                input: I,
+                options: ActivityOptionsCompat?,
+            ) {
+                // no-op в превью
+            }
+        }
+}
+
+/**
+ * Тело превью РЕАЛЬНОГО [ChatInput] в трёх состояниях: пусто,
+ * с текстом и «идёт ответ» (кнопка «стоп»). Launcher разрешений подменён
+ * [PreviewActivityResultRegistryOwner], иначе @Preview/скриншот-тест падает. Blur (Haze/RenderEffect)
+ * в превью не рендерится — бар матовый лишь на устройстве. `internal`, чтобы его же дёргал Roborazzi-тест.
+ */
+@Composable
+internal fun ChatInputStatesPreview() {
+    MyApplicationTheme(mode = ThemeMode.DARK) {
+        val glassState = rememberGlassState()
+        CompositionLocalProvider(LocalActivityResultRegistryOwner provides PreviewActivityResultRegistryOwner) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .auroraBackground()
+                    .glassSource(glassState)
+                    .padding(vertical = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterVertically),
+            ) {
+                // Пусто — плейсхолдер, кнопка отправки приглушена.
+                ChatInput(
+                    value = "",
+                    onValueChange = {},
+                    onSend = {},
+                    onCancel = {},
+                    isLoading = false,
+                    glassState = glassState,
+                    onExpand = {},
+                    voiceState = VoiceInputState.Idle,
+                    onVoiceToggle = {},
+                    onPermissionDenied = {},
+                )
+                // С текстом — активная отправка + «очистить».
+                ChatInput(
+                    value = "Составь план на неделю с утренним спортом",
+                    onValueChange = {},
+                    onSend = {},
+                    onCancel = {},
+                    isLoading = false,
+                    glassState = glassState,
+                    onExpand = {},
+                    voiceState = VoiceInputState.Idle,
+                    onVoiceToggle = {},
+                    onPermissionDenied = {},
+                )
+                // Идёт ответ — кнопка «стоп» с прогресс-кольцом.
+                ChatInput(
+                    value = "",
+                    onValueChange = {},
+                    onSend = {},
+                    onCancel = {},
+                    isLoading = true,
+                    glassState = glassState,
+                    onExpand = {},
+                    voiceState = VoiceInputState.Idle,
+                    onVoiceToggle = {},
+                    onPermissionDenied = {},
+                )
+            }
+        }
+    }
+}
+
+@Preview(name = "Композер чата — состояния", showBackground = true, backgroundColor = 0xFF1C1B1F, heightDp = 640)
+@Composable
+private fun ChatInputPreview() {
+    ChatInputStatesPreview()
 }
 

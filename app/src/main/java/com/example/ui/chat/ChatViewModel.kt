@@ -360,7 +360,6 @@ class ChatViewModel(
             is ChatIntent.CancelRequest -> cancel()
             is ChatIntent.RetryRequest -> retry()
             is ChatIntent.ToggleToolTrace -> _state.update { it.copy(showToolTrace = !it.showToolTrace) }
-            is ChatIntent.TogglePin -> togglePin(intent.messageId)
             is ChatIntent.DeleteMessage -> deleteMessage(intent.messageId)
             is ChatIntent.ClearError -> {
                 currentConversationId()?.let { turnManager.clearError(it) }
@@ -634,13 +633,6 @@ class ChatViewModel(
         viewModelScope.launch {
             WorkManager.getInstance(context).cancelUniqueWork(HeartbeatTool.workName(id))
             heartbeatDao.setStatus(id, "cancelled")
-        }
-    }
-
-    private fun togglePin(messageId: String) {
-        val current = _state.value.messages.find { it.id == messageId } ?: return
-        viewModelScope.launch {
-            conversationRepository.setMessagePinned(messageId, !current.isPinned)
         }
     }
 

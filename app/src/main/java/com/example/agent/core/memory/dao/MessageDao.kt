@@ -68,9 +68,6 @@ interface MessageDao {
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insert(message: MessageEntity)
 
-  @Query("UPDATE messages SET isPinned = :pinned WHERE id = :id")
-  suspend fun setPinned(id: String, pinned: Boolean)
-
   /** Удаление одного сообщения (действие пользователя из чата, не «очистить диалог»). */
   @Query("DELETE FROM messages WHERE id = :id")
   suspend fun deleteById(id: String)

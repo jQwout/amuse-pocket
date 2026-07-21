@@ -215,10 +215,6 @@ class ConversationRepository @Inject constructor(
     return id
   }
 
-  suspend fun setMessagePinned(messageId: String, pinned: Boolean) {
-    messageDao.setPinned(messageId, pinned)
-  }
-
   /** Удаляет одно сообщение по id (действие пользователя в чате). */
   suspend fun deleteMessage(messageId: String) {
     messageDao.deleteById(messageId)
@@ -255,7 +251,6 @@ class ConversationRepository @Inject constructor(
     content = content,
     toolCallsJson = toolCallsJson,
     cardSpec = cardSpec,
-    isPinned = isPinned,
     createdAt = createdAt,
   )
 
