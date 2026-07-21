@@ -1445,51 +1445,22 @@ private fun ResponseStatsBar(
     stats: ResponseStats,
     modifier: Modifier = Modifier,
 ) {
-    val timeLabel = if (stats.responseTimeMs >= 1000) {
-        "%.1fс".format(stats.responseTimeMs / 1000f)
-    } else {
-        "${stats.responseTimeMs}мс"
-    }
+    // Вся статистика хода сведена к одной полоске занятости контекста: цифры времени/токенов
+    // рядом с ней жили в закомментированном Row и только шумели — история осталась в git.
     val contextUsedFraction = (stats.contextTokensUsed.toFloat() / stats.contextBudget).coerceIn(0f, 1f)
-    val contextRemainingK = ((stats.contextBudget - stats.contextTokensUsed) / 1000)
-        .coerceAtLeast(0)
 
-    Column(modifier = modifier.fillMaxWidth()) {
-        // Row(
-        //     modifier = Modifier.fillMaxWidth(),
-        //     horizontalArrangement = Arrangement.spacedBy(12.dp),
-        //     verticalAlignment = Alignment.CenterVertically,
-        // ) {
-        //     Text(
-        //         text = "⏱ $timeLabel",
-        //         style = MaterialTheme.typography.labelSmall,
-        //         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        //     )
-        //     Text(
-        //         text = "↩ ~${stats.completionTokens} токенов",
-        //         style = MaterialTheme.typography.labelSmall,
-        //         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        //     )
-        //     Text(
-        //         text = "контекст: ~${contextRemainingK}k осталось",
-        //         style = MaterialTheme.typography.labelSmall,
-        //         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        //     )
-        // }
-        // Spacer(modifier = Modifier.height(2.dp))
-        LinearProgressIndicator(
-            progress = { contextUsedFraction },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(2.dp),
-            color = when {
-                contextUsedFraction > 0.85f -> MaterialTheme.colorScheme.error
-                contextUsedFraction > 0.65f -> MaterialTheme.colorScheme.tertiary
-                else -> MaterialTheme.colorScheme.primary
-            },
-            trackColor = MaterialTheme.colorScheme.surfaceVariant,
-        )
-    }
+    LinearProgressIndicator(
+        progress = { contextUsedFraction },
+        modifier = modifier
+            .fillMaxWidth()
+            .height(2.dp),
+        color = when {
+            contextUsedFraction > 0.85f -> MaterialTheme.colorScheme.error
+            contextUsedFraction > 0.65f -> MaterialTheme.colorScheme.tertiary
+            else -> MaterialTheme.colorScheme.primary
+        },
+        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+    )
 }
 
 @Composable
