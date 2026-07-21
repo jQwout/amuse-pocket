@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.di
+package com.aiopenpocket.di
 
 import androidx.lifecycle.ViewModel
 import dev.zacsweers.metro.ContributesBinding

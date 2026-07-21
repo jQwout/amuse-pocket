@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.ui.roadmap
+package com.aiopenpocket.ui.roadmap
 
 // @trace ai-academy-onboarding-5d51bb
 

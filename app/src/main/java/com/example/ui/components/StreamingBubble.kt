@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.ui.components
+package com.aiopenpocket.ui.components
 
 // @trace streaming-llm-chat-6595a1
 

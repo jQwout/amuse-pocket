@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.agent.core.memory.entity
+package com.aiopenpocket.agent.core.memory.entity
 
 // @trace agent-memory-05e545
 

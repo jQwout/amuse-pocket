@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.di
+package com.aiopenpocket.di
 
 import android.app.Application
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository

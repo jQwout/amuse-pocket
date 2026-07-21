@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.ui.chat
+package com.aiopenpocket.ui.chat
 
 // @trace driven-ui-cards-0418d0
 // @trace user-agent-builder-848153

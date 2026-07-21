@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.ui.onboarding.components
+package com.aiopenpocket.ui.onboarding.components
 
 // @trace swappable-persona-e5e65e
 

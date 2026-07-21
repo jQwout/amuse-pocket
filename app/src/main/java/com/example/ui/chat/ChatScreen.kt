@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.ui.chat
+package com.aiopenpocket.ui.chat
 
 // @trace streaming-llm-chat-6595a1
 // @trace user-agent-builder-848153

@@ -1,0 +1,21 @@
+# Единые переносы строк. Без этого файла поведение зависело от локального
+# core.autocrlf у каждого разработчика, и git на каждую операцию предупреждал
+# «LF will be replaced by CRLF». Теперь правило живёт в репозитории: в индексе
+# и в рабочей копии — LF.
+* text=auto eol=lf
+
+# Windows-скрипты обязаны остаться с CRLF, иначе cmd их не выполнит.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Бинарники git не должен трогать нормализацией переносов. Критично для
+# скриншот-эталонов Roborazzi: любая правка байтов ломает их сравнение.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ttf binary
+*.otf binary
+*.jar binary
+*.keystore binary
+*.zip binary

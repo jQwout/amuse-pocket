@@ -1,4 +1,4 @@
-﻿package com.aiopenpocket.di
+package com.aiopenpocket.di
 
 // @trace mcp-tools-f77d9b
 
