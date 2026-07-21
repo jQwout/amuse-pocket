@@ -3,6 +3,7 @@ package com.aiopenpocket.ui.onboarding.components
 // @trace ai-academy-onboarding-5d51bb
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -46,6 +48,9 @@ fun WrapupStep(
     Text(
       text = "Как работает чат",
       style = MaterialTheme.typography.headlineSmall,
+      // Явный цвет, а не ambient LocalContentColor: без него заголовок наследует near-black
+      // вне корневого Surface (в т.ч. в скриншот-тесте) и тонет.
+      color = MaterialTheme.colorScheme.onBackground,
     )
     Text(
       text = "Прежде чем начать — пара слов о том, что происходит «под капотом».",
@@ -73,22 +78,28 @@ fun WrapupStep(
 
 @Composable
 private fun AssistantBubble(text: String) {
+  // Тема-зависимый акцент: лайм на тёмной, оливка на светлой — читается на обеих подложках.
+  val accent = MaterialTheme.colorScheme.primary
+  val shape = RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomEnd = 16.dp, bottomStart = 16.dp)
   Box(
     modifier = Modifier
       .padding(bottom = 10.dp)
-      .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomEnd = 16.dp, bottomStart = 16.dp))
+      .clip(shape)
       .background(MaterialTheme.colorScheme.surfaceVariant)
+      // Тонкая лаймовая грань отделяет карточку от ауроры — без неё тёмное на тёмном сливается.
+      .border(1.dp, accent.copy(alpha = 0.22f), shape)
       .padding(14.dp),
   ) {
-    // Lightweight bold rendering for **...** without pulling the markdown widget here.
     Text(
-      text = renderBold(text),
+      text = renderChips(text, accent),
       style = MaterialTheme.typography.bodyLarge,
+      color = MaterialTheme.colorScheme.onSurface,
     )
   }
 }
 
-private fun renderBold(raw: String) = androidx.compose.ui.text.buildAnnotatedString {
+// Ключевые слова (**...**) — лайм-чипы: цвет акцента + лёгкая заливка того же тона (подсветка).
+private fun renderChips(raw: String, accent: Color) = androidx.compose.ui.text.buildAnnotatedString {
   var i = 0
   while (i < raw.length) {
     val start = raw.indexOf("**", i)
@@ -102,7 +113,13 @@ private fun renderBold(raw: String) = androidx.compose.ui.text.buildAnnotatedStr
       append(raw.substring(start))
       break
     }
-    pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold))
+    pushStyle(
+      androidx.compose.ui.text.SpanStyle(
+        color = accent,
+        background = accent.copy(alpha = 0.15f),
+        fontWeight = FontWeight.Medium,
+      ),
+    )
     append(raw.substring(start + 2, end))
     pop()
     i = end + 2

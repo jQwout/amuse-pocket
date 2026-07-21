@@ -6,13 +6,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
 import com.aiopenpocket.ui.components.glass.auroraBackground
 import com.aiopenpocket.ui.onboarding.components.AboutMeStep
 import com.aiopenpocket.ui.onboarding.components.LanguageSelectionStep
 import com.aiopenpocket.ui.onboarding.components.PersonaCard
 import com.aiopenpocket.ui.onboarding.components.PersonaSelectionStep
+import com.aiopenpocket.ui.onboarding.components.WrapupStep
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.ui.theme.ThemeMode
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
@@ -31,7 +35,8 @@ import org.robolectric.annotation.GraphicsMode
  * персоны ([PersonaSelectionStep]). Ни один из этих композеблов не тянет ViewModel напрямую (state —
  * обычный параметр), поэтому рендерим их напрямую без *PreviewScaffold-обёрток — в отличие от
  * Home/Chat/Agents, которым такая обёртка требовалась из-за metroViewModel() внутри экрана.
- * IntroStreamingStep/WrapupStep/StreamingBubble Task 5 не трогает (см. бриф) и здесь не покрываются.
+ * IntroStreamingStep/StreamingBubble здесь не покрываются. WrapupStep покрыт (dark+light) после
+ * рестайла карточек в лайм-акцент — glass-обвязку Task 5 он не использует, но цвет карточек проверяем.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -89,6 +94,71 @@ class OnboardingGlassScreenshotTest {
     }
     composeTestRule.onRoot()
       .captureRoboImage(filePath = "src/test/screenshots/onboarding_about_me_glass.png")
+  }
+
+  /** «Как работает чат» (тёмная) — карточки-пузыри с лайм-гранью и лайм-чипами на ключевых словах. */
+  @Test
+  fun onboarding_wrapup_glass_screenshot() {
+    composeTestRule.setContent {
+      MyApplicationTheme(mode = ThemeMode.DARK) {
+        Box(Modifier.fillMaxSize().auroraBackground()) {
+          WrapupStep(personaId = "sharp_partner", name = "Саша", preferredAddress = "ты")
+        }
+      }
+    }
+    composeTestRule.onRoot()
+      .captureRoboImage(filePath = "src/test/screenshots/onboarding_wrapup_glass.png")
+  }
+
+  /** Тот же экран на светлой теме — акцент уходит в оливку (primary), проверка читаемости на бумаге. */
+  @Test
+  fun onboarding_wrapup_light_screenshot() {
+    composeTestRule.setContent {
+      MyApplicationTheme(mode = ThemeMode.LIGHT) {
+        Box(Modifier.fillMaxSize().auroraBackground()) {
+          WrapupStep(personaId = "sharp_partner", name = "Саша", preferredAddress = "ты")
+        }
+      }
+    }
+    composeTestRule.onRoot()
+      .captureRoboImage(filePath = "src/test/screenshots/onboarding_wrapup_light.png")
+  }
+
+  /** Шаг QUIZ целиком — карточки вариантов с подложкой/видимой рамкой и явно ярким текстом на ауроре. */
+  @Test
+  fun onboarding_quiz_step_glass_screenshot() {
+    composeTestRule.setContent {
+      MyApplicationTheme(mode = ThemeMode.DARK) {
+        OnboardingContent(
+          state = OnboardingUiState(currentStep = OnboardingStep.QUIZ, selectedPersonaId = "sharp_partner"),
+          editMode = false,
+          onClose = null,
+          onIntent = {},
+        )
+      }
+    }
+    composeTestRule.onRoot()
+      .captureRoboImage(filePath = "src/test/screenshots/onboarding_quiz_step_glass.png")
+  }
+
+  /** Отвеченный квиз: верный вариант — зелёный wash+галочка, неверный выбранный — красный wash+крест, пояснения. */
+  @Test
+  fun onboarding_quiz_answered_glass_screenshot() {
+    composeTestRule.setContent {
+      MyApplicationTheme(mode = ThemeMode.DARK) {
+        OnboardingContent(
+          state = OnboardingUiState(currentStep = OnboardingStep.QUIZ, selectedPersonaId = "sharp_partner"),
+          editMode = false,
+          onClose = null,
+          onIntent = {},
+        )
+      }
+    }
+    // Q1 — верно, Q2 — неверно: показать и зелёное, и красное состояние сразу.
+    composeTestRule.onNodeWithText("Только текст: промпт и история диалога").performScrollTo().performClick()
+    composeTestRule.onNodeWithText("Только твоё последнее сообщение").performScrollTo().performClick()
+    composeTestRule.onRoot()
+      .captureRoboImage(filePath = "src/test/screenshots/onboarding_quiz_answered_glass.png")
   }
 
   /** Шаг выбора персоны целиком — свой Scaffold: GlassSurface на топбаре и на Back/Apply-панели. */
