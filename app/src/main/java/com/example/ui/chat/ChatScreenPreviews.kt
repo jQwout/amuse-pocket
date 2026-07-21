@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityOptionsCompat
 import com.aiopenpocket.agent.core.memory.model.Message
 import com.aiopenpocket.agent.loop.AgentMode
+import com.aiopenpocket.ui.chat.components.ModeSelector
 import com.aiopenpocket.ui.components.glass.auroraBackground
 import com.aiopenpocket.ui.components.glass.glassSource
 import com.aiopenpocket.ui.components.glass.GlassState
