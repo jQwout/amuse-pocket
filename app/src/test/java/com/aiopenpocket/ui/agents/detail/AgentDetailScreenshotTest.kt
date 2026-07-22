@@ -72,6 +72,22 @@ class AgentDetailScreenshotTest {
       .captureRoboImage(filePath = "src/test/screenshots/agent_detail_tools_section.png")
   }
 
+  /** Фокус на секции «Препромпт» (рестайл: header + карточка + инлайн-шеврон). */
+  @Test
+  fun agent_detail_prompt_section() {
+    composeTestRule.setContent { PromptSectionPreview() }
+    composeTestRule.onRoot()
+      .captureRoboImage(filePath = "src/test/screenshots/agent_detail_prompt_section.png")
+  }
+
+  /** Фокус на секции «Heartbeat» (рестайл: header + строки title/лайм-расписание/описание). */
+  @Test
+  fun agent_detail_heartbeat_section() {
+    composeTestRule.setContent { HeartbeatSectionPreview() }
+    composeTestRule.onRoot()
+      .captureRoboImage(filePath = "src/test/screenshots/agent_detail_heartbeat_section.png")
+  }
+
   private fun longPromptState(): AgentDetailState {
     val base = samplePreviewState()
     val definition = requireNotNull(base.definition)
