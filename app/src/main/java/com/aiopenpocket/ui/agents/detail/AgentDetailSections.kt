@@ -8,6 +8,7 @@ package com.aiopenpocket.ui.agents.detail
 // поэтому без кросс-импортов: у секций, что зовёт экран, видимость private -> internal.
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,10 +26,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -44,10 +50,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -256,32 +262,37 @@ internal fun PromptSection(agent: AgentDefinition, modifier: Modifier = Modifier
   var expanded by rememberSaveable(agent.id) { mutableStateOf(true) }
 
   Column(modifier = modifier.fillMaxWidth().testTag("agent_detail_prompt")) {
-    SectionLabel("Препромпт")
+    AgentSectionHeader(icon = Icons.AutoMirrored.Filled.InsertDriveFile, label = "Препромпт")
     Spacer(modifier = Modifier.height(8.dp))
-    GlassCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-      // Полный текст ПРЯМО в потоке скролла экрана — никакого heightIn/вложенного verticalScroll
-      // здесь, в отличие от старой шторки (см. бриф Task 21): скроллит только внешний экран.
-      val displayText = if (isLong && !expanded) {
-        lines.take(PROMPT_COLLAPSE_LINES).joinToString("\n") + "\n…"
-      } else {
-        agent.systemPrompt
-      }
-      Text(
-        text = displayText,
-        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(14.dp),
-      )
+    // Тап по карточке разворачивает/сворачивает (шеврон в стиле макета), а не отдельная кнопка.
+    // Поведение и дефолт (длинный препромпт развёрнут — бриф Task 21) сохранены; testTag переехал
+    // с кнопки на карточку, поэтому существующий collapsed-скриншот-тест кликает по ней же.
+    val cardModifier = if (isLong) {
+      Modifier.fillMaxWidth().clickable { expanded = !expanded }.testTag("agent_detail_prompt_toggle")
+    } else {
+      Modifier.fillMaxWidth()
     }
-    if (isLong) {
-      Spacer(modifier = Modifier.height(8.dp))
-      TextButton(
-        onClick = { expanded = !expanded },
-        modifier = Modifier.testTag("agent_detail_prompt_toggle"),
-      ) {
-        Text(text = if (expanded) "Свернуть" else "Развернуть")
+    GlassCard(modifier = cardModifier, shape = RoundedCornerShape(16.dp)) {
+      Row(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+        val displayText = if (isLong && !expanded) {
+          lines.take(PROMPT_COLLAPSE_LINES).joinToString("\n") + "\n…"
+        } else {
+          agent.systemPrompt
+        }
+        Text(
+          text = displayText,
+          style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+          color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+          modifier = Modifier.weight(1f),
+        )
+        if (isLong) {
+          Icon(
+            imageVector = if (expanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = if (expanded) "Свернуть" else "Развернуть",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 8.dp),
+          )
+        }
       }
     }
   }
@@ -555,7 +566,11 @@ private fun SkillRow(row: AgentDetailSkillRow, modifier: Modifier = Modifier) {
 @Composable
 internal fun HeartbeatSection(heartbeats: List<HeartbeatEntity>, modifier: Modifier = Modifier) {
   Column(modifier = modifier.fillMaxWidth()) {
-    SectionLabel("Heartbeat")
+    AgentSectionHeader(
+      icon = Icons.Default.GraphicEq,
+      label = "Heartbeat",
+      trailing = heartbeats.size.takeIf { it > 0 }?.let { "$it активны" },
+    )
     Spacer(modifier = Modifier.height(8.dp))
     if (heartbeats.isEmpty()) {
       EmptyStateCard("нет активных напоминаний")
@@ -567,48 +582,47 @@ internal fun HeartbeatSection(heartbeats: List<HeartbeatEntity>, modifier: Modif
   }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun HeartbeatRow(hb: HeartbeatEntity, modifier: Modifier = Modifier) {
   GlassCard(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-    Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
       Text(
         text = hb.title,
-        style = MaterialTheme.typography.bodyMedium,
+        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
         color = MaterialTheme.colorScheme.onSurface,
       )
       Spacer(modifier = Modifier.height(4.dp))
-      FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-      ) {
-        MetaText(formatInterval(hb))
-        MetaText(hb.lastRunAt?.let { formatRelativeDate(it) } ?: "—")
-        MetaText(text = formatHeartbeatStatus(hb), color = MaterialTheme.colorScheme.primary)
+      // Расписание — лаймовым с иконкой часов, как в макете.
+      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Icon(
+          imageVector = Icons.Default.Schedule,
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.primary,
+          modifier = Modifier.size(13.dp),
+        )
+        Text(
+          text = formatInterval(hb),
+          style = MaterialTheme.typography.labelMedium,
+          color = MaterialTheme.colorScheme.primary,
+        )
+      }
+      // Описание = задача агента (prompt) либо текст пуша (message) — что есть.
+      val desc = hb.prompt?.takeIf { it.isNotBlank() } ?: hb.message
+      if (!desc.isNullOrBlank()) {
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+          text = desc,
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+        )
       }
     }
   }
 }
 
-@Composable
-private fun MetaText(text: String, color: Color? = null) {
-  Text(
-    text = text,
-    style = MaterialTheme.typography.bodySmall,
-    color = color ?: MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-  )
-}
-
 /** «каждые N мин» для периодических, «разово» для one_time — факт периодичности, без обратного отсчёта. */
 private fun formatInterval(hb: HeartbeatEntity): String =
   hb.intervalMinutes?.let { "каждые $it мин" } ?: "разово"
-
-private fun formatHeartbeatStatus(hb: HeartbeatEntity): String = when (hb.status) {
-  "fired" -> "Сработало"
-  "cancelled" -> "Отменено"
-  "error" -> "Ошибка"
-  else -> "Ждёт"
-}
 
 @Composable
 internal fun HooksSection(hooks: List<AgentDetailHookRow>, modifier: Modifier = Modifier) {
@@ -896,6 +910,36 @@ internal fun ToolsSectionPreview() {
         .padding(16.dp),
     ) {
       ToolsSection(tools = samplePreviewState().tools)
+    }
+  }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF0A0A0A, heightDp = 320)
+@Composable
+internal fun PromptSectionPreview() {
+  MyApplicationTheme(mode = ThemeMode.DARK) {
+    Box(
+      modifier = Modifier
+        .fillMaxWidth()
+        .background(MaterialTheme.colorScheme.background)
+        .padding(16.dp),
+    ) {
+      PromptSection(agent = requireNotNull(samplePreviewState().definition))
+    }
+  }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF0A0A0A, heightDp = 220)
+@Composable
+internal fun HeartbeatSectionPreview() {
+  MyApplicationTheme(mode = ThemeMode.DARK) {
+    Box(
+      modifier = Modifier
+        .fillMaxWidth()
+        .background(MaterialTheme.colorScheme.background)
+        .padding(16.dp),
+    ) {
+      HeartbeatSection(heartbeats = samplePreviewState().activeHeartbeats)
     }
   }
 }
