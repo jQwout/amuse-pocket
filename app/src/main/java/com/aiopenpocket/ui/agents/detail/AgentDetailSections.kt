@@ -61,7 +61,10 @@ import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.AgentStatus
 import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.core.agent.toDefinition
+import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.hook.AgentHookRunEntity
+import com.aiopenpocket.agent.core.hook.HookActionType
+import com.aiopenpocket.agent.core.hook.HookEvent
 import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.plan.model.PlanStatus
@@ -241,13 +244,14 @@ internal fun StatTiles(
 private fun StatTile(label: String, value: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
   GlassCard(modifier = modifier, shape = RoundedCornerShape(16.dp), onClick = onClick) {
     Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
-      Text(text = value, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
-      Spacer(modifier = Modifier.height(2.dp))
+      // Как в макете: метка uppercase серым сверху, крупное значение снизу.
       Text(
-        text = label,
+        text = label.uppercase(),
         style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
+      Spacer(modifier = Modifier.height(4.dp))
+      Text(text = value, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
     }
   }
 }
@@ -626,16 +630,52 @@ private fun formatInterval(hb: HeartbeatEntity): String =
 
 @Composable
 internal fun HooksSection(hooks: List<AgentDetailHookRow>, modifier: Modifier = Modifier) {
+  var expanded by rememberSaveable { mutableStateOf(false) }
   Column(modifier = modifier.fillMaxWidth()) {
-    SectionLabel("Хуки")
+    AgentSectionHeader(icon = Icons.Default.Bolt, label = "Хуки")
     Spacer(modifier = Modifier.height(8.dp))
     if (hooks.isEmpty()) {
       // Честная пустая карточка — у пресетов и у ещё не настроенных USER-агентов хуков просто нет.
-      // Прежние фейковые стабы on_tool_call/pre_message ("на будущее") здесь больше не показываются.
       EmptyStateCard("у агента нет настроенных хуков")
     } else {
-      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        hooks.forEach { row -> HookRow(row) }
+      val enabled = hooks.count { it.hook.enabled }
+      // Сводная карточка как в макете (Обзор); тап разворачивает детали read-only. Полноценный
+      // редактор хуков (тумблеры/добавление) — в билдере, не здесь (решение «рестайл на реальных
+      // данных»).
+      GlassCard(
+        modifier = Modifier
+          .fillMaxWidth()
+          .clickable { expanded = !expanded }
+          .testTag("agent_detail_hooks_toggle"),
+        shape = RoundedCornerShape(14.dp),
+      ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+              Text(
+                text = "Действия на события",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurface,
+              )
+              Text(
+                text = "$enabled из ${hooks.size} включены",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+              )
+            }
+            Icon(
+              imageVector = if (expanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+              contentDescription = if (expanded) "Свернуть" else "Развернуть",
+              tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
+          if (expanded) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              hooks.forEach { row -> HookRow(row) }
+            }
+          }
+        }
       }
     }
   }
@@ -839,7 +879,26 @@ internal fun samplePreviewState(): AgentDetailState {
         available = true,
       ),
     ),
-    hooks = emptyList(),
+    hooks = listOf(
+      AgentDetailHookRow(
+        hook = AgentHook(
+          id = "h1", agentId = "budget", event = HookEvent.BEFORE_TURN,
+          conditionType = "always", conditionJson = "{}",
+          actionType = HookActionType.ADD_INSTRUCTION, actionJson = "{}",
+          priority = 0, enabled = true,
+        ),
+        recentRuns = emptyList(),
+      ),
+      AgentDetailHookRow(
+        hook = AgentHook(
+          id = "h2", agentId = "budget", event = HookEvent.AFTER_TURN,
+          conditionType = "always", conditionJson = "{}",
+          actionType = HookActionType.LOG, actionJson = "{}",
+          priority = 0, enabled = false,
+        ),
+        recentRuns = emptyList(),
+      ),
+    ),
     activeHeartbeats = listOf(
       HeartbeatEntity(
         id = "hb1",
@@ -940,6 +999,42 @@ internal fun HeartbeatSectionPreview() {
         .padding(16.dp),
     ) {
       HeartbeatSection(heartbeats = samplePreviewState().activeHeartbeats)
+    }
+  }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF0A0A0A, heightDp = 240)
+@Composable
+internal fun StatTilesPreview() {
+  MyApplicationTheme(mode = ThemeMode.DARK) {
+    Box(
+      modifier = Modifier
+        .fillMaxWidth()
+        .background(MaterialTheme.colorScheme.background)
+        .padding(16.dp),
+    ) {
+      StatTiles(
+        state = samplePreviewState(),
+        onToolsClick = {},
+        onSkillsClick = {},
+        onHeartbeatClick = {},
+        onHooksClick = {},
+      )
+    }
+  }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF0A0A0A, heightDp = 160)
+@Composable
+internal fun HooksSectionPreview() {
+  MyApplicationTheme(mode = ThemeMode.DARK) {
+    Box(
+      modifier = Modifier
+        .fillMaxWidth()
+        .background(MaterialTheme.colorScheme.background)
+        .padding(16.dp),
+    ) {
+      HooksSection(hooks = samplePreviewState().hooks)
     }
   }
 }

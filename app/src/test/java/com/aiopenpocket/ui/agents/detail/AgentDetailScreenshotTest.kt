@@ -88,6 +88,22 @@ class AgentDetailScreenshotTest {
       .captureRoboImage(filePath = "src/test/screenshots/agent_detail_heartbeat_section.png")
   }
 
+  /** Фокус на стат-плитках (рестайл: uppercase-метка сверху, крупное значение снизу). */
+  @Test
+  fun agent_detail_stat_tiles() {
+    composeTestRule.setContent { StatTilesPreview() }
+    composeTestRule.onRoot()
+      .captureRoboImage(filePath = "src/test/screenshots/agent_detail_stat_tiles.png")
+  }
+
+  /** Фокус на секции «Хуки» (рестайл: сводная карточка «N из M включены», сворачиваемая). */
+  @Test
+  fun agent_detail_hooks_section() {
+    composeTestRule.setContent { HooksSectionPreview() }
+    composeTestRule.onRoot()
+      .captureRoboImage(filePath = "src/test/screenshots/agent_detail_hooks_section.png")
+  }
+
   private fun longPromptState(): AgentDetailState {
     val base = samplePreviewState()
     val definition = requireNotNull(base.definition)
