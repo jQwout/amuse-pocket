@@ -62,6 +62,16 @@ class AgentDetailScreenshotTest {
       .captureRoboImage(filePath = "src/test/screenshots/agent_detail_long_prompt_collapsed_glass.png")
   }
 
+  /** Фокус на секции «Инструменты» (рестайл под макет) — она ниже сгиба, полноэкранный кадр её не ловит. */
+  @Test
+  fun agent_detail_tools_section() {
+    composeTestRule.setContent {
+      ToolsSectionPreview()
+    }
+    composeTestRule.onRoot()
+      .captureRoboImage(filePath = "src/test/screenshots/agent_detail_tools_section.png")
+  }
+
   private fun longPromptState(): AgentDetailState {
     val base = samplePreviewState()
     val definition = requireNotNull(base.definition)

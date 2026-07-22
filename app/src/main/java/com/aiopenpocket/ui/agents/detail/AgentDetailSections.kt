@@ -25,8 +25,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.Icons
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -45,6 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.AgentDefinition
@@ -56,7 +60,6 @@ import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.plan.model.PlanStatus
 import com.aiopenpocket.data.repository.AgentFile
-import com.aiopenpocket.ui.agents.builder.components.riskClassLabel
 import com.aiopenpocket.ui.agents.builder.components.riskColor
 import com.aiopenpocket.ui.agents.iconFor
 import com.aiopenpocket.ui.components.glass.GlassCard
@@ -369,13 +372,26 @@ private fun PlanRow(row: AgentDetailPlanRow, onClick: () -> Unit, modifier: Modi
 @Composable
 internal fun ToolsSection(tools: List<AgentDetailToolRow>, modifier: Modifier = Modifier) {
   Column(modifier = modifier.fillMaxWidth()) {
-    SectionLabel("Инструменты")
+    AgentSectionHeader(
+      icon = Icons.Default.Bolt,
+      label = "Инструменты",
+      trailing = tools.size.takeIf { it > 0 }?.toString(),
+    )
     Spacer(modifier = Modifier.height(8.dp))
     if (tools.isEmpty()) {
       EmptyStateCard("у агента нет инструментов")
     } else {
-      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        tools.forEach { row -> ToolRow(row) }
+      // Единый контейнер (в макете тулы лежат в одной карточке); строки разделены тонкой линией.
+      GlassCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+        tools.forEachIndexed { i, row ->
+          if (i > 0) {
+            HorizontalDivider(
+              color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+              modifier = Modifier.padding(horizontal = 14.dp),
+            )
+          }
+          ToolRow(row)
+        }
       }
     }
   }
@@ -383,57 +399,105 @@ internal fun ToolsSection(tools: List<AgentDetailToolRow>, modifier: Modifier = 
 
 @Composable
 private fun ToolRow(row: AgentDetailToolRow, modifier: Modifier = Modifier) {
-  GlassCard(
-    modifier = modifier.fillMaxWidth().testTag("agent_detail_tool_${row.name}"),
-    shape = RoundedCornerShape(14.dp),
+  Row(
+    modifier = modifier
+      .fillMaxWidth()
+      .testTag("agent_detail_tool_${row.name}")
+      .padding(horizontal = 14.dp, vertical = 12.dp),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(10.dp),
   ) {
-    Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(horizontal = 14.dp, vertical = 12.dp),
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      Column(modifier = Modifier.weight(1f).padding(end = 10.dp)) {
-        Text(
-          text = row.name,
-          style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-          color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-          text = row.description,
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-        )
-      }
-      val risk = row.riskClass
-      if (risk != null) RiskBadge(risk) else UnavailableBadge()
-    }
+    Icon(
+      imageVector = Icons.Default.Bolt,
+      contentDescription = null,
+      tint = MaterialTheme.colorScheme.primary,
+      modifier = Modifier.size(16.dp),
+    )
+    Text(
+      text = row.name,
+      style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+      color = MaterialTheme.colorScheme.onSurface,
+      modifier = Modifier.weight(1f),
+    )
+    val risk = row.riskClass
+    if (risk != null) RiskPill(risk) else UnavailablePill()
   }
 }
 
+/**
+ * Пилюля в стиле макета (кадр «Инструменты»). Цвет и текст — РЕАЛЬНЫЕ (riskColor + короткая метка
+ * риска), а не выдуманный allow/deny из макета: у агента все тулы разрешены, поэтому осмысленный
+ * сигнал здесь — класс риска, а не «РАЗРЕШЁН» на каждой строке.
+ */
 @Composable
-private fun RiskBadge(risk: RiskClass, modifier: Modifier = Modifier) {
+private fun RiskPill(risk: RiskClass, modifier: Modifier = Modifier) {
   val color = riskColor(risk)
   Box(
     modifier = modifier
-      .clip(RoundedCornerShape(8.dp))
+      .clip(RoundedCornerShape(6.dp))
       .background(color.copy(alpha = 0.15f))
-      .padding(horizontal = 10.dp, vertical = 6.dp),
+      .padding(horizontal = 8.dp, vertical = 3.dp),
   ) {
-    Text(text = riskClassLabel(risk), style = MaterialTheme.typography.labelMedium, color = color)
+    Text(text = shortRiskLabel(risk), style = MaterialTheme.typography.labelSmall, color = color)
   }
 }
 
 @Composable
-private fun UnavailableBadge(modifier: Modifier = Modifier) {
+private fun UnavailablePill(modifier: Modifier = Modifier) {
   val color = MaterialTheme.colorScheme.error
   Box(
     modifier = modifier
-      .clip(RoundedCornerShape(8.dp))
+      .clip(RoundedCornerShape(6.dp))
       .background(color.copy(alpha = 0.15f))
-      .padding(horizontal = 10.dp, vertical = 6.dp),
+      .padding(horizontal = 8.dp, vertical = 3.dp),
   ) {
-    Text(text = "недоступен", style = MaterialTheme.typography.labelMedium, color = color)
+    Text(text = "НЕДОСТУПЕН", style = MaterialTheme.typography.labelSmall, color = color)
+  }
+}
+
+/** Короткая uppercase-метка риска для пилюли (полная — riskClassLabel, её показывает билдер). */
+private fun shortRiskLabel(risk: RiskClass): String = when (risk) {
+  RiskClass.READ -> "ЧТЕНИЕ"
+  RiskClass.WRITE -> "ЗАПИСЬ"
+  RiskClass.DESTRUCTIVE -> "ОПАСНО"
+  RiskClass.EXTERNAL -> "НАРУЖУ"
+}
+
+/**
+ * Хедер секции в стиле макета: иконка + UPPERCASE-метка серым + опциональный счётчик справа.
+ * Общий для секций (пока применён к «Инструментам»; остальные мигрируют в своих срезах).
+ */
+@Composable
+private fun AgentSectionHeader(
+  icon: ImageVector,
+  label: String,
+  trailing: String? = null,
+  modifier: Modifier = Modifier,
+) {
+  Row(
+    modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Icon(
+      imageVector = icon,
+      contentDescription = null,
+      tint = MaterialTheme.colorScheme.onSurfaceVariant,
+      modifier = Modifier.size(15.dp),
+    )
+    Spacer(modifier = Modifier.width(6.dp))
+    Text(
+      text = label.uppercase(),
+      style = MaterialTheme.typography.labelMedium,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    if (trailing != null) {
+      Spacer(modifier = Modifier.weight(1f))
+      Text(
+        text = trailing,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
   }
 }
 
@@ -483,7 +547,7 @@ private fun SkillRow(row: AgentDetailSkillRow, modifier: Modifier = Modifier) {
           )
         }
       }
-      if (!row.available) UnavailableBadge()
+      if (!row.available) UnavailablePill()
     }
   }
 }
@@ -813,5 +877,25 @@ internal fun AgentDetailPreviewScaffold(state: AgentDetailState = samplePreviewS
       onArchive = {},
       onNavigateBack = {},
     )
+  }
+}
+
+/**
+ * Фокусное превью ОДНОЙ секции на НАСТОЯЩЕМ компоненте (не мок) — секции экрана лежат ниже сгиба, и
+ * полноэкранный скриншот их не ловит. Это же превью открывается в Android Studio, чтобы потыкать
+ * секцию отдельно. По мере рестайла остальных секций добавляются такие же фокусные превью.
+ */
+@Preview(showBackground = true, backgroundColor = 0xFF0A0A0A, heightDp = 240)
+@Composable
+internal fun ToolsSectionPreview() {
+  MyApplicationTheme(mode = ThemeMode.DARK) {
+    Box(
+      modifier = Modifier
+        .fillMaxWidth()
+        .background(MaterialTheme.colorScheme.background)
+        .padding(16.dp),
+    ) {
+      ToolsSection(tools = samplePreviewState().tools)
+    }
   }
 }
