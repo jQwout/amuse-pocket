@@ -136,11 +136,24 @@ internal fun ChatSearchBar(
     }
 }
 
+/**
+ * Which agent modes a chat may offer. PLAN/GOAL require a resolvable agent (the planner refuses
+ * without one), so a plain chat (no bound agent) gets only Chat + Reflect — showing Plan/Goal there
+ * would be a dead-end. An agent-bound chat gets the full set.
+ */
+internal fun availableModesFor(agentId: String?): List<AgentMode> =
+  if (agentId != null) {
+    listOf(AgentMode.CHAT, AgentMode.PLAN, AgentMode.GOAL, AgentMode.REFLECT)
+  } else {
+    listOf(AgentMode.CHAT, AgentMode.REFLECT)
+  }
+
 // internal: зовётся и с экрана чата, и из превью-каркаса.
 @Composable
 internal fun ModeSelector(
     selected: AgentMode,
     enabled: Boolean,
+    available: List<AgentMode>,
     onSelect: (AgentMode) -> Unit,
 ) {
     Row(
@@ -150,11 +163,18 @@ internal fun ModeSelector(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ModeChip("Чат", selected == AgentMode.CHAT, enabled) { onSelect(AgentMode.CHAT) }
-        ModeChip("План", selected == AgentMode.PLAN, enabled) { onSelect(AgentMode.PLAN) }
-        ModeChip("Цель", selected == AgentMode.GOAL, enabled) { onSelect(AgentMode.GOAL) }
-        ModeChip("Рефлексия", selected == AgentMode.REFLECT, enabled) { onSelect(AgentMode.REFLECT) }
+        available.forEach { mode ->
+            ModeChip(modeLabel(mode), selected == mode, enabled) { onSelect(mode) }
+        }
     }
+}
+
+private fun modeLabel(mode: AgentMode): String = when (mode) {
+    AgentMode.CHAT -> "Чат"
+    AgentMode.PLAN -> "План"
+    AgentMode.GOAL -> "Цель"
+    AgentMode.REFLECT -> "Рефлексия"
+    else -> mode.name // TUTOR is lesson-internal and never offered in this selector.
 }
 
 @Composable
