@@ -31,12 +31,14 @@ import com.aiopenpocket.agent.loop.AgentEvent
 import com.aiopenpocket.agent.loop.AgentResult
 import com.aiopenpocket.agent.loop.AgentState
 import com.aiopenpocket.agent.loop.ReactLoopRunner
+import com.aiopenpocket.agent.loop.TurnContextHolder
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.BindingContainer
 import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.SingleIn
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -179,6 +181,7 @@ class PlanExecutor @Inject constructor(
   private val assets: AssetSource,
   private val verifier: PlanVerifier,
   private val hookRepository: AgentHookRepository,
+  private val turnContextHolder: TurnContextHolder,
 ) {
   private var clock: () -> Long = System::currentTimeMillis
 
@@ -190,8 +193,9 @@ class PlanExecutor @Inject constructor(
     assets: AssetSource,
     verifier: PlanVerifier,
     hookRepository: AgentHookRepository,
+    turnContextHolder: TurnContextHolder,
     clock: () -> Long,
-  ) : this(repository, toolRegistry, stepRunner, assets, verifier, hookRepository) {
+  ) : this(repository, toolRegistry, stepRunner, assets, verifier, hookRepository, turnContextHolder) {
     this.clock = clock
   }
 
@@ -320,17 +324,23 @@ class PlanExecutor @Inject constructor(
     // PlanVersion/PlanStep.instruction itself.
     val messages = buildStepMessages(systemBase, agent, fresh, step, budget, nextAttempt, beforeStep.addedInstructions)
 
-    val agentResult = stepRunner.run(
-      fresh.plan.conversationId,
-      messages,
-      schemas,
-      provider,
-      budget.maxLlmIterationsPerStep,
-      agent,
-      executionMode,
-      interactiveApproval,
-      budget.maxToolCallsPerRun,
-    ) { }
+    // Bind this step's tool calls to the plan's OWN agent/conversation, exactly like AgentLoopOrchestrator/
+    // ReflectionOrchestrator/HeartbeatRunner wrap their runs — otherwise memory/file/storage tools inside
+    // the step read whatever TurnContextHolder a prior run left on this dispatcher thread (global or a
+    // different agent), leaking data across agents. See TurnContextHolder's kdoc.
+    val agentResult = withContext(turnContextHolder.contextElement(fresh.plan.conversationId, agent)) {
+      stepRunner.run(
+        fresh.plan.conversationId,
+        messages,
+        schemas,
+        provider,
+        budget.maxLlmIterationsPerStep,
+        agent,
+        executionMode,
+        interactiveApproval,
+        budget.maxToolCallsPerRun,
+      ) { }
+    }
 
     return recordOutcome(fresh, step, nextAttempt, nextDueAt, now, agentResult, provider, hooks, hookRunId)
   }

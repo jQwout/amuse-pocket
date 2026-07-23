@@ -44,8 +44,10 @@ object TurnModule {
       // не нужны (AgentLoopOrchestrator.execute их не принимает вовсе).
       when (mode) {
         AgentMode.REFLECT -> reflectionOrchestrator.execute(conversationId, message, provider, executionMode)
+        // PLAN's propose() only ever sees internal control schemas (never action tools), so PREVIEW
+        // vs LIVE is a no-op there; GOAL actually executes step tools, so executionMode must reach it.
         AgentMode.PLAN -> structuredPlanOrchestrator.propose(conversationId, message, provider)
-        AgentMode.GOAL -> structuredPlanOrchestrator.executeGoal(conversationId, planId, message, provider, budget)
+        AgentMode.GOAL -> structuredPlanOrchestrator.executeGoal(conversationId, planId, message, provider, budget, executionMode)
         else -> orchestrator.execute(
           conversationId, message, provider, mode,
           systemPromptExtra = systemPromptExtra, executionMode = executionMode,

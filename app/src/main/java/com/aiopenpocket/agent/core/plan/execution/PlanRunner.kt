@@ -13,6 +13,7 @@ import com.aiopenpocket.agent.core.plan.model.PlanStep
 import com.aiopenpocket.agent.core.plan.model.PlanStepState
 import com.aiopenpocket.agent.core.plan.model.StepStatus
 import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
+import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -38,6 +39,8 @@ data class PlanRunRequest(
   val requestedStepId: String? = null,
   val background: Boolean = false,
   val budget: PlanRunBudget = PlanRunBudget(),
+  /** LIVE runs tools for real; PREVIEW (builder test-run) simulates side-effecting tools. Threaded to [PlanExecutor.execute]. */
+  val executionMode: ExecutionMode = ExecutionMode.LIVE,
 )
 
 /** Terminal outcome of one [PlanRunner.run] call (plan's Task 10 Step 1 sketch, reproduced here). */
@@ -211,6 +214,7 @@ class PlanRunner @Inject constructor(
         agent = agent,
         budget = request.budget,
         provider = provider,
+        executionMode = request.executionMode,
         interactiveApproval = !request.background,
       )
       executedSteps += step.id

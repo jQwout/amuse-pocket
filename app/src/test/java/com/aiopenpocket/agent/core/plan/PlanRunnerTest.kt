@@ -56,6 +56,7 @@ import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.loop.AgentResult
 import com.aiopenpocket.agent.loop.AgentState
 import com.aiopenpocket.agent.loop.ToolTrace
+import com.aiopenpocket.agent.loop.TurnContextHolder
 import com.aiopenpocket.data.database.AppDatabase
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -251,7 +252,7 @@ class PlanRunnerTest {
     return requireNotNull(repository.snapshot(planId))
   }
 
-  private fun executor() = PlanExecutor(repository, toolRegistry, stepRunner, NoAssets, verifier(), hookRepository) { now }
+  private fun executor() = PlanExecutor(repository, toolRegistry, stepRunner, NoAssets, verifier(), hookRepository, TurnContextHolder()) { now }
 
   private fun verifier() = PlanVerifier(PlanEvidenceSink(repository::addEvidence), NoMemoryFacts, UnusedLlmClient, NoAssets) { now }
 
