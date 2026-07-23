@@ -9,6 +9,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
 import com.aiopenpocket.agent.core.plan.schedule.WorkManagerHeartbeatScheduler
+import com.aiopenpocket.agent.core.srs.SrsRepository
 import com.aiopenpocket.agent.loop.TurnContextHolder
 import com.aiopenpocket.data.database.AppDatabase
 import kotlinx.serialization.json.JsonElement
@@ -49,6 +50,7 @@ class ToolRiskForTest {
   private lateinit var databaseQueryTool: DatabaseQueryTool
   private lateinit var heartbeatTool: HeartbeatTool
   private lateinit var workManagerTool: WorkManagerTool
+  private lateinit var srsTool: SrsTool
 
   @Before
   fun setUp() {
@@ -66,6 +68,7 @@ class ToolRiskForTest {
     // (its constructor does not itself touch WorkManager.getInstance()).
     heartbeatTool = HeartbeatTool(context, db.heartbeatDao(), holder, WorkManagerHeartbeatScheduler(context))
     workManagerTool = WorkManagerTool(context)
+    srsTool = SrsTool(SrsRepository(db.srsWordDao()))
   }
 
   @After
@@ -230,5 +233,29 @@ class ToolRiskForTest {
   @Test
   fun `work_manager cancel_work is DESTRUCTIVE`() {
     assertEquals(RiskClass.DESTRUCTIVE, workManagerTool.riskFor(args("action" to "cancel_work")))
+  }
+
+  // --- srs_tool: add_word/review PERSIST to Room (WRITE); due_words/all_words only read (READ). The
+  // whole point is Preview safety — a language agent tried out in PREVIEW must not actually create or
+  // reschedule SRS cards. Without a riskFor override srs_tool inherits READ and writes for real.
+
+  @Test
+  fun `srs_tool add_word is WRITE`() {
+    assertEquals(RiskClass.WRITE, srsTool.riskFor(args("action" to "add_word")))
+  }
+
+  @Test
+  fun `srs_tool review is WRITE`() {
+    assertEquals(RiskClass.WRITE, srsTool.riskFor(args("action" to "review")))
+  }
+
+  @Test
+  fun `srs_tool due_words is READ`() {
+    assertEquals(RiskClass.READ, srsTool.riskFor(args("action" to "due_words")))
+  }
+
+  @Test
+  fun `srs_tool all_words is READ`() {
+    assertEquals(RiskClass.READ, srsTool.riskFor(args("action" to "all_words")))
   }
 }

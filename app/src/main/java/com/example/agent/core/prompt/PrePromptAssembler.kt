@@ -237,7 +237,10 @@ class PrePromptAssembler(
       PromptContext(
         systemPrompt = systemPrompt,
         history = window.verbatim,
-        toolNames = agent?.toolNames?.takeIf { it.isNotEmpty() },
+        // null ONLY for a plain chat (no bound agent) — that is what grants the full tool registry.
+        // A bound agent always scopes to its own toolNames, even when empty: an agent that chose no
+        // tools must get an empty scope, never fall through to every tool on the device.
+        toolNames = if (agent != null) agent.toolNames else null,
         agentId = agent?.id,
         agent = agent,
       )

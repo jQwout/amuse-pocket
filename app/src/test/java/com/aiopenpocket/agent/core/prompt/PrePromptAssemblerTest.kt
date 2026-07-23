@@ -5,9 +5,14 @@ package com.aiopenpocket.agent.core.prompt
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.aiopenpocket.agent.core.agent.AgentDefinition
+import com.aiopenpocket.agent.core.agent.AgentMemoryPolicy
+import com.aiopenpocket.agent.core.agent.AgentSource
+import com.aiopenpocket.agent.core.agent.AgentStatus
 import com.aiopenpocket.agent.core.agent.DefaultAgentResolver
 import com.aiopenpocket.agent.core.agent.UserAgentRepository
 import com.aiopenpocket.agent.core.hook.AgentHookRepository
+import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.memory.entity.ConversationEntity
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
@@ -30,7 +35,9 @@ import com.aiopenpocket.agent.core.skill.UserSkillRepository
 import com.aiopenpocket.data.database.AppDatabase
 import kotlinx.coroutines.test.runTest
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -157,5 +164,52 @@ class PrePromptAssemblerTest {
 
     assertFalse(result.systemPrompt.contains("Активный утверждённый план"))
     assertFalse(result.systemPrompt.contains("Ещё не одобренный план"))
+  }
+
+  // --- tool scoping (B2): a bound agent's empty tool set means "no tools", never "all tools" ----------
+
+  private fun userAgent(id: String, toolNames: Set<String>) = AgentDefinition(
+    id = id,
+    source = AgentSource.USER,
+    name = "Свой агент",
+    description = "Пользовательский агент.",
+    iconKey = "sparkles",
+    systemPrompt = "Ты — пользовательский агент.",
+    toolNames = toolNames,
+    skillIds = emptySet(),
+    defaultMode = AgentMode.CHAT,
+    allowedModes = setOf(AgentMode.CHAT),
+    memoryPolicy = AgentMemoryPolicy(namespace = "agent:$id:", includeSharedProfile = false),
+    allowedWidgetTemplates = emptySet(),
+    hooks = emptyList(),
+    configVersion = 0L,
+    status = AgentStatus.DRAFT,
+  )
+
+  @Test
+  fun `bound user agent with an empty tool set scopes to zero tools, never the whole registry`() = runTest {
+    val userAgents = UserAgentRepository(db, db.userAgentDao(), AgentHookRepository(db.agentHookDao()))
+    userAgents.saveDraft(userAgent("no-tools-agent", emptySet()))
+    userAgents.publish("no-tools-agent")
+    db.conversationDao().insert(ConversationEntity(id = "c1", title = "T", agentId = "no-tools-agent"))
+
+    val result = assembler.assemble("c1", "привет")
+
+    // null would fall through to registry.getAllSchemas() at the loop — the bug. An agent that chose
+    // no tools must get an EMPTY scope, not every tool on the device.
+    assertNotNull("a bound agent must scope tools, not inherit the full registry", result.toolNames)
+    assertTrue(result.toolNames!!.isEmpty())
+  }
+
+  @Test
+  fun `bound user agent keeps exactly its own tool set`() = runTest {
+    val userAgents = UserAgentRepository(db, db.userAgentDao(), AgentHookRepository(db.agentHookDao()))
+    userAgents.saveDraft(userAgent("scoped-agent", setOf("memory_tool")))
+    userAgents.publish("scoped-agent")
+    db.conversationDao().insert(ConversationEntity(id = "c1", title = "T", agentId = "scoped-agent"))
+
+    val result = assembler.assemble("c1", "привет")
+
+    assertEquals(setOf("memory_tool"), result.toolNames)
   }
 }

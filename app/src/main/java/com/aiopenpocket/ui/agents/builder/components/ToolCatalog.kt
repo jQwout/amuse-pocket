@@ -135,9 +135,9 @@ object ToolCatalog {
     ToolCatalogEntry(
       name = "srs_tool",
       label = "Словарь (SRS)",
-      riskClass = RiskClass.READ,
+      riskClass = RiskClass.WRITE,
       permission = null,
-      consequence = "Хранит и планирует повторение слов для изучения языка.",
+      consequence = "Сохраняет слова и планирует их повторение — записывает данные на устройстве.",
     ),
     ToolCatalogEntry(
       name = "step_counter",

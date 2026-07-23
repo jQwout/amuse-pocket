@@ -2,6 +2,7 @@ package com.aiopenpocket.agent.tools
 
 // @trace yazykovoy-agent-repetitor-s-intervalnymi-povtoreniyami-4a9360
 
+import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.mcp.string
@@ -28,6 +29,17 @@ class SrsTool(
   override val name = "srs_tool"
   override val description =
     "Интервальные повторения слов (SRS). Даты и интервалы считает сам инструмент — не в уме."
+
+  // add_word/review persist to the srs_words table; due_words/all_words only read. Classify per action
+  // so ExecutionPolicy simulates (never runs) the writes in PREVIEW — the ceiling stays WRITE for the
+  // episodic-logging path that has no per-call arguments.
+  override val riskClass: RiskClass = RiskClass.WRITE
+
+  override fun riskFor(arguments: Map<String, JsonElement>): RiskClass =
+    when (arguments.string("action")) {
+      "add_word", "review" -> RiskClass.WRITE
+      else -> RiskClass.READ
+    }
   override val schema = toolSchema(name, description) {
     string("action", "add_word (добавить слово), due_words (что повторить сегодня), " +
       "review (отметить ответ), all_words (все слова с этапами)", required = true,
