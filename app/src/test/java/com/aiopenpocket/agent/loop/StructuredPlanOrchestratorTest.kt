@@ -150,6 +150,8 @@ class StructuredPlanOrchestratorTest {
     var script: () -> AgentResult = { AgentResult(text = "ok", toolTrace = emptyList(), state = AgentState.FINISHED, iterations = 1) }
     var callCount = 0
       private set
+    var lastExecutionMode: ExecutionMode? = null
+      private set
 
     override suspend fun run(
       conversationId: String,
@@ -164,6 +166,7 @@ class StructuredPlanOrchestratorTest {
       emit: suspend (AgentEvent) -> Unit,
     ): AgentResult {
       callCount++
+      lastExecutionMode = executionMode
       return script()
     }
   }
@@ -215,7 +218,7 @@ class StructuredPlanOrchestratorTest {
 
   private fun verifier() = PlanVerifier(PlanEvidenceSink(repository::addEvidence), NoMemoryFacts, UnusedLlmClient, NoAssets) { now }
 
-  private fun executor() = PlanExecutor(repository, toolRegistry, stepRunner, NoAssets, verifier(), hookRepository) { now }
+  private fun executor() = PlanExecutor(repository, toolRegistry, stepRunner, NoAssets, verifier(), hookRepository, TurnContextHolder()) { now }
 
   private fun orchestrator(agents: Map<String, AgentDefinition> = mapOf("agent-1" to agentDefinition())): StructuredPlanOrchestrator {
     val agentResolver = FakeAgentResolver(agents)
@@ -332,6 +335,23 @@ class StructuredPlanOrchestratorTest {
     assertEquals(PlanRunOutcome.COMPLETED, progressed.result.outcome) // single criteria-less step -> trivially COMPLETED
     assertEquals(1, stepRunner.callCount)
     assertEquals(PlanStatus.COMPLETED, repository.snapshot(planId)!!.plan.status)
+  }
+
+  @Test
+  fun `executeGoal in PREVIEW threads PREVIEW mode all the way to the step runner (builder test-run has no side effects)`() = runTest {
+    val convId = conversationRepository.createConversation(title = "Test", agentId = "agent-1")
+    val org = orchestrator()
+    org.propose(convId, "распланируй").toList()
+    val planId = repository.observeByConversation(convId).first().single().plan.id
+    repository.approve(planId, 1)
+    stepRunner.script = { AgentResult(text = "ok", toolTrace = emptyList(), state = AgentState.FINISHED, iterations = 1) }
+
+    org.executeGoal(convId, planId = null, userMessage = "продолжай", provider = LlmProvider.NIM, executionMode = ExecutionMode.PREVIEW).toList()
+
+    // A GOAL turn started from the builder's Preview must reach ExecutionPolicy as PREVIEW so WRITE/
+    // EXTERNAL tools are simulated, not run. If any link (executeGoal -> PlanRunRequest -> PlanRunner
+    // -> PlanExecutor.execute) drops the flag, the step runs LIVE and the "no side effects" promise breaks.
+    assertEquals(ExecutionMode.PREVIEW, stepRunner.lastExecutionMode)
   }
 
   @Test

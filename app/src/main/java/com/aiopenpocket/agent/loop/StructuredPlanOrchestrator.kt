@@ -9,6 +9,7 @@ import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.plan.execution.PlanHookContext
 import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
+import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.agent.core.plan.execution.PlanRunRequest
 import com.aiopenpocket.agent.core.plan.execution.PlanRunResult
 import com.aiopenpocket.agent.core.plan.execution.PlanRunner
@@ -169,6 +170,7 @@ class StructuredPlanOrchestrator @Inject constructor(
     userMessage: String,
     provider: LlmProvider = LlmProvider.NIM,
     budget: PlanRunBudget = PlanRunBudget(),
+    executionMode: ExecutionMode = ExecutionMode.LIVE,
   ): Flow<AgentEvent> = agentTurnFlow(log, TAG, "Goal execution failed") {
     send(AgentEvent.StateChanged(AgentState.STREAMING))
     val resolvedPlanId = planId ?: resolveExistingPlanId(conversationId)
@@ -184,7 +186,13 @@ class StructuredPlanOrchestrator @Inject constructor(
 
     log.d(TAG, "▶ GOAL run conv=$conversationId plan=$resolvedPlanId")
     val result: PlanRunResult = planRunner.run(
-      PlanRunRequest(conversationId = conversationId, planId = resolvedPlanId, background = false, budget = budget),
+      PlanRunRequest(
+        conversationId = conversationId,
+        planId = resolvedPlanId,
+        background = false,
+        budget = budget,
+        executionMode = executionMode,
+      ),
       provider = provider,
     )
     send(AgentEvent.StateChanged(AgentState.FINISHED))

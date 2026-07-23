@@ -49,6 +49,7 @@ import com.aiopenpocket.agent.loop.AgentEvent
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.loop.AgentResult
 import com.aiopenpocket.agent.loop.AgentState
+import com.aiopenpocket.agent.loop.TurnContextHolder
 import com.aiopenpocket.data.database.AppDatabase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.test.runTest
@@ -120,7 +121,7 @@ class PlanHookIntegrationTest {
 
   private fun commands(scheduler: PlanScheduleSync = NoopPlanScheduleSync()) = PlanCommands(repository, scheduler, hookRepository)
 
-  private fun executor(runner: PlanStepRunner) = PlanExecutor(repository, toolRegistry, runner, NoAssets, verifier(), hookRepository) { now }
+  private fun executor(runner: PlanStepRunner) = PlanExecutor(repository, toolRegistry, runner, NoAssets, verifier(), hookRepository, TurnContextHolder()) { now }
 
   /** Records every argument [PlanExecutor] called it with — same seam [PlanExecutorTest] uses instead of a real [com.aiopenpocket.agent.loop.ReactLoopRunner]. */
   private class FakeStepRunner(private val result: AgentResult) : PlanStepRunner {

@@ -52,6 +52,7 @@ import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.loop.AgentResult
 import com.aiopenpocket.agent.loop.AgentState
 import com.aiopenpocket.agent.loop.ToolTrace
+import com.aiopenpocket.agent.loop.TurnContextHolder
 import com.aiopenpocket.data.database.AppDatabase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
@@ -90,6 +91,7 @@ class PlanExecutorTest {
   private lateinit var repository: PlanRepository
   private lateinit var toolRegistry: ToolRegistry
   private lateinit var hookRepository: AgentHookRepository
+  private lateinit var turnContextHolder: TurnContextHolder
   private var now = 10_000L
 
   @Before
@@ -99,6 +101,7 @@ class PlanExecutorTest {
     repository = PlanRepository(db, db.planDao()) { now }
     toolRegistry = ToolRegistry(setOf(FakeTool("memory_tool"), FakeTool("other_tool")))
     hookRepository = AgentHookRepository(db.agentHookDao())
+    turnContextHolder = TurnContextHolder()
   }
 
   @After
@@ -112,8 +115,11 @@ class PlanExecutorTest {
     override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult = ToolResult.Success("ok:$name")
   }
 
-  /** Records every argument [PlanExecutor] called it with and returns a pre-scripted [AgentResult] — the "fake ReactLoopRunner" for this task, via the [PlanStepRunner] seam. */
-  private class FakeStepRunner(private val result: AgentResult) : PlanStepRunner {
+  /** Records every argument [PlanExecutor] called it with and returns a pre-scripted [AgentResult] — the "fake ReactLoopRunner" for this task, via the [PlanStepRunner] seam. When given a [holder], it also records what [TurnContextHolder] a tool WOULD read at call time — proving the step runs inside the plan agent's context, not a global/stale one. */
+  private class FakeStepRunner(
+    private val result: AgentResult,
+    private val holder: TurnContextHolder? = null,
+  ) : PlanStepRunner {
     var callCount = 0
       private set
     var lastMessages: List<ChatMessage>? = null
@@ -127,6 +133,10 @@ class PlanExecutorTest {
     var lastInteractiveApproval: Boolean? = null
       private set
     var lastExecutionMode: ExecutionMode? = null
+      private set
+    var observedAgent: AgentDefinition? = null
+      private set
+    var observedConversationId: String? = null
       private set
 
     override suspend fun run(
@@ -148,6 +158,9 @@ class PlanExecutorTest {
       lastMaxToolCalls = maxToolCalls
       lastInteractiveApproval = interactiveApproval
       lastExecutionMode = executionMode
+      // What a memory/file/storage tool inside this step would resolve its namespace from.
+      observedAgent = holder?.agent
+      observedConversationId = holder?.conversationId
       return result
     }
   }
@@ -171,7 +184,7 @@ class PlanExecutorTest {
   private fun verifier() = PlanVerifier(PlanEvidenceSink(repository::addEvidence), NoMemoryFacts, UnusedLlmClient, NoAssets) { now }
 
   private fun executor(runner: PlanStepRunner, registry: ToolRegistry = toolRegistry) =
-    PlanExecutor(repository, registry, runner, NoAssets, verifier(), hookRepository) { now }
+    PlanExecutor(repository, registry, runner, NoAssets, verifier(), hookRepository, turnContextHolder) { now }
 
   // --- fixtures (mirrors PlanRepositoryTest/PlanContextProviderTest's own builders) ------------------
 
@@ -722,5 +735,23 @@ class PlanExecutorTest {
 
     assertEquals(false, runner.lastInteractiveApproval)
     assertEquals(ExecutionMode.LIVE, runner.lastExecutionMode)
+  }
+
+  // --- execute: per-agent namespace isolation (B4) --------------------------------------------------
+
+  @Test
+  fun `execute runs the step inside the plan agent's TurnContext, not a global or stale namespace`() = runTest {
+    val snapshot = approvedSnapshot()
+    val theAgent = agent()
+    val runner = FakeStepRunner(finishedResult(), turnContextHolder)
+
+    executor(runner).execute(snapshot, snapshot.version.steps.first(), theAgent)
+
+    // Memory/file/storage tools resolve their namespace from TurnContextHolder. A plan step that runs
+    // WITHOUT wrapping in the plan agent's context leaks into the global/stale namespace of whatever
+    // last used this dispatcher thread — cross-agent read/write. The step must run inside exactly this
+    // plan's agent + conversation.
+    assertEquals(theAgent, runner.observedAgent)
+    assertEquals("conv-1", runner.observedConversationId)
   }
 }

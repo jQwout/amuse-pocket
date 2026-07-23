@@ -217,6 +217,7 @@ class HeartbeatRunnerTest {
       NoPlanAssets,
       PlanVerifier(PlanEvidenceSink(planRepository::addEvidence), NoMemoryFacts, UnusedPlanLlmClient, NoPlanAssets),
       AgentHookRepository(db.agentHookDao()),
+      turnContextHolder,
     )
     val planRunner = PlanRunner(planRepository, planExecutor, agentResolver)
     val planScheduleSync = RecordingPlanScheduleSync()
