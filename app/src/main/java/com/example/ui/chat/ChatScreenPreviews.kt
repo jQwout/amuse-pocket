@@ -260,7 +260,12 @@ internal fun ChatPreviewScaffold(
                         }
                     }
                     if (showInput) {
-                        ModeSelector(selected = AgentMode.CHAT, enabled = true, onSelect = {})
+                        ModeSelector(
+                            selected = AgentMode.CHAT,
+                            enabled = true,
+                            available = listOf(AgentMode.CHAT, AgentMode.PLAN, AgentMode.GOAL, AgentMode.REFLECT),
+                            onSelect = {},
+                        )
                         // НАСТОЯЩИЙ ChatInput, а не заглушка — превью обязано показывать боевой компонент.
                         // Провайдер подменяет ActivityResultRegistryOwner, иначе rememberLauncherForActivityResult падает.
                         CompositionLocalProvider(

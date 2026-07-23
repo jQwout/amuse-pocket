@@ -147,6 +147,7 @@ import com.aiopenpocket.ui.chat.components.LessonControlBar
 import com.aiopenpocket.ui.chat.components.MessageBubble
 import com.aiopenpocket.ui.chat.components.MicButton
 import com.aiopenpocket.ui.chat.components.ModeSelector
+import com.aiopenpocket.ui.chat.components.availableModesFor
 import com.aiopenpocket.ui.chat.components.ResponseStatsBar
 import com.aiopenpocket.ui.chat.components.ToolApprovalBar
 import com.aiopenpocket.ui.chat.components.ToolTracePanel
@@ -716,8 +717,11 @@ fun ChatScreen(
                 // PlanSnapshot по id через viewModel.observePlan — см. PlanCard.kt kdoc. Действия идут
                 // напрямую типизированными ChatIntent-командами в PlanRepository/PlanCommands (Task 5),
                 // никакого второго механизма approval здесь не заводится.
+                // (кластер A) План живёт у агента: карточку плана показываем в чатах, привязанных к
+                // мини-агенту (agentId != null) — планировщик без агента не работает, а в обычном чате
+                // плановых режимов теперь и нет (см. availableModesFor ниже).
                 val livePlanId = state.pendingPlanApproval?.planId ?: state.activePlanId
-                if (livePlanId != null && !state.lessonMode && !state.isTutorial && state.agentId == null) {
+                if (livePlanId != null && !state.lessonMode && !state.isTutorial && state.agentId != null) {
                     PlanCard(
                         planId = livePlanId,
                         observePlan = observePlan,
@@ -737,12 +741,15 @@ fun ChatScreen(
                 // В режиме урока ввод не нужен — контроллер сам ведёт шаги (кнопка «Дальше» внизу экрана).
                 AnimatedVisibility(visible = inputVisible) {
                     Column {
-                        // (3-агенты) Режимы план/гоал — только в обычных чатах: прячем их в гайд-уроках (l2–l4) и в
-                        // чатах, привязанных к мини-агенту (там доступен только обычный чат-режим).
-                        if (!state.isTutorial && state.agentId == null) {
+                        // (3-агенты, кластер A) Плановые режимы живут у агентов: PLAN/GOAL требуют
+                        // резолвящегося агента (планировщик без него падает), поэтому обычный чат
+                        // получает только Чат/Рефлексию, а привязанный к мини-агенту — полный набор.
+                        // Скрываем селектор в гайд-уроках.
+                        if (!state.isTutorial) {
                             ModeSelector(
                                 selected = state.agentMode,
                                 enabled = !state.isLoading,
+                                available = availableModesFor(state.agentId),
                                 onSelect = { viewModel.handleIntent(ChatIntent.SetMode(it)) },
                             )
                         }
