@@ -66,6 +66,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
+import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.ui.agents.builder.components.riskClassLabel
 import com.aiopenpocket.ui.agents.builder.components.riskColor
@@ -139,14 +140,17 @@ internal fun ChatSearchBar(
 /**
  * Which agent modes a chat may offer. PLAN/GOAL require a resolvable agent (the planner refuses
  * without one), so a plain chat (no bound agent) gets only Chat + Reflect — showing Plan/Goal there
- * would be a dead-end. An agent-bound chat gets the full set.
+ * would be a dead-end. An agent-bound chat gets exactly the agent's own [AgentDefinition.allowedModes]
+ * (what the builder let the user restrict), always including Chat as the base mode, rendered in a
+ * stable display order.
  */
-internal fun availableModesFor(agentId: String?): List<AgentMode> =
-  if (agentId != null) {
-    listOf(AgentMode.CHAT, AgentMode.PLAN, AgentMode.GOAL, AgentMode.REFLECT)
-  } else {
-    listOf(AgentMode.CHAT, AgentMode.REFLECT)
-  }
+internal fun availableModesFor(agent: AgentDefinition?): List<AgentMode> {
+  if (agent == null) return listOf(AgentMode.CHAT, AgentMode.REFLECT)
+  // The agent's own allowedModes, filtered into a stable display order; Chat is always offered as the
+  // base mode. TUTOR is lesson-internal and never appears here (it is not in the display order).
+  val displayOrder = listOf(AgentMode.CHAT, AgentMode.PLAN, AgentMode.GOAL, AgentMode.REFLECT)
+  return displayOrder.filter { it == AgentMode.CHAT || it in agent.allowedModes }
+}
 
 // internal: зовётся и с экрана чата, и из превью-каркаса.
 @Composable

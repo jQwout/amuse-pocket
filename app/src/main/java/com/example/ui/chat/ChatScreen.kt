@@ -749,7 +749,7 @@ fun ChatScreen(
                             ModeSelector(
                                 selected = state.agentMode,
                                 enabled = !state.isLoading,
-                                available = availableModesFor(state.agentId),
+                                available = availableModesFor(state.agent),
                                 onSelect = { viewModel.handleIntent(ChatIntent.SetMode(it)) },
                             )
                         }
