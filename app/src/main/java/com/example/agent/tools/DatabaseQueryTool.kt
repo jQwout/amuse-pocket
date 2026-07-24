@@ -29,7 +29,10 @@ import org.json.JSONObject
  * reaches SQLite, not by prompt wording. Structured writes go through [MemoryTools] (facts/episodes)
  * or `StorageTool` (per-agent free-form KV) instead - both scope themselves to the calling agent via
  * [com.aiopenpocket.agent.loop.TurnContextHolder], an isolation guarantee a raw SQL surface like this
- * one structurally cannot offer.
+ * one structurally cannot offer. That same limitation is why READS of per-agent-namespaced memory
+ * (`facts`/`episodes`) and conversation-private data (`messages`/`conversations`) are OFF the read
+ * allowlist too (see [READABLE_TABLES]) - a raw SELECT cannot restrict itself to the caller's namespace,
+ * so those reads must also go through the scoped memory/conversation tools, never this one.
  */
 @Inject
 @SingleIn(AppScope::class)
@@ -244,13 +247,21 @@ class DatabaseQueryTool(
     val FORBIDDEN_SQL = setOf("drop", "create", "alter", "truncate", "grant", "revoke", "pragma")
 
     /**
-     * Tables the model may SELECT from (Part A hardening, `user-agent-builder-848153`) - ordinary
-     * conversation/memory/SRS/plan data. Deliberately an ALLOWLIST, not a denylist: a table added to
-     * the schema later and forgotten here is unreachable by default, the safe failure direction.
+     * Tables the model may SELECT from (Part A hardening, `user-agent-builder-848153`) - SRS/skill/plan
+     * data. Deliberately an ALLOWLIST, not a denylist: a table added to the schema later and forgotten
+     * here is unreachable by default, the safe failure direction.
+     *
+     * Per-agent-private data is deliberately ABSENT (cross-agent leak fix, `user-agent-builder-848153`):
+     * `facts`/`episodes` are per-agent NAMESPACED memory and `messages`/`conversations`/`conversation_tags`
+     * are conversation-private. A raw SQL SELECT here cannot restrict itself to the calling agent's
+     * namespace/conversation the way [MemoryTools]/`ConversationRepository` do (they scope via
+     * [com.aiopenpocket.agent.loop.TurnContextHolder]) - so an agent granted this tool would otherwise
+     * read EVERY other agent's memory and the whole chat history. Those reads MUST go through the scoped
+     * memory/conversation tools; they are not on this allowlist at all.
      */
     val READABLE_TABLES = setOf(
-      "messages", "conversations", "conversation_tags", "facts", "episodes", "srs_words",
-      "user_skills", "agent_plans", "plan_versions", "plan_step_states", "plan_evidence", "plan_events",
+      "srs_words", "user_skills",
+      "agent_plans", "plan_versions", "plan_step_states", "plan_evidence", "plan_events",
     )
 
     /**
