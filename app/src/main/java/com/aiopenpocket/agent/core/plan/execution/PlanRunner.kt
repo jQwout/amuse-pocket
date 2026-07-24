@@ -20,7 +20,6 @@ import dev.zacsweers.metro.SingleIn
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -90,18 +89,18 @@ data class PlanRunResult(
  *
  * ## Concurrency
  *
- * A per-plan-id [Mutex], held for the whole [run] call, so a foreground chat GOAL turn and a
+ * A per-plan-id entry in [inFlight], held for the whole [run] call, so a foreground chat GOAL turn and a
  * background heartbeat (Task 11) can never execute the SAME plan at once (plan's Task 10 Step 3:
- * "per-conversation Mutex or repository lease so foreground and heartbeat cannot execute the same
- * plan concurrently"). [Mutex.tryLock] — never a suspending `withLock` — so a second concurrent
+ * "per-conversation lock or repository lease so foreground and heartbeat cannot execute the same
+ * plan concurrently"). The claim is non-blocking — never a suspending wait — so a second concurrent
  * caller is refused immediately with a [PlanRunOutcome.PARTIAL] "already running" result rather than
  * silently queuing behind the first, which could otherwise double-run the exact step the second
  * caller expected to observe.
  *
  * ## Crash recovery (Task 14)
  *
- * [Mutex] above only guards concurrency WITHIN one live process; it says nothing about a step left
- * [StepStatus.EXECUTING] because the PROCESS itself died mid-[PlanExecutor.execute] (no mutex holder
+ * [inFlight] above only guards concurrency WITHIN one live process; it says nothing about a step left
+ * [StepStatus.EXECUTING] because the PROCESS itself died mid-[PlanExecutor.execute] (no in-process holder
  * survives to release/retry it). [runLocked] calls `PlanRecovery.recoverSnapshot` once per [run] call,
  * before [selectStep] ever runs, so such a step is always repaired — to [StepStatus.COMPLETED] if
  * durable evidence already proves its side effect ran, [StepStatus.BLOCKED] otherwise — before this
@@ -139,13 +138,29 @@ class PlanRunner @Inject constructor(
     this.clock = clock
   }
 
-  /** One [Mutex] per plan id, created on first use — see class kdoc "Concurrency". */
-  private val locks = ConcurrentHashMap<String, Mutex>()
+  /**
+   * Идентификаторы планов, выполняющихся ПРЯМО СЕЙЧАС — см. kdoc класса, раздел "Concurrency".
+   *
+   * Множество, а не `Map<String, Mutex>`, как было раньше. Причина: захват здесь всегда неблокирующий
+   * (`tryLock`, никогда суспендящий `withLock`), то есть от мьютекса требовалась ровно одна операция —
+   * атомарное «занято ли?». Ровно это и делает `add` у конкурентного множества.
+   *
+   * Разница не косметическая. Мьютексы заводились через `getOrPut` и НЕ УДАЛЯЛИСЬ никогда, поэтому
+   * мапа росла вместе с числом планов за всю жизнь процесса, а не с числом одновременных запусков.
+   * Удалить мьютекс после `unlock` было нельзя без гонки: между снятием блокировки и удалением
+   * другой вызов успевал взять тот же экземпляр, после чего третий создавал НОВЫЙ — и два хода
+   * исполняли один план одновременно, то есть ровно то, что эта блокировка и предотвращает.
+   * Множество снимает вопрос: в нём по построению лежат только текущие запуски.
+   */
+  private val inFlight: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+  /** Только для чтения: какие планы выполняются сейчас. */
+  internal val inFlightPlanIds: Set<String> get() = inFlight
 
   suspend fun run(request: PlanRunRequest, provider: LlmProvider = LlmProvider.NIM): PlanRunResult {
     val planId = request.planId ?: resolvePlanId(request.conversationId)
-    val mutex = locks.getOrPut(planId) { Mutex() }
-    if (!mutex.tryLock()) {
+    // add возвращает false, если id уже там — атомарно, это и есть tryLock.
+    if (!inFlight.add(planId)) {
       return PlanRunResult(
         planId = planId,
         outcome = PlanRunOutcome.PARTIAL,
@@ -156,7 +171,10 @@ class PlanRunner @Inject constructor(
     try {
       return runLocked(planId, request, provider)
     } finally {
-      mutex.unlock()
+      // finally, а не хвост try: упавший (или отменённый) ход обязан освободить план, иначе тот
+      // остался бы НАВСЕГДА невыполнимым — каждый следующий запуск получал бы «already executing»
+      // от держателя, которого уже нет.
+      inFlight.remove(planId)
     }
   }
 
