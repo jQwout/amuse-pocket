@@ -81,7 +81,7 @@ class FileToolsLimitsTest {
     // В огромном файле игла ЕСТЬ — и он всё равно не должен попасть в совпадения: его содержимое не
     // читалось. Он попадёт в отдельную сноску о пропуске (см. следующий тест), поэтому проверяем не
     // отсутствие имени в тексте целиком, а то, что он не выдан за найденное совпадение.
-    sandboxFile("huge.bin", "x".repeat(FileTools.MAX_SEARCH_FILE_CHARS * 2) + "игла")
+    sandboxFile("huge.bin", "x".repeat((FileTools.MAX_SEARCH_FILE_BYTES * 2).toInt()) + "игла")
     sandboxFile("small.txt", "игла")
 
     val result = tool.execute(args("action" to "search_files", "query" to "игла"))
@@ -94,7 +94,7 @@ class FileToolsLimitsTest {
 
   @Test
   fun `search_files reports what it skipped instead of silently dropping it`() = runTest {
-    sandboxFile("huge.bin", "x".repeat(FileTools.MAX_SEARCH_FILE_CHARS * 2))
+    sandboxFile("huge.bin", "x".repeat((FileTools.MAX_SEARCH_FILE_BYTES * 2).toInt()))
     sandboxFile("small.txt", "игла")
 
     val result = tool.execute(args("action" to "search_files", "query" to "игла"))
@@ -109,5 +109,51 @@ class FileToolsLimitsTest {
     val result = tool.execute(args("action" to "search_files", "query" to "заметки"))
 
     assertTrue(result.toString().contains("заметки.txt"))
+  }
+
+  // --- Потолок числа совпадений действует на ОБА пути поиска ------------------------------------
+
+  @Test
+  fun `matches found by name are capped too, not just matches found by content`() = runTest {
+    // Совпадение по имени не требует читать файл, поэтому у него отдельная ветка — и именно она
+    // обходила проверку потолка: агент, насыпавший в песочницу тысячу файлов, получал их все.
+    repeat(FileTools.MAX_SEARCH_RESULTS + 50) { i -> sandboxFile("заметка-$i.txt", "тело") }
+
+    val result = tool.execute(args("action" to "search_files", "query" to "заметка"))
+
+    val matchLines = result.toString().substringBefore("[").lines().filter { it.endsWith(".txt") }
+    assertTrue("потолок не сработал: ${matchLines.size} совпадений", matchLines.size <= FileTools.MAX_SEARCH_RESULTS)
+  }
+
+  @Test
+  fun `hitting the result cap is reported, not silently truncated`() = runTest {
+    repeat(FileTools.MAX_SEARCH_RESULTS + 50) { i -> sandboxFile("заметка-$i.txt", "тело") }
+
+    val result = tool.execute(args("action" to "search_files", "query" to "заметка"))
+
+    assertTrue("обрезка молчаливая: $result", result.toString().contains("перв", ignoreCase = true))
+  }
+
+  @Test
+  fun `the skipped-by-size note cannot itself grow without bound`() = runTest {
+    // Обратная крайность: «называем пропущенное явно» не должно превращаться в выгрузку тысячи имён.
+    val big = "x".repeat((FileTools.MAX_SEARCH_FILE_BYTES + 1024).toInt())
+    repeat(40) { i -> sandboxFile("огромный-$i.bin", big) }
+    sandboxFile("small.txt", "игла")
+
+    val result = tool.execute(args("action" to "search_files", "query" to "игла"))
+
+    val note = result.toString().substringAfter("[пропущено", "")
+    assertTrue("сноска о пропуске не ограничена: ${note.length} символов", note.length < 500)
+  }
+
+  @Test
+  fun `list_dir on a huge directory is bounded as well`() = runTest {
+    repeat(400) { i -> sandboxFile("файл-$i.txt", "тело") }
+
+    val result = tool.execute(args("action" to "list_dir", "path" to "."))
+
+    val lines = result.toString().lines().filter { it.startsWith("[FILE]") }
+    assertTrue("список каталога не ограничен: ${lines.size} строк", lines.size <= FileTools.MAX_LIST_ENTRIES)
   }
 }

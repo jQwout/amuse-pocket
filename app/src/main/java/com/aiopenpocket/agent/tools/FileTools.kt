@@ -126,17 +126,31 @@ class FileTools(
     val dir = resolveSafePath(root, path)
     if (!dir.exists()) return ToolResult.Error("Directory not found: $path")
     if (!dir.isDirectory) return ToolResult.Error("Not a directory: $path")
-    val children = dir.listFiles()
+    val all = dir.listFiles()
       ?.map { if (it.isDirectory) "[DIR] ${it.name}" else "[FILE] ${it.name}" }
       .orEmpty()
-    return ToolResult.Success(children.joinToString("\n"))
+    // Каталог наполняет сам агент, поэтому число записей ничем не ограничено — тот же довод, что и у
+    // read_file/search_files ниже. Обрезка названа явно: молча укороченный список читается как «это
+    // всё, что там есть», и модель делает вывод по неполному каталогу.
+    val shown = all.take(MAX_LIST_ENTRIES)
+    val note = if (all.size > shown.size) "\n\n[показаны первые ${shown.size} из ${all.size} записей]" else ""
+    return ToolResult.Success(shown.joinToString("\n") + note)
   }
 
   private fun searchFiles(root: File, args: Map<String, JsonElement>): ToolResult {
     val query = args.string("query") ?: return missingArg("query")
     val results = mutableListOf<String>()
     val skipped = mutableListOf<String>()
+    var skippedCount = 0
+    var capped = false
     for (file in root.walkTopDown().filter { it.isFile }) {
+      // Потолок проверяется В НАЧАЛЕ витка, а не после каждого добавления: у совпадения по имени своя
+      // ветка с `continue`, и проверка в хвосте цикла её просто не видела — тысяча подходящих по
+      // имени файлов возвращалась целиком, потолок existed только на бумаге.
+      if (results.size >= MAX_SEARCH_RESULTS) {
+        capped = true
+        break
+      }
       val relative = file.relativeTo(root).path
       // Совпадение по ИМЕНИ проверяем первым: оно не требует читать файл вообще, поэтому огромный
       // файл всё ещё находится по названию, просто не по содержимому.
@@ -147,22 +161,27 @@ class FileTools(
       // Раньше readText() звался на КАЖДОМ файле песочницы без оглядки на размер — один большой файл
       // (или бинарник, записанный самим агентом) утаскивал в память всё сразу.
       if (file.length() > MAX_SEARCH_FILE_BYTES) {
-        skipped += relative
+        skippedCount++
+        if (skipped.size < MAX_SKIPPED_NAMES) skipped += relative
         continue
       }
       if (file.readText().contains(query, ignoreCase = true)) results += relative
-      if (results.size >= MAX_SEARCH_RESULTS) break
     }
     // Пропущенное называем явно: «не найдено» и «не искали» — разные ответы, и модель должна их
-    // различать, иначе усечение читается как отсутствие результата.
-    val skippedNote = if (skipped.isEmpty()) {
-      ""
-    } else {
-      "\n\n[пропущено по размеру (>${MAX_SEARCH_FILE_BYTES / 1024} КБ), содержимое не просмотрено: " +
-        skipped.joinToString(", ") + "]"
+    // различать, иначе усечение читается как отсутствие результата. Но и сама сноска ограничена:
+    // «назвать всё пропущенное» на песочнице с сотней крупных файлов раздувало бы вывод ровно так же,
+    // как раздувал его отсутствующий потолок.
+    val skippedNote = when {
+      skippedCount == 0 -> ""
+      else -> {
+        val names = skipped.joinToString(", ")
+        val more = if (skippedCount > skipped.size) " и ещё ${skippedCount - skipped.size}" else ""
+        "\n\n[пропущено по размеру (>${MAX_SEARCH_FILE_BYTES / 1024} КБ), содержимое не просмотрено: $names$more]"
+      }
     }
+    val cappedNote = if (capped) "\n\n[показаны первые $MAX_SEARCH_RESULTS совпадений — уточни запрос]" else ""
     val body = if (results.isEmpty()) "No files found matching '$query'" else results.joinToString("\n")
-    return ToolResult.Success(body + skippedNote)
+    return ToolResult.Success(body + cappedNote + skippedNote)
   }
 
   private fun resolveSafePath(root: File, path: String): File {
@@ -193,10 +212,13 @@ class FileTools(
     /** Крупнее — `search_files` не читает содержимое (поиск по имени файла продолжает работать). */
     const val MAX_SEARCH_FILE_BYTES = 256L * 1024
 
-    /** То же в символах — для тестов, которым нужно построить заведомо «крупный» файл. */
-    const val MAX_SEARCH_FILE_CHARS = 256 * 1024
-
     /** Больше совпадений за один вызов модели всё равно не нужны — пусть уточнит запрос. */
     const val MAX_SEARCH_RESULTS = 100
+
+    /** Сколько пропущенных по размеру файлов называть поимённо; остальные идут числом. */
+    const val MAX_SKIPPED_NAMES = 10
+
+    /** Потолок записей в выдаче `list_dir`. */
+    const val MAX_LIST_ENTRIES = 200
   }
 }
