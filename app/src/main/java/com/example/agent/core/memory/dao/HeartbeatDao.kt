@@ -39,6 +39,16 @@ interface HeartbeatDao {
   @Query("SELECT * FROM heartbeats WHERE planId = :planId AND status != 'cancelled'")
   suspend fun listForPlan(planId: String): List<HeartbeatEntity>
 
+  /**
+   * Every live (non-'cancelled') heartbeat tied to [conversationId] — plan-step AND generic agent
+   * ones alike. Used to tear down a conversation's background schedule when it is deleted: heartbeats
+   * have NO foreign key to `conversations` (an agent heartbeat can outlive/precede any one plan), so
+   * the conversation-delete FK cascade never reaches them — without this cleanup a periodic WorkManager
+   * job keeps firing forever against a conversation that no longer exists.
+   */
+  @Query("SELECT * FROM heartbeats WHERE conversationId = :conversationId AND status != 'cancelled'")
+  suspend fun listForConversation(conversationId: String): List<HeartbeatEntity>
+
   @Query("UPDATE heartbeats SET status = :status WHERE id = :id")
   suspend fun setStatus(id: String, status: String)
 

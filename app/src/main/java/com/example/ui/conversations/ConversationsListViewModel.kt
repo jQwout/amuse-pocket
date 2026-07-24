@@ -5,6 +5,7 @@ package com.aiopenpocket.ui.conversations
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
+import com.aiopenpocket.agent.core.memory.repository.ConversationHeartbeatCleanup
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.loop.TurnManager
 import com.aiopenpocket.di.AppScope
@@ -25,6 +26,7 @@ class ConversationsListViewModel(
   private val conversationRepository: ConversationRepository,
   private val userPreferencesRepository: UserPreferencesRepository,
   private val turnManager: TurnManager,
+  private val conversationHeartbeatCleanup: ConversationHeartbeatCleanup,
 ) : ViewModel() {
 
   private val _state = MutableStateFlow(ConversationsListState())
@@ -77,9 +79,12 @@ class ConversationsListViewModel(
   }
 
   fun deleteConversation(id: String) {
-    // Удаление диалога с активным ходом — сперва гасим ход, потом удаляем строки БД.
+    // Удаление диалога с активным ходом — сперва гасим ход, потом фоновые heartbeat'ы этого диалога
+    // (у них нет FK на conversations, каскад до них не дойдёт — иначе периодическая WorkManager-задача
+    // жила бы вечно), потом удаляем строки БД.
     turnManager.cancel(id)
     viewModelScope.launch {
+      conversationHeartbeatCleanup.cancelForConversation(id)
       conversationRepository.deleteConversation(id)
     }
   }
