@@ -18,8 +18,15 @@ import dev.zacsweers.metro.SingleIn
 class AgentHookRepository(
   private val dao: AgentHookDao,
 ) {
-  /** Every hook owned by [agentId], already sorted `(priority, id)` — the same order [HookEngine] itself applies. */
-  suspend fun getForAgent(agentId: String): List<AgentHook> = dao.getForAgent(agentId).map { it.toDomain() }
+  /**
+   * Every hook owned by [agentId], already sorted `(priority, id)` — the same order [HookEngine] itself
+   * applies. A hook row that no longer decodes (schema drift with no Room migration — a renamed
+   * [HookEvent]/[HookActionType]) is quarantined (dropped) rather than throwing: this read feeds both
+   * hook firing on an agent turn and, via `UserAgentRepository.withHooks`, the roster Flow — one bad
+   * row must not crash either. `toDomain` is pure, so `runCatching` only ever catches a real decode failure.
+   */
+  suspend fun getForAgent(agentId: String): List<AgentHook> =
+    dao.getForAgent(agentId).mapNotNull { runCatching { it.toDomain() }.getOrNull() }
 
   /**
    * Wholesale replace: deletes every existing row for [agentId] then inserts [hooks]. Called only

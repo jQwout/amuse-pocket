@@ -46,9 +46,16 @@ class UserAgentRepository @Inject constructor(
 
   /** Published USER agents only, most-recently-updated first — what the roster shows. */
   fun observePublished(): Flow<List<AgentDefinition>> =
-    dao.observePublished().map { rows -> rows.map { it.toDefinition().withHooks() } }
+    dao.observePublished().map { rows ->
+      // Quarantine an agent row that no longer decodes (schema drift with no Room migration — a renamed
+      // enum) instead of throwing: one bad row must not crash the roster Flow AgentsViewModel collects,
+      // or the agents screen crash-loops on every open. Decode is wrapped in runCatching (pure, no
+      // suspend inside); withHooks (suspend) runs only on the survivors.
+      rows.mapNotNull { row -> runCatching { row.toDefinition() }.getOrNull()?.withHooks() }
+    }
 
-  suspend fun get(id: String): AgentDefinition? = dao.get(id)?.toDefinition()?.withHooks()
+  suspend fun get(id: String): AgentDefinition? =
+    dao.get(id)?.let { runCatching { it.toDefinition() }.getOrNull() }?.withHooks()
 
   /** Attaches this agent's currently-persisted [AgentHook]s (Task 8) — [UserAgentEntity.toDefinition] itself always returns `hooks = emptyList()`, since hooks live in their own table, not a column on this entity. */
   private suspend fun AgentDefinition.withHooks(): AgentDefinition = copy(hooks = hookRepository.getForAgent(id))

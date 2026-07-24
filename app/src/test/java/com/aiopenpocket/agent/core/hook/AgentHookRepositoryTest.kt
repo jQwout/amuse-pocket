@@ -71,6 +71,22 @@ class AgentHookRepositoryTest {
   }
 
   @Test
+  fun `getForAgent skips a hook row whose event enum no longer decodes instead of crashing (D-tail)`() = runTest {
+    repository.replaceForAgent("agent-1", listOf(hook("good")))
+    // A hook row with an event this build no longer knows (renamed enum): toDomain's HookEvent.valueOf
+    // throws. Before quarantine this crashes getForAgent -> the agent turn (hook firing) and, via
+    // UserAgentRepository.withHooks, the roster Flow.
+    db.agentHookDao().upsert(
+      AgentHookEntity(
+        id = "bad", agentId = "agent-1", event = "RENAMED_EVENT", conditionType = "always",
+        conditionJson = "{}", actionType = "LOG", actionJson = "{}", priority = 5, enabled = true,
+      ),
+    )
+
+    assertEquals(listOf("good"), repository.getForAgent("agent-1").map { it.id })
+  }
+
+  @Test
   fun `replaceForAgent fully replaces the previous set, not additive upsert`() = runTest {
     repository.replaceForAgent("agent-1", listOf(hook("old")))
 
