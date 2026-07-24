@@ -7,10 +7,6 @@ import androidx.room.ForeignKey
 import com.aiopenpocket.agent.core.plan.model.PlanVersion
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
-
-/** Lenient reader for [PlanVersionEntity.snapshotJson]: tolerates unknown keys (a field added by a newer app build) so an older build still decodes the row instead of throwing. */
-private val PlanVersionJson = Json { ignoreUnknownKeys = true }
 
 /**
  * Room row for one immutable [PlanVersion] snapshot (design spec
@@ -19,10 +15,10 @@ private val PlanVersionJson = Json { ignoreUnknownKeys = true }
  * [planId]/[version]/[approvedAt] redundantly — so [toDomain] never has to stitch fields from two
  * places; [planId]/[version]/[approvedAt] are ALSO plain columns purely so SQL can query/index them (the
  * composite primary key, [PlanRepository]'s "already approved?" checks) without deserializing
- * [snapshotJson] first. Decodes with a lenient [PlanVersionJson] (`ignoreUnknownKeys = true`) so a row
- * written by a NEWER app version that added a field still reads on an OLDER build instead of throwing;
- * a row that still will not decode (a renamed enum, a new REQUIRED field) is quarantined by
- * [com.aiopenpocket.agent.core.plan.persistence.PlanRepository]'s own read path, never fatal.
+ * [snapshotJson] first. Decodes with the shared lenient [PlanPersistenceJson] (`ignoreUnknownKeys = true`)
+ * so a row written by a NEWER app version that added a field still reads on an OLDER build instead of
+ * throwing; a row that still will not decode (a renamed enum, a new REQUIRED field) is quarantined by
+ * [PlanRepository]'s own read path (see [decodeQuarantining]), never fatal.
  *
  * IMMUTABILITY (plan's Global Constraints: "approved PlanVersion is immutable"): [PlanRepository] never
  * writes a DIFFERENT [snapshotJson] for a (`planId`, `version`) pair that is already approved — the one
@@ -49,13 +45,13 @@ data class PlanVersionEntity(
   val snapshotJson: String,
   val approvedAt: Long?,
 ) {
-  fun toDomain(): PlanVersion = PlanVersionJson.decodeFromString<PlanVersion>(snapshotJson)
+  fun toDomain(): PlanVersion = PlanPersistenceJson.decodeFromString<PlanVersion>(snapshotJson)
 
   companion object {
     fun fromDomain(version: PlanVersion): PlanVersionEntity = PlanVersionEntity(
       planId = version.planId,
       version = version.version,
-      snapshotJson = PlanVersionJson.encodeToString(version),
+      snapshotJson = PlanPersistenceJson.encodeToString(version),
       approvedAt = version.approvedAt,
     )
   }
