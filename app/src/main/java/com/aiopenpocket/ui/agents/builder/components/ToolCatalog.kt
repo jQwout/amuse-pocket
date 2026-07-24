@@ -76,12 +76,20 @@ object ToolCatalog {
       permission = null,
       consequence = "Создаёт, читает и изменяет файлы агента в его собственной песочнице.",
     ),
+    // advancedOnly, and the consequence says plainly that nothing works yet: the tool only accepts
+    // content:// URIs the user has already granted (see ExternalFilesTool.rejectionReason), and this
+    // app still has no SAF picker to grant any. Promising "выбор файла" in the default picker would
+    // sell a capability that cannot fire — and the pre-gate version only "worked" by reading the
+    // app's own private storage through file://, which is exactly what the gate now refuses.
     ToolCatalogEntry(
       name = "external_files",
       label = "Внешние файлы",
       riskClass = RiskClass.WRITE,
       permission = null,
-      consequence = "Читает и пишет файлы вне песочницы приложения — через системный диалог выбора файла.",
+      consequence = "Читает и пишет файлы вне песочницы — только те, доступ к которым пользователь " +
+        "уже выдал системе. Выбора папки в приложении пока нет, поэтому тул сейчас всегда отвечает " +
+        "отказом: для файлов агента используйте «Файлы агента».",
+      advancedOnly = true,
     ),
     ToolCatalogEntry(
       name = "render_card",
