@@ -16,6 +16,7 @@ import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.readUTF8Line
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -166,6 +167,12 @@ class OpenAiCompatClient(
           continue
         }
         return@flow
+      } catch (e: CancellationException) {
+        // Отмена — НЕ отказ провайдера. `CancellationException` наследует `Exception`, поэтому без
+        // этой ветки Stop (или новый ход, гасящий предыдущий) ловился бы общим catch ниже, засчитывался
+        // как «модель не ответила» и прогонял остаток цепочки, чтобы в конце эмитнуть
+        // «All providers failed» из уже отменённого flow. Тот же порядок веток, что и в ToolExecutor.
+        throw e
       } catch (e: Exception) {
         Log.w(TAG, "$attempt $tag failed: ${e.message}")
         lastError = e
