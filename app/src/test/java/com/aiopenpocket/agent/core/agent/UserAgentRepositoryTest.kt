@@ -10,8 +10,11 @@ import com.aiopenpocket.agent.core.hook.HookEvent
 import com.aiopenpocket.agent.core.skill.UserSkillEntity
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.data.database.AppDatabase
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -30,9 +33,12 @@ import org.robolectric.annotation.Config
  * collection columns, enum-as-name columns and the publish/archive transitions all survive a real
  * SQLite write+read, not just an in-memory fake.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class UserAgentRepositoryTest {
+
+  private val testDispatcher = UnconfinedTestDispatcher()
 
   private lateinit var db: AppDatabase
   private lateinit var repository: UserAgentRepository
@@ -43,6 +49,8 @@ class UserAgentRepositoryTest {
     val context = ApplicationProvider.getApplicationContext<Context>()
     db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
       .allowMainThreadQueries()
+      .setQueryExecutor(testDispatcher.asExecutor())
+      .setTransactionExecutor(testDispatcher.asExecutor())
       .build()
     repository = UserAgentRepository(db, db.userAgentDao(), AgentHookRepository(db.agentHookDao())) { now }
   }

@@ -56,6 +56,10 @@ class PlanListViewModelTest {
   fun setUp() {
     Dispatchers.setMain(testDispatcher)
     val context = ApplicationProvider.getApplicationContext<Context>()
+    // NOTE: Room executors deliberately NOT pinned here (unlike the sibling ViewModel tests). This
+    // ViewModel's flow topology deadlocks/misorders under an eager UnconfinedTestDispatcher-backed Room
+    // executor (2 tests fail), so it keeps Room's default executor. Its flake exposure is left as a
+    // follow-up needing a StandardTestDispatcher-based rework, not this quick pin.
     db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
     repository = PlanRepository(db, db.planDao()) { now }
     vm = PlanListViewModel(repository)

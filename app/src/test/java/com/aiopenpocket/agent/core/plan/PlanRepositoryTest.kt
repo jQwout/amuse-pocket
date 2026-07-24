@@ -28,8 +28,11 @@ import com.aiopenpocket.agent.core.plan.persistence.PlanEventEntity
 import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
 import com.aiopenpocket.agent.core.plan.persistence.PlanVersionEntity
 import com.aiopenpocket.data.database.AppDatabase
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -56,9 +59,12 @@ import org.robolectric.annotation.Config
  * declares a `NOT NULL` foreign key on `conversationId`, so [insertConversation] is called at the top
  * of every test that persists a plan.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class PlanRepositoryTest {
+
+  private val testDispatcher = UnconfinedTestDispatcher()
 
   private lateinit var db: AppDatabase
   private lateinit var repository: PlanRepository
@@ -67,7 +73,13 @@ class PlanRepositoryTest {
   @Before
   fun setUp() {
     val context = ApplicationProvider.getApplicationContext<Context>()
-    db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
+    // Pin Room's Flow query/transaction executors to the test dispatcher so a full-suite run does not
+    // hit the rare UncompletedCoroutinesError (Room's default ArchTaskExecutor pool starves under load).
+    db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+      .allowMainThreadQueries()
+      .setQueryExecutor(testDispatcher.asExecutor())
+      .setTransactionExecutor(testDispatcher.asExecutor())
+      .build()
     repository = PlanRepository(db, db.planDao()) { now }
   }
 

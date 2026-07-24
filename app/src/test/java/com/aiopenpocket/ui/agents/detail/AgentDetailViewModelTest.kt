@@ -40,6 +40,7 @@ import com.aiopenpocket.data.database.AppDatabase
 import com.aiopenpocket.data.repository.AgentFilesRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -96,6 +97,8 @@ class AgentDetailViewModelTest {
     val context = ApplicationProvider.getApplicationContext<Context>()
     db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
       .allowMainThreadQueries()
+      .setQueryExecutor(testDispatcher.asExecutor())
+      .setTransactionExecutor(testDispatcher.asExecutor())
       .build()
     agentHookRepository = AgentHookRepository(db.agentHookDao())
     userAgentRepository = UserAgentRepository(db, db.userAgentDao(), agentHookRepository)
