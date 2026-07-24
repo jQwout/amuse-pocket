@@ -407,6 +407,25 @@ class PlanStateMachineTest {
   }
 
   @Test
+  fun `a blocked step is completed by a user confirmation without re-running`() {
+    assertEquals(
+      StepTransitionResult.Allowed(StepStatus.COMPLETED),
+      PlanStateMachine.transitionStep(StepStatus.BLOCKED, PlanStepCommand.Confirm),
+    )
+  }
+
+  @Test
+  fun `user confirmation is only legal from a blocked step`() {
+    val nonBlocked = listOf(StepStatus.PENDING, StepStatus.READY, StepStatus.EXECUTING, StepStatus.VERIFYING, StepStatus.FAILED)
+    for (status in nonBlocked) {
+      assertTrue(
+        "expected $status to reject Confirm",
+        PlanStateMachine.transitionStep(status, PlanStepCommand.Confirm) is StepTransitionResult.Rejected,
+      )
+    }
+  }
+
+  @Test
   fun `completed and skipped steps are step-terminal`() {
     val everyStepCommand = listOf(
       PlanStepCommand.DependenciesSatisfied,
@@ -417,6 +436,7 @@ class PlanStateMachineTest {
       PlanStepCommand.Block("b"),
       PlanStepCommand.FailStep("f"),
       PlanStepCommand.Unblock,
+      PlanStepCommand.Confirm,
       PlanStepCommand.Skip,
     )
     for (status in listOf(StepStatus.COMPLETED, StepStatus.SKIPPED)) {

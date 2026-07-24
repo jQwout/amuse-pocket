@@ -8,8 +8,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.aiopenpocket.agent.core.plan.model.AgentPlan
 import com.aiopenpocket.agent.core.plan.model.CriterionVerifier
+import com.aiopenpocket.agent.core.plan.model.EvidenceSource
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
 import com.aiopenpocket.agent.core.plan.model.PlanCriterion
+import com.aiopenpocket.agent.core.plan.model.PlanEvidence
 import com.aiopenpocket.agent.core.plan.model.PlanHorizon
 import com.aiopenpocket.agent.core.plan.model.PlanSnapshot
 import com.aiopenpocket.agent.core.plan.model.PlanStatus
@@ -53,6 +55,7 @@ class PlanCardTest {
   private var pausedPlanId: String? = null
   private var resumedPlanId: String? = null
   private var cancelledPlanId: String? = null
+  private var confirmStepArgs: Pair<String, String>? = null
   private var openedDetailPlanId: String? = null
 
   private fun render(snapshot: PlanSnapshot) {
@@ -67,6 +70,7 @@ class PlanCardTest {
           onPause = { planId -> pausedPlanId = planId },
           onResume = { planId -> resumedPlanId = planId },
           onCancel = { planId -> cancelledPlanId = planId },
+          onConfirmStep = { planId, stepId -> confirmStepArgs = planId to stepId },
           onOpenDetail = { planId -> openedDetailPlanId = planId },
         )
       }
@@ -231,8 +235,86 @@ class PlanCardTest {
     composeTestRule.onNodeWithTag("plan_cancel").assertExists()
     composeTestRule.onNodeWithTag("plan_resume").assertDoesNotExist()
     composeTestRule.onNodeWithTag("plan_approve").assertDoesNotExist()
+    // No step is BLOCKED here, so the confirm-step affordance must stay hidden.
+    composeTestRule.onNodeWithTag("plan_confirm_step").assertDoesNotExist()
     composeTestRule.onNodeWithText("Текущий шаг: Напомнить о бюджете").assertExists()
     composeTestRule.onNodeWithText("1/2 шагов").assertExists()
+  }
+
+  // --- USER_CONFIRMATION: confirm-step affordance on a blocked step ---------------------------------
+
+  private fun userConfirmationCriterion(id: String = "confirm-1") = PlanCriterion(
+    id = id,
+    description = "Пользователь подтвердил результат",
+    verifier = CriterionVerifier(type = VerifierType.USER_CONFIRMATION),
+    required = true,
+  )
+
+  private fun confirmationEvidence(criterionId: String = "confirm-1") = PlanEvidence(
+    id = "ev-$criterionId",
+    planId = "plan-1",
+    version = 1,
+    criterionId = criterionId,
+    stepId = "step-1",
+    source = EvidenceSource.USER_CONFIRMATION,
+    reference = "user_confirmation:step-1:0",
+    summary = "Пользователь подтвердил",
+    createdAt = 0L,
+  )
+
+  @Test
+  fun active_plan_with_a_blocked_user_confirmation_step_shows_the_confirm_button() {
+    val snapshot = PlanSnapshot(
+      plan = plan(status = PlanStatus.ACTIVE),
+      version = version(criteria = listOf(userConfirmationCriterion())),
+      stepStates = listOf(stepState(status = StepStatus.BLOCKED)),
+      evidence = emptyList(),
+    )
+    render(snapshot)
+
+    composeTestRule.onNodeWithTag("plan_confirm_step").assertExists()
+  }
+
+  @Test
+  fun confirm_step_dispatches_the_blocked_plan_and_step_id() {
+    val snapshot = PlanSnapshot(
+      plan = plan(id = "plan-9", status = PlanStatus.ACTIVE),
+      version = version(planId = "plan-9", criteria = listOf(userConfirmationCriterion())),
+      stepStates = listOf(stepState(planId = "plan-9", stepId = "step-1", status = StepStatus.BLOCKED)),
+      evidence = emptyList(),
+    )
+    render(snapshot)
+
+    composeTestRule.onNodeWithTag("plan_confirm_step").performClick()
+
+    assertEquals("plan-9" to "step-1", confirmStepArgs)
+  }
+
+  @Test
+  fun a_blocked_step_whose_confirmation_is_already_proven_hides_the_confirm_button() {
+    val snapshot = PlanSnapshot(
+      plan = plan(status = PlanStatus.ACTIVE),
+      version = version(criteria = listOf(userConfirmationCriterion())),
+      stepStates = listOf(stepState(status = StepStatus.BLOCKED)),
+      evidence = listOf(confirmationEvidence()), // already confirmed -> nothing left for the user to confirm
+    )
+    render(snapshot)
+
+    composeTestRule.onNodeWithTag("plan_confirm_step").assertDoesNotExist()
+  }
+
+  @Test
+  fun a_paused_plan_never_shows_the_confirm_button_even_with_a_blocked_confirmation_step() {
+    val snapshot = PlanSnapshot(
+      plan = plan(status = PlanStatus.PAUSED),
+      version = version(criteria = listOf(userConfirmationCriterion())),
+      stepStates = listOf(stepState(status = StepStatus.BLOCKED)),
+      evidence = emptyList(),
+    )
+    render(snapshot)
+
+    // confirmStep requires an ACTIVE plan (PlanRepository.confirmStep) - a paused plan must be resumed first.
+    composeTestRule.onNodeWithTag("plan_confirm_step").assertDoesNotExist()
   }
 
   @Test

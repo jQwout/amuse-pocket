@@ -118,6 +118,18 @@ sealed interface PlanStepCommand {
   /** A blocked step's cause was resolved (approval granted, revision approved). Legal from [StepStatus.BLOCKED] only. */
   data object Unblock : PlanStepCommand
 
+  /**
+   * A step BLOCKED on user confirmation (an unsatisfied [com.aiopenpocket.agent.core.plan.model.VerifierType.USER_CONFIRMATION]
+   * criterion — `PlanVerifier`'s `NeedsInfo` → [Block] path) had that last required criterion proven by
+   * the user's own confirmation (`PlanRepository.confirmStep`/`PlanCommands.confirmStep`) — the step is
+   * done WITHOUT re-running it (design fork: "re-verify only, no re-run"). Legal from [StepStatus.BLOCKED]
+   * only. Like [PlanCommand.Complete] vs [tryComplete], [transitionStep] alone does not verify the
+   * evidence gate; the caller (`PlanRepository.confirmStep`) only issues this once
+   * [unsatisfiedRequiredCriteria] is empty, otherwise it issues [Unblock] instead (any remaining
+   * non-confirmation criterion still needs an ordinary run to be proven).
+   */
+  data object Confirm : PlanStepCommand
+
   /** This step will never run (its dependency chain was abandoned, or the plan was restructured/cancelled around it). Legal from [StepStatus.PENDING], [StepStatus.READY] or [StepStatus.BLOCKED]. */
   data object Skip : PlanStepCommand
 }
@@ -405,6 +417,7 @@ object PlanStateMachine {
 
     StepStatus.BLOCKED -> when (command) {
       is PlanStepCommand.Unblock -> StepStatus.READY
+      is PlanStepCommand.Confirm -> StepStatus.COMPLETED
       is PlanStepCommand.Skip -> StepStatus.SKIPPED
       else -> null
     }

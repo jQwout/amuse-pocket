@@ -43,6 +43,14 @@ sealed class ChatIntent {
   data class CancelPlan(val planId: String) : ChatIntent()
 
   /**
+   * USER_CONFIRMATION: пользователь подтверждает шаг, заблокированный на критерии-подтверждении
+   * (design fork «только пере-проверить, без ре-рана»). Идёт в `PlanCommands.confirmStep`: пишет
+   * evidence подтверждения и ПЕРЕ-проверяет критерии БЕЗ повторного запуска шага (COMPLETED, если
+   * закрыт последний обязательный критерий; иначе шаг просто разблокируется в READY).
+   */
+  data class ConfirmPlanStep(val planId: String, val stepId: String) : ChatIntent()
+
+  /**
    * План-мод: «Поправить» — чисто локальный UI-жест (прячет approval-бар в ChatUiState, даёт
    * дописать в чат), в отличие от [RequestPlanChanges] не обращается к PlanRepository.
    */

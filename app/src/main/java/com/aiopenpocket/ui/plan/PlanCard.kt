@@ -35,6 +35,7 @@ import com.aiopenpocket.agent.core.plan.model.PlanSnapshot
 import com.aiopenpocket.agent.core.plan.model.PlanStatus
 import com.aiopenpocket.agent.core.plan.model.PlanStep
 import com.aiopenpocket.agent.core.plan.model.StepStatus
+import com.aiopenpocket.agent.core.plan.model.VerifierType
 import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.util.formatRelativeDate
 import kotlinx.coroutines.flow.Flow
@@ -107,6 +108,22 @@ private fun PlanSnapshot.completedStepCount(): Int {
 private fun PlanSnapshot.nextDueAtFor(stepId: String): Long? = stepStates.firstOrNull { it.stepId == stepId }?.nextDueAt
 
 /**
+ * The first BLOCKED step waiting on a still-unproven [VerifierType.USER_CONFIRMATION] criterion, or null.
+ * This is exactly the state [com.aiopenpocket.agent.core.plan.persistence.PlanRepository.confirmStep]
+ * accepts (a blocked step + at least one pending user-confirmation criterion), so the "Подтвердить шаг"
+ * affordance is shown for precisely it and nothing else — an already-confirmed criterion (its evidence
+ * exists) or a non-confirmation block never surfaces the button.
+ */
+private fun PlanSnapshot.stepAwaitingConfirmation(): PlanStep? {
+  val hasPendingConfirmation = version.criteria.any { c ->
+    c.verifier.type == VerifierType.USER_CONFIRMATION && evidence.none { it.criterionId == c.id }
+  }
+  if (!hasPendingConfirmation) return null
+  val statusByStepId = stepStates.associateBy { it.stepId }
+  return version.steps.firstOrNull { statusByStepId[it.id]?.status == StepStatus.BLOCKED }
+}
+
+/**
  * Live plan card rendered in the chat stream (Task 12, design spec `2026-07-12-structured-plan-engine-design.md`
  * section 15: "PlanCard вместо plain markdown plan; progress card для текущего run"). Subscribes directly
  * to [observePlan] by [planId] — never trusts a field copied into a chat message — so its content always
@@ -136,6 +153,7 @@ fun PlanCard(
   onPause: (planId: String) -> Unit,
   onResume: (planId: String) -> Unit,
   onCancel: (planId: String) -> Unit,
+  onConfirmStep: (planId: String, stepId: String) -> Unit,
   onOpenDetail: (planId: String) -> Unit,
   modifier: Modifier = Modifier,
 ) {
@@ -172,7 +190,7 @@ fun PlanCard(
       Spacer(Modifier.height(8.dp))
       when (snap.plan.status) {
         PlanStatus.AWAITING_APPROVAL -> ProposalPreview(snap, onApprove, onRequestChanges)
-        PlanStatus.ACTIVE, PlanStatus.PAUSED -> ProgressView(snap, onPause, onResume, onCancel)
+        PlanStatus.ACTIVE, PlanStatus.PAUSED -> ProgressView(snap, onPause, onResume, onCancel, onConfirmStep)
         else -> Text(
           text = "Статус: ${planStatusLabel(snap.plan.status)}",
           style = MaterialTheme.typography.bodySmall,
@@ -257,6 +275,7 @@ private fun ProgressView(
   onPause: (planId: String) -> Unit,
   onResume: (planId: String) -> Unit,
   onCancel: (planId: String) -> Unit,
+  onConfirmStep: (planId: String, stepId: String) -> Unit,
 ) {
   val total = snap.version.steps.size
   val completed = snap.completedStepCount()
@@ -289,6 +308,27 @@ private fun ProgressView(
           style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
         )
+      }
+    }
+    // A step BLOCKED on a still-unproven USER_CONFIRMATION criterion is the ONE thing the user can
+    // resolve from here without re-running anything: confirming writes the evidence and re-verifies
+    // (PlanRepository.confirmStep). Only offered on an ACTIVE plan - a paused one must be resumed first.
+    val awaitingConfirmation = if (snap.plan.status == PlanStatus.ACTIVE) snap.stepAwaitingConfirmation() else null
+    if (awaitingConfirmation != null) {
+      Spacer(Modifier.height(8.dp))
+      Text(
+        text = "Шаг ждёт вашего подтверждения: ${awaitingConfirmation.title}",
+        style = MaterialTheme.typography.bodySmall,
+        color = stepStatusColor(StepStatus.BLOCKED),
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+      )
+      Spacer(Modifier.height(6.dp))
+      Button(
+        onClick = { onConfirmStep(snap.plan.id, awaitingConfirmation.id) },
+        modifier = Modifier.fillMaxWidth().testTag("plan_confirm_step"),
+      ) {
+        Text("Подтвердить шаг")
       }
     }
     Spacer(Modifier.height(8.dp))

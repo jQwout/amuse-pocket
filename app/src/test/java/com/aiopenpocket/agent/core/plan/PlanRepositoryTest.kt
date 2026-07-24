@@ -317,6 +317,82 @@ class PlanRepositoryTest {
     assertEquals(ev.id, repository.snapshot(p.id)!!.evidence.single().id)
   }
 
+  // --- confirmStep: USER_CONFIRMATION re-verify path (no re-run) -------------------------------------
+
+  private val userConfirmation = CriterionVerifier(type = VerifierType.USER_CONFIRMATION)
+
+  @Test
+  fun `confirmStep proves a blocked user-confirmation criterion and completes step and plan without re-running`() = runTest {
+    insertConversation()
+    val p = plan()
+    val c = criterion(id = "confirm-1", required = true, verifier = userConfirmation)
+    repository.saveProposal(p, version(steps = listOf(step()), criteria = listOf(c)))
+    repository.approve(p.id, 1)
+    // The step ran, could not self-prove the user-confirmation criterion, and blocked (PlanVerifier's NeedsInfo path).
+    repository.updateStepState(stepState(status = StepStatus.BLOCKED, attempts = 1))
+
+    val snap = repository.confirmStep(p.id, "step-1")
+
+    // Evidence written from the user's confirmation, tagged USER_CONFIRMATION and attributed to this step.
+    val ev = snap.evidence.single { it.criterionId == "confirm-1" }
+    assertEquals(EvidenceSource.USER_CONFIRMATION, ev.source)
+    assertEquals("step-1", ev.stepId)
+    // Step completed WITHOUT re-running (attempts NOT incremented), plan completed (only step done + only criterion proven).
+    val finalStep = snap.stepStates.single { it.stepId == "step-1" }
+    assertEquals(StepStatus.COMPLETED, finalStep.status)
+    assertEquals(1, finalStep.attempts) // not re-run
+    assertEquals(PlanStatus.COMPLETED, snap.plan.status)
+  }
+
+  @Test
+  fun `confirmStep only un-blocks to READY when a non-confirmation required criterion is still unproven`() = runTest {
+    insertConversation()
+    val p = plan()
+    val confirmC = criterion(id = "confirm-1", required = true, verifier = userConfirmation)
+    val toolC = criterion(id = "tool-1", required = true, verifier = CriterionVerifier(type = VerifierType.TOOL_RESULT))
+    repository.saveProposal(p, version(steps = listOf(step()), criteria = listOf(confirmC, toolC)))
+    repository.approve(p.id, 1)
+    repository.updateStepState(stepState(status = StepStatus.BLOCKED, attempts = 1))
+
+    val snap = repository.confirmStep(p.id, "step-1")
+
+    // Confirmation evidence is recorded...
+    assertNotNull(snap.evidence.singleOrNull { it.criterionId == "confirm-1" })
+    // ...but tool-1 is still unproven, so the step only un-blocks to READY (never COMPLETED), and the plan
+    // stays ACTIVE. No re-run happens here - a future ordinary run must prove tool-1.
+    assertEquals(StepStatus.READY, snap.stepStates.single { it.stepId == "step-1" }.status)
+    assertEquals(PlanStatus.ACTIVE, snap.plan.status)
+  }
+
+  @Test
+  fun `confirmStep refuses a step that is not blocked`() {
+    runBlocking {
+      insertConversation()
+      val p = plan()
+      repository.saveProposal(p, version(criteria = listOf(criterion(id = "confirm-1", verifier = userConfirmation))))
+      repository.approve(p.id, 1)
+      repository.updateStepState(stepState(status = StepStatus.EXECUTING, attempts = 1))
+    }
+    assertThrows(IllegalStateException::class.java) {
+      runBlocking { repository.confirmStep("plan-1", "step-1") }
+    }
+  }
+
+  @Test
+  fun `confirmStep refuses when there is no pending user-confirmation criterion`() {
+    runBlocking {
+      insertConversation()
+      val p = plan()
+      // A blocked step, but the only required criterion is a TOOL_RESULT one - nothing for the USER to confirm.
+      repository.saveProposal(p, version(criteria = listOf(criterion(id = "tool-1", verifier = CriterionVerifier(type = VerifierType.TOOL_RESULT)))))
+      repository.approve(p.id, 1)
+      repository.updateStepState(stepState(status = StepStatus.BLOCKED, attempts = 1))
+    }
+    assertThrows(IllegalStateException::class.java) {
+      runBlocking { repository.confirmStep("plan-1", "step-1") }
+    }
+  }
+
   @Test
   fun `an approved version cannot be updated - saveProposal rejects reusing its version number`() {
     runBlocking {

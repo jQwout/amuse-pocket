@@ -16,7 +16,9 @@ import com.aiopenpocket.agent.core.plan.model.PlanCriterion
 import com.aiopenpocket.agent.core.plan.model.PlanHorizon
 import com.aiopenpocket.agent.core.plan.model.PlanStatus
 import com.aiopenpocket.agent.core.plan.model.PlanStep
+import com.aiopenpocket.agent.core.plan.model.PlanStepState
 import com.aiopenpocket.agent.core.plan.model.PlanVersion
+import com.aiopenpocket.agent.core.plan.model.StepStatus
 import com.aiopenpocket.agent.core.plan.model.VerifierType
 import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
 import com.aiopenpocket.data.database.AppDatabase
@@ -279,5 +281,60 @@ class PlanApprovalTest {
 
     assertEquals(PlanStatus.CANCELLED, repository.snapshot("plan-1")!!.plan.status)
     assertEquals(listOf("plan-1"), scheduler.cancelled)
+  }
+
+  // --- confirmStep (USER_CONFIRMATION re-verify, no re-run) --------------------------------------
+
+  private fun userConfirmationCriterion(id: String = "confirm-1") = PlanCriterion(
+    id = id,
+    description = "Пользователь подтвердил результат",
+    verifier = CriterionVerifier(type = VerifierType.USER_CONFIRMATION),
+    required = true,
+  )
+
+  private suspend fun blockStep(stepId: String = "step-1") {
+    repository.updateStepState(
+      PlanStepState(
+        planId = "plan-1", version = 1, stepId = stepId, status = StepStatus.BLOCKED,
+        attempts = 1, nextDueAt = null, startedAt = null, completedAt = null,
+      ),
+    )
+  }
+
+  @Test
+  fun `confirmStep completes a blocked user-confirmation plan and tears down its schedule`() = runTest {
+    insertConversation()
+    repository.saveProposal(plan(), version().copy(criteria = listOf(userConfirmationCriterion())))
+    commands.approve("plan-1", 1)
+    blockStep()
+
+    commands.confirmStep("plan-1", "step-1")
+
+    assertEquals(PlanStatus.COMPLETED, repository.snapshot("plan-1")!!.plan.status)
+    // A COMPLETED plan must not keep firing scheduled steps - same teardown as cancel/pause.
+    assertEquals(listOf("plan-1"), scheduler.cancelled)
+  }
+
+  @Test
+  fun `confirmStep leaves the schedule armed when the plan stays active`() = runTest {
+    insertConversation()
+    // A USER_CONFIRMATION criterion the user can confirm, plus a still-unproven TOOL_RESULT one that
+    // only an ordinary run can satisfy - so confirming un-blocks the step but never completes the plan.
+    repository.saveProposal(
+      plan(),
+      version().copy(
+        criteria = listOf(
+          userConfirmationCriterion(),
+          criterion(id = "tool-1").copy(verifier = CriterionVerifier(type = VerifierType.TOOL_RESULT)),
+        ),
+      ),
+    )
+    commands.approve("plan-1", 1)
+    blockStep()
+
+    commands.confirmStep("plan-1", "step-1")
+
+    assertEquals(PlanStatus.ACTIVE, repository.snapshot("plan-1")!!.plan.status)
+    assertTrue("an active plan's schedule must stay armed", scheduler.cancelled.isEmpty())
   }
 }
