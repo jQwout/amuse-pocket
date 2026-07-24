@@ -8,7 +8,7 @@ import kotlinx.serialization.Serializable
  * One immutable, versioned snapshot of an [AgentPlan]'s actual content (design spec
  * `2026-07-12-structured-plan-engine-design.md` section 5) — the "frozen plan content"
  * `plan_versions.snapshotJson` persists whole (Task 3). Material changes (objective/constraints/
- * criteria, step add/remove/reorder, expectedTools, schedule, completionRule — see
+ * criteria, step add/remove/reorder, expectedTools, schedule — see
  * `PlanChangeClassifier`, Task 2) never mutate an existing [PlanVersion]; they always produce a
  * new one with `version = this.version + 1` (plan's Global Constraints: "Approved PlanVersion
  * immutable. Material revision always creates a new pending version").

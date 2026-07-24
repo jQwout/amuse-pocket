@@ -17,8 +17,6 @@ import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.mcp.toolSchema
-import com.aiopenpocket.agent.core.plan.model.CompletionRule
-import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
 import com.aiopenpocket.agent.core.plan.model.CriterionVerifier
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
 import com.aiopenpocket.agent.core.plan.model.PlanCriterion
@@ -140,7 +138,6 @@ class PlanPlannerTest {
     id: String,
     dependsOn: List<String> = emptyList(),
     expectedTools: List<String> = emptyList(),
-    completionRuleType: String = "TOOL_SUCCEEDED",
   ): JsonObject = JsonObject(
     mapOf(
       "id" to JsonPrimitive(id),
@@ -148,7 +145,6 @@ class PlanPlannerTest {
       "instruction" to JsonPrimitive("Do $id"),
       "dependsOn" to JsonArray(dependsOn.map { JsonPrimitive(it) }),
       "expectedTools" to JsonArray(expectedTools.map { JsonPrimitive(it) }),
-      "completionRule" to JsonObject(mapOf("type" to JsonPrimitive(completionRuleType))),
     ),
   )
 
@@ -396,7 +392,6 @@ class PlanPlannerTest {
           dependsOn = emptySet(),
           expectedTools = emptySet(),
           schedule = null,
-          completionRule = CompletionRule(type = CompletionRuleType.TOOL_SUCCEEDED),
         ),
       ),
       criteria = listOf(

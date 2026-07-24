@@ -7,8 +7,6 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.aiopenpocket.agent.core.memory.entity.ConversationEntity
 import com.aiopenpocket.agent.core.plan.model.AgentPlan
-import com.aiopenpocket.agent.core.plan.model.CompletionRule
-import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
 import com.aiopenpocket.agent.core.plan.model.CriterionVerifier
 import com.aiopenpocket.agent.core.plan.model.EvidenceSource
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
@@ -109,10 +107,6 @@ class PlanRepositoryTest {
     dependsOn: Set<String> = emptySet(),
     expectedTools: Set<String> = setOf("memory_tool"),
     schedule: PlanSchedule? = null,
-    completionRule: CompletionRule = CompletionRule(
-      type = CompletionRuleType.TOOL_SUCCEEDED,
-      config = JsonObject(mapOf("tool" to JsonPrimitive("memory_tool"))),
-    ),
   ) = PlanStep(
     id = id,
     title = "Title $id",
@@ -120,7 +114,6 @@ class PlanRepositoryTest {
     dependsOn = dependsOn,
     expectedTools = expectedTools,
     schedule = schedule,
-    completionRule = completionRule,
   )
 
   private fun criterion(
@@ -499,9 +492,7 @@ class PlanRepositoryTest {
           id = "verify",
           dependsOn = setOf("collect"),
           expectedTools = emptySet(),
-          schedule = PlanSchedule(kind = ScheduleKind.ONE_TIME, delayMinutes = 30),
-          completionRule = CompletionRule(type = CompletionRuleType.USER_CONFIRMED),
-        ),
+          schedule = PlanSchedule(kind = ScheduleKind.ONE_TIME, delayMinutes = 30),        ),
         step(
           id = "recur",
           dependsOn = setOf("verify"),

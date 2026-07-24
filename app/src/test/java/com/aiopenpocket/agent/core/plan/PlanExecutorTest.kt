@@ -28,8 +28,6 @@ import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
 import com.aiopenpocket.agent.core.plan.execution.PlanStepRunner
 import com.aiopenpocket.agent.core.plan.execution.PlanVerifier
 import com.aiopenpocket.agent.core.plan.model.AgentPlan
-import com.aiopenpocket.agent.core.plan.model.CompletionRule
-import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
 import com.aiopenpocket.agent.core.plan.model.CriterionVerifier
 import com.aiopenpocket.agent.core.plan.model.EvidenceSource
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
@@ -220,7 +218,6 @@ class PlanExecutorTest {
     dependsOn = dependsOn,
     expectedTools = expectedTools,
     schedule = null,
-    completionRule = CompletionRule(type = CompletionRuleType.TOOL_SUCCEEDED),
   )
 
   private fun version(

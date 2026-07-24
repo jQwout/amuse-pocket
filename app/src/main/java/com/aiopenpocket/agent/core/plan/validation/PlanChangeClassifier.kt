@@ -78,11 +78,10 @@ data class PlanChangeClassification(
  *   execution-order-changing edit by any reasonable reading — included as material.
  * - [FIELD_STEP_EXPECTED_TOOLS] — spec: "изменение expected tools".
  * - [FIELD_STEP_SCHEDULE] — spec: "изменение schedule".
- * - [FIELD_STEP_COMPLETION_RULE] — spec: "изменение completion rule".
  *
  * COSMETIC-only (present in `changedFields` but never by itself escalates to MATERIAL):
  * - [FIELD_STEP_WORDING] — a matched step's `title`/`instruction` text changing while its id,
- *   position, `dependsOn`, `expectedTools`, `schedule` and `completionRule` all stay the same. This
+ *   position, `dependsOn`, `expectedTools` and `schedule` all stay the same. This
  *   is exactly this task's brief's own "wording/description-only → may edit in place" example.
  * - [FIELD_ASSUMPTIONS] — **UNSURE, flagged in the task report**: design spec section 6 never
  *   mentions `assumptions` in either its material or (implicitly, by omission) non-material list at
@@ -106,7 +105,6 @@ object PlanChangeClassifier {
   const val FIELD_STEP_DEPENDS_ON = "steps.dependsOn"
   const val FIELD_STEP_EXPECTED_TOOLS = "steps.expectedTools"
   const val FIELD_STEP_SCHEDULE = "steps.schedule"
-  const val FIELD_STEP_COMPLETION_RULE = "steps.completionRule"
   const val FIELD_STEP_WORDING = "steps.wording"
   const val FIELD_ASSUMPTIONS = "assumptions"
 
@@ -118,7 +116,6 @@ object PlanChangeClassifier {
     FIELD_STEP_DEPENDS_ON,
     FIELD_STEP_EXPECTED_TOOLS,
     FIELD_STEP_SCHEDULE,
-    FIELD_STEP_COMPLETION_RULE,
   )
 
   fun classify(old: PlanVersion, new: PlanVersion): PlanChangeClassification {
@@ -155,7 +152,6 @@ object PlanChangeClassifier {
       if (o.dependsOn != n.dependsOn) changed += FIELD_STEP_DEPENDS_ON
       if (o.expectedTools != n.expectedTools) changed += FIELD_STEP_EXPECTED_TOOLS
       if (o.schedule != n.schedule) changed += FIELD_STEP_SCHEDULE
-      if (o.completionRule != n.completionRule) changed += FIELD_STEP_COMPLETION_RULE
       if (o.title != n.title || o.instruction != n.instruction) changed += FIELD_STEP_WORDING
     }
     return changed

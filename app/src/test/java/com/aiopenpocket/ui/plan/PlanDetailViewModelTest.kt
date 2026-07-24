@@ -10,8 +10,6 @@ import com.aiopenpocket.agent.core.memory.entity.ConversationEntity
 import com.aiopenpocket.agent.core.plan.execution.PlanCommands
 import com.aiopenpocket.agent.core.plan.execution.PlanScheduleSync
 import com.aiopenpocket.agent.core.plan.model.AgentPlan
-import com.aiopenpocket.agent.core.plan.model.CompletionRule
-import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
 import com.aiopenpocket.agent.core.plan.model.CriterionVerifier
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
 import com.aiopenpocket.agent.core.plan.model.PlanCriterion
@@ -27,6 +25,7 @@ import com.aiopenpocket.agent.core.plan.model.VerifierType
 import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
 import com.aiopenpocket.data.database.AppDatabase
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -70,7 +69,16 @@ class PlanDetailViewModelTest {
   fun setUp() {
     Dispatchers.setMain(testDispatcher)
     val context = ApplicationProvider.getApplicationContext<Context>()
-    db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
+    db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+      .allowMainThreadQueries()
+      // Room по умолчанию исполняет запросы своих Flow на СВОИХ реальных executor'ах (процесс-глобальный
+      // ArchTaskExecutor), за которыми виртуальные часы runTest не следят. Под нагрузкой ПОЛНОГО набора
+      // этот общий пул голодает, и событийный Flow долетал бы до `first { events.size == 2 }` уже после
+      // таймаута runTest — редкая флака, видимая только в полном прогоне, не в изоляции. Сажаем Room на
+      // тот же тестовый диспетчер (как AgentsViewModelTest/AgentBuilderViewModelTest).
+      .setQueryExecutor(testDispatcher.asExecutor())
+      .setTransactionExecutor(testDispatcher.asExecutor())
+      .build()
     repository = PlanRepository(db, db.planDao()) { now }
     scheduler = RecordingPlanScheduleSync()
     hookRepository = AgentHookRepository(db.agentHookDao())
@@ -116,9 +124,7 @@ class PlanDetailViewModelTest {
     instruction = "Instruction $id",
     dependsOn = dependsOn,
     expectedTools = emptySet(),
-    schedule = null,
-    completionRule = CompletionRule(type = CompletionRuleType.USER_CONFIRMED),
-  )
+    schedule = null,  )
 
   private fun criterion(id: String = "criterion-1", required: Boolean = true) = PlanCriterion(
     id = id,

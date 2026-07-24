@@ -10,8 +10,6 @@ import com.aiopenpocket.agent.core.memory.entity.ConversationEntity
 import com.aiopenpocket.agent.core.plan.execution.PlanCommands
 import com.aiopenpocket.agent.core.plan.execution.PlanScheduleSync
 import com.aiopenpocket.agent.core.plan.model.AgentPlan
-import com.aiopenpocket.agent.core.plan.model.CompletionRule
-import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
 import com.aiopenpocket.agent.core.plan.model.CriterionVerifier
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
 import com.aiopenpocket.agent.core.plan.model.PlanCriterion
@@ -111,9 +109,7 @@ class PlanApprovalTest {
     instruction = "Instruction $id",
     dependsOn = emptySet(),
     expectedTools = setOf("memory_tool"),
-    schedule = null,
-    completionRule = CompletionRule(type = CompletionRuleType.TOOL_SUCCEEDED),
-  )
+    schedule = null,  )
 
   private fun criterion(id: String = "criterion-1") = PlanCriterion(
     id = id,

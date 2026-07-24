@@ -19,8 +19,6 @@ import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
 import com.aiopenpocket.agent.core.plan.context.PlanContextProvider
 import com.aiopenpocket.agent.core.plan.model.AgentPlan
-import com.aiopenpocket.agent.core.plan.model.CompletionRule
-import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
 import com.aiopenpocket.agent.core.plan.model.CriterionVerifier
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
 import com.aiopenpocket.agent.core.plan.model.PlanCriterion
@@ -114,9 +112,7 @@ class PrePromptAssemblerTest {
         instruction = "Записать все траты за месяц",
         dependsOn = emptySet(),
         expectedTools = emptySet(),
-        schedule = null,
-        completionRule = CompletionRule(type = CompletionRuleType.TOOL_SUCCEEDED),
-      ),
+        schedule = null,      ),
     ),
     criteria = listOf(
       PlanCriterion(

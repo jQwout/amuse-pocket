@@ -32,8 +32,6 @@ import com.aiopenpocket.agent.core.plan.execution.PlanScheduleSync
 import com.aiopenpocket.agent.core.plan.execution.PlanStepRunner
 import com.aiopenpocket.agent.core.plan.execution.PlanVerifier
 import com.aiopenpocket.agent.core.plan.model.AgentPlan
-import com.aiopenpocket.agent.core.plan.model.CompletionRule
-import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
 import com.aiopenpocket.agent.core.plan.model.PlanCriterion
 import com.aiopenpocket.agent.core.plan.model.PlanHorizon
@@ -168,7 +166,7 @@ class PlanHookIntegrationTest {
 
   private fun step(id: String = "step-1") = PlanStep(
     id = id, title = "Title $id", instruction = "Instruction $id", dependsOn = emptySet(),
-    expectedTools = emptySet(), schedule = null, completionRule = CompletionRule(type = CompletionRuleType.TOOL_SUCCEEDED),
+    expectedTools = emptySet(), schedule = null,
   )
 
   private fun version(

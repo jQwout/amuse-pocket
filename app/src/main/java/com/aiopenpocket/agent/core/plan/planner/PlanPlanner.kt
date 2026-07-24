@@ -8,8 +8,6 @@ import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.StreamEvent
-import com.aiopenpocket.agent.core.plan.model.CompletionRule
-import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
 import com.aiopenpocket.agent.core.plan.model.CriterionVerifier
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
 import com.aiopenpocket.agent.core.plan.model.PlanCriterion
@@ -318,8 +316,8 @@ object PlanControlReducer {
   //
   // Throws PlanArgumentException ONLY for structural problems: a required key that is entirely
   // absent, or present with the wrong JSON shape/an unrecognized enum value that the domain type
-  // literally cannot represent (e.g. PlanStep.completionRule is non-nullable, so a missing
-  // completionRule object cannot become "no rule" the way a validator could flag as blank). A
+  // literally cannot represent (e.g. a criterion verifier `type` must be one of the known
+  // VerifierType names — an unrecognized one cannot become a valid verifier). A
   // PRESENT-but-empty string (blank objective/step id/title/instruction/criterion description) is
   // intentionally let through as-is: PlanValidator already has dedicated blank_* rules for exactly
   // that, and re-deciding it here would bypass that frozen, tested logic.
@@ -346,8 +344,6 @@ object PlanControlReducer {
     val id = obj.rawString("id") ?: throw PlanArgumentException("steps[$index] is missing 'id'.")
     val title = obj.rawString("title") ?: throw PlanArgumentException("step '$id' is missing 'title'.")
     val instruction = obj.rawString("instruction") ?: throw PlanArgumentException("step '$id' is missing 'instruction'.")
-    val completionRuleJson = obj["completionRule"] as? JsonObject
-      ?: throw PlanArgumentException("step '$id' is missing 'completionRule'.")
     return PlanStep(
       id = id,
       title = title,
@@ -355,7 +351,6 @@ object PlanControlReducer {
       dependsOn = obj.rawStringList("dependsOn").toSet(),
       expectedTools = obj.rawStringList("expectedTools").toSet(),
       schedule = parseSchedule(obj["schedule"], id),
-      completionRule = parseCompletionRule(completionRuleJson, id),
     )
   }
 
@@ -369,12 +364,6 @@ object PlanControlReducer {
       delayMinutes = obj.rawLong("delayMinutes"),
       intervalMinutes = obj.rawLong("intervalMinutes"),
     )
-  }
-
-  private fun parseCompletionRule(obj: JsonObject, stepId: String): CompletionRule {
-    val type = obj.rawString("type")?.let { raw -> CompletionRuleType.entries.find { it.name == raw } }
-      ?: throw PlanArgumentException("step '$stepId' completionRule has a missing/unrecognized 'type'.")
-    return CompletionRule(type = type, config = (obj["config"] as? JsonObject) ?: JsonObject(emptyMap()))
   }
 
   private fun parseCriterion(element: JsonElement, index: Int): PlanCriterion {

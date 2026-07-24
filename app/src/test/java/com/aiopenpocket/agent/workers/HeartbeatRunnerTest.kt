@@ -42,8 +42,6 @@ import com.aiopenpocket.agent.core.plan.execution.PlanScheduleSync
 import com.aiopenpocket.agent.core.plan.execution.PlanStepRunner
 import com.aiopenpocket.agent.core.plan.execution.PlanVerifier
 import com.aiopenpocket.agent.core.plan.model.AgentPlan
-import com.aiopenpocket.agent.core.plan.model.CompletionRule
-import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
 import com.aiopenpocket.agent.core.plan.model.PlanHorizon
 import com.aiopenpocket.agent.core.plan.model.PlanStatus
@@ -255,9 +253,7 @@ class HeartbeatRunnerTest {
 
   private fun planStep(id: String = "step-1", expectedTools: Set<String> = emptySet()) = PlanStep(
     id = id, title = "Title $id", instruction = "Instruction $id",
-    dependsOn = emptySet(), expectedTools = expectedTools, schedule = null,
-    completionRule = CompletionRule(type = CompletionRuleType.TOOL_SUCCEEDED),
-  )
+    dependsOn = emptySet(), expectedTools = expectedTools, schedule = null,  )
 
   private fun planVersion(planId: String = "plan-1", version: Int = 1, steps: List<PlanStep> = listOf(planStep())) = PlanVersion(
     planId = planId, version = version, objective = "Objective", assumptions = emptyList(),

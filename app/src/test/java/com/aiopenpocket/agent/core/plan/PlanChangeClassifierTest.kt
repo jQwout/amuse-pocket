@@ -2,8 +2,6 @@ package com.aiopenpocket.agent.core.plan
 
 // @trace structured-plan-engine-907066
 
-import com.aiopenpocket.agent.core.plan.model.CompletionRule
-import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
 import com.aiopenpocket.agent.core.plan.model.CriterionVerifier
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
 import com.aiopenpocket.agent.core.plan.model.PlanCriterion
@@ -21,7 +19,7 @@ import org.junit.Test
 /**
  * [PlanChangeClassifier] is a pure diff — no Robolectric, no I/O needed. Covers exactly
  * `task-2-brief.md` Step 2's required scenarios (objective/constraints/criteria changed; step
- * add/remove/reorder; expectedTools/schedule/completionRule changed -> MATERIAL; description-only
+ * add/remove/reorder; expectedTools/schedule changed -> MATERIAL; description-only
  * -> COSMETIC; identical -> no change) plus this task's own explicit "dependencies" addition to the
  * material field list, and the deliberate "assumptions is cosmetic" reading documented on
  * [PlanChangeClassifier]'s own kdoc.
@@ -42,7 +40,6 @@ class PlanChangeClassifierTest {
     dependsOn: Set<String> = emptySet(),
     expectedTools: Set<String> = emptySet(),
     schedule: PlanSchedule? = null,
-    completionRule: CompletionRule = CompletionRule(type = CompletionRuleType.TOOL_SUCCEEDED),
     title: String = "step $id",
     instruction: String = "do $id",
   ) = PlanStep(
@@ -52,7 +49,6 @@ class PlanChangeClassifierTest {
     dependsOn = dependsOn,
     expectedTools = expectedTools,
     schedule = schedule,
-    completionRule = completionRule,
   )
 
   private fun version(
@@ -201,16 +197,6 @@ class PlanChangeClassifierTest {
     assertEquals(setOf(PlanChangeClassifier.FIELD_STEP_SCHEDULE), result.changedFields)
   }
 
-  @Test
-  fun `a step's completionRule changing is MATERIAL`() {
-    val result = PlanChangeClassifier.classify(
-      version(steps = listOf(step("s1", completionRule = CompletionRule(type = CompletionRuleType.TOOL_SUCCEEDED)))),
-      version(steps = listOf(step("s1", completionRule = CompletionRule(type = CompletionRuleType.USER_CONFIRMED)))),
-    )
-
-    assertEquals(PlanChangeKind.MATERIAL, result.kind)
-    assertEquals(setOf(PlanChangeClassifier.FIELD_STEP_COMPLETION_RULE), result.changedFields)
-  }
 
   // --- COSMETIC: wording/description-only -------------------------------------------------------
 

@@ -192,7 +192,6 @@ class StructuredPlanOrchestratorTest {
       "instruction" to JsonPrimitive("Do $id"),
       "dependsOn" to JsonArray(emptyList()),
       "expectedTools" to JsonArray(expectedTools.map { JsonPrimitive(it) }),
-      "completionRule" to JsonObject(mapOf("type" to JsonPrimitive("TOOL_SUCCEEDED"))),
     ),
   )
 
