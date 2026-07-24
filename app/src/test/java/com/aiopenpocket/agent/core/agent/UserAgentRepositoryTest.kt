@@ -72,6 +72,27 @@ class UserAgentRepositoryTest {
   )
 
   @Test
+  fun `observePublished skips an agent row whose enum no longer decodes instead of crashing the roster (D-tail)`() = runTest {
+    repository.saveDraft(draft(id = "good"))
+    repository.publish("good")
+    // A PUBLISHED row with a defaultMode this build no longer knows (renamed enum): toDefinition's
+    // AgentMode.valueOf throws. Before quarantine this crashes the roster Flow AgentsViewModel collects
+    // -> the agents screen crash-loops on every open.
+    db.userAgentDao().upsert(
+      UserAgentEntity(
+        id = "bad", name = "Битый", description = "d", iconKey = "sparkles", systemPrompt = "s",
+        toolNames = emptyList(), skillIds = emptyList(), allowedModes = listOf("CHAT"),
+        allowedWidgetTemplates = emptyList(), defaultMode = "RENAMED_MODE", memoryNamespace = "agent:bad:",
+        includeSharedProfile = false, status = "PUBLISHED", configVersion = 1L, createdAt = 1L, updatedAt = 2L,
+      ),
+    )
+
+    val agents = repository.observePublished().first()
+
+    assertEquals(listOf("good"), agents.map { it.id })
+  }
+
+  @Test
   fun `full draft to publish to archive lifecycle`() = runTest {
     val draft = draft()
 
