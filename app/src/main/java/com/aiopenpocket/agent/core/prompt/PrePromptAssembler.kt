@@ -20,8 +20,7 @@ import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
 
 @SingleIn(AppScope::class)
-@Inject
-class PrePromptAssembler(
+class PrePromptAssembler @Inject constructor(
   private val assets: AssetSource,
   private val memoryRepository: MemoryRepository,
   private val conversationRepository: ConversationRepository,
@@ -30,6 +29,30 @@ class PrePromptAssembler(
   private val agentResolver: AgentResolver,
   private val planContextProvider: PlanContextProvider,
 ) {
+
+  /**
+   * Источник «сейчас». Вторичный конструктор, а не `@Inject`-биндинг — по той же причине, что и у
+   * [com.aiopenpocket.agent.core.plan.persistence.PlanRepository]: голый `() -> Long` был бы
+   * нетипизированной, неоднозначной зависимостью на весь граф. Тестам нужен фиксированный момент,
+   * иначе утверждать что-либо про текст промпта невозможно.
+   */
+  private var clock: () -> Long = System::currentTimeMillis
+
+  constructor(
+    assets: AssetSource,
+    memoryRepository: MemoryRepository,
+    conversationRepository: ConversationRepository,
+    skillRegistry: SkillRegistry,
+    userPreferencesRepository: UserPreferencesRepository,
+    agentResolver: AgentResolver,
+    planContextProvider: PlanContextProvider,
+    clock: () -> Long,
+  ) : this(
+    assets, memoryRepository, conversationRepository, skillRegistry,
+    userPreferencesRepository, agentResolver, planContextProvider,
+  ) {
+    this.clock = clock
+  }
 
   suspend fun assemble(
     conversationId: String,
@@ -138,6 +161,21 @@ class PrePromptAssembler(
           appendLine()
         }
         // --- Настройки помощника (доверенная зона): язык и персона, заданные пользователем на онбординге. ---
+        // Текущий момент — ДОВЕРЕННАЯ зона (его подставляет приложение, а не пользователь), поэтому
+        // он стоит выше ограды <user_data>.
+        //
+        // Без этой секции агент на любую просьбу «напомни в 19:00» ставил СИСТЕМНЫЙ БУДИЛЬНИК и
+        // никогда — пуш. Причина механическая: heartbeat принимает delay_minutes (относительное
+        // время), alarm — hour/minute (абсолютное). Не зная, который час, вычесть «19:00 минус
+        // сейчас» нельзя в принципе, так что будильник оставался ЕДИНСТВЕННЫМ технически вызываемым
+        // инструментом. Формулировками в промпте это не лечится — лечится только самим временем.
+        appendLine("## Сейчас")
+        appendLine(formatNow())
+        appendLine(
+          "Считай «через сколько» от этого момента — не угадывай и не спрашивай у пользователя, " +
+            "который час.",
+        )
+        appendLine()
         appendLine("## Язык")
         appendLine(
           "Язык общения по умолчанию — ${languageLabel(language)}: на нём веди объяснения и " +
@@ -253,6 +291,30 @@ class PrePromptAssembler(
     }
 
   private fun loadAsset(path: String): String? = assets.load(path)
+
+  /**
+   * «Пятница, 25 июля 2026, 14:37 (Europe/Moscow, UTC+3)».
+   *
+   * День недели и год здесь не для красоты: без дня недели модель не разберёт «в пятницу», без года
+   * и месяца — «через 3 дня» на стыке месяцев, без пояса — любую абсолютную договорённость. Локаль
+   * жёстко русская, как и весь остальной промпт.
+   */
+  private fun formatNow(): String {
+    val now = java.util.Date(clock())
+    val zone = java.util.TimeZone.getDefault()
+    val stamp = java.text.SimpleDateFormat("EEEE, d MMMM yyyy, HH:mm", java.util.Locale("ru"))
+      .apply { timeZone = zone }
+      .format(now)
+    val offsetMinutes = zone.getOffset(now.time) / 60_000
+    val sign = if (offsetMinutes < 0) "-" else "+"
+    val absMinutes = kotlin.math.abs(offsetMinutes)
+    val offset = if (absMinutes % 60 == 0) {
+      "$sign${absMinutes / 60}"
+    } else {
+      "$sign${absMinutes / 60}:${(absMinutes % 60).toString().padStart(2, '0')}"
+    }
+    return "${stamp.replaceFirstChar { it.uppercase() }} (${zone.id}, UTC$offset)."
+  }
 
   /** Человекочитаемая метка языка для системной секции (код языка из онбординга → название). */
   private fun languageLabel(code: String): String = when (code.lowercase()) {
