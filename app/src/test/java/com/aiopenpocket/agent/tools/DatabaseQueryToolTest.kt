@@ -63,34 +63,34 @@ class DatabaseQueryToolTest {
 
   @Test
   fun `SELECT on an allowed table passes`() = runTest {
-    expectAllowed("SELECT * FROM messages")
+    expectAllowed("SELECT * FROM agent_plans")
   }
 
   @Test
   fun `SELECT on an allowed table with a LIMIT passes`() = runTest {
-    expectAllowed("SELECT id, content FROM messages ORDER BY createdAt DESC LIMIT 5")
+    expectAllowed("SELECT id, status FROM agent_plans ORDER BY createdAt DESC LIMIT 5")
   }
 
   @Test
   fun `SELECT with an explicit main schema prefix still resolves the allowed table`() = runTest {
-    expectAllowed("SELECT * FROM main.messages")
+    expectAllowed("SELECT * FROM main.agent_plans")
   }
 
   @Test
   fun `SELECT joining two allowed tables passes`() = runTest {
-    expectAllowed("SELECT m.* FROM messages m JOIN conversations c ON c.id = m.conversationId")
+    expectAllowed("SELECT v.* FROM plan_versions v JOIN agent_plans p ON p.id = v.planId")
   }
 
   @Test
   fun `SELECT with an old-style comma join between two allowed, aliased tables passes`() = runTest {
     // Regression for the FROM-list comma-splitting in extractTables: "FROM t1 a1, t2 a2" must resolve
     // to {t1, t2}, not silently drop t2 because it never follows a literal FROM/JOIN keyword directly.
-    expectAllowed("SELECT * FROM messages m, conversations c WHERE m.conversationId = c.id")
+    expectAllowed("SELECT * FROM plan_versions v, agent_plans p WHERE v.planId = p.id")
   }
 
   @Test
   fun `uppercase SELECT still passes`() = runTest {
-    expectAllowed("select * from facts")
+    expectAllowed("select * from agent_plans")
   }
 
   // --- rejected: forbidden system/control tables (direct, JOIN, subquery, CTE) ----------------
@@ -117,12 +117,12 @@ class DatabaseQueryToolTest {
 
   @Test
   fun `SELECT referencing a forbidden table via subquery is rejected`() = runTest {
-    expectRejected("SELECT * FROM messages WHERE conversationId IN (SELECT id FROM user_agents)")
+    expectRejected("SELECT * FROM agent_plans WHERE agentId IN (SELECT id FROM user_agents)")
   }
 
   @Test
   fun `SELECT referencing a forbidden table via JOIN is rejected`() = runTest {
-    expectRejected("SELECT m.* FROM messages m JOIN user_agents u ON u.id = m.conversationId")
+    expectRejected("SELECT p.* FROM agent_plans p JOIN user_agents u ON u.id = p.agentId")
   }
 
   @Test
@@ -137,15 +137,15 @@ class DatabaseQueryToolTest {
   fun `SELECT referencing a forbidden table only inside a string literal is still rejected (belt-and-suspenders over-blocks, safely)`() = runTest {
     // Documents the accepted trade-off in DatabaseQueryTool.containsForbiddenToken's kdoc: a false
     // rejection here is safe, a false allow is not.
-    expectRejected("SELECT * FROM messages WHERE content = 'heartbeats'")
+    expectRejected("SELECT * FROM agent_plans WHERE status = 'heartbeats'")
   }
 
   @Test
   fun `an old-style comma join smuggling a forbidden table as the second table is rejected`() = runTest {
-    // A single-capture FROM/JOIN regex could plausibly see only "messages" here and miss
+    // A single-capture FROM/JOIN regex could plausibly see only "agent_plans" here and miss
     // "user_agents" entirely, since it never follows a literal FROM/JOIN keyword of its own -
     // containsForbiddenToken AND the comma-aware extractTables both independently catch it.
-    expectRejected("SELECT * FROM messages, user_agents")
+    expectRejected("SELECT * FROM agent_plans, user_agents")
   }
 
   @Test
@@ -153,7 +153,34 @@ class DatabaseQueryToolTest {
     // Unlike the previous test, containsForbiddenToken cannot help here - "some_unknown_table" is not
     // one of the four named FORBIDDEN_TABLES. Only extractTables' comma-splitting (checking BOTH
     // comma-separated tables against the READABLE_TABLES allowlist) catches this one.
-    expectRejected("SELECT * FROM messages, some_unknown_table")
+    expectRejected("SELECT * FROM agent_plans, some_unknown_table")
+  }
+
+  // --- rejected: per-agent-private data is not readable via raw SQL (cross-agent leak fix) -------
+  // facts/episodes are per-agent namespaced memory; messages/conversations are conversation-private.
+  // A raw SQL surface cannot scope by the calling agent (unlike MemoryTools/ConversationRepository),
+  // so an agent granted database_query could read EVERY other agent's memory and the whole chat
+  // history. These tables are therefore off the allowlist entirely — scoped reads go through the
+  // memory/conversation tools instead.
+
+  @Test
+  fun `SELECT on facts is rejected (per-agent memory is not readable via raw SQL)`() = runTest {
+    expectRejected("SELECT * FROM facts")
+  }
+
+  @Test
+  fun `SELECT on episodes is rejected (per-agent memory is not readable via raw SQL)`() = runTest {
+    expectRejected("SELECT * FROM episodes")
+  }
+
+  @Test
+  fun `SELECT on messages is rejected (chat history is not readable via raw SQL)`() = runTest {
+    expectRejected("SELECT * FROM messages")
+  }
+
+  @Test
+  fun `SELECT on conversations is rejected (chat history is not readable via raw SQL)`() = runTest {
+    expectRejected("SELECT * FROM conversations")
   }
 
   // --- rejected: writes are no longer reachable at all (Part A) --------------------------------
@@ -175,12 +202,12 @@ class DatabaseQueryToolTest {
 
   @Test
   fun `DDL is rejected`() = runTest {
-    expectRejected("DROP TABLE messages")
+    expectRejected("DROP TABLE agent_plans")
   }
 
   @Test
   fun `multi-statement calls are rejected even when both statements target allowed tables`() = runTest {
-    expectRejected("SELECT * FROM messages; SELECT * FROM facts")
+    expectRejected("SELECT * FROM agent_plans; SELECT * FROM plan_versions")
   }
 
   // --- rejected: fail-closed parsing -------------------------------------------------------------
