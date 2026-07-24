@@ -26,6 +26,7 @@ import com.aiopenpocket.agent.core.plan.model.ScheduleKind
 import com.aiopenpocket.agent.core.plan.model.StepStatus
 import com.aiopenpocket.agent.core.plan.model.VerifierType
 import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
+import com.aiopenpocket.agent.core.plan.persistence.PlanVersionEntity
 import com.aiopenpocket.data.database.AppDatabase
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -203,6 +204,39 @@ class PlanRepositoryTest {
   )
 
   // --- core Task 3 Step 1 required cases --------------------------------------------------------------
+
+  // --- decode resilience (D): one undecodable row must not crash the whole read Flow ----------------
+
+  @Test
+  fun `observeByConversation skips a plan whose version row no longer decodes instead of crashing the whole flow (D)`() = runTest {
+    insertConversation("c1")
+    repository.saveProposal(plan(id = "good", conversationId = "c1"), version(planId = "good", objective = "Хороший план"))
+    repository.saveProposal(plan(id = "bad", conversationId = "c1"), version(planId = "bad", objective = "Битый план"))
+    // Schema drift with no Room migration (an enum rename, or a new required PlanVersion field): a
+    // version row that no longer decodes. Before the fix this throws inside toSnapshot and the whole
+    // Flow that ChatViewModel/PlanListViewModel collect crashes -> the screen crash-loops on every open.
+    db.planDao().upsertVersion(PlanVersionEntity(planId = "bad", version = 1, snapshotJson = "{}", approvedAt = null))
+
+    val plans = repository.observeByConversation("c1").first()
+
+    assertEquals("the good plan still renders; the undecodable one is quarantined, not fatal", listOf("good"), plans.map { it.plan.id })
+  }
+
+  @Test
+  fun `a version row with an unknown extra JSON key still decodes (forward-compatible read, not quarantined) (D)`() = runTest {
+    insertConversation("c1")
+    repository.saveProposal(plan(id = "p1", conversationId = "c1"), version(planId = "p1", objective = "План"))
+    val validJson = db.planDao().getVersion("p1", 1)!!.snapshotJson
+    // A row written by a NEWER app version that added a field this build doesn't know about. Strict
+    // decode throws on the unknown key (so it would be quarantined and the plan would vanish); a
+    // forward-compatible read must ignore the unknown key and keep the plan.
+    val forwardCompatJson = validJson.replaceFirst("{", "{\"unknownFutureField\":123,")
+    db.planDao().upsertVersion(PlanVersionEntity(planId = "p1", version = 1, snapshotJson = forwardCompatJson, approvedAt = null))
+
+    val snapshot = repository.observeByConversation("c1").first().single()
+
+    assertEquals("План", snapshot.version.objective)
+  }
 
   @Test
   fun `saveProposal moves a new plan to AWAITING_APPROVAL`() = runTest {
