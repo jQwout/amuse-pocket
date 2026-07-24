@@ -46,10 +46,13 @@ import com.aiopenpocket.agent.core.plan.template.PlanTemplateRegistry
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.agent.core.prompt.AssetSource
 import com.aiopenpocket.data.database.AppDatabase
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -76,9 +79,12 @@ import org.robolectric.annotation.Config
  * delegate GOAL to [PlanRunner]) works end to end, the same integration posture
  * [PlanHookIntegrationTest]/[PlanApprovalTest] already use for their own slice of the engine.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class StructuredPlanOrchestratorTest {
+
+  private val testDispatcher = UnconfinedTestDispatcher()
 
   private lateinit var db: AppDatabase
   private lateinit var repository: PlanRepository
@@ -93,7 +99,11 @@ class StructuredPlanOrchestratorTest {
   @Before
   fun setUp() {
     val context = ApplicationProvider.getApplicationContext<Context>()
-    db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
+    db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+      .allowMainThreadQueries()
+      .setQueryExecutor(testDispatcher.asExecutor())
+      .setTransactionExecutor(testDispatcher.asExecutor())
+      .build()
     repository = PlanRepository(db, db.planDao()) { now }
     hookRepository = AgentHookRepository(db.agentHookDao())
     conversationRepository = ConversationRepository(db.conversationDao(), db.conversationTagDao(), db.messageDao())

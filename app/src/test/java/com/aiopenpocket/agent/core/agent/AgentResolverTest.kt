@@ -8,7 +8,10 @@ import androidx.test.core.app.ApplicationProvider
 import com.aiopenpocket.agent.core.hook.AgentHookRepository
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.data.database.AppDatabase
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -26,9 +29,12 @@ import org.robolectric.annotation.Config
  * rather than a fake, so the roster/collision behavior is proven against the real published/draft/
  * archived state machine, not a hand-rolled stand-in for it.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class AgentResolverTest {
+
+  private val testDispatcher = UnconfinedTestDispatcher()
 
   private lateinit var db: AppDatabase
   private lateinit var userAgentRepository: UserAgentRepository
@@ -39,6 +45,8 @@ class AgentResolverTest {
     val context = ApplicationProvider.getApplicationContext<Context>()
     db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
       .allowMainThreadQueries()
+      .setQueryExecutor(testDispatcher.asExecutor())
+      .setTransactionExecutor(testDispatcher.asExecutor())
       .build()
     userAgentRepository = UserAgentRepository(db, db.userAgentDao(), AgentHookRepository(db.agentHookDao()))
     resolver = DefaultAgentResolver(userAgentRepository)
