@@ -29,6 +29,7 @@ import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
 import com.aiopenpocket.agent.core.plan.context.PlanContextProvider
 import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
+import com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator
 import com.aiopenpocket.agent.core.prompt.AssetSource
 import com.aiopenpocket.agent.core.prompt.ConversationAnnotator
 import com.aiopenpocket.agent.core.prompt.PrePromptAssembler
@@ -131,6 +132,7 @@ class ReflectionOrchestratorTest {
       memoryRepository,
       NoopLog,
       agentHookRepository(),
+      ToolApprovalCoordinator(),
     )
     return ReflectionOrchestrator(
       llm,

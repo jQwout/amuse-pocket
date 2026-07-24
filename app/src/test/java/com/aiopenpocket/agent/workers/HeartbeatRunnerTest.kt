@@ -50,6 +50,7 @@ import com.aiopenpocket.agent.core.plan.model.PlanVersion
 import com.aiopenpocket.agent.core.plan.model.StepStatus
 import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
 import com.aiopenpocket.agent.core.policy.ExecutionMode
+import com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator
 import com.aiopenpocket.agent.core.prompt.AssetSource
 import com.aiopenpocket.agent.loop.AgentEvent
 import com.aiopenpocket.agent.loop.AgentMode
@@ -195,6 +196,7 @@ class HeartbeatRunnerTest {
       MemoryRepository(db.factDao(), db.episodeDao()),
       NoopAgentLog,
       AgentHookRepository(db.agentHookDao()),
+      ToolApprovalCoordinator(),
     )
     val conversationRepository = ConversationRepository(
       db.conversationDao(),

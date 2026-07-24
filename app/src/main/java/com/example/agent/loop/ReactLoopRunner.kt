@@ -26,6 +26,7 @@ import com.aiopenpocket.agent.core.policy.ExecutionPolicy
 import com.aiopenpocket.agent.core.policy.PolicyDecision
 import com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator
 import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
+import com.aiopenpocket.agent.core.prompt.UntrustedFence
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -73,7 +74,11 @@ class ReactLoopRunner(
   private val memoryRepository: MemoryRepository,
   private val log: AgentLog,
   private val agentHookRepository: AgentHookRepository,
-  private val toolApprovalCoordinator: ToolApprovalCoordinator = ToolApprovalCoordinator(),
+  // Без значения по умолчанию СОЗНАТЕЛЬНО: `= ToolApprovalCoordinator()` создавал бы приватный
+  // экземпляр, если DI однажды не подставит общий синглтон, — и тогда UI резолвил бы аппрувы в один
+  // объект, а цикл ждал бы другой. Отказ был бы не громким, а тихим: каждый запрос подтверждения
+  // просто висел бы до своего двухминутного таймаута и превращался в deny. Пусть лучше не соберётся.
+  private val toolApprovalCoordinator: ToolApprovalCoordinator,
 ) {
 
   /**
@@ -472,9 +477,13 @@ class ReactLoopRunner(
     if (!untrusted) return raw
     // Neutralize any envelope tags inside the payload itself, so attacker-supplied content (e.g. an
     // SMS body containing a literal </tool_output>) cannot close the fence early and smuggle
-    // instructions outside it. Turns <tool_output / </tool_output into <_tool_output / </_tool_output.
-    val fenced = raw.replace(Regex("(?i)<(/?)tool_output"), "<$1_tool_output")
-    return "<tool_output tool=\"$toolName\" trust=\"untrusted\">\n$fenced\n</tool_output>"
+    // instructions outside it. Shared with PrePromptAssembler's <user_data> fence: the invariant is
+    // one, the places obliged to honour it are several, and the gap BETWEEN them was the actual hole.
+    return UntrustedFence.wrap(
+      tag = "tool_output",
+      body = UntrustedFence.neutralize("tool_output", raw),
+      attributes = "tool=\"$toolName\" trust=\"untrusted\"",
+    )
   }
 
   /** One-line, length-capped preview of args/results for the loop log (no newlines, no flooding). */

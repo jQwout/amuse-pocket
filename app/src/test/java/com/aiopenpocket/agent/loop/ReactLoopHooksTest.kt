@@ -25,6 +25,7 @@ import com.aiopenpocket.agent.core.mcp.ToolRegistry
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.mcp.toolSchema
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
+import com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator
 import com.aiopenpocket.data.database.AppDatabase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -106,6 +107,7 @@ class ReactLoopHooksTest {
     MemoryRepository(db.factDao(), db.episodeDao()),
     NoopLog,
     hookRepository,
+    ToolApprovalCoordinator(),
   )
 
   private fun agentWithHooks(hooks: List<AgentHook>, toolNames: Set<String> = emptySet()) = AgentDefinition(

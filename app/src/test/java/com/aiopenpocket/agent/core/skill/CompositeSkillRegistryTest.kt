@@ -20,6 +20,7 @@ import com.aiopenpocket.agent.core.mcp.ToolExecutor
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
+import com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.loop.ReactLoopRunner
 import com.aiopenpocket.data.database.AppDatabase
@@ -67,7 +68,16 @@ class CompositeSkillRegistryTest {
   @Before
   fun setUp() {
     val context = ApplicationProvider.getApplicationContext<Context>()
-    db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
+    db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+      // Прямой исполнитель (запрос выполняется на вызывающем потоке), а не пул Room. Иначе suspend-DAO
+      // уходит на чужой поток, тестовый диспетчер runTest остаётся без работы и промотывает ВИРТУАЛЬНОЕ
+      // время вперёд — а `attemptLoadSkill` ниже гоняет настоящий ToolExecutor, у которого теперь есть
+      // withTimeoutOrNull(TOOL_TIMEOUT_MS). Тул отрабатывал за микросекунды реального времени и всё
+      // равно получал таймаут: 30 виртуальных секунд «проходили», пока Room работал на своём потоке.
+      .setQueryExecutor(Runnable::run)
+      .setTransactionExecutor(Runnable::run)
+      .allowMainThreadQueries()
+      .build()
     userSkillRepository = UserSkillRepository(db.userSkillDao())
   }
 
@@ -224,6 +234,7 @@ class CompositeSkillRegistryTest {
       MemoryRepository(db.factDao(), db.episodeDao()),
       NoopLog,
       AgentHookRepository(db.agentHookDao()),
+      ToolApprovalCoordinator(),
     )
     val result = runner.run(
       conversationId = "c1",
