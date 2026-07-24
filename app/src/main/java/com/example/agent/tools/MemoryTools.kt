@@ -23,6 +23,15 @@ class MemoryTools(
   private val turnContextHolder: TurnContextHolder,
 ) : Tool {
 
+  /**
+   * Память — недоверенный источник, хотя таблица и своя: модель читает внешний текст (SMS, файл,
+   * календарь) и кладёт его сюда через `remember_fact`, после чего `search_memory`/`recall_episodes`
+   * отдают его обратно. Без этого флага память работала обходным каналом вокруг конверта
+   * `<tool_output trust="untrusted">`: SmsTool/FileTools свой вывод помечают, а «тот же текст, но
+   * через факт» приезжал к модели уже без ограды.
+   */
+  override val returnsUntrustedContent = true
+
   // Per-call risk (Task 9): remember_fact writes; search_memory/recall_episodes only read. An
   // unrecognized/missing action fails closed to READ - execute() rejects it before anything runs.
   override fun riskFor(arguments: Map<String, JsonElement>): RiskClass = when (arguments.string("action")) {
@@ -66,7 +75,11 @@ class MemoryTools(
     // это общий (shared) профиль пользователя, который агент может только читать (см.
     // PrePromptAssembler.includeSharedProfile), а не дописывать туда через remember_fact.
     val category = if (agent != null) "general" else sanitizeCategory(args.string("category"))
-    val id = memoryRepository.saveFact(storedKey, value, category)
+    // upsertFact, а НЕ saveFact: повторный remember_fact по тому же ключу обязан ОБНОВИТЬ факт.
+    // saveFact вставляет строку с новым UUID, а уникальности по `key` в схеме нет — «меня зовут X»,
+    // потом «вообще-то Y» оставляло в памяти оба, и в промпт уезжало противоречие (см. upsertFact).
+    val id = memoryRepository.upsertFact(storedKey, value, category)
+      ?: return ToolResult.Success("Fact cleared: $storedKey")
     return ToolResult.Success("Fact saved: $storedKey = $value (id=$id)")
   }
 

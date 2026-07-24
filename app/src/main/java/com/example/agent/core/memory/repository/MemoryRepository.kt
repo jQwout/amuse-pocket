@@ -22,7 +22,7 @@ class MemoryRepository(
   private val episodeDao: EpisodeDao,
 ) {
   suspend fun searchFacts(query: String): List<Fact> =
-    factDao.search(escapeLike(query)).map { it.toDomain() }
+    rankByQuery(factDao.getAll().map { it.toDomain() }, query)
 
   suspend fun getFactsByCategory(category: String): List<Fact> =
     factDao.getByCategory(category).map { it.toDomain() }
@@ -38,7 +38,7 @@ class MemoryRepository(
    * DAO/WHERE-clause level, not by trusting the caller (model) to only ask for its own namespace.
    */
   suspend fun searchFactsInNamespace(namespace: String, query: String): List<Fact> =
-    factDao.searchInNamespace(escapeLike(namespace), escapeLike(query)).map { it.toDomain() }
+    rankByQuery(getFactsByKeyPrefix(namespace), query)
 
   /** Every fact stored under an agent's namespace — same shape as a prefix search, named for callers that want "this agent's whole memory" rather than a query match. */
   suspend fun getFactsByNamespace(namespace: String): List<Fact> = getFactsByKeyPrefix(namespace)
@@ -48,6 +48,42 @@ class MemoryRepository(
     .replace("\\", "\\\\")
     .replace("%", "\\%")
     .replace("_", "\\_")
+
+  /**
+   * Слова [query] длиннее [MIN_TOKEN_LENGTH], без повторов и не более [MAX_TOKENS] штук.
+   *
+   * Именно отсутствие этого шага и ломало «релевантные факты»: `PrePromptAssembler` передаёт сюда
+   * ЦЕЛОЕ сообщение пользователя, а прежний запрос подставлял его в `LIKE '%…%'` целиком — совпасть
+   * могла только фраза, целиком являющаяся подстрокой факта, то есть практически никогда.
+   *
+   * Короткие слова отбрасываются намеренно: «я», «в», «и», «на» совпадают почти с любым фактом и
+   * превратили бы поиск в «отдай всю память».
+   */
+  internal fun tokenize(query: String): List<String> =
+    query.split(NON_WORD_REGEX)
+      .filter { it.length >= MIN_TOKEN_LENGTH }
+      .distinctBy { it.lowercase() }
+      .take(MAX_TOKENS)
+
+  /**
+   * [facts], оставленные только совпавшие с [query], в порядке убывания числа совпавших слов (при
+   * равенстве — свежие раньше). Ранжирование здесь имеет смысл: вызывающий обрезает результат до
+   * `LlmContextConfig.RELEVANT_FACTS_LIMIT`, и без порядка в этот срез попадало бы что попало.
+   *
+   * Сопоставление идёт в Kotlin, а не в SQL, сознательно — по той же причине, по которой поиск по
+   * чату живёт в памяти (см. `ChatViewModel`): `contains(ignoreCase = true)` корректно сворачивает
+   * регистр кириллицы, а SQL `LIKE` — только ASCII, поэтому запрос «казань» не нашёл бы факт
+   * «Казань». Таблица фактов — это личная память масштаба сотен строк, не лог.
+   */
+  private fun rankByQuery(facts: List<Fact>, query: String): List<Fact> {
+    val tokens = tokenize(query)
+    if (tokens.isEmpty()) return emptyList()
+    return facts
+      .map { fact -> fact to tokens.count { fact.key.contains(it, true) || fact.value.contains(it, true) } }
+      .filter { (_, matched) -> matched > 0 }
+      .sortedWith(compareByDescending<Pair<Fact, Int>> { it.second }.thenByDescending { it.first.updatedAt })
+      .map { (fact, _) -> fact }
+  }
 
   suspend fun saveFact(key: String, value: String, category: String): String {
     val id = UUID.randomUUID().toString()
@@ -65,16 +101,27 @@ class MemoryRepository(
     return id
   }
 
-  suspend fun upsertFact(key: String, value: String, category: String) {
+  /**
+   * Пишет факт ПО КЛЮЧУ: один ключ — ровно одна строка. Возвращает id записанного факта, либо null,
+   * если пустое значение стёрло факт.
+   *
+   * Это единственный корректный путь записи для повторяющихся ключей, и потому — путь `remember_fact`
+   * (см. [com.aiopenpocket.agent.tools.MemoryTools]). Родственный [saveFact] делает INSERT с новым
+   * UUID, а индекс по `key` не уникальный: два `remember_fact("user.name", …)` подряд клали ДВЕ
+   * строки, обе уезжали в промпт, а [FactDao.getByKey] (LIMIT 1 без ORDER BY) отдавал произвольную —
+   * на практике старую. Память тем противоречивее, чем дольше ей пользуются.
+   */
+  suspend fun upsertFact(key: String, value: String, category: String): String? {
     if (value.isBlank()) {
       factDao.deleteByKey(key)
-      return
+      return null
     }
     val existing = factDao.getByKey(key)
     val now = System.currentTimeMillis()
+    val id = existing?.id ?: UUID.randomUUID().toString()
     factDao.insert(
       FactEntity(
-        id = existing?.id ?: UUID.randomUUID().toString(),
+        id = id,
         key = key,
         value = value,
         category = category,
@@ -82,6 +129,7 @@ class MemoryRepository(
         updatedAt = now,
       ),
     )
+    return id
   }
 
   suspend fun saveUserProfile(profile: UserProfile) {
@@ -149,4 +197,15 @@ class MemoryRepository(
     timestamp = timestamp,
     conversationId = conversationId,
   )
+
+  private companion object {
+    /** Всё, что не буква и не цифра, — граница слова (запятые/точки живого сообщения). */
+    val NON_WORD_REGEX = Regex("[^\\p{L}\\p{N}]+")
+
+    /** Короче — шум («я», «в», «на»), совпадающий почти с любым фактом. */
+    const val MIN_TOKEN_LENGTH = 3
+
+    /** Потолок на длинное сообщение: больше слов запрос точнее уже не делают. */
+    const val MAX_TOKENS = 8
+  }
 }

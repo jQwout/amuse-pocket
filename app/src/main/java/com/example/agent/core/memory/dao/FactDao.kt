@@ -17,28 +17,21 @@ interface FactDao {
   @Query("DELETE FROM facts WHERE `key` = :key")
   suspend fun deleteByKey(key: String)
 
-  @Query("SELECT * FROM facts WHERE `key` LIKE '%' || :query || '%' ESCAPE '\\' OR value LIKE '%' || :query || '%' ESCAPE '\\' ORDER BY updatedAt DESC")
-  suspend fun search(query: String): List<FactEntity>
+  /**
+   * Вся память фактов, свежие первыми — источник для пословного поиска
+   * [com.aiopenpocket.agent.core.memory.repository.MemoryRepository.searchFacts].
+   *
+   * Сопоставление сознательно НЕ здесь: `LIKE` в SQLite сворачивает регистр только для ASCII, так
+   * что «казань» не нашло бы «Казань». Отбор идёт в Kotlin — см. kdoc `rankByQuery`.
+   */
+  @Query("SELECT * FROM facts ORDER BY updatedAt DESC")
+  suspend fun getAll(): List<FactEntity>
 
   @Query("SELECT * FROM facts WHERE category = :category ORDER BY updatedAt DESC")
   suspend fun getByCategory(category: String): List<FactEntity>
 
   @Query("SELECT * FROM facts WHERE `key` LIKE :prefix || '%' ESCAPE '\\' ORDER BY `key` ASC, updatedAt DESC")
   suspend fun getByKeyPrefix(prefix: String): List<FactEntity>
-
-  /**
-   * [query]-matched facts confined to [namespace] (an agent's `agent:{id}:` key prefix) — the
-   * per-agent counterpart of [search]. The namespace constraint is ANDed into the WHERE clause
-   * itself (not a post-filter over [search]'s results) so a caller that takes only the top N rows
-   * (e.g. `PrePromptAssembler`'s relevant-facts limit) never has another agent's/global facts
-   * crowd out this agent's own matches before they are even considered — see `MemoryRepository`.
-   */
-  @Query(
-    "SELECT * FROM facts WHERE `key` LIKE :namespace || '%' ESCAPE '\\' " +
-      "AND (`key` LIKE '%' || :query || '%' ESCAPE '\\' OR value LIKE '%' || :query || '%' ESCAPE '\\') " +
-      "ORDER BY updatedAt DESC",
-  )
-  suspend fun searchInNamespace(namespace: String, query: String): List<FactEntity>
 
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insert(fact: FactEntity)
