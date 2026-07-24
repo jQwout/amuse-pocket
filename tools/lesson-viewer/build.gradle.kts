@@ -21,4 +21,11 @@ application {
   mainClass.set("lessonviewer.MainKt")
 }
 
+tasks.named<JavaExec>("run") {
+  // -Dlessons.dir из командной строки Gradle НЕ долетает до форкнутой JVM сам по себе:
+  // без этой строки опция молча не работает. Рабочий каталог — каталог проекта, от него
+  // и отсчитывается путь по умолчанию в LessonsDir.
+  System.getProperty("lessons.dir")?.let { systemProperty("lessons.dir", it) }
+}
+
 tasks.test { useJUnit() }
