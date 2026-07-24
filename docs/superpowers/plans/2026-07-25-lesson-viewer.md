@@ -82,6 +82,8 @@ pluginManagement {
 dependencyResolutionManagement {
   repositories {
     mavenCentral()
+    // Compose Desktop транзитивно тянет androidx.lifecycle:* — они на Google Maven, не на Central.
+    google()
     maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
   }
 }
@@ -106,6 +108,8 @@ kotlin { jvmToolchain(17) }
 
 dependencies {
   implementation(compose.desktop.currentOs)
+  // compose.desktop.currentOs даёт ядро, окно и skiko, но НЕ Material 3 — он отдельным артефактом.
+  implementation(compose.material3)
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
   testImplementation(kotlin("test"))
   testImplementation("junit:junit:4.13.2")
