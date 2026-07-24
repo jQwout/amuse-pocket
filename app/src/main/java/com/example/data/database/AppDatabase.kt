@@ -74,7 +74,11 @@ import com.aiopenpocket.agent.core.srs.SrsWordEntity
     AgentStorageEntity::class,
   ],
   version = 9,
-  exportSchema = false,
+  // exportSchema = true, хотя миграций пока нет и всё пересоздаётся разрушительно (см. политику на
+  // DatabaseBindings.provideDatabase). Именно поэтому и включено: первую настоящую Migration придётся
+  // писать ОТ схемы релизной версии, а взять её будет неоткуда, если снимки не начать копить заранее.
+  // Снимки складываются в app/schemas (ksp room.schemaLocation) и коммитятся вместе с кодом.
+  exportSchema = true,
 )
 @TypeConverters(AgentRoomConverters::class)
 abstract class AppDatabase : RoomDatabase() {

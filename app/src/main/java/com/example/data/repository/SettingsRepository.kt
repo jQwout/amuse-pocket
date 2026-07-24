@@ -25,7 +25,7 @@ class SettingsRepository(
   private val prefs: SharedPreferences by lazy {
     EncryptedSharedPreferences.create(
       context,
-      "secure_settings",
+      PREFS_NAME,
       masterKey,
       EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
       EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
@@ -45,5 +45,18 @@ class SettingsRepository(
 
   fun setSelectedModel(model: String) {
     prefs.edit().putString("selected_model", model).apply()
+  }
+
+  companion object {
+    /**
+     * Имя файла EncryptedSharedPreferences. Константа, потому что оно дословно повторено в
+     * `res/xml/backup_rules.xml` и `res/xml/data_extraction_rules.xml` — файл ОБЯЗАН быть исключён из
+     * бэкапа: он зашифрован ключом из Android Keystore, а Keystore не бэкапится и не переносится, так
+     * что восстановленную копию расшифровать нечем и [prefs] бросает при первом же обращении (то есть
+     * при чтении API-ключа в LLM-цепочке — агент мёртв сразу после переезда).
+     *
+     * XML не умеет ссылаться на Kotlin-константу, поэтому расхождение ловит `BackupRulesTest`.
+     */
+    const val PREFS_NAME = "secure_settings"
   }
 }

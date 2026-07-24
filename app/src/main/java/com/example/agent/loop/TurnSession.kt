@@ -59,22 +59,27 @@ class TurnSession internal constructor(
   internal val toolTraceFlow = MutableStateFlow<List<ToolTrace>>(emptyList())
   val toolTrace: StateFlow<List<ToolTrace>> = toolTraceFlow.asStateFlow()
 
-  internal var job: Job? = null
+  @Volatile internal var job: Job? = null
   internal val streamBuffer = StreamingTextBuffer(monotonicNowMs)
-  internal var responseStartTime = 0L
+  @Volatile internal var responseStartTime = 0L
 
   // Ретрай-контекст последнего хода (см. ChatViewModel до переезда: lastUserText и др.).
-  internal var lastUserText: String? = null
-  internal var lastUserMessageId: String? = null
-  internal var lastMode: AgentMode = AgentMode.CHAT
+  //
+  // @Volatile везде: эти поля пишет ход на Dispatchers.Default (TurnManager.runTurn), а читают и
+  // пишут интенты с других потоков — retry()/invalidateRetry()/invalidateRetryFor() работают БЕЗ
+  // мьютекса, которым TurnManager защищает мапу сессий. Без volatile «Повторить» мог читать stale
+  // значение (или не увидеть сброс) — редко, недетерминированно и ровно на границе смены хода.
+  @Volatile internal var lastUserText: String? = null
+  @Volatile internal var lastUserMessageId: String? = null
+  @Volatile internal var lastMode: AgentMode = AgentMode.CHAT
   /**
    * Task 10 (structured-plan-engine-907066): заменяют прежний `lastGoalMaxIterations` — GOAL больше
    * не описывается одним числом витков, а [planId]/[budget] нужны и PLAN-ретраю (какой план
    * ре-предложить), и GOAL-ретраю (какой план продолжить и в каких рамках). null-планId —
    * StructuredPlanOrchestrator сам резолвит план диалога, как и в оригинальном ходе.
    */
-  internal var lastPlanId: String? = null
-  internal var lastBudget: PlanRunBudget = PlanRunBudget()
+  @Volatile internal var lastPlanId: String? = null
+  @Volatile internal var lastBudget: PlanRunBudget = PlanRunBudget()
   /** LIVE/PREVIEW последнего хода — «Повторить» переигрывает в том же режиме. */
-  internal var lastExecutionMode: ExecutionMode = ExecutionMode.LIVE
+  @Volatile internal var lastExecutionMode: ExecutionMode = ExecutionMode.LIVE
 }
