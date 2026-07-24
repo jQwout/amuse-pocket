@@ -28,6 +28,7 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import lessonviewer.io.LessonLoader
 import lessonviewer.io.LessonsDir
+import lessonviewer.model.orderLessons
 import lessonviewer.ui.ErrorPlate
 import lessonviewer.ui.LessonListPane
 import lessonviewer.ui.LessonPane
@@ -49,9 +50,12 @@ private fun ViewerRoot() {
 
   // reloadTick в ключе — этим и перечитываем: пересчитать список и заново разобрать файлы.
   val dir = remember(reloadTick) { LessonsDir.resolve() }
-  val lessons = remember(reloadTick, dir) { dir?.let { LessonLoader.loadAll(it) } ?: emptyList() }
+  // Порядок — педагогический, как в приложении (ROADMAP_LEVELS), а не по имени файла.
+  val lessons = remember(reloadTick, dir) {
+    orderLessons(dir?.let { LessonLoader.loadAll(it) } ?: emptyList())
+  }
   // Выбор храним по имени файла, а не по объекту: после перечитывания объекты новые.
-  val selected = lessons.firstOrNull { it.file.name == selectedName }
+  val selected = lessons.firstOrNull { it.loaded.file.name == selectedName }?.loaded
   // Пути картинок в уроках отсчитываются от app/src/main/assets, то есть на уровень выше
   // каталога с самими уроками.
   val assetsRoot = remember(dir) { dir?.parentFile }
