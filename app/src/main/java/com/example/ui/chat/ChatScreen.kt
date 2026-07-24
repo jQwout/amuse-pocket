@@ -732,6 +732,7 @@ fun ChatScreen(
                         onPause = { planId -> viewModel.handleIntent(ChatIntent.PausePlan(planId)) },
                         onResume = { planId -> viewModel.handleIntent(ChatIntent.ResumePlan(planId)) },
                         onCancel = { planId -> viewModel.handleIntent(ChatIntent.CancelPlan(planId)) },
+                        onConfirmStep = { planId, stepId -> viewModel.handleIntent(ChatIntent.ConfirmPlanStep(planId, stepId)) },
                         onOpenDetail = onOpenPlanDetail,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     )

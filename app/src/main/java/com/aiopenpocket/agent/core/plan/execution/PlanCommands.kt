@@ -5,6 +5,7 @@ package com.aiopenpocket.agent.core.plan.execution
 import com.aiopenpocket.agent.core.hook.AgentHookRepository
 import com.aiopenpocket.agent.core.hook.HookEvent
 import com.aiopenpocket.agent.core.plan.model.PlanSnapshot
+import com.aiopenpocket.agent.core.plan.model.PlanStatus
 import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
@@ -150,5 +151,23 @@ class PlanCommands(
   suspend fun cancel(planId: String) {
     repository.cancel(planId)
     scheduler.cancel(planId)
+  }
+
+  /**
+   * The user confirms a step BLOCKED on a [com.aiopenpocket.agent.core.plan.model.VerifierType.USER_CONFIRMATION]
+   * criterion (design fork: re-verify ONLY, never re-run — the step runner is never invoked again).
+   * Delegates the whole transactional re-verify to [PlanRepository.confirmStep] (which writes the
+   * confirmation evidence, moves the step to COMPLETED or back to READY WITHOUT re-executing it, and
+   * probes whole-plan completion — see its kdoc). If that confirmation completed the whole plan, tears
+   * down any armed [scheduler] work for it — a [com.aiopenpocket.agent.core.plan.model.PlanStatus.COMPLETED]
+   * plan must not keep firing scheduled steps, exactly like [cancel]/[pause]. A confirmation that only
+   * un-blocks the step (plan stays [com.aiopenpocket.agent.core.plan.model.PlanStatus.ACTIVE]) leaves the
+   * schedule armed, since the plan is still running.
+   */
+  suspend fun confirmStep(planId: String, stepId: String) {
+    val snapshot = repository.confirmStep(planId, stepId)
+    if (snapshot.plan.status == PlanStatus.COMPLETED) {
+      scheduler.cancel(planId)
+    }
   }
 }

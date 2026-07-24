@@ -384,6 +384,7 @@ class ChatViewModel(
             is ChatIntent.PausePlan -> runPlanCommand { planCommands.pause(intent.planId) }
             is ChatIntent.ResumePlan -> runPlanCommand { planCommands.resume(intent.planId) }
             is ChatIntent.CancelPlan -> runPlanCommand { planCommands.cancel(intent.planId) }
+            is ChatIntent.ConfirmPlanStep -> runPlanCommand { planCommands.confirmStep(intent.planId, intent.stepId) }
             // «Поправить» — чисто локальный жест (см. ChatIntent.EditPlan kdoc): прячет бар, PlanRepository не трогает.
             is ChatIntent.EditPlan -> _state.update { it.copy(pendingPlanApproval = null) }
             is ChatIntent.AdvanceLesson -> advanceLesson()

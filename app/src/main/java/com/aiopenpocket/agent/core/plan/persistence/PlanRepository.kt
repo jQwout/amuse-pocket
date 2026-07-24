@@ -4,16 +4,22 @@ package com.aiopenpocket.agent.core.plan.persistence
 
 import androidx.room.withTransaction
 import com.aiopenpocket.agent.core.plan.model.AgentPlan
+import com.aiopenpocket.agent.core.plan.model.EvidenceSource
 import com.aiopenpocket.agent.core.plan.model.PlanEvent
 import com.aiopenpocket.agent.core.plan.model.PlanEvidence
 import com.aiopenpocket.agent.core.plan.model.PlanSnapshot
 import com.aiopenpocket.agent.core.plan.model.PlanStatus
 import com.aiopenpocket.agent.core.plan.model.PlanStepState
 import com.aiopenpocket.agent.core.plan.model.PlanVersion
+import com.aiopenpocket.agent.core.plan.model.StepStatus
+import com.aiopenpocket.agent.core.plan.model.VerifierType
 import com.aiopenpocket.agent.core.plan.validation.PlanCommand
 import com.aiopenpocket.agent.core.plan.validation.PlanStateMachine
+import com.aiopenpocket.agent.core.plan.validation.PlanStepCommand
 import com.aiopenpocket.agent.core.plan.validation.PlanTransitionResult
 import com.aiopenpocket.agent.core.plan.validation.PlanVersionResult
+import com.aiopenpocket.agent.core.plan.validation.StepTransitionResult
+import java.util.UUID
 import com.aiopenpocket.data.database.AppDatabase
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
@@ -268,6 +274,108 @@ class PlanRepository @Inject constructor(
       }
     }
     requireNotNull(toSnapshot(requireNotNull(dao.getPlan(planId)))) { "Plan '$planId' vanished mid-completion-check." }
+  }
+
+  /**
+   * The user confirms a step BLOCKED on a [VerifierType.USER_CONFIRMATION] criterion (design fork:
+   * re-verify ONLY, never re-run — the executor/step runner is NEVER called again; `PlanCommands.confirmStep`
+   * is the user-facing entry point). In one transaction:
+   *
+   * 1. Writes an [EvidenceSource.USER_CONFIRMATION] [PlanEvidence] row for EVERY still-unproven
+   *    USER_CONFIRMATION criterion of the approved version — the user's confirmation IS the evidence such a
+   *    criterion is designed to wait for (nothing deterministic can ever produce it).
+   * 2. Re-checks the evidence gate ([PlanStateMachine.unsatisfiedRequiredCriteria]) with that new evidence
+   *    folded in and transitions the step WITHOUT re-executing it: if the confirmation cleared the last
+   *    still-open required criterion the step goes BLOCKED -> COMPLETED ([PlanStepCommand.Confirm]); if a
+   *    non-confirmation required criterion is still unproven the step is only un-blocked to READY
+   *    ([PlanStepCommand.Unblock]) so an ordinary future run can prove it.
+   * 3. Probes whole-plan completion in the SAME transaction (all steps COMPLETED/SKIPPED + all required
+   *    criteria proven -> [PlanStatus.COMPLETED]), exactly like [tryComplete].
+   *
+   * Throws (every row untouched — same convention as the rest of this class) when the plan is unknown or
+   * not [PlanStatus.ACTIVE], the step has no state row or is not [StepStatus.BLOCKED], or there is no
+   * pending USER_CONFIRMATION criterion at all — all caller mistakes, since the confirm affordance is only
+   * ever offered for exactly that state (see `PlanCard`). No [PlanEvent] is appended here (this class never
+   * emits events on its own initiative — see class kdoc "What this class deliberately does NOT do");
+   * `PlanCommands.confirmStep` writes the audit trail and tears down scheduled work on completion.
+   */
+  suspend fun confirmStep(planId: String, stepId: String): PlanSnapshot = database.withTransaction {
+    val planEntity = requireNotNull(dao.getPlan(planId)) { "Unknown plan id: $planId" }
+    val currentStatus = PlanStatus.valueOf(planEntity.status)
+    check(currentStatus == PlanStatus.ACTIVE) {
+      "Cannot confirm a step of plan '$planId': status is $currentStatus, not ACTIVE."
+    }
+    val versionNumber = requireNotNull(planEntity.approvedVersion) {
+      "Plan '$planId' has no approved version; nothing to confirm."
+    }
+    val version = requireNotNull(dao.getVersion(planId, versionNumber)) {
+      "Plan '$planId' approved version $versionNumber row is missing."
+    }.toDomain()
+    val stepState = requireNotNull(
+      dao.getStepStates(planId, versionNumber).map { it.toDomain() }.find { it.stepId == stepId },
+    ) { "Step '$stepId' has no state row in plan '$planId' v$versionNumber." }
+    check(stepState.status == StepStatus.BLOCKED) {
+      "Step '$stepId' is ${stepState.status}, not BLOCKED; only a blocked step can be confirmed."
+    }
+
+    val existingEvidence = dao.getEvidence(planId, versionNumber).map { it.toDomain() }
+    val provenIds = existingEvidence.mapNotNullTo(mutableSetOf()) { it.criterionId }
+    val pendingConfirmations = version.criteria.filter {
+      it.verifier.type == VerifierType.USER_CONFIRMATION && it.id !in provenIds
+    }
+    check(pendingConfirmations.isNotEmpty()) {
+      "Plan '$planId' has no pending user-confirmation criterion; nothing for step '$stepId' to confirm."
+    }
+
+    val now = clock()
+    val newEvidence = pendingConfirmations.map { criterion ->
+      PlanEvidence(
+        id = UUID.randomUUID().toString(),
+        planId = planId,
+        version = versionNumber,
+        criterionId = criterion.id,
+        stepId = stepId,
+        source = EvidenceSource.USER_CONFIRMATION,
+        reference = "user_confirmation:$stepId:$now",
+        summary = "Пользователь подтвердил: ${criterion.description}",
+        createdAt = now,
+      )
+    }
+    newEvidence.forEach { dao.insertEvidence(PlanEvidenceEntity.fromDomain(it)) }
+
+    // Re-verify the gate WITHOUT re-running the step (design fork "re-verify only, no re-run").
+    val allEvidence = existingEvidence + newEvidence
+    val stillUnsatisfied = PlanStateMachine.unsatisfiedRequiredCriteria(version.criteria, allEvidence)
+    val command = if (stillUnsatisfied.isEmpty()) PlanStepCommand.Confirm else PlanStepCommand.Unblock
+    val nextStatus = when (val t = PlanStateMachine.transitionStep(StepStatus.BLOCKED, command)) {
+      is StepTransitionResult.Allowed -> t.status
+      is StepTransitionResult.Rejected -> error("Unreachable: StepStatus.BLOCKED must legally allow $command: ${t.error.reason}")
+    }
+    dao.upsertStepState(
+      PlanStepStateEntity.fromDomain(
+        stepState.copy(
+          status = nextStatus,
+          completedAt = if (nextStatus == StepStatus.COMPLETED) now else stepState.completedAt,
+        ),
+      ),
+    )
+
+    // Probe whole-plan completion in the SAME transaction (like tryComplete): the confirm may have been
+    // the last thing the plan was waiting on.
+    val freshStepStates = dao.getStepStates(planId, versionNumber).map { it.toDomain() }
+    val completion = PlanStateMachine.tryComplete(
+      current = currentStatus,
+      criteria = version.criteria,
+      evidence = allEvidence,
+      steps = version.steps,
+      stepStates = freshStepStates,
+    )
+    if (completion is PlanTransitionResult.Allowed) {
+      dao.upsertPlan(planEntity.copy(status = completion.status.name, updatedAt = now))
+    } else {
+      dao.touchPlan(planId, now)
+    }
+    requireNotNull(toSnapshot(requireNotNull(dao.getPlan(planId)))) { "Plan '$planId' vanished mid-confirm." }
   }
 
   /** Non-material (design spec section 6): persists whatever next [PlanStepState] the caller computed — this method does not itself call `PlanStateMachine.transitionStep`, since the caller already did. */
