@@ -427,6 +427,25 @@ class PlanExecutorTest {
   }
 
   @Test
+  fun `buildStepMessages gives the executor the FULL approved instruction, not a 220-char truncated summary`() {
+    // >220 chars, with the operative rule at the very END so truncation would silently drop it.
+    val longInstruction = "Сначала собери данные. " + "Делай это тщательно и по шагам. ".repeat(12) +
+      "В САМОМ КОНЦЕ обязательно вызови проверку результата и только после успеха заверши шаг."
+    assertTrue("test fixture must exceed the compact 220-char cap", longInstruction.length > 220)
+    val s = step(id = "step-1").copy(instruction = longInstruction)
+    val v = version(steps = listOf(s))
+    val p = plan().copy(approvedVersion = 1, status = PlanStatus.ACTIVE)
+    val snapshot = PlanSnapshot(plan = p, version = v, stepStates = emptyList(), evidence = emptyList())
+
+    val messages = PlanExecutor.buildStepMessages("BASE_PROMPT", agent(), snapshot, s, PlanRunBudget(), attempt = 1)
+
+    // The compact plan frame truncates to 220 chars for a summary; the executor must ALSO get the whole
+    // approved instruction somewhere, or it runs a different contract than the user approved.
+    val system = messages[0].content.orEmpty()
+    assertTrue("the executor must see the WHOLE approved instruction, not a truncated summary", system.contains(longInstruction))
+  }
+
+  @Test
   fun `buildStepMessages folds hookInstructions into the system message without adding a message`() {
     val s = step(id = "step-1")
     val v = version(steps = listOf(s))
