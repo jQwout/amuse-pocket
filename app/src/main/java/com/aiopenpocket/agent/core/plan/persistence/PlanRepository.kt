@@ -346,11 +346,21 @@ class PlanRepository @Inject constructor(
   private suspend fun toSnapshot(planEntity: AgentPlanEntity): PlanSnapshot? {
     val versionNumber = dao.getMaxVersion(planEntity.id) ?: return null
     val versionEntity = dao.getVersion(planEntity.id, versionNumber) ?: return null
-    return PlanSnapshot(
-      plan = planEntity.toDomain(),
-      version = versionEntity.toDomain(),
-      stepStates = dao.getStepStates(planEntity.id, versionNumber).map { it.toDomain() },
-      evidence = dao.getEvidence(planEntity.id, versionNumber).map { it.toDomain() },
-    )
+    // Do the suspend DAO reads FIRST, then decode inside runCatching — so runCatching only ever wraps
+    // pure (non-suspend) decoding and can never swallow a coroutine CancellationException.
+    val stepStateRows = dao.getStepStates(planEntity.id, versionNumber)
+    val evidenceRows = dao.getEvidence(planEntity.id, versionNumber)
+    // Quarantine a row that no longer decodes (schema drift with NO Room migration — an enum rename or
+    // a new required PlanVersion field leaves old rows in place) instead of throwing: one bad plan must
+    // not crash the whole read Flow that ChatViewModel/PlanListViewModel collect, or the screen
+    // crash-loops on every open. The bad plan drops out of the list; every other plan still renders.
+    return runCatching {
+      PlanSnapshot(
+        plan = planEntity.toDomain(),
+        version = versionEntity.toDomain(),
+        stepStates = stepStateRows.map { it.toDomain() },
+        evidence = evidenceRows.map { it.toDomain() },
+      )
+    }.getOrNull()
   }
 }
