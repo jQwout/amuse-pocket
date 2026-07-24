@@ -117,16 +117,16 @@ class PlanRepository @Inject constructor(
    * pass runs with no conversation/agent in hand and needs to enumerate literally every plan that
    * COULD have a step left stuck EXECUTING/VERIFYING.
    */
-  suspend fun getNonTerminalPlans(): List<AgentPlan> = dao.getNonTerminalPlans().map { it.toDomain() }
+  suspend fun getNonTerminalPlans(): List<AgentPlan> = dao.getNonTerminalPlans().decodeQuarantining { it.toDomain() }
 
   /** Full version history for [planId], oldest first — includes superseded/never-approved drafts. */
-  suspend fun getVersions(planId: String): List<PlanVersion> = dao.getVersionsForPlan(planId).map { it.toDomain() }
+  suspend fun getVersions(planId: String): List<PlanVersion> = dao.getVersionsForPlan(planId).decodeQuarantining { it.toDomain() }
 
   /** Every [PlanEvent] for [planId], oldest first. */
-  suspend fun getEvents(planId: String): List<PlanEvent> = dao.getEvents(planId).map { it.toDomain() }
+  suspend fun getEvents(planId: String): List<PlanEvent> = dao.getEvents(planId).decodeQuarantining { it.toDomain() }
 
   /** Live view of [getEvents]. */
-  fun observeEvents(planId: String): Flow<List<PlanEvent>> = dao.observeEvents(planId).map { rows -> rows.map { it.toDomain() } }
+  fun observeEvents(planId: String): Flow<List<PlanEvent>> = dao.observeEvents(planId).map { rows -> rows.decodeQuarantining { it.toDomain() } }
 
   /**
    * Persists a brand-new plan's first version, or (when [plan].id already names an existing row) a

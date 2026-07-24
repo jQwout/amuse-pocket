@@ -25,6 +25,8 @@ import com.aiopenpocket.agent.core.plan.model.PlanVersion
 import com.aiopenpocket.agent.core.plan.model.ScheduleKind
 import com.aiopenpocket.agent.core.plan.model.StepStatus
 import com.aiopenpocket.agent.core.plan.model.VerifierType
+import com.aiopenpocket.agent.core.plan.persistence.AgentPlanEntity
+import com.aiopenpocket.agent.core.plan.persistence.PlanEventEntity
 import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
 import com.aiopenpocket.agent.core.plan.persistence.PlanVersionEntity
 import com.aiopenpocket.data.database.AppDatabase
@@ -236,6 +238,39 @@ class PlanRepositoryTest {
     val snapshot = repository.observeByConversation("c1").first().single()
 
     assertEquals("План", snapshot.version.objective)
+  }
+
+  @Test
+  fun `observeEvents skips an event whose type enum no longer decodes instead of crashing (D-tail)`() = runTest {
+    insertConversation("c1")
+    repository.saveProposal(plan(id = "p1", conversationId = "c1"), version(planId = "p1"))
+    db.planDao().insertEvent(PlanEventEntity(id = "e-good", planId = "p1", version = 1, stepId = null, type = PlanEventType.ERROR.name, payloadJson = "{}", createdAt = 1L))
+    // A renamed/removed event type this build no longer knows: valueOf throws. Before quarantine this
+    // crashes the whole observeEvents Flow that the plan-detail timeline collects.
+    db.planDao().insertEvent(PlanEventEntity(id = "e-bad", planId = "p1", version = 1, stepId = null, type = "RENAMED_AWAY", payloadJson = "{}", createdAt = 2L))
+
+    val events = repository.observeEvents("p1").first()
+
+    assertEquals(listOf("e-good"), events.map { it.id })
+  }
+
+  @Test
+  fun `getNonTerminalPlans skips a plan whose status enum no longer decodes instead of crashing (D-tail)`() = runTest {
+    insertConversation("c1")
+    repository.saveProposal(plan(id = "good", conversationId = "c1"), version(planId = "good"))
+    // A plan row with a status this build no longer knows (renamed enum), still "non-terminal" by SQL,
+    // so it reaches toDomain -> valueOf throws. The recovery sweep must skip it, not crash.
+    db.planDao().upsertPlan(
+      AgentPlanEntity(
+        id = "bad", agentId = "agent-1", conversationId = "c1", horizon = "SINGLE_RUN",
+        status = "RENAMED_STATUS", approvedVersion = null, activeStepId = null, createdAt = 1L, updatedAt = 1L,
+      ),
+    )
+
+    val plans = repository.getNonTerminalPlans()
+
+    assertTrue("the good plan survives", plans.any { it.id == "good" })
+    assertTrue("the undecodable plan is quarantined, not fatal", plans.none { it.id == "bad" })
   }
 
   @Test

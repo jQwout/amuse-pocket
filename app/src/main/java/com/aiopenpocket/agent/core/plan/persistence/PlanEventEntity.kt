@@ -10,7 +10,6 @@ import com.aiopenpocket.agent.core.plan.model.PlanEvent
 import com.aiopenpocket.agent.core.plan.model.PlanEventType
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 
 /**
@@ -54,7 +53,7 @@ data class PlanEventEntity(
     version = version,
     stepId = stepId,
     type = PlanEventType.valueOf(type),
-    payload = Json.decodeFromString<JsonObject>(payloadJson),
+    payload = PlanPersistenceJson.decodeFromString<JsonObject>(payloadJson),
     createdAt = createdAt,
   )
 
@@ -65,7 +64,7 @@ data class PlanEventEntity(
       version = event.version,
       stepId = event.stepId,
       type = event.type.name,
-      payloadJson = Json.encodeToString<JsonObject>(event.payload),
+      payloadJson = PlanPersistenceJson.encodeToString<JsonObject>(event.payload),
       createdAt = event.createdAt,
     )
   }
