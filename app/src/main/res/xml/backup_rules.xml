@@ -1,13 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+   Правила автобэкапа для Android 11 и старше (API < 31). На 31+ действует data_extraction_rules.xml —
+   держать оба файла в согласии обязательно: minSdk проекта 24, так что этот путь живой, а не легаси.
+
+   Комментарий-заготовка от AS утверждал обратное («ignored for devices older than API 31») — это про
+   ДРУГОЙ файл. Здесь всё наоборот: этот работает как раз до 31.
+
+   Почему исключено — подробное обоснование в data_extraction_rules.xml. Коротко:
+   - secure_settings.xml: EncryptedSharedPreferences, ключ живёт в Keystore и не бэкапится, поэтому
+     восстановленный файл нечем расшифровать и приложение падает при первом чтении API-ключа;
+   - ai_open_pocket_db: вся переписка и память агента открытым текстом — не для облака Google.
+     (Здесь, в отличие от API 31+, отдельного канала device-transfer нет, так что исключение общее.)
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <exclude domain="sharedpref" path="secure_settings.xml"/>
+    <exclude domain="database" path="ai_open_pocket_db"/>
+    <exclude domain="database" path="ai_open_pocket_db-wal"/>
+    <exclude domain="database" path="ai_open_pocket_db-shm"/>
 </full-backup-content>

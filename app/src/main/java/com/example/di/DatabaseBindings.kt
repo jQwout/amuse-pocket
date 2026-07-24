@@ -28,6 +28,15 @@ import dev.zacsweers.metro.SingleIn
 @BindingContainer
 object DatabaseBindings {
 
+    /**
+     * Имя файла БД. Константа, а не литерал в одном месте, потому что это же имя дословно повторено в
+     * `res/xml/backup_rules.xml` и `res/xml/data_extraction_rules.xml` — база исключена из облачного
+     * бэкапа (вся переписка и память агента лежат в ней открытым текстом). XML не умеет ссылаться на
+     * Kotlin-константу, поэтому расхождение ловит `BackupRulesTest`: переименование БД без правки
+     * правил молча вернуло бы её в бэкап.
+     */
+    const val DATABASE_NAME = "ai_open_pocket_db"
+
     @Provides
     @SingleIn(AppScope::class)
     fun provideDatabase(application: Application): AppDatabase =
@@ -45,7 +54,7 @@ object DatabaseBindings {
         // any in-progress plan, and any agent's stored KV state — can be lost on upgrade. Acceptable
         // pre-release (no production users yet, confirmed 2026-07-12). Real Migration + addMigrations +
         // schema export start from the first release's baseline, not before.
-        Room.databaseBuilder(application, AppDatabase::class.java, "ai_open_pocket_db")
+        Room.databaseBuilder(application, AppDatabase::class.java, DATABASE_NAME)
             .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
 

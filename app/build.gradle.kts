@@ -23,6 +23,10 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
+  // Куда Room кладёт JSON-снимки схемы (@Database(exportSchema = true)). Снимки коммитятся: первую
+  // настоящую Migration придётся писать ОТ схемы релиза, и взять её будет неоткуда, если не копить.
+  ksp { arg("room.schemaLocation", "${projectDir}/schemas") }
+
   signingConfigs {
     create("release") {
       val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
@@ -31,11 +35,16 @@ android {
       keyAlias = "upload"
       keyPassword = System.getenv("KEY_PASSWORD")
     }
-    create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
+    // debug.keystore лежит в .gitignore, поэтому на свежем клоне его просто нет — а конфиг ссылался
+    // на него безусловно, и debug-сборка падала на подписи. Заводим конфиг только когда файл реально
+    // есть; иначе ниже остаётся штатный debug-ключ, который AGP генерирует сам.
+    if (file("${rootDir}/debug.keystore").exists()) {
+      create("debugConfig") {
+        storeFile = file("${rootDir}/debug.keystore")
+        storePassword = "android"
+        keyAlias = "androiddebugkey"
+        keyPassword = "android"
+      }
     }
   }
 
@@ -47,7 +56,8 @@ android {
       signingConfig = signingConfigs.getByName("release")
     }
     debug {
-      signingConfig = signingConfigs.getByName("debugConfig")
+      // findByName, а не getByName: конфиг заводится выше только при наличии debug.keystore.
+      signingConfig = signingConfigs.findByName("debugConfig") ?: signingConfigs.getByName("debug")
     }
   }
   compileOptions {

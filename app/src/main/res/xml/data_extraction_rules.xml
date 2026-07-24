@@ -1,19 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+   Правила извлечения данных для Android 12+ (API 31+). Для более старых — backup_rules.xml, его надо
+   править СИНХРОННО: minSdk проекта 24, так что оба файла реально работают.
+
+   Два разных повода что-то исключить, и путать их не надо:
+
+   1. secure_settings.xml — это КОРРЕКТНОСТЬ, а не приватность. Файл принадлежит
+      EncryptedSharedPreferences (SettingsRepository) и зашифрован ключом из Android Keystore, а
+      Keystore не бэкапится и не переносится НИКОГДА. Восстановленный на другом устройстве файл
+      расшифровать нечем, и EncryptedSharedPreferences.create бросает на первом же обращении.
+      Обращение это — чтение API-ключа в LLM-цепочке, то есть агент оказывался мёртв сразу после
+      переезда, и лечилось это только «стереть данные». Исключаем из ОБОИХ каналов.
+
+   2. База ai_open_pocket_db — это ПРИВАТНОСТЬ. В ней вся история чатов и вся память агента, в
+      открытом виде. Для приложения с локальным AI отправлять её в облачный бэкап Google неуместно,
+      поэтому cloud-backup её не забирает. А device-transfer (прямой перенос на новое устройство,
+      который инициирует сам пользователь) — сохраняет: данные не уходят на чужие серверы, и переезд
+      не стоит пользователю всей переписки.
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <exclude domain="sharedpref" path="secure_settings.xml"/>
+        <exclude domain="database" path="ai_open_pocket_db"/>
+        <exclude domain="database" path="ai_open_pocket_db-wal"/>
+        <exclude domain="database" path="ai_open_pocket_db-shm"/>
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="sharedpref" path="secure_settings.xml"/>
     </device-transfer>
-    -->
 </data-extraction-rules>
