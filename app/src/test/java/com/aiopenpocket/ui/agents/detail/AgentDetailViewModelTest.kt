@@ -27,8 +27,6 @@ import com.aiopenpocket.agent.core.memory.dao.HeartbeatDao
 import com.aiopenpocket.agent.core.memory.entity.ConversationEntity
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.plan.model.AgentPlan
-import com.aiopenpocket.agent.core.plan.model.CompletionRule
-import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
 import com.aiopenpocket.agent.core.plan.model.PlanHorizon
 import com.aiopenpocket.agent.core.plan.model.PlanStatus
@@ -321,9 +319,7 @@ class AgentDetailViewModelTest {
         instruction = "Do it",
         dependsOn = emptySet(),
         expectedTools = emptySet(),
-        schedule = null,
-        completionRule = CompletionRule(type = CompletionRuleType.USER_CONFIRMED),
-      ),
+        schedule = null,      ),
     ),
     criteria = emptyList(),
     createdBy = PlanAuthor.AGENT,

@@ -48,18 +48,6 @@ data class PlanSchedule(
 )
 
 /**
- * How `PlanVerifier` (Task 8) decides a [PlanStep] itself is finished, independent of whether any
- * whole-plan [PlanCriterion] is satisfied. [config] is an engine-interpreted payload whose shape
- * depends on [type] (e.g. which tool name counts as success) — opaque here by design, the same
- * way [com.aiopenpocket.agent.core.hook.AgentHook.actionJson] is opaque to its declared type.
- */
-@Serializable
-data class CompletionRule(
-  val type: CompletionRuleType,
-  val config: JsonObject = JsonObject(emptyMap()),
-)
-
-/**
  * One node in a [PlanVersion]'s step graph (design spec section 5). [dependsOn] are other
  * [PlanStep.id]s in the same version that must be [StepStatus.COMPLETED] (or [StepStatus.SKIPPED])
  * before this step becomes runnable — `PlanValidator` (Task 2) rejects cycles/missing references.
@@ -77,7 +65,6 @@ data class PlanStep(
   val dependsOn: Set<String>,
   val expectedTools: Set<String>,
   val schedule: PlanSchedule?,
-  val completionRule: CompletionRule,
 )
 
 /**

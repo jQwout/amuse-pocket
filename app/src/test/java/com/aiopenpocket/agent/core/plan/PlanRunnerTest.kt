@@ -32,8 +32,6 @@ import com.aiopenpocket.agent.core.plan.execution.PlanRunner
 import com.aiopenpocket.agent.core.plan.execution.PlanStepRunner
 import com.aiopenpocket.agent.core.plan.execution.PlanVerifier
 import com.aiopenpocket.agent.core.plan.model.AgentPlan
-import com.aiopenpocket.agent.core.plan.model.CompletionRule
-import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
 import com.aiopenpocket.agent.core.plan.model.CriterionVerifier
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
 import com.aiopenpocket.agent.core.plan.model.PlanCriterion
@@ -198,7 +196,6 @@ class PlanRunnerTest {
   ) = PlanStep(
     id = id, title = "Title $id", instruction = "Instruction $id",
     dependsOn = dependsOn, expectedTools = setOf("memory_tool"), schedule = schedule,
-    completionRule = CompletionRule(type = CompletionRuleType.TOOL_SUCCEEDED),
   )
 
   private fun toolResultCriterion(id: String = "c1", toolName: String = "memory_tool", required: Boolean = true) = PlanCriterion(

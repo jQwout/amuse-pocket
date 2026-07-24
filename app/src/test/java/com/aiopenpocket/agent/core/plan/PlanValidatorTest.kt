@@ -6,8 +6,6 @@ import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.AgentMemoryPolicy
 import com.aiopenpocket.agent.core.agent.AgentSource
 import com.aiopenpocket.agent.core.agent.AgentStatus
-import com.aiopenpocket.agent.core.plan.model.CompletionRule
-import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
 import com.aiopenpocket.agent.core.plan.model.CriterionVerifier
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
 import com.aiopenpocket.agent.core.plan.model.PlanCriterion
@@ -87,9 +85,7 @@ class PlanValidatorTest {
     instruction = instruction,
     dependsOn = dependsOn,
     expectedTools = expectedTools,
-    schedule = schedule,
-    completionRule = CompletionRule(type = CompletionRuleType.TOOL_SUCCEEDED),
-  )
+    schedule = schedule,  )
 
   private fun version(
     steps: List<PlanStep> = listOf(step("s1")),

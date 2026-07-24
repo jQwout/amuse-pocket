@@ -124,10 +124,8 @@ object PlanVerifierPortBindings {
  * Verifies ONE finished [PlanStep] run (design spec `2026-07-12-structured-plan-engine-design.md`
  * section 11, plan Task 8) — the seam `PlanExecutor.recordOutcome`'s Task 7 kdoc names explicitly:
  * "Task 8 replaces its 'clean finish → COMPLETED' branch with a real verifier call that only marks
- * COMPLETED once [com.aiopenpocket.agent.core.plan.model.PlanStep.completionRule]" — see [verify]'s
- * own kdoc for why THIS class ended up gating on [PlanCriterion]s (the plan's Task 8 instructions)
- * rather than [com.aiopenpocket.agent.core.plan.model.CompletionRule] (whose kdoc frames it as
- * step-local and criterion-independent).
+ * COMPLETED once every required [PlanCriterion] has persisted evidence" — the plan's evidence gate,
+ * never a free-text model claim of "done".
  *
  * ## Scope: step-level only, never touches [com.aiopenpocket.agent.core.plan.model.PlanStatus]
  *

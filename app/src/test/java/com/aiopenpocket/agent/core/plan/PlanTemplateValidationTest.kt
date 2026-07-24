@@ -5,8 +5,6 @@ package com.aiopenpocket.agent.core.plan
 import com.aiopenpocket.agent.core.agent.AgentValidator
 import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.core.agent.toDefinition
-import com.aiopenpocket.agent.core.plan.model.CompletionRule
-import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
 import com.aiopenpocket.agent.core.plan.model.CriterionVerifier
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
 import com.aiopenpocket.agent.core.plan.model.PlanCriterion
@@ -251,9 +249,7 @@ class PlanTemplateValidationTest {
         instruction = stepTemplate.instruction,
         dependsOn = if (index == 0) emptySet() else setOf("step-${index - 1}"),
         expectedTools = stepTemplate.suggestedExpectedTools,
-        schedule = stepTemplate.suggestedSchedule.takeIf { horizon == PlanHorizon.PROGRAM },
-        completionRule = CompletionRule(type = CompletionRuleType.EVIDENCE_PRESENT),
-      )
+        schedule = stepTemplate.suggestedSchedule.takeIf { horizon == PlanHorizon.PROGRAM },      )
     }
     val criteria = template.suggestedCriteria.mapIndexed { index, criterionTemplate ->
       PlanCriterion(

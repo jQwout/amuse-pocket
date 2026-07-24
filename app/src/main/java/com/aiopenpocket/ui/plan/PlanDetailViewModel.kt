@@ -5,7 +5,6 @@ package com.aiopenpocket.ui.plan
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.plan.execution.PlanCommands
-import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
 import com.aiopenpocket.agent.core.plan.model.PlanEvent
 import com.aiopenpocket.agent.core.plan.model.PlanHorizon
 import com.aiopenpocket.agent.core.plan.model.PlanSnapshot
@@ -37,7 +36,6 @@ data class PlanStepRow(
   val dependsOn: Set<String>,
   val status: StepStatus,
   val attempts: Int,
-  val completionRuleType: CompletionRuleType,
   /** Only meaningful for a [PlanHorizon.PROGRAM] step with a schedule — see `PlanCard.kt`'s own `nextDueAtFor`. */
   val nextDueAt: Long?,
   /** Most recent [com.aiopenpocket.agent.core.plan.model.PlanEvidence.summary] whose `stepId` is THIS step's [id], if any. */
@@ -181,7 +179,6 @@ private fun PlanDetailState.applySnapshot(snapshot: PlanSnapshot?): PlanDetailSt
       dependsOn = step.dependsOn,
       status = stepState?.status ?: StepStatus.PENDING,
       attempts = stepState?.attempts ?: 0,
-      completionRuleType = step.completionRule.type,
       nextDueAt = stepState?.nextDueAt,
       lastEvidenceSummary = lastEvidence?.summary,
     )

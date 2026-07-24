@@ -87,9 +87,8 @@ object PlanControlSchemas {
   )
 
   /**
-   * A free-form JSON object with no fixed sub-properties — [CompletionRule][com.aiopenpocket.agent
-   * .core.plan.model.CompletionRule.config]/[CriterionVerifier][com.aiopenpocket.agent.core.plan
-   * .model.CriterionVerifier.config]'s actual shape depends on their sibling `type` field, so the
+   * A free-form JSON object with no fixed sub-properties — [CriterionVerifier][com.aiopenpocket.agent
+   * .core.plan.model.CriterionVerifier.config]'s actual shape depends on its sibling `type` field, so the
    * schema itself cannot enumerate fixed sub-properties (mirrors those types' own "opaque,
    * engine-interpreted payload" kdoc from Task 1).
    */
@@ -133,20 +132,6 @@ object PlanControlSchemas {
     required = listOf("kind"),
   )
 
-  private val completionRuleSchema: JsonObject = objectSchema(
-    description = "Как понять, что ИМЕННО ЭТОТ шаг выполнен (не весь план).",
-    properties = mapOf(
-      "type" to stringSchema(
-        "TOOL_SUCCEEDED — успешный вызов инструмента; EVIDENCE_PRESENT — есть сохранённое " +
-          "доказательство; USER_CONFIRMED — пользователь подтвердил; MODEL_ASSESSMENT — оценка " +
-          "модели (слабое доказательство, избегай без крайней необходимости).",
-        enum = listOf("TOOL_SUCCEEDED", "EVIDENCE_PRESENT", "USER_CONFIRMED", "MODEL_ASSESSMENT"),
-      ),
-      "config" to openObjectSchema("Доп. данные правила (например имя инструмента). Можно оставить пустым объектом."),
-    ),
-    required = listOf("type"),
-  )
-
   private val verifierSchema: JsonObject = objectSchema(
     description = "Как проверяется критерий готовности.",
     properties = mapOf(
@@ -163,7 +148,7 @@ object PlanControlSchemas {
     required = listOf("type"),
   )
 
-  /** Depends on [scheduleSchema]/[completionRuleSchema] — both declared above. */
+  /** Depends on [scheduleSchema] — declared above. */
   private val stepSchema: JsonObject = objectSchema(
     description = "Один шаг плана.",
     properties = mapOf(
@@ -178,9 +163,8 @@ object PlanControlSchemas {
           "использовать этот шаг. Пусто, если шаг не вызывает инструменты.",
       ),
       "schedule" to scheduleSchema,
-      "completionRule" to completionRuleSchema,
     ),
-    required = listOf("id", "title", "instruction", "completionRule"),
+    required = listOf("id", "title", "instruction"),
   )
 
   /** Depends on [verifierSchema] — declared above. */

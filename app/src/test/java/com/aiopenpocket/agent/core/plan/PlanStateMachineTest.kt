@@ -2,8 +2,6 @@ package com.aiopenpocket.agent.core.plan
 
 // @trace structured-plan-engine-907066
 
-import com.aiopenpocket.agent.core.plan.model.CompletionRule
-import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
 import com.aiopenpocket.agent.core.plan.model.CriterionVerifier
 import com.aiopenpocket.agent.core.plan.model.EvidenceSource
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
@@ -65,9 +63,7 @@ class PlanStateMachineTest {
     instruction = "do $id",
     dependsOn = dependsOn,
     expectedTools = expectedTools,
-    schedule = null,
-    completionRule = CompletionRule(type = CompletionRuleType.TOOL_SUCCEEDED),
-  )
+    schedule = null,  )
 
   private fun planVersion(
     planId: String = "plan-1",

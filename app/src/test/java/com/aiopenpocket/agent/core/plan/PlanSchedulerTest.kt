@@ -9,8 +9,6 @@ import com.aiopenpocket.agent.core.memory.entity.ConversationEntity
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatTargetType
 import com.aiopenpocket.agent.core.plan.model.AgentPlan
-import com.aiopenpocket.agent.core.plan.model.CompletionRule
-import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
 import com.aiopenpocket.agent.core.plan.model.PlanHorizon
 import com.aiopenpocket.agent.core.plan.model.PlanSchedule
@@ -105,9 +103,7 @@ class PlanSchedulerTest {
     schedule: PlanSchedule? = null,
   ) = PlanStep(
     id = id, title = "Title $id", instruction = "Instruction $id",
-    dependsOn = dependsOn, expectedTools = emptySet(), schedule = schedule,
-    completionRule = CompletionRule(type = CompletionRuleType.TOOL_SUCCEEDED),
-  )
+    dependsOn = dependsOn, expectedTools = emptySet(), schedule = schedule,  )
 
   private fun version(
     planId: String = "plan-1",

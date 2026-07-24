@@ -103,7 +103,7 @@ sealed interface PlanStepCommand {
   /** Execution finished (successfully or not) and the result is ready for `PlanVerifier`. Legal from [StepStatus.EXECUTING] only — every execution outcome routes through verification, never straight to [StepStatus.FAILED]. */
   data object Finish : PlanStepCommand
 
-  /** The verifier proved the step's [com.aiopenpocket.agent.core.plan.model.PlanStep.completionRule]. Legal from [StepStatus.VERIFYING] only. */
+  /** The verifier proved the step's required criteria (persisted evidence). Legal from [StepStatus.VERIFYING] only. */
   data object Prove : PlanStepCommand
 
   /** The step failed but may run again within budget (`PlanRunBudget`, Task 7, decides whether to actually issue this). Legal from [StepStatus.VERIFYING] or [StepStatus.FAILED]. */

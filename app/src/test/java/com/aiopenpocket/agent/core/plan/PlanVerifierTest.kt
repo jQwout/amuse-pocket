@@ -17,8 +17,6 @@ import com.aiopenpocket.agent.core.plan.execution.PlanEvidenceSink
 import com.aiopenpocket.agent.core.plan.execution.PlanVerifier
 import com.aiopenpocket.agent.core.plan.execution.VerificationOutcome
 import com.aiopenpocket.agent.core.plan.model.AgentPlan
-import com.aiopenpocket.agent.core.plan.model.CompletionRule
-import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
 import com.aiopenpocket.agent.core.plan.model.CriterionVerifier
 import com.aiopenpocket.agent.core.plan.model.EvidenceSource
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
@@ -65,7 +63,7 @@ class PlanVerifierTest {
 
   private fun step(id: String = "step-1") = PlanStep(
     id = id, title = "Заголовок", instruction = "Инструкция шага", dependsOn = emptySet(), expectedTools = emptySet(),
-    schedule = null, completionRule = CompletionRule(type = CompletionRuleType.TOOL_SUCCEEDED),
+    schedule = null,
   )
 
   private fun version(criteria: List<PlanCriterion>, objective: String = "Цель плана") = PlanVersion(

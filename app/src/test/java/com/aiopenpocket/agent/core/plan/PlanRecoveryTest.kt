@@ -9,8 +9,6 @@ import com.aiopenpocket.agent.core.memory.entity.ConversationEntity
 import com.aiopenpocket.agent.core.plan.execution.PlanRecovery
 import com.aiopenpocket.agent.core.plan.execution.PlanScheduleSync
 import com.aiopenpocket.agent.core.plan.model.AgentPlan
-import com.aiopenpocket.agent.core.plan.model.CompletionRule
-import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
 import com.aiopenpocket.agent.core.plan.model.CriterionVerifier
 import com.aiopenpocket.agent.core.plan.model.EvidenceSource
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
@@ -112,9 +110,7 @@ class PlanRecoveryTest {
     instruction = "Instruction $id",
     dependsOn = dependsOn,
     expectedTools = setOf("reminder_tool"),
-    schedule = null,
-    completionRule = CompletionRule(type = CompletionRuleType.EVIDENCE_PRESENT),
-  )
+    schedule = null,  )
 
   private fun criterion(id: String = "criterion-1", required: Boolean = true) = PlanCriterion(
     id = id,

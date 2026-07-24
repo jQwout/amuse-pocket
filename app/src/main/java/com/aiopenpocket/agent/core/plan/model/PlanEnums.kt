@@ -96,13 +96,6 @@ enum class PlanEventType {
 enum class ScheduleKind { ONE_TIME, PERIODIC }
 
 /**
- * How `PlanVerifier` (Task 8) decides a [PlanStep] itself is finished — interpreted by engine
- * code against [PlanStep.completionRule], never by a free-text model claim of "done".
- */
-@Serializable
-enum class CompletionRuleType { TOOL_SUCCEEDED, EVIDENCE_PRESENT, USER_CONFIRMED, MODEL_ASSESSMENT }
-
-/**
  * How a [PlanCriterion.verifier] proves that criterion. Mirrors [EvidenceSource] one-for-one so a
  * criterion's required proof kind always corresponds to a real evidence kind.
  */

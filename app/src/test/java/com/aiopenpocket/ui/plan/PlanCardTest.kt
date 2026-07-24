@@ -7,8 +7,6 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.aiopenpocket.agent.core.plan.model.AgentPlan
-import com.aiopenpocket.agent.core.plan.model.CompletionRule
-import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
 import com.aiopenpocket.agent.core.plan.model.CriterionVerifier
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
 import com.aiopenpocket.agent.core.plan.model.PlanCriterion
@@ -86,9 +84,7 @@ class PlanCardTest {
     instruction = "Instruction $id",
     dependsOn = emptySet(),
     expectedTools = setOf("memory_tool"),
-    schedule = null,
-    completionRule = CompletionRule(type = CompletionRuleType.TOOL_SUCCEEDED),
-  )
+    schedule = null,  )
 
   private fun criterion(id: String = "criterion-1", required: Boolean = true) = PlanCriterion(
     id = id,

@@ -35,7 +35,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import com.aiopenpocket.agent.core.plan.model.CompletionRuleType
 import com.aiopenpocket.agent.core.plan.model.PlanEvent
 import com.aiopenpocket.agent.core.plan.model.PlanEventType
 import com.aiopenpocket.agent.core.plan.model.PlanHorizon
@@ -300,7 +299,7 @@ private fun StepRow(number: Int, row: PlanStepRow, showDueDate: Boolean, modifie
       }
       Spacer(Modifier.height(6.dp))
       Text(
-        text = "Критерий шага: ${completionRuleLabel(row.completionRuleType)} · попыток: ${row.attempts}",
+        text = "Попыток: ${row.attempts}",
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
       )
@@ -335,12 +334,6 @@ private fun StepStatusBadgeView(status: StepStatus, modifier: Modifier = Modifie
   }
 }
 
-private fun completionRuleLabel(type: CompletionRuleType): String = when (type) {
-  CompletionRuleType.TOOL_SUCCEEDED -> "успешный вызов инструмента"
-  CompletionRuleType.EVIDENCE_PRESENT -> "есть подтверждающее свидетельство"
-  CompletionRuleType.USER_CONFIRMED -> "подтверждение пользователя"
-  CompletionRuleType.MODEL_ASSESSMENT -> "оценка модели"
-}
 
 @Composable
 private fun EventsSection(events: List<PlanEvent>, modifier: Modifier = Modifier) {
@@ -453,7 +446,6 @@ internal fun samplePlanDetailState(): PlanDetailState = PlanDetailState(
       dependsOn = emptySet(),
       status = StepStatus.COMPLETED,
       attempts = 1,
-      completionRuleType = CompletionRuleType.TOOL_SUCCEEDED,
       nextDueAt = null,
       lastEvidenceSummary = "Найдено 42 траты за месяц",
     ),
@@ -464,7 +456,6 @@ internal fun samplePlanDetailState(): PlanDetailState = PlanDetailState(
       dependsOn = setOf("step-1"),
       status = StepStatus.EXECUTING,
       attempts = 0,
-      completionRuleType = CompletionRuleType.USER_CONFIRMED,
       nextDueAt = PREVIEW_FIXED_TIMESTAMP,
       lastEvidenceSummary = null,
     ),
