@@ -262,10 +262,10 @@ class PlanExecutor @Inject constructor(
     val attempts = currentState?.attempts ?: 0
     val now = clock()
     if (attempts >= budget.maxRetriesPerStep) {
-      return refuseByBudget(planId, version, step.id, now, "Retry budget exhausted: $attempts/${budget.maxRetriesPerStep} attempts already used.")
+      return refuseByBudget(planId, version, step.id, currentState, now, "Retry budget exhausted: $attempts/${budget.maxRetriesPerStep} attempts already used.")
     }
     if (budget.deadlineAt != null && now > budget.deadlineAt) {
-      return refuseByBudget(planId, version, step.id, now, "Deadline ${budget.deadlineAt} has already passed (now=$now).")
+      return refuseByBudget(planId, version, step.id, currentState, now, "Deadline ${budget.deadlineAt} has already passed (now=$now).")
     }
 
     // Plan-lifecycle hooks (Task 9): hooks come from the SAME immutable per-run AgentDefinition
@@ -354,8 +354,27 @@ class PlanExecutor @Inject constructor(
    * WHY nothing happened, but let a future decision (manual retry, `PlanVerifier`, `PlanRunner`) pick
    * the next state rather than this class guessing FAILED vs BLOCKED for a run that never started.
    */
-  private suspend fun refuseByBudget(planId: String, version: Int, stepId: String, now: Long, reason: String): PlanStepExecutionResult {
+  private suspend fun refuseByBudget(planId: String, version: Int, stepId: String, currentState: PlanStepState?, now: Long, reason: String): PlanStepExecutionResult {
     repository.appendEvent(planEvent(planId, version, stepId, PlanEventType.ERROR, now, buildJsonObject { put("reason", reason) }))
+    // A retry/deadline-exhausted step must NOT stay selectable, or a heartbeat re-arms it past-due and
+    // re-fires it on a 0-delay loop forever (battery drain + unbounded ERROR events). Block it when
+    // that is a legal transition (from READY, or a never-run step treated as READY). A step already
+    // FAILED cannot be blocked (state machine) — it terminates the run via the FAILED outcome instead,
+    // so leave it; same "refuse rather than corrupt state" discipline as [blockByHook].
+    val currentStatus = currentState?.status ?: StepStatus.READY
+    when (val transition = PlanStateMachine.transitionStep(currentStatus, PlanStepCommand.Block(reason))) {
+      is StepTransitionResult.Allowed -> {
+        repository.updateStepState(
+          PlanStepState(
+            planId = planId, version = version, stepId = stepId, status = transition.status,
+            attempts = currentState?.attempts ?: 0, nextDueAt = currentState?.nextDueAt,
+            startedAt = currentState?.startedAt, completedAt = null,
+          ),
+        )
+        repository.appendEvent(planEvent(planId, version, stepId, PlanEventType.STEP_BLOCKED, now, buildJsonObject { put("reason", reason) }))
+      }
+      is StepTransitionResult.Rejected -> Unit // e.g. FAILED mid-retry: the FAILED outcome already terminates the run.
+    }
     return PlanStepExecutionResult(stepId = stepId, text = "", toolTrace = emptyList(), stoppedByBudget = true, error = reason)
   }
 

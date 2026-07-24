@@ -549,6 +549,22 @@ class PlanExecutorTest {
   }
 
   @Test
+  fun `execute blocks a retry-exhausted READY step instead of leaving it selectable (stops the heartbeat hot-loop) (C1)`() = runTest {
+    val snapshot = approvedSnapshot()
+    repository.updateStepState(stepState(stepId = "step-1", status = StepStatus.READY, attempts = 2))
+    val runner = FakeStepRunner(finishedResult())
+
+    val result = executor(runner).execute(snapshot, snapshot.version.steps.first(), agent(), budget = PlanRunBudget(maxRetriesPerStep = 2))
+
+    assertTrue(result.stoppedByBudget)
+    assertEquals(0, runner.callCount)
+    // Left READY, the step stays selectable -> heartbeat re-arms it past-due -> immediate 0-delay
+    // re-fire loop (battery + unbounded events). Block it so selectNextDue skips it and the schedule stops.
+    val state = requireNotNull(repository.snapshot("plan-1")).stepStates.single { it.stepId == "step-1" }
+    assertEquals(StepStatus.BLOCKED, state.status)
+  }
+
+  @Test
   fun `execute passes the step's own maxLlmIterationsPerStep and maxToolCallsPerRun through to the runner`() = runTest {
     val snapshot = approvedSnapshot()
     val runner = FakeStepRunner(finishedResult())

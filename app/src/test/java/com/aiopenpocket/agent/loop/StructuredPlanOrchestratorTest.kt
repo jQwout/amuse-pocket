@@ -29,9 +29,12 @@ import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.plan.execution.MemoryFactLookup
 import com.aiopenpocket.agent.core.plan.execution.PlanEvidenceSink
 import com.aiopenpocket.agent.core.plan.execution.PlanExecutor
+import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
 import com.aiopenpocket.agent.core.plan.execution.PlanRunner
+import com.aiopenpocket.agent.core.plan.execution.PlanScheduleSync
 import com.aiopenpocket.agent.core.plan.execution.PlanStepRunner
 import com.aiopenpocket.agent.core.plan.execution.PlanVerifier
+import com.aiopenpocket.agent.core.plan.model.PlanHorizon
 import com.aiopenpocket.agent.core.plan.model.PlanRunOutcome
 import com.aiopenpocket.agent.core.plan.model.PlanStatus
 import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
@@ -84,6 +87,7 @@ class StructuredPlanOrchestratorTest {
   private lateinit var toolRegistry: ToolRegistry
   private lateinit var stepRunner: ScriptedStepRunner
   private lateinit var llm: FakeLlmClient
+  private lateinit var recordingSync: RecordingScheduleSync
   private var now = 10_000L
 
   @Before
@@ -95,6 +99,7 @@ class StructuredPlanOrchestratorTest {
     conversationRepository = ConversationRepository(db.conversationDao(), db.conversationTagDao(), db.messageDao())
     toolRegistry = ToolRegistry(setOf(FakeTool("memory_tool")))
     stepRunner = ScriptedStepRunner()
+    recordingSync = RecordingScheduleSync()
     llm = FakeLlmClient(textThenCall("Вот план.", PlanControlSchemas.SUBMIT_PLAN, submitPlanArgs()))
   }
 
@@ -143,6 +148,13 @@ class StructuredPlanOrchestratorTest {
 
   private class FakeTemplateRegistry(private val templates: Map<String, PlanTemplate> = emptyMap()) : PlanTemplateRegistry {
     override suspend fun getForAgent(agentId: String?): PlanTemplate? = agentId?.let { templates[it] }
+  }
+
+  private class RecordingScheduleSync : PlanScheduleSync {
+    val syncedPlanIds = mutableListOf<String>()
+    val cancelledPlanIds = mutableListOf<String>()
+    override suspend fun sync(planId: String) { syncedPlanIds += planId }
+    override suspend fun cancel(planId: String) { cancelledPlanIds += planId }
   }
 
   /** Mirrors [PlanExecutorTest]'s own `FakeStepRunner`/[PlanRunnerTest]'s `ScriptedStepRunner`. */
@@ -220,12 +232,20 @@ class StructuredPlanOrchestratorTest {
 
   private fun executor() = PlanExecutor(repository, toolRegistry, stepRunner, NoAssets, verifier(), hookRepository, TurnContextHolder()) { now }
 
-  private fun orchestrator(agents: Map<String, AgentDefinition> = mapOf("agent-1" to agentDefinition())): StructuredPlanOrchestrator {
+  private fun orchestrator(
+    agents: Map<String, AgentDefinition> = mapOf("agent-1" to agentDefinition()),
+    templates: Map<String, PlanTemplate> = emptyMap(),
+  ): StructuredPlanOrchestrator {
     val agentResolver = FakeAgentResolver(agents)
-    val planner = PlanPlanner(llm, agentResolver, FakeTemplateRegistry(), PlanPromptBuilder(NoAssets))
+    val planner = PlanPlanner(llm, agentResolver, FakeTemplateRegistry(templates), PlanPromptBuilder(NoAssets))
     val planRunner = PlanRunner(repository, executor(), agentResolver) { now }
-    return StructuredPlanOrchestrator(planner, planRunner, repository, conversationRepository, FakeTemplateRegistry(), hookRepository, NoopLog) { now }
+    return StructuredPlanOrchestrator(planner, planRunner, repository, conversationRepository, FakeTemplateRegistry(templates), hookRepository, recordingSync, NoopLog) { now }
   }
+
+  private fun programTemplate(agentId: String = "agent-1") = PlanTemplate(
+    id = "t-program", agentId = agentId, supportedHorizons = setOf(PlanHorizon.PROGRAM),
+    requiredConstraints = emptyList(), suggestedSteps = emptyList(), suggestedCriteria = emptyList(), forbiddenToolNames = emptySet(),
+  )
 
   private object NoopLog : AgentLog {
     override fun d(tag: String, message: String) {}
@@ -352,6 +372,28 @@ class StructuredPlanOrchestratorTest {
     // EXTERNAL tools are simulated, not run. If any link (executeGoal -> PlanRunRequest -> PlanRunner
     // -> PlanExecutor.execute) drops the flag, the step runs LIVE and the "no side effects" promise breaks.
     assertEquals(ExecutionMode.PREVIEW, stepRunner.lastExecutionMode)
+  }
+
+  @Test
+  fun `executeGoal re-syncs an ACTIVE PROGRAM plan's schedule after a foreground run (C3)`() = runTest {
+    val convId = conversationRepository.createConversation(title = "Test", agentId = "agent-1")
+    val org = orchestrator(templates = mapOf("agent-1" to programTemplate()))
+    // Two independent steps + a 1-step budget: one runs, the PROGRAM plan stays ACTIVE (step 2 still
+    // pending), so it still needs its heartbeat schedule. A heartbeat racing this foreground run cancels
+    // that schedule; nothing re-arms it unless executeGoal re-syncs after the run.
+    llm.respondWith(textThenCall("План.", PlanControlSchemas.SUBMIT_PLAN, submitPlanArgs(steps = listOf(stepJson("s1"), stepJson("s2")))))
+    org.propose(convId, "распланируй").toList()
+    val planId = repository.observeByConversation(convId).first().single().plan.id
+    repository.approve(planId, 1)
+    stepRunner.script = { AgentResult(text = "ok", toolTrace = emptyList(), state = AgentState.FINISHED, iterations = 1) }
+
+    org.executeGoal(convId, planId = null, userMessage = "продолжай", provider = LlmProvider.NIM, budget = PlanRunBudget(maxStepsPerRun = 1)).toList()
+
+    assertEquals(PlanStatus.ACTIVE, repository.snapshot(planId)!!.plan.status)
+    assertTrue(
+      "a PROGRAM plan still ACTIVE after a foreground run must be rescheduled (heartbeat-collision recovery)",
+      recordingSync.syncedPlanIds.contains(planId),
+    )
   }
 
   @Test

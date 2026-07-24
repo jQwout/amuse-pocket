@@ -255,7 +255,7 @@ class PlanRunner @Inject constructor(
     PlanStatus.DRAFT, PlanStatus.NEEDS_INFO -> PlanRunResult(snapshot.plan.id, PlanRunOutcome.PARTIAL, emptyList(), "Plan has never been approved yet.")
   }
 
-  private fun finishNoRunnableStep(snapshot: PlanSnapshot, executedSteps: List<String>, pinnedStepId: String?): PlanRunResult {
+  private suspend fun finishNoRunnableStep(snapshot: PlanSnapshot, executedSteps: List<String>, pinnedStepId: String?): PlanRunResult {
     val planId = snapshot.plan.id
     if (pinnedStepId != null) {
       // A specific step was requested (typed heartbeat target) but isn't selectable right now.
@@ -264,6 +264,15 @@ class PlanRunner @Inject constructor(
     val statusByStepId = snapshot.stepStates.associateBy { it.stepId }
     val allDone = snapshot.version.steps.all { statusByStepId[it.id]?.status in PLAN_COMPLETE_STEP_STATUSES }
     if (allDone) {
+      // A crash (or a pause) between the last step's COMPLETED write and runLocked's own tryComplete
+      // probe leaves every step done but the plan still ACTIVE. Probe completion here too — mirrors
+      // runLocked's COMPLETED branch — so a later run/heartbeat closes the plan instead of wedging it
+      // ACTIVE forever.
+      val completed = repository.tryComplete(planId)
+      if (completed.plan.status == PlanStatus.COMPLETED) {
+        repository.appendEvent(planCompletedEvent(completed))
+        return PlanRunResult(planId, PlanRunOutcome.COMPLETED, executedSteps, null)
+      }
       return PlanRunResult(
         planId, PlanRunOutcome.PARTIAL, executedSteps,
         "All steps are finished but the plan has not reached COMPLETED yet (check required-criteria evidence).",
