@@ -12,16 +12,18 @@ import lessonviewer.model.LessonStep
 import lessonviewer.ui.steps.ConceptStepView
 import lessonviewer.ui.steps.ExampleStepView
 import lessonviewer.ui.steps.FillStepView
+import lessonviewer.ui.steps.ImageStepView
 import lessonviewer.ui.steps.MatchStepView
 import lessonviewer.ui.steps.QuizStepView
 import lessonviewer.ui.steps.RevealStepView
 import lessonviewer.ui.steps.ScenarioStepView
 import lessonviewer.ui.steps.SortStepView
 import lessonviewer.ui.steps.TextStepView
+import java.io.File
 
 /** Единственная точка входа рендера шага. Незнакомый тип — красная плашка, а не пропуск. */
 @Composable
-fun StepCard(step: LessonStep, index: Int) {
+fun StepCard(step: LessonStep, index: Int, assetsRoot: File?) {
   Card(Modifier.fillMaxWidth()) {
     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
       TypeBadge(step.type, index)
@@ -35,7 +37,7 @@ fun StepCard(step: LessonStep, index: Int) {
         "fill" -> FillStepView(step)
         "sort" -> SortStepView(step)
         "match" -> MatchStepView(step)
-        "image" -> ErrorPlate("рендер картинок — Task 6")
+        "image" -> ImageStepView(step, assetsRoot)
         else -> ErrorPlate("неизвестный тип шага: «${step.type}»")
       }
     }
