@@ -16,9 +16,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import lessonviewer.io.LoadedLesson
+import java.io.File
 
 @Composable
-fun LessonPane(loaded: LoadedLesson?) {
+fun LessonPane(loaded: LoadedLesson?, assetsRoot: File?) {
   when (loaded) {
     null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
       Text("Выбери урок слева")
@@ -49,7 +50,7 @@ fun LessonPane(loaded: LoadedLesson?) {
         }
       }
       itemsIndexed(loaded.lesson.steps) { i, step ->
-        StepCard(step, i)
+        StepCard(step, i, assetsRoot)
       }
     }
   }

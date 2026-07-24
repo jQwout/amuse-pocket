@@ -52,6 +52,9 @@ private fun ViewerRoot() {
   val lessons = remember(reloadTick, dir) { dir?.let { LessonLoader.loadAll(it) } ?: emptyList() }
   // Выбор храним по имени файла, а не по объекту: после перечитывания объекты новые.
   val selected = lessons.firstOrNull { it.file.name == selectedName }
+  // Пути картинок в уроках отсчитываются от app/src/main/assets, то есть на уровень выше
+  // каталога с самими уроками.
+  val assetsRoot = remember(dir) { dir?.parentFile }
 
   Column(Modifier.fillMaxSize()) {
     Row(
@@ -77,7 +80,7 @@ private fun ViewerRoot() {
           LessonListPane(lessons, selected) { selectedName = it.file.name }
         }
         VerticalDivider()
-        Box(Modifier.weight(1f).fillMaxHeight()) { LessonPane(selected) }
+        Box(Modifier.weight(1f).fillMaxHeight()) { LessonPane(selected, assetsRoot) }
       }
     }
   }
