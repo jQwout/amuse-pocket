@@ -67,6 +67,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -504,5 +505,48 @@ class PlanRunnerTest {
     gate.complete(Unit)
     firstJob.join()
     assertEquals(PlanRunOutcome.COMPLETED, firstResult?.outcome)
+  }
+
+  // --- реестр «сейчас в работе» не растёт вместе с историей ---------------------------------------
+
+  @Test
+  fun `a finished run leaves nothing behind in the in-flight registry`() = runTest {
+    val snapshot = approvedSnapshot(steps = listOf(step()))
+    stepRunner.script = { finishedResult() }
+    val runner = planRunner()
+
+    runner.run(request(snapshot.plan.id))
+
+    assertTrue("после завершения план остался помеченным как выполняющийся", runner.inFlightPlanIds.isEmpty())
+  }
+
+  @Test
+  fun `running many distinct plans does not grow the registry`() = runTest {
+    // Раньше на каждый planId навсегда заводился свой Mutex и никогда не удалялся: реестр рос
+    // вместе с ЧИСЛОМ ПЛАНОВ ЗА ВСЮ ЖИЗНЬ ПРОЦЕССА, а не с числом одновременных запусков.
+    stepRunner.script = { finishedResult() }
+    val runner = planRunner()
+
+    repeat(5) { i ->
+      val snapshot = approvedSnapshot(steps = listOf(step()), planId = "plan-many-$i")
+      runner.run(request(snapshot.plan.id))
+    }
+
+    assertTrue("реестр растёт с историей: ${runner.inFlightPlanIds}", runner.inFlightPlanIds.isEmpty())
+  }
+
+  @Test
+  fun `a run that throws still releases the plan, instead of wedging it forever`() = runTest {
+    val snapshot = approvedSnapshot(steps = listOf(step()))
+    stepRunner.script = { throw IllegalStateException("шаг взорвался") }
+    val runner = planRunner()
+
+    runCatching { runner.run(request(snapshot.plan.id)) }
+
+    // Не освободив план, мы сделали бы его НАВСЕГДА невыполнимым: каждый следующий запуск получал бы
+    // «already executing» от держателя, которого уже нет.
+    assertTrue("упавший ход не освободил план", runner.inFlightPlanIds.isEmpty())
+    val second = runner.run(request(snapshot.plan.id))
+    assertFalse("план заклинило после падения", second.blockedReason.orEmpty().contains("already executing"))
   }
 }
