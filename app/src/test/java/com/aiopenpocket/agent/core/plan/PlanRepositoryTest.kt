@@ -47,6 +47,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowLog
 
 /**
  * [PlanRepository] round-tripped through a real (in-memory) Room database (mirrors
@@ -276,6 +277,26 @@ class PlanRepositoryTest {
 
     assertTrue("the good plan survives", plans.any { it.id == "good" })
     assertTrue("the undecodable plan is quarantined, not fatal", plans.none { it.id == "bad" })
+  }
+
+  @Test
+  fun `a quarantined row leaves a trace in the log instead of vanishing silently`() = runTest {
+    // Отбрасывать строку — правильно (иначе экран крэш-лупит на каждом открытии), но делать это
+    // МОЛЧА — нет: снаружи это выглядит как «плана просто нет» / «у плана пропали шаги», и
+    // диагностировать нечего. Сам факт отбрасывания обязан быть виден в логах.
+    insertConversation("c1")
+    db.planDao().upsertPlan(
+      AgentPlanEntity(
+        id = "bad", agentId = "agent-1", conversationId = "c1", horizon = "SINGLE_RUN",
+        status = "RENAMED_STATUS", approvedVersion = null, activeStepId = null, createdAt = 1L, updatedAt = 1L,
+      ),
+    )
+    ShadowLog.clear()
+
+    repository.getNonTerminalPlans()
+
+    val logged = ShadowLog.getLogs().joinToString("\n") { "${it.tag}: ${it.msg}" }
+    assertTrue("отброшенная строка не оставила следа в логах:\n$logged", logged.contains("RENAMED_STATUS"))
   }
 
   @Test
