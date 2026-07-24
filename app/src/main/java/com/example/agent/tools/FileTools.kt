@@ -99,7 +99,17 @@ class FileTools(
     val file = resolveSafePath(root, path)
     if (!file.exists()) return ToolResult.Error("File not found: $path")
     if (!file.isFile) return ToolResult.Error("Not a file: $path")
-    return ToolResult.Success(file.readText())
+    // Файл в песочнице пишет сам агент, поэтому его размер ничем не ограничен: без потолка одно
+    // read_file и раздувало контекст LLM, и тянуло весь файл в память. Тот же приём, что у
+    // database_query с его MAX_ROWS — и, главное, усечение ВИДИМОЕ: молча укороченный файл модель
+    // прочитала бы как полный и сделала вывод по половине данных.
+    val text = file.readText()
+    if (text.length <= MAX_READ_CHARS) return ToolResult.Success(text)
+    return ToolResult.Success(
+      text.take(MAX_READ_CHARS) +
+        "\n\n[усечено: показано $MAX_READ_CHARS из ${text.length} символов. " +
+        "Используй search_files, чтобы найти нужный фрагмент.]",
+    )
   }
 
   private fun writeFile(root: File, args: Map<String, JsonElement>): ToolResult {
@@ -124,13 +134,35 @@ class FileTools(
 
   private fun searchFiles(root: File, args: Map<String, JsonElement>): ToolResult {
     val query = args.string("query") ?: return missingArg("query")
-    val results = root.walkTopDown()
-      .filter { it.isFile }
-      .filter { it.name.contains(query, ignoreCase = true) || it.readText().contains(query, ignoreCase = true) }
-      .map { it.relativeTo(root).path }
-      .toList()
-    return if (results.isEmpty()) ToolResult.Success("No files found matching '$query'")
-    else ToolResult.Success(results.joinToString("\n"))
+    val results = mutableListOf<String>()
+    val skipped = mutableListOf<String>()
+    for (file in root.walkTopDown().filter { it.isFile }) {
+      val relative = file.relativeTo(root).path
+      // Совпадение по ИМЕНИ проверяем первым: оно не требует читать файл вообще, поэтому огромный
+      // файл всё ещё находится по названию, просто не по содержимому.
+      if (file.name.contains(query, ignoreCase = true)) {
+        results += relative
+        continue
+      }
+      // Раньше readText() звался на КАЖДОМ файле песочницы без оглядки на размер — один большой файл
+      // (или бинарник, записанный самим агентом) утаскивал в память всё сразу.
+      if (file.length() > MAX_SEARCH_FILE_BYTES) {
+        skipped += relative
+        continue
+      }
+      if (file.readText().contains(query, ignoreCase = true)) results += relative
+      if (results.size >= MAX_SEARCH_RESULTS) break
+    }
+    // Пропущенное называем явно: «не найдено» и «не искали» — разные ответы, и модель должна их
+    // различать, иначе усечение читается как отсутствие результата.
+    val skippedNote = if (skipped.isEmpty()) {
+      ""
+    } else {
+      "\n\n[пропущено по размеру (>${MAX_SEARCH_FILE_BYTES / 1024} КБ), содержимое не просмотрено: " +
+        skipped.joinToString(", ") + "]"
+    }
+    val body = if (results.isEmpty()) "No files found matching '$query'" else results.joinToString("\n")
+    return ToolResult.Success(body + skippedNote)
   }
 
   private fun resolveSafePath(root: File, path: String): File {
@@ -149,5 +181,22 @@ class FileTools(
       throw SecurityException("Path traversal detected: $path")
     }
     return file
+  }
+
+  companion object {
+    /**
+     * Потолок выдачи `read_file` в символах — примерно столько связного текста ещё осмысленно класть
+     * в контекст модели за один вызов. Больше — это уже не «прочитать файл», а «залить в промпт всё».
+     */
+    const val MAX_READ_CHARS = 40_000
+
+    /** Крупнее — `search_files` не читает содержимое (поиск по имени файла продолжает работать). */
+    const val MAX_SEARCH_FILE_BYTES = 256L * 1024
+
+    /** То же в символах — для тестов, которым нужно построить заведомо «крупный» файл. */
+    const val MAX_SEARCH_FILE_CHARS = 256 * 1024
+
+    /** Больше совпадений за один вызов модели всё равно не нужны — пусть уточнит запрос. */
+    const val MAX_SEARCH_RESULTS = 100
   }
 }
