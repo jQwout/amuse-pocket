@@ -49,15 +49,7 @@ fun LessonPane(loaded: LoadedLesson?) {
         }
       }
       itemsIndexed(loaded.lesson.steps) { i, step ->
-        // Заглушка до Task 5: показываем тип и номер, чтобы каркас был проверяем уже сейчас.
-        Column {
-          TypeBadge(step.type, i)
-          Spacer(Modifier.height(4.dp))
-          Text(
-            step.text.ifBlank { "(рендер шага — Task 5)" },
-            style = MaterialTheme.typography.bodyMedium,
-          )
-        }
+        StepCard(step, i)
       }
     }
   }
