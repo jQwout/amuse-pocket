@@ -295,6 +295,23 @@ class PlanRunnerTest {
     assertEquals(PlanStatus.ACTIVE, repository.snapshot(snapshot.plan.id)!!.plan.status)
   }
 
+  // --- crash-window completion (C2) ---------------------------------------------------------------
+
+  @Test
+  fun `run completes a plan whose every step is COMPLETED but tryComplete never ran (last-step crash window)`() = runTest {
+    val snapshot = approvedSnapshot(steps = listOf(step()))
+    // Crash window: the step's COMPLETED was persisted, but the process died before PlanRunner's own
+    // tryComplete probe -> plan is still ACTIVE with every step done. Without a completion probe on the
+    // "no runnable step / all done" path, a later run/heartbeat wedges the plan ACTIVE forever.
+    repository.updateStepState(stepState(stepId = "step-1", status = StepStatus.COMPLETED))
+    assertEquals(PlanStatus.ACTIVE, repository.snapshot(snapshot.plan.id)!!.plan.status)
+
+    val result = planRunner().run(request(snapshot.plan.id))
+
+    assertEquals(PlanRunOutcome.COMPLETED, result.outcome)
+    assertEquals(PlanStatus.COMPLETED, repository.snapshot(snapshot.plan.id)!!.plan.status)
+  }
+
   // --- topological selection ----------------------------------------------------------------------
 
   @Test

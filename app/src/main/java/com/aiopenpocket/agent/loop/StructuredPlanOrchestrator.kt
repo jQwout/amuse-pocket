@@ -13,6 +13,7 @@ import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.agent.core.plan.execution.PlanRunRequest
 import com.aiopenpocket.agent.core.plan.execution.PlanRunResult
 import com.aiopenpocket.agent.core.plan.execution.PlanRunner
+import com.aiopenpocket.agent.core.plan.execution.PlanScheduleSync
 import com.aiopenpocket.agent.core.plan.execution.firePlanHook
 import com.aiopenpocket.agent.core.plan.model.AgentPlan
 import com.aiopenpocket.agent.core.plan.model.PlanHorizon
@@ -83,6 +84,7 @@ class StructuredPlanOrchestrator @Inject constructor(
   private val conversationRepository: ConversationRepository,
   private val templateRegistry: PlanTemplateRegistry,
   private val hookRepository: AgentHookRepository,
+  private val planScheduleSync: PlanScheduleSync,
   private val log: AgentLog,
 ) {
   private var clock: () -> Long = System::currentTimeMillis
@@ -95,9 +97,10 @@ class StructuredPlanOrchestrator @Inject constructor(
     conversationRepository: ConversationRepository,
     templateRegistry: PlanTemplateRegistry,
     hookRepository: AgentHookRepository,
+    planScheduleSync: PlanScheduleSync,
     log: AgentLog,
     clock: () -> Long,
-  ) : this(planner, planRunner, repository, conversationRepository, templateRegistry, hookRepository, log) {
+  ) : this(planner, planRunner, repository, conversationRepository, templateRegistry, hookRepository, planScheduleSync, log) {
     this.clock = clock
   }
 
@@ -203,6 +206,15 @@ class StructuredPlanOrchestrator @Inject constructor(
       send(AgentEvent.Error(result.blockedReason ?: "Выполнение шага плана завершилось ошибкой."))
     } else {
       send(AgentEvent.PlanProgressed(result))
+      // (C3) A foreground GOAL run can race this plan's OWN heartbeat: the heartbeat gets tryLock-
+      // refused, re-syncs, finds the step EXECUTING (unselectable) and cancels the whole schedule —
+      // and nothing re-arms it, so a PROGRAM plan silently stops firing. Re-sync after the run so the
+      // next due step is rescheduled. sync is idempotent and cancels for a complete/terminal plan, so
+      // gate only on "still an ACTIVE PROGRAM".
+      val after = repository.snapshot(resolvedPlanId)
+      if (after != null && after.plan.status == PlanStatus.ACTIVE && after.plan.horizon == PlanHorizon.PROGRAM) {
+        planScheduleSync.sync(resolvedPlanId)
+      }
     }
   }
 
