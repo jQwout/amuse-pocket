@@ -9,8 +9,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -43,10 +41,6 @@ import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.onboarding.components.AboutMeStep
 import com.aiopenpocket.ui.onboarding.components.IntroStreamingStep
 import com.aiopenpocket.ui.onboarding.components.LanguageSelectionStep
-import com.aiopenpocket.ui.onboarding.components.PersonaSelectionStep
-import com.aiopenpocket.ui.onboarding.components.WrapupStep
-import com.aiopenpocket.ui.roadmap.LESSON_QUIZZES
-import com.aiopenpocket.ui.roadmap.components.QuizContent
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
@@ -94,18 +88,6 @@ internal fun OnboardingContent(
     onClose: (() -> Unit)?,
     onIntent: (OnboardingIntent) -> Unit,
 ) {
-    if (state.currentStep == OnboardingStep.PERSONA) {
-        PersonaSelectionStep(
-            selectedPersonaId = state.selectedPersonaId,
-            isSaving = state.isSaving,
-            error = state.error,
-            onSelectPersona = { onIntent(OnboardingIntent.SelectPersona(it)) },
-            onBack = { onIntent(OnboardingIntent.PreviousStep) },
-            onApply = { onIntent(OnboardingIntent.NextStep) },
-        )
-        return
-    }
-
     val glassState = rememberGlassState()
     val stepIndex = ONBOARDING_STEP_ORDER.indexOf(state.currentStep).coerceAtLeast(0)
     val progress = (stepIndex + 1) / ONBOARDING_STEP_ORDER.size.toFloat()
@@ -215,7 +197,7 @@ private fun OnboardingStepBody(
             modifier = modifier,
         )
 
-        OnboardingStep.PERSONA -> Unit
+        // PROFILE — последний шаг мастера: кнопка «Готово» завершает настройку.
         OnboardingStep.PROFILE -> AboutMeStep(
             personaId = state.selectedPersonaId,
             text = state.aboutMeText,
@@ -224,34 +206,6 @@ private fun OnboardingStepBody(
             onTextChange = { onIntent(OnboardingIntent.UpdateAboutMe(it)) },
             modifier = modifier,
         )
-
-        OnboardingStep.WRAPUP -> WrapupStep(
-            personaId = state.selectedPersonaId,
-            name = state.name,
-            preferredAddress = state.preferredAddress,
-            modifier = modifier,
-        )
-
-        OnboardingStep.QUIZ -> Column(
-            modifier = modifier
-              .verticalScroll(rememberScrollState())
-              .padding(horizontal = 24.dp),
-        ) {
-            Text(
-                text = "Закрепим пройденное",
-                style = MaterialTheme.typography.headlineSmall,
-                // Явный цвет, а не ambient LocalContentColor — иначе заголовок тонет вне корневого Surface.
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(vertical = 16.dp),
-            )
-            // Источник квиза онбординга — хардкод LESSON_QUIZZES, НЕ assets/lessons/l1_welcome.json
-            // (тот валидируется тестом, но не рендерится). Правки делай в LessonQuiz.kt — см. коммент там.
-            QuizContent(questions = LESSON_QUIZZES["l1_welcome"].orEmpty())
-            TextButton(
-                onClick = { onIntent(OnboardingIntent.NextStep) },
-                modifier = Modifier.padding(top = 8.dp),
-            ) { Text("Пропустить проверку") }
-        }
     }
 }
 

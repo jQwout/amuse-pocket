@@ -45,6 +45,8 @@ class OnboardingViewModel(
                 _state.update { it.copy(selectedLanguage = intent.code) }
             }
 
+            // Мастер персону больше не спрашивает (см. OnboardingStep), но интент жив: его шлёт
+            // PersonaSelectionStep, если экран вернут, и через него же приезжает выбор из Настроек.
             is OnboardingIntent.SelectPersona -> {
                 _state.update { it.copy(selectedPersonaId = intent.personaId) }
             }
@@ -137,26 +139,26 @@ class OnboardingViewModel(
         if (!current.canProceed) return
         when (current.currentStep) {
             OnboardingStep.LANGUAGE -> goToStep(OnboardingStep.INTRO)
-            OnboardingStep.INTRO -> goToStep(OnboardingStep.PERSONA)
-            OnboardingStep.PERSONA -> goToStep(OnboardingStep.PROFILE)
-            OnboardingStep.PROFILE -> extractProfileAndAdvance()
-            OnboardingStep.WRAPUP -> goToStep(OnboardingStep.QUIZ)
-            OnboardingStep.QUIZ -> completeOnboarding()
+            OnboardingStep.INTRO -> goToStep(OnboardingStep.PROFILE)
+            // PROFILE — последний шаг: разбираем рассказ о себе и на этом настройку завершаем.
+            OnboardingStep.PROFILE -> extractProfileAndFinish()
         }
     }
 
     private fun goToPreviousStep() {
         when (_state.value.currentStep) {
             OnboardingStep.INTRO -> goToStep(OnboardingStep.LANGUAGE)
-            OnboardingStep.PERSONA -> goToStep(OnboardingStep.INTRO)
-            OnboardingStep.PROFILE -> goToStep(OnboardingStep.PERSONA)
-            OnboardingStep.WRAPUP -> goToStep(OnboardingStep.PROFILE)
-            OnboardingStep.QUIZ -> goToStep(OnboardingStep.WRAPUP)
+            OnboardingStep.PROFILE -> goToStep(OnboardingStep.INTRO)
             OnboardingStep.LANGUAGE -> Unit
         }
     }
 
-    private fun extractProfileAndAdvance() {
+    /**
+     * Разбирает рассказ о себе и сразу завершает настройку: PROFILE — последний шаг мастера.
+     * Профиль сохраняется дважды подряд (здесь и в [completeOnboarding]) — так же, как до
+     * сокращения мастера: второй раз пишутся уже слитые поля, включая то, что человек ввёл ранее.
+     */
+    private fun extractProfileAndFinish() {
         if (extractionJob?.isActive == true) return
         val current = _state.value
         if (current.aboutMeText.isBlank()) return
@@ -168,12 +170,8 @@ class OnboardingViewModel(
                     ?: throw IllegalStateException("Не удалось разобрать ответ модели")
                 memoryRepository.saveUserProfile(provided)
 
-                _state.update {
-                    it.mergeProfile(provided).copy(
-                        isExtracting = false,
-                        currentStep = OnboardingStep.WRAPUP,
-                    )
-                }
+                _state.update { it.mergeProfile(provided).copy(isExtracting = false) }
+                completeOnboarding()
             } catch (e: kotlinx.coroutines.CancellationException) {
                 // Экран покинут (навигация/пересоздание ViewModel) — не глотаем отмену, иначе она
                 // тратится на обновление state уже уничтожаемой VM вместо нормального распространения.
