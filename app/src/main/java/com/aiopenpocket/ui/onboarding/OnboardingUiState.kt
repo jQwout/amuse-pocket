@@ -2,13 +2,26 @@ package com.aiopenpocket.ui.onboarding
 
 // @trace ai-academy-onboarding-5d51bb
 
+/**
+ * Шаги мастера первичной настройки — ровно три: выбрать язык, объяснить, кто я такой, попросить
+ * рассказать о себе.
+ *
+ * Чего здесь СОЗНАТЕЛЬНО нет и почему:
+ * - **Персона.** На первом запуске человеку не с чем сравнивать — он не видел ни одного ответа.
+ *   Остаётся дефолтной ([OnboardingUiState.selectedPersonaId]) и меняется в Настройках.
+ * - **Итоговый экран про промпт/препромпт.** Это термины, а первый экран должен быть без них;
+ *   промпт и препромпт разбирает урок «Как ИИ читает твой запрос», где под них подведена почва.
+ * - **Квиз.** Проверять на первом запуске нечего: человек ещё ничего не изучал.
+ *
+ * Композеблы `PersonaSelectionStep` и `WrapupStep` намеренно оставлены в дереве (и покрыты
+ * скриншот-тестами напрямую) — к мастеру они больше не подключены, но готовы вернуться.
+ *
+ * Индикатор прогресса считается от `entries`, поэтому точки пересчитываются сами.
+ */
 enum class OnboardingStep {
   LANGUAGE,
   INTRO,
-  PERSONA,
   PROFILE,
-  WRAPUP,
-  QUIZ,
 }
 
 data class OnboardingUiState(
@@ -18,6 +31,7 @@ data class OnboardingUiState(
   val isIntroStreaming: Boolean = false,
   val isIntroComplete: Boolean = false,
   val introAlreadyPlayed: Boolean = false,
+  /** Мастер её не спрашивает — уходит в настройки как есть (дефолт либо ранее сохранённая). */
   val selectedPersonaId: String = "sharp_partner",
   val aboutMeText: String = "",
   val isExtracting: Boolean = false,
@@ -35,16 +49,12 @@ data class OnboardingUiState(
   val canProceed: Boolean = when (currentStep) {
     OnboardingStep.LANGUAGE -> selectedLanguage.isNotBlank()
     OnboardingStep.INTRO -> isIntroComplete
-    OnboardingStep.PERSONA -> selectedPersonaId.isNotBlank()
     OnboardingStep.PROFILE -> aboutMeText.isNotBlank() && !isExtracting && !isSaving
-    OnboardingStep.WRAPUP -> !isSaving
-    OnboardingStep.QUIZ -> !isSaving
   }
 
   val primaryButtonLabel: String = when (currentStep) {
-    OnboardingStep.LANGUAGE, OnboardingStep.INTRO, OnboardingStep.PERSONA -> "Далее"
+    OnboardingStep.LANGUAGE, OnboardingStep.INTRO -> "Далее"
+    // PROFILE теперь последний шаг: эта кнопка и завершает настройку.
     OnboardingStep.PROFILE -> "Готово"
-    OnboardingStep.WRAPUP -> "Далее"
-    OnboardingStep.QUIZ -> "Завершить"
   }
 }

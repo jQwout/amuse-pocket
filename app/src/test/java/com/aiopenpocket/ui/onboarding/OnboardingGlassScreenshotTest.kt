@@ -124,44 +124,16 @@ class OnboardingGlassScreenshotTest {
       .captureRoboImage(filePath = "src/test/screenshots/onboarding_wrapup_light.png")
   }
 
-  /** Шаг QUIZ целиком — карточки вариантов с подложкой/видимой рамкой и явно ярким текстом на ауроре. */
-  @Test
-  fun onboarding_quiz_step_glass_screenshot() {
-    composeTestRule.setContent {
-      MyApplicationTheme(mode = ThemeMode.DARK) {
-        OnboardingContent(
-          state = OnboardingUiState(currentStep = OnboardingStep.QUIZ, selectedPersonaId = "sharp_partner"),
-          editMode = false,
-          onClose = null,
-          onIntent = {},
-        )
-      }
-    }
-    composeTestRule.onRoot()
-      .captureRoboImage(filePath = "src/test/screenshots/onboarding_quiz_step_glass.png")
-  }
+  // Тесты шага QUIZ удалены вместе с самим шагом: мастер теперь LANGUAGE → INTRO → PROFILE, и
+  // состояния OnboardingStep.QUIZ больше не существует. Карточки квиза как таковые покрыты там,
+  // где квиз ещё живёт — в уроках «Пути агента».
 
-  /** Отвеченный квиз: верный вариант — зелёный wash+галочка, неверный выбранный — красный wash+крест, пояснения. */
-  @Test
-  fun onboarding_quiz_answered_glass_screenshot() {
-    composeTestRule.setContent {
-      MyApplicationTheme(mode = ThemeMode.DARK) {
-        OnboardingContent(
-          state = OnboardingUiState(currentStep = OnboardingStep.QUIZ, selectedPersonaId = "sharp_partner"),
-          editMode = false,
-          onClose = null,
-          onIntent = {},
-        )
-      }
-    }
-    // Q1 — верно, Q2 — неверно: показать и зелёное, и красное состояние сразу.
-    composeTestRule.onNodeWithText("Только текст: промпт и история диалога").performScrollTo().performClick()
-    composeTestRule.onNodeWithText("Только твоё последнее сообщение").performScrollTo().performClick()
-    composeTestRule.onRoot()
-      .captureRoboImage(filePath = "src/test/screenshots/onboarding_quiz_answered_glass.png")
-  }
-
-  /** Шаг выбора персоны целиком — свой Scaffold: GlassSurface на топбаре и на Back/Apply-панели. */
+  /**
+   * Шаг выбора персоны целиком — свой Scaffold: GlassSurface на топбаре и на Back/Apply-панели.
+   *
+   * Из мастера онбординга шаг убран (см. [OnboardingStep]), но композебл жив и покрыт: персона
+   * меняется в Настройках, и шаг готов вернуться в мастер, если решим спрашивать её позже.
+   */
   @Test
   fun onboarding_persona_step_glass_screenshot() {
     composeTestRule.setContent {
