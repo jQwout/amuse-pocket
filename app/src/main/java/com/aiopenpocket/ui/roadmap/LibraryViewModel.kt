@@ -36,10 +36,12 @@ data class LibraryLesson(
  * (потому и internal, а не private).
  */
 internal val LIBRARY_LESSON_IDS = listOf(
+  "what_is_agent",
   "how_llm_reads",
   "how_to_ask",
   "context_engineering",
   "tokens_and_speed",
+  "memory_and_context",
   "temperature_and_randomness",
   "privacy_and_reliability",
   "hallucinations",
@@ -47,7 +49,6 @@ internal val LIBRARY_LESSON_IDS = listOf(
   "react_loop",
   "agent_tools",
   "tool_approval_and_limits",
-  "memory_and_context",
   "agent_skills",
   "rag",
   "plan_mode",
