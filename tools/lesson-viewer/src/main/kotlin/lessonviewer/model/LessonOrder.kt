@@ -12,9 +12,11 @@ import lessonviewer.io.LoadedLesson
  */
 val ROADMAP_ORDER: List<String> = listOf(
   "l1_welcome",
+  "what_is_agent",
   "how_llm_reads",
   "how_to_ask",
   "tokens_and_speed",
+  "memory_and_context",
   "temperature_and_randomness",
   "privacy_and_reliability",
   "hallucinations",
@@ -22,12 +24,12 @@ val ROADMAP_ORDER: List<String> = listOf(
   "react_loop",
   "agent_tools",
   "tool_approval_and_limits",
-  "memory_and_context",
+  "context_engineering",
   "agent_skills",
-  "rag",
   "plan_mode",
   "goal_mode",
   "structured_plans",
+  "reflection",
   "heartbeat_and_cron",
   "chaining_and_routing",
   "arena_and_swarm",
@@ -48,8 +50,8 @@ private fun LoadedLesson.lessonId(): String = file.name.removeSuffix(".json")
 
 /**
  * Уроки в порядке пути, а следом — те, которых в пути нет (по алфавиту). Вторые не выбрасываем:
- * они лежат в ассетах, и то, что из приложения до них не дойти, — это как раз то, что полезно
- * видеть.
+ * они не потеряны — в приложении их открывают через «Библиотеку» (`LIBRARY_LESSON_IDS`), — но не
+ * входят в упорядоченный путь, и это полезно видеть при вычитке.
  */
 fun orderLessons(lessons: List<LoadedLesson>): List<OrderedLesson> {
   val positions = ROADMAP_ORDER.withIndex().associate { (i, id) -> id to i }

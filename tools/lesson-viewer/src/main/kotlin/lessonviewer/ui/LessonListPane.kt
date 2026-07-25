@@ -34,7 +34,7 @@ fun LessonListPane(
         Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
           HorizontalDivider()
           Text(
-            "вне пути — в приложении недостижимы",
+            "вне пути — только через «Библиотеку»",
             style = MaterialTheme.typography.labelSmall,
             modifier = Modifier.padding(top = 6.dp, start = 8.dp),
           )

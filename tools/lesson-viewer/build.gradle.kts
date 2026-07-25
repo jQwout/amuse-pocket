@@ -28,4 +28,16 @@ tasks.named<JavaExec>("run") {
   System.getProperty("lessons.dir")?.let { systemProperty("lessons.dir", it) }
 }
 
-tasks.test { useJUnit() }
+tasks.test {
+  useJUnit()
+  // Тесты читают файлы ВНЕ этого проекта: уроки и RoadmapScreen.kt. Gradle о них не знает, поэтому
+  // без явного объявления входов правка урока или порядка уроков оставляет задачу UP-TO-DATE —
+  // и проверка на дрейф молча не запускается (проверено: ловила изменение только с --rerun-tasks).
+  // Тот же приём, что и в app/build.gradle.kts для каталога уроков.
+  inputs.dir(layout.projectDirectory.dir("../../app/src/main/assets/lessons"))
+    .withPropertyName("lessonAssets")
+    .withPathSensitivity(PathSensitivity.RELATIVE)
+  inputs.file(layout.projectDirectory.file("../../app/src/main/java/com/aiopenpocket/ui/roadmap/RoadmapScreen.kt"))
+    .withPropertyName("roadmapSource")
+    .withPathSensitivity(PathSensitivity.RELATIVE)
+}
