@@ -25,10 +25,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AltRoute
-import androidx.compose.material.icons.automirrored.filled.ManageSearch
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Architecture
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Check
@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Loop
 import androidx.compose.material.icons.filled.Memory
@@ -44,6 +45,7 @@ import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.TrackChanges
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.WavingHand
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -85,6 +87,15 @@ val ROADMAP_LEVELS = listOf(
     "Настрой ассистента под себя: язык, персона, профиль — и первое касание того, как устроен чат.",
     Icons.Default.WavingHand,
   ),
+  // Стоит ПЕРВЫМ уроком пути: до него курс нигде не объяснял, что вообще за программа отвечает
+  // пользователю. «Как ИИ читает твой запрос» сразу начинает с промпта, а слова «модель» и
+  // «агент» звучат дальше в каждом уроке. Полное разворачивание агента — в «Воркфлоу и агент».
+  RoadmapLevel(
+    "what_is_agent",
+    "Что такое ИИ и кто такой агент",
+    "Что за программа отвечает тебе на самом деле, чем агент отличается от чата и из каких частей он собран.",
+    Icons.Default.SmartToy,
+  ),
   RoadmapLevel(
     "how_llm_reads",
     "Как ИИ читает твой запрос",
@@ -102,6 +113,15 @@ val ROADMAP_LEVELS = listOf(
     "Токены и скорость",
     "Что такое токен, входные и выходные токены, рассуждения моделей и отчего один ответ быстрый, а другой долгий и дорогой.",
     Icons.Default.Bolt,
+  ),
+  // Сразу за токенами, а не в середине пути: урок про память начинается ровно там, где кончается
+  // урок про окно — «окно ограничено, старое вытесняется, значит важное надо хранить снаружи».
+  // К тому же «Приватность» ниже опирается на виды памяти, и раньше ссылалась на шесть уроков вперёд.
+  RoadmapLevel(
+    "memory_and_context",
+    "Память и контекст",
+    "Почему модель будто забывает разговор и как агент помнит тебя тремя видами памяти.",
+    Icons.Default.Memory,
   ),
   RoadmapLevel(
     "temperature_and_randomness",
@@ -145,11 +165,15 @@ val ROADMAP_LEVELS = listOf(
     "Почему одни действия агент делает молча, а перед другими ждёт твоего «ок»: классы риска и согласие.",
     Icons.Default.Shield,
   ),
+  // Идёт ПОСЛЕ памяти, хотя в LIBRARY_LESSON_IDS стоит третьим: урок опирается на контекстное окно
+  // («место в окне ограничено», «середину диалога заменяют резюме») и на релевантные факты из
+  // памяти. На пути порядок — обещание, и вперёд ссылаться нельзя; в библиотеке, куда заходят
+  // вразнобой, это терпимо.
   RoadmapLevel(
-    "memory_and_context",
-    "Память и контекст",
-    "Почему модель будто забывает разговор и как агент помнит тебя тремя видами памяти.",
-    Icons.Default.Memory,
+    "context_engineering",
+    "Контекст-инжиниринг",
+    "Как перед каждым ответом собирается препромпт: слои, отбор, бюджет и защита от подмены.",
+    Icons.Default.Layers,
   ),
   RoadmapLevel(
     "agent_skills",
@@ -157,12 +181,10 @@ val ROADMAP_LEVELS = listOf(
     "Как агент подгружает умения по требованию, не раздувая контекст — три уровня раскрытия.",
     Icons.Default.Extension,
   ),
-  RoadmapLevel(
-    "rag",
-    "RAG: ответы по твоей базе",
-    "Почему модель не знает твои файлы и как поиск нужных кусков перед ответом это чинит.",
-    Icons.AutoMirrored.Filled.ManageSearch,
-  ),
+  // «RAG» убран с ПУТИ и оставлен только в библиотеке (LIBRARY_LESSON_IDS): урок сам трижды
+  // честно говорит, что в приложении этой техники ещё нет, и его «практика» — упражнение на
+  // бумаге. На пути каждый урок заканчивается действием в приложении; вернуть сюда, когда
+  // поиск по документам появится.
   RoadmapLevel(
     "plan_mode",
     "План-мод",
@@ -180,6 +202,14 @@ val ROADMAP_LEVELS = listOf(
     "Структурированные планы",
     "Большая задача как список проверяемых шагов: одобрение плана, статусы и правило «сделал — докажи».",
     Icons.Default.Checklist,
+  ),
+  // Рефлексия — такой же режим агента, как план-мод и гоал-мод, и он в приложении РЕАЛЬНО есть
+  // (чип над полем ввода). Поэтому её место здесь, среди режимов, а не только в библиотеке.
+  RoadmapLevel(
+    "reflection",
+    "Рефлексия",
+    "Агент сначала пишет черновик, потом критикует его и переписывает — цикл ради качества.",
+    Icons.Default.AutoAwesome,
   ),
   RoadmapLevel(
     "heartbeat_and_cron",
