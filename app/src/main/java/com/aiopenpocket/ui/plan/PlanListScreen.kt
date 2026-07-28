@@ -68,8 +68,10 @@ fun PlanListScreen(
     Column(
       modifier = Modifier
         .fillMaxSize()
-        .padding(padding)
         .verticalScroll(rememberScrollState())
+        // Отступы каркаса стоят ПОСЛЕ verticalScroll: иначе они инсетят вьюпорт и контент не
+        // заезжает под плавающие острова (стеклу нечего размывать). Тот же приём, что в AboutMeStep.
+        .padding(padding)
         .padding(horizontal = 20.dp)
         .padding(bottom = 40.dp)
         .testTag("plan_list_scroll"),

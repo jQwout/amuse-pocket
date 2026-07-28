@@ -99,8 +99,9 @@ fun PlanDetailScreen(
     Column(
       modifier = Modifier
         .fillMaxSize()
-        .padding(padding)
         .verticalScroll(rememberScrollState())
+        // ПОСЛЕ verticalScroll — см. AboutMeStep/PlanListScreen: иначе инсетится вьюпорт.
+        .padding(padding)
         .padding(horizontal = 20.dp)
         .padding(bottom = 40.dp)
         .testTag("plan_detail_scroll"),
