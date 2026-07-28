@@ -117,6 +117,13 @@ data class AgentDraft(
   val hooks: List<AgentHook> = emptyList(),
   /** This agent's own authored skills — see the class KDoc. Their ids are mirrored into [skillIds]. */
   val customSkills: List<CustomSkillDraft> = emptyList(),
+  /**
+   * Carried through untouched — the wizard has no control for it (only a clone of a preset that uses
+   * state injection ever has a non-empty set). It lives here purely so the round trip through
+   * [toDefinition] preserves it: while the draft did NOT carry it, the first autosave after opening
+   * a cloned agent rewrote the stored row with an empty set, silently breaking the copy.
+   */
+  val stateKeyPrefixes: Set<String> = emptySet(),
   /** See [AgentSourceContext]. Never round-tripped through [toDefinition]/[fromDefinition] — it
    * describes how THIS session's draft was opened, not a property of the published agent. */
   val sourceContext: AgentSourceContext = AgentSourceContext.MANUAL,
@@ -142,6 +149,7 @@ data class AgentDraft(
     memoryPolicy = AgentMemoryPolicy(namespace = "agent:$id:", includeSharedProfile = includeSharedProfile),
     allowedWidgetTemplates = allowedWidgetTemplates,
     hooks = hooks,
+    stateKeyPrefixes = stateKeyPrefixes,
     configVersion = configVersion,
     status = status,
   )
@@ -177,6 +185,7 @@ data class AgentDraft(
       includeSharedProfile = definition.memoryPolicy.includeSharedProfile,
       allowedWidgetTemplates = definition.allowedWidgetTemplates,
       hooks = definition.hooks,
+      stateKeyPrefixes = definition.stateKeyPrefixes,
     )
   }
 }

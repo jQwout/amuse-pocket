@@ -162,6 +162,7 @@ fun CapabilitiesStep(
     MemorySection(
       agentId = draft.id,
       includeSharedProfile = draft.includeSharedProfile,
+      stateKeyPrefixes = draft.stateKeyPrefixes,
       onToggleSharedProfile = { checked -> onUpdateDraft { it.copy(includeSharedProfile = checked) } },
     )
 
@@ -282,7 +283,12 @@ private fun ExpanderHeader(title: String, expanded: Boolean, onClick: () -> Unit
 
 /** Per-agent memory rail: what the agent's own namespace is, and whether it also reads the shared profile. */
 @Composable
-private fun MemorySection(agentId: String, includeSharedProfile: Boolean, onToggleSharedProfile: (Boolean) -> Unit) {
+private fun MemorySection(
+  agentId: String,
+  includeSharedProfile: Boolean,
+  stateKeyPrefixes: Set<String>,
+  onToggleSharedProfile: (Boolean) -> Unit,
+) {
   Column {
     Text(text = "Память", style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(4.dp))
@@ -308,6 +314,18 @@ private fun MemorySection(agentId: String, includeSharedProfile: Boolean, onTogg
         checked = includeSharedProfile,
         onCheckedChange = onToggleSharedProfile,
         modifier = Modifier.testTag("agent_builder_shared_profile"),
+      )
+    }
+    // Только у копий пресетов, которые этим пользуются (например «Репетитор»). Редактора нет, но
+    // показать надо: раньше эти префиксы молча терялись при первой же правке копии, и понять, почему
+    // копия работает не как оригинал, было неоткуда.
+    if (stateKeyPrefixes.isNotEmpty()) {
+      Spacer(modifier = Modifier.height(12.dp))
+      Text(
+        text = "Состояние в промпте: ${stateKeyPrefixes.sorted().joinToString(", ")}",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.testTag("agent_builder_state_prefixes"),
       )
     }
   }

@@ -18,9 +18,6 @@ import com.aiopenpocket.agent.loop.AgentMode
  * enum collection so it can reuse that same converter instead of needing a second one.
  * [defaultMode]/[status] are plain `.name` strings — Room persists `String` columns natively, no
  * converter needed for those two.
- *
- * [AgentDefinition.stateKeyPrefixes] is not stored either — every USER agent's [toDefinition]
- * reports `emptySet()` for it (no builder UI configures it yet; see that property's own KDoc).
  */
 @Entity(tableName = "user_agents")
 data class UserAgentEntity(
@@ -33,6 +30,13 @@ data class UserAgentEntity(
   val skillIds: List<String>,
   val allowedModes: List<String>,
   val allowedWidgetTemplates: List<String>,
+  /**
+   * See [AgentDefinition.stateKeyPrefixes]. Stored since schema v10: without a column, every USER
+   * agent reported an empty set, so a clone of a preset that relies on state injection (the
+   * "languages" tutor's `goal:`/`lang:`/`grammar:`) came out subtly broken — the copy stopped
+   * getting its own persistent state in the prompt, with nothing in the UI saying so.
+   */
+  val stateKeyPrefixes: List<String>,
   val defaultMode: String,
   val memoryNamespace: String,
   val includeSharedProfile: Boolean,
@@ -56,7 +60,7 @@ data class UserAgentEntity(
     memoryPolicy = AgentMemoryPolicy(namespace = memoryNamespace, includeSharedProfile = includeSharedProfile),
     allowedWidgetTemplates = allowedWidgetTemplates.toSet(),
     hooks = emptyList(),
-    stateKeyPrefixes = emptySet(),
+    stateKeyPrefixes = stateKeyPrefixes.toSet(),
     configVersion = configVersion,
     status = AgentStatus.valueOf(status),
   )
@@ -73,6 +77,7 @@ data class UserAgentEntity(
       skillIds = definition.skillIds.toList(),
       allowedModes = definition.allowedModes.map { it.name },
       allowedWidgetTemplates = definition.allowedWidgetTemplates.toList(),
+      stateKeyPrefixes = definition.stateKeyPrefixes.toList(),
       defaultMode = definition.defaultMode.name,
       memoryNamespace = definition.memoryPolicy.namespace,
       includeSharedProfile = definition.memoryPolicy.includeSharedProfile,
