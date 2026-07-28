@@ -18,9 +18,18 @@ interface ConversationDao {
   @Query("SELECT * FROM conversations WHERE id = :id LIMIT 1")
   suspend fun getById(id: String): ConversationEntity?
 
-  /** Самый свежий чат, привязанный к мини-агенту [agentId]. */
-  @Query("SELECT * FROM conversations WHERE agentId = :agentId ORDER BY updatedAt DESC LIMIT 1")
-  suspend fun findLatestByAgent(agentId: String): ConversationEntity?
+  /**
+   * Самый свежий чат, привязанный к мини-агенту [agentId]. Служебные диалоги (сейчас — тестовый чат
+   * конструктора, см. `ConversationRepository.BUILDER_TEST_TAG`) исключаются: они тоже привязаны к
+   * agentId, и без фильтра «Открыть чат» у только что собранного агента мог попасть в черновой
+   * тестовый диалог с его же тестовыми сообщениями.
+   */
+  @Query(
+    "SELECT * FROM conversations WHERE agentId = :agentId " +
+      "AND id NOT IN (SELECT conversationId FROM conversation_tags WHERE tag = :excludedTag) " +
+      "ORDER BY updatedAt DESC LIMIT 1",
+  )
+  suspend fun findLatestByAgent(agentId: String, excludedTag: String): ConversationEntity?
 
   /** Самый свежий обычный (не агентный, не туториал) чат — кандидат на переиспользование. */
   @Query("SELECT * FROM conversations WHERE agentId IS NULL AND isTutorial = 0 ORDER BY createdAt DESC LIMIT 1")

@@ -43,7 +43,7 @@ class ConversationRepository(
    * в агента переоткрывал его существующий чат, а не плодил новый пустой при каждом тапе.
    */
   suspend fun findLatestConversationByAgent(agentId: String): Conversation? {
-    val entity = conversationDao.findLatestByAgent(agentId) ?: return null
+    val entity = conversationDao.findLatestByAgent(agentId, excludedTag = BUILDER_TEST_TAG) ?: return null
     return entity.toDomain(conversationTagDao.getTagsForConversation(entity.id))
   }
 
@@ -70,6 +70,7 @@ class ConversationRepository(
     personaId: String = "sharp_partner",
     isTutorial: Boolean = false,
     agentId: String? = null,
+    tags: List<String> = emptyList(),
   ): String {
     val id = UUID.randomUUID().toString()
     val now = System.currentTimeMillis()
@@ -84,6 +85,7 @@ class ConversationRepository(
         agentId = agentId,
       ),
     )
+    tags.forEach { conversationTagDao.insert(ConversationTagEntity(conversationId = id, tag = it)) }
     return id
   }
 
@@ -258,6 +260,16 @@ class ConversationRepository(
   companion object {
     private const val PLACEHOLDER_TITLE_MAX_CHARS = 40
     private const val DEFAULT_TITLE = "Новый диалог"
+
+    /**
+     * Marks the agent builder's throwaway test conversation. It is bound to the draft's `agentId`
+     * (the TEST step has to run the real agent), which would otherwise make it a candidate for
+     * [findLatestConversationByAgent] — so the first «Открыть чат» on a freshly built agent could
+     * land the user inside the builder's scratch chat, complete with its test messages. Excluded by
+     * tag rather than by title (titles are user-editable) and rather than by a new column (a schema
+     * bump would destructively reset the local database before release).
+     */
+    const val BUILDER_TEST_TAG = "__builder_test"
 
     /**
      * Title shown until the background annotator generates a real one: the first message,
