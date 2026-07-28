@@ -90,7 +90,8 @@ class UserAgentRepositoryTest {
       UserAgentEntity(
         id = "bad", name = "Битый", description = "d", iconKey = "sparkles", systemPrompt = "s",
         toolNames = emptyList(), skillIds = emptyList(), allowedModes = listOf("CHAT"),
-        allowedWidgetTemplates = emptyList(), defaultMode = "RENAMED_MODE", memoryNamespace = "agent:bad:",
+        allowedWidgetTemplates = emptyList(), stateKeyPrefixes = emptyList(), defaultMode = "RENAMED_MODE",
+        memoryNamespace = "agent:bad:",
         includeSharedProfile = false, status = "PUBLISHED", configVersion = 1L, createdAt = 1L, updatedAt = 2L,
       ),
     )

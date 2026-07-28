@@ -8,7 +8,9 @@ import androidx.test.core.app.ApplicationProvider
 import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.agent.AgentStatus
 import com.aiopenpocket.agent.core.agent.DefaultAgentResolver
+import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.core.agent.UserAgentRepository
+import com.aiopenpocket.agent.core.agent.toDefinition
 import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.hook.AgentHookRepository
 import com.aiopenpocket.agent.core.hook.HookActionType
@@ -260,6 +262,28 @@ class AgentBuilderViewModelTest {
 
     assertEquals(AgentStatus.ARCHIVED, vm.state.value.draft.status)
     assertEquals(AgentStatus.ARCHIVED, userAgentRepository.get(id)?.status)
+  }
+
+  /**
+   * A clone of a preset that relies on prompt state injection ("languages": `goal:`/`lang:`/
+   * `grammar:`) has to keep working like its original. These prefixes had no Room column and no
+   * field on the draft, so the copy reported an empty set the moment the first autosave ran — the
+   * copy quietly stopped getting its own persistent state in the prompt.
+   */
+  @Test
+  fun `a cloned preset keeps its prompt state prefixes across an edit`() = runTest(testDispatcher) {
+    val presetPrefixes = MiniAgentCatalog.get("languages")!!.toDefinition().stateKeyPrefixes
+    assertTrue("test only means something if the preset actually has prefixes", presetPrefixes.isNotEmpty())
+
+    vm.cloneFrom("languages")
+    advanceUntilIdle()
+    val id = vm.state.value.draft.id
+    assertEquals(presetPrefixes, vm.state.value.draft.stateKeyPrefixes)
+
+    vm.updateDraft { it.copy(description = "Правка, после которой префиксы раньше исчезали.") }
+    advanceUntilIdle()
+
+    assertEquals(presetPrefixes, userAgentRepository.get(id)?.stateKeyPrefixes)
   }
 
   // --- restoration after recreation ------------------------------------------------------------------

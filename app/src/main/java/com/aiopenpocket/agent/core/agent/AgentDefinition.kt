@@ -52,8 +52,9 @@ data class AgentDefinition(
   /**
    * Key prefixes whose facts get injected into the prompt as this agent's persistent state (see
    * `PrePromptAssembler`'s "agent state" section) — e.g. the languages preset's `goal:`/`lang:`/
-   * `grammar:` prefixes. Always empty for [AgentSource.USER] agents in v1: no builder UI exists yet
-   * to configure it, and [UserAgentEntity] has no column for it (see [UserAgentEntity.toDefinition]).
+   * `grammar:` prefixes. Persisted for [AgentSource.USER] agents since schema v10, so a clone of
+   * such a preset keeps working like its original. The wizard has no editor for it: a USER agent
+   * only ever gets a non-empty set by being cloned from a preset that had one.
    */
   val stateKeyPrefixes: Set<String> = emptySet(),
   val configVersion: Long,

@@ -51,8 +51,10 @@ import com.aiopenpocket.agent.core.srs.SrsWordEntity
 // security hardening (user-agent-builder-848153) — storage_tool's per-agent key-value store, the
 // structured write path database_query's Part A SELECT-only restriction pushes agents toward instead
 // of raw SQL; version bumped 7 -> 8. Message-pinning removed — MessageEntity lost its
-// isPinned column; version bumped 8 -> 9. No Migration is added any of these times — see the policy
-// comment on DatabaseBindings.provideDatabase.
+// isPinned column; version bumped 8 -> 9. UserAgentEntity gained stateKeyPrefixes so a USER agent
+// (in particular a clone of the "languages" preset) keeps its prompt state-injection prefixes instead
+// of silently reporting an empty set; version bumped 9 -> 10. No Migration is added any of these
+// times — see the policy comment on DatabaseBindings.provideDatabase.
 @Database(
   entities = [
     ConversationEntity::class,
@@ -73,7 +75,7 @@ import com.aiopenpocket.agent.core.srs.SrsWordEntity
     PlanEventEntity::class,
     AgentStorageEntity::class,
   ],
-  version = 9,
+  version = 10,
   // exportSchema = true, хотя миграций пока нет и всё пересоздаётся разрушительно (см. политику на
   // DatabaseBindings.provideDatabase). Именно поэтому и включено: первую настоящую Migration придётся
   // писать ОТ схемы релизной версии, а взять её будет неоткуда, если снимки не начать копить заранее.
