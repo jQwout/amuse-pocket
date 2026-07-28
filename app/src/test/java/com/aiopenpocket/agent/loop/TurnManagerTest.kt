@@ -98,9 +98,34 @@ class TurnManagerTest {
     }
   }
 
+  private class FakeLifeSupport : TurnLifeSupport {
+    /** false — система отказала в защите (типичный случай: старт из фона). */
+    var grant = true
+    val acquired = mutableListOf<String>()
+    val released = mutableListOf<String>()
+    private var handler: ((Set<String>) -> Unit)? = null
+
+    override suspend fun acquire(conversationId: String): Boolean {
+      if (grant) acquired += conversationId
+      return grant
+    }
+
+    override fun release(conversationId: String) {
+      released += conversationId
+    }
+
+    override fun onProtectionLost(handler: (Set<String>) -> Unit) {
+      this.handler = handler
+    }
+
+    /** Имитирует системный onTimeout сервиса. */
+    fun loseProtection(ids: Set<String>) = handler?.invoke(ids)
+  }
+
   private val executor = ScriptedExecutor()
   private val persistence = FakePersistence()
   private val notifier = RecordingNotifier()
+  private val lifeSupport = FakeLifeSupport()
   private var inForeground = true
 
   // Скоуп менеджера на UnconfinedTestDispatcher(testScheduler): ходы исполняются жадно на том же
@@ -111,6 +136,7 @@ class TurnManagerTest {
     persistence = persistence,
     foreground = { inForeground },
     notifier = notifier,
+    lifeSupport = lifeSupport,
     scope = CoroutineScope(backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)),
     monotonicNowMs = { 100_000L },
     log = NoopLog,
@@ -502,6 +528,90 @@ class TurnManagerTest {
     val shown = notifier.shown.single()
     assertTrue(shown.failed)
     assertEquals("сеть упала", shown.preview)
+  }
+
+  // --- Защита хода на время исполнения (spec 2026-07-28-turn-foreground-service-design) ---------
+
+  @Test
+  fun `ход берёт защиту перед стартом и отпускает после завершения`() = runTest {
+    executor.script = { flowOf(AgentEvent.Completed(finished("ок"))) }
+    val m = manager()
+
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT)
+    advanceUntilIdle()
+
+    assertEquals(listOf("c1"), lifeSupport.acquired)
+    assertEquals(listOf("c1"), lifeSupport.released)
+  }
+
+  @Test
+  fun `упавший ход тоже отпускает защиту`() = runTest {
+    executor.script = { flowOf(AgentEvent.Error("бек лёг")) }
+    val m = manager()
+
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT)
+    advanceUntilIdle()
+
+    assertEquals(listOf("c1"), lifeSupport.released)
+  }
+
+  @Test
+  fun `отменённый ход отпускает защиту`() = runTest {
+    executor.script = { flow { awaitCancellation() } }
+    val m = manager()
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT)
+    advanceUntilIdle()
+
+    m.cancel("c1")
+    advanceUntilIdle()
+
+    assertEquals(listOf("c1"), lifeSupport.released)
+  }
+
+  @Test
+  fun `отказ в защите не мешает ходу доехать и не порождает release`() = runTest {
+    lifeSupport.grant = false
+    executor.script = { flowOf(AgentEvent.Completed(finished("ок"))) }
+    val m = manager()
+
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT)
+    advanceUntilIdle()
+
+    assertEquals("ок", persistence.rows.last().content)
+    assertTrue("release без успешного acquire увёл бы рефкаунт в минус", lifeSupport.released.isEmpty())
+  }
+
+  @Test
+  fun `истечение защиты в фоне валит ход с возможностью повторить`() = runTest {
+    inForeground = false
+    executor.script = { flow { awaitCancellation() } }
+    val m = manager()
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT)
+    advanceUntilIdle()
+
+    lifeSupport.loseProtection(setOf("c1"))
+    advanceUntilIdle()
+
+    val status = m.sessions.value.getValue("c1").status.value as TurnStatus.Failed
+    assertEquals(TurnTexts.PROTECTION_EXPIRED, status.message)
+    assertTrue("реплика юзера в истории есть — «Повторить» обязано быть доступно", status.canRetry)
+  }
+
+  @Test
+  fun `истечение защиты при открытом экране ход не трогает`() = runTest {
+    inForeground = true
+    executor.script = { flow { awaitCancellation() } }
+    val m = manager()
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT)
+    advanceUntilIdle()
+
+    lifeSupport.loseProtection(setOf("c1"))
+    advanceUntilIdle()
+
+    assertTrue(
+      "foreground-процесс система не вытесняет — резать длинный ход на глазах у юзера незачем",
+      m.sessions.value.getValue("c1").status.value is TurnStatus.Running,
+    )
   }
 
   companion object {

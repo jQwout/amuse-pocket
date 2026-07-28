@@ -39,6 +39,7 @@ class TurnManager(
   private val persistence: TurnPersistence,
   private val foreground: ForegroundState,
   private val notifier: TurnNotifier,
+  private val lifeSupport: TurnLifeSupport,
   private val scope: CoroutineScope,
   /** Монотонные часы для гейта стрима (SystemClock.uptimeMillis в проде, фейк в тестах). */
   private val monotonicNowMs: () -> Long,
@@ -49,6 +50,11 @@ class TurnManager(
   private val mutex = Mutex()
 
   private val sessionsFlow = MutableStateFlow<Map<String, TurnSession>>(emptyMap())
+
+  init {
+    // Единственный подписчик: только менеджер владеет job-ами ходов и может их отменить.
+    lifeSupport.onProtectionLost { protectedIds -> scope.launch { failProtectedTurns(protectedIds) } }
+  }
 
   /** Активные и завершённые-непросмотренные сессии по conversationId (для бейджей списка). */
   val sessions: StateFlow<Map<String, TurnSession>> = sessionsFlow.asStateFlow()
@@ -200,6 +206,10 @@ class TurnManager(
     systemPromptExtra: String? = null,
     executionMode: ExecutionMode = ExecutionMode.LIVE,
   ) {
+    // Захват ДО мьютекса: acquire уходит в Android (старт сервиса), держать на нём мьютекс
+    // менеджера незачем — он сериализует только подмену job. Отказ системы не ошибка: ход просто
+    // пойдёт без защиты, ровно как до появления этой фичи.
+    val hasProtection = lifeSupport.acquire(conversationId)
     mutex.withLock {
       val session = sessionsFlow.value[conversationId] ?: TurnSession(conversationId, monotonicNowMs).also { created ->
         sessionsFlow.update { it + (conversationId to created) }
@@ -210,8 +220,33 @@ class TurnManager(
       val previous = session.job
       previous?.cancel()
       session.job = scope.launch {
-        previous?.join()
-        runTurn(session, userText, mode, planId, budget, persistUserMessage, systemPromptExtra, executionMode)
+        try {
+          previous?.join()
+          runTurn(session, userText, mode, planId, budget, persistUserMessage, systemPromptExtra, executionMode)
+        } finally {
+          // finally, а не хвост runTurn: отмена (Stop, новый ход) обязана отпустить защиту тоже,
+          // иначе сервис с уведомлением переживёт ход, ради которого поднимался.
+          if (hasProtection) lifeSupport.release(conversationId)
+        }
+      }
+    }
+  }
+
+  /**
+   * Система отобрала защиту (таймаут shortService). Гейт на видимости — ключевой: foreground-процесс
+   * ОС не вытесняет, поэтому на экране защищать не от чего, и резать длинный GOAL-прогон там было бы
+   * вредом без причины. В фоне же альтернатива «оставить ход без защиты» означает тихую пропажу
+   * ответа, поэтому валим явно и с «Повторить».
+   */
+  private suspend fun failProtectedTurns(protectedIds: Set<String>) {
+    if (foreground.isInForeground()) return
+    mutex.withLock {
+      protectedIds.forEach { convId ->
+        val session = sessionsFlow.value[convId] ?: return@forEach
+        if (session.status.value !is TurnStatus.Running) return@forEach
+        session.job?.cancel()
+        session.statusFlow.value =
+          TurnStatus.Failed(TurnTexts.PROTECTION_EXPIRED, canRetry = session.lastUserText != null)
       }
     }
   }
