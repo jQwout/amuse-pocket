@@ -50,3 +50,27 @@ fun interface ForegroundState {
 fun interface TurnNotifier {
   fun turnFinished(conversationId: String, conversationTitle: String?, preview: String, failed: Boolean)
 }
+
+/**
+ * Защита хода от вытеснения процесса, пока приложение в фоне (спека
+ * `docs/superpowers/specs/2026-07-28-turn-foreground-service-design.md`). Отдельный порт, а не
+ * вызов Android напрямую, по той же причине, что [ForegroundState]/[TurnNotifier]: [TurnManager]
+ * обязан тестироваться без Android.
+ */
+interface TurnLifeSupport {
+  /**
+   * Просит защиту для [conversationId]. `false` — система отказала; типичный случай — старт хода,
+   * когда приложение уже в фоне (с API 31 стартовать foreground-сервис оттуда нельзя). Ход при
+   * этом всё равно исполняется, просто без гарантии — ровно как до появления этой фичи.
+   */
+  suspend fun acquire(conversationId: String): Boolean
+
+  /** Идемпотентно снимает защиту. Вызывать ТОЛЬКО если [acquire] вернул `true`. */
+  fun release(conversationId: String)
+
+  /**
+   * Регистрирует реакцию на «система отобрала защиту» (таймаут `shortService`). Аргумент —
+   * conversationId, которые на этот момент были защищены. Вызывается один раз, при сборке графа.
+   */
+  fun onProtectionLost(handler: (Set<String>) -> Unit)
+}

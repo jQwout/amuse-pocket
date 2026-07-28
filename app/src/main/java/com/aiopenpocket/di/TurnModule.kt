@@ -11,6 +11,7 @@ import com.aiopenpocket.agent.loop.ForegroundState
 import com.aiopenpocket.agent.loop.ReflectionOrchestrator
 import com.aiopenpocket.agent.loop.StructuredPlanOrchestrator
 import com.aiopenpocket.agent.loop.TurnExecutor
+import com.aiopenpocket.agent.loop.TurnLifeSupport
 import com.aiopenpocket.agent.loop.TurnManager
 import com.aiopenpocket.agent.loop.TurnNotifier
 import com.aiopenpocket.agent.loop.TurnPersistence
@@ -75,12 +76,14 @@ object TurnModule {
     persistence: TurnPersistence,
     foreground: ForegroundState,
     notifier: TurnNotifier,
+    lifeSupport: TurnLifeSupport,
     log: com.aiopenpocket.agent.core.AgentLog,
   ): TurnManager = TurnManager(
     executor = executor,
     persistence = persistence,
     foreground = foreground,
     notifier = notifier,
+    lifeSupport = lifeSupport,
     // Свой скоуп уровня приложения: ход агента живёт, пока жив процесс, а не экран.
     scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     monotonicNowMs = android.os.SystemClock::uptimeMillis,
