@@ -21,10 +21,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Bolt
@@ -36,8 +34,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -58,7 +54,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.AgentDefinition
-import com.aiopenpocket.agent.core.agent.AgentStatus
 import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.core.agent.toDefinition
 import com.aiopenpocket.agent.core.hook.AgentHook
@@ -70,79 +65,12 @@ import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.plan.model.PlanStatus
 import com.aiopenpocket.data.repository.AgentFile
 import com.aiopenpocket.ui.agents.builder.components.riskColor
-import com.aiopenpocket.ui.agents.iconFor
 import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.plan.PlanStatusBadge
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.ui.theme.ThemeMode
 import com.aiopenpocket.ui.util.formatRelativeDate
 import java.util.Locale
-
-@Composable
-internal fun HeaderSection(agent: AgentDefinition, onOpenChat: () -> Unit, modifier: Modifier = Modifier) {
-  Column(modifier = modifier.fillMaxWidth()) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-      Box(
-        modifier = Modifier
-          .size(56.dp)
-          .clip(CircleShape)
-          .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
-        contentAlignment = Alignment.Center,
-      ) {
-        Icon(
-          imageVector = iconFor(agent.iconKey),
-          contentDescription = null,
-          tint = MaterialTheme.colorScheme.primary,
-          modifier = Modifier.size(28.dp),
-        )
-      }
-      Column(modifier = Modifier.weight(1f).padding(horizontal = 14.dp)) {
-        Text(
-          text = agent.name,
-          style = MaterialTheme.typography.titleLarge,
-          color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-          text = agent.id,
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-          text = "${statusLabel(agent.status)} · v${agent.configVersion}",
-          style = MaterialTheme.typography.labelMedium,
-          color = MaterialTheme.colorScheme.primary,
-        )
-      }
-    }
-    Spacer(modifier = Modifier.height(16.dp))
-    Button(
-      onClick = onOpenChat,
-      modifier = Modifier
-        .fillMaxWidth()
-        .height(48.dp),
-      shape = RoundedCornerShape(14.dp),
-      colors = ButtonDefaults.buttonColors(
-        containerColor = MaterialTheme.colorScheme.primary,
-        contentColor = MaterialTheme.colorScheme.onPrimary,
-      ),
-    ) {
-      Icon(
-        imageVector = Icons.AutoMirrored.Filled.Chat,
-        contentDescription = null,
-        modifier = Modifier.size(18.dp),
-      )
-      Spacer(modifier = Modifier.width(8.dp))
-      Text(text = "Открыть чат", style = MaterialTheme.typography.titleMedium)
-    }
-  }
-}
-
-private fun statusLabel(status: AgentStatus): String = when (status) {
-  AgentStatus.DRAFT -> "Черновик"
-  AgentStatus.PUBLISHED -> "Активен"
-  AgentStatus.ARCHIVED -> "Архивирован"
-}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
