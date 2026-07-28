@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -37,10 +38,18 @@ fun LoopModesStep(
   errors: List<ValidationIssue>,
   onUpdateDraft: ((AgentDraft) -> AgentDraft) -> Unit,
   modifier: Modifier = Modifier,
+  /**
+   * Отступы под плавающие стеклянные острова визарда (высоты меряются в AgentBuilderScreen).
+   * Применяются ПОСЛЕ verticalScroll — тогда контент прокручивается ПОД стеклом и его есть
+   * чему размывать. Инсет вьюпорта снаружи (через [modifier]) дал бы обратное: полотно под
+   * острова не заезжает и блюр сэмплит одну аврору.
+   */
+  contentPadding: PaddingValues = PaddingValues(),
 ) {
   Column(
     modifier = modifier
       .verticalScroll(rememberScrollState())
+      .padding(contentPadding)
       .padding(horizontal = 20.dp, vertical = 16.dp),
   ) {
     Text(text = "Режимы работы", style = MaterialTheme.typography.headlineSmall)

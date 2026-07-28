@@ -4,6 +4,7 @@ package com.aiopenpocket.ui.agents.builder.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,6 +46,13 @@ fun HooksStep(
   errors: List<ValidationIssue>,
   onUpdateDraft: ((AgentDraft) -> AgentDraft) -> Unit,
   modifier: Modifier = Modifier,
+  /**
+   * Отступы под плавающие стеклянные острова визарда (высоты меряются в AgentBuilderScreen).
+   * Применяются ПОСЛЕ verticalScroll — тогда контент прокручивается ПОД стеклом и его есть
+   * чему размывать. Инсет вьюпорта снаружи (через [modifier]) дал бы обратное: полотно под
+   * острова не заезжает и блюр сэмплит одну аврору.
+   */
+  contentPadding: PaddingValues = PaddingValues(),
 ) {
   var showEditor by remember { mutableStateOf(false) }
   var editingHook by remember { mutableStateOf<AgentHook?>(null) }
@@ -52,6 +60,7 @@ fun HooksStep(
   Column(
     modifier = modifier
       .verticalScroll(rememberScrollState())
+      .padding(contentPadding)
       .padding(horizontal = 20.dp, vertical = 16.dp),
   ) {
     Text(text = "Хуки", style = MaterialTheme.typography.headlineSmall)

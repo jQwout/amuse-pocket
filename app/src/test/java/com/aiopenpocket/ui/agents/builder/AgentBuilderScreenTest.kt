@@ -8,8 +8,10 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import com.github.takahirom.roborazzi.captureRoboImage
 import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.hook.HookActionType
 import com.aiopenpocket.agent.core.hook.HookEvent
@@ -102,6 +104,27 @@ class AgentBuilderScreenTest {
 
     composeTestRule.onNodeWithTag("agent_builder_next").assertIsNotEnabled()
     composeTestRule.onNodeWithTag("agent_builder_back").assertIsEnabled()
+  }
+
+  /**
+   * Эталон стеклянной обвязки визарда (Liquid Glass): полотно шага занимает ВЕСЬ экран, а заголовок
+   * с прогрессом и «Назад/Далее» — плавающие острова поверх него. До этого у конструктора не было
+   * ни одного скриншот-теста, поэтому его вёрстка вообще ничем не была прикрыта.
+   */
+  @Test
+  fun builder_glass_chrome_screenshot() {
+    val draft = validDraft()
+    render(
+      state = AgentBuilderUiState(
+        draft = draft,
+        step = BuilderStep.IDENTITY,
+        errors = AgentBuilderValidator.validate(draft),
+        isLoading = false,
+      ),
+    )
+
+    composeTestRule.onRoot()
+      .captureRoboImage(filePath = "src/test/screenshots/agent_builder_glass.png")
   }
 
   @Test
