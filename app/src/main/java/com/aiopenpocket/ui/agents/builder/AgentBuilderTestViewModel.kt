@@ -88,6 +88,9 @@ class AgentBuilderTestViewModel(
       _testConversationId.value = conversationRepository.createConversation(
         title = TEST_CONVERSATION_TITLE,
         agentId = agentId,
+        // Помечаем служебным тегом: диалог привязан к agentId черновика, и без метки «Открыть чат»
+        // у собранного агента мог переиспользовать именно его (findLatestConversationByAgent).
+        tags = listOf(ConversationRepository.BUILDER_TEST_TAG),
       )
     }
   }

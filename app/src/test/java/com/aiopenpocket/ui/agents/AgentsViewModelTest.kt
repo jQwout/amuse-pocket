@@ -193,6 +193,27 @@ class AgentsViewModelTest {
     assertNotNull(conversation)
   }
 
+  /**
+   * The builder's TEST step creates a conversation bound to the SAME agentId, so without the
+   * service tag «Открыть чат» would hand the user the builder's scratch chat — test messages and
+   * all — instead of a fresh one.
+   */
+  @Test
+  fun `openAgentChat never reuses the builder's throwaway test conversation`() = runTest(testDispatcher) {
+    val testConversationId = conversationRepository.createConversation(
+      title = "Тест агента",
+      agentId = "budget",
+      tags = listOf(ConversationRepository.BUILDER_TEST_TAG),
+    )
+    var readyId: String? = null
+
+    vm.openAgentChat("budget") { id -> readyId = id }
+
+    val conversationId = awaitReady { readyId }
+    assertTrue("must not land in the builder's test chat", conversationId != testConversationId)
+    assertEquals("budget", conversationRepository.getConversation(conversationId)?.agentId)
+  }
+
   @Test
   fun `openAgentChat reuses the existing conversation on a repeat call`() = runTest(testDispatcher) {
     var firstId: String? = null
