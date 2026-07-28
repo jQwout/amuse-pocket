@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.agent.loop.AgentMode
+import com.aiopenpocket.agent.loop.ToolTrace
 import com.aiopenpocket.agent.loop.TurnManager
 import com.aiopenpocket.agent.loop.TurnStatus
 import com.aiopenpocket.di.AppScope
@@ -73,6 +74,18 @@ class AgentBuilderTestViewModel(
     .flatMapLatest { id -> if (id == null) flowOf(null) else turnManager.session(id) }
     .flatMapLatest { session -> session?.streamingText ?: flowOf("") }
     .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+
+  /**
+   * Tool calls the test run actually made, flattened the same way as [testStatus]/[testStreamingText].
+   * The TEST step used to show only the reply text, which made a PREVIEW run indistinguishable from
+   * a LIVE one from the user's side — the whole point of preview is seeing WHICH tools the agent
+   * reached for and what came back (`PolicyDecision.Simulate` results included).
+   */
+  @OptIn(ExperimentalCoroutinesApi::class)
+  val testToolTrace: StateFlow<List<ToolTrace>> = _testConversationId
+    .flatMapLatest { id -> if (id == null) flowOf(null) else turnManager.session(id) }
+    .flatMapLatest { session -> session?.toolTrace ?: flowOf(emptyList()) }
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
   private var attachedAgentId: String? = null
 

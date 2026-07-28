@@ -13,7 +13,9 @@ import androidx.compose.ui.test.performScrollTo
 import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.hook.HookActionType
 import com.aiopenpocket.agent.core.hook.HookEvent
+import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.policy.ExecutionMode
+import com.aiopenpocket.agent.loop.ToolTrace
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.ui.theme.ThemeMode
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
@@ -53,6 +55,7 @@ class AgentBuilderScreenTest {
   private fun render(
     state: AgentBuilderUiState,
     availableSkillIds: Set<String> = setOf("budget", "diary"),
+    toolTrace: List<ToolTrace> = emptyList(),
     onUpdateDraft: ((AgentDraft) -> AgentDraft) -> Unit = {},
     onBack: () -> Unit = {},
     onNext: () -> Unit = {},
@@ -69,6 +72,7 @@ class AgentBuilderScreenTest {
           availableSkillIds = availableSkillIds,
           testStatus = null,
           testStreamingText = "",
+          testToolTrace = toolTrace,
           onUpdateDraft = onUpdateDraft,
           onBack = onBack,
           onNext = onNext,
@@ -321,5 +325,32 @@ class AgentBuilderScreenTest {
 
     composeTestRule.onNodeWithTag("agent_builder_publish").assertIsNotEnabled()
     composeTestRule.onNodeWithText("Основа: Имя агента не может быть пустым", substring = true).assertExists()
+  }
+
+  /**
+   * Preview is only meaningful if the user can see WHICH tools the run reached for — otherwise a
+   * PREVIEW run and a LIVE one look identical from the outside (design spec 11.2's "trace").
+   */
+  @Test
+  fun test_step_shows_the_runs_tool_trace() {
+    val draft = validDraft()
+    val errors = AgentBuilderValidator.validate(draft)
+    val state = AgentBuilderUiState(
+      draft = draft,
+      step = BuilderStep.TEST,
+      errors = errors,
+      canPublish = AgentBuilderValidator.canPublish(errors),
+      executionMode = ExecutionMode.PREVIEW,
+      isLoading = false,
+    )
+    render(
+      state = state,
+      toolTrace = listOf(
+        ToolTrace(1, "calendar", emptyMap(), ToolResult.Success("Preview mode: 'calendar' was not executed.")),
+      ),
+    )
+
+    composeTestRule.onNodeWithTag("agent_builder_tool_trace").assertExists()
+    composeTestRule.onNodeWithText("calendar", substring = true).assertExists()
   }
 }

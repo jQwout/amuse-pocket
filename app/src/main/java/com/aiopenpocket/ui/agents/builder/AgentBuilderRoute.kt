@@ -32,6 +32,7 @@ fun AgentBuilderRoute(
   val availableSkillIds by viewModel.availableSkillIds.collectAsState()
   val testStatus by testViewModel.testStatus.collectAsState()
   val testStreamingText by testViewModel.testStreamingText.collectAsState()
+  val testToolTrace by testViewModel.testToolTrace.collectAsState()
 
   // Null agentId -> new draft, otherwise load the existing one. Call once per navigation entry, not
   // on every recomposition (mirrors OnboardingScreen's `LaunchedEffect(editMode) { ... }`).
@@ -50,6 +51,7 @@ fun AgentBuilderRoute(
     availableSkillIds = availableSkillIds,
     testStatus = testStatus,
     testStreamingText = testStreamingText,
+    testToolTrace = testToolTrace,
     onUpdateDraft = viewModel::updateDraft,
     onBack = { if (!viewModel.previousStep()) onExit() },
     onNext = { viewModel.nextStep() },
