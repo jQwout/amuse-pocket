@@ -113,7 +113,10 @@ fun ConversationsListScreen(
         )
       }
     } else {
-      Column(modifier = Modifier.padding(padding)) {
+      // Верхний отступ оставляем на колонке: строка тегов не прокручивается, заезжать под остров
+      // ей нечем. А вот список ниже получает нижний отступ через contentPadding и уходит под
+      // плавающий навбар — тогда стеклу есть что размывать.
+      Column(modifier = Modifier.padding(top = padding.calculateTopPadding())) {
         if (state.allTags.isNotEmpty()) {
           LazyRow(
             modifier = Modifier.fillMaxWidth(),
@@ -141,7 +144,10 @@ fun ConversationsListScreen(
             )
           }
         } else {
-          LazyColumn(modifier = Modifier.fillMaxSize()) {
+          LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = padding.calculateBottomPadding()),
+          ) {
             items(state.visibleConversations, key = { it.id }) { conversation ->
               ConversationItem(
                 conversation = conversation,

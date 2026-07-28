@@ -212,8 +212,10 @@ fun SettingsScreen(
     Column(
       modifier = Modifier
         .fillMaxSize()
-        .padding(padding)
-        .verticalScroll(rememberScrollState()),
+        .verticalScroll(rememberScrollState())
+        // ПОСЛЕ verticalScroll: иначе отступы инсетят вьюпорт и контент не заезжает под
+        // плавающие острова — стеклу нечего размывать.
+        .padding(padding),
     ) {
       Spacer(modifier = Modifier.height(8.dp))
 
