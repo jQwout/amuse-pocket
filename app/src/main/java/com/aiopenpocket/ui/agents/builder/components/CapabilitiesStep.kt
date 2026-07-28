@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -56,6 +57,13 @@ fun CapabilitiesStep(
   availableSkillIds: Set<String>,
   onUpdateDraft: ((AgentDraft) -> AgentDraft) -> Unit,
   modifier: Modifier = Modifier,
+  /**
+   * Отступы под плавающие стеклянные острова визарда (высоты меряются в AgentBuilderScreen).
+   * Применяются ПОСЛЕ verticalScroll — тогда контент прокручивается ПОД стеклом и его есть
+   * чему размывать. Инсет вьюпорта снаружи (через [modifier]) дал бы обратное: полотно под
+   * острова не заезжает и блюр сэмплит одну аврору.
+   */
+  contentPadding: PaddingValues = PaddingValues(),
 ) {
   var pendingConsentTool by remember { mutableStateOf<ToolCatalogEntry?>(null) }
   var advancedExpanded by remember { mutableStateOf(false) }
@@ -75,6 +83,7 @@ fun CapabilitiesStep(
   Column(
     modifier = modifier
       .verticalScroll(rememberScrollState())
+      .padding(contentPadding)
       .padding(horizontal = 20.dp, vertical = 16.dp),
   ) {
     Text(text = "Возможности", style = MaterialTheme.typography.headlineSmall)
