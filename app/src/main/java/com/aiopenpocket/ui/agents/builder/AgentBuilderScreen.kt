@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.policy.ExecutionMode
+import com.aiopenpocket.agent.loop.ToolTrace
 import com.aiopenpocket.agent.loop.TurnStatus
 import com.aiopenpocket.ui.agents.builder.components.CapabilitiesStep
 import com.aiopenpocket.ui.agents.builder.components.HooksStep
@@ -60,6 +61,7 @@ fun AgentBuilderScreen(
   availableSkillIds: Set<String>,
   testStatus: TurnStatus?,
   testStreamingText: String,
+  testToolTrace: List<ToolTrace>,
   onUpdateDraft: ((AgentDraft) -> AgentDraft) -> Unit,
   onBack: () -> Unit,
   onNext: () -> Unit,
@@ -122,6 +124,7 @@ fun AgentBuilderScreen(
             availableSkillIds = availableSkillIds,
             testStatus = testStatus,
             testStreamingText = testStreamingText,
+            testToolTrace = testToolTrace,
             onUpdateDraft = onUpdateDraft,
             onSetExecutionMode = onSetExecutionMode,
             onSendTestMessage = onSendTestMessage,
@@ -140,6 +143,7 @@ private fun BuilderStepContent(
   availableSkillIds: Set<String>,
   testStatus: TurnStatus?,
   testStreamingText: String,
+  testToolTrace: List<ToolTrace>,
   onUpdateDraft: ((AgentDraft) -> AgentDraft) -> Unit,
   onSetExecutionMode: (ExecutionMode) -> Unit,
   onSendTestMessage: (String) -> Unit,
@@ -193,6 +197,7 @@ private fun BuilderStepContent(
       isSaving = state.isSaving,
       testStatus = testStatus,
       testStreamingText = testStreamingText,
+      testToolTrace = testToolTrace,
       onSetExecutionMode = onSetExecutionMode,
       onSendTestMessage = onSendTestMessage,
       onPublish = onPublish,

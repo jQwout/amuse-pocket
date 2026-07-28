@@ -31,7 +31,9 @@ import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.AgentStatus
 import com.aiopenpocket.agent.core.agent.ValidationIssue
 import com.aiopenpocket.agent.core.policy.ExecutionMode
+import com.aiopenpocket.agent.loop.ToolTrace
 import com.aiopenpocket.agent.loop.TurnStatus
+import com.aiopenpocket.ui.chat.components.ToolTracePanel
 import com.aiopenpocket.ui.agents.builder.AgentBuilderValidator
 import com.aiopenpocket.ui.agents.builder.AgentDraft
 import com.aiopenpocket.ui.agents.builder.BuilderStep
@@ -54,6 +56,7 @@ fun TestAndPublishStep(
   isSaving: Boolean,
   testStatus: TurnStatus?,
   testStreamingText: String,
+  testToolTrace: List<ToolTrace>,
   onSetExecutionMode: (ExecutionMode) -> Unit,
   onSendTestMessage: (String) -> Unit,
   onPublish: () -> Unit,
@@ -125,6 +128,14 @@ fun TestAndPublishStep(
 
     Spacer(modifier = Modifier.height(16.dp))
     TestRunStatus(testStatus, testStreamingText)
+
+    // Trace прогона (спека 11.2): без него предпросмотр и живой тест выглядят для юзера одинаково,
+    // хотя весь смысл предпросмотра — увидеть, за какие инструменты агент взялся и что ему вернули
+    // (включая синтетические ответы Simulate вместо реального побочного эффекта).
+    if (testToolTrace.isNotEmpty()) {
+      Spacer(modifier = Modifier.height(12.dp))
+      ToolTracePanel(traces = testToolTrace, modifier = Modifier.testTag("agent_builder_tool_trace"))
+    }
 
     Spacer(modifier = Modifier.height(24.dp))
     HorizontalDivider()
