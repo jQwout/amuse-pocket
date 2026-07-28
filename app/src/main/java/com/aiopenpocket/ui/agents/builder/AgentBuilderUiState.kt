@@ -9,6 +9,7 @@ import com.aiopenpocket.agent.core.agent.AgentStatus
 import com.aiopenpocket.agent.core.agent.ValidationIssue
 import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.policy.ExecutionMode
+import com.aiopenpocket.agent.core.skill.UserSkillEntity
 import com.aiopenpocket.agent.loop.AgentMode
 
 /**
@@ -32,6 +33,45 @@ enum class BuilderStep { IDENTITY, INSTRUCTIONS, CAPABILITIES, LOOP, HOOKS, TEST
 enum class AgentSourceContext { MANUAL, ACADEMY_CAPSTONE }
 
 /**
+ * One custom skill being authored in the CAPABILITIES step, before it becomes a `user_skills` row.
+ *
+ * This exists because the wizard previously threw the whole thing away: its editor collected
+ * id/name/description/whenToUse/instructions and passed only the *id* on to [AgentDraft.skillIds].
+ * Nothing ever wrote the body, so [com.aiopenpocket.agent.core.agent.AgentValidator] saw an id that
+ * was neither a built-in nor an owned custom skill, reported `unknown_skill`, and blocked both
+ * «Далее» and «Опубликовать» — with no control anywhere able to clear it again.
+ */
+data class CustomSkillDraft(
+  val id: String,
+  val name: String = "",
+  val description: String = "",
+  val whenToUse: String = "",
+  val instructions: String = "",
+) {
+  /** createdAt/updatedAt are 0 on purpose — [com.aiopenpocket.agent.core.agent.UserAgentRepository] stamps them from its own clock. */
+  fun toEntity(agentId: String): UserSkillEntity = UserSkillEntity(
+    id = id,
+    agentId = agentId,
+    name = name,
+    description = description,
+    whenToUse = whenToUse,
+    instructionsMarkdown = instructions,
+    createdAt = 0L,
+    updatedAt = 0L,
+  )
+
+  companion object {
+    fun fromEntity(entity: UserSkillEntity): CustomSkillDraft = CustomSkillDraft(
+      id = entity.id,
+      name = entity.name,
+      description = entity.description,
+      whenToUse = entity.whenToUse,
+      instructions = entity.instructionsMarkdown,
+    )
+  }
+}
+
+/**
  * UI-layer, mutable-friendly mirror of [AgentDefinition] that the six wizard steps read and write
  * one field at a time. Neither this type nor a distinct `AgentValidationError` type existed
  * anywhere in `core` before this task (checked against `AgentDefinition.kt`/`AgentValidator.kt`
@@ -51,37 +91,19 @@ enum class AgentSourceContext { MANUAL, ACADEMY_CAPSTONE }
  * - [memoryPolicy] is flattened to just [includeSharedProfile] — [toDefinition] always derives
  *   `namespace = "agent:$id:"` fresh from [id] rather than trusting a stored copy, so that
  *   invariant (which [com.aiopenpocket.agent.core.agent.AgentValidator] enforces strictly) can never
- *   drift out of sync with [id].
+ *   drift out of sync with [id];
+ * - [customSkills] carries what [AgentDefinition] structurally cannot: a custom skill's actual
+ *   CONTENT. [AgentDefinition.skillIds] is only ids, and the skill bodies live in their own
+ *   `user_skills` rows — so the draft has to hold them until a save writes them.
  *
- * ### [lastPublishedConfigVersion] — carrying the published version across an edit
- *
- * [com.aiopenpocket.agent.core.agent.UserAgentRepository.saveDraft] unconditionally persists
- * `status = DRAFT, configVersion = 0` on EVERY autosave, regardless of what the row looked like
- * before (by its own design — see its KDoc: "regardless of the status/configVersion the caller
- * passed in"). [com.aiopenpocket.agent.core.agent.UserAgentRepository.publish] then bumps
- * configVersion by exactly one from whatever is *currently stored*. Chained together, editing an
- * already-PUBLISHED agent (autosave fires on every debounced edit) resets the stored configVersion
- * to 0 before the user ever clicks "Publish" again — so a single, naive `repository.publish(id)`
- * call after any edit always reports `1`, never the true next version. This is the Task 19 brief's
- * flagged CRITICAL correctness rule: publishing an edited agent must be monotonic (never
- * reuse/decrement). The repository's own transaction semantics — verified against
- * `UserAgentRepositoryTest` and matching the original Task 2 plan's own pseudocode
- * (`configVersion = draft.configVersion + 1`) — do not guarantee that once even one autosave has run
- * in between, so this is handled here instead of by changing that repository (out of this task's
- * scope, and its existing tests rely on the simpler current contract).
- *
- * [lastPublishedConfigVersion] is populated once, at load time
- * ([AgentDraft.fromDefinition]), from whatever [AgentDefinition.configVersion] this agent had
- * BEFORE this editing session began (0 for a never-published agent — [saveDraft] having already
- * forced any unpublished row to 0 itself, so this is never a lossy read), and is carried in memory
- * across every subsequent autosave (autosave never touches this field — see
- * [AgentBuilderViewModel]). At publish time the target version is `lastPublishedConfigVersion + 1`;
- * see [AgentBuilderViewModel.publish] for how that target is actually reached.
+ * [configVersion] is display/bookkeeping only — the stored row's version is owned by the repository
+ * ([com.aiopenpocket.agent.core.agent.UserAgentRepository.saveDraft] preserves it, `publish` bumps
+ * it), so whatever this field holds is never what gets persisted.
  */
 data class AgentDraft(
   val id: String,
   val status: AgentStatus = AgentStatus.DRAFT,
-  val lastPublishedConfigVersion: Long = 0L,
+  val configVersion: Long = 0L,
   val name: String = "",
   val description: String = "",
   val iconKey: String = "",
@@ -93,6 +115,8 @@ data class AgentDraft(
   val includeSharedProfile: Boolean = false,
   val allowedWidgetTemplates: Set<String> = emptySet(),
   val hooks: List<AgentHook> = emptyList(),
+  /** This agent's own authored skills — see the class KDoc. Their ids are mirrored into [skillIds]. */
+  val customSkills: List<CustomSkillDraft> = emptyList(),
   /** See [AgentSourceContext]. Never round-tripped through [toDefinition]/[fromDefinition] — it
    * describes how THIS session's draft was opened, not a property of the published agent. */
   val sourceContext: AgentSourceContext = AgentSourceContext.MANUAL,
@@ -118,9 +142,12 @@ data class AgentDraft(
     memoryPolicy = AgentMemoryPolicy(namespace = "agent:$id:", includeSharedProfile = includeSharedProfile),
     allowedWidgetTemplates = allowedWidgetTemplates,
     hooks = hooks,
-    configVersion = lastPublishedConfigVersion,
+    configVersion = configVersion,
     status = status,
   )
+
+  /** [customSkills] as the Room rows a save writes. Timestamps are stamped by the repository, not here. */
+  fun toSkillEntities(): List<UserSkillEntity> = customSkills.map { it.toEntity(agentId = id) }
 
   companion object {
     /** A brand-new, empty draft under a freshly generated [id] — see [AgentBuilderViewModel.newDraft].
@@ -129,11 +156,16 @@ data class AgentDraft(
     fun new(id: String, sourceContext: AgentSourceContext = AgentSourceContext.MANUAL): AgentDraft =
       AgentDraft(id = id, sourceContext = sourceContext)
 
-    /** Mirrors an existing (draft/published/archived) [AgentDefinition] into an editable [AgentDraft]. */
-    fun fromDefinition(definition: AgentDefinition): AgentDraft = AgentDraft(
+    /**
+     * Mirrors an existing (draft/published/archived) [AgentDefinition] into an editable [AgentDraft].
+     * [customSkills] comes from Room separately (see [AgentBuilderViewModel.loadExisting]) — an
+     * [AgentDefinition] only carries skill ids, never their bodies.
+     */
+    fun fromDefinition(definition: AgentDefinition, customSkills: List<CustomSkillDraft> = emptyList()): AgentDraft = AgentDraft(
       id = definition.id,
       status = definition.status,
-      lastPublishedConfigVersion = definition.configVersion,
+      configVersion = definition.configVersion,
+      customSkills = customSkills,
       name = definition.name,
       description = definition.description,
       iconKey = definition.iconKey,
@@ -177,7 +209,10 @@ data class AgentBuilderUiState(
   val errors: List<ValidationIssue> = emptyList(),
   val isSaving: Boolean = false,
   val canPublish: Boolean = false,
-  val executionMode: ExecutionMode = ExecutionMode.LIVE,
+  // PREVIEW, не LIVE: первый тестовый прогон черновика не должен по-настоящему слать SMS/писать в
+  // календарь. Раньше поле дефолтилось в LIVE, а PREVIEW навязывался LaunchedEffect'ом в роуте —
+  // подпорка, которая держалась только на том, что экран всегда открывают именно через тот роут.
+  val executionMode: ExecutionMode = ExecutionMode.PREVIEW,
   val isLoading: Boolean = true,
   val saveError: String? = null,
 )

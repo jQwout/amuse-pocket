@@ -4,6 +4,7 @@ package com.aiopenpocket.ui.agents.builder
 
 import com.aiopenpocket.agent.core.agent.AgentValidator
 import com.aiopenpocket.agent.core.agent.ValidationIssue
+import com.aiopenpocket.agent.core.skill.validateUserSkill
 
 /**
  * Slices [AgentValidator]'s domain rules across the six [BuilderStep]s so the wizard can show each
@@ -37,16 +38,24 @@ object AgentBuilderValidator {
   )
 
   /**
-   * Every rule violation [draft] currently has, per [AgentValidator.validate]. [ownedCustomSkillIds]
-   * defaults to empty, matching every caller in this task: Task 19 does not author custom skills
-   * ([com.aiopenpocket.agent.core.skill.UserSkillEntity] rows) itself, so a [AgentDraft.skillIds]
-   * entry only ever validates here if it is one of [AgentValidator.KNOWN_SKILL_IDS] — exactly the
-   * set [AgentBuilderViewModel.publish] itself will be checked against too (it also passes no custom
-   * skills to the repository), so this live, per-keystroke validation and the actual publish-time
-   * validation never disagree.
+   * Every rule violation [draft] currently has: [AgentValidator.validate] over the definition, plus
+   * [validateUserSkill] over each authored custom skill body.
+   *
+   * The agent's own [AgentDraft.customSkills] ids are passed as `ownedCustomSkillIds`, so a skill the
+   * user just authored validates as known instead of `unknown_skill`. This has to agree exactly with
+   * what [com.aiopenpocket.agent.core.agent.UserAgentRepository.publish] checks — it derives the same
+   * set from the `skills` argument [AgentBuilderViewModel.publish] passes it — or the wizard would
+   * green-light a publish the repository then rejects (or vice versa).
+   *
+   * Skill-content issues are re-tagged to the `skillIds` field so [FIELD_TO_STEP] routes them to the
+   * CAPABILITIES step where that editor lives; [validateUserSkill]'s own field names
+   * (`instructionsMarkdown`/`id`) describe a `user_skills` row, not a wizard control.
    */
-  fun validate(draft: AgentDraft, ownedCustomSkillIds: Set<String> = emptySet()): List<ValidationIssue> =
-    AgentValidator.validate(draft.toDefinition(), ownedCustomSkillIds)
+  fun validate(draft: AgentDraft): List<ValidationIssue> =
+    AgentValidator.validate(draft.toDefinition(), draft.customSkills.mapTo(mutableSetOf()) { it.id }) +
+      draft.toSkillEntities().flatMap { skill ->
+        validateUserSkill(skill).map { it.copy(field = "skillIds") }
+      }
 
   /** Which [BuilderStep] owns [issue] — the step whose UI should display it inline. */
   fun stepFor(issue: ValidationIssue): BuilderStep = FIELD_TO_STEP[issue.field] ?: BuilderStep.IDENTITY

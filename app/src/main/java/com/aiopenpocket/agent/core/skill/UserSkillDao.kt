@@ -37,4 +37,14 @@ interface UserSkillDao {
 
   @Upsert
   suspend fun upsert(entity: UserSkillEntity)
+
+  /**
+   * Delete half of the wholesale replace both
+   * [com.aiopenpocket.agent.core.agent.UserAgentRepository.saveDraft] and `publish` do inside their
+   * own transaction (mirrors [com.aiopenpocket.agent.core.hook.AgentHookDao.deleteForAgent]): a
+   * custom skill the user removed in the wizard has to actually leave `user_skills`, or
+   * [SkillRegistry] keeps offering it to the model forever.
+   */
+  @Query("DELETE FROM user_skills WHERE agentId = :agentId")
+  suspend fun deleteForAgent(agentId: String)
 }

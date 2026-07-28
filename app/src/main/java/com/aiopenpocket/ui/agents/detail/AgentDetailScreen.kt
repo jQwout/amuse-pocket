@@ -196,7 +196,10 @@ private fun AgentDetailModalHeader(
             .background(if (enabled) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)),
         )
         Text(
-          text = agent.id,
+          // id + версия конфига: версия — единственный видимый признак того, что «Опубликовать»
+          // действительно зафиксировало правки (шапка со «status · vN» уехала вместе со старым
+          // полноэкранным вариантом, и версию перестало быть видно вообще где-либо).
+          text = "${agent.id} · v${agent.configVersion}",
           style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace),
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
           maxLines = 1,

@@ -9,13 +9,17 @@ import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.agent.AgentStatus
 import com.aiopenpocket.agent.core.agent.DefaultAgentResolver
 import com.aiopenpocket.agent.core.agent.UserAgentRepository
+import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.hook.AgentHookRepository
+import com.aiopenpocket.agent.core.hook.HookActionType
+import com.aiopenpocket.agent.core.hook.HookEvent
 import com.aiopenpocket.agent.core.skill.SkillRegistry
 import com.aiopenpocket.agent.core.skill.UserSkillRepository
 import com.aiopenpocket.data.database.AppDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -54,7 +58,12 @@ class AgentBuilderViewModelTest {
   private lateinit var userAgentRepository: UserAgentRepository
   private lateinit var agentResolver: AgentResolver
   private lateinit var skillRegistry: SkillRegistry
+  private lateinit var userSkillRepository: UserSkillRepository
   private lateinit var vm: AgentBuilderViewModel
+
+  /** Flipped by the autosave-failure test to make the next repository write throw — see [setUp]. */
+  private var failSaves = false
+  private var ticks = 1_000L
 
   @Before
   fun setUp() {
@@ -68,16 +77,23 @@ class AgentBuilderViewModelTest {
       .setQueryExecutor(testDispatcher.asExecutor())
       .setTransactionExecutor(testDispatcher.asExecutor())
       .build()
-    userAgentRepository = UserAgentRepository(db, db.userAgentDao(), AgentHookRepository(db.agentHookDao()))
+    // Клок — заодно точка отказа для теста «автосейв упал»: db.close() для этого больше не годится,
+    // Room переоткрывает in-memory базу и запись молча проходит в новую пустую (проверено). Бросок
+    // из clock() внутри withTransaction — детерминированный сбой ровно того вызова, что нас волнует.
+    userAgentRepository = UserAgentRepository(db, db.userAgentDao(), AgentHookRepository(db.agentHookDao())) {
+      if (failSaves) error("disk on fire") else ticks++
+    }
     agentResolver = DefaultAgentResolver(userAgentRepository)
-    skillRegistry = SkillRegistry(emptySet(), UserSkillRepository(db.userSkillDao()))
-    vm = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry)
+    userSkillRepository = UserSkillRepository(db.userSkillDao())
+    skillRegistry = SkillRegistry(emptySet(), userSkillRepository)
+    vm = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository)
   }
 
   @After
   fun tearDown() {
     Dispatchers.resetMain()
-    runCatching { db.close() } // one test closes db itself to simulate a save failure - safe to no-op twice
+    failSaves = false
+    runCatching { db.close() }
   }
 
   /** Fills every field [com.aiopenpocket.agent.core.agent.AgentValidator.validate] requires, leaving defaultMode/allowedModes/memoryPolicy at their already-consistent [AgentDraft] defaults. */
@@ -117,7 +133,7 @@ class AgentBuilderViewModelTest {
     assertTrue(state.draft.id.startsWith("budget-"))
     assertEquals("Копия: Бюджет", state.draft.name)
     assertEquals(AgentStatus.DRAFT, state.draft.status)
-    assertEquals(0L, state.draft.lastPublishedConfigVersion)
+    assertEquals(0L, state.draft.configVersion)
     assertFalse(state.isLoading)
 
     // Persisted right away, not left to the debounced autosave.
@@ -187,7 +203,7 @@ class AgentBuilderViewModelTest {
     advanceUntilIdle()
     assertNull(vm.state.value.saveError)
 
-    db.close() // forces the NEXT repository call to throw, simulating a real save failure
+    failSaves = true // the NEXT repository write throws, simulating a real save failure
 
     vm.updateDraft { it.copy(name = "После сбоя") }
     advanceUntilIdle()
@@ -223,7 +239,7 @@ class AgentBuilderViewModelTest {
     advanceUntilIdle()
 
     assertEquals(AgentStatus.PUBLISHED, vm.state.value.draft.status)
-    assertEquals(1L, vm.state.value.draft.lastPublishedConfigVersion)
+    assertEquals(1L, vm.state.value.draft.configVersion)
     assertNull(vm.state.value.saveError)
     val stored = userAgentRepository.get(id)
     assertEquals(AgentStatus.PUBLISHED, stored?.status)
@@ -257,7 +273,7 @@ class AgentBuilderViewModelTest {
 
     // A brand new instance, as if the old one were destroyed and recreated (rotation / process death) -
     // it must not rely on any in-memory state from `vm`, only on what the repository has stored.
-    val recreated = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry)
+    val recreated = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository)
     recreated.loadExisting(id)
     advanceUntilIdle()
 
@@ -270,15 +286,14 @@ class AgentBuilderViewModelTest {
   // --- CRITICAL: monotonic configVersion across an edit-then-republish cycle -----------------------
 
   /**
-   * Directly exercises the Task 19 brief's flagged correctness rule.
-   * [com.aiopenpocket.agent.core.agent.UserAgentRepository.saveDraft] unconditionally resets the
-   * STORED row to `DRAFT`/`configVersion=0` on every autosave (proven mid-test below), so a naive
-   * single [com.aiopenpocket.agent.core.agent.UserAgentRepository.publish] call after an edit would
-   * always report `1`, never the true next version. [AgentBuilderViewModel.publish] must route
-   * around that so configVersion is strictly increasing across repeated edit/publish cycles.
+   * Editing a PUBLISHED agent must not quietly unpublish it, and republishing must ratchet the
+   * version. Autosave used to force the stored row back to `DRAFT`/`configVersion=0` on every
+   * keystroke, which (a) dropped the agent out of the roster the moment the user typed, with no
+   * listing surface to find it again, and (b) forced `publish` into a catch-up loop to recover the
+   * true next version. Both halves are asserted here.
    */
   @Test
-  fun `editing and republishing an already-published agent yields a strictly increasing configVersion`() = runTest(testDispatcher) {
+  fun `editing a published agent keeps it published and republishing ratchets configVersion`() = runTest(testDispatcher) {
     vm.newDraft()
     val id = vm.state.value.draft.id
     fillValidFields()
@@ -289,18 +304,21 @@ class AgentBuilderViewModelTest {
     assertEquals(1L, userAgentRepository.get(id)?.configVersion)
     assertEquals(AgentStatus.PUBLISHED, userAgentRepository.get(id)?.status)
 
-    // Edit the published agent - autosave fires and resets the STORED row back to DRAFT/0 well
-    // before the user republishes (this is `saveDraft`'s own documented, tested contract).
     vm.updateDraft { it.copy(description = "Обновлённое, но всё ещё валидное описание.") }
     advanceUntilIdle()
-    assertEquals("sanity check: autosave really does reset the stored row", AgentStatus.DRAFT, userAgentRepository.get(id)?.status)
-    assertEquals(0L, userAgentRepository.get(id)?.configVersion)
+    assertEquals(
+      "autosave must NOT unpublish an agent mid-edit — that is what made it vanish from the roster",
+      AgentStatus.PUBLISHED,
+      userAgentRepository.get(id)?.status,
+    )
+    assertEquals("autosave must not touch the published version either", 1L, userAgentRepository.get(id)?.configVersion)
+    assertTrue("and it stays in the roster while being edited", userAgentRepository.observePublished().first().any { it.id == id })
 
     vm.publish()
     advanceUntilIdle()
     assertEquals("must be 2, not a reset-to-1 regression", 2L, userAgentRepository.get(id)?.configVersion)
     assertEquals(AgentStatus.PUBLISHED, userAgentRepository.get(id)?.status)
-    assertEquals(2L, vm.state.value.draft.lastPublishedConfigVersion)
+    assertEquals(2L, vm.state.value.draft.configVersion)
 
     // A third cycle - proves this is a general fix, not a one-off "1 -> 2" coincidence.
     vm.updateDraft { it.copy(description = "Ещё одно валидное описание для третьего цикла.") }
@@ -308,5 +326,117 @@ class AgentBuilderViewModelTest {
     vm.publish()
     advanceUntilIdle()
     assertEquals(3L, userAgentRepository.get(id)?.configVersion)
+  }
+
+  // --- custom skills: authored in the wizard, actually persisted -------------------------------------
+
+  /**
+   * The «Свой навык» editor used to hand only the skill's ID to the draft and drop its body, so
+   * nothing ever wrote a `user_skills` row: validation then reported `unknown_skill`, which blocked
+   * both «Далее» and «Опубликовать», and no control could clear it again. The whole draft must
+   * survive an autosave, validate, publish, and come back on reload.
+   */
+  @Test
+  fun `an authored custom skill is publishable and survives a reload`() = runTest(testDispatcher) {
+    vm.newDraft()
+    val id = vm.state.value.draft.id
+    fillValidFields()
+    vm.updateDraft {
+      it.copy(
+        customSkills = listOf(
+          CustomSkillDraft(id = "running-plan", name = "План бега", description = "d", whenToUse = "w", instructions = "# Как бегать"),
+        ),
+        skillIds = it.skillIds + "running-plan",
+      )
+    }
+    advanceUntilIdle()
+
+    assertTrue("an authored skill must not read as unknown_skill", vm.state.value.errors.isEmpty())
+    assertTrue(vm.state.value.canPublish)
+
+    vm.publish()
+    advanceUntilIdle()
+    assertNull(vm.state.value.saveError)
+    assertEquals(AgentStatus.PUBLISHED, userAgentRepository.get(id)?.status)
+    assertEquals("# Как бегать", userSkillRepository.getForAgent(id).single().instructionsMarkdown)
+
+    val recreated = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository)
+    recreated.loadExisting(id)
+    advanceUntilIdle()
+    assertEquals("running-plan", recreated.state.value.draft.customSkills.single().id)
+    assertEquals("# Как бегать", recreated.state.value.draft.customSkills.single().instructions)
+  }
+
+  /** A blank body is a real validation error the wizard has to surface — on the step that owns the editor. */
+  @Test
+  fun `a custom skill with an empty body blocks publish on the capabilities step`() = runTest(testDispatcher) {
+    vm.newDraft()
+    fillValidFields()
+    vm.updateDraft {
+      it.copy(
+        customSkills = listOf(CustomSkillDraft(id = "empty-skill", name = "Пустой", instructions = "")),
+        skillIds = it.skillIds + "empty-skill",
+      )
+    }
+    advanceUntilIdle()
+
+    assertFalse(vm.state.value.canPublish)
+    assertEquals(
+      setOf(BuilderStep.CAPABILITIES),
+      AgentBuilderValidator.blockingSteps(vm.state.value.errors),
+    )
+  }
+
+  // --- hooks survive leaving the wizard before publish -----------------------------------------------
+
+  /** Hooks used to live only in memory until publish, so closing the wizard first silently threw them away. */
+  @Test
+  fun `a hook added to an unpublished draft survives a reload`() = runTest(testDispatcher) {
+    vm.newDraft()
+    val id = vm.state.value.draft.id
+    fillValidFields()
+    vm.updateDraft {
+      it.copy(
+        hooks = listOf(
+          AgentHook(
+            id = "hook-1",
+            agentId = it.id,
+            event = HookEvent.BEFORE_TOOL,
+            conditionType = "always",
+            conditionJson = "{}",
+            actionType = HookActionType.REQUIRE_APPROVAL,
+            actionJson = "{}",
+            priority = 0,
+            enabled = true,
+          ),
+        ),
+      )
+    }
+    advanceUntilIdle()
+
+    val recreated = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository)
+    recreated.loadExisting(id)
+    advanceUntilIdle()
+    assertEquals("hook-1", recreated.state.value.draft.hooks.single().id)
+    assertEquals(HookActionType.REQUIRE_APPROVAL, recreated.state.value.draft.hooks.single().actionType)
+  }
+
+  // --- drafts are reachable --------------------------------------------------------------------------
+
+  /** An unpublished draft has to appear in SOME listing, or the wizard writes rows nothing can ever reopen. */
+  @Test
+  fun `an unpublished draft is listed by observeDrafts and not by the roster`() = runTest(testDispatcher) {
+    vm.newDraft()
+    val id = vm.state.value.draft.id
+    fillValidFields()
+    advanceUntilIdle()
+
+    assertEquals(listOf(id), agentResolver.observeDrafts().first().map { it.id })
+    assertFalse(agentResolver.observeRoster().first().any { it.id == id })
+
+    vm.publish()
+    advanceUntilIdle()
+    assertTrue(agentResolver.observeDrafts().first().isEmpty())
+    assertTrue(agentResolver.observeRoster().first().any { it.id == id })
   }
 }

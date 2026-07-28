@@ -128,6 +128,43 @@ class AgentsViewModelTest {
     assertTrue("archived agent must not appear", roster.userAgents.none { it.id == "to-be-archived" })
   }
 
+  /**
+   * A draft is not startable, so it stays out of «Мои агенты» — but it must still be listed
+   * SOMEWHERE, or an agent whose wizard was closed before «Опубликовать» is written to Room by
+   * autosave and then shown by nothing at all. Archived agents stay invisible in both sections.
+   */
+  @Test
+  fun `unfinished drafts get their own roster section, archived agents get none`() = runTest(testDispatcher) {
+    userAgentRepository.saveDraft(customUserAgent("draft-agent"))
+    userAgentRepository.saveDraft(customUserAgent("to-be-archived"))
+    userAgentRepository.publish("to-be-archived")
+    userAgentRepository.archive("to-be-archived")
+
+    val roster = vm.roster.first()
+
+    assertEquals(listOf("draft-agent"), roster.drafts.map { it.id })
+    assertTrue("archived agent is in no section at all", roster.drafts.none { it.id == "to-be-archived" })
+  }
+
+  /**
+   * Editing a published agent must not drop it out of «Мои агенты». Autosave used to force the row
+   * back to DRAFT on every keystroke, so a user who typed one character and backed out lost the
+   * agent from the roster entirely.
+   */
+  @Test
+  fun `saving edits to a published agent keeps it in the published section`() = runTest(testDispatcher) {
+    userAgentRepository.saveDraft(customUserAgent("live-agent"))
+    userAgentRepository.publish("live-agent")
+
+    val edited = userAgentRepository.get("live-agent")!!.copy(name = "Переименованный")
+    userAgentRepository.saveDraft(edited)
+
+    val roster = vm.roster.first()
+    assertEquals(listOf("live-agent"), roster.userAgents.map { it.id })
+    assertEquals("Переименованный", roster.userAgents.single().name)
+    assertTrue("and it must NOT show up as an unfinished draft", roster.drafts.isEmpty())
+  }
+
   // --- Open chat ---------------------------------------------------------------------------------
 
   /**

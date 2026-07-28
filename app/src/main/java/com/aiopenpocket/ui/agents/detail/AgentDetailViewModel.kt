@@ -303,7 +303,10 @@ class AgentDetailViewModel(
     viewModelScope.launch {
       try {
         if (definition.status == AgentStatus.PUBLISHED) {
-          userAgentRepository.saveDraft(definition)
+          // unpublish, а не saveDraft: снятие с публикации теперь отдельное явное действие —
+          // saveDraft больше не сбрасывает статус (иначе автосейв визарда снимал агента с
+          // публикации на каждой правке). Выключенный агент виден в секции «Черновики».
+          userAgentRepository.unpublish(definition.id)
         } else {
           userAgentRepository.publish(definition.id, hooks = _state.value.hooks.map { it.hook })
         }

@@ -17,20 +17,26 @@ import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import dev.zacsweers.metro.binding
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
- * Deterministic roster sections (Task 21) over [AgentResolver.observeRoster]'s single flat list —
- * «Шаблоны» (read-only presets) and «Мои агенты» (the caller's own PUBLISHED custom agents; drafts
- * and archived agents never reach [AgentResolver.observeRoster] in the first place, so there is
- * nothing further to filter out here). Order within each list matches [AgentResolver.observeRoster]'s
- * own order (presets in catalog order, published customs most-recently-updated first).
+ * Deterministic roster sections (Task 21): «Шаблоны» (read-only presets) and «Мои агенты» (the
+ * caller's own PUBLISHED custom agents) from [AgentResolver.observeRoster]'s single flat list, plus
+ * «Черновики» from [AgentResolver.observeDrafts]. Order within each list matches its source flow's
+ * own order (presets in catalog order, everything else most-recently-updated first).
+ *
+ * [drafts] is a separate list, not a third slice of the roster flow: a draft is deliberately NOT
+ * startable (it never becomes a chat), it is only resumable in the wizard. But it does need to be
+ * SHOWN somewhere — every autosave writes one, and before this section existed nothing listed them,
+ * so closing the wizard before «Опубликовать» left the agent in Room with no way back to it.
+ * ARCHIVED agents stay out of both lists, as before.
  */
 data class AgentRosterSections(
   val presets: List<AgentDefinition> = emptyList(),
   val userAgents: List<AgentDefinition> = emptyList(),
+  val drafts: List<AgentDefinition> = emptyList(),
 )
 
 @Inject
@@ -42,15 +48,15 @@ class AgentsViewModel(
   private val userPreferencesRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
-  /** Roster split into «Шаблоны»/«Мои агенты» — see [AgentRosterSections]. */
-  val roster: StateFlow<AgentRosterSections> = agentResolver.observeRoster()
-    .map { all ->
+  /** Roster split into «Шаблоны»/«Мои агенты»/«Черновики» — see [AgentRosterSections]. */
+  val roster: StateFlow<AgentRosterSections> =
+    combine(agentResolver.observeRoster(), agentResolver.observeDrafts()) { all, drafts ->
       AgentRosterSections(
         presets = all.filter { it.source == AgentSource.PRESET },
         userAgents = all.filter { it.source == AgentSource.USER },
+        drafts = drafts,
       )
-    }
-    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AgentRosterSections())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AgentRosterSections())
 
   /**
    * Агенты, для которых прямо сейчас идёт открытие чата. Защита от быстрого двойного тапа: без неё

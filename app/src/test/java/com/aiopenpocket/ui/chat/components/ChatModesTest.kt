@@ -45,8 +45,19 @@ class ChatModesTest {
     assertEquals(listOf(AgentMode.CHAT, AgentMode.PLAN), availableModesFor(agent(AgentMode.CHAT, AgentMode.PLAN)))
   }
 
+  /**
+   * Chat used to be force-added to every agent-bound selector, so an agent the builder authored as
+   * "GOAL only" still offered plain chat — and, since a new chat also always opened in CHAT, that is
+   * what the user actually got. The selector now reflects exactly what was configured.
+   */
   @Test
-  fun `Chat is always offered even when an agent's allowedModes omits it`() {
-    assertEquals(listOf(AgentMode.CHAT, AgentMode.GOAL), availableModesFor(agent(AgentMode.GOAL)))
+  fun `an agent that excludes Chat does not get Chat offered back`() {
+    assertEquals(listOf(AgentMode.GOAL), availableModesFor(agent(AgentMode.GOAL)))
+  }
+
+  /** Defensive floor only — AgentValidator makes an empty allowedModes unreachable through the wizard. */
+  @Test
+  fun `an agent with no allowed modes at all falls back to Chat instead of an empty selector`() {
+    assertEquals(listOf(AgentMode.CHAT), availableModesFor(agent()))
   }
 }

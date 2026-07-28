@@ -36,6 +36,7 @@ import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.hook.HookActionType
 import com.aiopenpocket.agent.core.hook.HookEngine
 import com.aiopenpocket.agent.core.hook.HookEvent
+import com.aiopenpocket.agent.loop.AgentMode
 import java.util.UUID
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
@@ -55,6 +56,16 @@ private data class ToolNameConditionDto(val names: Set<String> = emptySet())
 @Serializable
 private data class TextPayloadDto(val text: String = "")
 
+/** Plan-lifecycle events (Structured Plan Engine Task 9) — only reachable for an agent that can run PLAN/GOAL. */
+private val PLAN_EVENTS = setOf(
+  HookEvent.ON_PLAN_CREATED,
+  HookEvent.ON_PLAN_APPROVED,
+  HookEvent.BEFORE_PLAN_STEP,
+  HookEvent.AFTER_PLAN_STEP,
+  HookEvent.ON_PLAN_BLOCKED,
+  HookEvent.ON_PLAN_COMPLETED,
+)
+
 /**
  * Add/edit dialog for one [AgentHook] (Task 20 plan Step 5): only offers
  * [HookEngine.actionsAllowedFor]-compatible actions for the chosen [HookEvent], and NEVER shows
@@ -67,9 +78,15 @@ fun HookEditorDialog(
   agentId: String,
   existing: AgentHook?,
   agentToolNames: Set<String>,
+  allowedModes: Set<AgentMode>,
   onSave: (AgentHook) -> Unit,
   onDismiss: () -> Unit,
 ) {
+  // Плановые события агенту без PLAN/GOAL предлагать нечего — они у него не наступят никогда, и
+  // хук на них выглядел бы как настроенное, но молча мёртвое правило (design spec 12.2).
+  val plansEnabled = AgentMode.PLAN in allowedModes || AgentMode.GOAL in allowedModes
+  val selectableEvents = HookEvent.entries.filter { plansEnabled || it !in PLAN_EVENTS || it == existing?.event }
+
   var event by remember { mutableStateOf(existing?.event ?: HookEvent.BEFORE_TOOL) }
   var actionType by remember { mutableStateOf(existing?.actionType ?: HookActionType.LOG) }
   var scopedToTools by remember { mutableStateOf(existing?.let(::parseScopedToolNames) ?: emptySet()) }
@@ -96,7 +113,7 @@ fun HookEditorDialog(
         Text(text = "Когда", style = MaterialTheme.typography.labelLarge)
         Spacer(modifier = Modifier.height(4.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-          HookEvent.entries.forEach { candidate ->
+          selectableEvents.forEach { candidate ->
             FilterChip(
               selected = event == candidate,
               onClick = { event = candidate },

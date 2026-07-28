@@ -14,7 +14,10 @@ import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -102,6 +105,25 @@ class AgentBuilderTestViewModel(
       mode = mode,
       executionMode = executionMode,
     )
+  }
+
+  /**
+   * The test conversation is scratch space, not something the user asked to keep: it was created
+   * silently by opening the wizard's TEST step and then left behind in the chat list forever, one
+   * «Тест агента» per builder session. Cleaning it up here (the ViewModel dies with the builder
+   * screen) keeps that list to conversations the user actually started.
+   *
+   * Fire-and-forget on [AppScope]-free `NonCancellable` grounds is unnecessary: the delete is a
+   * single local Room write, and if the process dies mid-way the leftover row is exactly the old
+   * behavior, not a corruption.
+   */
+  override fun onCleared() {
+    super.onCleared()
+    val convId = _testConversationId.value ?: return
+    _testConversationId.value = null
+    CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+      runCatching { conversationRepository.deleteConversation(convId) }
+    }
   }
 
   companion object {

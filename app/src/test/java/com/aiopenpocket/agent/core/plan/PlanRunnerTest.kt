@@ -137,6 +137,7 @@ class PlanRunnerTest {
   private class FakeAgentResolver(private val agent: AgentDefinition?) : AgentResolver {
     override suspend fun resolve(id: String?): AgentDefinition? = agent.takeIf { id != null }
     override fun observeRoster() = throw NotImplementedError("Not needed by PlanRunner.")
+    override fun observeDrafts() = throw NotImplementedError("Not needed by PlanRunner.")
   }
 
   /**

@@ -66,6 +66,7 @@ import dev.zacsweers.metrox.viewmodel.metroViewModel
 fun AgentsScreen(
   onOpenAgent: (String) -> Unit,
   onCreateAgent: () -> Unit,
+  onEditDraft: (String) -> Unit,
   onNavigateBack: () -> Unit,
 ) {
   val viewModel: AgentsViewModel = metroViewModel()
@@ -132,6 +133,27 @@ fun AgentsScreen(
           Spacer(modifier = Modifier.height(12.dp))
         }
       }
+
+      // Черновики — отдельной секцией и с переходом СРАЗУ в конструктор: у недособранного агента
+      // ещё нет чата, экран агента показывать нечего. Без этой секции черновик, который исправно
+      // писал автосейв, не показывал вообще никто.
+      if (roster.drafts.isNotEmpty()) {
+        item {
+          Spacer(modifier = Modifier.height(8.dp))
+          RosterSectionLabel("Черновики")
+          Spacer(modifier = Modifier.height(4.dp))
+          Text(
+            text = "Недособранные агенты — продолжи и опубликуй.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+          )
+          Spacer(modifier = Modifier.height(10.dp))
+        }
+        items(roster.drafts, key = { it.id }) { agent ->
+          AgentCard(agent = agent, onClick = { onEditDraft(agent.id) }, isDraft = true)
+          Spacer(modifier = Modifier.height(12.dp))
+        }
+      }
     }
   }
 }
@@ -143,7 +165,7 @@ private fun RosterSectionLabel(text: String) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun AgentCard(agent: AgentDefinition, onClick: () -> Unit) {
+private fun AgentCard(agent: AgentDefinition, onClick: () -> Unit, isDraft: Boolean = false) {
   GlassCard(
     modifier = Modifier.fillMaxWidth(),
     shape = RoundedCornerShape(16.dp),
@@ -174,15 +196,23 @@ private fun AgentCard(agent: AgentDefinition, onClick: () -> Unit) {
         }
         Column(modifier = Modifier.weight(1f)) {
           Text(
-            text = agent.name,
+            // Черновик часто ещё безымянный: пустое имя дало бы карточку-призрак без единой подписи.
+            text = agent.name.ifBlank { "Без имени" },
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
           )
           Spacer(modifier = Modifier.height(2.dp))
           Text(
-            text = agent.description,
+            text = agent.description.ifBlank { if (isDraft) "Черновик без описания" else "" },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+          )
+        }
+        if (isDraft) {
+          Text(
+            text = "Черновик",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.tertiary,
           )
         }
       }
