@@ -100,7 +100,11 @@ fun AgentDetailScreen(
         )
         Column(
           modifier = Modifier
-            .fillMaxSize()
+            // weight(1f), а НЕ fillMaxSize: в Column нон-weighted fillMaxSize берёт полную высоту
+            // родителя (не «оставшуюся после шапки/табов»), и низ прокрутки уходил под экран —
+            // хвост секций был недостижим. weight отдаёт скроллу ровно остаток высоты.
+            .fillMaxWidth()
+            .weight(1f)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
             .padding(bottom = 40.dp)
