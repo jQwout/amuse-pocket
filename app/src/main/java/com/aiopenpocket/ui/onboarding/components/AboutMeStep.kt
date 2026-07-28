@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -42,6 +43,14 @@ fun AboutMeStep(
   extractionError: String?,
   onTextChange: (String) -> Unit,
   modifier: Modifier = Modifier,
+  /**
+   * Отступы под плавающие стеклянные острова онбординга (высоты меряются в [OnboardingContent]).
+   * Применяются ПОСЛЕ [verticalScroll] — тогда контент прокручивается ПОД стеклом и его есть чему
+   * размывать. Если инсетить вьюпорт снаружи (через [modifier]), полотно под острова не заезжает
+   * и блюр сэмплит одну аврору — плоская плашка (см. ChatScreen.kt:396-400 и спеку
+   * docs/superpowers/specs/2026-07-28-onboarding-liquid-glass-design.md).
+   */
+  contentPadding: PaddingValues = PaddingValues(),
 ) {
   val persona = PersonaCatalog.findById(personaId)
   val askLine = personaAsk(personaId)
@@ -50,6 +59,7 @@ fun AboutMeStep(
     modifier = modifier
       .fillMaxSize()
       .verticalScroll(rememberScrollState())
+      .padding(contentPadding)
       .padding(horizontal = 20.dp, vertical = 16.dp),
   ) {
     Text(
