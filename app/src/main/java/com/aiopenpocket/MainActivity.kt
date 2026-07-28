@@ -189,6 +189,8 @@ class MainActivity : ComponentActivity() {
                                     AgentsScreen(
                                         onOpenAgent = { id -> navController.navigate("agent/$id") },
                                         onCreateAgent = { navController.navigate("agent_builder") },
+                                        // Черновик открывается сразу в конструкторе: чата у него ещё нет.
+                                        onEditDraft = { id -> navController.navigate("agent_builder/$id") },
                                         onNavigateBack = { navController.popBackStack() },
                                     )
                                 }

@@ -27,4 +27,11 @@ class UserSkillRepository(
 
   /** Every custom skill as a [Skill] — [SkillRegistry.catalog] dedups against built-ins itself. */
   suspend fun getAll(): List<Skill> = dao.getAllMetadata().map { it.toSkill(dao) }
+
+  /**
+   * Full rows (bodies included) owned by [agentId] — the builder wizard's read side, so reopening an
+   * agent restores the custom skills it authored instead of showing an empty editor over skill ids
+   * that then fail to validate.
+   */
+  suspend fun getForAgent(agentId: String): List<UserSkillEntity> = dao.getByAgent(agentId)
 }

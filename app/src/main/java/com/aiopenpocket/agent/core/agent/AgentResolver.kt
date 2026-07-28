@@ -36,6 +36,13 @@ interface AgentResolver {
 
   /** Every agent a user can start a NEW chat with: every preset, then every PUBLISHED custom agent. */
   fun observeRoster(): Flow<List<AgentDefinition>>
+
+  /**
+   * Unfinished USER drafts — deliberately NOT part of [observeRoster] (a draft is not startable), but
+   * they still need a listing surface of their own, or an agent whose wizard was closed before
+   * «Опубликовать» is written to Room by autosave and then shown by nothing.
+   */
+  fun observeDrafts(): Flow<List<AgentDefinition>>
 }
 
 @Inject
@@ -49,6 +56,8 @@ class DefaultAgentResolver(
     if (id == null) return null
     return MiniAgentCatalog.get(id)?.toDefinition() ?: userAgentRepository.get(id)
   }
+
+  override fun observeDrafts(): Flow<List<AgentDefinition>> = userAgentRepository.observeDrafts()
 
   override fun observeRoster(): Flow<List<AgentDefinition>> =
     userAgentRepository.observePublished().map { published ->

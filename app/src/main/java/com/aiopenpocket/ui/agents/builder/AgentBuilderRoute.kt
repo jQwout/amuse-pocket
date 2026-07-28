@@ -6,7 +6,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import com.aiopenpocket.agent.core.policy.ExecutionMode
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 /**
@@ -37,11 +36,6 @@ fun AgentBuilderRoute(
   // Null agentId -> new draft, otherwise load the existing one. Call once per navigation entry, not
   // on every recomposition (mirrors OnboardingScreen's `LaunchedEffect(editMode) { ... }`).
   LaunchedEffect(agentId, sourceContext) { viewModel.start(agentId, sourceContext) }
-
-  // Task 20 brief: Preview must be the TEST step's default run mode. AgentBuilderUiState's own field
-  // default is ExecutionMode.LIVE (see its KDoc for why) — Task 19 is frozen/out of this task's file
-  // scope, so this is the compensating fix, scoped to the route rather than that state class.
-  LaunchedEffect(Unit) { viewModel.setExecutionMode(ExecutionMode.PREVIEW) }
 
   // Binds the TEST step's dedicated test conversation once the real draft id is known (a brand-new
   // draft's id is only generated once `start`'s coroutine finishes — see AgentBuilderViewModel.newDraft).

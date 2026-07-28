@@ -291,6 +291,11 @@ class ChatViewModel(
                     title = agent?.name ?: title,
                     lessonMode = lesson != null,
                     lesson = lesson,
+                    // Режим по умолчанию из конфига агента. До этого поле конструктора не читал вообще
+                    // никто, кроме тестового прогона в самом визарде: чат всегда открывался в CHAT,
+                    // и «агент только для GOAL» вёл себя как обычный чат. Ставим один раз на открытие
+                    // диалога (resetFor выше уже сбросил состояние), дальше решает выбор пользователя.
+                    agentMode = agent?.defaultMode ?: it.agentMode,
                 )
             }
             if (lesson != null) startOrResumeLesson(id, lesson)

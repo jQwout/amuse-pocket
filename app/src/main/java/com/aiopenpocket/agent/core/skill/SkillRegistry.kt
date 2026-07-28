@@ -32,6 +32,14 @@ class SkillRegistry(
   suspend fun ids(): Set<String> = builtInMap.keys + userSkillRepository.ids()
 
   /**
+   * Built-in ids only. The builder's «Навыки» picker needs exactly this: [ids] is app-wide, so
+   * offering it there let one agent tick another agent's custom skill — which `publish` then refuses
+   * («навык уже принадлежит другому агенту»), after the wizard had already accepted it. An agent's
+   * OWN custom skills are shown from its draft, not from this registry.
+   */
+  fun builtInIds(): Set<String> = builtInMap.keys
+
+  /**
    * Дешёвый каталог для системного промпта (уровень 1) — только метаданные, без чтения ассетов.
    * Пусто, если навыков нет (тогда секция в промпт не добавляется). [allowedIds] не null — сужает
    * каталог до навыков конкретного агента (built-in и/или его собственные custom), см.

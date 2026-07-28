@@ -45,14 +45,24 @@ class UserAgentRepository @Inject constructor(
   }
 
   /** Published USER agents only, most-recently-updated first — what the roster shows. */
-  fun observePublished(): Flow<List<AgentDefinition>> =
-    dao.observePublished().map { rows ->
-      // Quarantine an agent row that no longer decodes (schema drift with no Room migration — a renamed
-      // enum) instead of throwing: one bad row must not crash the roster Flow AgentsViewModel collects,
-      // or the agents screen crash-loops on every open. Decode is wrapped in runCatching (pure, no
-      // suspend inside); withHooks (suspend) runs only on the survivors.
-      rows.mapNotNull { row -> runCatching { row.toDefinition() }.getOrNull()?.withHooks() }
-    }
+  fun observePublished(): Flow<List<AgentDefinition>> = dao.observePublished().map { it.decode() }
+
+  /**
+   * Never-published USER drafts, most-recently-updated first — the roster's «Черновики» section.
+   * Without this read a draft was written by every autosave and then shown by nothing: the only
+   * listing surface ([observePublished]) filters drafts out by design, so an agent whose wizard was
+   * closed before «Опубликовать» stayed in Room forever with no way back into it.
+   */
+  fun observeDrafts(): Flow<List<AgentDefinition>> = dao.observeDrafts().map { it.decode() }
+
+  /**
+   * Quarantine an agent row that no longer decodes (schema drift with no Room migration — a renamed
+   * enum) instead of throwing: one bad row must not crash a roster Flow AgentsViewModel collects, or
+   * the agents screen crash-loops on every open. Decode is wrapped in runCatching (pure, no suspend
+   * inside); withHooks (suspend) runs only on the survivors.
+   */
+  private suspend fun List<UserAgentEntity>.decode(): List<AgentDefinition> =
+    mapNotNull { row -> runCatching { row.toDefinition() }.getOrNull()?.withHooks() }
 
   suspend fun get(id: String): AgentDefinition? =
     dao.get(id)?.let { runCatching { it.toDefinition() }.getOrNull() }?.withHooks()
@@ -61,20 +71,65 @@ class UserAgentRepository @Inject constructor(
   private suspend fun AgentDefinition.withHooks(): AgentDefinition = copy(hooks = hookRepository.getForAgent(id))
 
   /**
-   * Upserts [definition] as a DRAFT at configVersion 0, regardless of the status/configVersion the
-   * caller passed in — [publish] is the only path that ever advances past DRAFT/0. Preserves the
-   * original row's `createdAt` across repeated edits of the same id; only `updatedAt` moves.
+   * Persists [definition] as the agent's current stored state, together with its [hooks] and custom
+   * [skills] — the wizard's autosave path. Preserves the original row's `createdAt` across repeated
+   * edits of the same id; only `updatedAt` moves.
+   *
+   * ### Status/configVersion are PRESERVED, not reset
+   *
+   * This used to force `status = DRAFT, configVersion = 0` on every call. Chained with the builder's
+   * per-keystroke autosave that meant editing a PUBLISHED agent silently unpublished it: it dropped
+   * out of [observePublished] (i.e. out of «Мои агенты») the moment the user typed one character, and
+   * closing the wizard without pressing «Опубликовать» left it invisible — recoverable only through an
+   * already-existing chat with it. It also forced `publish` to be called in a catch-up LOOP to walk a
+   * reset configVersion back up to its true next value.
+   *
+   * Now an existing row keeps whatever [AgentStatus]/`configVersion` it already had, so:
+   * - a never-published draft stays [AgentStatus.DRAFT] at 0 (and is listed by [observeDrafts]);
+   * - a published agent stays published and keeps its version — its edits go live for the NEXT run
+   *   (every run takes an immutable snapshot, so nothing in flight changes), and «Опубликовать»
+   *   becomes the explicit "cut a new configVersion" action rather than the only way back into the
+   *   roster;
+   * - an archived agent stays archived until an explicit [publish] revives it.
+   *
+   * [hooks] and [skills] are written here too (wholesale replace, scoped to this agent) rather than
+   * only inside [publish]: hooks/custom skills authored in the wizard used to exist purely in memory
+   * until publish, so closing the wizard first threw them away. Rows owned by a DIFFERENT agent are
+   * skipped rather than silently stolen — [publish] still hard-fails on that case, this path just
+   * refuses to make it worse mid-edit.
    */
-  suspend fun saveDraft(definition: AgentDefinition): AgentDefinition {
+  suspend fun saveDraft(
+    definition: AgentDefinition,
+    skills: List<UserSkillEntity> = emptyList(),
+    hooks: List<AgentHook> = definition.hooks,
+  ): AgentDefinition = database.withTransaction {
     val now = clock()
     val existing = dao.get(definition.id)
+    val storedStatus = existing?.let { runCatching { AgentStatus.valueOf(it.status) }.getOrNull() }
     val entity = UserAgentEntity.fromDefinition(
-      definition = definition.copy(status = AgentStatus.DRAFT, configVersion = 0L),
+      definition = definition.copy(
+        status = storedStatus ?: AgentStatus.DRAFT,
+        configVersion = existing?.configVersion ?: 0L,
+      ),
       createdAt = existing?.createdAt ?: now,
       updatedAt = now,
     )
     dao.upsert(entity)
-    return entity.toDefinition().withHooks()
+
+    val skillDao = database.userSkillDao()
+    val ownSkills = skills.filter { skill ->
+      skill.agentId == definition.id && skillDao.get(skill.id)?.agentId.let { it == null || it == definition.id }
+    }
+    val skillCreatedAt = ownSkills.associate { it.id to (skillDao.get(it.id)?.createdAt ?: now) }
+    skillDao.deleteForAgent(definition.id)
+    ownSkills.forEach { skillDao.upsert(it.stamped(skillCreatedAt.getValue(it.id), now)) }
+
+    val ownHooks = hooks.filter { hook ->
+      hook.agentId == definition.id && hookRepository.getOwnerAgentId(hook.id).let { it == null || it == definition.id }
+    }
+    hookRepository.replaceForAgent(definition.id, ownHooks)
+
+    entity.toDefinition().withHooks()
   }
 
   /**
@@ -145,10 +200,24 @@ class UserAgentRepository @Inject constructor(
       updatedAt = clock(),
     )
     dao.upsert(published)
-    skills.forEach { skillDao.upsert(it) }
+    // Wholesale replace, matching hooks' own replaceForAgent semantics (and saveDraft's): a plain
+    // per-row upsert left a custom skill the user DELETED in the wizard alive in Room, so
+    // SkillRegistry kept advertising it in the prompt catalog after it was gone from the agent.
+    val now = clock()
+    val skillCreatedAt = skills.associate { it.id to (skillDao.get(it.id)?.createdAt ?: now) }
+    skillDao.deleteForAgent(id)
+    skills.forEach { skillDao.upsert(it.stamped(skillCreatedAt.getValue(it.id), now)) }
     hookRepository.replaceForAgent(id, hooks)
     published.toDefinition().withHooks()
   }
+
+  /**
+   * Both write paths own the row's timestamps rather than trusting the caller's: the builder builds
+   * [UserSkillEntity] values out of pure UI state and has no clock of its own (this repository's
+   * [clock] is the one tests substitute), so it passes 0s and lets the write stamp them.
+   */
+  private fun UserSkillEntity.stamped(createdAt: Long, updatedAt: Long): UserSkillEntity =
+    copy(createdAt = createdAt, updatedAt = updatedAt)
 
   /** Archives [id] in place — the row survives (per the [AgentStatus.ARCHIVED] contract), just drops out of [observePublished]. */
   suspend fun archive(id: String) {
@@ -156,16 +225,60 @@ class UserAgentRepository @Inject constructor(
     dao.updateStatus(id, AgentStatus.ARCHIVED.name, clock())
   }
 
-  /** Forks a read-only preset's [AgentDefinition] into a brand new, independently editable USER draft. */
-  suspend fun clonePreset(preset: AgentDefinition): AgentDefinition {
-    val newId = "${preset.id}-${UUID.randomUUID().toString().take(8)}"
-    val cloned = preset.copy(
+  /**
+   * Demotes a published agent back to [AgentStatus.DRAFT] — the explicit "выключить агента" action,
+   * the mirror of [publish]. This used to be expressed as a bare [saveDraft] call, relying on that
+   * method's old side effect of force-resetting status; now that saveDraft preserves status (so a
+   * per-keystroke autosave can't silently unpublish anything), demoting has to say so out loud.
+   * [configVersion] is deliberately left alone: the agent keeps the version it was published at, so
+   * re-enabling it bumps to the next one rather than restarting the count.
+   */
+  suspend fun unpublish(id: String) {
+    requireNotNull(dao.get(id)) { "Unknown agent id: $id" }
+    dao.updateStatus(id, AgentStatus.DRAFT.name, clock())
+  }
+
+  /**
+   * Forks any [AgentDefinition] — a read-only preset OR another user agent — into a brand new,
+   * independently editable USER draft under a fresh id and memory namespace.
+   *
+   * Hooks and custom skills are forked too, under fresh ids owned by the copy. Without that, a fork
+   * of a user agent carried `skillIds`/`hooks` still pointing at the SOURCE's rows: [saveDraft] and
+   * [publish] both refuse to reassign another agent's rows, so the hooks silently vanished and every
+   * copied custom skill id validated as `unknown_skill` — an error the wizard shows on «Возможности»
+   * with no control able to clear it, wedging the copy permanently. A `skillIds` entry that is
+   * neither a built-in nor one of the source's own custom skills is dropped rather than copied
+   * forward, for the same reason.
+   */
+  suspend fun clonePreset(source: AgentDefinition): AgentDefinition = database.withTransaction {
+    val suffix = UUID.randomUUID().toString().take(8)
+    val newId = "${source.id}-$suffix"
+    val sourceSkills = database.userSkillDao().getByAgent(source.id)
+    val skillIdMapping = sourceSkills.associate { it.id to "${it.id}-$suffix" }
+    val now = clock()
+
+    val clonedSkills = sourceSkills.map { skill ->
+      skill.copy(
+        id = skillIdMapping.getValue(skill.id),
+        agentId = newId,
+        createdAt = now,
+        updatedAt = now,
+      )
+    }
+    val clonedHooks = source.hooks.map { hook ->
+      hook.copy(id = UUID.randomUUID().toString(), agentId = newId)
+    }
+    val cloned = source.copy(
       id = newId,
       source = AgentSource.USER,
       status = AgentStatus.DRAFT,
       configVersion = 0L,
-      memoryPolicy = preset.memoryPolicy.copy(namespace = "agent:$newId:"),
+      skillIds = source.skillIds.mapNotNullTo(mutableSetOf()) { id ->
+        if (id in AgentValidator.KNOWN_SKILL_IDS) id else skillIdMapping[id]
+      },
+      memoryPolicy = source.memoryPolicy.copy(namespace = "agent:$newId:"),
+      hooks = clonedHooks,
     )
-    return saveDraft(cloned)
+    saveDraft(cloned, skills = clonedSkills, hooks = clonedHooks)
   }
 }

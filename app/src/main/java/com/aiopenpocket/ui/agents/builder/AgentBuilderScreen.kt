@@ -188,6 +188,8 @@ private fun BuilderStepContent(
       draft = state.draft,
       executionMode = state.executionMode,
       canPublish = state.canPublish,
+      // Полный набор ошибок, а не срез этого шага: сводка на «Проверке» именно про другие шаги.
+      errors = state.errors,
       isSaving = state.isSaving,
       testStatus = testStatus,
       testStreamingText = testStreamingText,

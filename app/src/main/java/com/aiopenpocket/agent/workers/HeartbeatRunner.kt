@@ -123,13 +123,12 @@ class HeartbeatRunner(
     )
     // Security (Task 22): scope to THIS agent's own declared tools intersected with the background
     // allowlist — never the full SAFE_TOOL_NAMES regardless of the bound agent's own (possibly much
-    // narrower) scope. A null/empty toolNames means "no explicit restriction" (same convention
-    // PrePromptAssembler.assemble uses via `agent?.toolNames?.takeIf { it.isNotEmpty() }` for the
-    // interactive loop's tool scoping), which here still caps out at SAFE_TOOL_NAMES rather than
-    // opening up to every registered tool — there is no "unrestricted" background run.
-    val scopedToolNames = agent?.toolNames?.takeIf { it.isNotEmpty() }
-      ?.let { it intersect SAFE_TOOL_NAMES }
-      ?: SAFE_TOOL_NAMES
+    // narrower) scope. An EMPTY toolNames is an empty scope, not "no restriction": this used to fall
+    // through to the whole SAFE_TOOL_NAMES set via `takeIf { it.isNotEmpty() }`, so an agent the user
+    // had stripped of every tool still woke up in the background holding the full background
+    // allowlist. The interactive path (PrePromptAssembler) already scopes a bound agent even when its
+    // set is empty; this is the same rule. Only an UNBOUND heartbeat (agent == null) gets the default.
+    val scopedToolNames = agent?.toolNames?.intersect(SAFE_TOOL_NAMES) ?: SAFE_TOOL_NAMES
     val tools = toolRegistry.getSchemasFor(scopedToolNames)
 
     // interactiveApproval=false (Task 9): this is a headless WorkManager wakeup with no screen that

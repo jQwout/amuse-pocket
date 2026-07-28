@@ -104,6 +104,7 @@ fun HooksStep(
       agentId = draft.id,
       existing = editingHook,
       agentToolNames = draft.toolNames,
+      allowedModes = draft.allowedModes,
       onSave = { hook ->
         onUpdateDraft { d ->
           val replaced = d.hooks.any { it.id == hook.id }

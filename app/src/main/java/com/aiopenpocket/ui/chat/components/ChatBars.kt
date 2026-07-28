@@ -1,6 +1,7 @@
 package com.aiopenpocket.ui.chat.components
 
 // @trace streaming-llm-chat-6595a1
+// @trace user-agent-builder-848153
 //
 // Панели-бары экрана чата: поиск, выбор режима, подтверждение инструмента, запись голоса и
 // управление уроком. Вынесены из ChatScreen.kt — каждая самодостаточна и общается с экраном
@@ -146,10 +147,14 @@ internal fun ChatSearchBar(
  */
 internal fun availableModesFor(agent: AgentDefinition?): List<AgentMode> {
   if (agent == null) return listOf(AgentMode.CHAT, AgentMode.REFLECT)
-  // The agent's own allowedModes, filtered into a stable display order; Chat is always offered as the
-  // base mode. TUTOR is lesson-internal and never appears here (it is not in the display order).
+  // Exactly the agent's own allowedModes, in a stable display order. Chat used to be force-added even
+  // when the builder had explicitly excluded it, so an agent authored as "GOAL only" still offered —
+  // and opened in — plain chat, quietly undoing that setting. TUTOR is lesson-internal and never
+  // appears here (it is not in the display order). Empty is impossible (AgentValidator requires
+  // defaultMode ∈ allowedModes, and the wizard refuses to empty the set), but fall back to Chat
+  // rather than render a selector with no options at all if a hand-edited row ever gets there.
   val displayOrder = listOf(AgentMode.CHAT, AgentMode.PLAN, AgentMode.GOAL, AgentMode.REFLECT)
-  return displayOrder.filter { it == AgentMode.CHAT || it in agent.allowedModes }
+  return displayOrder.filter { it in agent.allowedModes }.ifEmpty { listOf(AgentMode.CHAT) }
 }
 
 // internal: зовётся и с экрана чата, и из превью-каркаса.

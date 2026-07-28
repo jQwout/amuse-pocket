@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Checkbox
@@ -24,6 +25,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -39,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.AgentValidator
 import com.aiopenpocket.agent.core.agent.ValidationIssue
 import com.aiopenpocket.ui.agents.builder.AgentDraft
+import com.aiopenpocket.ui.agents.builder.CustomSkillDraft
 import com.aiopenpocket.ui.components.glass.glassCardSurface
 
 /**
@@ -134,10 +137,32 @@ fun CapabilitiesStep(
       }
     }
 
-    Spacer(modifier = Modifier.height(16.dp))
+    Spacer(modifier = Modifier.height(12.dp))
+    OwnSkillsList(
+      skills = draft.customSkills,
+      onDelete = { id ->
+        onUpdateDraft { d ->
+          d.copy(customSkills = d.customSkills.filterNot { it.id == id }, skillIds = d.skillIds - id)
+        }
+      },
+    )
+
+    Spacer(modifier = Modifier.height(8.dp))
     CustomSkillEditor(
       existingIds = availableSkillIds + draft.skillIds,
-      onCreate = { id -> onUpdateDraft { d -> d.copy(skillIds = d.skillIds + id) } },
+      onCreate = { skill ->
+        // Навык кладём в черновик ЦЕЛИКОМ (не только id): тело сохранит автосейв, а валидатор
+        // увидит его в customSkills и не выдаст unknown_skill — раньше id уезжал в skillIds один,
+        // и шаг намертво вставал на ошибке, которую нечем было снять.
+        onUpdateDraft { d -> d.copy(customSkills = d.customSkills + skill, skillIds = d.skillIds + skill.id) }
+      },
+    )
+
+    Spacer(modifier = Modifier.height(20.dp))
+    MemorySection(
+      agentId = draft.id,
+      includeSharedProfile = draft.includeSharedProfile,
+      onToggleSharedProfile = { checked -> onUpdateDraft { it.copy(includeSharedProfile = checked) } },
     )
 
     Spacer(modifier = Modifier.height(20.dp))
@@ -255,18 +280,79 @@ private fun ExpanderHeader(title: String, expanded: Boolean, onClick: () -> Unit
   }
 }
 
+/** Per-agent memory rail: what the agent's own namespace is, and whether it also reads the shared profile. */
+@Composable
+private fun MemorySection(agentId: String, includeSharedProfile: Boolean, onToggleSharedProfile: (Boolean) -> Unit) {
+  Column {
+    Text(text = "Память", style = MaterialTheme.typography.titleMedium)
+    Spacer(modifier = Modifier.height(4.dp))
+    Text(
+      // Изоляция — не обещание в промпте, а код (MemoryTools/FileTools режут по префиксу), поэтому
+      // показываем пользователю реальный namespace, а не общую фразу «память изолирована».
+      text = "Свои факты агент пишет и читает только в своём пространстве " +
+        "«agent:${agentId.ifBlank { "…" }}:» — другие агенты его не видят.",
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(modifier = Modifier.height(12.dp))
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+      Column(modifier = Modifier.weight(1f)) {
+        Text(text = "Общий профиль пользователя", style = MaterialTheme.typography.bodyMedium)
+        Text(
+          text = "Агент дополнительно ЧИТАЕТ общие факты о тебе. Писать в них он не может.",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+      Switch(
+        checked = includeSharedProfile,
+        onCheckedChange = onToggleSharedProfile,
+        modifier = Modifier.testTag("agent_builder_shared_profile"),
+      )
+    }
+  }
+}
+
+/** This agent's own authored skills, with a way to remove one — the control whose absence used to make a mistyped custom skill unfixable. */
+@Composable
+private fun OwnSkillsList(skills: List<CustomSkillDraft>, onDelete: (String) -> Unit) {
+  if (skills.isEmpty()) return
+  Column {
+    Text(text = "Свои навыки агента", style = MaterialTheme.typography.titleSmall)
+    Spacer(modifier = Modifier.height(6.dp))
+    skills.forEach { skill ->
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .glassCardSurface()
+          .testTag("agent_builder_own_skill_${skill.id}")
+          .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Column(modifier = Modifier.weight(1f)) {
+          Text(text = skill.name.ifBlank { skill.id }, style = MaterialTheme.typography.titleSmall)
+          Text(
+            text = skill.id,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
+        IconButton(onClick = { onDelete(skill.id) }) {
+          Icon(imageVector = Icons.Default.Delete, contentDescription = "Удалить навык")
+        }
+      }
+      Spacer(modifier = Modifier.height(6.dp))
+    }
+  }
+}
+
 /**
- * Authors a NEW custom skill's manifest ([SkillManifest]-shaped: name/description/whenToUse) and
- * instruction body. Only [id] actually flows anywhere from Task 20: it is appended to
- * [AgentDraft.skillIds] via [onCreate] — the only lever [com.aiopenpocket.ui.agents.builder.AgentBuilderViewModel]
- * exposes over the draft. [name]/[description]/[whenToUse]/instructions are captured here for the
- * manifest-fields UI the brief asks for, but nothing in Task 19's ViewModel/[AgentDraft] carries
- * custom-skill CONTENT (`UserSkillEntity` rows are written only inside
- * [com.aiopenpocket.agent.core.agent.UserAgentRepository.publish], which this wizard never calls with
- * a `skills` argument) — see the Task 20 report for this gap.
+ * Authors a NEW custom skill: manifest fields (name/description/whenToUse) plus the instruction body.
+ * The WHOLE [CustomSkillDraft] goes to [onCreate] — it used to hand over the bare id and drop
+ * everything else on the floor, which left the draft referencing a skill that did not exist anywhere.
  */
 @Composable
-private fun CustomSkillEditor(existingIds: Set<String>, onCreate: (String) -> Unit) {
+private fun CustomSkillEditor(existingIds: Set<String>, onCreate: (CustomSkillDraft) -> Unit) {
   var expanded by remember { mutableStateOf(false) }
   var id by remember { mutableStateOf("") }
   var name by remember { mutableStateOf("") }
@@ -302,11 +388,20 @@ private fun CustomSkillEditor(existingIds: Set<String>, onCreate: (String) -> Un
       val canCreate = id.isNotBlank() && id !in existingIds && name.isNotBlank() && instructions.isNotBlank()
       TextButton(
         onClick = {
-          onCreate(id)
+          onCreate(
+            CustomSkillDraft(
+              id = id,
+              name = name,
+              description = description,
+              whenToUse = whenToUse,
+              instructions = instructions,
+            ),
+          )
           id = ""; name = ""; description = ""; whenToUse = ""; instructions = ""
           expanded = false
         },
         enabled = canCreate,
+        modifier = Modifier.testTag("agent_builder_add_skill"),
       ) { Text("Добавить навык") }
     }
   }

@@ -109,6 +109,7 @@ class PlanPlannerTest {
   private class FakeAgentResolver(private val agents: Map<String, AgentDefinition>) : AgentResolver {
     override suspend fun resolve(id: String?): AgentDefinition? = id?.let { agents[it] }
     override fun observeRoster(): Flow<List<AgentDefinition>> = flowOf(agents.values.toList())
+    override fun observeDrafts(): Flow<List<AgentDefinition>> = flowOf(emptyList())
   }
 
   private class FakeTemplateRegistry(private val templates: Map<String, PlanTemplate>) : PlanTemplateRegistry {

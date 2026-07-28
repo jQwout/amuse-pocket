@@ -29,9 +29,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.AgentStatus
+import com.aiopenpocket.agent.core.agent.ValidationIssue
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.agent.loop.TurnStatus
+import com.aiopenpocket.ui.agents.builder.AgentBuilderValidator
 import com.aiopenpocket.ui.agents.builder.AgentDraft
+import com.aiopenpocket.ui.agents.builder.BuilderStep
 import com.aiopenpocket.ui.components.glass.glassCardSurface
 
 /**
@@ -46,6 +49,8 @@ fun TestAndPublishStep(
   draft: AgentDraft,
   executionMode: ExecutionMode,
   canPublish: Boolean,
+  /** EVERY current issue, across all six steps — not just this step's. Rendered as the publish-gate summary. */
+  errors: List<ValidationIssue>,
   isSaving: Boolean,
   testStatus: TurnStatus?,
   testStreamingText: String,
@@ -127,13 +132,24 @@ fun TestAndPublishStep(
 
     Text(text = "Публикация", style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(8.dp))
-    if (!canPublish) {
-      Text(
-        text = "Нельзя опубликовать, пока на предыдущих шагах есть ошибки.",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.error,
-        modifier = Modifier.padding(bottom = 8.dp),
-      )
+    // Не просто «есть ошибки», а какие именно и на каком шаге: иначе с последнего шага непонятно,
+    // куда возвращаться, — а ошибка вполне может сидеть на первом.
+    if (errors.isNotEmpty()) {
+      Column(modifier = Modifier.padding(bottom = 8.dp)) {
+        Text(
+          text = "Нельзя опубликовать, пока не исправлено:",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.error,
+        )
+        errors.forEach { issue ->
+          Text(
+            text = "• ${stepTitle(AgentBuilderValidator.stepFor(issue))}: ${issue.message}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(top = 2.dp),
+          )
+        }
+      }
     }
     Button(
       onClick = onPublish,
@@ -146,13 +162,28 @@ fun TestAndPublishStep(
       Text(if (draft.status == AgentStatus.PUBLISHED) "Опубликовать изменения" else "Опубликовать")
     }
 
-    if (draft.status == AgentStatus.PUBLISHED) {
+    // Архивирование доступно и черновику: иначе брошенный черновик остаётся в секции «Черновики»
+    // навсегда и убрать его оттуда нечем. Смысл действия один и тот же (строка выживает, из списков
+    // уходит) — меняется только формулировка.
+    if (draft.status != AgentStatus.ARCHIVED) {
       Spacer(modifier = Modifier.height(8.dp))
-      TextButton(onClick = onArchive) {
-        Text("Архивировать агента", color = MaterialTheme.colorScheme.error)
+      TextButton(onClick = onArchive, modifier = Modifier.testTag("agent_builder_archive")) {
+        Text(
+          text = if (draft.status == AgentStatus.PUBLISHED) "Архивировать агента" else "Удалить черновик",
+          color = MaterialTheme.colorScheme.error,
+        )
       }
     }
   }
+}
+
+private fun stepTitle(step: BuilderStep): String = when (step) {
+  BuilderStep.IDENTITY -> "Основа"
+  BuilderStep.INSTRUCTIONS -> "Инструкции"
+  BuilderStep.CAPABILITIES -> "Возможности"
+  BuilderStep.LOOP -> "Режимы"
+  BuilderStep.HOOKS -> "Хуки"
+  BuilderStep.TEST -> "Проверка"
 }
 
 @Composable

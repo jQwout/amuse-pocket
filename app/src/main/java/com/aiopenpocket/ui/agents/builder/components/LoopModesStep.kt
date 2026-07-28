@@ -6,19 +6,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.ValidationIssue
@@ -33,7 +29,7 @@ import com.aiopenpocket.ui.agents.builder.AgentDraft
  */
 private val SELECTABLE_MODES = listOf(AgentMode.CHAT, AgentMode.PLAN, AgentMode.GOAL, AgentMode.REFLECT)
 
-/** Step 4/6: which loop modes this agent can run in, and whether it sees the shared user profile. */
+/** Step 4/6: which loop modes this agent can run in, and which one a new chat with it opens in. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LoopModesStep(
@@ -96,23 +92,11 @@ fun LoopModesStep(
     ErrorText(errors, "defaultMode")
 
     Spacer(modifier = Modifier.height(20.dp))
-    Row(
-      modifier = Modifier.fillMaxWidth(),
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      Column(modifier = Modifier.weight(1f)) {
-        Text(text = "Общий профиль пользователя", style = MaterialTheme.typography.titleMedium)
-        Text(
-          text = "Агент дополнительно видит общие факты о тебе (не только свою память).",
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
-      Switch(
-        checked = draft.includeSharedProfile,
-        onCheckedChange = { checked -> onUpdateDraft { it.copy(includeSharedProfile = checked) } },
-      )
-    }
+    Text(
+      text = "Режим по умолчанию — тот, в котором открывается новый чат с этим агентом.",
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
   }
 }
 

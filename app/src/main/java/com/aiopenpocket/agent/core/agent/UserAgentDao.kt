@@ -20,6 +20,10 @@ interface UserAgentDao {
   @Query("SELECT * FROM user_agents WHERE status = 'PUBLISHED' ORDER BY updatedAt DESC")
   fun observePublished(): Flow<List<UserAgentEntity>>
 
+  /** Backs [UserAgentRepository.observeDrafts] — the roster's «Черновики» section. ARCHIVED stays out of both listings. */
+  @Query("SELECT * FROM user_agents WHERE status = 'DRAFT' ORDER BY updatedAt DESC")
+  fun observeDrafts(): Flow<List<UserAgentEntity>>
+
   @Upsert
   suspend fun upsert(entity: UserAgentEntity)
 

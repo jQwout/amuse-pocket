@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -272,5 +273,53 @@ class AgentBuilderScreenTest {
     composeTestRule.onNodeWithTag("agent_builder_preview").assertExists()
     composeTestRule.onNodeWithTag("agent_builder_live_test").assertExists()
     composeTestRule.onNodeWithTag("agent_builder_publish").assertExists()
+  }
+
+  // --- custom skills: authored, listed, removable ----------------------------------------------------
+
+  /**
+   * An authored custom skill must be listed with a way to delete it. Without that row the only
+   * evidence of a custom skill was its id in `skillIds`, which no control could reach — so a
+   * mistyped one blocked «Далее»/«Опубликовать» with no way out but abandoning the draft.
+   */
+  @Test
+  fun capabilities_step_lists_an_authored_custom_skill_and_offers_to_delete_it() {
+    val draft = validDraft().let {
+      it.copy(
+        customSkills = listOf(CustomSkillDraft(id = "running-plan", name = "План бега", instructions = "# тело")),
+        skillIds = it.skillIds + "running-plan",
+      )
+    }
+    render(state = capabilitiesState(draft), availableSkillIds = setOf("budget"))
+
+    composeTestRule.onNodeWithTag("agent_builder_own_skill_running-plan").assertExists()
+    composeTestRule.onNodeWithContentDescription("Удалить навык").assertExists()
+  }
+
+  /** The memory rail moved onto «Возможности» (design spec 11.2) and now names the real namespace. */
+  @Test
+  fun capabilities_step_shows_the_agents_own_memory_namespace() {
+    render(state = capabilitiesState(validDraft(id = "agent-mem-1")), availableSkillIds = setOf("budget"))
+
+    composeTestRule.onNodeWithTag("agent_builder_shared_profile").assertExists()
+    composeTestRule.onNodeWithText("agent:agent-mem-1:", substring = true).assertExists()
+  }
+
+  /** Publishing is gated on errors from OTHER steps, so the last step has to say which ones and where. */
+  @Test
+  fun test_step_lists_the_blocking_errors_by_step() {
+    val draft = AgentDraft.new(id = "agent-test-blank")
+    val errors = AgentBuilderValidator.validate(draft)
+    val state = AgentBuilderUiState(
+      draft = draft,
+      step = BuilderStep.TEST,
+      errors = errors,
+      canPublish = AgentBuilderValidator.canPublish(errors),
+      isLoading = false,
+    )
+    render(state = state)
+
+    composeTestRule.onNodeWithTag("agent_builder_publish").assertIsNotEnabled()
+    composeTestRule.onNodeWithText("Основа: Имя агента не может быть пустым", substring = true).assertExists()
   }
 }

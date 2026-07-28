@@ -8,9 +8,9 @@ import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.agent.AgentStatus
 import com.aiopenpocket.agent.core.agent.UserAgentRepository
-import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.agent.core.skill.SkillRegistry
+import com.aiopenpocket.agent.core.skill.UserSkillRepository
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
@@ -45,12 +45,17 @@ class AgentBuilderViewModel(
   private val userAgentRepository: UserAgentRepository,
   private val agentResolver: AgentResolver,
   private val skillRegistry: SkillRegistry,
+  private val userSkillRepository: UserSkillRepository,
 ) : ViewModel() {
 
   private val _state = MutableStateFlow(AgentBuilderUiState(draft = AgentDraft.new(id = "")))
   val state: StateFlow<AgentBuilderUiState> = _state.asStateFlow()
 
-  /** Every skill id the CAPABILITIES step can offer to pick from (built-in + already-authored custom, app-wide). */
+  /**
+   * Built-in skill ids the CAPABILITIES step offers as tickable chips. Deliberately NOT
+   * [SkillRegistry.ids] (which is app-wide): another agent's custom skill can never be ticked here,
+   * because `publish` refuses to reassign it. The agent's own custom skills come from the draft.
+   */
   private val _availableSkillIds = MutableStateFlow<Set<String>>(emptySet())
   val availableSkillIds: StateFlow<Set<String>> = _availableSkillIds.asStateFlow()
 
@@ -75,9 +80,7 @@ class AgentBuilderViewModel(
     viewModelScope.launch {
       pendingEdits.debounce(AUTOSAVE_DEBOUNCE_MS).filterNotNull().collect { draft -> persist(draft) }
     }
-    viewModelScope.launch {
-      _availableSkillIds.value = runCatching { skillRegistry.ids() }.getOrDefault(emptySet())
-    }
+    _availableSkillIds.value = runCatching { skillRegistry.builtInIds() }.getOrDefault(emptySet())
   }
 
   // --- Entry points (Task 20 route wiring calls exactly one of these per navigation entry) -------
@@ -115,12 +118,16 @@ class AgentBuilderViewModel(
       _state.update { it.copy(isLoading = true) }
       try {
         val resolved = agentResolver.resolve(agentId)
-        applyLoaded(resolved?.let(AgentDraft::fromDefinition) ?: AgentDraft.new(agentId))
+        applyLoaded(resolved?.let { AgentDraft.fromDefinition(it, customSkillsOf(agentId)) } ?: AgentDraft.new(agentId))
       } catch (e: Exception) {
         _state.update { it.copy(isLoading = false, saveError = e.message ?: "Load failed") }
       }
     }
   }
+
+  /** This agent's own authored skill bodies — [AgentDefinition] carries only their ids. */
+  private suspend fun customSkillsOf(agentId: String): List<CustomSkillDraft> =
+    userSkillRepository.getForAgent(agentId).map(CustomSkillDraft::fromEntity)
 
   /**
    * Forks [sourceAgentId] (a preset OR an existing user agent — [AgentResolver.resolve] covers
@@ -140,8 +147,13 @@ class AgentBuilderViewModel(
           return@launch
         }
         val cloned = userAgentRepository.clonePreset(source)
-        val renamed = userAgentRepository.saveDraft(cloned.copy(name = "Копия: ${source.name}"))
-        applyLoaded(AgentDraft.fromDefinition(renamed))
+        val clonedSkills = customSkillsOf(cloned.id)
+        val renamed = userAgentRepository.saveDraft(
+          definition = cloned.copy(name = "Копия: ${source.name}"),
+          skills = clonedSkills.map { it.toEntity(cloned.id) },
+          hooks = cloned.hooks,
+        )
+        applyLoaded(AgentDraft.fromDefinition(renamed, clonedSkills))
       } catch (e: Exception) {
         _state.update { it.copy(isLoading = false, saveError = e.message ?: "Clone failed") }
       }
@@ -188,18 +200,11 @@ class AgentBuilderViewModel(
   // --- Publish / archive ---------------------------------------------------------------------------
 
   /**
-   * Validates then publishes the current draft. See [AgentDraft]'s KDoc ("carrying the published
-   * configVersion") for the full explanation of why this cannot be a single
-   * [UserAgentRepository.publish] call for an already-published agent: the debounced autosave that
-   * ran while the user typed has already reset the STORED configVersion to 0 (`saveDraft`'s own
-   * contract), so the repository's own "current stored value + 1" computation would report `1` — a
-   * regression for any agent published more than once before.
-   *
-   * Fix, without touching that repository (out of this task's scope): flush the latest edits, then
-   * call `publish` in a loop — idempotent, same id/skills/hooks every time — until the stored
-   * configVersion reaches [AgentDraft.lastPublishedConfigVersion] + 1, closing exactly the gap the
-   * autosave reset opened. For the common case (never published before, or nothing edited since the
-   * last publish) this is exactly one call, identical to calling the repository directly.
+   * Flushes the latest edits, then publishes — one [UserAgentRepository.publish] call, which bumps
+   * the stored `configVersion` by exactly one. (This used to need a catch-up LOOP: `saveDraft` reset
+   * the stored version to 0 on every autosave, so a single publish after any edit reported `1`
+   * instead of the true next version. `saveDraft` now preserves status/version, so the ratchet is
+   * simply correct and the loop is gone.)
    */
   fun publish() {
     viewModelScope.launch {
@@ -211,14 +216,17 @@ class AgentBuilderViewModel(
       }
       _state.update { it.copy(isSaving = true) }
       try {
-        userAgentRepository.saveDraft(draft.toDefinition())
-        val target = draft.lastPublishedConfigVersion + 1
-        val published = publishUntil(draft.id, draft.hooks, target)
+        userAgentRepository.saveDraft(draft.toDefinition(), skills = draft.toSkillEntities(), hooks = draft.hooks)
+        val published = userAgentRepository.publish(
+          id = draft.id,
+          skills = draft.toSkillEntities(),
+          hooks = draft.hooks,
+        )
         _state.update {
           it.copy(
             isSaving = false,
             saveError = null,
-            draft = it.draft.copy(status = published.status, lastPublishedConfigVersion = published.configVersion),
+            draft = it.draft.copy(status = published.status, configVersion = published.configVersion),
           )
         }
       } catch (e: Exception) {
@@ -245,20 +253,6 @@ class AgentBuilderViewModel(
 
   // --- Internals -------------------------------------------------------------------------------------
 
-  /** Calls [UserAgentRepository.publish] repeatedly (it only ever ratchets stored configVersion by +1 per call) until it reaches [targetVersion]. See [publish]'s KDoc for why this is necessary. [MAX_PUBLISH_CATCH_UP] is a defensive ceiling only — [targetVersion] is always this agent's own real publish count plus one, never attacker- or user-controlled. */
-  private suspend fun publishUntil(id: String, hooks: List<AgentHook>, targetVersion: Long): AgentDefinition {
-    var published = userAgentRepository.publish(id, hooks = hooks)
-    var attempts = 1
-    while (published.configVersion < targetVersion) {
-      check(attempts < MAX_PUBLISH_CATCH_UP) {
-        "configVersion did not converge to $targetVersion for '$id' after $attempts publish() calls"
-      }
-      published = userAgentRepository.publish(id, hooks = hooks)
-      attempts += 1
-    }
-    return published
-  }
-
   private fun applyLoaded(draft: AgentDraft) {
     pendingEdits.value = null // discard any stale pending edit left over from whatever was loaded before
     setDraftAndValidate(draft)
@@ -273,15 +267,13 @@ class AgentBuilderViewModel(
   private suspend fun persist(draft: AgentDraft) {
     _state.update { it.copy(isSaving = true) }
     try {
-      userAgentRepository.saveDraft(draft.toDefinition())
+      // Hooks and custom skills travel WITH the agent row: authored in the wizard, they used to live
+      // only in memory until publish, so closing the wizard first silently discarded them.
+      userAgentRepository.saveDraft(draft.toDefinition(), skills = draft.toSkillEntities(), hooks = draft.hooks)
       _state.update { current ->
-        current.copy(
-          isSaving = false,
-          saveError = null,
-          // saveDraft always forces the stored row to DRAFT - reflect that here too, but leave
-          // lastPublishedConfigVersion untouched: that's carried history, never reset by autosave.
-          draft = if (current.draft.id == draft.id) current.draft.copy(status = AgentStatus.DRAFT) else current.draft,
-        )
+        // saveDraft no longer rewrites status/configVersion, so there is nothing to mirror back here:
+        // an edited PUBLISHED agent stays published (and stays in the roster) until publish() bumps it.
+        current.copy(isSaving = false, saveError = null)
       }
     } catch (e: Exception) {
       // Brief: "a save error stays in state and must NOT drop the in-memory draft" - current.draft
@@ -297,6 +289,5 @@ class AgentBuilderViewModel(
   companion object {
     const val AUTOSAVE_DEBOUNCE_MS = 500L
     private const val ID_SUFFIX_LENGTH = 10
-    private const val MAX_PUBLISH_CATCH_UP = 10_000
   }
 }
