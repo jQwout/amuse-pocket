@@ -5,33 +5,50 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.ui.components.glass.GlassState
 import com.aiopenpocket.ui.components.glass.GlassSurface
@@ -46,7 +63,9 @@ import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 private val ONBOARDING_STEP_ORDER = OnboardingStep.entries.toList()
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** Форма плавающих стеклянных островов — та же «таблетка», что у баров чата. */
+private val ISLAND_SHAPE = RoundedCornerShape(24.dp)
+
 @Composable
 fun OnboardingScreen(
     // Non-null when reached from the roadmap as a re-edit; closes back to the previous screen.
@@ -78,9 +97,18 @@ fun OnboardingScreen(
     )
 }
 
-// internal (not private): the Task 5 glass screenshot test renders this directly on fake
-// OnboardingUiState — it takes no ViewModel, so a harness composable would just duplicate it.
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Онбординг в концепции Liquid Glass: полотно занимает ВЕСЬ экран, а обвязка — стеклянные острова,
+ * плавающие поверх него (спека `docs/superpowers/specs/2026-07-28-onboarding-liquid-glass-design.md`).
+ *
+ * Раньше здесь был Material3 [androidx.compose.material3.Scaffold] с topBar/bottomBar: они СЪЕДАЮТ
+ * место, контент жил в остатке через `innerPadding` и под стекло не заезжал — размывать было нечего,
+ * кроме статичной авроры, отсюда «плоская плашка». Сейчас острова лежат оверлеями поверх полотна, их
+ * высоты меряются и превращаются в отступы контента.
+ *
+ * internal (not private): the Task 5 glass screenshot test renders this directly on fake
+ * OnboardingUiState — it takes no ViewModel, so a harness composable would just duplicate it.
+ */
 @Composable
 internal fun OnboardingContent(
     state: OnboardingUiState,
@@ -92,51 +120,143 @@ internal fun OnboardingContent(
     val stepIndex = ONBOARDING_STEP_ORDER.indexOf(state.currentStep).coerceAtLeast(0)
     val progress = (stepIndex + 1) / ONBOARDING_STEP_ORDER.size.toFloat()
 
-    Box(Modifier.fillMaxSize().auroraBackground()) {
-        Scaffold(
-            containerColor = Color.Transparent,
-            topBar = {
-                TopAppBar(
-                    title = { Text(if (editMode) "Настройки урока 1" else "Настройка") },
-                    navigationIcon = {
-                        if (editMode) {
-                            IconButton(onClick = { onClose?.invoke() }) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Закрыть")
-                            }
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                    ),
-                )
-            },
-            bottomBar = { OnboardingBottomBar(state = state, glassState = glassState, onIntent = onIntent) },
-        ) { padding ->
-            Column(modifier = Modifier
-              .fillMaxSize()
-              .padding(padding)
-              .glassSource(glassState)) {
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+    // Высоты плавающих островов меряем (onSizeChanged) и превращаем в отступы полотна — иначе
+    // верх/низ шага навсегда прячутся под стеклом. Тот же приём, что в ChatScreen.
+    val density = LocalDensity.current
+    var topIslandHeightPx by remember { mutableIntStateOf(0) }
+    var bottomIslandHeightPx by remember { mutableIntStateOf(0) }
+    val topPad = with(density) { topIslandHeightPx.toDp() }
+    val bottomPad = with(density) { bottomIslandHeightPx.toDp() }
+
+    Box(Modifier.fillMaxSize()) {
+        // Аврора — ОТДЕЛЬНЫЙ слой-источник, лежащий позади всего. Повесить glassSource на корневой
+        // Box нельзя: источник захватил бы и сами острова — петля (см. ChatScreen.kt:396-400).
+        Box(
+            Modifier
+                .matchParentSize()
+                .auroraBackground()
+                .glassSource(glassState),
+        )
+
+        // ПОЛОТНО: тело шага занимает весь экран и уходит под острова. Тоже помечено источником —
+        // тогда стекло размывает НАСТОЯЩИЙ контент, а не только аврору.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .glassSource(glassState),
+        ) {
+            // Над полотном нет Scaffold/Surface, поэтому ambient LocalContentColor остаётся
+            // дефолтным (near-black) и заголовки шагов тонут на тёмной ауроре. Дефект НЕ новый:
+            // AboutMeStep уже лечил его у себя явным цветом (см. его комментарий), а «Выбери язык»
+            // тонул и до этой переделки. Задаём цвет один раз на всё полотно — тогда каждому шагу
+            // не нужно чинить это самостоятельно.
+            CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onBackground) {
                 OnboardingStepBody(
                     state = state,
                     onIntent = onIntent,
-                    modifier = Modifier.weight(1f),
+                    topPad = topPad,
+                    bottomPad = bottomPad,
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
+        }
+
+        // ВЕРХНИЙ остров: заголовок + шкала прогресса. statusBarsPadding живёт на самой таблетке
+        // (ребёнок этой Column), поэтому измеренная снаружи высота уже включает инсет статус-бара.
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .onSizeChanged { topIslandHeightPx = it.height },
+        ) {
+            OnboardingTopIsland(
+                title = if (editMode) "Настройки урока 1" else "Настройка",
+                progress = progress,
+                glassState = glassState,
+                onClose = if (editMode) onClose else null,
+            )
+        }
+
+        // НИЖНИЙ остров: ошибка + «Назад»/«Готово». onSizeChanged СТОИТ ПЕРЕД windowInsetsPadding,
+        // чтобы измеренная высота ВКЛЮЧАЛА нижний инсет: safeDrawing bottom = max(навбар, клавиатура),
+        // без двойного счёта — navigationBars/imePadding поверх НЕ добавляем.
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .onSizeChanged { bottomIslandHeightPx = it.height }
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
+        ) {
+            OnboardingBottomIsland(state = state, glassState = glassState, onIntent = onIntent)
         }
     }
 }
 
+/**
+ * Верхний стеклянный остров: заголовок и прогресс мастера. Прогресс — тонкая капсула ВНУТРИ острова
+ * вместо прежней материаловской полосы во всю ширину экрана: полноширинная линия разрезала полотно
+ * и спорила с плавающей формой. Значение не меняется — та же доля `(шаг + 1) / всего`.
+ */
 @Composable
-private fun OnboardingBottomBar(
+private fun OnboardingTopIsland(
+    title: String,
+    progress: Float,
+    glassState: GlassState,
+    onClose: (() -> Unit)?,
+) {
+    GlassSurface(
+        state = glassState,
+        shape = ISLAND_SHAPE,
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(horizontal = 12.dp)
+            .padding(top = 8.dp, bottom = 8.dp)
+            .shadow(16.dp, ISLAND_SHAPE, clip = false),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (onClose != null) {
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Закрыть")
+                    }
+                    Spacer(Modifier.width(4.dp))
+                }
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(CircleShape),
+                trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+            )
+        }
+    }
+}
+
+/** Нижний стеклянный остров: сообщение об ошибке и кнопки шага. */
+@Composable
+private fun OnboardingBottomIsland(
     state: OnboardingUiState,
     glassState: GlassState,
     onIntent: (OnboardingIntent) -> Unit,
 ) {
-    GlassSurface(state = glassState, modifier = Modifier.fillMaxWidth()) {
+    GlassSurface(
+        state = glassState,
+        shape = ISLAND_SHAPE,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp)
+            .padding(top = 8.dp, bottom = 12.dp)
+            .shadow(16.dp, ISLAND_SHAPE, clip = false),
+    ) {
         Column(modifier = Modifier
           .fillMaxWidth()
           .padding(16.dp)) {
@@ -178,26 +298,35 @@ private fun OnboardingBottomBar(
     }
 }
 
+/**
+ * Тело шага. Отступы под острова прокидываются РАЗНЫМИ путями и это принципиально: у прокручиваемого
+ * шага они должны лежать ВНУТРИ скролла (иначе инсетится вьюпорт и контент под стекло не заезжает),
+ * у статичных достаточно отступа снаружи.
+ */
 @Composable
 private fun OnboardingStepBody(
     state: OnboardingUiState,
     onIntent: (OnboardingIntent) -> Unit,
+    topPad: Dp,
+    bottomPad: Dp,
     modifier: Modifier,
 ) {
     when (state.currentStep) {
+        // Статичные шаги: прокрутки нет, заезжать под стекло нечему — отступ снаружи.
         OnboardingStep.LANGUAGE -> LanguageSelectionStep(
             selectedLanguage = state.selectedLanguage,
             onSelectLanguage = { onIntent(OnboardingIntent.SelectLanguage(it)) },
-            modifier = modifier,
+            modifier = modifier.padding(top = topPad, bottom = bottomPad),
         )
 
         OnboardingStep.INTRO -> IntroStreamingStep(
             streamingText = state.introStreamingText,
             isStreaming = state.isIntroStreaming,
-            modifier = modifier,
+            modifier = modifier.padding(top = topPad, bottom = bottomPad),
         )
 
-        // PROFILE — последний шаг мастера: кнопка «Готово» завершает настройку.
+        // PROFILE — последний шаг мастера («Готово» завершает настройку) и единственный
+        // прокручиваемый: отступы уходят ВНУТРЬ, под verticalScroll.
         OnboardingStep.PROFILE -> AboutMeStep(
             personaId = state.selectedPersonaId,
             text = state.aboutMeText,
@@ -205,6 +334,7 @@ private fun OnboardingStepBody(
             extractionError = state.extractionError,
             onTextChange = { onIntent(OnboardingIntent.UpdateAboutMe(it)) },
             modifier = modifier,
+            contentPadding = PaddingValues(top = topPad, bottom = bottomPad),
         )
     }
 }
