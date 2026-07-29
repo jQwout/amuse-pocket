@@ -97,9 +97,14 @@ fun AgentsScreen(
     LazyColumn(
       modifier = Modifier
         .fillMaxSize()
-        .padding(padding)
         .padding(horizontal = 20.dp),
-      contentPadding = PaddingValues(bottom = 96.dp),
+      // Отступы каркаса уходят в contentPadding, а НЕ в .padding(): тогда список занимает всю
+      // высоту и скроллится ПОД плавающими стеклянными островами (им есть что размывать), а
+      // крайние карточки при этом не прячутся под стеклом.
+      contentPadding = PaddingValues(
+        top = padding.calculateTopPadding(),
+        bottom = padding.calculateBottomPadding() + 96.dp,
+      ),
     ) {
       item {
         Spacer(modifier = Modifier.height(4.dp))
@@ -318,9 +323,12 @@ internal fun AgentsPreviewScaffold(
       LazyColumn(
         modifier = Modifier
           .fillMaxSize()
-          .padding(padding)
           .padding(horizontal = 20.dp),
-        contentPadding = PaddingValues(bottom = 96.dp),
+        // Как и в бою: отступы каркаса в contentPadding, список идёт под островами.
+        contentPadding = PaddingValues(
+          top = padding.calculateTopPadding(),
+          bottom = padding.calculateBottomPadding() + 96.dp,
+        ),
       ) {
         item {
           Spacer(modifier = Modifier.height(4.dp))

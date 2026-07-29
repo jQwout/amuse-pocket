@@ -284,9 +284,13 @@ fun RoadmapScreen(
     LazyColumn(
       modifier = Modifier
         .fillMaxSize()
-        .padding(padding)
         .padding(horizontal = 20.dp),
-      contentPadding = PaddingValues(bottom = 24.dp),
+      // Отступы каркаса — в contentPadding, а не в .padding(): список идёт во всю высоту и
+      // скроллится под плавающими островами, крайние карточки не прячутся под стеклом.
+      contentPadding = PaddingValues(
+        top = padding.calculateTopPadding(),
+        bottom = padding.calculateBottomPadding() + 24.dp,
+      ),
     ) {
       item {
         Spacer(modifier = Modifier.height(4.dp))

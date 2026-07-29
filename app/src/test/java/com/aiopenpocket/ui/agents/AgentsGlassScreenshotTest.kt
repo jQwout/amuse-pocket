@@ -2,6 +2,8 @@ package com.aiopenpocket.ui.agents
 
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Rule
@@ -33,5 +35,22 @@ class AgentsGlassScreenshotTest {
     }
     composeTestRule.onRoot()
       .captureRoboImage(filePath = "src/test/screenshots/agents_glass.png")
+  }
+
+  /**
+   * Свёрнутое состояние — доказательство того, чего эталон выше показать НЕ может. Стекло верхнего
+   * острова проявляется по `collapsedFraction`: наверху списка (эталон выше) его нет намеренно —
+   * контент под бар ещё не заехал, крупный заголовок лежит прямо на полотне. Этот снимок берётся
+   * ПОСЛЕ скролла: бар свёрнут, список идёт под ним, стекло на месте и держит читаемость.
+   */
+  @Test
+  fun agents_glass_collapsed_screenshot() {
+    composeTestRule.setContent {
+      AgentsPreviewScaffold()
+    }
+    composeTestRule.onRoot().performTouchInput { swipeUp() }
+    composeTestRule.waitForIdle()
+    composeTestRule.onRoot()
+      .captureRoboImage(filePath = "src/test/screenshots/agents_glass_collapsed.png")
   }
 }
