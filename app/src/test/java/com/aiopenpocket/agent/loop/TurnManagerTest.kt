@@ -598,6 +598,39 @@ class TurnManagerTest {
   }
 
   @Test
+  fun `истечение защиты не перетирает уже завершённый ход`() = runTest {
+    inForeground = false
+    executor.script = { flowOf(AgentEvent.Completed(finished("успел"))) }
+    val m = manager()
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT)
+    advanceUntilIdle()
+
+    lifeSupport.loseProtection(setOf("c1"))
+    advanceUntilIdle()
+
+    val status = m.sessions.value.getValue("c1").status.value as TurnStatus.Completed
+    assertNull("ответ доехал — ошибке тут взяться неоткуда", status.error)
+    assertEquals("успел", persistence.rows.last().content)
+  }
+
+  @Test
+  fun `cancelAndAwait дожидается остановки хода и забывает сессию`() = runTest {
+    executor.script = { flow { awaitCancellation() } }
+    val m = manager()
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT)
+    advanceUntilIdle()
+
+    m.cancelAndAwait("c1")
+
+    assertNull("сессия должна быть забыта до возврата из cancelAndAwait", m.sessions.value["c1"])
+    assertEquals(
+      "ход обязан быть фактически остановлен: следом вызывающий сносит сам диалог",
+      1,
+      executor.cancelledCollections,
+    )
+  }
+
+  @Test
   fun `истечение защиты при открытом экране ход не трогает`() = runTest {
     inForeground = true
     executor.script = { flow { awaitCancellation() } }

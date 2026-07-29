@@ -11,6 +11,7 @@ import com.aiopenpocket.agent.core.policy.ExecutionMode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -98,6 +99,22 @@ class TurnManager(
         sessionsFlow.update { it - conversationId }
       }
     }
+  }
+
+  /**
+   * Отменяет ход и ДОЖИДАЕТСЯ его фактической остановки, после чего забывает сессию. Отличается от
+   * [cancel] тем, что [cancel] возвращается сразу: вызывающему, который следом сносит сам диалог,
+   * этого мало — у `messages` внешний ключ на `conversations` с CASCADE, и удаление из-под ещё
+   * живого хода роняет запись ответа по constraint. Единственный такой вызывающий сегодня —
+   * уборка тестового диалога конструктора (`AgentBuilderTestViewModel.onCleared`).
+   */
+  suspend fun cancelAndAwait(conversationId: String) {
+    val job = mutex.withLock {
+      val session = sessionsFlow.value[conversationId] ?: return@withLock null
+      sessionsFlow.update { it - conversationId }
+      session.job
+    }
+    job?.cancelAndJoin()
   }
 
   /**
@@ -244,7 +261,12 @@ class TurnManager(
       protectedIds.forEach { convId ->
         val session = sessionsFlow.value[convId] ?: return@forEach
         if (session.status.value !is TurnStatus.Running) return@forEach
-        session.job?.cancel()
+        // cancelAndJoin, а не cancel: ход не держит этот мьютекс во время исполнения, поэтому между
+        // «увидел Running» и записью Failed он успевал бы дописать Completed вместе с ответом в БД —
+        // и мы затёрли бы валидный результат ошибкой ровно в момент, когда ход и так почти доехал.
+        // Ждём фактической остановки и перепроверяем статус.
+        session.job?.cancelAndJoin()
+        if (session.status.value !is TurnStatus.Running) return@forEach
         session.statusFlow.value =
           TurnStatus.Failed(TurnTexts.PROTECTION_EXPIRED, canRetry = session.lastUserText != null)
       }

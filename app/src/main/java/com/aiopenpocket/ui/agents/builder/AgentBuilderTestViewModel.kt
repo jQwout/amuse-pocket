@@ -129,20 +129,35 @@ class AgentBuilderTestViewModel(
    * «Тест агента» per builder session. Cleaning it up here (the ViewModel dies with the builder
    * screen) keeps that list to conversations the user actually started.
    *
-   * Fire-and-forget on [AppScope]-free `NonCancellable` grounds is unnecessary: the delete is a
-   * single local Room write, and if the process dies mid-way the leftover row is exactly the old
-   * behavior, not a corruption.
+   * The turn is stopped FIRST and awaited: closing the wizard mid-test-run is entirely normal, and
+   * `messages` has a CASCADE foreign key onto `conversations` — deleting the row out from under a
+   * live turn makes its answer write fail on a constraint, which surfaces to the user as a mystery
+   * error in a chat they can no longer even open. [TurnManager.cancelAndAwait] exists for exactly
+   * this ordering requirement; plain `cancel` returns before the turn has actually stopped.
+   *
+   * Fire-and-forget beyond that is fine: the delete is a single local Room write, and if the process
+   * dies mid-way the leftover row is exactly the old behavior, not a corruption.
    */
   override fun onCleared() {
     super.onCleared()
     val convId = _testConversationId.value ?: return
     _testConversationId.value = null
-    CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-      runCatching { conversationRepository.deleteConversation(convId) }
+    cleanupScope.launch {
+      runCatching {
+        turnManager.cancelAndAwait(convId)
+        conversationRepository.deleteConversation(convId)
+      }
     }
   }
 
   companion object {
     private const val TEST_CONVERSATION_TITLE = "Тест агента"
+
+    /**
+     * Один общий скоуп на все экземпляры вместо нового на каждое [onCleared]: уборка обязана
+     * пережить смерть самой ViewModel (её `viewModelScope` к этому моменту уже отменён), но плодить
+     * по скоупу на закрытие экрана незачем.
+     */
+    private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
   }
 }

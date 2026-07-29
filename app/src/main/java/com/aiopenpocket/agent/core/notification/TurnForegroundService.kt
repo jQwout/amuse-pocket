@@ -9,10 +9,12 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import com.aiopenpocket.MainActivity
 
 /**
@@ -35,7 +37,21 @@ class TurnForegroundService : Service() {
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
     // startForeground обязан случиться в первые ~5 секунд после startForegroundService, иначе
     // система прибьёт приложение — поэтому никакой отложенной инициализации здесь нет.
-    startForeground(NOTIFICATION_ID, buildNotification())
+    //
+    // Тип передаём ЯВНО, а не полагаемся на объявленный в манифесте: двухаргументная форма на
+    // API 34+ действительно берёт типы из манифеста, но у shortService особая семантика (таймаут,
+    // запрет комбинирования), и документация просит указывать его явно. Проверить это в Robolectric
+    // нечем — цена явной формы нулевая, цена ошибки видна только на устройстве с Android 14+.
+    ServiceCompat.startForeground(
+      this,
+      NOTIFICATION_ID,
+      buildNotification(),
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        ServiceInfo.FOREGROUND_SERVICE_TYPE_SHORT_SERVICE
+      } else {
+        0
+      },
+    )
     return START_NOT_STICKY
   }
 
