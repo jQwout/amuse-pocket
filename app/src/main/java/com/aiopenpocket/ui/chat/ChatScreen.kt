@@ -321,7 +321,17 @@ fun ChatScreen(
             last?.role == "user" && hasStreamingItem -> {
                 streamAnchorActive = true
                 val qIndex = state.messages.lastIndex
-                if (qIndex >= 0) listState.scrollToItem(qIndex, 0)
+                // Плавно, а не рывком: раньше вопрос МГНОВЕННО прыгал к верхней кромке, и это
+                // читалось как дёрганье экрана. Мгновенным остаётся только самый первый подскролл
+                // при открытии диалога (initialScrollDone ещё false) — там лента скрыта alpha=0 и
+                // анимация показала бы прокрутку через всю историю.
+                if (qIndex >= 0) {
+                    if (initialScrollDone) {
+                        listState.animateScrollToItem(qIndex, 0)
+                    } else {
+                        listState.scrollToItem(qIndex, 0)
+                    }
+                }
             }
             // КОНЕЦ ХОДА: ответ сохранён, стрим-пузырь снят. НЕ дёргаем ленту вниз — оставляем ответ
             // там, где его читают; прилипание пересчитываем по фактической позиции.
@@ -335,7 +345,14 @@ fun ChatScreen(
                 // scrollOffset = Int.MAX_VALUE — докрутка до САМОГО низа: обычный scrollToItem(target)
                 // выравнивает верх элемента по верху вьюпорта, и длинный ответ оставался обрезан снизу.
                 val target = lastItemIndex()
-                if (target >= 0) listState.scrollToItem(target, Int.MAX_VALUE)
+                if (target >= 0) {
+                    // Тоже плавно — кроме первого подскролла (см. выше).
+                    if (initialScrollDone) {
+                        listState.animateScrollToItem(target, Int.MAX_VALUE)
+                    } else {
+                        listState.scrollToItem(target, Int.MAX_VALUE)
+                    }
+                }
             }
 
             state.messages.isNotEmpty() -> hasUnseenNew = true
