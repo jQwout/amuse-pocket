@@ -8,10 +8,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Единая очередь на все модальности: синхронная картинка — это просто задание без фазы
@@ -31,7 +33,13 @@ class GenerationQueue(
 ) {
 
   private val semaphore = Semaphore(maxConcurrent)
-  private val running = mutableMapOf<String, Job>()
+
+  // ConcurrentHashMap, а не mutableMapOf: submit зовётся из UI-потока, а снятие записи —
+  // из finally корутины на Dispatchers.Default. Обычная HashMap на этом ломается молча.
+  private val running = ConcurrentHashMap<String, Job>()
+
+  /** Записи в файл истории сериализуются: параллельные задания иначе пишут поверх друг друга. */
+  private val storeLock = Any()
 
   private val _jobs = MutableStateFlow(store.load())
   val jobs: StateFlow<List<GenerationJob>> = _jobs.asStateFlow()
@@ -180,15 +188,24 @@ class GenerationQueue(
   private fun current(jobId: String): GenerationJob? = _jobs.value.firstOrNull { it.id == jobId }
 
   private fun upsert(job: GenerationJob) {
-    // Заменяем на месте, а не «выкинуть и добавить в конец»: иначе задание прыгало бы в конец списка
-    // на каждом обновлении статуса, и история перетасовывалась бы на глазах у пользователя.
-    val existing = _jobs.value
-    _jobs.value = if (existing.any { it.id == job.id }) {
-      existing.map { if (it.id == job.id) job else it }
-    } else {
-      existing + job
+    // update, а не присваивание _jobs.value: при maxConcurrent > 1 два задания обновляют статус
+    // одновременно, и «прочитал — изменил — записал» терял бы одно из обновлений.
+    // Заменяем на месте, а не «выкинуть и добавить в конец»: иначе задание прыгало бы в конец
+    // списка на каждом обновлении статуса, и история перетасовывалась бы на глазах у пользователя.
+    _jobs.update { existing ->
+      if (existing.any { it.id == job.id }) {
+        existing.map { if (it.id == job.id) job else it }
+      } else {
+        existing + job
+      }
     }
-    runCatching { store.save(_jobs.value) }
+    persist()
+  }
+
+  private fun persist() {
+    // Пишем именно текущее значение под локом, а не снимок на момент вызова: иначе поздний
+    // писатель со старым снимком откатил бы файл назад.
+    synchronized(storeLock) { runCatching { store.save(_jobs.value) } }
   }
 
   private companion object {
