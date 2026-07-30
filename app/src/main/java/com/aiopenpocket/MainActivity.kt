@@ -10,6 +10,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -45,6 +51,17 @@ import com.aiopenpocket.ui.settings.SettingsScreen
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import dev.zacsweers.metrox.viewmodel.LocalMetroViewModelFactory
 import kotlinx.coroutines.flow.MutableStateFlow
+
+/**
+ * Длительность перехода между экранами. 260мс — сознательный компромисс: короче читается как
+ * подмигивание и смысла в анимации нет, длиннее начинает восприниматься как тормоза приложения.
+ * Easing стандартный material-ный: быстрый старт, мягкое торможение.
+ */
+private const val NAV_ANIM_MS = 260
+
+/** Спеки разнесены по типам: сдвиг анимирует IntOffset, прозрачность — Float, общий на оба не годится. */
+private val NAV_SLIDE = tween<androidx.compose.ui.unit.IntOffset>(NAV_ANIM_MS, easing = FastOutSlowInEasing)
+private val NAV_FADE = tween<Float>(NAV_ANIM_MS, easing = FastOutSlowInEasing)
 
 class MainActivity : ComponentActivity() {
 
@@ -153,9 +170,28 @@ class MainActivity : ComponentActivity() {
                                     restoreState = true
                                 }
                             }
+                            // Переходы между экранами — один раз на весь NavHost, а не по маршрутам:
+                            // иначе 18 destination'ов пришлось бы держать в синхроне вручную, и
+                            // рано или поздно один поехал бы. Жест простой и не «мультяшный»:
+                            // новый экран въезжает с небольшим сдвигом и проявляется, старый уходит
+                            // симметрично; назад — зеркально, чтобы направление читалось.
+                            // Сдвиг маленький (1/8 ширины): полноэкранная проездка на каждом
+                            // переходе быстро надоедает и субъективно замедляет приложение.
                             NavHost(
                                 navController = navController,
                                 startDestination = startDestination,
+                                enterTransition = {
+                                    slideInHorizontally(NAV_SLIDE) { it / 8 } + fadeIn(NAV_FADE)
+                                },
+                                exitTransition = {
+                                    slideOutHorizontally(NAV_SLIDE) { -it / 8 } + fadeOut(NAV_FADE)
+                                },
+                                popEnterTransition = {
+                                    slideInHorizontally(NAV_SLIDE) { -it / 8 } + fadeIn(NAV_FADE)
+                                },
+                                popExitTransition = {
+                                    slideOutHorizontally(NAV_SLIDE) { it / 8 } + fadeOut(NAV_FADE)
+                                },
                             ) {
                                 composable("onboarding") {
                                     // Навигация после завершения управляется наблюдателем
