@@ -126,15 +126,26 @@ class GenerationQueue(
     // и cancel() в этом окне не нашёл бы, что отменять — задание помечалось бы отменённым, продолжая
     // работать и в итоге переписывая свой же статус на DONE.
     val job = scope.launch(start = CoroutineStart.LAZY) {
+      // Пропуск держим только пока задание реально работает. Видео уходит в ожидание на минуты, и
+      // withPermit на весь поток означал бы, что два видео-задания запирают очередь целиком: пока
+      // они опрашивают провайдера раз в пять секунд, ни одна картинка не сгенерируется.
+      var permitHeld = false
       try {
-        semaphore.withPermit {
-          // Догоняемое видео уже в POLLING и с нотой «догоняем после перезапуска» — не сбиваем
-          // его на RUNNING, иначе экран первые секунды врёт про то, что происходит.
-          mutate(jobId) {
-            if (it.status.isTerminal || it.status == JobStatus.POLLING) null
-            else it.copy(status = JobStatus.RUNNING, note = null)
+        semaphore.acquire()
+        permitHeld = true
+        // Догоняемое видео уже в POLLING и с нотой «догоняем после перезапуска» — не сбиваем
+        // его на RUNNING, иначе экран первые секунды врёт про то, что происходит.
+        mutate(jobId) {
+          if (it.status.isTerminal || it.status == JobStatus.POLLING) null
+          else it.copy(status = JobStatus.RUNNING, note = null)
+        }
+        source().collect { progress ->
+          apply(jobId, progress)
+          if (permitHeld && progress.isWaitingOnProvider) {
+            // Дальше только опросы — работу продолжает провайдер, не мы. Уступаем очередь.
+            permitHeld = false
+            semaphore.release()
           }
-          source().collect { progress -> apply(jobId, progress) }
         }
       } catch (e: CancellationException) {
         // Отмена — это действие пользователя (или закрытие приложения), а не отказ провайдера:
@@ -146,6 +157,7 @@ class GenerationQueue(
           else it.copy(status = JobStatus.FAILED, error = e.message ?: "неизвестная ошибка", note = null)
         }
       } finally {
+        if (permitHeld) semaphore.release()
         running.remove(jobId)
       }
     }
