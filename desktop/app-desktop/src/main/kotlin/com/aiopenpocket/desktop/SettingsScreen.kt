@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -27,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.genai.AccessCheck
 
 @Composable
 fun SettingsScreen(container: AppContainer) {
@@ -78,6 +80,9 @@ fun SettingsScreen(container: AppContainer) {
       },
     )
 
+    Spacer(Modifier.height(16.dp))
+    AccessCheckRow(container)
+
     Spacer(Modifier.height(24.dp))
     HorizontalDivider()
     Spacer(Modifier.height(16.dp))
@@ -106,6 +111,52 @@ fun SettingsScreen(container: AppContainer) {
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+  }
+}
+
+/**
+ * Проверка связи до первой генерации. Без неё непонятный отказ на платном запросе — единственный
+ * способ узнать, что ключ не тот или сеть закрыта.
+ */
+@Composable
+private fun AccessCheckRow(container: AppContainer) {
+  val result by container.accessCheck.collectAsState()
+  val checking by container.checkingAccess.collectAsState()
+  val key by container.apiKey.collectAsState()
+
+  Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    OutlinedButton(enabled = key.isNotBlank() && !checking, onClick = { container.checkAccess() }) {
+      Text(if (checking) "Проверяю…" else "Проверить связь")
+    }
+    when (val outcome = result) {
+      null -> Text(
+        if (key.isBlank()) "сначала сохрани ключ" else "связь ещё не проверялась",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+
+      is AccessCheck.Ok -> Column {
+        Text("Связь есть, ключ принят", style = MaterialTheme.typography.bodyMedium)
+        Text(
+          buildString {
+            outcome.label?.let { append(it).append(" · ") }
+            append("потрачено ")
+            append(formatCost(outcome.usageUsd))
+            outcome.limitUsd?.let { append(" из ").append(formatCost(it)) }
+            outcome.rateLimit?.let { append(" · лимит ").append(it) }
+            if (outcome.freeTier == true) append(" · бесплатный тариф")
+          },
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+
+      is AccessCheck.Failed -> Text(
+        outcome.message,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error,
+      )
+    }
   }
 }
 

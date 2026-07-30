@@ -42,10 +42,29 @@ sealed interface GenerationProgress {
   data class Failed(val message: String, val code: String? = null) : GenerationProgress
 }
 
+/**
+ * Ответ на вопрос «ключ рабочий и провайдер отвечает?» — до того, как пользователь потратит
+ * деньги на первую генерацию и будет гадать, что именно сломалось.
+ */
+sealed interface AccessCheck {
+  data class Ok(
+    val label: String? = null,
+    val usageUsd: Double? = null,
+    val limitUsd: Double? = null,
+    val freeTier: Boolean? = null,
+    val rateLimit: String? = null,
+  ) : AccessCheck
+
+  data class Failed(val message: String, val code: String? = null) : AccessCheck
+}
+
 interface GenerationProvider {
   val id: String
 
   fun supports(modality: GenerationModality): Boolean
+
+  /** Дешёвая проверка доступа: ключ, сеть и права. Генерацию не запускает и денег не тратит. */
+  suspend fun checkAccess(): AccessCheck
 
   fun generate(request: GenerationRequest): Flow<GenerationProgress>
 
