@@ -1,13 +1,17 @@
 package com.aiopenpocket.ui.theme
 
+import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 
 // @trace smena-temy-svetlaya-temnaya-sistemnaya-palitra-lime-ink-paper-005bc6
 
@@ -68,6 +72,25 @@ fun MyApplicationTheme(
       ThemeMode.DARK -> true
       ThemeMode.SYSTEM -> isSystemInDarkTheme()
     }
+  // Иконки системных баров (часы, батарея, сеть) красим по ТЕМЕ ПРИЛОЖЕНИЯ, а не по системной.
+  //
+  // `enableEdgeToEdge()` в MainActivity вызывается в onCreate — до того, как известен выбранный
+  // ThemeMode, — и по умолчанию решает светлые иконки или тёмные по системному dark mode. При своей
+  // переключалке это врёт: выбрал Светлую при системной Тёмной — иконки остались светлыми, и часы с
+  // зарядкой пропали на светлом фоне (ровно тот баг, что видно на устройстве). Здесь тема уже
+  // разрешена (включая SYSTEM), поэтому источник правды один.
+  val view = LocalView.current
+  if (!view.isInEditMode) {
+    SideEffect {
+      val window = (view.context as? Activity)?.window ?: return@SideEffect
+      WindowCompat.getInsetsController(window, view).apply {
+        // Светлая тема ⇒ светлый фон ⇒ иконки должны быть ТЁМНЫМИ (isAppearanceLight* = true).
+        isAppearanceLightStatusBars = !dark
+        isAppearanceLightNavigationBars = !dark
+      }
+    }
+  }
+
   CompositionLocalProvider(LocalThemeIsDark provides dark) {
     MaterialTheme(
       colorScheme = if (dark) AppDarkColors else AppLightColors,
