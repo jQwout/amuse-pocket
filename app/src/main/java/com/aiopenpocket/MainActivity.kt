@@ -31,6 +31,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.aiopenpocket.ui.components.glass.StatusBarScrim
 import com.aiopenpocket.ui.chat.ChatScreen
 import com.aiopenpocket.ui.conversations.ConversationsListScreen
 import com.aiopenpocket.ui.agents.AgentsScreen
@@ -170,6 +171,10 @@ class MainActivity : ComponentActivity() {
                                     restoreState = true
                                 }
                             }
+                            // Фейд под часами — ОДИН на всё приложение, поверх NavHost: экраны про
+                            // него не знают и не могут забыть его добавить. Он ничего не
+                            // перехватывает (просто фон), поэтому лежать поверх безопасно.
+                            Box(modifier = Modifier.fillMaxSize()) {
                             // Переходы между экранами — один раз на весь NavHost, а не по маршрутам:
                             // иначе 18 destination'ов пришлось бы держать в синхроне вручную, и
                             // рано или поздно один поехал бы. Жест простой и не «мультяшный»:
@@ -383,6 +388,9 @@ class MainActivity : ComponentActivity() {
                                         },
                                     )
                                 }
+                            }
+
+                            StatusBarScrim(modifier = Modifier.align(Alignment.TopCenter))
                             }
                         }
                     }
