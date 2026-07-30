@@ -52,8 +52,6 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -117,6 +115,24 @@ fun SettingsScreen(
   var showPersonaSheet by remember { mutableStateOf(false) }
   val personaSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   val currentPersona = PersonaCatalog.findById(state.personaId)
+
+  // Выбор значения везде идёт через стеклянный лист (как у персоны), а не через стоковый
+  // DropdownMenu — см. SettingsSelectorRow.
+  var showModelSheet by remember { mutableStateOf(false) }
+  val modelSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+  var showThemeSheet by remember { mutableStateOf(false) }
+  val themeSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+  // Лист темы живёт вне прокручиваемой колонки, поэтому маппинг label↔enum поднят сюда (раньше
+  // объявлялся прямо у селектора). Порядок фиксированный — LinkedHashMap.
+  val themeLabels = remember {
+    linkedMapOf(
+      ThemeMode.LIGHT to "Светлая",
+      ThemeMode.DARK to "Тёмная",
+      ThemeMode.SYSTEM to "Системная",
+    )
+  }
+  val themeByLabel = remember { themeLabels.entries.associate { (mode, label) -> label to mode } }
 
   // Аврора-фон + стекло, как на вкладке «Чат» — навбар/каркас становятся прозрачными (см. glassState).
   val glassState = rememberGlassState()
@@ -263,9 +279,11 @@ fun SettingsScreen(
       )
       Spacer(modifier = Modifier.height(12.dp))
       SelectorCard(
+        label = "ТЕКУЩАЯ МОДЕЛЬ",
         selected = state.selectedModel,
-        options = state.availableModels,
-        onSelect = viewModel::updateModel,
+        // Та же иконка, что у заголовка секции — строка и заголовок читаются как одно целое.
+        icon = Icons.Default.Memory,
+        onClick = { showModelSheet = true },
         modifier = Modifier.padding(horizontal = 20.dp),
         testTag = "settings_model_selector",
       )
@@ -278,19 +296,11 @@ fun SettingsScreen(
         modifier = Modifier.padding(horizontal = 20.dp),
       )
       Spacer(modifier = Modifier.height(12.dp))
-      // SelectorCard оперирует строками — держим порядок и обратный маппинг label→enum (как у шрифта).
-      val themeLabels = remember {
-        linkedMapOf(
-          ThemeMode.LIGHT to "Светлая",
-          ThemeMode.DARK to "Тёмная",
-          ThemeMode.SYSTEM to "Системная",
-        )
-      }
-      val themeByLabel = remember { themeLabels.entries.associate { (mode, label) -> label to mode } }
       SelectorCard(
+        label = "ОФОРМЛЕНИЕ",
         selected = themeLabels.getValue(state.themeMode),
-        options = themeLabels.values.toList(),
-        onSelect = { label -> themeByLabel[label]?.let(viewModel::updateThemeMode) },
+        icon = Icons.Default.Palette,
+        onClick = { showThemeSheet = true },
         modifier = Modifier.padding(horizontal = 20.dp),
         testTag = "settings_theme_selector",
       )
@@ -385,6 +395,36 @@ fun SettingsScreen(
 
       Spacer(modifier = Modifier.height(32.dp))
     }
+  }
+
+  if (showModelSheet) {
+    SelectorSheet(
+      title = "Выбор модели",
+      subtitle = "На чём агент будет думать. Быстрее — не всегда умнее.",
+      options = state.availableModels,
+      selected = state.selectedModel,
+      sheetState = modelSheetState,
+      onSelect = { model ->
+        viewModel.updateModel(model)
+        showModelSheet = false
+      },
+      onDismiss = { showModelSheet = false },
+    )
+  }
+
+  if (showThemeSheet) {
+    SelectorSheet(
+      title = "Оформление",
+      subtitle = "Системная подхватывает настройку телефона.",
+      options = themeLabels.values.toList(),
+      selected = themeLabels.getValue(state.themeMode),
+      sheetState = themeSheetState,
+      onSelect = { label ->
+        themeByLabel[label]?.let(viewModel::updateThemeMode)
+        showThemeSheet = false
+      },
+      onDismiss = { showThemeSheet = false },
+    )
   }
 
   if (showPersonaSheet) {
