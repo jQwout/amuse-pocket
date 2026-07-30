@@ -23,15 +23,17 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Event
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Loop
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Remove
@@ -41,11 +43,12 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -247,77 +250,193 @@ internal fun ChatFontSizeCard(
   }
 }
 
+/**
+ * ОДНА форма строки-селектора на весь экран настроек: осмысленная иконка в круглом бейдже, метка +
+ * текущее значение, шеврон ВПРАВО (открывает лист, а не выпадает вниз).
+ *
+ * Раньше «Модель»/«Тема» были стоковым `DropdownMenu`, а «Персона» — стеклянным листом, из-за чего
+ * на одном экране жили два разных паттерна выбора, и худший был у дропдауна: плоская непрозрачная
+ * панель с дефолтным скруглением поверх авроры, `.background()` на внешнем модификаторе спорил с
+ * внутренним `Surface` меню (жёсткий прямоугольник против скруглённой поверхности), а выбранный
+ * пункт отличался только цветом текста. Плюс иконка всегда была молнией — даже у темы.
+ */
 @Composable
-internal fun SelectorCard(
-  selected: String,
-  options: List<String>,
-  onSelect: (String) -> Unit,
+private fun SettingsSelectorRow(
+  label: String,
+  value: String,
+  icon: ImageVector,
+  onClick: () -> Unit,
+  testTag: String,
   modifier: Modifier = Modifier,
-  testTag: String = "settings_selector",
 ) {
-  var expanded by remember { mutableStateOf(false) }
-
-  Box(modifier = modifier) {
-    Row(
+  Row(
+    modifier = modifier
+      .fillMaxWidth()
+      .glassCardSurface(SettingsCardShape)
+      .clickable(onClick = onClick)
+      .padding(horizontal = 16.dp, vertical = 18.dp)
+      .testTag(testTag),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Box(
       modifier = Modifier
-        .fillMaxWidth()
-        .glassCardSurface(SettingsCardShape)
-        .clickable { expanded = true }
-        .padding(horizontal = 16.dp, vertical = 18.dp)
-        .testTag(testTag),
-      verticalAlignment = Alignment.CenterVertically,
+        .size(44.dp)
+        .clip(CircleShape)
+        .background(MaterialTheme.colorScheme.onPrimary),
+      contentAlignment = Alignment.Center,
     ) {
-      Box(
-        modifier = Modifier
-          .size(44.dp)
-          .clip(CircleShape)
-          .background(MaterialTheme.colorScheme.onPrimary),
-        contentAlignment = Alignment.Center,
-      ) {
-        Icon(
-          imageVector = Icons.Default.Bolt,
-          contentDescription = null,
-          tint = MaterialTheme.colorScheme.primary,
-          modifier = Modifier.size(22.dp),
-        )
-      }
+      Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.size(22.dp),
+      )
+    }
+    Column(
+      modifier = Modifier
+        .weight(1f)
+        .padding(horizontal = 16.dp),
+    ) {
       Text(
-        text = selected,
-        style = MaterialTheme.typography.headlineSmall,
+        text = label,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+      Text(
+        text = value,
+        style = MaterialTheme.typography.titleLarge,
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
-        modifier = Modifier
-          .weight(1f)
-          .padding(horizontal = 16.dp),
-      )
-      Icon(
-        imageVector = Icons.Default.KeyboardArrowDown,
-        contentDescription = null,
-        tint = MaterialTheme.colorScheme.onSurfaceVariant,
       )
     }
+    Icon(
+      imageVector = Icons.AutoMirrored.Default.KeyboardArrowRight,
+      contentDescription = null,
+      tint = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+  }
+}
 
-    DropdownMenu(
-      expanded = expanded,
-      onDismissRequest = { expanded = false },
-      modifier = Modifier
-        .fillMaxWidth(0.9f)
-        .background(MaterialTheme.colorScheme.surface),
-    ) {
-      options.forEach { option ->
-        DropdownMenuItem(
-          text = {
-            Text(
-              text = option,
-              color = if (option == selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-            )
-          },
-          onClick = {
-            onSelect(option)
-            expanded = false
-          },
+/** Селектор-значение (модель, тема). Открывает [SelectorSheet] — сам ничего не выпадает. */
+@Composable
+internal fun SelectorCard(
+  label: String,
+  selected: String,
+  icon: ImageVector,
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier,
+  testTag: String = "settings_selector",
+) {
+  SettingsSelectorRow(
+    label = label,
+    value = selected,
+    icon = icon,
+    onClick = onClick,
+    testTag = testTag,
+    modifier = modifier,
+  )
+}
+
+/**
+ * Стеклянный лист выбора — единственный способ выбирать значение в настройках (тот же паттерн, что
+ * уже был у персоны). Пунктов может быть много (моделей), поэтому лист прокручиваемый; выбранный
+ * помечен галочкой И лаймовой гранью — как выбранный язык в онбординге и `PersonaCard`, а не одним
+ * цветом текста.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SelectorSheet(
+  title: String,
+  subtitle: String?,
+  options: List<String>,
+  selected: String,
+  sheetState: SheetState,
+  onSelect: (String) -> Unit,
+  onDismiss: () -> Unit,
+) {
+  ModalBottomSheet(
+    onDismissRequest = onDismiss,
+    sheetState = sheetState,
+    containerColor = MaterialTheme.colorScheme.surface,
+  ) {
+    SelectorSheetContent(
+      title = title,
+      subtitle = subtitle,
+      options = options,
+      selected = selected,
+      onSelect = onSelect,
+    )
+  }
+}
+
+/**
+ * Содержимое [SelectorSheet] без самого листа. Вынесено отдельно, потому что `ModalBottomSheet` —
+ * popup-окно: `onRoot()` в скриншот-тесте его не захватывает, и вёрстка листа осталась бы без
+ * эталона. Заодно контент отделён от контейнера.
+ */
+@Composable
+internal fun SelectorSheetContent(
+  title: String,
+  subtitle: String?,
+  options: List<String>,
+  selected: String,
+  onSelect: (String) -> Unit,
+) {
+  Column(
+    modifier = Modifier
+      .fillMaxWidth()
+      .verticalScroll(rememberScrollState())
+      .padding(bottom = 32.dp)
+      .testTag("settings_selector_sheet"),
+  ) {
+    Text(
+      text = title,
+      style = MaterialTheme.typography.titleLarge,
+      color = MaterialTheme.colorScheme.onSurface,
+      modifier = Modifier.padding(horizontal = 20.dp),
+    )
+    if (!subtitle.isNullOrBlank()) {
+      Text(
+        text = subtitle,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 20.dp).padding(top = 4.dp),
+      )
+    }
+    Spacer(modifier = Modifier.height(12.dp))
+    options.forEach { option ->
+      val isSelected = option == selected
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(horizontal = 20.dp, vertical = 4.dp)
+          .glassCardSurface(SettingsCardShape)
+          .then(
+            if (isSelected) {
+              Modifier.border(2.dp, MaterialTheme.colorScheme.primary, SettingsCardShape)
+            } else {
+              Modifier
+            },
+          )
+          .clickable { onSelect(option) }
+          .padding(horizontal = 16.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Text(
+          text = option,
+          style = MaterialTheme.typography.bodyLarge,
+          color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+          modifier = Modifier.weight(1f),
         )
+        if (isSelected) {
+          Icon(
+            imageVector = Icons.Default.Check,
+            contentDescription = "Выбрано",
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp),
+          )
+        }
       }
     }
   }
@@ -543,6 +662,10 @@ private fun StatusChip(text: String, granted: Boolean) {
   }
 }
 
+/**
+ * Персона открывает свой лист (у неё богатые карточки со статами, не плоский список строк), но форма
+ * самой строки — общая [SettingsSelectorRow], чтобы три селектора настроек читались как одна семья.
+ */
 @Composable
 internal fun PersonaSelectorCard(
   personaId: String,
@@ -550,49 +673,12 @@ internal fun PersonaSelectorCard(
   onClick: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  Row(
-    modifier = modifier
-      .fillMaxWidth()
-      .glassCardSurface(SettingsCardShape)
-      .clickable(onClick = onClick)
-      .padding(horizontal = 16.dp, vertical = 18.dp)
-      .testTag("settings_persona_selector"),
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    Box(
-      modifier = Modifier
-        .size(44.dp)
-        .clip(CircleShape)
-        .background(MaterialTheme.colorScheme.onPrimary),
-      contentAlignment = Alignment.Center,
-    ) {
-      Icon(
-        imageVector = Icons.Default.Psychology,
-        contentDescription = null,
-        tint = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.size(22.dp),
-      )
-    }
-    Column(
-      modifier = Modifier
-        .weight(1f)
-        .padding(horizontal = 16.dp),
-    ) {
-      Text(
-        text = "ТЕКУЩАЯ РОЛЬ",
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-      )
-      Text(
-        text = displayName ?: personaId,
-        style = MaterialTheme.typography.titleLarge,
-        color = MaterialTheme.colorScheme.onSurface,
-      )
-    }
-    Icon(
-      imageVector = Icons.AutoMirrored.Default.KeyboardArrowRight,
-      contentDescription = null,
-      tint = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-  }
+  SettingsSelectorRow(
+    label = "ТЕКУЩАЯ РОЛЬ",
+    value = displayName ?: personaId,
+    icon = Icons.Default.Psychology,
+    onClick = onClick,
+    testTag = "settings_persona_selector",
+    modifier = modifier,
+  )
 }
