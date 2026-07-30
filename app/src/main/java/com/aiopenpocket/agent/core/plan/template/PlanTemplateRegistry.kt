@@ -17,6 +17,18 @@ import kotlinx.serialization.json.Json
  * expected outcome — most agents (and every agent-less plan) have no domain template at all — never
  * an error; callers ([com.aiopenpocket.agent.core.plan.planner.PlanPlanner]) treat it as "no extra
  * domain guidance/constraints for this plan", not a failure.
+ *
+ * ## Почему шаблоны пресетов сейчас никем не читаются — и это НЕ повод их удалять
+ *
+ * `assets/plan_templates/` содержит `budget.json`, `languages.json`, `nutrition.json` — методологию
+ * планирования для трёх пресетов, которая ищется ровно по их id. Единственный вход в планировщик —
+ * режим PLAN из чата (`TurnModule`), а пресетам режимы PLAN/GOAL намеренно не выдаются
+ * ([com.aiopenpocket.agent.core.agent.toDefinition] — там же и обоснование). Значит эти три файла
+ * сейчас недостижимы ни одним рантайм-путём.
+ *
+ * Так решено СОЗНАТЕЛЬНО: методология зафиксирована автором, и возможности переписать изначальный
+ * план или цель из чата быть не должно. Файлы — не забытый мусор; прежде чем удалять их или
+ * возвращать пресетам планирование, сверьтесь с этим решением.
  */
 interface PlanTemplateRegistry {
   /**

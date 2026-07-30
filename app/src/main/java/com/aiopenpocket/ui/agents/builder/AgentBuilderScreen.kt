@@ -41,7 +41,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -197,11 +196,6 @@ private fun BuilderTopIsland(
   GlassSurface(
     state = glassState,
     shape = ISLAND_SHAPE,
-    // tint убран (по умолчанию GlassSurface кладёт белёсую плёнку LightTint поверх блюра). У визарда
-    // остров плотный ВСЕГДА — в отличие от списочных экранов, где стекло проявляется по скроллу, — и
-    // плёнка вымывала зелень авроры: таблетка читалась нейтральным тёмным слабом на цветном экране.
-    // Чистый блюр сохраняет оттенок фона и при этом остаётся подложкой для текста.
-    tint = Color.Transparent,
     modifier = Modifier
       .fillMaxWidth()
       .statusBarsPadding()
@@ -336,8 +330,6 @@ private fun BuilderBottomBar(
   GlassSurface(
     state = glassState,
     shape = ISLAND_SHAPE,
-    // Тот же чистый блюр, что у верхнего острова — см. BuilderTopIsland.
-    tint = Color.Transparent,
     modifier = Modifier
       .fillMaxWidth()
       .padding(horizontal = 12.dp)
