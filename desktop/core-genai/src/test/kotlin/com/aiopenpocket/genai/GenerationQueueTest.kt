@@ -6,7 +6,11 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import java.nio.file.Files
@@ -242,6 +246,62 @@ class GenerationQueueTest {
     assertEquals("job1", second)
     assertEquals(2, queue.jobs.value.size)
     assertEquals(imageRequest.prompt, queue.jobs.value.last().request.prompt)
+  }
+
+  /**
+   * Видео ждёт провайдера минутами. Если очередь держит пропуск на всё это время, два видео-задания
+   * при `maxConcurrent = 2` запирают её целиком — картинки не идут вообще.
+   */
+  @Test
+  fun `jobs waiting on the provider do not hold up the queue`() = runTest {
+    val home = createTempDirectory("genai-queue")
+    val (paths, artifacts) = fixture(home)
+
+    val videoRequest = GenerationRequest(GenerationModality.VIDEO, "пляж", "google/veo-3.1-fast")
+    val provider = object : GenerationProvider {
+      override val id = "waiting"
+      override fun supports(modality: GenerationModality) = true
+      override suspend fun checkAccess(): AccessCheck = AccessCheck.Ok()
+      override fun resume(pollingUrl: String): Flow<GenerationProgress> = emptyFlow()
+
+      override fun generate(request: GenerationRequest): Flow<GenerationProgress> =
+        if (request.modality == GenerationModality.VIDEO) {
+          flow {
+            emit(GenerationProgress.Accepted(providerJobId = "v", pollingUrl = "https://x/v"))
+            emit(GenerationProgress.Status("ждём провайдера"))
+            // Провайдер «думает» бесконечно: задание живо, но нашей работы в нём нет.
+            awaitCancellation()
+          }
+        } else {
+          flowOf(
+            GenerationProgress.Completed(
+              GenerationResult(outputs = listOf(GenerationOutput.Bytes(byteArrayOf(1), "image/png"))),
+            ),
+          )
+        }
+    }
+
+    val queue = GenerationQueue(
+      provider = provider,
+      artifacts = artifacts,
+      store = JobStore(paths),
+      scope = this@runTest,
+      maxConcurrent = 2,
+    )
+
+    // Оба слота заняты «висящими» видео...
+    queue.submitBatch(videoRequest, count = 2)
+    advanceUntilIdle()
+    // ...и картинка обязана всё равно пройти.
+    val imageId = queue.submit(imageRequest)
+    advanceUntilIdle()
+
+    val image = queue.jobs.value.single { it.id == imageId }
+    assertEquals(JobStatus.DONE, image.status, "картинка не прошла — видео-задания заперли очередь")
+    assertTrue(queue.jobs.value.filter { it.request.modality == GenerationModality.VIDEO }
+      .all { it.status == JobStatus.POLLING })
+
+    queue.jobs.value.forEach { queue.cancel(it.id) }
   }
 
   @Test

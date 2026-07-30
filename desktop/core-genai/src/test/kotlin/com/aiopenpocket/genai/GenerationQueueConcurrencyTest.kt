@@ -120,8 +120,9 @@ class GenerationQueueConcurrencyTest {
 
     val count = 300
     val ids = List(count) { queue.submit(GenerationRequest(GenerationModality.IMAGE, "промпт $it", "модель")) }
-    // Отменяем вдогонку — часть заданий успеет закончиться, часть нет. Нужны обе группы.
-    ids.forEach { queue.cancel(it) }
+    // Отменяем из отдельных корутин, чтобы отмена сталкивалась с завершением, а не шла заведомо
+    // после него: последовательный вызов из этого потока почти всегда опаздывает.
+    ids.map { id -> scope.launch { queue.cancel(id) } }.forEach { it.join() }
 
     withTimeout(60_000) {
       queue.jobs.first { jobs -> jobs.size == count && jobs.all { it.status.isTerminal } }

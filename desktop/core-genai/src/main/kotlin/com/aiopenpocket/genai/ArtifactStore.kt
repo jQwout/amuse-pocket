@@ -36,7 +36,7 @@ class ArtifactStore(
 
   /** Возвращает пути сохранённых файлов в порядке [outputs]. */
   suspend fun save(jobId: String, outputs: List<GenerationOutput>): List<Path> {
-    val dir = paths.outputDir.resolve(jobId)
+    val dir = paths.outputDir.resolve(safeDirName(jobId))
     dir.createDirectories()
     return outputs.mapIndexed { index, output ->
       val bytes = when (output) {
@@ -60,6 +60,13 @@ class ArtifactStore(
     if (code !in 200..299) throw OpenRouterHttpException(code, "не удалось скачать $url")
     return response.readBytes()
   }
+
+  /**
+   * Имя каталога из id задания. Свои id — безопасный UUID, но история лежит в правимом руками
+   * `jobs.json`, и `..` в id уводил бы запись за пределы папки результатов.
+   */
+  private fun safeDirName(jobId: String): String =
+    jobId.filter { it.isLetterOrDigit() || it == '-' || it == '_' }.take(64).ifBlank { "job" }
 
   private fun extensionFor(mimeType: String): String = when (mimeType.substringBefore(';').trim()) {
     "image/png" -> "png"
