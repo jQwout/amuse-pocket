@@ -52,7 +52,7 @@ class OpenRouterProvider(
   /** Интервал опроса видео-задания. Тесты передают 0, чтобы не ждать реальные секунды. */
   private val pollIntervalMs: Long = DEFAULT_POLL_INTERVAL_MS,
   private val maxPollAttempts: Int = DEFAULT_MAX_POLL_ATTEMPTS,
-) : GenerationProvider {
+) : GenerationProvider, AutoCloseable {
 
   override val id: String = "openrouter"
 
@@ -68,6 +68,8 @@ class OpenRouterProvider(
       socketTimeoutMillis = REQUEST_TIMEOUT_MS
     }
   }
+
+  override fun close() = httpClient.close()
 
   override fun supports(modality: GenerationModality): Boolean = true
 
@@ -177,7 +179,7 @@ class OpenRouterProvider(
       )
       return
     }
-    val outputs = images.mapNotNull { it.imageUrl?.url?.let(::decodeDataUrl) }
+    val outputs = images.mapNotNull { it.imageUrl?.url?.let(::parseImageOutput) }
     if (outputs.isEmpty()) {
       emit(GenerationProgress.Failed("Картинка пришла в неизвестном формате", code = "bad_image"))
       return
@@ -361,9 +363,15 @@ internal fun openRouterJson(): Json = Json {
   namingStrategy = JsonNamingStrategy.SnakeCase
 }
 
-/** `data:image/png;base64,…` → байты. Возвращает null, если это не data-URL (например, обычная ссылка). */
-internal fun decodeDataUrl(url: String): GenerationOutput? {
-  if (!url.startsWith("data:")) return GenerationOutput.RemoteUrl(url, "image/png")
+/**
+ * Разбирает то, что модель положила в `image_url`: обычно `data:image/png;base64,…`, но бывает и
+ * простая ссылка. Возвращает null только если содержимое разобрать не удалось.
+ *
+ * Раньше называлась `decodeDataUrl` и в документации обещала null для обычной ссылки, хотя код
+ * возвращал ссылку с жёстко зашитым `image/png` — jpeg сохранялся под именем `.png`.
+ */
+internal fun parseImageOutput(url: String): GenerationOutput? {
+  if (!url.startsWith("data:")) return GenerationOutput.RemoteUrl(url, mimeForRemoteImage(url))
   val comma = url.indexOf(',')
   if (comma < 0) return null
   val meta = url.substring("data:".length, comma)
@@ -375,6 +383,13 @@ internal fun decodeDataUrl(url: String): GenerationOutput? {
     return null
   }
   return GenerationOutput.Bytes(bytes, mime)
+}
+
+/** Тип картинки по расширению в ссылке; query и якорь отбрасываем, неизвестное считаем png. */
+private fun mimeForRemoteImage(url: String): String {
+  val path = url.substringBefore('?').substringBefore('#')
+  val guess = mimeByExtension(path.substringAfterLast('/'))
+  return if (guess.startsWith("image/")) guess else "image/png"
 }
 
 // --- DTO ------------------------------------------------------------------------------------

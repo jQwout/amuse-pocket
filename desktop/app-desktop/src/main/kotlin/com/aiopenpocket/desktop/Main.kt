@@ -36,6 +36,7 @@ import androidx.compose.ui.window.rememberWindowState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 
 private enum class Screen(val title: String, val subtitle: String) {
   GENERATE("Генерация", "промпт → результат"),
@@ -51,7 +52,12 @@ fun main() {
 
   application {
     Window(
-      onCloseRequest = ::exitApplication,
+      onCloseRequest = {
+        // Гасим фоновые задания и сетевой движок явно: иначе потоки CIO переживают окно.
+        container.close()
+        appScope.cancel()
+        exitApplication()
+      },
       title = "AI Open Pocket — генерация медиа",
       state = rememberWindowState(size = DpSize(1280.dp, 880.dp)),
     ) {

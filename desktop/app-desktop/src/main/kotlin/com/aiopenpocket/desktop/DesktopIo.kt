@@ -11,6 +11,7 @@ import java.awt.Frame
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.Locale
 
 /** Открывает файл или папку в системном приложении. Тихо ничего не делает там, где AWT это не умеет. */
 fun openInSystem(path: Path) {
@@ -37,7 +38,12 @@ fun pickImageFile(): Path? {
   return File(dir, name).toPath()
 }
 
-/** Читает картинку с диска в [ImageBitmap]. null — если файл не картинка или битый. */
+/**
+ * Читает картинку с диска в [ImageBitmap]. null — если файл не картинка или битый.
+ *
+ * Блокирующая: чтение файла плюс декодирование. Звать только с IO-диспетчера — из композиции
+ * это подвешивало бы окно на каждой карточке истории.
+ */
 fun loadImage(path: Path): ImageBitmap? = runCatching {
   SkiaImage.makeFromEncoded(Files.readAllBytes(path)).toComposeImageBitmap()
 }.getOrNull()
@@ -45,5 +51,8 @@ fun loadImage(path: Path): ImageBitmap? = runCatching {
 /**
  * Стоимость в долларах. Генерации бывают дешевле цента, поэтому округление до двух знаков
  * показывало бы «$0.00» — четыре знака честнее.
+ *
+ * Locale.ROOT: иначе на русской системе выходит «$0,0042» — точка и запятая вперемешку
+ * в зависимости от машины.
  */
-fun formatCost(costUsd: Double?): String = costUsd?.let { "$" + "%.4f".format(it) } ?: "—"
+fun formatCost(costUsd: Double?): String = costUsd?.let { "$" + "%.4f".format(Locale.ROOT, it) } ?: "—"

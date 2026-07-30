@@ -174,6 +174,21 @@ class OpenRouterProviderTest {
   }
 
   @Test
+  fun `a plain image url keeps its own type instead of becoming png`() = runTest {
+    val engine = jsonEngine(
+      """{"choices":[{"message":{"images":[{"image_url":{"url":"https://cdn.example/pic.jpg?v=2"}}]}}]}""",
+    )
+    val events = provider(engine).generate(
+      GenerationRequest(GenerationModality.IMAGE, "кот", "black-forest-labs/flux.2-pro"),
+    ).toList()
+
+    val output = events.filterIsInstance<GenerationProgress.Completed>()
+      .single().result.outputs.single() as GenerationOutput.RemoteUrl
+    // Раньше тип был жёстко image/png, и jpeg сохранялся под именем .png.
+    assertEquals("image/jpeg", output.mimeType)
+  }
+
+  @Test
   fun `access check reads key info out of the data envelope`() = runTest {
     val engine = jsonEngine(
       """

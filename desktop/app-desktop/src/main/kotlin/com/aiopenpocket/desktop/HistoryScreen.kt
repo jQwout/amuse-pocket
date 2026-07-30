@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -24,10 +25,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -36,6 +39,8 @@ import com.aiopenpocket.genai.GenerationJob
 import com.aiopenpocket.genai.GenerationModality
 import com.aiopenpocket.genai.JobStatus
 import com.aiopenpocket.genai.costSummary
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.nio.file.Path
 
 @Composable
@@ -48,7 +53,7 @@ fun HistoryScreen(container: AppContainer) {
   // Пачка показывается одной карточкой, одиночное задание — само по себе.
   val groups = done.groupBy { it.batchId ?: it.id }.values.toList()
 
-  Column(Modifier.fillMaxWidth()) {
+  Column(Modifier.fillMaxSize()) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
       Column(Modifier.weight(1f)) {
         Text("История", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
@@ -75,7 +80,7 @@ fun HistoryScreen(container: AppContainer) {
       return@Column
     }
 
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
       items(groups, key = { it.first().id }) { group ->
         if (group.size == 1) SingleRow(group.single()) else BatchRow(group)
       }
@@ -212,12 +217,16 @@ private fun BatchRow(group: List<GenerationJob>) {
 @Composable
 private fun Thumbnail(job: GenerationJob) {
   val first = job.artifacts.firstOrNull()
-  val bitmap = remember(first) {
-    if (job.request.modality == GenerationModality.IMAGE && first != null) loadImage(Path.of(first)) else null
+  val isImage = job.request.modality == GenerationModality.IMAGE
+  // produceState + IO, а не remember { loadImage(...) }: чтение файла и декодирование прямо в
+  // композиции подвешивают окно на каждой карточке — при истории в десяток картинок это видно.
+  val bitmap by produceState<ImageBitmap?>(initialValue = null, first, isImage) {
+    value = if (isImage && first != null) withContext(Dispatchers.IO) { loadImage(Path.of(first)) } else null
   }
-  if (bitmap != null) {
+  val ready = bitmap
+  if (ready != null) {
     Image(
-      bitmap = bitmap,
+      bitmap = ready,
       contentDescription = job.request.prompt,
       contentScale = ContentScale.Crop,
       modifier = Modifier.size(96.dp).clip(RoundedCornerShape(8.dp)),

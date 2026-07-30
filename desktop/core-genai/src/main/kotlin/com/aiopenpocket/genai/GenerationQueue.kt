@@ -4,6 +4,7 @@ package com.aiopenpocket.genai
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,6 +31,9 @@ class GenerationQueue(
   maxConcurrent: Int = DEFAULT_MAX_CONCURRENT,
   private val clock: () -> Long = System::currentTimeMillis,
   private val newId: () -> String = { UUID.randomUUID().toString().take(8) },
+  // Отдельный генератор, а не тот же newId: история группируется по `batchId ?: id`, и совпадение
+  // id пачки с id чужого задания склеило бы в одну карточку несвязанные результаты.
+  private val newBatchId: () -> String = { "batch-" + UUID.randomUUID().toString().take(8) },
 ) {
 
   private val semaphore = Semaphore(maxConcurrent)
@@ -53,7 +57,7 @@ class GenerationQueue(
   fun submitBatch(request: GenerationRequest, count: Int): List<String> {
     require(count >= 1) { "count must be >= 1, was $count" }
     if (count == 1) return listOf(submit(request))
-    val batchId = newId()
+    val batchId = newBatchId()
     return List(count) { submitOne(request, batchId) }
   }
 
@@ -64,7 +68,7 @@ class GenerationQueue(
   fun submitAcrossModels(request: GenerationRequest, models: List<String>): List<String> {
     require(models.isNotEmpty()) { "models must not be empty" }
     if (models.size == 1) return listOf(submit(request.copy(model = models.single())))
-    val batchId = newId()
+    val batchId = newBatchId()
     return models.map { model -> submitOne(request.copy(model = model), batchId) }
   }
 
@@ -88,10 +92,9 @@ class GenerationQueue(
 
   fun cancel(jobId: String) {
     running.remove(jobId)?.cancel()
-    val job = _jobs.value.firstOrNull { it.id == jobId } ?: return
-    if (!job.status.isTerminal) {
-      upsert(job.copy(status = JobStatus.CANCELLED, note = null))
-    }
+    // Через mutate, а не «прочитал снимок — записал»: задание может завершиться прямо сейчас, и
+    // запись по устаревшему снимку затёрла бы DONE вместе с путями к файлам и стоимостью.
+    mutate(jobId) { if (it.status.isTerminal) null else it.copy(status = JobStatus.CANCELLED, note = null) }
   }
 
   /**
@@ -104,25 +107,33 @@ class GenerationQueue(
       if (job.status.isTerminal) continue
       val pollingUrl = job.pollingUrl
       if (pollingUrl != null) {
-        upsert(job.copy(status = JobStatus.POLLING, note = "догоняем задание после перезапуска"))
+        mutate(job.id) { it.copy(status = JobStatus.POLLING, note = "догоняем задание после перезапуска") }
         launchJob(job.id) { provider.resume(pollingUrl) }
       } else {
-        upsert(
-          job.copy(
+        mutate(job.id) {
+          it.copy(
             status = JobStatus.FAILED,
             error = "прервано закрытием приложения — нажми «Повторить»",
             note = null,
-          ),
-        )
+          )
+        }
       }
     }
   }
 
   private fun launchJob(jobId: String, source: () -> kotlinx.coroutines.flow.Flow<GenerationProgress>) {
-    running[jobId] = scope.launch {
+    // LAZY + явный start(): при обычном launch корутина стартует раньше, чем Job попадёт в running,
+    // и cancel() в этом окне не нашёл бы, что отменять — задание помечалось бы отменённым, продолжая
+    // работать и в итоге переписывая свой же статус на DONE.
+    val job = scope.launch(start = CoroutineStart.LAZY) {
       try {
         semaphore.withPermit {
-          current(jobId)?.let { upsert(it.copy(status = JobStatus.RUNNING, note = null)) }
+          // Догоняемое видео уже в POLLING и с нотой «догоняем после перезапуска» — не сбиваем
+          // его на RUNNING, иначе экран первые секунды врёт про то, что происходит.
+          mutate(jobId) {
+            if (it.status.isTerminal || it.status == JobStatus.POLLING) null
+            else it.copy(status = JobStatus.RUNNING, note = null)
+          }
           source().collect { progress -> apply(jobId, progress) }
         }
       } catch (e: CancellationException) {
@@ -130,36 +141,46 @@ class GenerationQueue(
         // статус уже выставлен в cancel(), перетирать его ошибкой нельзя.
         throw e
       } catch (e: Exception) {
-        current(jobId)?.let {
-          upsert(it.copy(status = JobStatus.FAILED, error = e.message ?: "неизвестная ошибка", note = null))
+        mutate(jobId) {
+          if (it.status.isTerminal) null
+          else it.copy(status = JobStatus.FAILED, error = e.message ?: "неизвестная ошибка", note = null)
         }
       } finally {
         running.remove(jobId)
       }
     }
+    running[jobId] = job
+    job.start()
   }
 
+  /**
+   * Все переходы идут через [mutate], который читает и пишет задание в одной атомарной операции.
+   * Отменённое задание больше не оживает: терминальный статус побеждает любой поздний прогресс.
+   */
   private suspend fun apply(jobId: String, progress: GenerationProgress) {
-    val job = current(jobId) ?: return
     when (progress) {
-      is GenerationProgress.Accepted -> upsert(
+      is GenerationProgress.Accepted -> mutate(jobId) { job ->
+        if (job.status.isTerminal) return@mutate null
         job.copy(
           status = if (progress.pollingUrl != null) JobStatus.POLLING else JobStatus.RUNNING,
           providerJobId = progress.providerJobId ?: job.providerJobId,
           pollingUrl = progress.pollingUrl ?: job.pollingUrl,
-        ),
-      )
+        )
+      }
 
-      is GenerationProgress.Status -> upsert(job.copy(status = JobStatus.POLLING, note = progress.note))
+      is GenerationProgress.Status -> mutate(jobId) { job ->
+        if (job.status.isTerminal) null else job.copy(status = JobStatus.POLLING, note = progress.note)
+      }
 
       is GenerationProgress.Completed -> {
-        upsert(job.copy(note = "сохраняем файлы"))
+        mutate(jobId) { if (it.status.isTerminal) null else it.copy(note = "сохраняем файлы") }
         val saved = runCatching { artifacts.save(jobId, progress.result.outputs) }
-        val fresh = current(jobId) ?: return
-        upsert(
+        mutate(jobId) { job ->
+          // Пользователь мог отменить задание, пока писались файлы: воскрешать его в DONE нельзя.
+          if (job.status.isTerminal) return@mutate null
           saved.fold(
             onSuccess = { pathList ->
-              fresh.copy(
+              job.copy(
                 status = JobStatus.DONE,
                 artifacts = pathList.map { it.toString() },
                 costUsd = progress.result.costUsd,
@@ -169,23 +190,41 @@ class GenerationQueue(
             },
             onFailure = { e ->
               // Генерация удалась, а запись на диск нет — это разные беды, и врать «готово» нельзя.
-              fresh.copy(
+              job.copy(
                 status = JobStatus.FAILED,
                 error = "результат получен, но не сохранён: ${e.message}",
                 note = null,
               )
             },
-          ),
-        )
+          )
+        }
       }
 
-      is GenerationProgress.Failed -> upsert(
-        job.copy(status = JobStatus.FAILED, error = progress.message, note = null),
-      )
+      is GenerationProgress.Failed -> mutate(jobId) { job ->
+        if (job.status.isTerminal) null else job.copy(status = JobStatus.FAILED, error = progress.message, note = null)
+      }
     }
   }
 
-  private fun current(jobId: String): GenerationJob? = _jobs.value.firstOrNull { it.id == jobId }
+  /**
+   * Атомарно меняет одно задание: [transform] получает АКТУАЛЬНОЕ состояние внутри CAS-цикла,
+   * а не снимок, прочитанный вызывающим. Возврат null означает «ничего не менять» — так переходы,
+   * опоздавшие к терминальному статусу, отбрасываются, а не затирают результат.
+   */
+  private fun mutate(jobId: String, transform: (GenerationJob) -> GenerationJob?) {
+    var applied = false
+    _jobs.update { existing ->
+      // Сбрасываем на каждой итерации: при проигранном CAS lambda выполняется заново, и значение
+      // от неудачной попытки не должно решать, писать ли историю на диск.
+      applied = false
+      val index = existing.indexOfFirst { it.id == jobId }
+      if (index < 0) return@update existing
+      val updated = transform(existing[index]) ?: return@update existing
+      applied = true
+      existing.toMutableList().also { it[index] = updated }
+    }
+    if (applied) persist()
+  }
 
   private fun upsert(job: GenerationJob) {
     // update, а не присваивание _jobs.value: при maxConcurrent > 1 два задания обновляют статус

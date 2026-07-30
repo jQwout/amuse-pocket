@@ -10,6 +10,7 @@ import io.ktor.client.request.header
 import io.ktor.client.statement.readBytes
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.Locale
 import kotlin.io.path.createDirectories
 
 /**
@@ -20,7 +21,7 @@ class ArtifactStore(
   engine: HttpClientEngine,
   private val apiKey: () -> String,
   private val paths: AppPaths = AppPaths(),
-) {
+) : AutoCloseable {
 
   private val httpClient = HttpClient(engine) {
     install(HttpTimeout) {
@@ -31,6 +32,8 @@ class ArtifactStore(
     }
   }
 
+  override fun close() = httpClient.close()
+
   /** Возвращает пути сохранённых файлов в порядке [outputs]. */
   suspend fun save(jobId: String, outputs: List<GenerationOutput>): List<Path> {
     val dir = paths.outputDir.resolve(jobId)
@@ -40,7 +43,9 @@ class ArtifactStore(
         is GenerationOutput.Bytes -> output.data
         is GenerationOutput.RemoteUrl -> download(output.url)
       }
-      val file = dir.resolve("%02d.%s".format(index + 1, extensionFor(output.mimeType)))
+      // Locale.ROOT: в некоторых локалях %d даёт не ASCII-цифры, а имена файлов не место
+      // для сюрпризов.
+      val file = dir.resolve("%02d.%s".format(Locale.ROOT, index + 1, extensionFor(output.mimeType)))
       Files.write(file, bytes)
       file
     }
