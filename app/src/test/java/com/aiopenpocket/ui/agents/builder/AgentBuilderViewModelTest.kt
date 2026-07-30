@@ -463,4 +463,68 @@ class AgentBuilderViewModelTest {
     assertTrue(agentResolver.observeDrafts().first().isEmpty())
     assertTrue(agentResolver.observeRoster().first().any { it.id == id })
   }
+
+  // --- валидация «по кнопке» (showErrors) --------------------------------------------------------
+
+  /**
+   * Отказ «Далее» не молчит: он поднимает [AgentBuilderUiState.showErrors], и только после этого шаг
+   * рисует инлайн-ошибки. До первого нажатия свежий черновик не встречает пользователя красным —
+   * ради этого флаг и заведён. Рендер по флагу проверяется в AgentBuilderScreenTest; здесь — сам
+   * переход.
+   */
+  @Test
+  fun `nextStep on an invalid step refuses, stays put and raises showErrors`() = runTest(testDispatcher) {
+    vm.newDraft()
+    advanceUntilIdle()
+    assertFalse("на свежем черновике ошибки ещё молчат", vm.state.value.showErrors)
+
+    val advanced = vm.nextStep()
+
+    assertFalse("шаг невалиден — уйти нельзя", advanced)
+    assertEquals("шаг остался прежним", BuilderStep.IDENTITY, vm.state.value.step)
+    assertTrue("но теперь ошибки показаны", vm.state.value.showErrors)
+    assertTrue("и они действительно есть", vm.state.value.errors.isNotEmpty())
+  }
+
+  /** Успешный переход уводит на следующий шаг и гасит флаг — на новом шаге начинаем с чистого листа. */
+  @Test
+  fun `nextStep on a valid step advances and clears showErrors`() = runTest(testDispatcher) {
+    vm.newDraft()
+    vm.nextStep() // упёрлись, флаг поднят
+    fillValidFields()
+    advanceUntilIdle()
+    assertTrue(vm.state.value.showErrors)
+
+    val advanced = vm.nextStep()
+
+    assertTrue(advanced)
+    assertEquals(BuilderStep.INSTRUCTIONS, vm.state.value.step)
+    assertFalse("на новом шаге ошибки снова молчат", vm.state.value.showErrors)
+  }
+
+  /**
+   * Назад никогда не блокируется и тоже гасит флаг — иначе предыдущий шаг встречал бы пользователя
+   * красным из-за чужой ошибки.
+   *
+   * Шаг ломаем ЯВНО: [fillValidFields] заполняет в том числе системный промпт, поэтому «Инструкции»
+   * сами по себе валидны и отказа бы не случилось.
+   */
+  @Test
+  fun `previousStep clears showErrors`() = runTest(testDispatcher) {
+    vm.newDraft()
+    fillValidFields()
+    advanceUntilIdle()
+    assertTrue("IDENTITY валиден -> уходим на INSTRUCTIONS", vm.nextStep())
+    assertEquals(BuilderStep.INSTRUCTIONS, vm.state.value.step)
+
+    vm.updateDraft { it.copy(systemPrompt = "") } // ломаем текущий шаг
+    advanceUntilIdle()
+    assertFalse("пустой промпт -> уйти нельзя", vm.nextStep())
+    assertTrue(vm.state.value.showErrors)
+
+    assertTrue(vm.previousStep())
+
+    assertEquals(BuilderStep.IDENTITY, vm.state.value.step)
+    assertFalse(vm.state.value.showErrors)
+  }
 }

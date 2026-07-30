@@ -79,8 +79,6 @@ fun GlassSurface(
    * него читались сообщения ленты.
    */
   plateAlpha: Float = PLATE_ALPHA,
-  /** Оставлен для совместимости вызовов; блюра больше нет, поэтому ни на что не влияет. */
-  @Suppress("UNUSED_PARAMETER") blurEnabled: Boolean = true,
   content: @Composable BoxScope.() -> Unit,
 ) {
   val backgroundColor = MaterialTheme.colorScheme.background

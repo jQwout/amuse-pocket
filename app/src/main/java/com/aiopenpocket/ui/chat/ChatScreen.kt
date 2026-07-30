@@ -21,6 +21,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -251,20 +252,39 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val hasStreamingItem = state.isLoading
 
-    // Перф-диагностика лага: настоящий backdrop-blur (Haze) на шапке и композере пере-считывается
-    // каждый кадр, пока под баром что-то движется (скролл ленты / стрим ответа) — единственная
-    // непрерывно GPU-тяжёлая работа на экране. Гасим блюр на это время (дешёвый tint), возвращаем в
-    // покое. Если на устройстве скролл/печать заметно глаже — виновник блюр (иначе см. markdown-парс).
-    val isScrolling by remember { derivedStateOf { listState.isScrollInProgress } }
-    val glassBlurEnabled = !isScrolling && !hasStreamingItem
-
     val inputVisible = !state.lessonMode && !searchActive
     val showScrollDown by remember {
         derivedStateOf { listState.canScrollForward }
     }
 
-    // Индекс последнего элемента ленты: сообщения + (опционально) стриминговый пузырь.
-    fun lastItemIndex() = state.messages.size - 1 + if (hasStreamingItem) 1 else 0
+    // Резерв под ответ: пустое место в высоту ВИДИМОГО вьюпорта, чтобы вопрос прибился к верхней
+    // кромке, а ответ рос в него сверху вниз.
+    //
+    // Высота АНИМИРУЕТСЯ, но только в одну сторону — это принципиально. Схлопывание плавное (иначе
+    // дыра размером с экран исчезала за кадр, и это читалось как рывок в конце хода), а вот РОСТ
+    // мгновенный: резерв нужен подскроллу `animateScrollToItem(qIndex, 0)` уже в тот момент, когда
+    // тот начинается. Если бы место набиралось те же 280мс, скролл гнался бы за растущим контентом и
+    // мог не довести вопрос до верхней кромки — ровно то, ради чего резерв и существует.
+    val fullHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
+    val tailSpacerHeight by animateDpAsState(
+        targetValue = if (hasStreamingItem) (fullHeight - topPad - bottomPad).coerceAtLeast(0.dp) else 0.dp,
+        animationSpec = if (hasStreamingItem) snap() else tween(durationMillis = 280, easing = FastOutSlowInEasing),
+        label = "tail_spacer_collapse",
+    )
+
+    /**
+     * Индекс последнего элемента ленты: сообщения + стриминговый пузырь + tail-спейсер.
+     *
+     * Спейсер учитывается по СВОЕЙ высоте, а не по [hasStreamingItem]: он переживает флаг на время
+     * схлопывания, и в это окно индекс был бы на единицу меньше реального. Симптом: дотянул ленту до
+     * низа во время стрима, ход закончился — докрутка «к последнему» уезжала в ещё не схлопнувшуюся
+     * пустоту.
+     */
+    fun lastItemIndex(): Int {
+        val streamingItems = if (hasStreamingItem) 1 else 0
+        val spacerItems = if (tailSpacerHeight > 0.dp) 1 else 0
+        return state.messages.size - 1 + streamingItems + spacerItems
+    }
 
     // Гейт пагинации: при открытии чата мы доли секунды стоим у индекса 0 (до автоскролла к низу) —
     // без этого флага «подгрузка старых» сработала бы прямо на открытии. Разрешаем её только ПОСЛЕ того,
@@ -428,31 +448,10 @@ fun ChatScreen(
         // аурора. Высоты баров меряем (onSizeChanged) → contentPadding ленты, чтобы крайние сообщения
         // вставали у кромки бара, а не прятались под ним.
         Box(modifier = Modifier.fillMaxSize()) {
-            // Высота окна для tail-спейсера. Берём из LocalWindowInfo, а НЕ из BoxWithConstraints: тот —
-            // SubcomposeLayout и субкомпозировал весь экран на каждую рекомпозицию тела (дорого при печати).
-            // Видимый вьюпорт между барами = fullHeight - topPad - bottomPad.
-            val fullHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
-
-            // Высота tail-спейсера АНИМИРУЕТСЯ, а не пропадает в один кадр.
-            //
-            // Это и был рывок в конце хода: спейсер резервирует место высотой в ЦЕЛЫЙ вьюпорт, чтобы
-            // ответ рос сверху вниз, — и когда стрим заканчивался, эта дыра размером с экран
-            // схлопывалась мгновенно (одновременно с подменой пузыря "streaming" на настоящее
-            // сообщение с другим ключом). Лента переразмечалась разом, и это читалось как дёрганье
-            // ровно ПОСЛЕ того, как текст дорисовался.
-            //
-            // Теперь пустота закрывается плавно. Сам спейсер живёт ДОЛЬШЕ пузыря — пока анимация не
-            // доведёт высоту до нуля (см. условие рендера ниже), иначе анимировать было бы нечего.
-            val tailSpacerTarget = if (hasStreamingItem) {
-                (fullHeight - topPad - bottomPad).coerceAtLeast(0.dp)
-            } else {
-                0.dp
-            }
-            val tailSpacerHeight by animateDpAsState(
-                targetValue = tailSpacerTarget,
-                animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
-                label = "tail_spacer_collapse",
-            )
+            // fullHeight/tailSpacerHeight подняты в скоуп выше: их читает ещё и lastItemIndex(),
+            // которому нужно знать, жив ли сейчас спейсер. Высота берётся из LocalWindowInfo, а НЕ из
+            // BoxWithConstraints: тот — SubcomposeLayout и субкомпозировал весь экран на каждую
+            // рекомпозицию тела (дорого при печати).
 
             // ЛЕНТА (задний слой) — заполняет весь Box и скроллится под обоими барами. Свежие сообщения
             // снизу. Arrangement.Bottom: короткий чат прижимается к низу. contentPadding сверху/снизу =
@@ -558,7 +557,6 @@ fun ChatScreen(
                 GlassSurface(
                     state = glassState,
                     shape = barShape,
-                    blurEnabled = glassBlurEnabled,
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
@@ -839,7 +837,6 @@ fun ChatScreen(
                                     onCancel = { viewModel.handleIntent(ChatIntent.CancelRequest) },
                                     isLoading = state.isLoading,
                                     glassState = glassState,
-                                    blurEnabled = glassBlurEnabled,
                                     placeholder = when (state.agentMode) {
                                         AgentMode.PLAN -> "Опиши задачу — агент составит план…"
                                         AgentMode.GOAL -> "Сформулируй цель…"

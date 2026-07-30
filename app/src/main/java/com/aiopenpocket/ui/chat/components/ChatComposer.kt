@@ -73,7 +73,6 @@ internal fun ChatInput(
     onCancel: () -> Unit,
     isLoading: Boolean,
     glassState: GlassState,
-    blurEnabled: Boolean = true,
     placeholder: String = "Сообщение...",
     onExpand: () -> Unit,
     voiceState: VoiceInputState,
@@ -111,7 +110,6 @@ internal fun ChatInput(
     GlassSurface(
         state = glassState,
         shape = inputShape,
-        blurEnabled = blurEnabled,
         // Поле ввода — непрозрачное, в отличие от остальной обвязки. Здесь просвечивание мешает не
         // эстетически, а функционально: сквозь полупрозрачную подложку читались сообщения ленты и
         // мешались с набираемым текстом. Плюс это единственная поверхность, куда пользователь
