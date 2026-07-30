@@ -51,12 +51,19 @@ class AgentDefinitionTest {
     assertTrue("PUBLISHED presets must report enabled=true", definition.enabled)
   }
 
+  /**
+   * Пресеты отдают ТОЛЬКО Чат и Рефлексию. Планирование (План/Цель) — привилегия агентов, которых
+   * пользователь собрал сам и явно включил им режимы: раньше полный набор выдавался каждому пресету
+   * одной общей строкой, и Напоминалки с Дневником предлагали целевой режим без всякого смысла.
+   */
   @Test
-  fun `toDefinition defaults to CHAT among every non-lesson mode, excluding TUTOR`() {
+  fun `toDefinition gives presets chat and reflect only, never planning modes`() {
     val definition = MiniAgentCatalog.get("reminders")!!.toDefinition()
 
     assertEquals(AgentMode.CHAT, definition.defaultMode)
-    assertEquals(setOf(AgentMode.CHAT, AgentMode.PLAN, AgentMode.GOAL, AgentMode.REFLECT), definition.allowedModes)
+    assertEquals(setOf(AgentMode.CHAT, AgentMode.REFLECT), definition.allowedModes)
+    assertTrue("планирование пресетам не выдаём", AgentMode.PLAN !in definition.allowedModes)
+    assertTrue("планирование пресетам не выдаём", AgentMode.GOAL !in definition.allowedModes)
     assertTrue("TUTOR is lesson-internal, never user-selectable for a mini-agent chat", AgentMode.TUTOR !in definition.allowedModes)
   }
 
