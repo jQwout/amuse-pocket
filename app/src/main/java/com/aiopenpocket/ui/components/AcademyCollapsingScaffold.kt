@@ -103,18 +103,24 @@ fun AcademyCollapsingScaffold(
           //
           // collapsedFraction читаем ВНУТРИ graphicsLayer (фаза рисования), а не в композиции:
           // иначе каждый кадр скролла рекомпозировал бы весь топбар. Тот же приём, что у ленты чата.
+          // Отступы-поля таблетки живут на ЭТОМ Box, а НЕ на стекле внутри. Если повесить их на
+          // GlassSurface после matchParentSize, padding урезает само стекло: оно становится на 16dp
+          // короче бара, чьё содержимое верстается в полной высоте, — заголовок почти упирается в
+          // кромку и таблетка выглядит мелкой (особенно там, где нет ни кнопки назад, ни экшенов, и
+          // заголовок один в широкой капсуле). Здесь поля сдвигают ОБОИХ, и стекло точно совпадает
+          // с областью бара.
           Box(
             modifier = Modifier
               .fillMaxWidth()
-              .statusBarsPadding(),
+              .statusBarsPadding()
+              .padding(horizontal = 12.dp)
+              .padding(top = 8.dp, bottom = 8.dp),
           ) {
             GlassSurface(
               state = glassState,
               shape = TOP_ISLAND_SHAPE,
               modifier = Modifier
                 .matchParentSize()
-                .padding(horizontal = 12.dp)
-                .padding(top = 8.dp, bottom = 8.dp)
                 .graphicsLayer { alpha = scrollBehavior.state.collapsedFraction }
                 .shadow(16.dp, TOP_ISLAND_SHAPE, clip = false),
             ) {}

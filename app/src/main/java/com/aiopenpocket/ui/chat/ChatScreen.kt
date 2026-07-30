@@ -747,12 +747,24 @@ fun ChatScreen(
                         // получает только Чат/Рефлексию, а привязанный к мини-агенту — полный набор.
                         // Скрываем селектор в гайд-уроках.
                         if (!state.isTutorial) {
-                            ModeSelector(
-                                selected = state.agentMode,
-                                enabled = !state.isLoading,
-                                available = availableModesFor(state.agent),
-                                onSelect = { viewModel.handleIntent(ChatIntent.SetMode(it)) },
-                            )
+                            // Селектор лежал БЕЗ подложки прямо поверх ленты: сообщения просвечивали
+                            // сквозь «Чат»/«Рефлексию», и текст мешался с чипами до неразборчивости.
+                            // Даём ему ту же плашку, что и у остальной нижней обвязки.
+                            val modeShape = RoundedCornerShape(24.dp)
+                            GlassSurface(
+                                state = glassState,
+                                shape = modeShape,
+                                modifier = Modifier
+                                    .padding(horizontal = 12.dp)
+                                    .padding(bottom = 6.dp),
+                            ) {
+                                ModeSelector(
+                                    selected = state.agentMode,
+                                    enabled = !state.isLoading,
+                                    available = availableModesFor(state.agent),
+                                    onSelect = { viewModel.handleIntent(ChatIntent.SetMode(it)) },
+                                )
+                            }
                         }
                         // Во время записи поле ввода подменяется панелью записи (как в Telegram/Claude): слева —
                         // отмена, по центру статус/таймер/волна/живой текст, справа — завершение. Итог падает в поле.

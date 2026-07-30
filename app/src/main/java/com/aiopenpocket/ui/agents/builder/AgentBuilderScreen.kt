@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -103,7 +104,8 @@ fun AgentBuilderScreen(
   val glassState = rememberGlassState()
   val stepIndex = BuilderStep.entries.indexOf(state.step).coerceAtLeast(0)
   val progress = (stepIndex + 1) / BuilderStep.entries.size.toFloat()
-  val canAdvance = AgentBuilderValidator.canAdvanceFrom(state.step, state.errors)
+  // canAdvance здесь больше не считается: «Далее» всегда нажимаема и сама запускает валидацию
+  // (см. BuilderBottomBar и AgentBuilderViewModel.nextStep). Гейт живёт во ViewModel, а не в кнопке.
 
   // Высоты плавающих островов меряем (onSizeChanged) и превращаем в отступы полотна — иначе верх/низ
   // шага навсегда прячутся под стеклом. Тот же приём, что в OnboardingScreen/ChatScreen.
@@ -173,7 +175,6 @@ fun AgentBuilderScreen(
       BuilderBottomBar(
         saveError = state.saveError,
         showNext = state.step != BuilderStep.TEST,
-        canAdvance = canAdvance,
         glassState = glassState,
         onBack = onBack,
         onNext = onNext,
@@ -196,6 +197,11 @@ private fun BuilderTopIsland(
   GlassSurface(
     state = glassState,
     shape = ISLAND_SHAPE,
+    // tint убран (по умолчанию GlassSurface кладёт белёсую плёнку LightTint поверх блюра). У визарда
+    // остров плотный ВСЕГДА — в отличие от списочных экранов, где стекло проявляется по скроллу, — и
+    // плёнка вымывала зелень авроры: таблетка читалась нейтральным тёмным слабом на цветном экране.
+    // Чистый блюр сохраняет оттенок фона и при этом остаётся подложкой для текста.
+    tint = Color.Transparent,
     modifier = Modifier
       .fillMaxWidth()
       .statusBarsPadding()
@@ -245,7 +251,15 @@ private fun BuilderStepContent(
   onArchive: () -> Unit,
   contentPadding: PaddingValues,
 ) {
-  val stepErrors = AgentBuilderValidator.errorsForStep(state.errors, state.step)
+  // Валидация «по кнопке»: инлайн-ошибки шага показываем только после того, как «Далее» упёрлось в
+  // них (см. AgentBuilderUiState.showErrors). Иначе свежий черновик встречал пользователя красными
+  // строками под каждым пустым полем, которого он ещё не трогал. Шаг «Проверка» это НЕ затрагивает —
+  // там сводка блокеров и есть смысл экрана, она рисуется из state.errors напрямую.
+  val stepErrors = if (state.showErrors) {
+    AgentBuilderValidator.errorsForStep(state.errors, state.step)
+  } else {
+    emptyList()
+  }
   when (state.step) {
     BuilderStep.IDENTITY -> IdentityStep(
       draft = state.draft,
@@ -313,7 +327,6 @@ private fun BuilderStepContent(
 private fun BuilderBottomBar(
   saveError: String?,
   showNext: Boolean,
-  canAdvance: Boolean,
   glassState: GlassState,
   onBack: () -> Unit,
   onNext: () -> Unit,
@@ -323,6 +336,8 @@ private fun BuilderBottomBar(
   GlassSurface(
     state = glassState,
     shape = ISLAND_SHAPE,
+    // Тот же чистый блюр, что у верхнего острова — см. BuilderTopIsland.
+    tint = Color.Transparent,
     modifier = Modifier
       .fillMaxWidth()
       .padding(horizontal = 12.dp)
@@ -344,9 +359,12 @@ private fun BuilderBottomBar(
         ) { Text("Назад") }
         Box(modifier = Modifier.weight(1f))
         if (showNext) {
+          // «Далее» ВСЕГДА нажимаема: она и есть триггер валидации. Раньше кнопка гасла на
+          // блокирующих ошибках — вместе с ошибками, показанными сразу, это давало мёртвый экран,
+          // на котором нечего нажать и непонятно, чего от тебя хотят. Теперь нажатие либо ведёт
+          // дальше, либо показывает, что мешает (AgentBuilderViewModel.nextStep).
           Button(
             onClick = onNext,
-            enabled = canAdvance,
             modifier = Modifier.testTag("agent_builder_next"),
           ) { Text("Далее") }
         }

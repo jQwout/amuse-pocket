@@ -216,6 +216,14 @@ data class AgentBuilderUiState(
   val draft: AgentDraft,
   val step: BuilderStep = BuilderStep.IDENTITY,
   val errors: List<ValidationIssue> = emptyList(),
+  /**
+   * Показывать ли инлайн-ошибки редактируемых шагов. Валидация идёт «по кнопке»: на свежем черновике
+   * все поля пусты, и раньше экран сразу встречал пользователя тремя красными строками, хотя он ещё
+   * ничего не сделал. Флаг поднимает [AgentBuilderViewModel.nextStep], когда «Далее» нажали при
+   * блокирующих ошибках, и сбрасывает любая смена шага. Шаг «Проверка» этим флагом НЕ управляется —
+   * там сводка блокеров и есть смысл экрана.
+   */
+  val showErrors: Boolean = false,
   val isSaving: Boolean = false,
   val canPublish: Boolean = false,
   // PREVIEW, не LIVE: первый тестовый прогон черновика не должен по-настоящему слать SMS/писать в

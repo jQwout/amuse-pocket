@@ -177,15 +177,25 @@ class AgentBuilderViewModel(
   // --- Step navigation -------------------------------------------------------------------------------
 
   fun goToStep(step: BuilderStep) {
-    _state.update { it.copy(step = step) }
+    _state.update { it.copy(step = step, showErrors = false) }
   }
 
-  /** Advances to the next step; returns false (no-op) if the CURRENT step still has its own blocking errors, or [BuilderStep.TEST] is already active. */
+  /**
+   * Advances to the next step; returns false (no-op) if the CURRENT step still has its own blocking
+   * errors, or [BuilderStep.TEST] is already active.
+   *
+   * Валидация «по кнопке»: отказ не молчит, а поднимает [AgentBuilderUiState.showErrors] — только
+   * после этого шаг рисует инлайн-ошибки. До первого нажатия «Далее» свежий черновик не встречает
+   * пользователя красными строками на полях, которых он ещё не трогал.
+   */
   fun nextStep(): Boolean {
     val current = _state.value
-    if (!AgentBuilderValidator.canAdvanceFrom(current.step, current.errors)) return false
+    if (!AgentBuilderValidator.canAdvanceFrom(current.step, current.errors)) {
+      _state.update { it.copy(showErrors = true) }
+      return false
+    }
     val next = BuilderStep.entries.getOrNull(current.step.ordinal + 1) ?: return false
-    _state.update { it.copy(step = next) }
+    _state.update { it.copy(step = next, showErrors = false) }
     return true
   }
 
@@ -193,7 +203,7 @@ class AgentBuilderViewModel(
   fun previousStep(): Boolean {
     val current = _state.value
     val prev = BuilderStep.entries.getOrNull(current.step.ordinal - 1) ?: return false
-    _state.update { it.copy(step = prev) }
+    _state.update { it.copy(step = prev, showErrors = false) }
     return true
   }
 
