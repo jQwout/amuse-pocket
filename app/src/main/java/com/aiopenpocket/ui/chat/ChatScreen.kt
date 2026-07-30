@@ -15,7 +15,9 @@ import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -431,6 +433,27 @@ fun ChatScreen(
             // Видимый вьюпорт между барами = fullHeight - topPad - bottomPad.
             val fullHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
 
+            // Высота tail-спейсера АНИМИРУЕТСЯ, а не пропадает в один кадр.
+            //
+            // Это и был рывок в конце хода: спейсер резервирует место высотой в ЦЕЛЫЙ вьюпорт, чтобы
+            // ответ рос сверху вниз, — и когда стрим заканчивался, эта дыра размером с экран
+            // схлопывалась мгновенно (одновременно с подменой пузыря "streaming" на настоящее
+            // сообщение с другим ключом). Лента переразмечалась разом, и это читалось как дёрганье
+            // ровно ПОСЛЕ того, как текст дорисовался.
+            //
+            // Теперь пустота закрывается плавно. Сам спейсер живёт ДОЛЬШЕ пузыря — пока анимация не
+            // доведёт высоту до нуля (см. условие рендера ниже), иначе анимировать было бы нечего.
+            val tailSpacerTarget = if (hasStreamingItem) {
+                (fullHeight - topPad - bottomPad).coerceAtLeast(0.dp)
+            } else {
+                0.dp
+            }
+            val tailSpacerHeight by animateDpAsState(
+                targetValue = tailSpacerTarget,
+                animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+                label = "tail_spacer_collapse",
+            )
+
             // ЛЕНТА (задний слой) — заполняет весь Box и скроллится под обоими барами. Свежие сообщения
             // снизу. Arrangement.Bottom: короткий чат прижимается к низу. contentPadding сверху/снизу =
             // измеренные высоты баров, чтобы первое/последнее сообщение не уезжали под стекло.
@@ -506,10 +529,14 @@ fun ChatScreen(
                             fontScale = state.chatFontScale.scale,
                         )
                     }
-                    // Резерв под ответ: пустое место в высоту ВИДИМОГО вьюпорта (экран минус оба бара),
-                    // чтобы вопрос прибился к верхней кромке видимой области, а ответ рос в него сверху вниз.
+                }
+                // Резерв под ответ: пустое место в высоту ВИДИМОГО вьюпорта (экран минус оба бара),
+                // чтобы вопрос прибился к верхней кромке видимой области, а ответ рос в него сверху вниз.
+                // Условие НЕ на hasStreamingItem, а на саму высоту: после конца хода спейсер ещё жив,
+                // пока схлопывается анимацией (см. tailSpacerHeight выше).
+                if (tailSpacerHeight > 0.dp) {
                     item(key = "tail_spacer") {
-                        Spacer(Modifier.height((fullHeight - topPad - bottomPad).coerceAtLeast(0.dp)))
+                        Spacer(Modifier.height(tailSpacerHeight))
                     }
                 }
             }
