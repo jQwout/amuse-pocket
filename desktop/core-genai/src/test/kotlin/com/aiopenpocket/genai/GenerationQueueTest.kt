@@ -36,6 +36,7 @@ class GenerationQueueTest {
     val resumedUrls = mutableListOf<String>()
 
     override fun supports(modality: GenerationModality) = true
+    override suspend fun checkAccess(): AccessCheck = AccessCheck.Ok()
     override fun generate(request: GenerationRequest): Flow<GenerationProgress> = script.asFlow()
     override fun resume(pollingUrl: String): Flow<GenerationProgress> {
       resumedUrls += pollingUrl

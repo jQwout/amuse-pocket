@@ -174,6 +174,50 @@ class OpenRouterProviderTest {
   }
 
   @Test
+  fun `access check reads key info out of the data envelope`() = runTest {
+    val engine = jsonEngine(
+      """
+      {"data":{"label":"личный ключ","usage":1.25,"limit":10.0,"is_free_tier":false,
+        "rate_limit":{"requests":10,"interval":"10s"}}}
+      """.trimIndent(),
+    )
+    val ok = provider(engine).checkAccess() as AccessCheck.Ok
+
+    assertEquals("личный ключ", ok.label)
+    assertEquals(1.25, ok.usageUsd)
+    assertEquals(10.0, ok.limitUsd)
+    assertEquals(false, ok.freeTier)
+    assertTrue(ok.rateLimit!!.contains("10s"), ok.rateLimit!!)
+    assertTrue(engine.requestHistory.single().url.toString().endsWith("/key"))
+  }
+
+  @Test
+  fun `access check also accepts a flat response without the envelope`() = runTest {
+    // Форма конверта не должна решать, работает проверка связи или нет.
+    val engine = jsonEngine("""{"label":"плоский","usage":0.0}""")
+    val ok = provider(engine).checkAccess() as AccessCheck.Ok
+    assertEquals("плоский", ok.label)
+  }
+
+  @Test
+  fun `access check explains a rejected key instead of throwing`() = runTest {
+    val engine = MockEngine { _ -> respondError(HttpStatusCode.Unauthorized) }
+    val failed = provider(engine).checkAccess() as AccessCheck.Failed
+
+    assertEquals("401", failed.code)
+    assertTrue(failed.message.contains("не принял ключ"), failed.message)
+  }
+
+  @Test
+  fun `access check without a key spends no request`() = runTest {
+    val engine = MockEngine { _ -> respondError(HttpStatusCode.Unauthorized) }
+    val failed = provider(engine, key = "").checkAccess() as AccessCheck.Failed
+
+    assertEquals("blank_key", failed.code)
+    assertEquals(0, engine.requestHistory.size)
+  }
+
+  @Test
   fun `resume catches up a job from the stored url`() = runTest {
     val engine = jsonEngine(
       """{"id":"abc","status":"completed","unsigned_urls":["https://x/y.mp4"]}""",

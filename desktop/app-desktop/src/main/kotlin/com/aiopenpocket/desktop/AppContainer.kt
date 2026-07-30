@@ -2,6 +2,7 @@ package com.aiopenpocket.desktop
 
 // @trace desktop-genai-client-4c63b6
 
+import com.aiopenpocket.genai.AccessCheck
 import com.aiopenpocket.genai.ApiKeyStore
 import com.aiopenpocket.genai.AppPaths
 import com.aiopenpocket.genai.GenaiModelCatalog
@@ -15,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.nio.file.Path
 
 /**
@@ -22,7 +24,7 @@ import java.nio.file.Path
  * экрана и одну очередь он даёт больше конфигурации, чем пользы, а при переезде в общий модуль
  * (фаза 4) граф всё равно будет собираться на стороне :app.
  */
-class AppContainer(scope: CoroutineScope) {
+class AppContainer(private val scope: CoroutineScope) {
 
   private val paths = AppPaths()
   private val keyStore = ApiKeyStore(paths)
@@ -84,4 +86,23 @@ class AppContainer(scope: CoroutineScope) {
 
   fun deletePreset(id: String): Boolean =
     runCatching { _prompts.value = PromptLibrary.deleteUserPreset(paths.promptsUserFile, id) }.isSuccess
+
+  /**
+   * Проверка связи и ключа — закрывает вопрос «дойдёт ли вообще запрос до OpenRouter» до первой
+   * платной генерации. null в потоке означает «ещё не проверяли», [checkingAccess] — «идёт».
+   */
+  private val _accessCheck = MutableStateFlow<AccessCheck?>(null)
+  val accessCheck: StateFlow<AccessCheck?> = _accessCheck.asStateFlow()
+
+  private val _checkingAccess = MutableStateFlow(false)
+  val checkingAccess: StateFlow<Boolean> = _checkingAccess.asStateFlow()
+
+  fun checkAccess() {
+    if (_checkingAccess.value) return
+    _checkingAccess.value = true
+    scope.launch {
+      _accessCheck.value = runtime.provider.checkAccess()
+      _checkingAccess.value = false
+    }
+  }
 }

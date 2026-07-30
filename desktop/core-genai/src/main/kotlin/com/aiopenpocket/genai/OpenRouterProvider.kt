@@ -25,9 +25,11 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNamingStrategy
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.put
 import java.util.Base64
 
@@ -68,6 +70,33 @@ class OpenRouterProvider(
   }
 
   override fun supports(modality: GenerationModality): Boolean = true
+
+  override suspend fun checkAccess(): AccessCheck {
+    val key = apiKey()
+    if (key.isBlank()) {
+      return AccessCheck.Failed("Ключ OpenRouter не задан", code = "blank_key")
+    }
+    return try {
+      val response = httpClient.get("$baseUrl/key") { authorized(key) }
+      response.ensureSuccess()
+      // Ответ приходит завёрнутым в "data"; разворачиваем, но и плоский вариант принимаем —
+      // проверка связи не должна падать из-за формы конверта.
+      val root = json.decodeFromString<JsonObject>(response.bodyAsText())
+      val payload = (root["data"] as? JsonObject) ?: root
+      val info = json.decodeFromJsonElement<KeyInfoDto>(payload)
+      AccessCheck.Ok(
+        label = info.label,
+        usageUsd = info.usage,
+        limitUsd = info.limit,
+        freeTier = info.isFreeTier,
+        rateLimit = info.rateLimit?.let { "${it.requests ?: "?"} запросов / ${it.interval ?: "?"}" },
+      )
+    } catch (e: OpenRouterHttpException) {
+      AccessCheck.Failed(e.userMessage, code = e.status.toString())
+    } catch (e: Exception) {
+      AccessCheck.Failed(e.message ?: "не удалось связаться с OpenRouter")
+    }
+  }
 
   override fun generate(request: GenerationRequest): Flow<GenerationProgress> = flow {
     val key = apiKey()
@@ -404,6 +433,18 @@ private data class VideoRequest(
    */
   val imageUrl: String? = null,
 )
+
+@Serializable
+private data class KeyInfoDto(
+  val label: String? = null,
+  val usage: Double? = null,
+  val limit: Double? = null,
+  val isFreeTier: Boolean? = null,
+  val rateLimit: RateLimitDto? = null,
+)
+
+@Serializable
+private data class RateLimitDto(val requests: Int? = null, val interval: String? = null)
 
 @Serializable
 private data class VideoJobDto(
