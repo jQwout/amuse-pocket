@@ -14,7 +14,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -22,33 +21,50 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.ui.theme.GlassTokens
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.HazeStyle
-import dev.chrisbanes.haze.HazeTint
-import dev.chrisbanes.haze.hazeEffect
-import dev.chrisbanes.haze.hazeSource
-import dev.chrisbanes.haze.rememberHazeState
 
 /**
- * ЕДИНСТВЕННЫЙ файл, импортирующий Haze. Если API запиненной версии отличается —
- * правки только здесь (Task 1 build-спайк ловит это заранее).
+ * Обвязка-«плашка» для плавающих баров и островов.
+ *
+ * ## Здесь БОЛЬШЕ НЕТ backdrop-blur (и библиотеки Haze)
+ *
+ * Раньше это было настоящее стекло: `hazeEffect` размывал контент под баром (API 31+), а экраны
+ * помечали свои слои источниками через [glassSource]. Эффект убран по решению владельца продукта —
+ * «переливание» не нравилось в работе. Вместо него ровно то, что и просили: полупрозрачная плашка
+ * цветом фона темы. По сути это та же ветка, что раньше жила здесь фолбэком для API<31, — теперь она
+ * единственная.
+ *
+ * Что это даёт, кроме внешнего вида: пропал per-frame RenderEffect под скроллящейся лентой (главный
+ * кандидат в источники джанка, из-за которого чат гасил блюр на время прокрутки), и пропала
+ * зависимость от версии Android — вид одинаков на всех API.
+ *
+ * ## Почему [GlassState]/[glassSource] остались
+ *
+ * Это был единственный файл, импортировавший Haze (инвариант, зафиксированный в дизайн-системе), и он
+ * себя оправдал: снятие эффекта — правка одного файла. Токен связи «источник ↔ плашка» сохранён
+ * пустышкой, чтобы ~10 вызывающих экранов не переписывать; когда/если решим, что возврата к блюру не
+ * будет, его можно вычистить отдельным механическим проходом.
  */
 
 /**
- * Токен связи «источник ↔ стекло». Обёрнут, чтобы вызывающие не импортировали Haze.
+ * Токен связи «источник ↔ плашка». Раньше — `HazeState`, теперь пустышка: плашка не сэмплит фон,
+ * поэтому источник ей не нужен. Оставлен, чтобы не переписывать все экраны сразу.
  * @trace glass-design-system-21a3fe
  */
-typealias GlassState = HazeState
+class GlassState internal constructor()
 
 @Composable
-fun rememberGlassState(): GlassState = rememberHazeState()
+fun rememberGlassState(): GlassState = remember { GlassState() }
 
-/** Пометить контент источником, который размывается под стеклом. */
-fun Modifier.glassSource(state: GlassState): Modifier = this.hazeSource(state)
+/** Раньше помечал слой источником для блюра. Сейчас no-op — блюра нет. */
+@Suppress("UNUSED_PARAMETER")
+fun Modifier.glassSource(state: GlassState): Modifier = this
 
 /**
- * «Сильное» стекло с настоящим backdrop-blur (API 31+; на < 31 Haze даёт tint без
- * размытия). Для неподвижной обвязки: топбары, инпут-бары, нижняя навигация.
+ * Плашка для неподвижной обвязки: топбары, инпут-бары, нижняя навигация, плавающие острова.
+ *
+ * Слои снизу вверх: цвет фона темы с альфой (отделяет бар от контента, но пропускает его оттенок) →
+ * [tint]-плёнка → опциональный рим-блик по грани. Для edge-to-edge поверхностей передавайте
+ * `border = null`, иначе прямая линия режет во всю ширину.
  */
 @Composable
 fun GlassSurface(
@@ -57,44 +73,32 @@ fun GlassSurface(
   shape: Shape = RectangleShape,
   tint: Color = GlassTokens.LightTint,
   border: Brush? = GlassTokens.BorderBrush,
-  // Перф-переключатель: true — настоящий backdrop-blur (hazeEffect, RenderEffect). false — дешёвый
-  // полупрозрачный tint без блюра. Экран чата гасит блюр на время скролла/стрима (per-frame re-blur
-  // ленты под баром — главный кандидат в источники джанка) и возвращает его в покое.
-  blurEnabled: Boolean = true,
+  /** Оставлен для совместимости вызовов; блюра больше нет, поэтому ни на что не влияет. */
+  @Suppress("UNUSED_PARAMETER") blurEnabled: Boolean = true,
   content: @Composable BoxScope.() -> Unit,
 ) {
-  // Тему нельзя читать внутри remember{} — поднимаем цвет фона в composable-скоуп и кладём в ключи.
   val backgroundColor = MaterialTheme.colorScheme.background
-  val style = remember(tint, backgroundColor) {
-    HazeStyle(
-      backgroundColor = backgroundColor,
-      tints = listOf(HazeTint(tint)),
-      blurRadius = GlassTokens.BlurRadius,
-    )
-  }
   Box(
     modifier = modifier
       .clip(shape)
-      .then(
-        if (blurEnabled) {
-          Modifier.hazeEffect(state = state, style = style) {
-            // Shape-aware blur masking, on top of the outer .clip(shape) above.
-            blurredEdgeTreatment = BlurredEdgeTreatment(shape)
-          }
-        } else {
-          // Без блюра бар держим читаемым: почти непрозрачная база темы + та же tint-плёнка,
-          // что и в blur-режиме (никакого RenderEffect — рисуем только два background-слоя).
-          Modifier
-            .background(backgroundColor.copy(alpha = 0.85f))
-            .background(tint)
-        },
-      )
-      // Рим-блик по грани. Для скруглённых плавающих баров/навбара — приятная кромка; для
-      // edge-to-edge поверхностей передаём border = null, иначе прямая линия режет во всю ширину.
+      // Тот же цвет, что у фона экрана, но с альфой: плашка читается как «своя», а не как чужая
+      // серая панель, и при этом текст на ней остаётся контрастным поверх ауроры.
+      .background(backgroundColor.copy(alpha = PLATE_ALPHA))
+      .background(tint)
       .then(if (border != null) Modifier.border(1.dp, border, shape) else Modifier),
     content = content,
   )
 }
+
+/**
+ * Плотность плашки — ручка вкуса, крутить здесь (одно место на все бары и острова).
+ *
+ * 0.86 (первая попытка, как в старом фолбэке) оказалась слишком прозрачной: сквозь топбар читались
+ * заголовки карточек из-под него — тот же дефект, из-за которого «Чат»/«Рефлексия» в чате сливались с
+ * лентой. Раньше это скрывал блюр: он размывал подложку, а не просто просвечивал ею. Без блюра нужна
+ * плотность выше — оттенок фона плашка всё равно берёт, а текст на ней остаётся читаемым.
+ */
+private const val PLATE_ALPHA = 0.94f
 
 @Composable
 fun GlassBackground(content: @Composable BoxScope.() -> Unit) {

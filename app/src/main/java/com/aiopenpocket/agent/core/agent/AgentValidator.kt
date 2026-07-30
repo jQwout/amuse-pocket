@@ -112,9 +112,9 @@ object AgentValidator {
       issues += ValidationIssue("description_too_long", "Описание длиннее $MAX_DESCRIPTION_CHARS символов", "description")
     }
 
-    if (definition.iconKey.isBlank()) {
-      issues += ValidationIssue("blank_icon_key", "iconKey не может быть пустым", "iconKey")
-    }
+    // Иконка НЕ обязательна: пустой iconKey — законное состояние, `iconFor` отдаёт дефолтный значок.
+    // Раньше здесь было правило blank_icon_key, и оно блокировало публикацию из-за декоративного
+    // поля: собрать рабочего агента без выбора картинки было нельзя.
 
     if (definition.systemPrompt.isBlank()) {
       issues += ValidationIssue("blank_system_prompt", "Системный промпт не может быть пустым", "systemPrompt")

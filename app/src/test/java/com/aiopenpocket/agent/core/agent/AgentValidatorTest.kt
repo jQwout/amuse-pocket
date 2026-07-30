@@ -80,8 +80,14 @@ class AgentValidatorTest {
   fun `blank required fields are rejected`() {
     assertTrue(validator.validate(validDefinition().copy(name = "   ")).any { it.code == "blank_name" })
     assertTrue(validator.validate(validDefinition().copy(description = "")).any { it.code == "blank_description" })
-    assertTrue(validator.validate(validDefinition().copy(iconKey = "")).any { it.code == "blank_icon_key" })
     assertTrue(validator.validate(validDefinition().copy(systemPrompt = "")).any { it.code == "blank_system_prompt" })
+  }
+
+  @Test
+  fun `a blank icon is allowed - it is decorative, not a blocker`() {
+    // iconFor отдаёт дефолтный значок на неизвестный/пустой ключ, поэтому пустая иконка не мешает
+    // агенту работать. Раньше правило blank_icon_key запрещало публикацию из-за картинки.
+    assertTrue(validator.validate(validDefinition().copy(iconKey = "")).isEmpty())
   }
 
   @Test

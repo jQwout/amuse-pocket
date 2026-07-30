@@ -165,10 +165,15 @@ fun HomeScreen(
             LazyColumn(
                 modifier = Modifier
                   .fillMaxSize()
-                  .padding(padding)
                   .padding(horizontal = 20.dp)
                   .glassSource(glassState),
-                contentPadding = PaddingValues(top = 4.dp, bottom = 12.dp),
+                // Отступы каркаса — в contentPadding, а НЕ в .padding(): иначе список инсетится и
+                // не заезжает под плавающий навбар, из-за чего Главная выглядела иначе, чем
+                // остальные экраны (навбар «стоял», а не плавал над контентом).
+                contentPadding = PaddingValues(
+                    top = padding.calculateTopPadding() + 4.dp,
+                    bottom = padding.calculateBottomPadding() + 12.dp,
+                ),
             ) {
                 item {
                     Spacer(modifier = Modifier.height(8.dp))

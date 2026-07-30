@@ -90,9 +90,15 @@ class AgentBuilderScreenTest {
 
   // --- Next / identity ---------------------------------------------------------------------------
 
+  /**
+   * Валидация «по кнопке»: на невалидном шаге «Далее» остаётся НАЖИМАЕМОЙ — она и есть триггер
+   * проверки. Раньше кнопка гасла, и вместе с ошибками, показанными сразу на пустом черновике, это
+   * давало мёртвый экран: нажать нечего, а чего от тебя хотят — непонятно. Сам отказ и показ ошибок
+   * живут во ViewModel (`nextStep` поднимает `showErrors`) — см. AgentBuilderViewModelTest.
+   */
   @Test
-  fun next_is_disabled_when_identity_is_invalid() {
-    // AgentDraft.new() is blank name/description/iconKey/systemPrompt - invalid on IDENTITY.
+  fun next_stays_pressable_on_an_invalid_step() {
+    // AgentDraft.new() is blank name/description/systemPrompt - invalid on IDENTITY.
     val draft = AgentDraft.new(id = "agent-test-blank")
     val state = AgentBuilderUiState(
       draft = draft,
@@ -100,10 +106,40 @@ class AgentBuilderScreenTest {
       errors = AgentBuilderValidator.validate(draft),
       isLoading = false,
     )
-    render(state = state)
+    var nextClicks = 0
+    render(state = state, onNext = { nextClicks++ })
 
-    composeTestRule.onNodeWithTag("agent_builder_next").assertIsNotEnabled()
+    composeTestRule.onNodeWithTag("agent_builder_next").assertIsEnabled()
+    composeTestRule.onNodeWithTag("agent_builder_next").performClick()
+    assertEquals("нажатие должно дойти до ViewModel, а не гаситься кнопкой", 1, nextClicks)
     composeTestRule.onNodeWithTag("agent_builder_back").assertIsEnabled()
+  }
+
+  private fun blankIdentityState(showErrors: Boolean): AgentBuilderUiState {
+    val draft = AgentDraft.new(id = "agent-test-blank")
+    return AgentBuilderUiState(
+      draft = draft,
+      step = BuilderStep.IDENTITY,
+      errors = AgentBuilderValidator.validate(draft),
+      isLoading = false,
+      showErrors = showErrors,
+    )
+  }
+
+  /** До нажатия «Далее» инлайн-ошибки молчат: свежий черновик не встречает пользователя красным. */
+  @Test
+  fun step_errors_are_hidden_before_next_is_pressed() {
+    render(state = blankIdentityState(showErrors = false))
+
+    composeTestRule.onNodeWithText("Имя агента не может быть пустым").assertDoesNotExist()
+  }
+
+  /** После нажатия «Далее» (ViewModel поднял showErrors) те же ошибки показаны. */
+  @Test
+  fun step_errors_appear_once_next_was_pressed() {
+    render(state = blankIdentityState(showErrors = true))
+
+    composeTestRule.onNodeWithText("Имя агента не может быть пустым").assertExists()
   }
 
   /**

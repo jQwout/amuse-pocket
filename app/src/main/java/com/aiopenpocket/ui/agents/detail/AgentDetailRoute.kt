@@ -3,14 +3,6 @@ package com.aiopenpocket.ui.agents.detail
 // @trace user-agent-builder-848153
 // @trace structured-plan-engine-907066
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.BottomSheetDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -35,7 +27,6 @@ import dev.zacsweers.metrox.viewmodel.metroViewModel
  * - `onOpenPlan`/`onOpenPlanList` (Task 12): open `plan/{planId}`/`plans/{agentId}` — the latter
  *   already closes over THIS route's own `agentId`, matching `onOpenChat`'s own shape.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AgentDetailRoute(
   agentId: String,
@@ -52,27 +43,22 @@ fun AgentDetailRoute(
   // Once per navigation entry (mirrors AgentBuilderRoute's LaunchedEffect(agentId) { viewModel.start(agentId) }).
   LaunchedEffect(agentId) { viewModel.select(agentId) }
 
-  // Экран-инспектор открывается как шторка с ✕ (макет). AgentDetailScreen сам рисует аврору,
-  // компактную шапку с крестиком и табы Обзор/Файлы; закрытие (✕/свайп/скрим) — onNavigateBack.
-  val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-  ModalBottomSheet(
-    onDismissRequest = onNavigateBack,
-    sheetState = sheetState,
-    containerColor = MaterialTheme.colorScheme.background,
-    dragHandle = { BottomSheetDefaults.DragHandle() },
-  ) {
-    Box(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.94f)) {
-      AgentDetailScreen(
-        state = state,
-        onOpenChat = { agentsViewModel.openAgentChat(agentId, onOpenChat) },
-        onDuplicate = { viewModel.duplicate(onReady = onNavigateToBuilder) },
-        onEdit = { onNavigateToBuilder(agentId) },
-        onToggleEnabled = viewModel::toggleEnabled,
-        onArchive = viewModel::archive,
-        onNavigateBack = onNavigateBack,
-        onOpenPlan = onOpenPlan,
-        onOpenPlanList = { onOpenPlanList(agentId) },
-      )
-    }
-  }
+  // ПОЛНОЭКРАННЫЙ маршрут, а НЕ ModalBottomSheet.
+  //
+  // Раньше инспектор открывался шторкой с drag-handle, и её жест «смахнуть вниз» конкурировал с
+  // вертикальной прокруткой содержимого: скроллы пересекались, тянуть список было неприятно.
+  // Шторка тут ничего не давала — экран и так занимает почти всю высоту, рисует свою аврору и имеет
+  // ✕ для закрытия, — поэтому убрана целиком: конфликта жестов больше нет как класса.
+  // Закрытие теперь только ✕ и системное «назад» (onNavigateBack), без свайпа и скрима.
+  AgentDetailScreen(
+    state = state,
+    onOpenChat = { agentsViewModel.openAgentChat(agentId, onOpenChat) },
+    onDuplicate = { viewModel.duplicate(onReady = onNavigateToBuilder) },
+    onEdit = { onNavigateToBuilder(agentId) },
+    onToggleEnabled = viewModel::toggleEnabled,
+    onArchive = viewModel::archive,
+    onNavigateBack = onNavigateBack,
+    onOpenPlan = onOpenPlan,
+    onOpenPlanList = { onOpenPlanList(agentId) },
+  )
 }
