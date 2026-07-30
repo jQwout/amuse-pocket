@@ -141,7 +141,10 @@ class OpenRouterProvider(
     key: String,
   ) {
     emit(GenerationProgress.Accepted())
-    val content: JsonElement = if (request.inputImageUrl == null) {
+    // Путь разворачивается в data:-URL здесь, а не в модели запроса: в историю на диске должен
+    // попасть путь, а не мегабайты base64.
+    val inputImage = request.inputImage?.let { resolveInputImage(it) }
+    val content: JsonElement = if (inputImage == null) {
       JsonPrimitive(request.prompt)
     } else {
       // image-to-image: контент становится массивом частей, текст + ссылка на входную картинку.
@@ -150,7 +153,7 @@ class OpenRouterProvider(
         add(
           buildJsonObject {
             put("type", "image_url")
-            put("image_url", buildJsonObject { put("url", request.inputImageUrl) })
+            put("image_url", buildJsonObject { put("url", inputImage) })
           },
         )
       }
@@ -230,7 +233,11 @@ class OpenRouterProvider(
     key: String,
   ) {
     val body = json.encodeToString(
-      VideoRequest(model = request.model, prompt = request.prompt, imageUrl = request.inputImageUrl),
+      VideoRequest(
+        model = request.model,
+        prompt = request.prompt,
+        imageUrl = request.inputImage?.let { resolveInputImage(it) },
+      ),
     )
     val response = httpClient.post("$baseUrl/videos") {
       authorized(key)

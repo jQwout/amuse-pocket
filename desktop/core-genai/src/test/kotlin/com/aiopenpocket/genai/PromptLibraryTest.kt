@@ -96,4 +96,29 @@ class PromptLibraryTest {
     assertEquals(PromptLibrary.idFor("Моя заготовка"), PromptLibrary.idFor("  Моя заготовка  "))
     assertTrue(PromptLibrary.idFor("!!!").isNotBlank(), "пустой слаг должен подменяться, а не давать пустой id")
   }
+
+  @Test
+  fun `a preset with the placeholder wraps the current prompt instead of wiping it`() {
+    val addition = PromptPreset(
+      id = "tail",
+      title = "Приписка",
+      prompt = "${PromptPreset.PLACEHOLDER}. Избегать: лишние пальцы",
+    )
+
+    assertEquals("кот в скафандре. Избегать: лишние пальцы", addition.applyTo("  кот в скафандре  "))
+  }
+
+  @Test
+  fun `a preset without the placeholder replaces the prompt`() {
+    val standalone = PromptPreset(id = "shot", title = "Съёмка", prompt = "предметная фотография")
+    assertEquals("предметная фотография", standalone.applyTo("что-то старое"))
+  }
+
+  @Test
+  fun `the built-in addition preset really is an addition`() {
+    // Данные и поведение должны сходиться: пресет называется припиской — значит не затирает.
+    val tail = PromptLibrary.load(null).presets.single { it.id == "negative-tail" }
+    assertTrue(PromptPreset.PLACEHOLDER in tail.prompt, "во встроенной приписке нет плейсхолдера")
+    assertTrue(tail.applyTo("кот").startsWith("кот"), tail.applyTo("кот"))
+  }
 }
