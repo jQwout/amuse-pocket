@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -58,7 +59,7 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
   val readyToSubmit = prompt.isNotBlank() && apiKey.isNotBlank() &&
     if (compareModels) selectedModels.isNotEmpty() else model.isNotBlank()
 
-  Column(Modifier.fillMaxWidth()) {
+  Column(Modifier.fillMaxSize()) {
     Text("Генерация", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
     Spacer(Modifier.height(16.dp))
 
@@ -187,7 +188,7 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
     } else {
-      LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+      LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(visible, key = { it.id }) { job ->
           JobRow(
             job = job,

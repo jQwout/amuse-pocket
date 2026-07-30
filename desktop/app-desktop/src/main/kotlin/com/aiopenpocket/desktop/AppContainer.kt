@@ -24,7 +24,7 @@ import java.nio.file.Path
  * экрана и одну очередь он даёт больше конфигурации, чем пользы, а при переезде в общий модуль
  * (фаза 4) граф всё равно будет собираться на стороне :app.
  */
-class AppContainer(private val scope: CoroutineScope) {
+class AppContainer(private val scope: CoroutineScope) : AutoCloseable {
 
   private val paths = AppPaths()
   private val keyStore = ApiKeyStore(paths)
@@ -104,5 +104,13 @@ class AppContainer(private val scope: CoroutineScope) {
       _accessCheck.value = runtime.provider.checkAccess()
       _checkingAccess.value = false
     }
+  }
+
+  /**
+   * Закрытие окна. Незавершённые задания при этом гасятся, но их статус уже на диске: видео с
+   * `polling_url` догонится при следующем запуске, остальные встретят пользователя как прерванные.
+   */
+  override fun close() {
+    runCatching { runtime.close() }
   }
 }
