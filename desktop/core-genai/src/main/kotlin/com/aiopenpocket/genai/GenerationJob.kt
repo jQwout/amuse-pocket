@@ -56,6 +56,11 @@ data class GenerationJob(
   val pollingUrl: String? = null,
   /** Человекочитаемая нота о том, что происходит прямо сейчас («ждём провайдера, попытка 3»). */
   val note: String? = null,
+  /**
+   * Общий ключ пачки: несколько вариантов одного промпта или один промпт по нескольким моделям.
+   * null — одиночное задание. Нужен, чтобы история показывала результаты рядом, а не вперемешку.
+   */
+  val batchId: String? = null,
   /** Пути готовых файлов на диске. */
   val artifacts: List<String> = emptyList(),
   val costUsd: Double? = null,

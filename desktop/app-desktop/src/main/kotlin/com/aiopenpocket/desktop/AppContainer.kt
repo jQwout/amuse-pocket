@@ -6,8 +6,11 @@ import com.aiopenpocket.genai.ApiKeyStore
 import com.aiopenpocket.genai.AppPaths
 import com.aiopenpocket.genai.GenaiModelCatalog
 import com.aiopenpocket.genai.GenaiRuntime
+import com.aiopenpocket.genai.GenerationModality
 import com.aiopenpocket.genai.GenerationQueue
 import com.aiopenpocket.genai.JobStore
+import com.aiopenpocket.genai.PromptLibrary
+import com.aiopenpocket.genai.PromptPreset
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,9 +43,19 @@ class AppContainer(scope: CoroutineScope) {
     scope = scope,
   )
 
+  private val _prompts = MutableStateFlow(PromptLibrary.load(paths.promptsUserFile))
+  val prompts: StateFlow<PromptLibrary> = _prompts.asStateFlow()
+
+  /**
+   * Момент запуска — граница «за сессию» в сводке расходов. Берётся один раз здесь, а не в
+   * экране: пересоздание экрана не должно обнулять счётчик потраченного.
+   */
+  val sessionStartedAtEpochMs: Long = System.currentTimeMillis()
+
   val outputDir: Path get() = paths.outputDir
   val configDir: Path get() = paths.configDir
   val modelsOverrideFile: Path get() = paths.modelsOverrideFile
+  val promptsUserFile: Path get() = paths.promptsUserFile
 
   init {
     // Видео-задание, отправленное в прошлый запуск, продолжает опрашиваться; прерванные синхронные
@@ -54,4 +67,21 @@ class AppContainer(scope: CoroutineScope) {
     keyStore.write(key)
     _apiKey.value = key.trim()
   }
+
+  /** Сохраняет текущий промпт как заготовку. Возвращает false, если запись не удалась. */
+  fun savePreset(title: String, prompt: String, modality: GenerationModality): Boolean =
+    runCatching {
+      _prompts.value = PromptLibrary.saveUserPreset(
+        paths.promptsUserFile,
+        PromptPreset(
+          id = PromptLibrary.idFor(title),
+          title = title.trim(),
+          prompt = prompt,
+          modality = modality,
+        ),
+      )
+    }.isSuccess
+
+  fun deletePreset(id: String): Boolean =
+    runCatching { _prompts.value = PromptLibrary.deleteUserPreset(paths.promptsUserFile, id) }.isSuccess
 }

@@ -14,6 +14,7 @@ import java.nio.file.Path
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -240,5 +241,93 @@ class GenerationQueueTest {
     assertEquals("job1", second)
     assertEquals(2, queue.jobs.value.size)
     assertEquals(imageRequest.prompt, queue.jobs.value.last().request.prompt)
+  }
+
+  @Test
+  fun `batch runs one job per variant under a shared batch id`() = runTest {
+    val home = createTempDirectory("genai-queue")
+    val (paths, artifacts) = fixture(home)
+    var next = 0
+    val provider = FakeProvider(
+      listOf(
+        GenerationProgress.Completed(
+          GenerationResult(outputs = listOf(GenerationOutput.Bytes(byteArrayOf(1), "image/png"))),
+        ),
+      ),
+    )
+    val queue = GenerationQueue(
+      provider = provider,
+      artifacts = artifacts,
+      store = JobStore(paths),
+      scope = this@runTest,
+      newId = { "id${next++}" },
+    )
+
+    val ids = queue.submitBatch(imageRequest, count = 4)
+    advanceUntilIdle()
+
+    assertEquals(4, ids.size)
+    val jobs = queue.jobs.value
+    assertEquals(4, jobs.size)
+    assertEquals(1, jobs.mapNotNull { it.batchId }.distinct().size, "вся пачка должна делить один batchId")
+    assertTrue(jobs.all { it.status == JobStatus.DONE })
+    // Файлы лежат по своим папкам — четыре варианта не должны затирать друг друга.
+    assertEquals(4, jobs.flatMap { it.artifacts }.distinct().size)
+  }
+
+  @Test
+  fun `single-variant batch stays an ordinary job without a batch id`() = runTest {
+    val home = createTempDirectory("genai-queue")
+    val (paths, artifacts) = fixture(home)
+    val provider = FakeProvider(listOf(GenerationProgress.Failed("неважно")))
+    val queue = GenerationQueue(
+      provider = provider,
+      artifacts = artifacts,
+      store = JobStore(paths),
+      scope = this@runTest,
+    )
+
+    queue.submitBatch(imageRequest, count = 1)
+    advanceUntilIdle()
+
+    // Пачка из одного — это не пачка: иначе история группировала бы одиночные задания.
+    assertNull(queue.jobs.value.single().batchId)
+  }
+
+  @Test
+  fun `comparison sends the same prompt to every model`() = runTest {
+    val home = createTempDirectory("genai-queue")
+    val (paths, artifacts) = fixture(home)
+    val provider = FakeProvider(listOf(GenerationProgress.Failed("неважно")))
+    val queue = GenerationQueue(
+      provider = provider,
+      artifacts = artifacts,
+      store = JobStore(paths),
+      scope = this@runTest,
+    )
+
+    queue.submitAcrossModels(imageRequest, listOf("model-a", "model-b", "model-c"))
+    advanceUntilIdle()
+
+    val jobs = queue.jobs.value
+    assertEquals(listOf("model-a", "model-b", "model-c"), jobs.map { it.request.model })
+    assertTrue(jobs.all { it.request.prompt == imageRequest.prompt })
+    assertEquals(1, jobs.mapNotNull { it.batchId }.distinct().size)
+  }
+
+  @Test
+  fun `empty model list is a caller error, not a silent no-op`() = runTest {
+    val home = createTempDirectory("genai-queue")
+    val (paths, artifacts) = fixture(home)
+    val queue = GenerationQueue(
+      provider = FakeProvider(),
+      artifacts = artifacts,
+      store = JobStore(paths),
+      scope = this@runTest,
+    )
+
+    assertFailsWith<IllegalArgumentException> { queue.submitAcrossModels(imageRequest, emptyList()) }
+    assertFailsWith<IllegalArgumentException> { queue.submitBatch(imageRequest, count = 0) }
+    assertTrue(queue.jobs.value.isEmpty())
   }
 }
