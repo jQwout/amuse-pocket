@@ -31,7 +31,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.genai.GenerationModality
 import com.aiopenpocket.genai.GenerationRequest
-import com.aiopenpocket.genai.imageFileToDataUrl
 import java.nio.file.Path
 
 private val VARIANT_OPTIONS = listOf(1, 2, 4)
@@ -99,7 +98,7 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
 
     PresetPicker(
       presets = prompts.forModality(modality),
-      onApply = { prompt = it.prompt },
+      onApply = { prompt = it.applyTo(prompt) },
       onSaveCurrent = { savingPreset = true },
     )
     Spacer(Modifier.height(8.dp))
@@ -133,21 +132,15 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
       Button(
         enabled = readyToSubmit,
         onClick = {
-          // data-URL строится здесь, а не в провайдере: чтение файла может упасть (файл удалили,
-          // нет прав), и об этом нужно сказать до того, как задание уйдёт в очередь — тем более
-          // если заданий пачка и упадут они все разом.
-          val imageUrl = inputImage?.let { path ->
-            runCatching { imageFileToDataUrl(path) }
-              .onFailure { lastError = "Не удалось прочитать ${path.fileName}: ${it.message}" }
-              .getOrNull()
-          }
-          if (inputImage != null && imageUrl == null) return@Button
+          // В задание кладём ПУТЬ, а не содержимое: чтение файла и base64 на десятки мегабайт
+          // подвесили бы обработчик клика, а сам data-URL раздул бы историю на диске. Разворачивает
+          // его провайдер на IO-диспетчере, уже перед самим запросом.
           lastError = null
           val request = GenerationRequest(
             modality = modality,
             prompt = prompt.trim(),
             model = model.trim(),
-            inputImageUrl = imageUrl,
+            inputImage = inputImage?.toString(),
             voice = voice.trim().ifBlank { null },
           )
           if (compareModels) {

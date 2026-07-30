@@ -111,6 +111,9 @@ class AppContainer(private val scope: CoroutineScope) : AutoCloseable {
    * `polling_url` догонится при следующем запуске, остальные встретят пользователя как прерванные.
    */
   override fun close() {
+    // Очередь первой: она дописывает историю синхронно, иначе последний переход остался бы
+    // только в памяти.
+    runCatching { queue.close() }
     runCatching { runtime.close() }
   }
 }

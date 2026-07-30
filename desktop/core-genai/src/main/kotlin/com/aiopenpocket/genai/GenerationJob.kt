@@ -17,10 +17,15 @@ data class GenerationRequest(
   val prompt: String,
   val model: String,
   /**
-   * Входная картинка как data-URL (`data:image/png;base64,…`) или публичный URL —
-   * image-to-image для [GenerationModality.IMAGE] и image-to-video для [GenerationModality.VIDEO].
+   * Входная картинка: путь к файлу на диске **или** публичный URL. image-to-image для
+   * [GenerationModality.IMAGE], image-to-video для [GenerationModality.VIDEO].
+   *
+   * Здесь сознательно НЕ data-URL: запрос лежит внутри задания, а задание — в истории на диске,
+   * которая переписывается на каждом переходе статуса. Картинка на 6 МБ превратилась бы в 8 МБ
+   * base64 и переписывалась бы по пять раз за одну генерацию. В `data:` путь разворачивается
+   * в момент запроса и в историю не попадает.
    */
-  val inputImageUrl: String? = null,
+  val inputImage: String? = null,
   /** Голос для TTS; у остальных модальностей игнорируется. */
   val voice: String? = null,
 )

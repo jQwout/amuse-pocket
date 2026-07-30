@@ -75,6 +75,8 @@ class GenerationQueueConcurrencyTest {
     assertEquals(count, jobs.map { it.id }.distinct().size, "id продублировались")
     assertTrue(jobs.all { it.status == JobStatus.DONE }, "не все задания дошли до DONE")
     // История на диске должна сойтись с памятью, а не остаться на промежуточном снимке.
+    // close() дописывает синхронно — иначе гонялись бы с асинхронной записью.
+    queue.close()
     assertEquals(count, store.load().size, "файл истории отстал от состояния очереди")
     assertTrue(store.load().all { it.status == JobStatus.DONE })
 

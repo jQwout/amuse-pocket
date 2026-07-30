@@ -22,12 +22,13 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+// Очередь во всех тестах получает scope самого теста, а НЕ backgroundScope: advanceUntilIdle()
+// сознательно не ждёт фоновые корутины (иначе вечный фон вешал бы тест), и задания так и
+// оставались бы в QUEUED.
+//
 // advanceUntilIdle всё ещё @ExperimentalCoroutinesApi — единственная причина opt-in здесь.
 @OptIn(ExperimentalCoroutinesApi::class)
 class GenerationQueueTest {
-
-  // Очередь получает scope самого теста, а НЕ backgroundScope: advanceUntilIdle() сознательно не
-  // ждёт фоновые корутины (иначе вечный фон вешал бы тест), и задания оставались бы в QUEUED.
 
   private val imageRequest =
     GenerationRequest(GenerationModality.IMAGE, "кот в скафандре", "black-forest-labs/flux.2-pro")
@@ -93,7 +94,9 @@ class GenerationQueueTest {
     assertTrue(Files.isRegularFile(file), "файл результата не создан: $file")
     assertEquals("картинка", Files.readString(file))
     assertTrue(file.toString().endsWith(".png"), file.toString())
-    // История переживает перезапуск: она уже на диске, а не только в памяти.
+    // История переживает перезапуск: она уже на диске, а не только в памяти. Запись асинхронная,
+    // поэтому дожимаем её close() — так же, как это делает приложение при закрытии окна.
+    queue.close()
     assertEquals(JobStatus.DONE, store.load().single().status)
   }
 
@@ -302,6 +305,46 @@ class GenerationQueueTest {
       .all { it.status == JobStatus.POLLING })
 
     queue.jobs.value.forEach { queue.cancel(it.id) }
+  }
+
+  @Test
+  fun `history is capped, and only finished jobs get dropped`() = runTest {
+    val home = createTempDirectory("genai-queue")
+    val (paths, artifacts) = fixture(home)
+    val store = JobStore(paths)
+
+    // Незавершённое видео с polling_url — его выбрасывать нельзя ни при каком переполнении.
+    store.save(
+      listOf(
+        GenerationJob(
+          id = "vid-alive",
+          request = GenerationRequest(GenerationModality.VIDEO, "пляж", "veo"),
+          createdAtEpochMs = 1L,
+          status = JobStatus.POLLING,
+          pollingUrl = "https://x/v",
+        ),
+      ),
+    )
+
+    var next = 0
+    val queue = GenerationQueue(
+      provider = FakeProvider(listOf(GenerationProgress.Failed("неважно"))),
+      artifacts = artifacts,
+      store = store,
+      scope = this@runTest,
+      newId = { "job${next++}" },
+      maxHistory = 5,
+    )
+
+    repeat(10) { queue.submit(imageRequest) }
+    advanceUntilIdle()
+
+    val jobs = queue.jobs.value
+    assertTrue(jobs.size <= 6, "история не подрезалась: ${jobs.size}")
+    assertTrue(jobs.any { it.id == "vid-alive" }, "выброшено незавершённое видео — потеряли polling_url")
+    // Остались самые свежие завершённые, а не самые старые.
+    assertTrue(jobs.any { it.id == "job9" }, "свежие задания не сохранились")
+    assertTrue(jobs.none { it.id == "job0" }, "самое старое завершённое должно было уйти")
   }
 
   @Test

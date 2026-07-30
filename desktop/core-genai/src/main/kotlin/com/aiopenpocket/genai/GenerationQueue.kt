@@ -5,14 +5,17 @@ package com.aiopenpocket.genai
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -29,6 +32,8 @@ class GenerationQueue(
   private val store: JobStore,
   private val scope: CoroutineScope,
   maxConcurrent: Int = DEFAULT_MAX_CONCURRENT,
+  maxPolling: Int = DEFAULT_MAX_POLLING,
+  private val maxHistory: Int = MAX_HISTORY,
   private val clock: () -> Long = System::currentTimeMillis,
   private val newId: () -> String = { UUID.randomUUID().toString().take(8) },
   // Отдельный генератор, а не тот же newId: история группируется по `batchId ?: id`, и совпадение
@@ -38,12 +43,23 @@ class GenerationQueue(
 
   private val semaphore = Semaphore(maxConcurrent)
 
+  /**
+   * Отдельный, более щедрый лимит на задания, которые уже только опрашивают провайдера. Без него
+   * полсотни видео в очереди дают десяток запросов в секунду и упираются в rate-limit ключа.
+   */
+  private val pollSemaphore = Semaphore(maxPolling)
+
   // ConcurrentHashMap, а не mutableMapOf: submit зовётся из UI-потока, а снятие записи —
   // из finally корутины на Dispatchers.Default. Обычная HashMap на этом ломается молча.
   private val running = ConcurrentHashMap<String, Job>()
 
-  /** Записи в файл истории сериализуются: параллельные задания иначе пишут поверх друг друга. */
-  private val storeLock = Any()
+  /**
+   * Запись истории — блокирующий I/O, и делать его в пуле Dispatchers.Default (там же считается
+   * очередь, потоков там по числу ядер) значит воровать у себя же. Один поток: записи заодно
+   * выстраиваются в очередь, и лок не нужен.
+   */
+  @OptIn(ExperimentalCoroutinesApi::class)
+  private val persistScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
 
   private val _jobs = MutableStateFlow(store.load())
   val jobs: StateFlow<List<GenerationJob>> = _jobs.asStateFlow()
@@ -130,6 +146,7 @@ class GenerationQueue(
       // withPermit на весь поток означал бы, что два видео-задания запирают очередь целиком: пока
       // они опрашивают провайдера раз в пять секунд, ни одна картинка не сгенерируется.
       var permitHeld = false
+      var pollPermitHeld = false
       try {
         semaphore.acquire()
         permitHeld = true
@@ -142,9 +159,12 @@ class GenerationQueue(
         source().collect { progress ->
           apply(jobId, progress)
           if (permitHeld && progress.isWaitingOnProvider) {
-            // Дальше только опросы — работу продолжает провайдер, не мы. Уступаем очередь.
+            // Дальше только опросы — работу продолжает провайдер, не мы. Уступаем рабочий слот и
+            // пересаживаемся на слот опроса: без пределов совсем толпа видео забила бы rate-limit.
             permitHeld = false
             semaphore.release()
+            pollSemaphore.acquire()
+            pollPermitHeld = true
           }
         }
       } catch (e: CancellationException) {
@@ -158,6 +178,7 @@ class GenerationQueue(
         }
       } finally {
         if (permitHeld) semaphore.release()
+        if (pollPermitHeld) pollSemaphore.release()
         running.remove(jobId)
       }
     }
@@ -233,7 +254,9 @@ class GenerationQueue(
       if (index < 0) return@update existing
       val updated = transform(existing[index]) ?: return@update existing
       applied = true
-      existing.toMutableList().also { it[index] = updated }
+      // Подрезаем и здесь: на момент ДОБАВЛЕНИЯ задания завершённых ещё нет вовсе (все свежие
+      // в QUEUED), так что обрезка только на вставке никогда бы не срабатывала.
+      trimHistory(existing.toMutableList().also { it[index] = updated })
     }
     if (applied) persist()
   }
@@ -247,20 +270,56 @@ class GenerationQueue(
       if (existing.any { it.id == job.id }) {
         existing.map { if (it.id == job.id) job else it }
       } else {
-        existing + job
+        trimHistory(existing + job)
       }
     }
     persist()
   }
 
+  /**
+   * Держит историю в разумных рамках: файл читается и переписывается целиком, поэтому расти без
+   * предела он не может. Выкидываются только самые старые ЗАВЕРШЁННЫЕ задания — незавершённые
+   * нельзя, среди них может быть видео с `polling_url`, которое ещё предстоит догнать.
+   * Файлы результатов при этом остаются на диске: удалять чужие картинки за спиной приложение
+   * не вправе.
+   */
+  private fun trimHistory(list: List<GenerationJob>): List<GenerationJob> {
+    if (list.size <= maxHistory) return list
+    val unfinishedCount = list.count { !it.status.isTerminal }
+    val keepFinished = (maxHistory - unfinishedCount).coerceAtLeast(0)
+    val finished = list.filter { it.status.isTerminal }
+    if (finished.size <= keepFinished) return list
+    val keptIds = finished.takeLast(keepFinished).mapTo(mutableSetOf()) { it.id }
+    return list.filter { !it.status.isTerminal || it.id in keptIds }
+  }
+
   private fun persist() {
-    // Пишем именно текущее значение под локом, а не снимок на момент вызова: иначе поздний
-    // писатель со старым снимком откатил бы файл назад.
-    synchronized(storeLock) { runCatching { store.save(_jobs.value) } }
+    // Пишем именно текущее значение, а не снимок на момент вызова: записи выстроены в один поток,
+    // и поздний писатель со старым снимком иначе откатил бы файл назад.
+    persistScope.launch { runCatching { store.save(_jobs.value) } }
+  }
+
+  /**
+   * Дописывает историю синхронно и гасит поток записи. Вызывать при закрытии приложения: `persist`
+   * асинхронный, и без этого последний переход мог бы не долететь до диска.
+   */
+  fun close() {
+    runCatching { store.save(_jobs.value) }
+    persistScope.cancel()
   }
 
   private companion object {
     /** Больше двух параллельных генераций упираются в rate-limit провайдера, а не в скорость машины. */
     const val DEFAULT_MAX_CONCURRENT = 2
+
+    /** Опрос дешевле генерации, поэтому предел выше — но он есть: раз в 5 с × 8 это меньше 2 rps. */
+    const val DEFAULT_MAX_POLLING = 8
+
+    /**
+     * Сколько заданий держим в истории. Файл читается и переписывается целиком, поэтому расти
+     * без предела он не может. Обрезаются только завершённые и самые старые; ФАЙЛЫ на диске
+     * остаются — удаляет их пользователь сам.
+     */
+    const val MAX_HISTORY = 500
   }
 }

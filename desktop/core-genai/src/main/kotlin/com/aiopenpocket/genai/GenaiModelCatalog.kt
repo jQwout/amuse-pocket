@@ -36,17 +36,30 @@ data class GenaiModelCatalog(
     }
 
     /**
-     * Читает каталог из [override] (если файл есть), иначе из ресурса в jar.
+     * Читает каталог из [override] (если файл есть и разбирается), иначе из ресурса в jar.
      * Пользовательский файл имеет приоритет: так новые модели добавляются без пересборки.
+     *
+     * Порядок отступления важен: опечатка в своём файле роняет каталог до ВСТРОЕННОГО списка,
+     * а не до трёх аварийных моделей. Раньше было наоборот — одна лишняя запятая, и половина
+     * подсказок молча пропадала.
      */
     fun load(override: Path? = null): GenaiModelCatalog {
-      val text = override
-        ?.takeIf { Files.isRegularFile(it) }
-        ?.let { runCatching { Files.readString(it) }.getOrNull() }
-        ?: GenaiModelCatalog::class.java.getResourceAsStream(RESOURCE_PATH)?.bufferedReader()?.use { it.readText() }
-        ?: return FALLBACK
-      val parsed = runCatching { json.decodeFromString<GenaiModelCatalog>(text) }.getOrNull()
-      return parsed?.takeIf { it.models.isNotEmpty() } ?: FALLBACK
+      val user = override?.let(::readCatalog)
+      if (user != null && user.models.isNotEmpty()) return user
+      val builtIn = readResource()
+      return builtIn.takeIf { it.models.isNotEmpty() } ?: FALLBACK
+    }
+
+    private fun readCatalog(file: Path): GenaiModelCatalog? {
+      if (!Files.isRegularFile(file)) return null
+      val text = runCatching { Files.readString(file) }.getOrNull() ?: return null
+      return runCatching { json.decodeFromString<GenaiModelCatalog>(text) }.getOrNull()
+    }
+
+    private fun readResource(): GenaiModelCatalog {
+      val text = GenaiModelCatalog::class.java.getResourceAsStream(RESOURCE_PATH)
+        ?.bufferedReader()?.use { it.readText() } ?: return FALLBACK
+      return runCatching { json.decodeFromString<GenaiModelCatalog>(text) }.getOrDefault(FALLBACK)
     }
 
     /** Хоть по одной модели на модальность — иначе экран генерации оказался бы без выбора вообще. */
