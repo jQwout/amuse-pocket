@@ -73,6 +73,12 @@ fun GlassSurface(
   shape: Shape = RectangleShape,
   tint: Color = GlassTokens.LightTint,
   border: Brush? = GlassTokens.BorderBrush,
+  /**
+   * Плотность подложки. По умолчанию [PLATE_ALPHA] — общий вид обвязки. Поднимать до 1f стоит там,
+   * где просвечивание мешает ПО ДЕЛУ, а не эстетически: поле ввода — именно такой случай, сквозь
+   * него читались сообщения ленты.
+   */
+  plateAlpha: Float = PLATE_ALPHA,
   /** Оставлен для совместимости вызовов; блюра больше нет, поэтому ни на что не влияет. */
   @Suppress("UNUSED_PARAMETER") blurEnabled: Boolean = true,
   content: @Composable BoxScope.() -> Unit,
@@ -83,7 +89,7 @@ fun GlassSurface(
       .clip(shape)
       // Тот же цвет, что у фона экрана, но с альфой: плашка читается как «своя», а не как чужая
       // серая панель, и при этом текст на ней остаётся контрастным поверх ауроры.
-      .background(backgroundColor.copy(alpha = PLATE_ALPHA))
+      .background(backgroundColor.copy(alpha = plateAlpha))
       .background(tint)
       .then(if (border != null) Modifier.border(1.dp, border, shape) else Modifier),
     content = content,
