@@ -28,6 +28,9 @@ class AppPaths(
   val jobsFile: Path get() = dataDir.resolve("jobs.json")
   val modelsOverrideFile: Path get() = configDir.resolve("genai-models.json")
 
+  /** Свои заготовки промптов. В отличие от моделей, сливаются со встроенными, а не заменяют их. */
+  val promptsUserFile: Path get() = configDir.resolve("genai-prompts.json")
+
   private companion object {
     const val APP_DIR = "aiopenpocket"
   }

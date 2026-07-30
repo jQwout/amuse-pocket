@@ -5,6 +5,8 @@ package com.aiopenpocket.desktop
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,23 +31,29 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.genai.CostSummary
 import com.aiopenpocket.genai.GenerationJob
 import com.aiopenpocket.genai.GenerationModality
 import com.aiopenpocket.genai.JobStatus
+import com.aiopenpocket.genai.costSummary
 import java.nio.file.Path
 
 @Composable
 fun HistoryScreen(container: AppContainer) {
   val jobs by container.queue.jobs.collectAsState()
   val done = jobs.filter { it.status == JobStatus.DONE }.reversed()
-  val spent = jobs.mapNotNull { it.costUsd }.sum()
+  val total = jobs.costSummary()
+  val session = jobs.costSummary(sinceEpochMs = container.sessionStartedAtEpochMs)
+
+  // Пачка показывается одной карточкой, одиночное задание — само по себе.
+  val groups = done.groupBy { it.batchId ?: it.id }.values.toList()
 
   Column(Modifier.fillMaxWidth()) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
       Column(Modifier.weight(1f)) {
         Text("История", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
         Text(
-          "готовых: ${done.size} · всего потрачено: ${formatCost(spent.takeIf { it > 0 })}",
+          "готовых: ${done.size}",
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -53,10 +61,12 @@ fun HistoryScreen(container: AppContainer) {
       TextButton(onClick = { openInSystem(container.outputDir) }) { Text("Открыть папку") }
     }
     Spacer(Modifier.height(12.dp))
+    CostPanel(total = total, session = session)
+    Spacer(Modifier.height(12.dp))
     HorizontalDivider()
     Spacer(Modifier.height(12.dp))
 
-    if (done.isEmpty()) {
+    if (groups.isEmpty()) {
       Text(
         "Готовых результатов пока нет. Файлы складываются в ${container.outputDir}",
         style = MaterialTheme.typography.bodyMedium,
@@ -66,13 +76,59 @@ fun HistoryScreen(container: AppContainer) {
     }
 
     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-      items(done, key = { it.id }) { job -> HistoryRow(job) }
+      items(groups, key = { it.first().id }) { group ->
+        if (group.size == 1) SingleRow(group.single()) else BatchRow(group)
+      }
     }
   }
 }
 
 @Composable
-private fun HistoryRow(job: GenerationJob) {
+private fun CostPanel(total: CostSummary, session: CostSummary) {
+  Card(Modifier.fillMaxWidth()) {
+    Column(Modifier.padding(12.dp)) {
+      Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+        CostFigure("За сессию", session)
+        CostFigure("Всего", total)
+      }
+      if (total.byModality.isNotEmpty()) {
+        Spacer(Modifier.height(6.dp))
+        Text(
+          total.byModality.entries.joinToString("   ") { (modality, sum) ->
+            "${modality.label}: ${formatCost(sum)}"
+          },
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+      if (total.partial) {
+        Spacer(Modifier.height(6.dp))
+        // Молча показывать неполную сумму как полную — врать про деньги. Провайдер не по каждому
+        // ответу отдаёт cost (у озвучки его нет вовсе).
+        Text(
+          "Это нижняя оценка: по ${total.jobsWithoutCost} заданию(ям) провайдер не сообщил стоимость.",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.error,
+        )
+      }
+    }
+  }
+}
+
+@Composable
+private fun CostFigure(label: String, summary: CostSummary) {
+  Column {
+    Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(
+      formatCost(summary.totalUsd.takeIf { summary.jobsWithCost > 0 }),
+      style = MaterialTheme.typography.titleMedium,
+      fontWeight = FontWeight.SemiBold,
+    )
+  }
+}
+
+@Composable
+private fun SingleRow(job: GenerationJob) {
   Card(Modifier.fillMaxWidth()) {
     Row(
       Modifier.padding(12.dp).fillMaxWidth(),
@@ -97,6 +153,52 @@ private fun HistoryRow(job: GenerationJob) {
         for (artifact in job.artifacts) {
           val path = Path.of(artifact)
           TextButton(onClick = { openInSystem(path) }) { Text(path.fileName.toString()) }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Пачка: варианты одного промпта или один промпт по разным моделям — рядом, чтобы их можно было
+ * сравнить взглядом. Модель подписана под каждым результатом, иначе сравнение бессмысленно.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BatchRow(group: List<GenerationJob>) {
+  val first = group.first()
+  val models = group.map { it.request.model }.distinct()
+  val sum = group.mapNotNull { it.costUsd }.sum().takeIf { group.any { job -> job.costUsd != null } }
+
+  Card(Modifier.fillMaxWidth()) {
+    Column(Modifier.padding(12.dp)) {
+      Text(first.request.prompt.take(160), style = MaterialTheme.typography.bodyMedium)
+      Text(
+        buildString {
+          append(first.request.modality.label)
+          append(" · ")
+          append(if (models.size > 1) "сравнение ${models.size} моделей" else "${group.size} варианта(ов)")
+          append(" · ")
+          append(formatCost(sum))
+        },
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+      Spacer(Modifier.height(10.dp))
+      FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        for (job in group) {
+          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Thumbnail(job)
+            Spacer(Modifier.height(4.dp))
+            Text(
+              if (models.size > 1) job.request.model.substringAfterLast('/') else formatCost(job.costUsd),
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            job.artifacts.firstOrNull()?.let { artifact ->
+              TextButton(onClick = { openInSystem(Path.of(artifact)) }) { Text("открыть") }
+            }
+          }
         }
       }
     }

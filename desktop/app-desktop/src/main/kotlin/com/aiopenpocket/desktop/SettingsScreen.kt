@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun SettingsScreen(container: AppContainer) {
   val savedKey by container.apiKey.collectAsState()
+  val prompts by container.prompts.collectAsState()
   var draft by remember(savedKey) { mutableStateOf(savedKey) }
   var reveal by remember { mutableStateOf(false) }
   var saved by remember { mutableStateOf(false) }
@@ -94,7 +95,14 @@ fun SettingsScreen(container: AppContainer) {
     )
     Spacer(Modifier.height(8.dp))
     Text(
-      "Загружено подсказок моделей: ${container.catalog.models.size}",
+      "Свои заготовки промптов — ${container.promptsUserFile}. Этот файл, в отличие от моделей, " +
+        "не заменяет встроенные заготовки, а дополняет их.",
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(Modifier.height(8.dp))
+    Text(
+      "Загружено: моделей ${container.catalog.models.size}, заготовок ${prompts.presets.size}",
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )

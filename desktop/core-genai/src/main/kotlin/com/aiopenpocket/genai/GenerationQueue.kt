@@ -36,8 +36,37 @@ class GenerationQueue(
   private val _jobs = MutableStateFlow(store.load())
   val jobs: StateFlow<List<GenerationJob>> = _jobs.asStateFlow()
 
-  fun submit(request: GenerationRequest): String {
-    val job = GenerationJob(id = newId(), request = request, createdAtEpochMs = clock())
+  fun submit(request: GenerationRequest): String = submitOne(request, batchId = null)
+
+  /**
+   * Несколько вариантов одного промпта. Модели генеративны, и разброс между прогонами — часть
+   * работы: проще отобрать из четырёх, чем жать «Повторить» четыре раза и терять предыдущие.
+   */
+  fun submitBatch(request: GenerationRequest, count: Int): List<String> {
+    require(count >= 1) { "count must be >= 1, was $count" }
+    if (count == 1) return listOf(submit(request))
+    val batchId = newId()
+    return List(count) { submitOne(request, batchId) }
+  }
+
+  /**
+   * Один промпт по нескольким моделям — сравнение бок о бок. Пустой список моделей означал бы
+   * «ничего не запускать», а не «взять модель из запроса», поэтому это ошибка вызова.
+   */
+  fun submitAcrossModels(request: GenerationRequest, models: List<String>): List<String> {
+    require(models.isNotEmpty()) { "models must not be empty" }
+    if (models.size == 1) return listOf(submit(request.copy(model = models.single())))
+    val batchId = newId()
+    return models.map { model -> submitOne(request.copy(model = model), batchId) }
+  }
+
+  private fun submitOne(request: GenerationRequest, batchId: String?): String {
+    val job = GenerationJob(
+      id = newId(),
+      request = request,
+      createdAtEpochMs = clock(),
+      batchId = batchId,
+    )
     upsert(job)
     launchJob(job.id) { provider.generate(request) }
     return job.id
