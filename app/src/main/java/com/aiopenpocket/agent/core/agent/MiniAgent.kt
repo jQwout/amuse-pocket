@@ -199,7 +199,14 @@ fun MiniAgent.toDefinition(): AgentDefinition = AgentDefinition(
     else -> emptySet()
   },
   defaultMode = AgentMode.CHAT,
-  allowedModes = setOf(AgentMode.CHAT, AgentMode.PLAN, AgentMode.GOAL, AgentMode.REFLECT),
+  // Пресетам — только Чат и Рефлексия. Планирование остаётся у агентов, которых пользователь собрал
+  // сам и явно включил режимы в конструкторе.
+  //
+  // Раньше здесь стоял полный набор одной общей строкой, поэтому План/Цель предлагались КАЖДОМУ
+  // пресету независимо от смысла: Напоминалкам и Дневнику целевой режим не нужен, а выглядело это
+  // так, будто планирование — их штатная функция. Поле allowedModes до недавнего времени рантаймом
+  // игнорировалось, и набор был не виден; как только фильтрация заработала, разнобой вылез наружу.
+  allowedModes = setOf(AgentMode.CHAT, AgentMode.REFLECT),
   memoryPolicy = AgentMemoryPolicy(namespace = "agent:$id:", includeSharedProfile = true),
   allowedWidgetTemplates = AgentValidator.KNOWN_WIDGET_TEMPLATES,
   hooks = emptyList(),
