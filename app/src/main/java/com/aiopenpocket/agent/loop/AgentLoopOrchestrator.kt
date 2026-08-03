@@ -50,7 +50,7 @@ class AgentLoopOrchestrator(
   fun execute(
     conversationId: String,
     userMessage: String,
-    provider: LlmProvider = LlmProvider.NIM,
+    provider: LlmProvider,
     mode: AgentMode = AgentMode.CHAT,
     systemPromptExtra: String? = null,
     executionMode: ExecutionMode = ExecutionMode.LIVE,

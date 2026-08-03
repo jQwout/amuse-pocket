@@ -5,6 +5,9 @@ package com.aiopenpocket.ui.settings
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModel
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.ModelCatalogLoader
@@ -19,6 +22,8 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -59,6 +64,14 @@ class SettingsViewModelTest {
   private val loader = ModelCatalogLoader(application, cache)
   private lateinit var settings: FakeSettingsRepository
 
+  /**
+   * ViewModel'и создаются через store, чтобы `@After` вызвал `onCleared` и погасил `viewModelScope`.
+   * Без этого корутины ViewModel переживают собственный тест: продолжают писать в prefs и в кеш
+   * каталога уже после `resetMain()` — то есть ровно тот механизм «падает не тот тест, который
+   * виноват», ради которого в этом же коммите изолирован DataStore.
+   */
+  private val viewModelStore = ViewModelStore()
+
   @Before
   fun setUp() {
     Dispatchers.setMain(testDispatcher)
@@ -68,6 +81,7 @@ class SettingsViewModelTest {
 
   @After
   fun tearDown() {
+    viewModelStore.clear()
     Dispatchers.resetMain()
     File(application.filesDir, "openrouter_models.json").delete()
   }
@@ -122,13 +136,26 @@ class SettingsViewModelTest {
         headers = headersOf(HttpHeaders.ContentType, "application/json"),
       )
     }
-    return SettingsViewModel(
+    return viewModelWith(engine)
+  }
+
+  private fun viewModelWith(engine: MockEngine): SettingsViewModel {
+    val vm = SettingsViewModel(
       settingsRepository = settings,
       userPreferencesRepository = UserPreferencesRepository(testDataStore(application)),
       modelCatalogLoader = loader,
       openRouterCatalogService = OpenRouterCatalogService(cache, loader, engine),
       themeRepository = ThemeRepository(application),
     )
+    // Кладём в store, чтобы его clear() в @After позвал onCleared и отменил viewModelScope.
+    ViewModelProvider(
+      viewModelStore,
+      object : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T = vm as T
+      },
+    )[SettingsViewModel::class.java]
+    return vm
   }
 
   /**
@@ -136,10 +163,20 @@ class SettingsViewModelTest {
    * `withTimeout` внутри него срабатывает мгновенно, не дав работе на `Dispatchers.IO` (которую
    * планировщик теста не отслеживает) вообще случиться.
    */
-  private suspend fun SettingsViewModel.await(predicate: (SettingsUiState) -> Boolean): SettingsUiState =
-    withContext(Dispatchers.Default.limitedParallelism(1)) {
-      withTimeout(10_000) { state.first(predicate) }
+  private suspend fun SettingsViewModel.await(
+    timeoutMs: Long = 10_000,
+    predicate: (SettingsUiState) -> Boolean,
+  ): SettingsUiState =
+    withContext(Dispatchers.Default) {
+      withTimeout(timeoutMs) { state.first(predicate) }
     }
+
+  /** Ждём, пока каталог реально ляжет в кеш: сервис пишет его ДО того, как обновит состояние. */
+  private suspend fun awaitCached(model: String) = withContext(Dispatchers.Default) {
+    withTimeout(10_000) {
+      while (cache.read()?.catalog?.models?.none { it.name == model } != false) delay(20)
+    }
+  }
 
   @Test
   fun `смена провайдера меняет список моделей и сбрасывает выбранную`() = runTest {
@@ -195,6 +232,9 @@ class SettingsViewModelTest {
     vm.updateModel("vendor/one")
     vm.updateOpenRouterKey("sk-test")
     vm.save()
+    // Запись ушла на IO (Keystore шифрует на вызывающем потоке), поэтому ждём подтверждения:
+    // флаг saved взводится только после реальной записи.
+    vm.await { it.saved }
 
     assertEquals("OPENROUTER", settings.values["provider"])
     assertEquals("vendor/one", settings.values["model"])
@@ -207,19 +247,59 @@ class SettingsViewModelTest {
    */
   @Test
   fun `каталог, долетевший после ухода на другого вендора, игнорируется`() = runTest {
+    // Стартуем УЖЕ на OpenRouter: тогда обновление уходит в сеть прямо из init и виснет на воротах,
+    // то есть заведомо оказывается «в полёте» к моменту переключения.
+    settings.values["provider"] = "OPENROUTER"
     val slow = CompletableDeferred<Unit>()
     val vm = viewModel(gate = slow, openRouterIds = arrayOf("vendor/late"))
-    val nimModels = vm.await { it.availableModels.size > 1 }.availableModels
+    vm.await { it.provider == LlmProvider.OPENROUTER }
 
-    vm.updateProvider(LlmProvider.OPENROUTER)   // ушёл в сеть и завис на воротах
     vm.updateProvider(LlmProvider.NIM)          // передумал раньше, чем каталог долетел
-    vm.await { it.provider == LlmProvider.NIM && it.availableModels.size > 1 }
+    val nimModels = vm.await { it.provider == LlmProvider.NIM && it.availableModels.size > 1 }.availableModels
 
     slow.complete(Unit)                          // отпускаем протухший ответ
+    // Ключевой момент: сначала ДОКАЗЫВАЕМ, что протухший ответ дошёл до конца обработки (кеш
+    // пишется прямо перед обновлением состояния), и только потом проверяем отсутствие. Без этого
+    // тест проходил и со СНЯТЫМ гейтом — просто успевая проверить состояние раньше ответа.
+    awaitCached("vendor/late")
 
-    val state = vm.await { it.provider == LlmProvider.NIM }
-    assertEquals(nimModels, state.availableModels)
-    assertTrue("каталог OpenRouter не должен был долететь", state.availableModels.none { it == "vendor/late" })
+    val leaked = runCatching {
+      vm.await(timeoutMs = 2_000) { it.availableModels.contains("vendor/late") }
+    }
+    assertTrue(
+      "каталог OpenRouter не должен был долететь",
+      leaked.exceptionOrNull() is TimeoutCancellationException,
+    )
+    assertEquals(nimModels, vm.state.value.availableModels)
+  }
+
+  /**
+   * Пока грузится каталог нового вендора, в списке не должно быть моделей ПРЕДЫДУЩЕГО: чтение
+   * с диска ушло на IO, и наивная реализация оставила бы старый список висеть на экране.
+   */
+  @Test
+  fun `на время загрузки список моделей сжимается до AUTO, а не показывает чужого вендора`() = runTest {
+    val vm = viewModel(openRouterIds = arrayOf("vendor/one"))
+    vm.await { it.availableModels.size > 1 }
+
+    vm.updateProvider(LlmProvider.OPENROUTER)
+
+    assertEquals(listOf("AUTO"), vm.state.value.availableModels)
+  }
+
+  /**
+   * Нет сети и нет кеша — каталог падает на сид из ассетов, и по нему НЕЛЬЗЯ судить, что модель
+   * снята с обслуживания. Иначе первый же запуск в офлайне молча сбрасывал бы выбор пользователя.
+   */
+  @Test
+  fun `сид из ассетов не сбрасывает выбранную модель`() = runTest {
+    settings.values["provider"] = "OPENROUTER"
+    settings.values["model"] = "vendor/chosen"
+    val vm = viewModelWith(MockEngine { throw java.io.IOException("нет сети") })
+
+    val state = vm.await { it.availableModels.size > 1 }
+
+    assertEquals("vendor/chosen", state.selectedModel)
   }
 
   /**

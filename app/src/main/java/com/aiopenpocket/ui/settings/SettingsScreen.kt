@@ -90,6 +90,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aiopenpocket.BuildConfig
 import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.llm.NVIDIA_KEY_PLACEHOLDER
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
 import com.aiopenpocket.ui.onboarding.components.PersonaCard
 import com.aiopenpocket.ui.components.AcademyBottomNav
@@ -301,7 +302,10 @@ fun SettingsScreen(
       // молчит; поэтому проверяем оба, а не только OpenRouter.
       val keyMissing = when (state.provider) {
         LlmProvider.OPENROUTER -> state.openRouterKey.isBlank()
-        LlmProvider.NIM -> state.nvidiaKey.isBlank() && BuildConfig.NVIDIA_API_KEY == "MY_NVIDIA_API_KEY"
+        // Пустая строка — тоже «ключа нет»: ровно так её трактует резолвер в LlmModule.
+        LlmProvider.NIM ->
+          state.nvidiaKey.isBlank() &&
+            (BuildConfig.NVIDIA_API_KEY.isBlank() || BuildConfig.NVIDIA_API_KEY == NVIDIA_KEY_PLACEHOLDER)
       }
       if (keyMissing) {
         Row(

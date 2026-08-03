@@ -154,7 +154,7 @@ class ReflectionOrchestratorTest {
     // draft и critique непусты, но revise возвращает пустоту — realistic «правка ничего не дала».
     val llm = ScriptedLlm(listOf(textThenStop("черновой ответ"), textThenStop("критика"), justStop))
 
-    val events = orchestrator(llm).execute("c1", "вопрос").toList()
+    val events = orchestrator(llm).executeNim("c1", "вопрос").toList()
 
     val error = events.filterIsInstance<AgentEvent.Error>().singleOrNull()
     assertEquals(TurnTexts.BLANK_REPLY_ERROR, error?.message)
@@ -165,7 +165,7 @@ class ReflectionOrchestratorTest {
   fun `непустой финал revise даёт Completed с транскриптом`() = runTest {
     val llm = ScriptedLlm(listOf(textThenStop("черновой ответ"), textThenStop("критика"), textThenStop("Итоговый ответ")))
 
-    val events = orchestrator(llm).execute("c1", "вопрос").toList()
+    val events = orchestrator(llm).executeNim("c1", "вопрос").toList()
 
     val completed = events.filterIsInstance<AgentEvent.Completed>().singleOrNull()
     assertTrue("финальный ответ должен попасть в транскрипт", completed?.result?.text?.contains("Итоговый ответ") == true)
@@ -215,7 +215,7 @@ class ReflectionOrchestratorTest {
       ),
     )
 
-    val events = orchestrator(llm, toolRegistry).execute("c1", "вопрос").toList()
+    val events = orchestrator(llm, toolRegistry).executeNim("c1", "вопрос").toList()
 
     val smsCall = events.filterIsInstance<AgentEvent.ToolCompleted>().single { it.name == "sms" }
     val smsError = smsCall.result as? ToolResult.Error
@@ -284,7 +284,7 @@ class ReflectionOrchestratorTest {
       ),
     )
 
-    orchestrator(llm, toolRegistry, turnContextHolder).execute("c1", "запомни note=secret").toList()
+    orchestrator(llm, toolRegistry, turnContextHolder).executeNim("c1", "запомни note=secret").toList()
 
     val saved = db.factDao().getByKey("agent:my-agent:note")
     assertEquals("secret", saved?.value)
@@ -292,4 +292,13 @@ class ReflectionOrchestratorTest {
     // Без namespace ключ вообще не создаётся — не осталось «утечки» в глобальное пространство.
     assertNull(db.factDao().getByKey("note"))
   }
+
+  /**
+   * Провайдер в этих тестах не участвует — проверяется механика, а не адресат запроса. Хелперы,
+   * чтобы `LlmProvider.NIM` не повторялся в каждом вызове и не создавал впечатление, будто выбор
+   * вендора здесь что-то значит.
+   */
+  private fun ReflectionOrchestrator.executeNim(conversationId: String, message: String) =
+    execute(conversationId, message, LlmProvider.NIM)
+
 }

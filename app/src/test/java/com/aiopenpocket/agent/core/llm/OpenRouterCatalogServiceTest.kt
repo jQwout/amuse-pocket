@@ -10,6 +10,7 @@ import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -201,10 +202,11 @@ class OpenRouterCatalogServiceTest {
     service(model("vendor/cached")).refresh(now = 1_000L)
 
     val calls = mutableListOf<String>()
-    val catalog = service(model("vendor/newer"), calls = calls).refreshIfStale(now = 1_000L + 60_000L)
+    val snapshot = service(model("vendor/newer"), calls = calls).refreshIfStale(now = 1_000L + 60_000L)
 
     assertEquals(emptyList<String>(), calls)
-    assertEquals(listOf("vendor/cached"), catalog.models.map { it.name })
+    assertEquals(listOf("vendor/cached"), snapshot.catalog.models.map { it.name })
+    assertTrue("кеш — это реальный список провайдера", snapshot.authoritative)
   }
 
   @Test
@@ -212,9 +214,10 @@ class OpenRouterCatalogServiceTest {
     service(model("vendor/cached")).refresh(now = 1_000L)
 
     val dayAndABit = 1_000L + 25 * 60 * 60 * 1000L
-    val catalog = service(model("vendor/newer")).refreshIfStale(now = dayAndABit)
+    val snapshot = service(model("vendor/newer")).refreshIfStale(now = dayAndABit)
 
-    assertEquals(listOf("vendor/newer"), catalog.models.map { it.name })
+    assertEquals(listOf("vendor/newer"), snapshot.catalog.models.map { it.name })
+    assertTrue(snapshot.authoritative)
   }
 
   /** Без кеша и без сети пользователь всё равно должен увидеть список — сид из ассетов. */
@@ -222,9 +225,12 @@ class OpenRouterCatalogServiceTest {
   fun `no cache and no network falls back to the seeded catalog`() = runTest {
     val failing = OpenRouterCatalogService(cache, loader, MockEngine { respondError(HttpStatusCode.BadGateway) })
 
-    val catalog = failing.refreshIfStale(now = 1_000L)
+    val snapshot = failing.refreshIfStale(now = 1_000L)
 
-    assertNotNull(catalog.models.firstOrNull())
-    assertEquals(loader.loadOpenRouterSeed().models.map { it.name }, catalog.models.map { it.name })
+    assertNotNull(snapshot.catalog.models.firstOrNull())
+    assertEquals(loader.loadOpenRouterSeed().models.map { it.name }, snapshot.catalog.models.map { it.name })
+    // Сид — не список провайдера: по нему нельзя судить, что модель снята, и Настройки на этом
+    // основании не должны сбрасывать выбор пользователя.
+    assertFalse("сид не авторитетен", snapshot.authoritative)
   }
 }

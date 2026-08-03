@@ -270,7 +270,7 @@ class StructuredPlanOrchestratorTest {
     val convId = conversationRepository.createConversation(title = "Test", agentId = "agent-1")
     hookRepository.replaceForAgent("agent-1", listOf(hook("h-created", HookEvent.ON_PLAN_CREATED)))
 
-    val events = orchestrator().propose(convId, "распланируй неделю").toList()
+    val events = orchestrator().proposeNim(convId, "распланируй неделю").toList()
 
     val proposed = events.filterIsInstance<AgentEvent.PlanProposed>().single()
     assertEquals(1, proposed.version)
@@ -288,9 +288,9 @@ class StructuredPlanOrchestratorTest {
     hookRepository.replaceForAgent("agent-1", listOf(hook("h-created", HookEvent.ON_PLAN_CREATED)))
     val org = orchestrator()
 
-    val first = org.propose(convId, "распланируй неделю").toList().filterIsInstance<AgentEvent.PlanProposed>().single()
+    val first = org.proposeNim(convId, "распланируй неделю").toList().filterIsInstance<AgentEvent.PlanProposed>().single()
     llm.respondWith(textThenCall("Уточнённый план.", PlanControlSchemas.PROPOSE_PLAN_REVISION, submitPlanArgs(objective = "objective v2")))
-    val second = org.propose(convId, "добавь бюджет").toList().filterIsInstance<AgentEvent.PlanProposed>().single()
+    val second = org.proposeNim(convId, "добавь бюджет").toList().filterIsInstance<AgentEvent.PlanProposed>().single()
 
     assertEquals(first.planId, second.planId)
     assertEquals(2, second.version)
@@ -307,7 +307,7 @@ class StructuredPlanOrchestratorTest {
       ),
     )
 
-    val events = orchestrator().propose(convId, "распланируй").toList()
+    val events = orchestrator().proposeNim(convId, "распланируй").toList()
 
     val blocked = events.filterIsInstance<AgentEvent.PlanBlocked>().single()
     assertEquals("Какой бюджет?", blocked.reason)
@@ -322,7 +322,7 @@ class StructuredPlanOrchestratorTest {
     // PlanValidator ("tool_outside_agent_scope"), never silently coerced.
     llm.respondWith(textThenCall("Вот план.", PlanControlSchemas.SUBMIT_PLAN, submitPlanArgs(steps = listOf(stepJson("s1", expectedTools = listOf("tool_agent_does_not_have"))))))
 
-    val events = orchestrator().propose(convId, "распланируй").toList()
+    val events = orchestrator().proposeNim(convId, "распланируй").toList()
 
     assertTrue(events.any { it is AgentEvent.Error })
     assertTrue(events.none { it is AgentEvent.PlanProposed })
@@ -333,7 +333,7 @@ class StructuredPlanOrchestratorTest {
     val convId = conversationRepository.createConversation(title = "Test", agentId = "agent-1")
     llm.respondWith(listOf(StreamEvent.TextDelta("Sure, here's a plan..."), StreamEvent.Finish("stop")))
 
-    val events = orchestrator().propose(convId, "распланируй").toList()
+    val events = orchestrator().proposeNim(convId, "распланируй").toList()
 
     assertTrue(events.any { it is AgentEvent.Error })
   }
@@ -354,7 +354,7 @@ class StructuredPlanOrchestratorTest {
   fun `executeGoal on an ACTIVE plan runs one step via PlanRunner and emits PlanProgressed`() = runTest {
     val convId = conversationRepository.createConversation(title = "Test", agentId = "agent-1")
     val org = orchestrator()
-    org.propose(convId, "распланируй").toList()
+    org.proposeNim(convId, "распланируй").toList()
     val planId = repository.observeByConversation(convId).first().single().plan.id
     repository.approve(planId, 1)
     stepRunner.script = { AgentResult(text = "ok", toolTrace = emptyList(), state = AgentState.FINISHED, iterations = 1) }
@@ -371,7 +371,7 @@ class StructuredPlanOrchestratorTest {
   fun `executeGoal in PREVIEW threads PREVIEW mode all the way to the step runner (builder test-run has no side effects)`() = runTest {
     val convId = conversationRepository.createConversation(title = "Test", agentId = "agent-1")
     val org = orchestrator()
-    org.propose(convId, "распланируй").toList()
+    org.proposeNim(convId, "распланируй").toList()
     val planId = repository.observeByConversation(convId).first().single().plan.id
     repository.approve(planId, 1)
     stepRunner.script = { AgentResult(text = "ok", toolTrace = emptyList(), state = AgentState.FINISHED, iterations = 1) }
@@ -392,7 +392,7 @@ class StructuredPlanOrchestratorTest {
     // pending), so it still needs its heartbeat schedule. A heartbeat racing this foreground run cancels
     // that schedule; nothing re-arms it unless executeGoal re-syncs after the run.
     llm.respondWith(textThenCall("План.", PlanControlSchemas.SUBMIT_PLAN, submitPlanArgs(steps = listOf(stepJson("s1"), stepJson("s2")))))
-    org.propose(convId, "распланируй").toList()
+    org.proposeNim(convId, "распланируй").toList()
     val planId = repository.observeByConversation(convId).first().single().plan.id
     repository.approve(planId, 1)
     stepRunner.script = { AgentResult(text = "ok", toolTrace = emptyList(), state = AgentState.FINISHED, iterations = 1) }
@@ -410,7 +410,7 @@ class StructuredPlanOrchestratorTest {
   fun `executeGoal reports a FAILED PlanRunner outcome as AgentEvent Error, not PlanProgressed`() = runTest {
     val convId = conversationRepository.createConversation(title = "Test", agentId = "agent-1")
     val org = orchestrator()
-    org.propose(convId, "распланируй").toList()
+    org.proposeNim(convId, "распланируй").toList()
     val planId = repository.observeByConversation(convId).first().single().plan.id
     repository.approve(planId, 1)
     stepRunner.script = { AgentResult(text = "", toolTrace = emptyList(), state = AgentState.ERROR, iterations = 1, errorMessage = "boom") }
@@ -420,4 +420,21 @@ class StructuredPlanOrchestratorTest {
     assertTrue(events.any { it is AgentEvent.Error })
     assertTrue(events.none { it is AgentEvent.PlanProgressed })
   }
+
+  /**
+   * Провайдер в этих тестах не участвует — проверяется механика, а не адресат запроса. Хелперы,
+   * чтобы `LlmProvider.NIM` не повторялся в каждом вызове и не создавал впечатление, будто выбор
+   * вендора здесь что-то значит.
+   */
+  private fun StructuredPlanOrchestrator.proposeNim(conversationId: String, message: String) =
+    propose(conversationId, message, LlmProvider.NIM)
+
+  private fun StructuredPlanOrchestrator.executeGoal(
+    conversationId: String,
+    planId: String?,
+    message: String,
+    budget: PlanRunBudget = PlanRunBudget(),
+    executionMode: ExecutionMode = ExecutionMode.LIVE,
+  ) = executeGoal(conversationId, planId, message, LlmProvider.NIM, budget, executionMode)
+
 }
