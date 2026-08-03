@@ -1,17 +1,20 @@
 package com.aiopenpocket.ui.settings
 
 // @trace app-settings-beb470
+// @trace vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53
 
 import com.aiopenpocket.agent.core.identity.ChatFontScale
+import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.ui.theme.ThemeMode
 
 data class SettingsUiState(
   val nvidiaKey: String = "",
-  val groqKey: String = "",
-  val githubKey: String = "",
-  /** Конкретная NIM-модель ("AUTO" — по приоритету из models.json). */
+  val openRouterKey: String = "",
+  /** Куда уходят запросы агента. Меняется только руками — молчаливого переезда к другому вендору нет. */
+  val provider: LlmProvider = LlmProvider.NIM,
+  /** Конкретная модель ВЫБРАННОГО провайдера ("AUTO" — по приоритету из его каталога). */
   val selectedModel: String = "AUTO",
-  /** Модели из каталога (models.json), отсортированные по приоритету — опции для выбора. */
+  /** Модели каталога выбранного провайдера, отсортированные по приоритету — опции для выбора. */
   val availableModels: List<String> = emptyList(),
   val personaId: String = "sharp_partner",
   val personas: List<String> = emptyList(),

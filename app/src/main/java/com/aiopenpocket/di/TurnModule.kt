@@ -3,6 +3,7 @@ package com.aiopenpocket.di
 // @trace fonovye-hody-agenta-dde42d
 // @trace user-agent-builder-848153
 // @trace structured-plan-engine-907066
+// @trace vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53
 
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.loop.AgentLoopOrchestrator
@@ -12,6 +13,7 @@ import com.aiopenpocket.agent.loop.ReflectionOrchestrator
 import com.aiopenpocket.agent.loop.StructuredPlanOrchestrator
 import com.aiopenpocket.agent.loop.TurnExecutor
 import com.aiopenpocket.agent.loop.TurnLifeSupport
+import com.aiopenpocket.agent.core.llm.SelectedLlmProvider
 import com.aiopenpocket.agent.loop.TurnManager
 import com.aiopenpocket.agent.loop.TurnNotifier
 import com.aiopenpocket.agent.loop.TurnPersistence
@@ -77,6 +79,7 @@ object TurnModule {
     foreground: ForegroundState,
     notifier: TurnNotifier,
     lifeSupport: TurnLifeSupport,
+    selectedProvider: SelectedLlmProvider,
     log: com.aiopenpocket.agent.core.AgentLog,
   ): TurnManager = TurnManager(
     executor = executor,
@@ -87,6 +90,9 @@ object TurnModule {
     // Свой скоуп уровня приложения: ход агента живёт, пока жив процесс, а не экран.
     scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     monotonicNowMs = android.os.SystemClock::uptimeMillis,
+    // Лямбда, а не значение: провайдер читается на каждом ходе, поэтому переключение в Настройках
+    // подхватывается сразу, без пересборки DI-графа.
+    selectedProvider = { selectedProvider() },
     log = log,
   )
 }

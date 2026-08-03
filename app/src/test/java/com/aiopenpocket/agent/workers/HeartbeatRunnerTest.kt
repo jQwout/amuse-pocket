@@ -232,6 +232,7 @@ class HeartbeatRunnerTest {
       planRepository,
       planRunner,
       planScheduleSync,
+      { LlmProvider.NIM },
     )
     return Doubles(runner, fakeLlm, planRepository, planScheduleSync)
   }
