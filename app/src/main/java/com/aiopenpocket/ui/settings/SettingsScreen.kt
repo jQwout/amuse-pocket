@@ -88,6 +88,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aiopenpocket.BuildConfig
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
 import com.aiopenpocket.ui.onboarding.components.PersonaCard
@@ -294,9 +295,15 @@ fun SettingsScreen(
         modifier = Modifier.padding(horizontal = 20.dp),
         testTag = "settings_provider_selector",
       )
-      // У NIM ключ может быть вшит в сборку, у OpenRouter — только свой. Без этой строки первым
-      // сигналом о забытом ключе был бы «All providers failed» в чате, уже после отправки вопроса.
-      if (state.provider == LlmProvider.OPENROUTER && state.openRouterKey.isBlank()) {
+      // Без этой строки первым сигналом о забытом ключе был бы «All providers failed» в чате, уже
+      // после отправки вопроса. У NIM ключ МОЖЕТ быть вшит в сборку из .env — но в сборке без него
+      // BuildConfig.NVIDIA_API_KEY остаётся плейсхолдером, и тогда дефолтный провайдер точно так же
+      // молчит; поэтому проверяем оба, а не только OpenRouter.
+      val keyMissing = when (state.provider) {
+        LlmProvider.OPENROUTER -> state.openRouterKey.isBlank()
+        LlmProvider.NIM -> state.nvidiaKey.isBlank() && BuildConfig.NVIDIA_API_KEY == "MY_NVIDIA_API_KEY"
+      }
+      if (keyMissing) {
         Row(
           verticalAlignment = Alignment.CenterVertically,
           horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -309,7 +316,7 @@ fun SettingsScreen(
             modifier = Modifier.size(14.dp),
           )
           Text(
-            text = "Ключ OpenRouter не задан — запросы не уйдут.",
+            text = "Ключ ${providerLabels.getValue(state.provider)} не задан — запросы не уйдут.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.error,
           )

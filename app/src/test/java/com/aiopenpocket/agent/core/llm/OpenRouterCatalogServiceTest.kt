@@ -129,6 +129,46 @@ class OpenRouterCatalogServiceTest {
     assertEquals(listOf("text", "image"), entry.inputModalities)
   }
 
+  /**
+   * Дубли id — краш LazyColumn на одинаковых ключах в списке выбора, причём записанный в кеш: он
+   * пережил бы перезапуск, и пользователь не смог бы открыть селектор, чтобы выбрать другую модель.
+   * Пустой id — конфиг, который всегда даст 400 и сожжёт одну из пяти попыток цепочки.
+   */
+  @Test
+  fun `duplicate and blank ids are dropped`() = runTest {
+    val catalog = service(
+      model("vendor/dup", created = 300),
+      model("vendor/dup", created = 100),
+      model(""),
+    ).refresh()
+
+    assertEquals(listOf("vendor/dup"), catalog?.models?.map { it.name })
+  }
+
+  /** Тело ошибки OpenRouter (`{"error":{...}}`) разбирается в пустой список — рабочий кеш должен уцелеть. */
+  @Test
+  fun `an HTTP error never touches the cache`() = runTest {
+    service(model("vendor/cached")).refresh(now = 1_000L)
+
+    val rateLimited = OpenRouterCatalogService(cache, loader, MockEngine { respondError(HttpStatusCode.TooManyRequests) })
+    assertNull(rateLimited.refresh(now = 2_000L))
+    assertEquals(listOf("vendor/cached"), loader.loadOpenRouter().models.map { it.name })
+  }
+
+  /**
+   * Битый кеш читается как «кеша нет», а НЕ удаляется. Удаление превращало любое пересечение чтения
+   * с записью в потерю каталога: read зовётся на каждом ходе агента, write — из фонового обновления.
+   */
+  @Test
+  fun `a corrupted cache falls back to the seed without deleting the file`() = runTest {
+    val file = File(application.filesDir, "openrouter_models.json")
+    file.writeText("{ это не JSON")
+
+    assertNull(cache.read())
+    assertTrue("файл не должен удаляться при чтении", file.exists())
+    assertEquals(loader.loadOpenRouterSeed().models.map { it.name }, loader.loadOpenRouter().models.map { it.name })
+  }
+
   @Test
   fun `a successful refresh is cached and picked up by the loader`() = runTest {
     service(model("vendor/fresh")).refresh(now = 1_000L)

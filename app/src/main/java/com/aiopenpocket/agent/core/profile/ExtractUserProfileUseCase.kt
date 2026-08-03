@@ -4,6 +4,7 @@ package com.aiopenpocket.agent.core.profile
 
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.LlmClient
+import com.aiopenpocket.agent.core.llm.SelectedLlmProvider
 import com.aiopenpocket.agent.core.llm.StreamEvent
 import com.aiopenpocket.agent.core.memory.model.UserProfile
 import dev.zacsweers.metro.Inject
@@ -25,6 +26,9 @@ import kotlinx.serialization.json.JsonPrimitive
 @Inject
 class ExtractUserProfileUseCase(
   private val llmClient: LlmClient,
+  // Рассказ о себе — самый личный текст в приложении, и он тоже обязан уходить выбранному
+  // вендору, а не тому, что стоял дефолтом в LlmClient.streamChat.
+  private val selectedProvider: SelectedLlmProvider,
 ) {
 
   suspend operator fun invoke(aboutMe: String): UserProfile? {
@@ -74,6 +78,7 @@ class ExtractUserProfileUseCase(
         ChatMessage(role = "user", content = userText),
       ),
       tools = emptyList(),
+      provider = selectedProvider(),
     ).collect { event ->
       when (event) {
         is StreamEvent.TextDelta -> buffer.append(event.content)

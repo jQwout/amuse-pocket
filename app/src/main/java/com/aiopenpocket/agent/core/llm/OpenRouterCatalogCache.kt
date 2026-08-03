@@ -49,7 +49,16 @@ class OpenRouterCatalogCache(
 
   private val file: File get() = File(application.filesDir, FILE_NAME)
 
-  /** Кешированный каталог или null: файла нет, он битый или пустой. Битый — молча удаляем. */
+  /**
+   * Кешированный каталог или null: файла нет, он битый или пустой.
+   *
+   * Битый файл НЕ удаляем. Раньше удаляли — и это превращало любое расхождение чтения с записью в
+   * потерю данных: [read] зовётся на каждом ходе агента (через `ModelCatalogLoader.loadOpenRouter`
+   * в цепочке провайдеров), а [write] — из фонового обновления, так что пересечься они могут в
+   * любой момент. Теперь запись атомарна, а чтение просто возвращает null: следующее обновление
+   * перезапишет файл само.
+   */
+  @Synchronized
   fun read(): CachedModelCatalog? {
     val f = file
     if (!f.exists()) return null
@@ -57,19 +66,33 @@ class OpenRouterCatalogCache(
       json.decodeFromString<CachedModelCatalog>(f.readText())
         .takeIf { it.catalog.models.isNotEmpty() }
     } catch (e: Exception) {
-      // Битый кеш не должен превращаться в вечную ошибку: удаляем, чтобы следующий refresh переписал.
-      Log.w(TAG, "Cached OpenRouter catalog is unreadable, dropping: ${e.message}")
-      runCatching { f.delete() }
+      Log.w(TAG, "Cached OpenRouter catalog is unreadable, falling back to seed: ${e.message}")
       null
     }
   }
 
+  /**
+   * Атомарная замена: пишем во временный файл и переименовываем.
+   *
+   * Прямой `writeText` сначала обрезает файл до нуля — читатель, попавший в это окно, увидел бы
+   * обрубок вместо каталога. `renameTo` внутри одного каталога атомарен, поэтому читатель всегда
+   * видит либо прежний файл целиком, либо новый целиком.
+   */
+  @Synchronized
   fun write(catalog: ModelCatalog, fetchedAt: Long) {
+    val tmp = File(application.filesDir, "$FILE_NAME.tmp")
     try {
-      file.writeText(json.encodeToString(CachedModelCatalog(fetchedAt, catalog)))
+      tmp.writeText(json.encodeToString(CachedModelCatalog(fetchedAt, catalog)))
+      if (!tmp.renameTo(file)) {
+        // Переименование не прошло (крайне редко — например, файл занят): падать незачем, просто
+        // остаёмся на прежнем кеше.
+        Log.w(TAG, "Failed to swap in the new OpenRouter catalog")
+        tmp.delete()
+      }
     } catch (e: Exception) {
       // Не смогли записать — не повод ронять ход: в следующий раз просто сходим в сеть снова.
       Log.w(TAG, "Failed to cache OpenRouter catalog: ${e.message}")
+      runCatching { tmp.delete() }
     }
   }
 

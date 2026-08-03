@@ -78,17 +78,25 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class HeartbeatRunnerTest {
 
+  /** Что «выбрано в Настройках» на момент фонового хода. */
+  private var selectedProvider = LlmProvider.NIM
+
   private class FakeLlm(private val events: List<StreamEvent>) : LlmClient {
     /** Snapshot (not a live reference) of `messages` as seen on each `streamChat` call — lets a test
      * assert on the actual system-prompt content sent, without risking a later in-place mutation of
      * the caller's mutable list retroactively changing what a prior call "saw". */
     val calls = mutableListOf<List<ChatMessage>>()
+
+    /** К какому вендору ушёл фоновый ход. */
+    val providers = mutableListOf<LlmProvider>()
+
     override fun streamChat(
       messages: List<ChatMessage>,
       tools: List<FunctionSchema>,
       provider: LlmProvider,
     ): Flow<StreamEvent> {
       calls += messages.toList()
+      providers += provider
       return flowOf(*events.toTypedArray())
     }
   }
@@ -232,7 +240,7 @@ class HeartbeatRunnerTest {
       planRepository,
       planRunner,
       planScheduleSync,
-      { LlmProvider.NIM },
+      { selectedProvider },
     )
     return Doubles(runner, fakeLlm, planRepository, planScheduleSync)
   }
@@ -343,6 +351,23 @@ class HeartbeatRunnerTest {
     assertTrue(messages.any { it.role == "assistant" && it.content.contains("задач 3") })
     assertEquals("Всё в порядке, задач 3.", db.heartbeatDao().getById("hb1")?.lastResult)
     assertTrue(notifier.calls.single().preview.contains("задач 3")) // ответ ушёл и пушем
+  }
+
+  /**
+   * Фоновый ход обязан идти к тому же вендору, что и обычный. Раньше здесь стоял литерал
+   * LlmProvider.NIM: после переключения на OpenRouter напоминалки продолжали бы ходить к NVIDIA —
+   * то есть тихо падать на пустом ключе или уносить данные вендору, от которого пользователь ушёл.
+   */
+  @Test
+  fun `agent mode goes to the provider selected in settings`() = runTest {
+    selectedProvider = LlmProvider.OPENROUTER
+    db.heartbeatDao().insert(hb(mode = "agent", prompt = "проверь задачи"))
+    val doubles = runnerWithRegistry(
+      listOf(StreamEvent.TextDelta("ок"), StreamEvent.Finish("stop")),
+      ToolRegistry(emptySet()),
+    )
+    assertEquals(FireOutcome.DONE, doubles.runner.handleFire("hb1", attempt = 0))
+    assertEquals(listOf(LlmProvider.OPENROUTER), doubles.llm.providers)
   }
 
   @Test

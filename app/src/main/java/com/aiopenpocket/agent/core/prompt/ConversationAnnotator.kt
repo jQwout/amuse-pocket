@@ -5,6 +5,7 @@ package com.aiopenpocket.agent.core.prompt
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
+import com.aiopenpocket.agent.core.llm.SelectedLlmProvider
 import com.aiopenpocket.agent.core.llm.StreamEvent
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.profile.stripToJsonObject
@@ -29,6 +30,10 @@ import java.util.concurrent.ConcurrentHashMap
 class ConversationAnnotator(
   private val llmClient: LlmClient,
   private val conversationRepository: ConversationRepository,
+  // Тело этого вызова — дословный кусок переписки. Он обязан уходить туда же, куда и сам чат:
+  // раньше здесь работал дефолт LlmProvider.NIM, и переписка уезжала к NVIDIA даже у того, кто
+  // осознанно ушёл к другому вендору.
+  private val selectedProvider: SelectedLlmProvider,
 ) {
 
   private val json = Json { ignoreUnknownKeys = true }
@@ -93,7 +98,7 @@ class ConversationAnnotator(
 
     val builder = StringBuilder()
     var streamError: String? = null
-    llmClient.streamChat(chat, tools = emptyList()).collect { event ->
+    llmClient.streamChat(chat, tools = emptyList(), provider = selectedProvider()).collect { event ->
       when (event) {
         is StreamEvent.TextDelta -> builder.append(event.content)
         is StreamEvent.Error -> streamError = event.message
