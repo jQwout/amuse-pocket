@@ -3,12 +3,13 @@ package com.aiopenpocket.agent.workers
 // @trace heartbeat-napominalki-agenta-5f0442
 // @trace user-agent-builder-848153
 // @trace structured-plan-engine-907066
+// @trace vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53
 
 import android.util.Log
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.llm.ChatMessage
-import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.llm.SelectedLlmProvider
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
 import com.aiopenpocket.agent.core.memory.dao.HeartbeatDao
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
@@ -74,6 +75,10 @@ class HeartbeatRunner(
   private val planRepository: PlanRepository,
   private val planRunner: PlanRunner,
   private val planScheduleSync: PlanScheduleSync,
+  // Фоновый ход идёт к тому же вендору, что и обычный: раньше здесь стоял литерал LlmProvider.NIM,
+  // и после переключения на OpenRouter пользователь получал напоминалки, которые молча падают на
+  // пустом NIM-ключе (или уходят к вендору, от которого он ушёл осознанно).
+  private val selectedProvider: SelectedLlmProvider,
 ) {
 
   suspend fun handleFire(heartbeatId: String, attempt: Int): FireOutcome {
@@ -142,7 +147,7 @@ class HeartbeatRunner(
     // conversation, leaking one agent's memory/files into another's background run.
     val result = withContext(turnContextHolder.contextElement(hb.conversationId, agent)) {
       reactLoopRunner.run(
-        hb.conversationId, messages, tools, LlmProvider.NIM, BG_MAX_ITERATIONS, agent,
+        hb.conversationId, messages, tools, selectedProvider(), BG_MAX_ITERATIONS, agent,
         interactiveApproval = false,
       ) { /* фон: стриминг некому показывать */ }
     }
@@ -209,7 +214,7 @@ class HeartbeatRunner(
           requestedStepId = target.stepId,
           background = true,
         ),
-        provider = LlmProvider.NIM,
+        provider = selectedProvider(),
       )
     } catch (e: IllegalStateException) {
       Log.w(TAG, "heartbeat ${hb.id} plan step '${target.stepId}' attempt=$attempt refused: ${e.message}")

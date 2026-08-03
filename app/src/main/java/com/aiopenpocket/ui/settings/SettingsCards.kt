@@ -20,6 +20,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
@@ -386,8 +389,6 @@ internal fun SelectorSheetContent(
   Column(
     modifier = Modifier
       .fillMaxWidth()
-      .verticalScroll(rememberScrollState())
-      .padding(bottom = 32.dp)
       .testTag("settings_selector_sheet"),
   ) {
     Text(
@@ -405,42 +406,56 @@ internal fun SelectorSheetContent(
       )
     }
     Spacer(modifier = Modifier.height(12.dp))
-    options.forEach { option ->
-      val isSelected = option == selected
-      Row(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(horizontal = 20.dp, vertical = 4.dp)
-          .glassCardSurface(SettingsCardShape)
-          .then(
-            if (isSelected) {
-              Modifier.border(2.dp, MaterialTheme.colorScheme.primary, SettingsCardShape)
-            } else {
-              Modifier
-            },
+    // LazyColumn, а не forEach в скроллящейся колонке: список моделей OpenRouter живой, в нём
+    // сотни строк, и eager-композиция всех карточек означала бы застывший на полсекунды лист при
+    // каждом открытии. heightIn(max) вместо fillMaxHeight — короткий список (тема, провайдер)
+    // должен остаться коротким листом, а не разворачиваться во весь экран.
+    LazyColumn(
+      modifier = Modifier
+        .fillMaxWidth()
+        .heightIn(max = MAX_SELECTOR_LIST_HEIGHT),
+      contentPadding = PaddingValues(bottom = 32.dp),
+    ) {
+      items(options, key = { it }) { option ->
+        val isSelected = option == selected
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 4.dp)
+            .glassCardSurface(SettingsCardShape)
+            .then(
+              if (isSelected) {
+                Modifier.border(2.dp, MaterialTheme.colorScheme.primary, SettingsCardShape)
+              } else {
+                Modifier
+              },
+            )
+            .clickable { onSelect(option) }
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Text(
+            text = option,
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
           )
-          .clickable { onSelect(option) }
-          .padding(horizontal = 16.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        Text(
-          text = option,
-          style = MaterialTheme.typography.bodyLarge,
-          color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-          modifier = Modifier.weight(1f),
-        )
-        if (isSelected) {
-          Icon(
-            imageVector = Icons.Default.Check,
-            contentDescription = "Выбрано",
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(20.dp),
-          )
+          if (isSelected) {
+            Icon(
+              imageVector = Icons.Default.Check,
+              contentDescription = "Выбрано",
+              tint = MaterialTheme.colorScheme.primary,
+              modifier = Modifier.size(20.dp),
+            )
+          }
         }
       }
     }
   }
 }
+
+/** Потолок высоты списка в стеклянном листе — дальше он скроллится внутри себя. */
+private val MAX_SELECTOR_LIST_HEIGHT = 520.dp
 
 @Composable
 internal fun GoalIterationsCard(

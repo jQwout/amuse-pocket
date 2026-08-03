@@ -1,6 +1,7 @@
 package com.aiopenpocket.ui.settings
 
 // @trace app-settings-beb470
+// @trace vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53
 
 import com.aiopenpocket.agent.core.identity.ChatFontScale
 import android.Manifest
@@ -37,6 +38,7 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Loop
@@ -86,6 +88,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
 import com.aiopenpocket.ui.onboarding.components.PersonaCard
 import com.aiopenpocket.ui.components.AcademyBottomNav
@@ -122,6 +125,18 @@ fun SettingsScreen(
   val modelSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   var showThemeSheet by remember { mutableStateOf(false) }
   val themeSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+  var showProviderSheet by remember { mutableStateOf(false) }
+  val providerSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+  // Человеческие названия вендоров: в enum они NIM/OPENROUTER, а в списке пользователь ищет глазами
+  // «OpenRouter», а не константу. Порядок фиксированный — LinkedHashMap.
+  val providerLabels = remember {
+    linkedMapOf(
+      LlmProvider.NIM to "NVIDIA NIM",
+      LlmProvider.OPENROUTER to "OpenRouter",
+    )
+  }
+  val providerByLabel = remember { providerLabels.entries.associate { (p, label) -> label to p } }
 
   // Лист темы живёт вне прокручиваемой колонки, поэтому маппинг label↔enum поднят сюда (раньше
   // объявлялся прямо у селектора). Порядок фиксированный — LinkedHashMap.
@@ -257,19 +272,50 @@ fun SettingsScreen(
           onValueChange = viewModel::updateNvidiaKey,
         )
         ApiKeyField(
-          label = "Groq API Key",
-          value = state.groqKey,
-          onValueChange = viewModel::updateGroqKey,
-        )
-        ApiKeyField(
-          label = "GitHub Models API Key",
-          value = state.githubKey,
-          onValueChange = viewModel::updateGithubKey,
+          label = "OpenRouter API Key",
+          value = state.openRouterKey,
+          onValueChange = viewModel::updateOpenRouterKey,
         )
       }
 
-      // Выбор провайдера скрыт: runAgent всегда идёт на NIM (GROQ/GITHUB к нему не подключены),
-      // поэтому селектор был бы контролом без эффекта. Вернуть, когда провайдер начнёт применяться.
+      Spacer(modifier = Modifier.height(28.dp))
+
+      SettingsSectionHeader(
+        icon = Icons.Default.Hub,
+        title = "ПРОВАЙДЕР",
+        modifier = Modifier.padding(horizontal = 20.dp),
+      )
+      Spacer(modifier = Modifier.height(12.dp))
+      SelectorCard(
+        label = "КУДА ИДУТ ЗАПРОСЫ",
+        selected = providerLabels.getValue(state.provider),
+        icon = Icons.Default.Hub,
+        onClick = { showProviderSheet = true },
+        modifier = Modifier.padding(horizontal = 20.dp),
+        testTag = "settings_provider_selector",
+      )
+      // У NIM ключ может быть вшит в сборку, у OpenRouter — только свой. Без этой строки первым
+      // сигналом о забытом ключе был бы «All providers failed» в чате, уже после отправки вопроса.
+      if (state.provider == LlmProvider.OPENROUTER && state.openRouterKey.isBlank()) {
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+          modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+        ) {
+          Icon(
+            imageVector = Icons.Default.Key,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(14.dp),
+          )
+          Text(
+            text = "Ключ OpenRouter не задан — запросы не уйдут.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+          )
+        }
+      }
+
       Spacer(modifier = Modifier.height(28.dp))
 
       SettingsSectionHeader(
@@ -409,6 +455,21 @@ fun SettingsScreen(
         showModelSheet = false
       },
       onDismiss = { showModelSheet = false },
+    )
+  }
+
+  if (showProviderSheet) {
+    SelectorSheet(
+      title = "Провайдер",
+      subtitle = "Через кого идут запросы. У каждого свой ключ и свой список моделей.",
+      options = providerLabels.values.toList(),
+      selected = providerLabels.getValue(state.provider),
+      sheetState = providerSheetState,
+      onSelect = { label ->
+        providerByLabel[label]?.let(viewModel::updateProvider)
+        showProviderSheet = false
+      },
+      onDismiss = { showProviderSheet = false },
     )
   }
 

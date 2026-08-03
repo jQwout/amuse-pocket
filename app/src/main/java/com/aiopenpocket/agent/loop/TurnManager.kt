@@ -44,6 +44,12 @@ class TurnManager(
   private val scope: CoroutineScope,
   /** Монотонные часы для гейта стрима (SystemClock.uptimeMillis в проде, фейк в тестах). */
   private val monotonicNowMs: () -> Long,
+  /**
+   * Провайдер, выбранный пользователем в Настройках. Лямбда, а не значение — как [monotonicNowMs] и
+   * `apiKeyResolver`: читается заново на КАЖДЫЙ ход, поэтому переключение подхватывается со
+   * следующего же сообщения, без пересборки DI-графа.
+   */
+  private val selectedProvider: () -> LlmProvider = { LlmProvider.NIM },
   private val log: AgentLog,
 ) {
 
@@ -321,8 +327,10 @@ class TurnManager(
     systemPromptExtra: String? = null,
     executionMode: ExecutionMode = ExecutionMode.LIVE,
   ) {
-    // Временно гоним всё на NIM; выбор провайдера (GROQ/GITHUB) выпилим позже.
-    val flow = executor.execute(session.conversationId, userText, LlmProvider.NIM, mode, planId, budget, systemPromptExtra, executionMode)
+    // Провайдер берём из Настроек на каждый ход. Раньше здесь был жёстко прошитый NIM с пометкой
+    // «выпилим позже» — оставить его сейчас значило бы сделать селектор провайдера контролом
+    // без эффекта.
+    val flow = executor.execute(session.conversationId, userText, selectedProvider(), mode, planId, budget, systemPromptExtra, executionMode)
     flow.collect { event ->
       when (event) {
         is AgentEvent.TextDelta ->
