@@ -26,6 +26,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import com.aiopenpocket.testing.testDataStore
 
 /**
  * Модель обязана видеть, КОТОРЫЙ СЕЙЧАС ЧАС.
@@ -60,7 +61,7 @@ class PromptCurrentTimeTest {
       memoryRepository = MemoryRepository(db.factDao(), db.episodeDao()),
       conversationRepository = ConversationRepository(db.conversationDao(), db.conversationTagDao(), db.messageDao()),
       skillRegistry = SkillRegistry(emptySet(), UserSkillRepository(db.userSkillDao())),
-      userPreferencesRepository = UserPreferencesRepository(context),
+      userPreferencesRepository = UserPreferencesRepository(testDataStore(context)),
       agentResolver = DefaultAgentResolver(UserAgentRepository(db, db.userAgentDao(), AgentHookRepository(db.agentHookDao()))),
       planContextProvider = PlanContextProvider(PlanRepository(db, db.planDao())),
       clock = { fixedNow },

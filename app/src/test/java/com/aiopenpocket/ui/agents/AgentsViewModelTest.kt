@@ -38,6 +38,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import com.aiopenpocket.testing.testDataStore
 
 /**
  * [AgentsViewModel] round-tripped through a real (in-memory) Room database, mirroring
@@ -74,7 +75,7 @@ class AgentsViewModelTest {
     vm = AgentsViewModel(
       agentResolver = DefaultAgentResolver(userAgentRepository),
       conversationRepository = conversationRepository,
-      userPreferencesRepository = UserPreferencesRepository(context),
+      userPreferencesRepository = UserPreferencesRepository(testDataStore(context)),
     )
   }
 

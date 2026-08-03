@@ -52,6 +52,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import com.aiopenpocket.testing.testDataStore
 
 /**
  * Проверяет гейт пустого финала REFLECT (находка код-ревью): revise без текста и без карточки должен
@@ -121,7 +122,7 @@ class ReflectionOrchestratorTest {
       memoryRepository = memoryRepository,
       conversationRepository = conversationRepository,
       skillRegistry = SkillRegistry(emptySet(), UserSkillRepository(db.userSkillDao())),
-      userPreferencesRepository = UserPreferencesRepository(context),
+      userPreferencesRepository = UserPreferencesRepository(testDataStore(context)),
       agentResolver = DefaultAgentResolver(UserAgentRepository(db, db.userAgentDao(), agentHookRepository())),
       planContextProvider = PlanContextProvider(PlanRepository(db, db.planDao())),
     )
