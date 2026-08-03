@@ -48,8 +48,12 @@ class TurnManager(
    * Провайдер, выбранный пользователем в Настройках. Лямбда, а не значение — как [monotonicNowMs] и
    * `apiKeyResolver`: читается заново на КАЖДЫЙ ход, поэтому переключение подхватывается со
    * следующего же сообщения, без пересборки DI-графа.
+   *
+   * Без значения по умолчанию СОЗНАТЕЛЬНО (как toolApprovalCoordinator у ReactLoopRunner): `= {
+   * LlmProvider.NIM }` означало бы, что потерянный в DI аргумент молча возвращает всё приложение к
+   * NVIDIA и ничего при этом не падает.
    */
-  private val selectedProvider: () -> LlmProvider = { LlmProvider.NIM },
+  private val selectedProvider: () -> LlmProvider,
   private val log: AgentLog,
 ) {
 

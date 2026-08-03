@@ -13,6 +13,8 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.ui.theme.MyApplicationTheme
@@ -108,5 +110,27 @@ class SelectorScreenshotTest {
 
     composeTestRule.onRoot()
       .captureRoboImage(filePath = "src/test/screenshots/settings_selector_sheet.png")
+  }
+
+  /**
+   * Дубли в списке не должны ронять лист. Список моделей приходит из каталога стороннего сервиса,
+   * а `LazyColumn` с `key = { it }` на двух одинаковых строках бросает IllegalArgumentException —
+   * то есть настройки переставали бы открываться из-за чужих данных.
+   */
+  @Test
+  fun duplicate_options_do_not_crash_the_sheet() {
+    composeTestRule.setContent {
+      MyApplicationTheme(mode = ThemeMode.DARK) {
+        SelectorSheetContent(
+          title = "Выбор модели",
+          subtitle = null,
+          options = listOf("AUTO", "vendor/model", "vendor/model"),
+          selected = "AUTO",
+          onSelect = {},
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag("settings_selector_sheet").assertExists()
   }
 }

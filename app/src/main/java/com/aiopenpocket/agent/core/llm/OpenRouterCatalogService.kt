@@ -12,6 +12,7 @@ import io.ktor.client.call.body
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.get
+import io.ktor.http.isSuccess
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -59,16 +60,25 @@ class OpenRouterCatalogService(
    * свежескачанный, кешированный или сид: у вызывающего всегда есть что показать.
    */
   suspend fun refreshIfStale(now: Long = System.currentTimeMillis()): ModelCatalog {
-    val cached = cache.read()
+    // Чтение кеша — это чтение файла с диска, поэтому оно тоже на IO: вызывающий (SettingsViewModel)
+    // живёт на главном потоке, а каталог OpenRouter это сотни моделей, не пять строк ассета.
+    val cached = withContext(Dispatchers.IO) { cache.read() }
     if (cached != null && now - cached.fetchedAt < TTL_MS) return cached.catalog
-    return refresh(now) ?: cached?.catalog ?: modelCatalogLoader.loadOpenRouterSeed()
+    return refresh(now) ?: cached?.catalog ?: withContext(Dispatchers.IO) { modelCatalogLoader.loadOpenRouterSeed() }
   }
 
   /** Скачивает и кеширует каталог. null — сходить не удалось (сеть, 5xx, мусор в ответе). */
   suspend fun refresh(now: Long = System.currentTimeMillis()): ModelCatalog? = withContext(Dispatchers.IO) {
     try {
-      val body = httpClient.get(MODELS_URL).body<String>()
-      val models = json.decodeFromString<OpenRouterModelsResponse>(body).data
+      val response = httpClient.get(MODELS_URL)
+      // Статус проверяем явно: у Ktor expectSuccess по умолчанию выключен, и тело ошибки
+      // (`{"error":{...}}`) разобралось бы в пустой список — то есть 429 выглядел бы в логе как
+      // «не нашлось моделей», а не как «нас ограничили».
+      if (!response.status.isSuccess()) {
+        Log.w(TAG, "OpenRouter catalog refresh failed: HTTP ${response.status.value}")
+        return@withContext null
+      }
+      val models = json.decodeFromString<OpenRouterModelsResponse>(response.body<String>()).data
       val catalog = toCatalog(models)
       if (catalog.models.isEmpty()) {
         // Ответ разобрался, но полезного в нём нет: перезаписывать рабочий кеш пустотой нельзя.
@@ -99,6 +109,11 @@ class OpenRouterCatalogService(
   private fun toCatalog(models: List<OpenRouterModel>): ModelCatalog {
     val seedOrder = modelCatalogLoader.loadOpenRouterSeed().models.map { it.name }
     val usable = models
+      // id — ключ модели везде дальше: в запросе, в настройках, в списке выбора. Пустой id это
+      // конфиг, который всегда даст 400 и сожжёт попытку из пяти; дубли — краш LazyColumn на
+      // одинаковых ключах, причём записанный в кеш, то есть переживающий перезапуск.
+      .filter { it.id.isNotBlank() }
+      .distinctBy { it.id }
       .filter { it.supportedParameters.contains(TOOLS_PARAM) }
       .filter { it.architecture.inputModalities.contains(TEXT_MODALITY) }
       .sortedWith(

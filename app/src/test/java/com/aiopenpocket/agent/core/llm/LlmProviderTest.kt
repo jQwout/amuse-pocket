@@ -18,12 +18,23 @@ class LlmProviderTest {
   }
 
   @Test
-  fun `unknown, empty and stale names fall back to NIM`() {
+  fun `unknown and empty names fall back to NIM`() {
     assertEquals(LlmProvider.NIM, llmProviderOf(""))
-    assertEquals(LlmProvider.NIM, llmProviderOf("openrouter"))
+    assertEquals(LlmProvider.NIM, llmProviderOf("gpt"))
     // Значения удалённых констант: у кого-то они остались в prefs с прошлой сборки.
     assertEquals(LlmProvider.NIM, llmProviderOf("AUTO"))
     assertEquals(LlmProvider.NIM, llmProviderOf("GROQ"))
+  }
+
+  /**
+   * Регистр и пробелы не должны решать, к какому вендору уходят данные: «openrouter» с иным
+   * регистром — это тот же осознанный выбор пользователя, а не повод молча вернуть его к NVIDIA.
+   */
+  @Test
+  fun `names are matched case- and whitespace-insensitively`() {
+    assertEquals(LlmProvider.OPENROUTER, llmProviderOf("openrouter"))
+    assertEquals(LlmProvider.OPENROUTER, llmProviderOf(" OPENROUTER "))
+    assertEquals(LlmProvider.NIM, llmProviderOf("nim"))
   }
 
   /** Круговой инвариант: всё, что мы записали в настройки, читается обратно тем же провайдером. */

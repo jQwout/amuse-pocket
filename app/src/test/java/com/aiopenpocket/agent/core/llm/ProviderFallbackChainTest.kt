@@ -6,10 +6,11 @@ import org.junit.Test
 
 class ProviderFallbackChainTest {
 
-  private fun config(p: LlmProvider, model: String = "model-$p") = ProviderConfig(
+  private fun config(p: LlmProvider, model: String = "model-$p", supportsTools: Boolean = true) = ProviderConfig(
     name = p,
     baseUrl = "https://example/$p",
     model = model,
+    supportsTools = supportsTools,
     apiKeyResolver = { "key" },
   )
 
@@ -124,6 +125,39 @@ class ProviderFallbackChainTest {
     val resolved = huge.resolve(LlmProvider.OPENROUTER).map { it.model }
     assertEquals("vendor/model-200", resolved.first())
     assertEquals(5, resolved.size)
+  }
+
+  /**
+   * Гейт «только модели с function calling» стоит здесь, а не только в сборке конфигов: через
+   * resolve проходит каждый способ построить цепочку — живой каталог, правленый руками ассет и кеш,
+   * записанный прошлой версией приложения.
+   */
+  @Test
+  fun `models without tool support never enter the chain`() {
+    val mixed = ProviderFallbackChain(
+      mapOf(
+        LlmProvider.NIM to listOf(
+          config(LlmProvider.NIM, "no-tools", supportsTools = false),
+          config(LlmProvider.NIM, "with-tools"),
+        ),
+      ),
+    )
+    assertEquals(listOf("with-tools"), mixed.resolve(LlmProvider.NIM).map { it.model })
+  }
+
+  /** Даже если пользователь выбрал такую модель раньше (каталог с тех пор изменился). */
+  @Test
+  fun `a preferred model without tool support is not resurrected`() {
+    val mixed = ProviderFallbackChain(
+      configs = mapOf(
+        LlmProvider.NIM to listOf(
+          config(LlmProvider.NIM, "no-tools", supportsTools = false),
+          config(LlmProvider.NIM, "with-tools"),
+        ),
+      ),
+      preferredModel = { "no-tools" },
+    )
+    assertEquals(listOf("with-tools"), mixed.resolve(LlmProvider.NIM).map { it.model })
   }
 
   @Test

@@ -45,6 +45,9 @@ class TurnManagerTest {
       val executionMode: ExecutionMode = ExecutionMode.LIVE,
     )
 
+    /** Провайдеры, с которыми менеджер звал исполнителя, — по одному на ход. */
+    val providers = mutableListOf<LlmProvider>()
+
     val calls = mutableListOf<Call>()
     var cancelledCollections = 0
 
@@ -63,6 +66,7 @@ class TurnManagerTest {
     ): Flow<AgentEvent> {
       val call = Call(conversationId, userMessage, mode, planId, budget, executionMode)
       calls += call
+      providers += provider
       return script(call).onCompletion { if (it is CancellationException) cancelledCollections++ }
     }
   }
@@ -128,6 +132,9 @@ class TurnManagerTest {
   private val lifeSupport = FakeLifeSupport()
   private var inForeground = true
 
+  /** Что «выбрано в Настройках» на момент хода: тест меняет это между ходами. */
+  private var selectedProvider = LlmProvider.NIM
+
   // Скоуп менеджера на UnconfinedTestDispatcher(testScheduler): ходы исполняются жадно на том же
   // виртуальном планировщике, что и тест, — advanceUntilIdle() догоняет любые задержки. Job берём
   // от backgroundScope, чтобы «вечные» ходы (awaitCancellation) гасились по завершении теста.
@@ -139,8 +146,28 @@ class TurnManagerTest {
     lifeSupport = lifeSupport,
     scope = CoroutineScope(backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)),
     monotonicNowMs = { 100_000L },
+    selectedProvider = { selectedProvider },
     log = NoopLog,
   )
+
+  /**
+   * Провайдер берётся из настроек на КАЖДОМ ходе, а не фиксируется при создании менеджера: иначе
+   * переключение вендора в Настройках начинало бы действовать только после перезапуска процесса, а
+   * до этого запросы молча уходили бы прежнему.
+   */
+  @Test
+  fun `каждый ход идёт к провайдеру, выбранному на момент этого хода`() = runTest {
+    val m = manager()
+    selectedProvider = LlmProvider.NIM
+    m.launchTurn("c1", "первый", AgentMode.CHAT)
+    advanceUntilIdle()
+
+    selectedProvider = LlmProvider.OPENROUTER
+    m.launchTurn("c1", "второй", AgentMode.CHAT)
+    advanceUntilIdle()
+
+    assertEquals(listOf(LlmProvider.NIM, LlmProvider.OPENROUTER), executor.providers)
+  }
 
   @Test
   fun `завершённый ход пишет user и assistant в БД и даёт Completed с id ответа`() = runTest {

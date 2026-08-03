@@ -139,7 +139,7 @@ class ReflectionOrchestratorTest {
       toolRegistry,
       assembler,
       reactLoopRunner,
-      ConversationAnnotator(llm, conversationRepository),
+      ConversationAnnotator(llm, conversationRepository) { LlmProvider.NIM },
       turnContextHolder,
       NoopLog,
     )

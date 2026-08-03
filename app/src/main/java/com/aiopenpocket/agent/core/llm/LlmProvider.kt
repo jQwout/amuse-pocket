@@ -28,7 +28,8 @@ enum class LlmProvider {
  * функция на всех, чтобы «тихий дефолт» не разъехался между вызывающими.
  */
 fun llmProviderOf(name: String): LlmProvider =
-  LlmProvider.entries.firstOrNull { it.name == name } ?: LlmProvider.NIM
+  name.trim().uppercase().let { normalized -> LlmProvider.entries.firstOrNull { it.name == normalized } }
+    ?: LlmProvider.NIM
 
 /**
  * Текущий выбор пользователя — читается на каждом обращении, а не фиксируется при сборке графа:
@@ -52,5 +53,10 @@ data class ProviderConfig(
   val reasoning: Boolean = false,
   val temperature: Double? = null,
   val topP: Double? = null,
+  /**
+   * Умеет ли модель звать инструменты (см. [ModelEntry.supportsTools]). Гейт применяет
+   * [ProviderFallbackChain.resolve] — одна точка на все способы собрать цепочку.
+   */
+  val supportsTools: Boolean = true,
   val apiKeyResolver: () -> String,
 )

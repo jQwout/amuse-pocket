@@ -51,10 +51,7 @@ object LlmModule {
     // OpenAiCompatClient постит на полный endpoint, поэтому дописываем /chat/completions к base_url.
     fun configsFor(provider: LlmProvider, catalog: ModelCatalog, apiKey: () -> String): List<ProviderConfig> {
       val endpoint = catalog.baseUrl.trimEnd('/') + "/chat/completions"
-      // Модели без function calling отсеиваем здесь же, а не только в селекторе Настроек: иначе
-      // такая модель осталась бы в фолбэк-цепочке и агент молча «отупел» бы на ней после ошибки
-      // предыдущей (см. ModelEntry.supportsTools).
-      return catalog.models.filter { it.supportsTools }.map { entry ->
+      return catalog.models.map { entry ->
         ProviderConfig(
           name = provider,
           baseUrl = endpoint,
@@ -63,6 +60,9 @@ object LlmModule {
           reasoning = entry.reasoning,
           temperature = entry.temperature,
           topP = entry.topP,
+          // Гейт «только модели с tools» применяет ProviderFallbackChain.resolve — здесь мы лишь
+          // доносим до него факт из каталога.
+          supportsTools = entry.supportsTools,
           apiKeyResolver = apiKey,
         )
       }

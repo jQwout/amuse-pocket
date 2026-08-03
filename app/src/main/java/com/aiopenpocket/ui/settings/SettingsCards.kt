@@ -26,10 +26,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Alarm
@@ -416,7 +414,10 @@ internal fun SelectorSheetContent(
         .heightIn(max = MAX_SELECTOR_LIST_HEIGHT),
       contentPadding = PaddingValues(bottom = 32.dp),
     ) {
-      items(options, key = { it }) { option ->
+      // Без key СОЗНАТЕЛЬНО: строки здесь не держат состояния и не анимируются, так что ключ не даёт
+      // ничего — а `key = { it }` роняет LazyColumn на двух одинаковых строках. Источник списка —
+      // каталог стороннего сервиса, и падать из-за дубля в чужих данных экран настроек не должен.
+      items(options) { option ->
         val isSelected = option == selected
         Row(
           modifier = Modifier
