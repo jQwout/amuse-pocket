@@ -17,111 +17,121 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
-private val Context.userPreferencesDataStore: DataStore<Preferences> by preferencesDataStore(
+internal val Context.userPreferencesDataStore: DataStore<Preferences> by preferencesDataStore(
   name = "user_preferences",
 )
 
+/**
+ * DataStore приходит снаружи (см. `UserPreferencesModule`), а не берётся из `Context` внутри.
+ *
+ * Делегат `preferencesDataStore` держит ОДИН экземпляр на процесс поверх одного файла. В JVM-тестах
+ * Robolectric даёт каждому классу свой загрузчик классов, поэтому два тест-класса создают по
+ * «своему» стору над одним и тем же файлом, не подозревая друг о друге, — и упираются в блокировку
+ * файла. Наружу это выглядит как редкая `UncompletedCoroutinesError` ТОЛЬКО в полном прогоне (тот же
+ * почерк, что у Room-Flow тестов, посаженных на testDispatcher). С параметром тест даёт свой
+ * изолированный файл, и гонки нет.
+ */
 @SingleIn(AppScope::class)
 @Inject
 class UserPreferencesRepository(
-  private val context: Context,
+  private val dataStore: DataStore<Preferences>,
 ) {
   val onboardingCompleted: Flow<Boolean> =
-    context.userPreferencesDataStore.data.map { prefs ->
+    dataStore.data.map { prefs ->
       prefs[KEY_ONBOARDING_COMPLETED] ?: false
     }
 
   val defaultPersonaId: Flow<String> =
-    context.userPreferencesDataStore.data.map { prefs ->
+    dataStore.data.map { prefs ->
       prefs[KEY_DEFAULT_PERSONA_ID] ?: DEFAULT_PERSONA_ID
     }
 
   val hasSeenTutorial: Flow<Boolean> =
-    context.userPreferencesDataStore.data.map { prefs ->
+    dataStore.data.map { prefs ->
       prefs[KEY_HAS_SEEN_TUTORIAL] ?: false
     }
 
   val roadmapProgress: Flow<Set<String>> =
-    context.userPreferencesDataStore.data.map { prefs ->
+    dataStore.data.map { prefs ->
       prefs[KEY_ROADMAP_PROGRESS]?.split(",")?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
     }
 
   suspend fun getDefaultPersonaId(): String =
-    context.userPreferencesDataStore.data
+    dataStore.data
       .map { prefs -> prefs[KEY_DEFAULT_PERSONA_ID] ?: DEFAULT_PERSONA_ID }
       .first()
 
   val language: Flow<String> =
-    context.userPreferencesDataStore.data.map { prefs ->
+    dataStore.data.map { prefs ->
       prefs[KEY_LANGUAGE] ?: DEFAULT_LANGUAGE
     }
 
   suspend fun getLanguage(): String =
-    context.userPreferencesDataStore.data
+    dataStore.data
       .map { prefs -> prefs[KEY_LANGUAGE] ?: DEFAULT_LANGUAGE }
       .first()
 
   /** Лимит витков гоал-мода (петля ReAct до достижения цели). По умолчанию 3. */
   val goalModeMaxIterations: Flow<Int> =
-    context.userPreferencesDataStore.data.map { prefs ->
+    dataStore.data.map { prefs ->
       prefs[KEY_GOAL_MODE_MAX_ITERATIONS] ?: DEFAULT_GOAL_MODE_MAX_ITERATIONS
     }
 
   suspend fun getGoalModeMaxIterations(): Int =
-    context.userPreferencesDataStore.data
+    dataStore.data
       .map { prefs -> prefs[KEY_GOAL_MODE_MAX_ITERATIONS] ?: DEFAULT_GOAL_MODE_MAX_ITERATIONS }
       .first()
 
   suspend fun setGoalModeMaxIterations(value: Int) {
-    context.userPreferencesDataStore.edit { prefs ->
+    dataStore.edit { prefs ->
       prefs[KEY_GOAL_MODE_MAX_ITERATIONS] = value.coerceIn(1, GOAL_MODE_MAX_ITERATIONS_CAP)
     }
   }
 
   /** Пресет размера шрифта сообщений в чате. Хранится по имени enum; неизвестное значение → MEDIUM. */
   val chatFontScale: Flow<ChatFontScale> =
-    context.userPreferencesDataStore.data.map { prefs ->
+    dataStore.data.map { prefs ->
       ChatFontScale.fromName(prefs[KEY_CHAT_FONT_SCALE])
     }
 
   suspend fun getChatFontScale(): ChatFontScale = chatFontScale.first()
 
   suspend fun setChatFontScale(value: ChatFontScale) {
-    context.userPreferencesDataStore.edit { prefs ->
+    dataStore.edit { prefs ->
       prefs[KEY_CHAT_FONT_SCALE] = value.name
     }
   }
 
   suspend fun setLanguage(code: String) {
-    context.userPreferencesDataStore.edit { prefs ->
+    dataStore.edit { prefs ->
       prefs[KEY_LANGUAGE] = code
     }
   }
 
   suspend fun getHasSeenTutorial(): Boolean =
-    context.userPreferencesDataStore.data
+    dataStore.data
       .map { prefs -> prefs[KEY_HAS_SEEN_TUTORIAL] ?: false }
       .first()
 
   suspend fun getRoadmapProgress(): Set<String> =
-    context.userPreferencesDataStore.data
+    dataStore.data
       .map { prefs -> prefs[KEY_ROADMAP_PROGRESS]?.split(",")?.filter { it.isNotBlank() }?.toSet() ?: emptySet() }
       .first()
 
   suspend fun setDefaultPersonaId(personaId: String) {
-    context.userPreferencesDataStore.edit { prefs ->
+    dataStore.edit { prefs ->
       prefs[KEY_DEFAULT_PERSONA_ID] = personaId
     }
   }
 
   suspend fun setHasSeenTutorial(seen: Boolean) {
-    context.userPreferencesDataStore.edit { prefs ->
+    dataStore.edit { prefs ->
       prefs[KEY_HAS_SEEN_TUTORIAL] = seen
     }
   }
 
   suspend fun completeOnboarding(personaId: String, language: String = DEFAULT_LANGUAGE) {
-    context.userPreferencesDataStore.edit { prefs ->
+    dataStore.edit { prefs ->
       prefs[KEY_ONBOARDING_COMPLETED] = true
       prefs[KEY_DEFAULT_PERSONA_ID] = personaId
       prefs[KEY_LANGUAGE] = language
@@ -132,13 +142,13 @@ class UserPreferencesRepository(
   }
 
   suspend fun completeTutorial() {
-    context.userPreferencesDataStore.edit { prefs ->
+    dataStore.edit { prefs ->
       prefs[KEY_HAS_SEEN_TUTORIAL] = true
     }
   }
 
   suspend fun completeRoadmapLevel(levelId: String) {
-    context.userPreferencesDataStore.edit { prefs ->
+    dataStore.edit { prefs ->
       val current = prefs[KEY_ROADMAP_PROGRESS]?.split(",")?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
       prefs[KEY_ROADMAP_PROGRESS] = (current + levelId).joinToString(",")
     }

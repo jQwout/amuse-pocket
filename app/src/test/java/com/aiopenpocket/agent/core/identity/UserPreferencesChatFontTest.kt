@@ -9,6 +9,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import com.aiopenpocket.testing.testDataStore
 
 /**
  * Round-trip выбранного пресета шрифта чата через реальный DataStore (Robolectric) — как хранят
@@ -18,7 +19,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class UserPreferencesChatFontTest {
 
-  private val repo = UserPreferencesRepository(ApplicationProvider.getApplicationContext<Context>())
+  private val repo = UserPreferencesRepository(testDataStore(ApplicationProvider.getApplicationContext<Context>()))
 
   @Test
   fun `default is MEDIUM before anything is stored`() = runTest {
