@@ -14,6 +14,8 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 /** Каталог, скачанный с OpenRouter, вместе со временем скачивания (для TTL). */
 @Serializable
@@ -75,20 +77,18 @@ class OpenRouterCatalogCache(
    * Атомарная замена: пишем во временный файл и переименовываем.
    *
    * Прямой `writeText` сначала обрезает файл до нуля — читатель, попавший в это окно, увидел бы
-   * обрубок вместо каталога. `renameTo` внутри одного каталога атомарен, поэтому читатель всегда
-   * видит либо прежний файл целиком, либо новый целиком.
+   * обрубок вместо каталога. Переименование внутри одного каталога атомарно, поэтому читатель
+   * всегда видит либо прежний файл целиком, либо новый целиком.
    */
   @Synchronized
   fun write(catalog: ModelCatalog, fetchedAt: Long) {
     val tmp = File(application.filesDir, "$FILE_NAME.tmp")
     try {
       tmp.writeText(json.encodeToString(CachedModelCatalog(fetchedAt, catalog)))
-      if (!tmp.renameTo(file)) {
-        // Переименование не прошло (крайне редко — например, файл занят): падать незачем, просто
-        // остаёмся на прежнем кеше.
-        Log.w(TAG, "Failed to swap in the new OpenRouter catalog")
-        tmp.delete()
-      }
+      // Files.move с REPLACE_EXISTING, а не File.renameTo: renameTo НЕ перезаписывает существующий
+      // файл на Windows и молча возвращает false — на Android это неважно, но Robolectric-тесты
+      // бегут на хостовой JVM, и там второй write тихо не применялся бы.
+      Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
     } catch (e: Exception) {
       // Не смогли записать — не повод ронять ход: в следующий раз просто сходим в сеть снова.
       Log.w(TAG, "Failed to cache OpenRouter catalog: ${e.message}")

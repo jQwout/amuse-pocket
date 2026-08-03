@@ -274,7 +274,7 @@ class PlanRunnerTest {
     stepRunner.script = { finishedResult(trace = successToolTrace()) }
     val runner = planRunner()
 
-    val result = runner.run(request(snapshot.plan.id))
+    val result = runner.runNim(request(snapshot.plan.id))
 
     assertEquals(PlanRunOutcome.COMPLETED, result.outcome)
     assertEquals(listOf("step-1"), result.executedStepIds)
@@ -288,7 +288,7 @@ class PlanRunnerTest {
     stepRunner.script = { finishedResult(trace = successToolTrace("memory_tool")) } // calls the WRONG tool
     val runner = planRunner()
 
-    val result = runner.run(request(snapshot.plan.id))
+    val result = runner.runNim(request(snapshot.plan.id))
 
     assertEquals(PlanRunOutcome.PARTIAL, result.outcome)
     assertEquals(PlanStatus.ACTIVE, repository.snapshot(snapshot.plan.id)!!.plan.status)
@@ -305,7 +305,7 @@ class PlanRunnerTest {
     repository.updateStepState(stepState(stepId = "step-1", status = StepStatus.COMPLETED))
     assertEquals(PlanStatus.ACTIVE, repository.snapshot(snapshot.plan.id)!!.plan.status)
 
-    val result = planRunner().run(request(snapshot.plan.id))
+    val result = planRunner().runNim(request(snapshot.plan.id))
 
     assertEquals(PlanRunOutcome.COMPLETED, result.outcome)
     assertEquals(PlanStatus.COMPLETED, repository.snapshot(snapshot.plan.id)!!.plan.status)
@@ -320,7 +320,7 @@ class PlanRunnerTest {
     stepRunner.script = { finishedResult() }
     val runner = planRunner()
 
-    val result = runner.run(request(snapshot.plan.id, budget = PlanRunBudget(maxStepsPerRun = 5)))
+    val result = runner.runNim(request(snapshot.plan.id, budget = PlanRunBudget(maxStepsPerRun = 5)))
 
     // Both steps are criteria-less (trivially COMPLETED on a clean finish) so a 5-step budget is
     // enough to run step-1 then step-2 in the SAME call, in dependency order — never step-2 first.
@@ -335,7 +335,7 @@ class PlanRunnerTest {
     // step-1 does not exist as a real step in this version at all — step-2 can never become runnable.
     val runner = planRunner()
 
-    val result = runner.run(request(snapshot.plan.id))
+    val result = runner.runNim(request(snapshot.plan.id))
 
     assertEquals(PlanRunOutcome.PARTIAL, result.outcome)
     assertTrue(result.executedStepIds.isEmpty())
@@ -350,11 +350,11 @@ class PlanRunnerTest {
     stepRunner.script = { finishedResult() }
     val runner = planRunner()
 
-    val first = runner.run(request(snapshot.plan.id, budget = PlanRunBudget(maxStepsPerRun = 1)))
+    val first = runner.runNim(request(snapshot.plan.id, budget = PlanRunBudget(maxStepsPerRun = 1)))
     assertEquals(PlanRunOutcome.PARTIAL, first.outcome)
     assertEquals(listOf("step-1"), first.executedStepIds)
 
-    val second = runner.run(request(snapshot.plan.id, budget = PlanRunBudget(maxStepsPerRun = 1)))
+    val second = runner.runNim(request(snapshot.plan.id, budget = PlanRunBudget(maxStepsPerRun = 1)))
     assertEquals(listOf("step-2"), second.executedStepIds)
     // Both criteria-less steps are now COMPLETED -> the whole (criteria-less) plan completes too.
     assertEquals(PlanRunOutcome.COMPLETED, second.outcome)
@@ -368,7 +368,7 @@ class PlanRunnerTest {
     stepRunner.script = { finishedResult() }
     val runner = planRunner()
 
-    val result = runner.run(request(snapshot.plan.id))
+    val result = runner.runNim(request(snapshot.plan.id))
 
     assertEquals(listOf("step-1"), result.executedStepIds)
   }
@@ -381,7 +381,7 @@ class PlanRunnerTest {
     repository.updateStepState(stepState("step-1", StepStatus.READY, nextDueAt = now + 60_000))
     val runner = planRunner()
 
-    val result = runner.run(request(snapshot.plan.id))
+    val result = runner.runNim(request(snapshot.plan.id))
 
     assertEquals(PlanRunOutcome.PARTIAL, result.outcome)
     assertTrue(result.executedStepIds.isEmpty())
@@ -397,7 +397,7 @@ class PlanRunnerTest {
     val runner = planRunner()
 
     now += 61_000 // advance the injected clock past nextDueAt
-    val result = runner.run(request(snapshot.plan.id))
+    val result = runner.runNim(request(snapshot.plan.id))
 
     assertEquals(listOf("step-1"), result.executedStepIds)
   }
@@ -410,7 +410,7 @@ class PlanRunnerTest {
     repository.pause(snapshot.plan.id)
     val runner = planRunner()
 
-    val result = runner.run(request(snapshot.plan.id))
+    val result = runner.runNim(request(snapshot.plan.id))
 
     assertEquals(PlanRunOutcome.PARTIAL, result.outcome)
     assertTrue(result.blockedReason!!.contains("paused", ignoreCase = true))
@@ -423,7 +423,7 @@ class PlanRunnerTest {
     repository.saveProposal(plan(), version())
     val runner = planRunner()
 
-    val result = runner.run(request("plan-1"))
+    val result = runner.runNim(request("plan-1"))
 
     assertEquals(PlanRunOutcome.PARTIAL, result.outcome)
     assertEquals(0, stepRunner.calledStepIds.size)
@@ -437,7 +437,7 @@ class PlanRunnerTest {
     stepRunner.script = { AgentResult(text = "", toolTrace = emptyList(), state = AgentState.ERROR, iterations = 1, errorMessage = "boom") }
     val runner = planRunner()
 
-    val result = runner.run(request(snapshot.plan.id))
+    val result = runner.runNim(request(snapshot.plan.id))
 
     assertEquals(PlanRunOutcome.FAILED, result.outcome)
     assertEquals(listOf("step-1"), result.executedStepIds)
@@ -450,7 +450,7 @@ class PlanRunnerTest {
     stepRunner.script = { finishedResult() }
     val runner = planRunner()
 
-    val result = runner.run(request(snapshot.plan.id))
+    val result = runner.runNim(request(snapshot.plan.id))
 
     assertEquals(PlanRunOutcome.PARTIAL, result.outcome)
     assertEquals(listOf("step-1"), result.executedStepIds)
@@ -465,7 +465,7 @@ class PlanRunnerTest {
     stepRunner.script = { finishedResult() }
     val runner = planRunner()
 
-    val result = runner.run(request(snapshot.plan.id, requestedStepId = "step-2"))
+    val result = runner.runNim(request(snapshot.plan.id, requestedStepId = "step-2"))
 
     assertEquals(listOf("step-2"), result.executedStepIds)
     assertEquals(listOf("step-2"), stepRunner.calledStepIds)
@@ -477,7 +477,7 @@ class PlanRunnerTest {
     val snapshot = approvedSnapshot(steps = listOf(step(id = "step-1"), dependent))
     val runner = planRunner()
 
-    val result = runner.run(request(snapshot.plan.id, requestedStepId = "step-2"))
+    val result = runner.runNim(request(snapshot.plan.id, requestedStepId = "step-2"))
 
     assertEquals(PlanRunOutcome.PARTIAL, result.outcome)
     assertTrue(result.blockedReason!!.contains("step-2"))
@@ -495,10 +495,10 @@ class PlanRunnerTest {
     val runner = planRunner()
     var firstResult: PlanRunResult? = null
 
-    val firstJob = launch { firstResult = runner.run(request(snapshot.plan.id)) }
+    val firstJob = launch { firstResult = runner.runNim(request(snapshot.plan.id)) }
     advanceUntilIdle() // first call reaches stepRunner.run() and parks on `gate`
 
-    val second = runner.run(request(snapshot.plan.id))
+    val second = runner.runNim(request(snapshot.plan.id))
     assertEquals(PlanRunOutcome.PARTIAL, second.outcome)
     assertTrue(second.blockedReason!!.contains("already executing"))
     assertTrue(second.executedStepIds.isEmpty())
@@ -516,7 +516,7 @@ class PlanRunnerTest {
     stepRunner.script = { finishedResult() }
     val runner = planRunner()
 
-    runner.run(request(snapshot.plan.id))
+    runner.runNim(request(snapshot.plan.id))
 
     assertTrue("после завершения план остался помеченным как выполняющийся", runner.inFlightPlanIds.isEmpty())
   }
@@ -530,7 +530,7 @@ class PlanRunnerTest {
 
     repeat(5) { i ->
       val snapshot = approvedSnapshot(steps = listOf(step()), planId = "plan-many-$i")
-      runner.run(request(snapshot.plan.id))
+      runner.runNim(request(snapshot.plan.id))
     }
 
     assertTrue("реестр растёт с историей: ${runner.inFlightPlanIds}", runner.inFlightPlanIds.isEmpty())
@@ -542,12 +542,20 @@ class PlanRunnerTest {
     stepRunner.script = { throw IllegalStateException("шаг взорвался") }
     val runner = planRunner()
 
-    runCatching { runner.run(request(snapshot.plan.id)) }
+    runCatching { runner.runNim(request(snapshot.plan.id)) }
 
     // Не освободив план, мы сделали бы его НАВСЕГДА невыполнимым: каждый следующий запуск получал бы
     // «already executing» от держателя, которого уже нет.
     assertTrue("упавший ход не освободил план", runner.inFlightPlanIds.isEmpty())
-    val second = runner.run(request(snapshot.plan.id))
+    val second = runner.runNim(request(snapshot.plan.id))
     assertFalse("план заклинило после падения", second.blockedReason.orEmpty().contains("already executing"))
   }
+
+  /**
+   * Провайдер в этих тестах не участвует: проверяется механика прогона плана, а не адресат запроса.
+   * Хелпер, чтобы `LlmProvider.NIM` не повторялся в каждом из вызовов и не создавал впечатление,
+   * будто выбор вендора здесь что-то значит.
+   */
+  private suspend fun PlanRunner.runNim(request: PlanRunRequest) = run(request, LlmProvider.NIM)
+
 }

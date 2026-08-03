@@ -58,13 +58,22 @@ class OpenRouterCatalogService(
   /**
    * Обновляет каталог, если кеша нет или он старше [TTL_MS]. Возвращает актуальный каталог —
    * свежескачанный, кешированный или сид: у вызывающего всегда есть что показать.
+   *
+   * [CatalogSnapshot.authoritative] отличает «это реальный список провайдера» (сеть или кеш) от
+   * «это сид из ассетов». Разница не косметическая: по неавторитетному списку нельзя судить, что
+   * модель снята с обслуживания, — а Настройки на таком выводе сбрасывают выбор пользователя.
    */
-  suspend fun refreshIfStale(now: Long = System.currentTimeMillis()): ModelCatalog {
+  suspend fun refreshIfStale(now: Long = System.currentTimeMillis()): CatalogSnapshot {
     // Чтение кеша — это чтение файла с диска, поэтому оно тоже на IO: вызывающий (SettingsViewModel)
     // живёт на главном потоке, а каталог OpenRouter это сотни моделей, не пять строк ассета.
     val cached = withContext(Dispatchers.IO) { cache.read() }
-    if (cached != null && now - cached.fetchedAt < TTL_MS) return cached.catalog
-    return refresh(now) ?: cached?.catalog ?: withContext(Dispatchers.IO) { modelCatalogLoader.loadOpenRouterSeed() }
+    if (cached != null && now - cached.fetchedAt < TTL_MS) return CatalogSnapshot(cached.catalog, authoritative = true)
+    refresh(now)?.let { return CatalogSnapshot(it, authoritative = true) }
+    cached?.let { return CatalogSnapshot(it.catalog, authoritative = true) }
+    return CatalogSnapshot(
+      withContext(Dispatchers.IO) { modelCatalogLoader.loadOpenRouterSeed() },
+      authoritative = false,
+    )
   }
 
   /** Скачивает и кеширует каталог. null — сходить не удалось (сеть, 5xx, мусор в ответе). */
@@ -149,6 +158,15 @@ class OpenRouterCatalogService(
     const val TEXT_MODALITY = "text"
   }
 }
+
+/**
+ * Каталог + откуда он взялся. `authoritative = false` означает сид из ассетов: это не список
+ * провайдера, а страховка на случай «нет сети и нет кеша».
+ */
+data class CatalogSnapshot(
+  val catalog: ModelCatalog,
+  val authoritative: Boolean,
+)
 
 // --- DTO ответа /api/v1/models (только те поля, что реально используем; остальное ignoreUnknownKeys) ---
 

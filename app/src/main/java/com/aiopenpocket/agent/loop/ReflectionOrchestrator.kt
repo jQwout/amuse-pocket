@@ -49,7 +49,7 @@ class ReflectionOrchestrator(
   fun execute(
     conversationId: String,
     userMessage: String,
-    provider: LlmProvider = LlmProvider.NIM,
+    provider: LlmProvider,
     executionMode: ExecutionMode = ExecutionMode.LIVE,
   ): Flow<AgentEvent> = agentTurnFlow(log, TAG, "Reflection failed") {
     // Каждый TextDelta зеркалим в transcript, чтобы сохранённое сообщение совпало с тем, что

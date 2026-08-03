@@ -107,7 +107,7 @@ class StructuredPlanOrchestrator @Inject constructor(
   fun propose(
     conversationId: String,
     userMessage: String,
-    provider: LlmProvider = LlmProvider.NIM,
+    provider: LlmProvider,
   ): Flow<AgentEvent> = agentTurnFlow(log, TAG, "Planning failed") {
     send(AgentEvent.StateChanged(AgentState.STREAMING))
     val agentId = conversationRepository.getConversation(conversationId)?.agentId
@@ -171,7 +171,7 @@ class StructuredPlanOrchestrator @Inject constructor(
     conversationId: String,
     planId: String?,
     userMessage: String,
-    provider: LlmProvider = LlmProvider.NIM,
+    provider: LlmProvider,
     budget: PlanRunBudget = PlanRunBudget(),
     executionMode: ExecutionMode = ExecutionMode.LIVE,
   ): Flow<AgentEvent> = agentTurnFlow(log, TAG, "Goal execution failed") {

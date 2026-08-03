@@ -105,11 +105,13 @@ class SettingsViewModel(
       // Берём каталог, который вернул сервис, вместо повторного чтения файла: это и лишний поход
       // на диск, и расхождение — запись в кеш могла не удаться, и тогда мы показали бы старый
       // список, имея на руках новый.
-      val options = modelOptions(openRouterCatalogService.refreshIfStale())
+      val snapshot = openRouterCatalogService.refreshIfStale()
+      val options = modelOptions(snapshot.catalog)
       _state.update {
         // Провайдер мог смениться, пока мы ходили в сеть — тогда список уже не наш.
         if (it.provider != LlmProvider.OPENROUTER) return@update it
-        it.copy(availableModels = options, selectedModel = pruneMissingModel(it.selectedModel, options))
+        val model = if (snapshot.authoritative) pruneMissingModel(it.selectedModel, options) else it.selectedModel
+        it.copy(availableModels = options, selectedModel = model, saved = it.saved && model == it.selectedModel)
       }
     }
   }
@@ -121,6 +123,10 @@ class SettingsViewModel(
    * как выбранную, `save()` записал бы её обратно, а цепочка провайдеров молча ушла бы на первую по
    * priority — ровно тот разрыв между тем, что показано, и тем, что происходит, ради которого
    * сбрасывается модель при смене провайдера.
+   *
+   * Вызывается ТОЛЬКО на авторитетном каталоге (сеть или кеш). Сид из ассетов — пять курируемых
+   * моделей, и по нему нельзя заключить, что выбранная модель снята: иначе первый же запуск без
+   * сети молча сбрасывал бы выбор пользователя.
    */
   private fun pruneMissingModel(selected: String, options: List<String>): String =
     if (selected in options) selected else "AUTO"
@@ -150,7 +156,9 @@ class SettingsViewModel(
     viewModelScope.launch {
       val options = withContext(Dispatchers.IO) { modelOptions(provider) }
       _state.update { if (it.provider == provider) it.copy(availableModels = options) else it }
-      refreshOpenRouterCatalog(provider)
+      // Пользователь мог за это время уйти к другому вендору — незачем ходить в сеть за каталогом,
+      // который всё равно будет отброшен.
+      if (_state.value.provider == provider) refreshOpenRouterCatalog(provider)
     }
   }
 
@@ -198,13 +206,18 @@ class SettingsViewModel(
 
   fun save() {
     val current = _state.value
-    settingsRepository.setApiKey("NVIDIA", current.nvidiaKey)
-    settingsRepository.setApiKey("OPENROUTER", current.openRouterKey)
-    // Провайдер и модель пишем вместе: между ними инвариант (модель принадлежит каталогу
-    // провайдера), и запись только одного из них оставила бы настройки в невалидной паре.
-    settingsRepository.setSelectedProvider(current.provider.name)
-    settingsRepository.setSelectedModel(current.selectedModel)
     viewModelScope.launch {
+      // Запись ключей — тоже IO, как и чтение: EncryptedSharedPreferences шифрует значение на
+      // вызывающем потоке, а первое обращение к ним поднимает Keystore. Нажать «Сохранить» можно
+      // раньше, чем завершится чтение в init, — и тогда главный поток вставал бы на том же мониторе.
+      withContext(Dispatchers.IO) {
+        settingsRepository.setApiKey("NVIDIA", current.nvidiaKey)
+        settingsRepository.setApiKey("OPENROUTER", current.openRouterKey)
+        // Провайдер и модель пишем вместе: между ними инвариант (модель принадлежит каталогу
+        // провайдера), и запись только одного из них оставила бы настройки в невалидной паре.
+        settingsRepository.setSelectedProvider(current.provider.name)
+        settingsRepository.setSelectedModel(current.selectedModel)
+      }
       // «Сохранено» показываем только после реальной записи в DataStore (suspend), а не до неё.
       userPreferencesRepository.setDefaultPersonaId(current.personaId)
       userPreferencesRepository.setGoalModeMaxIterations(current.goalMaxIterations)

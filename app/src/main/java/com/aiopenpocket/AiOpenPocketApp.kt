@@ -1,6 +1,7 @@
 package com.aiopenpocket
 
 import android.app.Application
+import android.util.Log
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.decode.SvgDecoder
@@ -43,7 +44,7 @@ class AiOpenPocketApp : Application(), ImageLoaderFactory {
                 if (appGraph.selectedLlmProvider() == LlmProvider.OPENROUTER) {
                     appGraph.openRouterCatalogService.refreshIfStale()
                 }
-            }
+            }.onFailure { Log.w("AiOpenPocketApp", "Не удалось обновить каталог OpenRouter на старте", it) }
         }
     }
 

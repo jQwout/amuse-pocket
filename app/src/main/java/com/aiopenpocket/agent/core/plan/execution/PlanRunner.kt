@@ -157,7 +157,7 @@ class PlanRunner @Inject constructor(
   /** Только для чтения: какие планы выполняются сейчас. */
   internal val inFlightPlanIds: Set<String> get() = inFlight
 
-  suspend fun run(request: PlanRunRequest, provider: LlmProvider = LlmProvider.NIM): PlanRunResult {
+  suspend fun run(request: PlanRunRequest, provider: LlmProvider): PlanRunResult {
     val planId = request.planId ?: resolvePlanId(request.conversationId)
     // add возвращает false, если id уже там — атомарно, это и есть tryLock.
     if (!inFlight.add(planId)) {
