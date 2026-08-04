@@ -131,38 +131,26 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
           }
         }
 
-        FieldGroup(if (compareModels) "Модели для сравнения" else "Модель", "слаг уходит в запрос") {
-        if (compareModels) {
-          ModelCompareField(
-            suggestions = modelsForModality,
-            selected = selectedModels,
-            onToggle = { id ->
-              selectedModels = if (id in selectedModels) selectedModels - id else selectedModels + id
-            },
+        // Промпт первым: это то, ради чего экран открыт. Модель — настройка, и в макете её в
+        // форме нет вовсе, она подписана в шапке окна.
+        FieldGroup(
+          if (modality == GenerationModality.AUDIO) "Что озвучить" else "Опишите кадр",
+          "своими словами",
+        ) {
+          OutlinedTextField(
+            value = prompt,
+            onValueChange = { prompt = it },
+            label = null,
+            placeholder = { Text("Мокрый асфальт, фигура в плаще спиной к камере…") },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 210.dp),
+            minLines = 7,
           )
-        } else {
-          ModelField(model = model, suggestions = modelsForModality) { model = it }
-        }
-      }
 
-      FieldGroup(
-        if (modality == GenerationModality.AUDIO) "Что озвучить" else "Опишите кадр",
-        "своими словами",
-      ) {
-        PresetPicker(
-          presets = prompts.forModality(modality),
-          onApply = { prompt = it.applyTo(prompt) },
-          onSaveCurrent = { savingPreset = true },
-        )
-
-        OutlinedTextField(
-          value = prompt,
-          onValueChange = { prompt = it },
-          label = null,
-          placeholder = { Text("Мокрый асфальт, фигура в плаще спиной к камере…") },
-          modifier = Modifier.fillMaxWidth().heightIn(min = 130.dp),
-          minLines = 4,
-        )
+          PresetPicker(
+            presets = prompts.forModality(modality),
+            onApply = { prompt = it.applyTo(prompt) },
+            onSaveCurrent = { savingPreset = true },
+          )
 
         when (modality) {
           GenerationModality.AUDIO -> VoiceField(
@@ -194,6 +182,20 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
           }
         }
       }
+
+        FieldGroup(if (compareModels) "Модели для сравнения" else "Модель", "слаг уходит в запрос") {
+          if (compareModels) {
+            ModelCompareField(
+              suggestions = modelsForModality,
+              selected = selectedModels,
+              onToggle = { id ->
+                selectedModels = if (id in selectedModels) selectedModels - id else selectedModels + id
+              },
+            )
+          } else {
+            ModelField(model = model, suggestions = modelsForModality) { model = it }
+          }
+        }
 
       if (modality == GenerationModality.VIDEO && !compareModels) {
         FieldGroup("Параметры видео", "только то, что заявила модель") {
@@ -298,7 +300,18 @@ private fun ResultsPane(container: AppContainer, modifier: Modifier = Modifier) 
   val jobs by container.queue.jobs.collectAsState()
   val lastIds by container.lastSubmitted.collectAsState()
 
-  val batch = lastIds.mapNotNull { id -> jobs.firstOrNull { it.id == id } }
+  // После перезапуска запусков в этой сессии ещё не было, но история есть — показываем последнюю
+  // пачку из неё. Пустая панель рядом с полной историей выглядела бы как «всё пропало».
+  val fromThisSession = lastIds.isNotEmpty()
+  val batch = if (fromThisSession) {
+    lastIds.mapNotNull { id -> jobs.firstOrNull { it.id == id } }
+  } else {
+    // Запусков в этой сессии не было. Показываем последнюю пачку, а если задания одиночные —
+    // просто последние: группировка по batchId ?: id давала бы ровно одну карточку, потому что
+    // у одиночного задания «пачка» состоит из него самого.
+    val lastGroup = jobs.groupBy { it.batchId ?: it.id }.values.lastOrNull().orEmpty()
+    if (lastGroup.size > 1) lastGroup else jobs.takeLast(4)
+  }
   // Задания вне текущей пачки иначе пропали бы с глаз, а среди них может быть оплаченное видео.
   val otherActive = jobs.count { !it.status.isTerminal && it.id !in lastIds }
 
@@ -316,7 +329,8 @@ private fun ResultsPane(container: AppContainer, modifier: Modifier = Modifier) 
         )
         val subtitle = when {
           batch.isEmpty() -> "последнего запуска пока не было"
-          else -> "${batch.size} шт. · " + humanModelName(batch.first().request.model)
+          fromThisSession -> "${batch.size} шт. · " + humanModelName(batch.first().request.model)
+          else -> "последние ${batch.size} · " + humanModelName(batch.first().request.model)
         }
         Text(
           subtitle,
@@ -408,16 +422,14 @@ private fun ResultCard(
           )
           TextButton(onClick = { openInSystem(File(job.artifacts.first())) }) { Text("Открыть") }
         } else {
-          Text(
-            statusLabel(job.status),
-            style = MaterialTheme.typography.bodySmall,
-            color = if (job.status == JobStatus.FAILED) {
-              MaterialTheme.colorScheme.error
-            } else {
-              MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            modifier = Modifier.padding(start = 6.dp),
-          )
+          if (job.status != JobStatus.FAILED) {
+            Text(
+              statusLabel(job.status),
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              modifier = Modifier.padding(start = 6.dp),
+            )
+          }
           Spacer(Modifier.weight(1f))
           if (!job.status.isTerminal) {
             TextButton(onClick = onCancel) { Text("Отменить") }
