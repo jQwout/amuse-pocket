@@ -3,6 +3,7 @@ package com.aiopenpocket.desktop
 // @trace desktop-genai-client-4c63b6
 
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
@@ -14,30 +15,67 @@ import androidx.compose.ui.unit.dp
  * Тёмная тема: инструмент для разглядывания картинок и видео, светлый фон вокруг результата мешает
  * оценивать сам результат.
  *
- * Акцент фиолетовый и **холодно-синие поверхности**: по макету. Прежняя голубая схема Material
- * растворяла кнопку запуска в фоне — на тёмно-синем голубой primary читается как «неактивно».
+ * Главный урок первой версии — дело не в оттенке, а в **расстоянии между слоями**. Фон был
+ * `0F1117`, карточки `161922`: семь единиц яркости, и на глаз всё сливалось в одну муть, где не
+ * видно, где кончается карточка. Ниже разрыв фон→поверхность заметно шире, а `surfaceVariant`
+ * (заглушки, пилюли) отделён ещё на ступень.
  *
- * Своих шрифтов не тянем: типографика :app живёт в ассетах Android и переедет сюда вместе с
- * `:core:ui`, если фаза 4 когда-нибудь дойдёт до общего UI-модуля.
+ * Акцент фиолетовый — по макету.
  */
-private val DarkScheme = darkColorScheme(
+private fun scheme(
+  background: Color,
+  surface: Color,
+  surfaceVariant: Color,
+  outline: Color,
+) = darkColorScheme(
   primary = Color(0xFF7C6CF0),
   onPrimary = Color(0xFFFFFFFF),
-  // Контейнер заметно темнее primary: им залит выбранный пункт рельсы и активные чипы, и на нём
-  // должен читаться светлый текст, а не спорить с ним яркостью.
+  // Контейнер темнее primary: им залит выбранный пункт рельсы и активные пилюли, и на нём должен
+  // читаться светлый текст, а не спорить с ним яркостью.
   primaryContainer = Color(0xFF2A2560),
   onPrimaryContainer = Color(0xFFCFC7FF),
   secondary = Color(0xFFB4B0D6),
-  background = Color(0xFF0F1117),
-  onBackground = Color(0xFFE6E7EE),
-  surface = Color(0xFF161922),
-  onSurface = Color(0xFFE6E7EE),
-  // Полосатые заглушки результатов и подложки карточек файлов.
-  surfaceVariant = Color(0xFF1E2230),
-  onSurfaceVariant = Color(0xFF9AA0B4),
-  outline = Color(0xFF2E3345),
+  background = background,
+  onBackground = Color(0xFFE8E9F0),
+  surface = surface,
+  onSurface = Color(0xFFE8E9F0),
+  surfaceVariant = surfaceVariant,
+  onSurfaceVariant = Color(0xFF9CA3B8),
+  outline = outline,
   error = Color(0xFFFF8A80),
   onError = Color(0xFF3A0906),
+)
+
+/**
+ * Три палитры разведены НАМЕРЕННО далеко друг от друга.
+ *
+ * Первая попытка предложить выбор провалилась: варианты отличались на два-три пункта яркости и на
+ * рендере были неразличимы — выбирать было не из чего. Здесь разница видна с одного взгляда:
+ * холодная синева, откровенно фиолетовый и нейтральный светлый графит.
+ */
+
+/** Чернильный: холодная синева, глубокий фон. Ближе всего к тому, что было. */
+internal val InkScheme = scheme(
+  background = Color(0xFF0B0D14),
+  surface = Color(0xFF171A24),
+  surfaceVariant = Color(0xFF212533),
+  outline = Color(0xFF2C3142),
+)
+
+/** Фиолетовый: фон откровенно уходит в тон акцента, а не намекает на него. */
+internal val VioletScheme = scheme(
+  background = Color(0xFF150F26),
+  surface = Color(0xFF221A38),
+  surfaceVariant = Color(0xFF2E2449),
+  outline = Color(0xFF3D3160),
+)
+
+/** Графитовый: нейтральный серый без синевы и заметно светлее — меньше ощущения подвала. */
+internal val GraphiteScheme = scheme(
+  background = Color(0xFF17181C),
+  surface = Color(0xFF212328),
+  surfaceVariant = Color(0xFF2B2E35),
+  outline = Color(0xFF3A3E47),
 )
 
 /** Скругления крупнее дефолтных Material: по макету карточки заметно круглее. */
@@ -49,6 +87,10 @@ private val AppShapes = Shapes(
   extraLarge = RoundedCornerShape(20.dp),
 )
 
+/**
+ * Схема параметром, чтобы харнесс снимал варианты одним прогоном: выбирать палитру по описанию
+ * словами — то же самое гадание, от которого мы и уходили.
+ */
 @Composable
-fun AppTheme(content: @Composable () -> Unit) =
-  MaterialTheme(colorScheme = DarkScheme, shapes = AppShapes, content = content)
+fun AppTheme(colors: ColorScheme = InkScheme, content: @Composable () -> Unit) =
+  MaterialTheme(colorScheme = colors, shapes = AppShapes, content = content)
