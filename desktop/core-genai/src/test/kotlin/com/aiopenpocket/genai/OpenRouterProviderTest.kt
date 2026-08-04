@@ -6,6 +6,7 @@ import io.ktor.client.engine.mock.respondError
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.flow.toList
@@ -53,6 +54,72 @@ class OpenRouterProviderTest {
     assertEquals("hello", String(output.data))
     assertEquals("image/png", output.mimeType)
     assertEquals(0.0042, completed.result.costUsd)
+  }
+
+  private fun sentBody(engine: MockEngine): String =
+    (engine.requestHistory.first().body as TextContent).text
+
+  @Test
+  fun `video request carries duration, resolution and aspect ratio`() = runTest {
+    val engine = jsonEngine(
+      """{"id":"v1","status":"completed","unsigned_urls":["https://openrouter.ai/v/1.mp4"]}""",
+    )
+
+    provider(engine).generate(
+      GenerationRequest(
+        modality = GenerationModality.VIDEO,
+        prompt = "кот в скафандре",
+        model = "vendor/veo",
+        durationSeconds = 8,
+        resolution = "1080p",
+        aspectRatio = "21:9",
+      ),
+    ).toList()
+
+    val sent = sentBody(engine)
+    assertTrue(sent.contains("\"duration\":8"), sent)
+    assertTrue(sent.contains("\"resolution\":\"1080p\""), sent)
+    assertTrue(sent.contains("\"aspect_ratio\":\"21:9\""), sent)
+  }
+
+  @Test
+  fun `frame images travel as frame_images with their frame_type`() = runTest {
+    // Раньше картинка уезжала верхним полем image_url — этого поля у /videos нет вовсе, схема
+    // требует массив frame_images с frame_type. Догадка стояла в README под сомнением; сверено
+    // с документацией 2026-08-04.
+    val engine = jsonEngine(
+      """{"id":"v1","status":"completed","unsigned_urls":["https://openrouter.ai/v/1.mp4"]}""",
+    )
+
+    provider(engine).generate(
+      GenerationRequest(
+        modality = GenerationModality.VIDEO,
+        prompt = "оживи кадр",
+        model = "vendor/veo",
+        inputImage = "https://example.com/first.png",
+        lastFrameImage = "https://example.com/last.png",
+      ),
+    ).toList()
+
+    val sent = sentBody(engine)
+    assertTrue(sent.contains("\"frame_type\":\"first_frame\""), sent)
+    assertTrue(sent.contains("\"frame_type\":\"last_frame\""), sent)
+    assertTrue(sent.contains("\"frame_images\""), sent)
+  }
+
+  @Test
+  fun `a video without frames sends no frame_images at all`() = runTest {
+    // Пустой массив — не то же самое, что его отсутствие: модель без исходных кадров не должна
+    // получать признак image-to-video.
+    val engine = jsonEngine(
+      """{"id":"v1","status":"completed","unsigned_urls":["https://openrouter.ai/v/1.mp4"]}""",
+    )
+
+    provider(engine).generate(
+      GenerationRequest(GenerationModality.VIDEO, "по промпту", "vendor/veo"),
+    ).toList()
+
+    assertTrue(!sentBody(engine).contains("frame_images"), sentBody(engine))
   }
 
   @Test

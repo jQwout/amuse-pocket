@@ -28,7 +28,19 @@ import kotlin.test.assertTrue
  */
 class GenaiCatalogServiceTest {
 
-  private fun jsonEngine(body: String) = MockEngine {
+  /**
+   * Эндпоинтов два, и отвечать одним телом на оба нельзя: картиночный ответ разобрался бы и как
+   * видео-каталог, а тест бы этого не заметил. По умолчанию видео-каталог пуст — так ведёт себя
+   * учётная запись без доступа к видео, и так же выглядел бы отказ этого эндпоинта.
+   */
+  private fun jsonEngine(body: String, videoModels: String = """{"data":[]}""") =
+    routedEngine(models = body, videoModels = videoModels)
+
+  private fun cacheFile(): File = File(createTempDirectory("genai-catalog").toFile(), "cache.json")
+
+  /** Два эндпоинта на одном движке: обычный каталог и отдельный видео-каталог. */
+  private fun routedEngine(models: String, videoModels: String) = MockEngine { request ->
+    val body = if (request.url.encodedPath.endsWith("/videos/models")) videoModels else models
     respond(
       content = ByteReadChannel(body),
       status = HttpStatusCode.OK,
@@ -36,7 +48,55 @@ class GenaiCatalogServiceTest {
     )
   }
 
-  private fun cacheFile(): File = File(createTempDirectory("genai-catalog").toFile(), "cache.json")
+  private val videoBody = """
+    {"data":[
+      {"id":"vendor/veo","supported_resolutions":["720p","1080p"],
+       "supported_aspect_ratios":["16:9","9:16"],"supported_durations":[5,10],
+       "supported_frame_images":["first_frame","last_frame"],"generate_audio":true,"seed":false},
+      {"id":"vendor/aleph","supported_resolutions":null,"supported_aspect_ratios":["16:9"],
+       "supported_durations":null,"supported_frame_images":null,"generate_audio":false,"seed":true}
+    ]}
+  """.trimIndent()
+
+  @Test
+  fun `video models come from the dedicated endpoint with their capabilities`() = runTest {
+    // В обычном /api/v1/models видео нет вовсе — проверено на живом API 2026-08-04. Раньше
+    // видео-подсказки держались на сиде, то есть на вручную вписанных слагах.
+    val catalog = requireNotNull(
+      GenaiCatalogService(
+        engine = routedEngine(liveBody, videoBody),
+        cacheFile = cacheFile(),
+        seed = { GenaiModelCatalog() },
+      ).refresh(now = 1_000),
+    )
+
+    val ids = catalog.forModality(GenerationModality.VIDEO).map { it.id }
+    assertEquals(listOf("vendor/veo", "vendor/aleph"), ids)
+
+    val veo = catalog.forModality(GenerationModality.VIDEO).first().video
+    assertEquals(listOf(5, 10), veo?.durations)
+    assertEquals(listOf("720p", "1080p"), veo?.resolutions)
+    assertEquals(listOf("16:9", "9:16"), veo?.aspectRatios)
+    assertEquals(true, veo?.supportsLastFrame)
+  }
+
+  @Test
+  fun `a video model without declared capabilities offers no fake controls`() = runTest {
+    // У части моделей поля приходят null. Показать им «720p / 5 с» значило бы предложить то,
+    // чего провайдер не обещал.
+    val catalog = requireNotNull(
+      GenaiCatalogService(
+        engine = routedEngine(liveBody, videoBody),
+        cacheFile = cacheFile(),
+        seed = { GenaiModelCatalog() },
+      ).refresh(now = 1_000),
+    )
+
+    val aleph = catalog.forModality(GenerationModality.VIDEO).single { it.id == "vendor/aleph" }.video
+    assertEquals(emptyList(), aleph?.durations)
+    assertEquals(emptyList(), aleph?.resolutions)
+    assertEquals(false, aleph?.supportsLastFrame)
+  }
 
   /** Встроенные подсказки в тестах — маленькие и свои, чтобы тест не ломался от правок models.json. */
   private val seed = GenaiModelCatalog(
@@ -139,8 +199,10 @@ class GenaiCatalogServiceTest {
     ) { "живой каталог не разобрался" }
 
     assertEquals(listOf("vendor/img-live"), catalog.forModality(GenerationModality.IMAGE).map { it.id })
-    assertEquals(listOf("vendor/vid-live"), catalog.forModality(GenerationModality.VIDEO).map { it.id })
     assertEquals(listOf("vendor/tts-live"), catalog.forModality(GenerationModality.AUDIO).map { it.id })
+    // Видео из ОБЩЕГО каталога игнорируется, даже если оно там вдруг появится: длительностей и
+    // разрешений в нём нет, и такая запись дала бы пустые контролы и дубль по id.
+    assertEquals(emptyList(), catalog.forModality(GenerationModality.VIDEO).map { it.id })
   }
 
   @Test

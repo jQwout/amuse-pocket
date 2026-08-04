@@ -28,6 +28,21 @@ data class GenerationRequest(
   val inputImage: String? = null,
   /** Голос для TTS; у остальных модальностей игнорируется. */
   val voice: String? = null,
+
+  /**
+   * Последний кадр для видео. Первым кадром служит [inputImage] — у него та же природа (путь или
+   * URL) и та же причина не разворачивать base64 раньше времени.
+   */
+  val lastFrameImage: String? = null,
+
+  /**
+   * Параметры видео. null означает «не задавать» — и это не то же самое, что «по умолчанию»:
+   * модели принимают разные наборы длительностей и разрешений (см. [VideoCapabilities]), и слать
+   * им значение, которого они не заявляли, значит получать отказ на ровном месте.
+   */
+  val durationSeconds: Int? = null,
+  val resolution: String? = null,
+  val aspectRatio: String? = null,
 )
 
 @Serializable
