@@ -93,5 +93,42 @@ data class GenaiModelEntry(
   /** Голоса, если модель их поддерживает (TTS). */
   val voices: List<String> = emptyList(),
 ) {
-  val displayName: String get() = label.ifBlank { id }
+  /**
+   * Подпись для UI. Своя подпись побеждает: она стоит в `genai-models.json` руками, то есть это
+   * указание пользователя, а не догадка. Пусто — выводим имя из слага: живой каталог подписей не
+   * приносит вовсе, и без этого список моделей превращается в стену одинаковых строк.
+   */
+  val displayName: String get() = label.ifBlank { humanModelName(id) }
+
+  /** Вендор для второй строки в списке: `google`, `openai`, … Пусто, если слаг без вендора. */
+  val vendor: String get() = modelVendor(id)
 }
+
+/** Вендор из слага (`google/gemini-3-pro-image` → `google`). Пусто, если разделителя нет. */
+fun modelVendor(id: String): String = if ('/' in id) id.substringBefore('/') else ""
+
+/**
+ * Человекочитаемое имя из слага: `google/gemini-3.1-flash-lite-image` → `Gemini 3.1 Flash Lite Image`.
+ *
+ * Нужно потому, что живой `/api/v1/models` отдаёт только идентификаторы, а отличить на глаз
+ * `gemini-3.1-flash-image` от `gemini-3.1-flash-image-preview` в списке из одиннадцати строк
+ * невозможно. Правила простые и без словаря моделей: словарь устарел бы ровно так же, как
+ * устаревал вшитый список.
+ */
+fun humanModelName(id: String): String {
+  val tail = id.substringAfterLast('/')
+  if (tail.isBlank()) return id
+  return tail.split('-', '_')
+    .filter { it.isNotBlank() }
+    .joinToString(" ") { word ->
+      when {
+        // gpt, tts, ai — читаются как аббревиатуры, «Gpt 5» выглядит опечаткой.
+        word.lowercase() in ACRONYMS -> word.uppercase()
+        // Токены с цифрами оставляем в верхнем регистре целиком: «82m» → «82M», «3.1» → «3.1».
+        word.any { it.isDigit() } -> word.uppercase()
+        else -> word.replaceFirstChar { it.uppercase() }
+      }
+    }
+}
+
+private val ACRONYMS = setOf("gpt", "tts", "ai", "hd", "xl", "sd", "api")

@@ -71,6 +71,33 @@ class GenaiModelCatalogTest {
   }
 
   @Test
+  fun `a slug without a label still reads like a name`() {
+    // Живой каталог подписей не приносит, и без этого весь список — стена одинаковых слагов.
+    assertEquals("Gemini 3.1 Flash Lite Image", humanModelName("google/gemini-3.1-flash-lite-image"))
+    assertEquals("GPT 5 Image Mini", humanModelName("openai/gpt-5-image-mini"))
+    assertEquals("Kokoro 82M", humanModelName("hexgrad/kokoro-82m"))
+    // Токен с цифрой идёт в верхнем регистре целиком, и здесь это попадает в точку: вендор пишет
+    // «FLUX.2», и встроенный каталог подписан ровно так же.
+    assertEquals("FLUX.2 Pro", humanModelName("black-forest-labs/flux.2-pro"))
+  }
+
+  @Test
+  fun `the vendor is split off the slug`() {
+    assertEquals("google", modelVendor("google/gemini-3-pro-image"))
+    assertEquals("", modelVendor("bare-model-id"))
+  }
+
+  @Test
+  fun `an explicit label beats the derived name`() {
+    // Своя подпись в genai-models.json — прямое указание пользователя, догадка её не перебивает.
+    val entry = GenaiModelEntry("google/gemini-3-pro-image", GenerationModality.IMAGE, label = "Моя картинка")
+    assertEquals("Моя картинка", entry.displayName)
+
+    val bare = GenaiModelEntry("google/gemini-3-pro-image", GenerationModality.IMAGE)
+    assertEquals("Gemini 3 Pro Image", bare.displayName)
+  }
+
+  @Test
   fun `models are offered in priority order`() {
     val catalog = GenaiModelCatalog(
       listOf(
