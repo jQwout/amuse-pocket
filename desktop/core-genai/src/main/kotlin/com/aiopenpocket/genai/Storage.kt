@@ -41,6 +41,13 @@ class AppPaths(
  * Ключ OpenRouter в файле, доступном только владельцу. EncryptedSharedPreferences из :app здесь
  * нет, а кидать ключ в переменную окружения или в git — хуже: файл под правами владельца — минимум,
  * который не врёт пользователю про «шифрование».
+ *
+ * Оговорка про Windows: сужение прав там — best-effort и по факту не работает. `setReadable(false,
+ * false)` на NTFS возвращает `false` и не делает ничего (POSIX-прав у неё нет вовсе), поэтому «600»
+ * получается только на POSIX-системах. На Windows ключ защищён ровно настолько, насколько защищён
+ * профиль пользователя: `%USERPROFILE%` по умолчанию закрыт ACL'ом от других учёток, но не от
+ * администратора и не от SYSTEM. Обещать здесь «доступен только владельцу» кросс-платформенно было
+ * бы враньём, поэтому обещание сужено до платформ, где оно выполняется.
  */
 class ApiKeyStore(private val paths: AppPaths = AppPaths()) {
 
@@ -53,8 +60,11 @@ class ApiKeyStore(private val paths: AppPaths = AppPaths()) {
    *
    * Права через [File.setReadable]/[File.setWritable], а не `Files.setPosixFilePermissions`: те
    * из `java.nio.file` и на Android живут с API 26, а эти есть везде.
+   *
+   * Возвращает `true`, если права реально сузились до владельца, и `false`, если система этого не
+   * умеет (Windows). Ключ в обоих случаях сохранён — вызывающий сам решает, предупреждать ли.
    */
-  fun write(key: String) {
+  fun write(key: String): Boolean {
     val file = paths.apiKeyFile
     file.parentFile?.mkdirs()
     val tmp = File(file.parentFile, file.name + ".tmp")
@@ -70,20 +80,27 @@ class ApiKeyStore(private val paths: AppPaths = AppPaths()) {
         error("не удалось сохранить ключ в $file")
       }
     }
-    restrictToOwner(file)
+    return restrictToOwner(file)
   }
 
   fun clear() {
     runCatching { paths.apiKeyFile.delete() }
   }
 
-  private fun restrictToOwner(file: File) {
+  /**
+   * Сужает права до владельца там, где файловая система это умеет. Возвращает `false`, если
+   * платформа отказалась снимать чужой доступ — на Windows это норма, а не сбой, и поэтому запись
+   * ключа из-за этого не падает: альтернатива «не сохранить ключ вообще» пользователю хуже.
+   */
+  private fun restrictToOwner(file: File): Boolean {
     // Сначала снимаем у всех, потом возвращаем владельцу: иначе групповое/чужое чтение осталось бы.
-    file.setReadable(false, false)
+    // Первый вызов и есть показатель: на POSIX он true, на NTFS — false, и сузить права там нечем.
+    val strippedFromOthers = file.setReadable(false, false)
     file.setWritable(false, false)
     file.setExecutable(false, false)
     file.setReadable(true, true)
     file.setWritable(true, true)
+    return strippedFromOthers
   }
 }
 
