@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
@@ -204,32 +206,44 @@ class SettingsViewModel(
     _state.update { it.copy(themeMode = value) }
   }
 
+  /**
+   * Сохранения не должны наслаиваться. Пока запись шла на главном потоке, два нажатия были
+   * сериализованы сами собой; после переезда на IO — уже нет, и два блока могли перемешаться,
+   * записав провайдера от одного нажатия и модель от другого. Это ровно та невалидная пара, которую
+   * запрещает комментарий внутри.
+   */
+  private val saveMutex = Mutex()
+
   fun save() {
     val current = _state.value
     viewModelScope.launch {
-      // Запись ключей — тоже IO, как и чтение: EncryptedSharedPreferences шифрует значение на
-      // вызывающем потоке, а первое обращение к ним поднимает Keystore. Нажать «Сохранить» можно
-      // раньше, чем завершится чтение в init, — и тогда главный поток вставал бы на том же мониторе.
-      withContext(Dispatchers.IO) {
-        settingsRepository.setApiKey("NVIDIA", current.nvidiaKey)
-        settingsRepository.setApiKey("OPENROUTER", current.openRouterKey)
-        // Провайдер и модель пишем вместе: между ними инвариант (модель принадлежит каталогу
-        // провайдера), и запись только одного из них оставила бы настройки в невалидной паре.
-        settingsRepository.setSelectedProvider(current.provider.name)
-        settingsRepository.setSelectedModel(current.selectedModel)
-      }
-      // «Сохранено» показываем только после реальной записи в DataStore (suspend), а не до неё.
-      userPreferencesRepository.setDefaultPersonaId(current.personaId)
-      userPreferencesRepository.setGoalModeMaxIterations(current.goalMaxIterations)
-      userPreferencesRepository.setChatFontScale(current.chatFontScale)
-      // ...и только если пользователь не успел изменить поля во время записи (иначе соврём «Сохранено»).
-      // Сравниваем всё состояние целиком (без флага saved): любое новое поле настройки попадает в
-      // проверку автоматически, без ручного дописывания клаузы. Побочный эффект: если ровно в этот
-      // момент долетел свежий каталог OpenRouter (availableModels), «Сохранено» не покажется —
-      // настройки при этом записаны. Врать «сохранено» на изменившемся состоянии хуже.
-      _state.update { s ->
-        if (s.copy(saved = false) == current.copy(saved = false)) s.copy(saved = true) else s
-      }
+      saveMutex.withLock { persist(current) }
+    }
+  }
+
+  private suspend fun persist(current: SettingsUiState) {
+    // Запись ключей — тоже IO, как и чтение: EncryptedSharedPreferences шифрует значение на
+    // вызывающем потоке, а первое обращение к ним поднимает Keystore. Нажать «Сохранить» можно
+    // раньше, чем завершится чтение в init, — и тогда главный поток вставал бы на том же мониторе.
+    withContext(Dispatchers.IO) {
+      settingsRepository.setApiKey("NVIDIA", current.nvidiaKey)
+      settingsRepository.setApiKey("OPENROUTER", current.openRouterKey)
+      // Провайдер и модель пишем вместе: между ними инвариант (модель принадлежит каталогу
+      // провайдера), и запись только одного из них оставила бы настройки в невалидной паре.
+      settingsRepository.setSelectedProvider(current.provider.name)
+      settingsRepository.setSelectedModel(current.selectedModel)
+    }
+    // «Сохранено» показываем только после реальной записи в DataStore (suspend), а не до неё.
+    userPreferencesRepository.setDefaultPersonaId(current.personaId)
+    userPreferencesRepository.setGoalModeMaxIterations(current.goalMaxIterations)
+    userPreferencesRepository.setChatFontScale(current.chatFontScale)
+    // ...и только если пользователь не успел изменить поля во время записи (иначе соврём «Сохранено»).
+    // Сравниваем всё состояние целиком (без флага saved): любое новое поле настройки попадает в
+    // проверку автоматически, без ручного дописывания клаузы. Побочный эффект: если ровно в этот
+    // момент долетел свежий каталог OpenRouter (availableModels), «Сохранено» не покажется —
+    // настройки при этом записаны. Врать «сохранено» на изменившемся состоянии хуже.
+    _state.update { s ->
+      if (s.copy(saved = false) == current.copy(saved = false)) s.copy(saved = true) else s
     }
   }
 }

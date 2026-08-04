@@ -139,6 +139,8 @@ class SettingsViewModelTest {
     return viewModelWith(engine)
   }
 
+  private var viewModelSeq = 0
+
   private fun viewModelWith(engine: MockEngine): SettingsViewModel {
     val vm = SettingsViewModel(
       settingsRepository = settings,
@@ -148,13 +150,15 @@ class SettingsViewModelTest {
       themeRepository = ThemeRepository(application),
     )
     // Кладём в store, чтобы его clear() в @After позвал onCleared и отменил viewModelScope.
+    // Ключ свой на каждый экземпляр: под общим ключом второй ViewModel в одном тесте не попал бы
+    // в store вовсе — и его viewModelScope пережил бы тест.
     ViewModelProvider(
       viewModelStore,
       object : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T = vm as T
       },
-    )[SettingsViewModel::class.java]
+    )["vm-${viewModelSeq++}", SettingsViewModel::class.java]
     return vm
   }
 
@@ -284,22 +288,41 @@ class SettingsViewModelTest {
 
     vm.updateProvider(LlmProvider.OPENROUTER)
 
+    // Читаем состояние синхронно: `updateProvider` публикует "AUTO" ДО ухода на IO, на том же
+    // потоке. Если сжатия списка нет, тест падает при любом раскладе гонки — видно будет либо
+    // список NIM, либо список OpenRouter, но не ["AUTO"].
     assertEquals(listOf("AUTO"), vm.state.value.availableModels)
   }
 
   /**
    * Нет сети и нет кеша — каталог падает на сид из ассетов, и по нему НЕЛЬЗЯ судить, что модель
    * снята с обслуживания. Иначе первый же запуск в офлайне молча сбрасывал бы выбор пользователя.
+   *
+   * Проверять здесь нечего «положительного»: на офлайн-пути список ПОСЛЕ обновления совпадает со
+   * списком ДО него (оба — сид). Поэтому сначала ждём доказательства, что обновление реально
+   * состоялось (движок дошёл до запроса), и только потом проверяем, что сброса не случилось.
    */
   @Test
   fun `сид из ассетов не сбрасывает выбранную модель`() = runTest {
     settings.values["provider"] = "OPENROUTER"
     settings.values["model"] = "vendor/chosen"
-    val vm = viewModelWith(MockEngine { throw java.io.IOException("нет сети") })
+    val attempted = CompletableDeferred<Unit>()
+    val vm = viewModelWith(
+      MockEngine {
+        attempted.complete(Unit)
+        throw java.io.IOException("нет сети")
+      },
+    )
 
-    val state = vm.await { it.availableModels.size > 1 }
+    vm.await { it.availableModels.size > 1 }
+    withContext(Dispatchers.Default) { withTimeout(10_000) { attempted.await() } }
 
-    assertEquals("vendor/chosen", state.selectedModel)
+    val reset = runCatching { vm.await(timeoutMs = 2_000) { it.selectedModel == "AUTO" } }
+    assertTrue(
+      "сид — не повод сбрасывать выбор пользователя",
+      reset.exceptionOrNull() is TimeoutCancellationException,
+    )
+    assertEquals("vendor/chosen", vm.state.value.selectedModel)
   }
 
   /**

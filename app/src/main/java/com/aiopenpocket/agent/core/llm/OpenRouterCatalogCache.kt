@@ -14,8 +14,6 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
 import java.io.File
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
 
 /** Каталог, скачанный с OpenRouter, вместе со временем скачивания (для TTL). */
 @Serializable
@@ -74,22 +72,33 @@ class OpenRouterCatalogCache(
   }
 
   /**
-   * Атомарная замена: пишем во временный файл и переименовываем.
+   * Замена через временный файл: пишем рядом и переименовываем.
    *
    * Прямой `writeText` сначала обрезает файл до нуля — читатель, попавший в это окно, увидел бы
-   * обрубок вместо каталога. Переименование внутри одного каталога атомарно, поэтому читатель
-   * всегда видит либо прежний файл целиком, либо новый целиком.
+   * обрубок вместо каталога. `renameTo` внутри одного каталога на Android это `rename(2)`, то есть
+   * читатель видит либо прежний файл целиком, либо новый целиком.
+   *
+   * `java.nio.file.Files.move` здесь НЕЛЬЗЯ, хотя он и удобнее: `java.nio.file` появился на Android
+   * только в API 26, а minSdk у проекта 24 и десугаринга нет. На 7.x это `NoClassDefFoundError` —
+   * `Error`, а не `Exception`, то есть мимо catch ниже и мимо catch в сервисе: приложение падало бы
+   * при открытии Настроек. Ловим Throwable по той же причине: кеш моделей не повод ронять процесс.
    */
   @Synchronized
   fun write(catalog: ModelCatalog, fetchedAt: Long) {
     val tmp = File(application.filesDir, "$FILE_NAME.tmp")
     try {
       tmp.writeText(json.encodeToString(CachedModelCatalog(fetchedAt, catalog)))
-      // Files.move с REPLACE_EXISTING, а не File.renameTo: renameTo НЕ перезаписывает существующий
-      // файл на Windows и молча возвращает false — на Android это неважно, но Robolectric-тесты
-      // бегут на хостовой JVM, и там второй write тихо не применялся бы.
-      Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
-    } catch (e: Exception) {
+      // renameTo НЕ перезаписывает существующий файл на Windows (молча возвращает false). На
+      // Android первая попытка проходит всегда; вторая ветка нужна только хостовой JVM, где
+      // Robolectric и где атомарность не важна.
+      if (!tmp.renameTo(file)) {
+        file.delete()
+        if (!tmp.renameTo(file)) {
+          Log.w(TAG, "Failed to swap in the new OpenRouter catalog")
+          tmp.delete()
+        }
+      }
+    } catch (e: Throwable) {
       // Не смогли записать — не повод ронять ход: в следующий раз просто сходим в сеть снова.
       Log.w(TAG, "Failed to cache OpenRouter catalog: ${e.message}")
       runCatching { tmp.delete() }

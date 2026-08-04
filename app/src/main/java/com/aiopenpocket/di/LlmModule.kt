@@ -7,7 +7,7 @@ import com.aiopenpocket.BuildConfig
 import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.ModelCatalog
-import com.aiopenpocket.agent.core.llm.NVIDIA_KEY_PLACEHOLDER
+import com.aiopenpocket.agent.core.llm.bundledNvidiaKey
 import com.aiopenpocket.agent.core.llm.ModelCatalogLoader
 import com.aiopenpocket.agent.core.llm.OpenAiCompatClient
 import com.aiopenpocket.agent.core.llm.ProviderConfig
@@ -74,9 +74,7 @@ object LlmModule {
     // иначе новый список не действовал бы до перезапуска процесса.
     val nimConfigs = configsFor(LlmProvider.NIM, modelCatalogLoader.loadNim()) {
       // Ручной ключ из Настроек в приоритете; иначе — ключ, вшитый в сборку из .env (BuildConfig).
-      settingsRepository.getApiKey("NVIDIA").ifBlank {
-        BuildConfig.NVIDIA_API_KEY.takeUnless { it == NVIDIA_KEY_PLACEHOLDER }.orEmpty()
-      }
+      settingsRepository.getApiKey("NVIDIA").ifBlank { bundledNvidiaKey(BuildConfig.NVIDIA_API_KEY) }
     }
     return ProviderFallbackChain(
       configsFor = { provider ->

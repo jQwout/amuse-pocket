@@ -429,12 +429,4 @@ class StructuredPlanOrchestratorTest {
   private fun StructuredPlanOrchestrator.proposeNim(conversationId: String, message: String) =
     propose(conversationId, message, LlmProvider.NIM)
 
-  private fun StructuredPlanOrchestrator.executeGoal(
-    conversationId: String,
-    planId: String?,
-    message: String,
-    budget: PlanRunBudget = PlanRunBudget(),
-    executionMode: ExecutionMode = ExecutionMode.LIVE,
-  ) = executeGoal(conversationId, planId, message, LlmProvider.NIM, budget, executionMode)
-
 }
