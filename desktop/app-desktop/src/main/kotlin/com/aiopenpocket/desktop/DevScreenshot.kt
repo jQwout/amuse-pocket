@@ -124,7 +124,7 @@ object DevScreenshot {
     name: String,
     width: Int,
     height: Int,
-    colors: androidx.compose.material3.ColorScheme = InkScheme,
+    colors: androidx.compose.material3.ColorScheme = GraphiteScheme,
     content: @Composable () -> Unit,
   ) {
     val scene = ImageComposeScene(width = width, height = height, density = Density(1f)) {

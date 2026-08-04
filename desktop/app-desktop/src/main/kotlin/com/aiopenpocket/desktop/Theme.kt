@@ -92,5 +92,5 @@ private val AppShapes = Shapes(
  * словами — то же самое гадание, от которого мы и уходили.
  */
 @Composable
-fun AppTheme(colors: ColorScheme = InkScheme, content: @Composable () -> Unit) =
+fun AppTheme(colors: ColorScheme = GraphiteScheme, content: @Composable () -> Unit) =
   MaterialTheme(colorScheme = colors, shapes = AppShapes, content = content)
