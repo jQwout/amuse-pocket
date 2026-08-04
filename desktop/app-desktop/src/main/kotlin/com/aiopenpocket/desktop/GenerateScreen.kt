@@ -2,11 +2,14 @@ package com.aiopenpocket.desktop
 
 // @trace desktop-genai-client-4c63b6
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.TooltipArea
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,10 +23,18 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -103,22 +114,13 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
     if (compareModels) selectedModels.isNotEmpty() else model.isNotBlank()
 
   Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-    // Форма прокручивается сама: панель результатов рядом, и обрезать её ради длинной формы нельзя.
-    Column(
-      Modifier.weight(0.42f).fillMaxHeight().verticalScroll(rememberScrollState()),
-      verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-      Text(
-        when (modality) {
-          GenerationModality.IMAGE -> "Генерация картинки"
-          GenerationModality.VIDEO -> "Генерация видео"
-          GenerationModality.AUDIO -> "Озвучка текста"
-        },
-        style = MaterialTheme.typography.titleLarge,
-        fontWeight = FontWeight.SemiBold,
-      )
-
-      SectionCard("Что генерируем") {
+    Column(Modifier.weight(0.42f).fillMaxHeight()) {
+      // Форма прокручивается, а кнопка запуска — нет: в макете она прижата вниз и видна всегда,
+      // иначе на длинной форме приходится доскроллить до неё, чтобы просто нажать.
+      Column(
+        Modifier.weight(1f).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
+      ) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
           for (item in GenerationModality.entries) {
             FilterChip(
@@ -128,17 +130,8 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
             )
           }
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-          FilterChip(
-            selected = compareModels,
-            onClick = { compareModels = !compareModels },
-            label = { Text("Сравнить модели") },
-          )
-          if (!compareModels) VariantsField(variants, VARIANT_OPTIONS) { variants = it }
-        }
-      }
 
-      SectionCard(if (compareModels) "Модели для сравнения" else "Модель") {
+        FieldGroup(if (compareModels) "Модели для сравнения" else "Модель", "слаг уходит в запрос") {
         if (compareModels) {
           ModelCompareField(
             suggestions = modelsForModality,
@@ -152,7 +145,10 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
         }
       }
 
-      SectionCard(if (modality == GenerationModality.AUDIO) "Текст для озвучки" else "Промпт") {
+      FieldGroup(
+        if (modality == GenerationModality.AUDIO) "Что озвучить" else "Опишите кадр",
+        "своими словами",
+      ) {
         PresetPicker(
           presets = prompts.forModality(modality),
           onApply = { prompt = it.applyTo(prompt) },
@@ -162,8 +158,9 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
         OutlinedTextField(
           value = prompt,
           onValueChange = { prompt = it },
-          label = { Text(if (modality == GenerationModality.AUDIO) "Что озвучить" else "Что нарисовать") },
-          modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
+          label = null,
+          placeholder = { Text("Мокрый асфальт, фигура в плаще спиной к камере…") },
+          modifier = Modifier.fillMaxWidth().heightIn(min = 130.dp),
           minLines = 4,
         )
 
@@ -199,7 +196,7 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
       }
 
       if (modality == GenerationModality.VIDEO && !compareModels) {
-        SectionCard("Параметры видео") {
+        FieldGroup("Параметры видео", "только то, что заявила модель") {
           VideoParamsFields(
             caps = videoCaps,
             duration = duration,
@@ -211,6 +208,19 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
           )
         }
       }
+
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+          FilterChip(
+            selected = compareModels,
+            onClick = { compareModels = !compareModels },
+            label = { Text("Сравнить модели") },
+          )
+          if (!compareModels) VariantsField(variants, VARIANT_OPTIONS) { variants = it }
+        }
+      }
+
+      HorizontalDivider()
+      Spacer(Modifier.height(12.dp))
 
       Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Button(
@@ -344,44 +354,76 @@ private fun ResultsPane(container: AppContainer, modifier: Modifier = Modifier) 
       items(batch, key = { it.id }) { job ->
         ResultCard(
           job = job,
+          canAnimate = container.canAnimate,
           onCancel = { container.queue.cancel(job.id) },
           onRetry = { container.queue.retry(job.id) },
+          onRefine = { container.refine(job) },
+          onAnimate = { container.animate(job) },
         )
       }
     }
   }
 }
 
+/**
+ * Три иконки на готовой карточке — это не декор из макета, а то, что ядро уже умеет: повтор,
+ * image-to-image с этим же кадром на входе и видео, где кадр становится первым.
+ */
 @Composable
-private fun ResultCard(job: GenerationJob, onCancel: () -> Unit, onRetry: () -> Unit) {
+private fun ResultCard(
+  job: GenerationJob,
+  canAnimate: Boolean,
+  onCancel: () -> Unit,
+  onRetry: () -> Unit,
+  onRefine: () -> Unit,
+  onAnimate: () -> Unit,
+) {
+  val done = job.status == JobStatus.DONE && job.artifacts.isNotEmpty()
   Card(Modifier.fillMaxWidth()) {
     Column {
       Box(
-        Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
+        Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp)),
         contentAlignment = Alignment.Center,
       ) {
         Preview(job)
       }
       Row(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalAlignment = Alignment.CenterVertically,
       ) {
-        Text(
-          if (job.status == JobStatus.DONE) formatCost(job.costUsd) else statusLabel(job.status),
-          style = MaterialTheme.typography.bodySmall,
-          color = if (job.status == JobStatus.FAILED) {
-            MaterialTheme.colorScheme.error
+        if (done) {
+          IconAction(Icons.Default.Refresh, "Повторить с тем же промптом", onRetry)
+          // Доработка и оживление берут на вход готовый файл — у видео и аудио его как картинку
+          // не переиспользовать, поэтому кнопки только у картинок.
+          if (job.request.modality == GenerationModality.IMAGE) {
+            IconAction(Icons.Default.Edit, "Доработать: этот кадр станет основой", onRefine)
+            if (canAnimate) IconAction(Icons.Default.PlayArrow, "Сделать видео из этого кадра", onAnimate)
+          }
+          Spacer(Modifier.weight(1f))
+          Text(
+            formatCost(job.costUsd),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+          TextButton(onClick = { openInSystem(File(job.artifacts.first())) }) { Text("Открыть") }
+        } else {
+          Text(
+            statusLabel(job.status),
+            style = MaterialTheme.typography.bodySmall,
+            color = if (job.status == JobStatus.FAILED) {
+              MaterialTheme.colorScheme.error
+            } else {
+              MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            modifier = Modifier.padding(start = 6.dp),
+          )
+          Spacer(Modifier.weight(1f))
+          if (!job.status.isTerminal) {
+            TextButton(onClick = onCancel) { Text("Отменить") }
           } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-          },
-        )
-        when {
-          !job.status.isTerminal -> TextButton(onClick = onCancel) { Text("Отменить") }
-          job.artifacts.isNotEmpty() ->
-            TextButton(onClick = { openInSystem(File(job.artifacts.first())) }) { Text("Открыть") }
-
-          else -> TextButton(onClick = onRetry) { Text("Повторить") }
+            TextButton(onClick = onRetry) { Text("Повторить") }
+          }
         }
       }
       job.error?.let {
@@ -438,5 +480,25 @@ private fun Preview(job: GenerationJob) {
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+  }
+}
+
+/** Иконка-действие с подсказкой: без подписи ряд иконок иначе читается как ребус. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, hint: String, onClick: () -> Unit) {
+  TooltipArea(tooltip = {
+    Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceVariant) {
+      Text(hint, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(10.dp, 6.dp))
+    }
+  }) {
+    IconButton(onClick = onClick, modifier = Modifier.size(34.dp)) {
+      Icon(
+        icon,
+        contentDescription = hint,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.size(18.dp),
+      )
+    }
   }
 }
