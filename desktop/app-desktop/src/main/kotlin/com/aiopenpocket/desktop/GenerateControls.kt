@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
@@ -54,13 +55,41 @@ fun ModelField(model: String, suggestions: List<GenaiModelEntry>, onModelChange:
     )
     Box {
       OutlinedButton(onClick = { expanded = true }) { Text("Из списка") }
-      DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+      // Высота ограничена: моделей из живого каталога бывает второй десяток, и без предела меню
+      // накрывало собой промпт и половину экрана. Сверх предела меню прокручивается само.
+      DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = { expanded = false },
+        modifier = Modifier.heightIn(max = 360.dp),
+      ) {
         if (suggestions.isEmpty()) {
           DropdownMenuItem(text = { Text("нет подсказок для этой модальности") }, onClick = {})
         }
         for (entry in suggestions) {
+          val current = entry.id == model
           DropdownMenuItem(
-            text = { Text(if (entry.label.isBlank()) entry.id else "${entry.displayName}  ·  ${entry.id}") },
+            text = {
+              // Две строки: имя читается, слаг остаётся видимым — именно он уходит в запрос, и
+              // подменять его красивым названием нельзя. Одной строкой список превращался в стену
+              // почти одинаковых идентификаторов.
+              Column {
+                Text(
+                  entry.displayName,
+                  style = MaterialTheme.typography.bodyMedium,
+                  fontWeight = if (current) FontWeight.SemiBold else FontWeight.Normal,
+                  color = if (current) {
+                    MaterialTheme.colorScheme.primary
+                  } else {
+                    MaterialTheme.colorScheme.onSurface
+                  },
+                )
+                Text(
+                  entry.id,
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              }
+            },
             onClick = {
               onModelChange(entry.id)
               expanded = false
