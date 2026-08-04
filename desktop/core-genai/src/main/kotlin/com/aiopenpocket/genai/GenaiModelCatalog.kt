@@ -6,8 +6,7 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
-import java.nio.file.Files
-import java.nio.file.Path
+import java.io.File
 
 /**
  * Каталог моделей по модальностям — ровно та же роль, что у `assets/config/models.json` в :app:
@@ -43,16 +42,16 @@ data class GenaiModelCatalog(
      * а не до трёх аварийных моделей. Раньше было наоборот — одна лишняя запятая, и половина
      * подсказок молча пропадала.
      */
-    fun load(override: Path? = null): GenaiModelCatalog {
+    fun load(override: File? = null): GenaiModelCatalog {
       val user = override?.let(::readCatalog)
       if (user != null && user.models.isNotEmpty()) return user
       val builtIn = readResource()
       return builtIn.takeIf { it.models.isNotEmpty() } ?: FALLBACK
     }
 
-    private fun readCatalog(file: Path): GenaiModelCatalog? {
-      if (!Files.isRegularFile(file)) return null
-      val text = runCatching { Files.readString(file) }.getOrNull() ?: return null
+    private fun readCatalog(file: File): GenaiModelCatalog? {
+      if (!file.isFile) return null
+      val text = runCatching { file.readText() }.getOrNull() ?: return null
       return runCatching { json.decodeFromString<GenaiModelCatalog>(text) }.getOrNull()
     }
 

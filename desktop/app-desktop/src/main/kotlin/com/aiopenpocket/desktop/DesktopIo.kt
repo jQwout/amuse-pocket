@@ -9,16 +9,13 @@ import java.awt.Desktop
 import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
-import java.nio.file.Files
-import java.nio.file.Path
 import java.util.Locale
 
 /** Открывает файл или папку в системном приложении. Тихо ничего не делает там, где AWT это не умеет. */
-fun openInSystem(path: Path) {
+fun openInSystem(path: File) {
   runCatching {
     if (!Desktop.isDesktopSupported()) return
-    val file = path.toFile()
-    if (file.exists()) Desktop.getDesktop().open(file)
+    if (path.exists()) Desktop.getDesktop().open(path)
   }
 }
 
@@ -26,7 +23,7 @@ fun openInSystem(path: Path) {
  * Системный диалог выбора картинки. AWT-диалог вместо Compose-компонента: он родной для ОС и не
  * тянет зависимостей — на десктопе это важнее единообразия с мобильным UI.
  */
-fun pickImageFile(): Path? {
+fun pickImageFile(): File? {
   val dialog = FileDialog(null as Frame?, "Выбери картинку", FileDialog.LOAD)
   dialog.isMultipleMode = false
   dialog.setFilenameFilter { _, name ->
@@ -35,7 +32,7 @@ fun pickImageFile(): Path? {
   dialog.isVisible = true
   val dir = dialog.directory ?: return null
   val name = dialog.file ?: return null
-  return File(dir, name).toPath()
+  return File(dir, name)
 }
 
 /**
@@ -44,8 +41,8 @@ fun pickImageFile(): Path? {
  * Блокирующая: чтение файла плюс декодирование. Звать только с IO-диспетчера — из композиции
  * это подвешивало бы окно на каждой карточке истории.
  */
-fun loadImage(path: Path): ImageBitmap? = runCatching {
-  SkiaImage.makeFromEncoded(Files.readAllBytes(path)).toComposeImageBitmap()
+fun loadImage(path: File): ImageBitmap? = runCatching {
+  SkiaImage.makeFromEncoded(path.readBytes()).toComposeImageBitmap()
 }.getOrNull()
 
 /**

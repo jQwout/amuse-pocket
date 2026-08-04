@@ -38,7 +38,7 @@ import com.aiopenpocket.genai.GenerationJob
 import com.aiopenpocket.genai.GenerationModality
 import com.aiopenpocket.genai.JobStatus
 import com.aiopenpocket.genai.PromptPreset
-import java.nio.file.Path
+import java.io.File
 
 /** Модель — свободный текст с подсказками: устаревший слаг в каталоге не должен мешать ввести свой. */
 @Composable
@@ -222,7 +222,7 @@ fun VoiceField(voice: String, suggestions: List<String>, onVoiceChange: (String)
 
 @Composable
 fun InputImageField(
-  picked: Path?,
+  picked: File?,
   modality: GenerationModality,
   onPick: () -> Unit,
   onClear: () -> Unit,
@@ -238,7 +238,7 @@ fun InputImageField(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
     } else {
-      Text(picked.fileName.toString(), style = MaterialTheme.typography.bodyMedium)
+      Text(picked.name, style = MaterialTheme.typography.bodyMedium)
       TextButton(onClick = onClear) { Text("убрать") }
     }
   }

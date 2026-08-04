@@ -22,4 +22,12 @@ dependencies {
   testImplementation(kotlin("test"))
 }
 
-tasks.test { useJUnitPlatform() }
+tasks.test {
+  useJUnitPlatform()
+  // AndroidApiLevelTest читает исходники модуля как ДАННЫЕ. Gradle об этом не знает, и без явного
+  // объявления входа задача остаётся UP-TO-DATE после правки кода — сторож молча не запускается.
+  // Тот же приём, что в tools/lesson-viewer для каталога уроков.
+  inputs.dir(layout.projectDirectory.dir("src/main/kotlin"))
+    .withPropertyName("coreSources")
+    .withPathSensitivity(PathSensitivity.RELATIVE)
+}

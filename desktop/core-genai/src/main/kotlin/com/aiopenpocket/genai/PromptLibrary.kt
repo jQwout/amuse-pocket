@@ -7,10 +7,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.StandardCopyOption
-import kotlin.io.path.createDirectories
+import java.io.File
 
 @Serializable
 data class PromptPreset(
@@ -62,7 +59,7 @@ data class PromptLibrary(val presets: List<PromptPreset> = emptyList()) {
       namingStrategy = JsonNamingStrategy.SnakeCase
     }
 
-    fun load(userFile: Path? = null): PromptLibrary {
+    fun load(userFile: File? = null): PromptLibrary {
       val builtIn = readResource()
       val user = userFile?.let(::readFile) ?: PromptLibrary()
       val userIds = user.presets.mapTo(mutableSetOf()) { it.id }
@@ -70,19 +67,19 @@ data class PromptLibrary(val presets: List<PromptPreset> = emptyList()) {
     }
 
     /** Только пользовательские пресеты — их и переписываем при сохранении. */
-    fun loadUser(userFile: Path): PromptLibrary = readFile(userFile) ?: PromptLibrary()
+    fun loadUser(userFile: File): PromptLibrary = readFile(userFile) ?: PromptLibrary()
 
     /**
      * Добавляет пресет в пользовательский файл и возвращает объединённую библиотеку.
      * Пресет с таким же `id` перезаписывается — сохранение «того же самого» не плодит дубли.
      */
-    fun saveUserPreset(userFile: Path, preset: PromptPreset): PromptLibrary {
+    fun saveUserPreset(userFile: File, preset: PromptPreset): PromptLibrary {
       val existing = loadUser(userFile).presets.filterNot { it.id == preset.id }
       writeFile(userFile, PromptLibrary(existing + preset))
       return load(userFile)
     }
 
-    fun deleteUserPreset(userFile: Path, id: String): PromptLibrary {
+    fun deleteUserPreset(userFile: File, id: String): PromptLibrary {
       val remaining = loadUser(userFile).presets.filterNot { it.id == id }
       writeFile(userFile, PromptLibrary(remaining))
       return load(userFile)
@@ -108,17 +105,20 @@ data class PromptLibrary(val presets: List<PromptPreset> = emptyList()) {
       return runCatching { json.decodeFromString<PromptLibrary>(text) }.getOrDefault(PromptLibrary())
     }
 
-    private fun readFile(file: Path): PromptLibrary? {
-      if (!Files.isRegularFile(file)) return null
-      return runCatching { json.decodeFromString<PromptLibrary>(Files.readString(file)) }.getOrNull()
+    private fun readFile(file: File): PromptLibrary? {
+      if (!file.isFile) return null
+      return runCatching { json.decodeFromString<PromptLibrary>(file.readText()) }.getOrNull()
     }
 
-    private fun writeFile(file: Path, library: PromptLibrary) {
-      file.parent?.createDirectories()
+    private fun writeFile(file: File, library: PromptLibrary) {
+      file.parentFile?.mkdirs()
       // Через временный файл — как история заданий: обрыв записи не должен съедать библиотеку.
-      val tmp = file.resolveSibling(file.fileName.toString() + ".tmp")
-      Files.writeString(tmp, json.encodeToString(library))
-      Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING)
+      val tmp = File(file.parentFile, file.name + ".tmp")
+      tmp.writeText(json.encodeToString(library))
+      if (!tmp.renameTo(file)) {
+        file.delete()
+        if (!tmp.renameTo(file)) tmp.delete()
+      }
     }
   }
 }

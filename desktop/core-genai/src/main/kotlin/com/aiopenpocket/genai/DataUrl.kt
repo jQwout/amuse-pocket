@@ -4,9 +4,9 @@ package com.aiopenpocket.genai
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.nio.file.Files
-import java.nio.file.Path
-import java.util.Base64
+import java.io.File
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 /**
  * Приводит [GenerationRequest.inputImage] к тому, что понимает провайдер: ссылку оставляет как
@@ -19,18 +19,19 @@ suspend fun resolveInputImage(reference: String): String =
   if (reference.startsWith("http://") || reference.startsWith("https://") || reference.startsWith("data:")) {
     reference
   } else {
-    withContext(Dispatchers.IO) { imageFileToDataUrl(Path.of(reference)) }
+    withContext(Dispatchers.IO) { imageFileToDataUrl(File(reference)) }
   }
 
 /**
  * Локальный файл → `data:`-URL. Нужно для image-to-image и image-to-video: OpenRouter принимает
  * либо публичную ссылку, либо base64, а у картинки с диска пользователя публичной ссылки нет.
  */
-fun imageFileToDataUrl(path: Path): String {
-  val bytes = Files.readAllBytes(path)
-  val mime = mimeByExtension(path.fileName.toString())
+@OptIn(ExperimentalEncodingApi::class)
+fun imageFileToDataUrl(file: File): String {
+  val bytes = file.readBytes()
+  val mime = mimeByExtension(file.name)
   // Переводы строк в base64 недопустимы — только одна непрерывная строка.
-  return "data:$mime;base64," + Base64.getEncoder().encodeToString(bytes)
+  return "data:$mime;base64," + Base64.encode(bytes)
 }
 
 internal fun mimeByExtension(fileName: String): String =

@@ -13,8 +13,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import java.nio.file.Files
-import java.nio.file.Path
+import java.io.File
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -49,7 +48,7 @@ class GenerationQueueTest {
     }
   }
 
-  private fun fixture(home: Path): Pair<AppPaths, ArtifactStore> {
+  private fun fixture(home: File): Pair<AppPaths, ArtifactStore> {
     val paths = AppPaths(home = home, env = { null })
     // Байтовые результаты не качаются по сети — движок здесь только чтобы собрать ArtifactStore.
     val engine = MockEngine { _ ->
@@ -60,7 +59,7 @@ class GenerationQueueTest {
 
   @Test
   fun `finished image lands on disk, in DONE status and in history`() = runTest {
-    val home = createTempDirectory("genai-queue")
+    val home = createTempDirectory("genai-queue").toFile()
     val (paths, artifacts) = fixture(home)
     val store = JobStore(paths)
     val provider = FakeProvider(
@@ -90,9 +89,9 @@ class GenerationQueueTest {
     assertEquals(JobStatus.DONE, job.status)
     assertEquals(0.01, job.costUsd)
     assertNull(job.error)
-    val file = Path.of(job.artifacts.single())
-    assertTrue(Files.isRegularFile(file), "файл результата не создан: $file")
-    assertEquals("картинка", Files.readString(file))
+    val file = File(job.artifacts.single())
+    assertTrue(file.isFile, "файл результата не создан: $file")
+    assertEquals("картинка", file.readText())
     assertTrue(file.toString().endsWith(".png"), file.toString())
     // История переживает перезапуск: она уже на диске, а не только в памяти. Запись асинхронная,
     // поэтому дожимаем её close() — так же, как это делает приложение при закрытии окна.
@@ -102,7 +101,7 @@ class GenerationQueueTest {
 
   @Test
   fun `provider refusal is not reported as success`() = runTest {
-    val home = createTempDirectory("genai-queue")
+    val home = createTempDirectory("genai-queue").toFile()
     val (paths, artifacts) = fixture(home)
     val provider = FakeProvider(listOf(GenerationProgress.Failed("лимит запросов", code = "429")))
     val queue = GenerationQueue(
@@ -124,7 +123,7 @@ class GenerationQueueTest {
 
   @Test
   fun `video job remembers polling url and is resumed after restart`() = runTest {
-    val home = createTempDirectory("genai-queue")
+    val home = createTempDirectory("genai-queue").toFile()
     val (paths, artifacts) = fixture(home)
     val store = JobStore(paths)
     val pollingUrl = "https://openrouter.ai/api/v1/videos/abc"
@@ -168,7 +167,7 @@ class GenerationQueueTest {
 
   @Test
   fun `interrupted sync job is not restarted on its own`() = runTest {
-    val home = createTempDirectory("genai-queue")
+    val home = createTempDirectory("genai-queue").toFile()
     val (paths, artifacts) = fixture(home)
     val store = JobStore(paths)
     store.save(
@@ -201,7 +200,7 @@ class GenerationQueueTest {
 
   @Test
   fun `status update does not reshuffle history`() = runTest {
-    val home = createTempDirectory("genai-queue")
+    val home = createTempDirectory("genai-queue").toFile()
     val (paths, artifacts) = fixture(home)
     var next = 0
     val provider = FakeProvider(
@@ -229,7 +228,7 @@ class GenerationQueueTest {
 
   @Test
   fun `retry creates a new job instead of overwriting the old one`() = runTest {
-    val home = createTempDirectory("genai-queue")
+    val home = createTempDirectory("genai-queue").toFile()
     val (paths, artifacts) = fixture(home)
     var next = 0
     val provider = FakeProvider(listOf(GenerationProgress.Failed("лимит")))
@@ -257,7 +256,7 @@ class GenerationQueueTest {
    */
   @Test
   fun `jobs waiting on the provider do not hold up the queue`() = runTest {
-    val home = createTempDirectory("genai-queue")
+    val home = createTempDirectory("genai-queue").toFile()
     val (paths, artifacts) = fixture(home)
 
     val videoRequest = GenerationRequest(GenerationModality.VIDEO, "пляж", "google/veo-3.1-fast")
@@ -309,7 +308,7 @@ class GenerationQueueTest {
 
   @Test
   fun `history is capped, and only finished jobs get dropped`() = runTest {
-    val home = createTempDirectory("genai-queue")
+    val home = createTempDirectory("genai-queue").toFile()
     val (paths, artifacts) = fixture(home)
     val store = JobStore(paths)
 
@@ -349,7 +348,7 @@ class GenerationQueueTest {
 
   @Test
   fun `batch runs one job per variant under a shared batch id`() = runTest {
-    val home = createTempDirectory("genai-queue")
+    val home = createTempDirectory("genai-queue").toFile()
     val (paths, artifacts) = fixture(home)
     var next = 0
     val provider = FakeProvider(
@@ -381,7 +380,7 @@ class GenerationQueueTest {
 
   @Test
   fun `single-variant batch stays an ordinary job without a batch id`() = runTest {
-    val home = createTempDirectory("genai-queue")
+    val home = createTempDirectory("genai-queue").toFile()
     val (paths, artifacts) = fixture(home)
     val provider = FakeProvider(listOf(GenerationProgress.Failed("неважно")))
     val queue = GenerationQueue(
@@ -400,7 +399,7 @@ class GenerationQueueTest {
 
   @Test
   fun `comparison sends the same prompt to every model`() = runTest {
-    val home = createTempDirectory("genai-queue")
+    val home = createTempDirectory("genai-queue").toFile()
     val (paths, artifacts) = fixture(home)
     val provider = FakeProvider(listOf(GenerationProgress.Failed("неважно")))
     val queue = GenerationQueue(
@@ -421,7 +420,7 @@ class GenerationQueueTest {
 
   @Test
   fun `empty model list is a caller error, not a silent no-op`() = runTest {
-    val home = createTempDirectory("genai-queue")
+    val home = createTempDirectory("genai-queue").toFile()
     val (paths, artifacts) = fixture(home)
     val queue = GenerationQueue(
       provider = FakeProvider(),

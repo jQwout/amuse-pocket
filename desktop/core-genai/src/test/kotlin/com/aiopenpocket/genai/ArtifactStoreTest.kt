@@ -6,7 +6,7 @@ import io.ktor.client.engine.mock.respondError
 import io.ktor.http.HttpStatusCode
 import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.test.runTest
-import java.nio.file.Files
+import java.io.File
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -16,7 +16,7 @@ import kotlin.test.assertTrue
 class ArtifactStoreTest {
 
   private fun fixture(body: ByteArray = byteArrayOf(1, 2, 3)): Pair<ArtifactStore, AppPaths> {
-    val paths = AppPaths(home = createTempDirectory("genai-artifacts"), env = { null })
+    val paths = AppPaths(home = createTempDirectory("genai-artifacts").toFile(), env = { null })
     val engine = MockEngine { _ -> respond(content = ByteReadChannel(body), status = HttpStatusCode.OK) }
     return ArtifactStore(engine = engine, apiKey = { "sk-test" }, paths = paths) to paths
   }
@@ -32,8 +32,8 @@ class ArtifactStoreTest {
       ),
     )
 
-    assertEquals(listOf("01.png", "02.mp3"), saved.map { it.fileName.toString() })
-    assertEquals("картинка", Files.readString(saved.first()))
+    assertEquals(listOf("01.png", "02.mp3"), saved.map { it.name })
+    assertEquals("картинка", saved.first().readText())
   }
 
   @Test
@@ -42,13 +42,13 @@ class ArtifactStoreTest {
     val saved = store.save("job2", listOf(GenerationOutput.RemoteUrl("https://x/v.mp4", "video/mp4")))
 
     val file = saved.single()
-    assertTrue(file.fileName.toString().endsWith(".mp4"))
-    assertEquals(3, Files.size(file).toInt())
+    assertTrue(file.name.endsWith(".mp4"))
+    assertEquals(3, file.length().toInt())
   }
 
   @Test
   fun `a failed download is an error, not a zero-byte file`() = runTest {
-    val paths = AppPaths(home = createTempDirectory("genai-artifacts"), env = { null })
+    val paths = AppPaths(home = createTempDirectory("genai-artifacts").toFile(), env = { null })
     val engine = MockEngine { _ -> respondError(HttpStatusCode.Forbidden) }
     val store = ArtifactStore(engine = engine, apiKey = { "sk-test" }, paths = paths)
 
@@ -63,9 +63,9 @@ class ArtifactStoreTest {
     // История правится руками — `..` в id не должен уводить запись за пределы папки результатов.
     val saved = store.save("../../escaped", listOf(GenerationOutput.Bytes(byteArrayOf(1), "image/png")))
 
-    val file = saved.single().toAbsolutePath().normalize()
+    val file = saved.single().canonicalFile
     assertTrue(
-      file.startsWith(paths.outputDir.toAbsolutePath().normalize()),
+      file.path.startsWith(paths.outputDir.canonicalFile.path),
       "запись ушла за пределы папки результатов: $file",
     )
   }
@@ -75,6 +75,6 @@ class ArtifactStoreTest {
     val (store, _) = fixture()
     val saved = store.save("job4", listOf(GenerationOutput.Bytes(byteArrayOf(1), "application/weird")))
 
-    assertTrue(saved.single().fileName.toString().endsWith(".bin"))
+    assertTrue(saved.single().name.endsWith(".bin"))
   }
 }
