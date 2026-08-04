@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.FlowRowScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -40,6 +41,7 @@ import com.aiopenpocket.genai.GenerationJob
 import com.aiopenpocket.genai.GenerationModality
 import com.aiopenpocket.genai.JobStatus
 import com.aiopenpocket.genai.PromptPreset
+import com.aiopenpocket.genai.VideoCapabilities
 import java.io.File
 
 /**
@@ -168,6 +170,122 @@ fun ModelCompareField(
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+  }
+}
+
+/**
+ * Кадр-основа для видео. Отдельный компонент от [InputImageField], потому что кадров два и у них
+ * разный смысл: первый задаёт, с чего начать, последний — чем закончить.
+ */
+@Composable
+fun FramePicker(label: String, picked: File?, onPick: () -> Unit, onClear: () -> Unit) {
+  Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    OutlinedButton(onClick = onPick) { Text(label) }
+    if (picked == null) {
+      Text(
+        "не выбран",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    } else {
+      Text(picked.name, style = MaterialTheme.typography.bodySmall)
+      TextButton(onClick = onClear) { Text("убрать") }
+    }
+  }
+}
+
+/**
+ * Параметры видео — строго по тому, что модель заявила о себе в `/api/v1/videos/models`.
+ *
+ * Ни одного контрола «на всякий случай»: длительности, разрешения и соотношения у моделей разные,
+ * а у части их нет вовсе (поля приходят `null`). Показать ползунок «3–12 секунд» там, где модель
+ * принимает только 5 и 10, значит предложить значение, на котором запрос вернётся отказом — уже после
+ * того, как пользователь нажал «Сгенерировать».
+ *
+ * `null` в каждом поле означает «не задавать»: провайдер применит своё умолчание, и это честнее,
+ * чем выбрать за него.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun VideoParamsFields(
+  caps: VideoCapabilities?,
+  duration: Int?,
+  onDuration: (Int?) -> Unit,
+  resolution: String?,
+  onResolution: (String?) -> Unit,
+  aspectRatio: String?,
+  onAspectRatio: (String?) -> Unit,
+) {
+  if (caps == null || !caps.hasAnyControl) {
+    Text(
+      "Эта модель не сообщила, что умеет настраивать — отправим только промпт, " +
+        "остальное провайдер выберет сам.",
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    return
+  }
+
+  if (caps.durations.isNotEmpty()) {
+    ParamRow("Длительность", onReset = { onDuration(null) }, isSet = duration != null) {
+      for (option in caps.durations) {
+        FilterChip(
+          selected = duration == option,
+          onClick = { onDuration(if (duration == option) null else option) },
+          label = { Text("$option с") },
+        )
+      }
+    }
+  }
+
+  if (caps.resolutions.isNotEmpty()) {
+    ParamRow("Разрешение", onReset = { onResolution(null) }, isSet = resolution != null) {
+      for (option in caps.resolutions) {
+        FilterChip(
+          selected = resolution == option,
+          onClick = { onResolution(if (resolution == option) null else option) },
+          label = { Text(option) },
+        )
+      }
+    }
+  }
+
+  if (caps.aspectRatios.isNotEmpty()) {
+    ParamRow("Соотношение", onReset = { onAspectRatio(null) }, isSet = aspectRatio != null) {
+      for (option in caps.aspectRatios) {
+        FilterChip(
+          selected = aspectRatio == option,
+          onClick = { onAspectRatio(if (aspectRatio == option) null else option) },
+          label = { Text(option) },
+        )
+      }
+    }
+  }
+
+  if (caps.generatesAudio) {
+    Text(
+      "Модель озвучивает видео сама.",
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+  }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ParamRow(
+  title: String,
+  onReset: () -> Unit,
+  isSet: Boolean,
+  chips: @Composable FlowRowScope.() -> Unit,
+) {
+  Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+      Text(title, style = MaterialTheme.typography.bodyMedium)
+      // Сбросить = вернуться к умолчанию провайдера. Без этой кнопки снять выбор было бы нечем.
+      if (isSet) TextButton(onClick = onReset) { Text("сбросить") }
+    }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), content = chips)
   }
 }
 

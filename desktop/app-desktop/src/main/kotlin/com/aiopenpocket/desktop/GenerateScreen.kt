@@ -84,6 +84,16 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
 
   val modelsForModality = catalog.forModality(modality)
 
+  // Возможности берутся у ВЫБРАННОЙ модели: у видео они свои у каждой, и общего набора не бывает.
+  val videoCaps = modelsForModality.firstOrNull { it.id == model }?.video
+
+  // Ключ по модели: у другой модели другой набор длительностей и разрешений, и сохранять выбор
+  // от прежней значило бы отправить значение, которого новая модель не заявляла.
+  var lastFrame by remember(model) { mutableStateOf<File?>(null) }
+  var duration by remember(model) { mutableStateOf<Int?>(null) }
+  var resolution by remember(model) { mutableStateOf<String?>(null) }
+  var aspectRatio by remember(model) { mutableStateOf<String?>(null) }
+
   // Живой каталог приезжает уже после первой отрисовки. Дефолт подставляем только в ПУСТОЕ поле:
   // ключ remember по каталогу стирал бы модель, которую пользователь успел ввести руками.
   LaunchedEffect(catalogSnapshot, modality) {
@@ -164,11 +174,40 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
             onVoiceChange = { voice = it },
           )
 
-          GenerationModality.IMAGE, GenerationModality.VIDEO -> InputImageField(
+          GenerationModality.IMAGE -> InputImageField(
             picked = inputImage,
             modality = modality,
             onPick = { inputImage = pickImageFile() },
             onClear = { inputImage = null },
+          )
+
+          // Кадры показываем только те, что модель заявила: у части видео-моделей их нет вовсе.
+          GenerationModality.VIDEO -> {
+            if (videoCaps?.supportsFirstFrame != false) {
+              FramePicker("Первый кадр", inputImage, { inputImage = pickImageFile() }) { inputImage = null }
+            }
+            if (videoCaps?.supportsLastFrame == true) {
+              FramePicker("Последний кадр", lastFrame, { lastFrame = pickImageFile() }) { lastFrame = null }
+            }
+            Text(
+              "не обязательно — можно только по промпту",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
+        }
+      }
+
+      if (modality == GenerationModality.VIDEO && !compareModels) {
+        SectionCard("Параметры видео") {
+          VideoParamsFields(
+            caps = videoCaps,
+            duration = duration,
+            onDuration = { duration = it },
+            resolution = resolution,
+            onResolution = { resolution = it },
+            aspectRatio = aspectRatio,
+            onAspectRatio = { aspectRatio = it },
           )
         }
       }
@@ -181,12 +220,19 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
             // подвесили бы обработчик клика, а сам data-URL раздул бы историю на диске. Разворачивает
             // его провайдер на IO-диспетчере, уже перед самим запросом.
             lastError = null
+            val video = modality == GenerationModality.VIDEO
             val request = GenerationRequest(
               modality = modality,
               prompt = prompt.trim(),
               model = model.trim(),
               inputImage = inputImage?.toString(),
               voice = voice.trim().ifBlank { null },
+              // Параметры видео уходят только с видео: у картинки и озвучки их нет, и слать туда
+              // duration значило бы гадать за провайдера.
+              lastFrameImage = lastFrame?.toString()?.takeIf { video },
+              durationSeconds = duration.takeIf { video },
+              resolution = resolution.takeIf { video },
+              aspectRatio = aspectRatio.takeIf { video },
             )
             if (compareModels) {
               container.submitAcrossModels(request, selectedModels.toList())

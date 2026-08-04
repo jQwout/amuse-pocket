@@ -233,11 +233,24 @@ class OpenRouterProvider(
     request: GenerationRequest,
     key: String,
   ) {
+    // frame_images собираем только из того, что реально задано: пустой массив это не «кадров нет»,
+    // а «вот тебе image-to-video без картинок», и провайдер вправе ответить на это отказом.
+    val frames = buildList {
+      request.inputImage?.let {
+        add(FrameImageDto(imageUrl = ImageUrlDto(resolveInputImage(it)), frameType = FIRST_FRAME))
+      }
+      request.lastFrameImage?.let {
+        add(FrameImageDto(imageUrl = ImageUrlDto(resolveInputImage(it)), frameType = LAST_FRAME))
+      }
+    }
     val body = json.encodeToString(
       VideoRequest(
         model = request.model,
         prompt = request.prompt,
-        imageUrl = request.inputImage?.let { resolveInputImage(it) },
+        duration = request.durationSeconds,
+        resolution = request.resolution,
+        aspectRatio = request.aspectRatio,
+        frameImages = frames.ifEmpty { null },
       ),
     )
     val response = httpClient.post("$baseUrl/videos") {
@@ -345,6 +358,9 @@ class OpenRouterProvider(
     private const val REQUEST_TIMEOUT_MS = 180_000L
     private const val ATTRIBUTION_URL = "https://github.com/jQwout/ai-open-pocket-2"
     private const val ATTRIBUTION_TITLE = "AI Open Pocket Desktop"
+
+    const val FIRST_FRAME = "first_frame"
+    const val LAST_FRAME = "last_frame"
 
     private val SUCCESS_STATUSES = setOf("completed", "succeeded", "success")
     private val FAILURE_STATUSES = setOf("failed", "error", "cancelled", "canceled")
@@ -456,12 +472,23 @@ private data class SpeechRequest(
 private data class VideoRequest(
   val model: String,
   val prompt: String,
+  /** Секунды. Допустимые значения свои у каждой модели — см. `supported_durations` в каталоге. */
+  val duration: Int? = null,
+  val resolution: String? = null,
+  val aspectRatio: String? = null,
   /**
-   * image-to-video. Имя поля взято по аналогии с остальным API (`image_url`) — единственная деталь
-   * видео-протокола, которую не удалось сверить с живым API из этого окружения (сеть до
-   * openrouter.ai закрыта политикой). Text-to-video от него не зависит: поле опускается.
+   * Первый и последний кадр. Раньше здесь стояло верхнее поле `image_url`, взятое по аналогии с
+   * остальным API, — такого поля у `/videos` нет вовсе. Схема сверена с документацией 2026-08-04:
+   * это массив, и у каждой записи обязателен `frame_type`.
    */
-  val imageUrl: String? = null,
+  val frameImages: List<FrameImageDto>? = null,
+)
+
+@Serializable
+private data class FrameImageDto(
+  val type: String = "image_url",
+  val imageUrl: ImageUrlDto,
+  val frameType: String,
 )
 
 @Serializable

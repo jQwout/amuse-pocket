@@ -102,6 +102,7 @@ class GenaiCatalogService(
       // разобралось бы в пустой список — 429 выглядел бы как «моделей не нашлось».
       if (!response.status.isSuccess()) return@withContext null
       val live = toCatalog(json.decodeFromString<GenaiModelsResponse>(response.body<String>()).data)
+        .let { GenaiModelCatalog(it.models + fetchVideoModels()) }
       // Ответ разобрался, но полезного в нём нет: перезаписывать рабочий кеш пустотой нельзя.
       if (live.models.isEmpty()) return@withContext null
       writeCache(live, now)
@@ -135,6 +136,11 @@ class GenaiCatalogService(
       // фильтра маршрутизатор становился моделью по умолчанию — проверено на живом /models.
       .filterNot { it.id.substringBefore('/') == ROUTER_VENDOR }
       .mapNotNull { model -> modalityOf(model)?.let { model to it } }
+      // Видео берём ТОЛЬКО из отдельного каталога: там у модели есть длительности, разрешения и
+      // соотношения, а здесь их нет вовсе — контролы оказались бы пустыми, зато запись с тем же id
+      // задвоилась бы. Сегодня общий каталог видео и не отдаёт (проверено), но правило должно быть
+      // одно, а не «как повезёт с ответом».
+      .filterNot { (_, modality) -> modality == GenerationModality.VIDEO }
       .sortedWith(
         compareBy<Pair<GenaiCatalogModel, GenerationModality>> {
           seedOrder.indexOf(it.first.id).takeIf { index -> index >= 0 } ?: Int.MAX_VALUE
@@ -156,6 +162,45 @@ class GenaiCatalogService(
         }
       }
     return GenaiModelCatalog(entries)
+  }
+
+  /**
+   * Видео живёт за отдельным `GET /api/v1/videos/models`, а в общем `/api/v1/models` его нет вовсе
+   * (проверено на живом API 2026-08-04: 11 картиночных моделей, 4 аудио, ноль видео). До этого
+   * видео-подсказки держались на сиде — на слагах, вписанных руками.
+   *
+   * Отказ этого эндпоинта не роняет весь каталог: возвращаем пустой список, и незакрытая
+   * модальность откатится на встроенные подсказки в [assemble] — как и раньше.
+   */
+  private suspend fun fetchVideoModels(): List<GenaiModelEntry> = try {
+    val response = httpClient.get(VIDEO_MODELS_URL)
+    if (!response.status.isSuccess()) {
+      emptyList()
+    } else {
+      json.decodeFromString<VideoModelsResponse>(response.body<String>()).data
+        .filter { it.id.isNotBlank() }
+        .distinctBy { it.id }
+        .mapIndexed { index, dto ->
+          GenaiModelEntry(
+            id = dto.id,
+            modality = GenerationModality.VIDEO,
+            priority = index + 1,
+            video = VideoCapabilities(
+              durations = dto.supportedDurations.orEmpty(),
+              resolutions = dto.supportedResolutions.orEmpty(),
+              aspectRatios = dto.supportedAspectRatios.orEmpty(),
+              supportsFirstFrame = dto.supportedFrameImages.orEmpty().contains(FIRST_FRAME),
+              supportsLastFrame = dto.supportedFrameImages.orEmpty().contains(LAST_FRAME),
+              generatesAudio = dto.generateAudio == true,
+              supportsSeed = dto.seed == true,
+            ),
+          )
+        }
+    }
+  } catch (e: CancellationException) {
+    throw e
+  } catch (e: Exception) {
+    emptyList()
   }
 
   /**
@@ -259,6 +304,12 @@ class GenaiCatalogService(
 
   private companion object {
     const val MODELS_URL = "https://openrouter.ai/api/v1/models"
+
+    /** Видео у OpenRouter живёт за отдельным каталогом — в общем его нет вовсе. */
+    const val VIDEO_MODELS_URL = "https://openrouter.ai/api/v1/videos/models"
+
+    const val FIRST_FRAME = "first_frame"
+    const val LAST_FRAME = "last_frame"
     const val CONNECT_TIMEOUT_MS = 8_000L
     const val REQUEST_TIMEOUT_MS = 20_000L
 
@@ -294,6 +345,26 @@ internal data class GenaiCatalogModel(
   /** Unix-время появления модели — по нему сортируем «новые выше». */
   val created: Long = 0,
   val architecture: GenaiArchitecture = GenaiArchitecture(),
+)
+
+// --- DTO ответа /api/v1/videos/models. Поля приходят null у моделей, которые их не заявляют, —
+// поэтому здесь nullable-списки, а не пустые по умолчанию: «не заявлено» и «пусто» это одно и то
+// же для UI, но разное для отладки, и подменять одно другим на уровне DTO незачем.
+
+@Serializable
+internal data class VideoModelsResponse(
+  val data: List<VideoModelDto> = emptyList(),
+)
+
+@Serializable
+internal data class VideoModelDto(
+  val id: String = "",
+  val supportedResolutions: List<String>? = null,
+  val supportedAspectRatios: List<String>? = null,
+  val supportedDurations: List<Int>? = null,
+  val supportedFrameImages: List<String>? = null,
+  val generateAudio: Boolean? = null,
+  val seed: Boolean? = null,
 )
 
 @Serializable

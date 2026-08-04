@@ -92,6 +92,8 @@ data class GenaiModelEntry(
   val label: String = "",
   /** Голоса, если модель их поддерживает (TTS). */
   val voices: List<String> = emptyList(),
+  /** Что умеет видео-модель. null у всех остальных модальностей. */
+  val video: VideoCapabilities? = null,
 ) {
   /**
    * Подпись для UI. Своя подпись побеждает: она стоит в `genai-models.json` руками, то есть это
@@ -102,6 +104,28 @@ data class GenaiModelEntry(
 
   /** Вендор для второй строки в списке: `google`, `openai`, … Пусто, если слаг без вендора. */
   val vendor: String get() = modelVendor(id)
+}
+
+/**
+ * Что видео-модель принимает — по её собственным словам из `/api/v1/videos/models`.
+ *
+ * Списки пустые, а не «значения по умолчанию»: у части моделей поля приходят `null`, и подставить
+ * туда «720p, 5 секунд» значило бы предложить пользователю то, чего провайдер не обещал. Пустой
+ * список для UI — команда не рисовать контрол вовсе, а не рисовать его пустым.
+ */
+@Serializable
+data class VideoCapabilities(
+  /** Допустимые длительности в секундах. Именно список, а не диапазон: модели принимают не всё подряд. */
+  val durations: List<Int> = emptyList(),
+  val resolutions: List<String> = emptyList(),
+  val aspectRatios: List<String> = emptyList(),
+  val supportsFirstFrame: Boolean = false,
+  val supportsLastFrame: Boolean = false,
+  val generatesAudio: Boolean = false,
+  val supportsSeed: Boolean = false,
+) {
+  val hasAnyControl: Boolean
+    get() = durations.isNotEmpty() || resolutions.isNotEmpty() || aspectRatios.isNotEmpty()
 }
 
 /** Вендор из слага (`google/gemini-3-pro-image` → `google`). Пусто, если разделителя нет. */
