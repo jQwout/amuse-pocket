@@ -5,6 +5,7 @@ package com.aiopenpocket.desktop
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -41,17 +42,43 @@ import com.aiopenpocket.genai.JobStatus
 import com.aiopenpocket.genai.PromptPreset
 import java.io.File
 
+/**
+ * Блок формы: подпись и содержимое в карточке.
+ *
+ * Экран был одной плоской колонкой, где модальность, модель, промпт и запуск сливались в общий
+ * список полей — глазом не найти, где кончается одно и начинается другое.
+ */
+@Composable
+fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+  Card(Modifier.fillMaxWidth()) {
+    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+      Text(
+        title,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+      content()
+    }
+  }
+}
+
 /** Модель — свободный текст с подсказками: устаревший слаг в каталоге не должен мешать ввести свой. */
 @Composable
 fun ModelField(model: String, suggestions: List<GenaiModelEntry>, onModelChange: (String) -> Unit) {
   var expanded by remember { mutableStateOf(false) }
-  Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+  Row(
+    Modifier.fillMaxWidth(),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
     OutlinedTextField(
       value = model,
       onValueChange = onModelChange,
       label = { Text("Модель") },
       singleLine = true,
-      modifier = Modifier.width(520.dp),
+      // Тянется по окну, а не фиксированные 520dp: слаги бывают длинными, и на широком окне
+      // поле обрывало их посреди пустого места.
+      modifier = Modifier.weight(1f),
     )
     Box {
       OutlinedButton(onClick = { expanded = true }) { Text("Из списка") }

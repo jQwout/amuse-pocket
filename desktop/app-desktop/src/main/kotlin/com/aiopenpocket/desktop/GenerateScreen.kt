@@ -68,76 +68,81 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
   val readyToSubmit = prompt.isNotBlank() && apiKey.isNotBlank() &&
     if (compareModels) selectedModels.isNotEmpty() else model.isNotBlank()
 
-  Column(Modifier.fillMaxSize()) {
-    Text("Генерация", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-    Spacer(Modifier.height(16.dp))
+  Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column {
+      Text("Генерация", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+      Text(
+        "задание уходит в очередь — готовое ищи в «Истории», там же стоимость",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
 
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-      for (item in GenerationModality.entries) {
+    SectionCard("Что генерируем") {
+      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (item in GenerationModality.entries) {
+          FilterChip(
+            selected = modality == item,
+            onClick = { modality = item },
+            label = { Text(item.label) },
+          )
+        }
+      }
+      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         FilterChip(
-          selected = modality == item,
-          onClick = { modality = item },
-          label = { Text(item.label) },
+          selected = compareModels,
+          onClick = { compareModels = !compareModels },
+          label = { Text("Сравнить модели") },
+        )
+        if (!compareModels) VariantsField(variants, VARIANT_OPTIONS) { variants = it }
+      }
+    }
+
+    SectionCard(if (compareModels) "Модели для сравнения" else "Модель") {
+      if (compareModels) {
+        ModelCompareField(
+          suggestions = modelsForModality,
+          selected = selectedModels,
+          onToggle = { id ->
+            selectedModels = if (id in selectedModels) selectedModels - id else selectedModels + id
+          },
+        )
+      } else {
+        ModelField(model = model, suggestions = modelsForModality) { model = it }
+      }
+    }
+
+    SectionCard(if (modality == GenerationModality.AUDIO) "Текст для озвучки" else "Промпт") {
+      PresetPicker(
+        presets = prompts.forModality(modality),
+        onApply = { prompt = it.applyTo(prompt) },
+        onSaveCurrent = { savingPreset = true },
+      )
+
+      OutlinedTextField(
+        value = prompt,
+        onValueChange = { prompt = it },
+        label = { Text(if (modality == GenerationModality.AUDIO) "Что озвучить" else "Что нарисовать") },
+        modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp),
+        minLines = 3,
+      )
+
+      when (modality) {
+        GenerationModality.AUDIO -> VoiceField(
+          voice = voice,
+          suggestions = modelsForModality.flatMap { it.voices }.distinct(),
+          onVoiceChange = { voice = it },
+        )
+
+        GenerationModality.IMAGE, GenerationModality.VIDEO -> InputImageField(
+          picked = inputImage,
+          modality = modality,
+          onPick = { inputImage = pickImageFile() },
+          onClear = { inputImage = null },
         )
       }
     }
-    Spacer(Modifier.height(16.dp))
 
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-      FilterChip(
-        selected = compareModels,
-        onClick = { compareModels = !compareModels },
-        label = { Text("Сравнить модели") },
-      )
-      if (!compareModels) VariantsField(variants, VARIANT_OPTIONS) { variants = it }
-    }
-    Spacer(Modifier.height(12.dp))
-
-    if (compareModels) {
-      ModelCompareField(
-        suggestions = modelsForModality,
-        selected = selectedModels,
-        onToggle = { id ->
-          selectedModels = if (id in selectedModels) selectedModels - id else selectedModels + id
-        },
-      )
-    } else {
-      ModelField(model = model, suggestions = modelsForModality) { model = it }
-    }
-    Spacer(Modifier.height(12.dp))
-
-    PresetPicker(
-      presets = prompts.forModality(modality),
-      onApply = { prompt = it.applyTo(prompt) },
-      onSaveCurrent = { savingPreset = true },
-    )
-    Spacer(Modifier.height(8.dp))
-
-    OutlinedTextField(
-      value = prompt,
-      onValueChange = { prompt = it },
-      label = { Text(if (modality == GenerationModality.AUDIO) "Текст для озвучки" else "Промпт") },
-      modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp),
-      minLines = 3,
-    )
-    Spacer(Modifier.height(12.dp))
-
-    when (modality) {
-      GenerationModality.AUDIO -> VoiceField(
-        voice = voice,
-        suggestions = modelsForModality.flatMap { it.voices }.distinct(),
-        onVoiceChange = { voice = it },
-      )
-
-      GenerationModality.IMAGE, GenerationModality.VIDEO -> InputImageField(
-        picked = inputImage,
-        modality = modality,
-        onPick = { inputImage = pickImageFile() },
-        onClear = { inputImage = null },
-      )
-    }
-
-    Spacer(Modifier.height(16.dp))
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
       Button(
         enabled = readyToSubmit,
@@ -177,27 +182,39 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
       }
     }
 
-    Spacer(Modifier.height(20.dp))
     HorizontalDivider()
-    Spacer(Modifier.height(12.dp))
-    Text("Очередь", style = MaterialTheme.typography.titleMedium)
-    Spacer(Modifier.height(8.dp))
 
-    val visible = jobs.filter { !it.status.isTerminal } + jobs.filter { it.status.isTerminal }.takeLast(5)
-    if (visible.isEmpty()) {
-      Text(
-        "Пока пусто. Первое задание появится здесь со статусом и стоимостью.",
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-      )
-    } else {
-      LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(visible, key = { it.id }) { job ->
-          JobRow(
-            job = job,
-            onCancel = { container.queue.cancel(job.id) },
-            onRetry = { container.queue.retry(job.id) },
+    // Очередь забирает остаток окна: карточки формы фиксированной высоты, а заданий бывает много.
+    Column(Modifier.weight(1f)) {
+      val visible = jobs.filter { !it.status.isTerminal } + jobs.filter { it.status.isTerminal }.takeLast(5)
+      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Очередь", style = MaterialTheme.typography.titleMedium)
+        val active = jobs.count { !it.status.isTerminal }
+        if (active > 0) {
+          Text(
+            "в работе: $active",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
+        }
+      }
+      Spacer(Modifier.height(8.dp))
+
+      if (visible.isEmpty()) {
+        Text(
+          "Пока пусто. Первое задание появится здесь со статусом и стоимостью.",
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      } else {
+        LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          items(visible, key = { it.id }) { job ->
+            JobRow(
+              job = job,
+              onCancel = { container.queue.cancel(job.id) },
+              onRetry = { container.queue.retry(job.id) },
+            )
+          }
         }
       }
     }
