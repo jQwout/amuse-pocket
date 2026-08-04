@@ -5,6 +5,7 @@ package com.aiopenpocket.desktop
 import com.aiopenpocket.genai.AccessCheck
 import com.aiopenpocket.genai.ApiKeyStore
 import com.aiopenpocket.genai.AppPaths
+import com.aiopenpocket.genai.GenaiCatalogSnapshot
 import com.aiopenpocket.genai.GenaiModelCatalog
 import com.aiopenpocket.genai.GenaiRuntime
 import com.aiopenpocket.genai.GenerationModality
@@ -32,7 +33,17 @@ class AppContainer(private val scope: CoroutineScope) : AutoCloseable {
   private val _apiKey = MutableStateFlow(keyStore.read())
   val apiKey: StateFlow<String> = _apiKey.asStateFlow()
 
-  val catalog: GenaiModelCatalog = GenaiModelCatalog.load(paths.modelsOverrideFile)
+  /**
+   * Каталог моделей реактивный, а не значение: живой список приезжает из сети уже после того, как
+   * окно нарисовано. До ответа показываем встроенные подсказки, честно помечая их неавторитетными.
+   */
+  private val _catalog = MutableStateFlow(
+    GenaiCatalogSnapshot(GenaiModelCatalog.load(paths.modelsOverrideFile), authoritative = false),
+  )
+  val catalog: StateFlow<GenaiCatalogSnapshot> = _catalog.asStateFlow()
+
+  private val _refreshingCatalog = MutableStateFlow(false)
+  val refreshingCatalog: StateFlow<Boolean> = _refreshingCatalog.asStateFlow()
 
   // Ключ читается лямбдой, а не значением: пользователь вводит его в настройках уже после того,
   // как рантайм собран, и пересобирать граф на каждое сохранение не нужно.
@@ -63,10 +74,29 @@ class AppContainer(private val scope: CoroutineScope) : AutoCloseable {
     // Видео-задание, отправленное в прошлый запуск, продолжает опрашиваться; прерванные синхронные
     // задания помечаются упавшими, чтобы история не врала про «в работе».
     queue.resumeUnfinished()
+    // Каталог подтягивается в фоне: ключ для этого не нужен, эндпоинт публичный.
+    scope.launch { _catalog.value = runtime.catalogService.refreshIfStale() }
   }
 
+  /** Обновление каталога по кнопке — в обход суточного TTL. Неудача оставляет прежний список. */
+  fun refreshCatalog() {
+    if (_refreshingCatalog.value) return
+    _refreshingCatalog.value = true
+    scope.launch {
+      runtime.catalogService.refresh()?.let { _catalog.value = GenaiCatalogSnapshot(it, authoritative = true) }
+      _refreshingCatalog.value = false
+    }
+  }
+
+  /**
+   * Удалось ли сузить права на файле ключа при последнем сохранении. null — ещё не сохраняли.
+   * На Windows это `false` штатно, и Настройки говорят об этом прямо, а не рисуют «права 600».
+   */
+  private val _keyRestrictedToOwner = MutableStateFlow<Boolean?>(null)
+  val keyRestrictedToOwner: StateFlow<Boolean?> = _keyRestrictedToOwner.asStateFlow()
+
   fun saveApiKey(key: String) {
-    keyStore.write(key)
+    _keyRestrictedToOwner.value = keyStore.write(key)
     _apiKey.value = key.trim()
   }
 

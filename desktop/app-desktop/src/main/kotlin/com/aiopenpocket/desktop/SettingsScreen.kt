@@ -34,6 +34,7 @@ import com.aiopenpocket.genai.AccessCheck
 fun SettingsScreen(container: AppContainer) {
   val savedKey by container.apiKey.collectAsState()
   val prompts by container.prompts.collectAsState()
+  val restricted by container.keyRestrictedToOwner.collectAsState()
   var draft by remember(savedKey) { mutableStateOf(savedKey) }
   var reveal by remember { mutableStateOf(false) }
   var saved by remember { mutableStateOf(false) }
@@ -68,7 +69,13 @@ fun SettingsScreen(container: AppContainer) {
     Spacer(Modifier.height(6.dp))
     Text(
       when {
-        saved -> "Сохранён в ${container.configDir}/openrouter.key (права 600)"
+        // «Права 600» обещать нельзя: на Windows их не существует и сузить их нечем. Пишем то,
+        // что произошло на самом деле, — иначе экран врёт про защиту ключа.
+        saved && restricted == true -> "Сохранён в ${container.configDir}/openrouter.key (права 600)"
+        saved && restricted == false ->
+          "Сохранён в ${container.configDir}/openrouter.key. Сузить права файла эта система не умеет " +
+            "(на Windows POSIX-прав нет): ключ защищён только правами профиля."
+        saved -> "Сохранён в ${container.configDir}/openrouter.key"
         savedKey.isBlank() -> "Ключ не задан — генерация не запустится"
         else -> "Ключ сохранён в ${container.configDir}/openrouter.key"
       },
@@ -91,10 +98,12 @@ fun SettingsScreen(container: AppContainer) {
     Spacer(Modifier.height(8.dp))
     PathRow("Результаты", container.outputDir.toString()) { openInSystem(container.outputDir) }
     PathRow("Конфиг и ключ", container.configDir.toString()) { openInSystem(container.configDir) }
+    Spacer(Modifier.height(16.dp))
+    CatalogRow(container)
     Spacer(Modifier.height(12.dp))
     Text(
-      "Список моделей можно переопределить файлом ${container.modelsOverrideFile} — " +
-        "он перекрывает встроенный, так что новые модели OpenRouter добавляются без пересборки.",
+      "Свой список моделей — ${container.modelsOverrideFile}. Он задаёт порядок, подписи и голоса " +
+        "и остаётся страховкой, когда живого списка нет; модель всегда можно ввести и руками.",
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -107,10 +116,48 @@ fun SettingsScreen(container: AppContainer) {
     )
     Spacer(Modifier.height(8.dp))
     Text(
-      "Загружено: моделей ${container.catalog.models.size}, заготовок ${prompts.presets.size}",
+      "Загружено заготовок: ${prompts.presets.size}",
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+  }
+}
+
+/**
+ * Откуда взялся список моделей. Разница «список провайдера» и «встроенные подсказки» показывается
+ * прямо: по неавторитетному списку нельзя заключить, что модели больше нет, и пользователь должен
+ * понимать, что видит запасной вариант, а не актуальный каталог OpenRouter.
+ */
+@Composable
+private fun CatalogRow(container: AppContainer) {
+  val snapshot by container.catalog.collectAsState()
+  val refreshing by container.refreshingCatalog.collectAsState()
+
+  Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    OutlinedButton(enabled = !refreshing, onClick = { container.refreshCatalog() }) {
+      Text(if (refreshing) "Обновляю…" else "Обновить каталог")
+    }
+    Column {
+      Text(
+        "Моделей ${snapshot.catalog.models.size}: " +
+          if (snapshot.authoritative) "список OpenRouter" else "встроенные подсказки",
+        style = MaterialTheme.typography.bodyMedium,
+      )
+      Text(
+        if (snapshot.authoritative) {
+          "Скачан с /api/v1/models и закеширован; обновляется раз в сутки сам."
+        } else {
+          "Живой список пока не получен — показываем встроенный. По нему нельзя судить, " +
+            "что модель снята с обслуживания."
+        },
+        style = MaterialTheme.typography.bodySmall,
+        color = if (snapshot.authoritative) {
+          MaterialTheme.colorScheme.onSurfaceVariant
+        } else {
+          MaterialTheme.colorScheme.error
+        },
+      )
+    }
   }
 }
 
