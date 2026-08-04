@@ -78,12 +78,25 @@ class AppContainer(private val scope: CoroutineScope) : AutoCloseable {
     scope.launch { _catalog.value = runtime.catalogService.refreshIfStale() }
   }
 
+  /**
+   * Неудачное обновление каталога. Без этого признака кнопка просто переставала крутиться, и «сеть
+   * отвалилась» было не отличить от «список не изменился».
+   */
+  private val _catalogRefreshFailed = MutableStateFlow(false)
+  val catalogRefreshFailed: StateFlow<Boolean> = _catalogRefreshFailed.asStateFlow()
+
   /** Обновление каталога по кнопке — в обход суточного TTL. Неудача оставляет прежний список. */
   fun refreshCatalog() {
     if (_refreshingCatalog.value) return
     _refreshingCatalog.value = true
+    _catalogRefreshFailed.value = false
     scope.launch {
-      runtime.catalogService.refresh()?.let { _catalog.value = GenaiCatalogSnapshot(it, authoritative = true) }
+      val fresh = runtime.catalogService.refresh()
+      if (fresh != null) {
+        _catalog.value = GenaiCatalogSnapshot(fresh, authoritative = true)
+      } else {
+        _catalogRefreshFailed.value = true
+      }
       _refreshingCatalog.value = false
     }
   }

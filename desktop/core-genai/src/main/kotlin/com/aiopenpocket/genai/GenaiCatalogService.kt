@@ -79,15 +79,19 @@ class GenaiCatalogService(
    * Каталог для UI: свежий кеш, обновление по сети, старый кеш или сид — в этом порядке.
    * У вызывающего всегда есть что показать, поэтому возвращается не nullable.
    */
-  suspend fun refreshIfStale(now: Long = System.currentTimeMillis()): GenaiCatalogSnapshot {
-    val cached = withContext(Dispatchers.IO) { readCache() }
+  suspend fun refreshIfStale(
+    now: Long = System.currentTimeMillis(),
+  ): GenaiCatalogSnapshot = withContext(Dispatchers.IO) {
+    // Весь метод на IO, а не только чтение кеша: assemble() и seed() тоже читают файлы с диска
+    // (свой список моделей, встроенный ресурс), а зовут этот метод с Dispatchers.Default.
+    val cached = readCache()
     if (cached != null && now - cached.fetchedAt < TTL_MS) {
-      return GenaiCatalogSnapshot(assemble(cached.catalog), authoritative = true)
+      return@withContext GenaiCatalogSnapshot(assemble(cached.catalog), authoritative = true)
     }
-    refresh(now)?.let { return GenaiCatalogSnapshot(it, authoritative = true) }
+    refresh(now)?.let { return@withContext GenaiCatalogSnapshot(it, authoritative = true) }
     // Сходить не вышло — старый кеш всё равно список провайдера, просто вчерашний.
-    cached?.let { return GenaiCatalogSnapshot(assemble(it.catalog), authoritative = true) }
-    return GenaiCatalogSnapshot(seed(), authoritative = false)
+    cached?.let { return@withContext GenaiCatalogSnapshot(assemble(it.catalog), authoritative = true) }
+    GenaiCatalogSnapshot(seed(), authoritative = false)
   }
 
   /** Скачивает и кеширует каталог. null — сходить не удалось (сеть, 5xx, мусор в ответе). */
@@ -169,6 +173,13 @@ class GenaiCatalogService(
   }
 
   /**
+   * Маршрутизатор, а не генератор. Список пользователя (`pinned`) этим фильтром не трогаем: если он
+   * вписал `openrouter/auto` руками, это осознанный выбор, а не мусор из живого списка.
+   */
+  private fun isRouter(entry: GenaiModelEntry): Boolean =
+    entry.id.substringBefore('/') == ROUTER_VENDOR
+
+  /**
    * Собирает то, что увидит пользователь: сначала его собственные модели, потом живой список, потом
    * встроенные подсказки — но только по модальностям, которых не закрыл никто выше.
    *
@@ -181,13 +192,6 @@ class GenaiCatalogService(
    * живёт за отдельным `POST /videos`. Без этого отката обновление каталога молча отняло бы у
    * пользователя выбор видео-моделей целиком.
    */
-  /**
-   * Маршрутизатор, а не генератор. Список пользователя (`pinned`) этим фильтром не трогаем: если он
-   * вписал `openrouter/auto` руками, это осознанный выбор, а не мусор из живого списка.
-   */
-  private fun isRouter(entry: GenaiModelEntry): Boolean =
-    entry.id.substringBefore('/') == ROUTER_VENDOR
-
   private fun assemble(live: GenaiModelCatalog): GenaiModelCatalog {
     val pinnedModels = pinned().models
     val pinnedIds = pinnedModels.map { it.id }.toSet()
@@ -209,6 +213,7 @@ class GenaiCatalogService(
     )
   }
 
+  @Synchronized
   private fun readCache(): CachedGenaiCatalog? {
     if (!cacheFile.isFile) return null
     return runCatching {
@@ -221,7 +226,18 @@ class GenaiCatalogService(
    * попавший в это окно, увидел бы обрубок. `java.nio.file.Files.move` здесь нельзя — модуль держит
    * рамки Android API 24, см. [AppPaths]. `Throwable`, а не `Exception`: кеш моделей не повод
    * ронять процесс.
+   *
+   * [Synchronized] обязателен, а не «на всякий случай», — ровно по той же причине, что в `JobStore`.
+   * Обновление каталога стартует само при запуске окна, а кнопка «Обновить каталог» доступна
+   * пользователю в тот же момент: её флаг защищает только от повторного нажатия. Два писателя через
+   * один `.tmp` — и второй не находит своего временного файла, уходит в ветку «удалить и
+   * переименовать» и сносит уже сохранённый каталог. Это не теория: тест на 32 параллельных
+   * обновления падал 3 прогона из 3 с «каталог исчез».
+   *
+   * Замок на экземпляре, а писателей на файл ровно столько же — сервис в приложении один
+   * ([GenaiRuntime]). Второй экземпляр на тот же файл этой защиты не получит.
    */
+  @Synchronized
   private fun writeCache(catalog: GenaiModelCatalog, fetchedAt: Long) {
     val tmp = File(cacheFile.parentFile, cacheFile.name + ".tmp")
     try {

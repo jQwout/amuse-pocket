@@ -7,7 +7,13 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.utils.io.ByteReadChannel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNamingStrategy
 import java.io.File
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
@@ -199,6 +205,37 @@ class GenaiCatalogServiceTest {
 
     assertTrue(snapshot.authoritative)
     assertEquals(listOf("vendor/img-newer"), snapshot.catalog.forModality(GenerationModality.IMAGE).map { it.id })
+  }
+
+  /**
+   * Единственный тест здесь, который гоняет сервис на настоящих потоках. Остальные однопоточные и
+   * гонку записи увидеть не могут в принципе.
+   *
+   * Гонка достижима не в теории: обновление каталога стартует само при запуске окна, а кнопка
+   * «Обновить каталог» доступна пользователю в тот же момент — её флаг защищает только от повторного
+   * нажатия, но не от фонового обновления. Два писателя через один `.tmp` — ровно та поломка, на
+   * которой уже обожглись в JobStore: второй не находит своего временного файла, уходит в ветку
+   * «удалить и переименовать» и сносит уже сохранённый каталог.
+   */
+  @Test
+  fun `concurrent refreshes leave the cache readable and no temp file behind`() {
+    val cache = cacheFile()
+    cache.parentFile.mkdirs()
+    val service = service(jsonEngine(liveBody), cache)
+
+    runBlocking(Dispatchers.Default) {
+      List(32) { index -> launch { service.refresh(now = index.toLong()) } }.joinAll()
+    }
+
+    assertTrue(cache.isFile, "каталог исчез: писатели снесли файл друг у друга")
+    val decoded = Json {
+      ignoreUnknownKeys = true
+      namingStrategy = JsonNamingStrategy.SnakeCase
+    }.decodeFromString<CachedGenaiCatalog>(cache.readText())
+    assertTrue(decoded.catalog.models.isNotEmpty(), "кеш разобрался, но пуст")
+
+    val leftovers = cache.parentFile.listFiles().orEmpty().filter { it.name.endsWith(".tmp") }
+    assertTrue(leftovers.isEmpty(), "остался временный файл: $leftovers")
   }
 
   @Test
