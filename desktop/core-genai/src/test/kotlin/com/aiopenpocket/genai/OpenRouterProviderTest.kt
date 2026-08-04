@@ -97,7 +97,9 @@ class OpenRouterProviderTest {
         prompt = "оживи кадр",
         model = "vendor/veo",
         inputImage = "https://example.com/first.png",
-        lastFrameImage = "https://example.com/last.png",
+        attachments = listOf(
+          InputAttachment("https://example.com/last.png", AttachmentRole.LAST_FRAME),
+        ),
       ),
     ).toList()
 
@@ -120,6 +122,79 @@ class OpenRouterProviderTest {
     ).toList()
 
     assertTrue(!sentBody(engine).contains("frame_images"), sentBody(engine))
+  }
+
+  @Test
+  fun `every attachment travels as its own image part`() = runTest {
+    val engine = jsonEngine(
+      """{"choices":[{"message":{"images":[{"image_url":{"url":"data:image/png;base64,aGVsbG8="}}]}}]}""",
+    )
+
+    provider(engine).generate(
+      GenerationRequest(
+        modality = GenerationModality.IMAGE,
+        prompt = "коллаж",
+        model = "vendor/img",
+        attachments = listOf(
+          InputAttachment("https://example.com/bg.jpg", AttachmentRole.BACKGROUND),
+          InputAttachment("https://example.com/hero.png", AttachmentRole.CHARACTER),
+        ),
+      ),
+    ).toList()
+
+    val sent = sentBody(engine)
+    assertTrue(sent.contains("bg.jpg"), sent)
+    assertTrue(sent.contains("hero.png"), sent)
+  }
+
+  @Test
+  fun `roles and tags of an image reach the model as words in the prompt`() = runTest {
+    // У chat/completions нет поля для роли картинки. Роль — подсказка в тексте, и если она туда
+    // не попадёт, «Фон» в интерфейсе окажется контролом, который ни на что не влияет.
+    val engine = jsonEngine(
+      """{"choices":[{"message":{"images":[{"image_url":{"url":"data:image/png;base64,aGVsbG8="}}]}}]}""",
+    )
+
+    provider(engine).generate(
+      GenerationRequest(
+        modality = GenerationModality.IMAGE,
+        prompt = "ночная трасса",
+        model = "vendor/img",
+        attachments = listOf(
+          InputAttachment("https://example.com/trassa_fog_11.jpg", AttachmentRole.BACKGROUND, listOf("ночь", "туман")),
+        ),
+      ),
+    ).toList()
+
+    val sent = sentBody(engine)
+    assertTrue(sent.contains("фон: trassa_fog_11.jpg"), sent)
+    assertTrue(sent.contains("ночь, туман"), sent)
+  }
+
+  @Test
+  fun `for video the roles split into frame_images and input_references`() = runTest {
+    // Здесь роли настоящие: кадры и стилевые референсы — разные поля схемы, и складывать их
+    // в одну кучу значит просить у провайдера не то, что показано в интерфейсе.
+    val engine = jsonEngine(
+      """{"id":"v1","status":"completed","unsigned_urls":["https://openrouter.ai/v/1.mp4"]}""",
+    )
+
+    provider(engine).generate(
+      GenerationRequest(
+        modality = GenerationModality.VIDEO,
+        prompt = "оживи",
+        model = "vendor/veo",
+        attachments = listOf(
+          InputAttachment("https://example.com/first.png", AttachmentRole.FIRST_FRAME),
+          InputAttachment("https://example.com/style.png", AttachmentRole.STYLE),
+        ),
+      ),
+    ).toList()
+
+    val sent = sentBody(engine)
+    assertTrue(sent.contains("\"frame_type\":\"first_frame\""), sent)
+    assertTrue(sent.contains("\"input_references\""), sent)
+    assertTrue(sent.contains("style.png"), sent)
   }
 
   @Test

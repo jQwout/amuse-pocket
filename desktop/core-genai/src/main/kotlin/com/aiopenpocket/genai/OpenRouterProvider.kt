@@ -144,19 +144,25 @@ class OpenRouterProvider(
     emit(GenerationProgress.Accepted())
     // Путь разворачивается в data:-URL здесь, а не в модели запроса: в историю на диске должен
     // попасть путь, а не мегабайты base64.
-    val inputImage = request.inputImage?.let { resolveInputImage(it) }
-    val content: JsonElement = if (inputImage == null) {
+    val inputs = buildList {
+      request.inputImage?.let { add(InputAttachment(it, AttachmentRole.REFERENCE)) }
+      addAll(request.attachments)
+    }
+    val content: JsonElement = if (inputs.isEmpty()) {
       JsonPrimitive(request.prompt)
     } else {
-      // image-to-image: контент становится массивом частей, текст + ссылка на входную картинку.
+      // image-to-image: контент становится массивом частей — текст, затем каждая картинка.
       buildJsonArray {
-        add(buildJsonObject { put("type", "text"); put("text", request.prompt) })
-        add(
-          buildJsonObject {
-            put("type", "image_url")
-            put("image_url", buildJsonObject { put("url", inputImage) })
-          },
-        )
+        add(buildJsonObject { put("type", "text"); put("text", describeAttachments(request.prompt, inputs)) })
+        for (attachment in inputs) {
+          val url = resolveInputImage(attachment.path)
+          add(
+            buildJsonObject {
+              put("type", "image_url")
+              put("image_url", buildJsonObject { put("url", url) })
+            },
+          )
+        }
       }
     }
     val body = json.encodeToString(
@@ -239,10 +245,17 @@ class OpenRouterProvider(
       request.inputImage?.let {
         add(FrameImageDto(imageUrl = ImageUrlDto(resolveInputImage(it)), frameType = FIRST_FRAME))
       }
-      request.lastFrameImage?.let {
-        add(FrameImageDto(imageUrl = ImageUrlDto(resolveInputImage(it)), frameType = LAST_FRAME))
+      for (a in request.attachments.filter { it.role == AttachmentRole.FIRST_FRAME }) {
+        add(FrameImageDto(imageUrl = ImageUrlDto(resolveInputImage(a.path)), frameType = FIRST_FRAME))
+      }
+      for (a in request.attachments.filter { it.role == AttachmentRole.LAST_FRAME }) {
+        add(FrameImageDto(imageUrl = ImageUrlDto(resolveInputImage(a.path)), frameType = LAST_FRAME))
       }
     }
+    // Остальные роли у видео — это input_references: отдельное поле API, не кадры.
+    val references = request.attachments
+      .filterNot { it.role == AttachmentRole.FIRST_FRAME || it.role == AttachmentRole.LAST_FRAME }
+      .map { ImageRefDto(imageUrl = ImageUrlDto(resolveInputImage(it.path))) }
     val body = json.encodeToString(
       VideoRequest(
         model = request.model,
@@ -251,6 +264,7 @@ class OpenRouterProvider(
         resolution = request.resolution,
         aspectRatio = request.aspectRatio,
         frameImages = frames.ifEmpty { null },
+        inputReferences = references.ifEmpty { null },
       ),
     )
     val response = httpClient.post("$baseUrl/videos") {
@@ -394,6 +408,25 @@ internal fun openRouterJson(): Json = Json {
 }
 
 /**
+ * Роли и теги вложений уходят СЛОВАМИ в промпт: у `chat/completions` поля для роли картинки нет
+ * вовсе. Это подсказка модели, а не гарантия, и UI обязан говорить об этом прямо — иначе «Фон» в
+ * интерфейсе выглядит как параметр, который провайдер обещал соблюсти.
+ *
+ * У видео всё иначе: там роли ложатся на настоящие `frame_images`/`input_references`.
+ */
+internal fun describeAttachments(prompt: String, images: List<InputAttachment>): String {
+  val described = images.filter { it.role != AttachmentRole.REFERENCE || it.tags.isNotEmpty() }
+  if (described.isEmpty()) return prompt
+  val lines = described.joinToString("; ") { attachment ->
+    buildString {
+      append(attachment.role.label.lowercase()).append(": ").append(attachment.name)
+      if (attachment.tags.isNotEmpty()) append(" (").append(attachment.tags.joinToString(", ")).append(")")
+    }
+  }
+  return prompt + "\n\nИсходники — " + lines + "."
+}
+
+/**
  * Разбирает то, что модель положила в `image_url`: обычно `data:image/png;base64,…`, но бывает и
  * простая ссылка. Возвращает null только если содержимое разобрать не удалось.
  *
@@ -482,6 +515,14 @@ private data class VideoRequest(
    * это массив, и у каждой записи обязателен `frame_type`.
    */
   val frameImages: List<FrameImageDto>? = null,
+  /** Стилевые референсы: отдельное поле схемы, не кадры. */
+  val inputReferences: List<ImageRefDto>? = null,
+)
+
+@Serializable
+private data class ImageRefDto(
+  val type: String = "image_url",
+  val imageUrl: ImageUrlDto,
 )
 
 @Serializable

@@ -80,7 +80,7 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
   var modality by remember { mutableStateOf(GenerationModality.IMAGE) }
   var prompt by remember { mutableStateOf("") }
   var voice by remember { mutableStateOf("") }
-  var inputImage by remember { mutableStateOf<File?>(null) }
+  var attachments by remember { mutableStateOf<List<com.aiopenpocket.genai.InputAttachment>>(emptyList()) }
   var lastError by remember { mutableStateOf<String?>(null) }
   var variants by remember { mutableStateOf(1) }
   var compareModels by remember { mutableStateOf(false) }
@@ -100,7 +100,6 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
 
   // Ключ по модели: у другой модели другой набор длительностей и разрешений, и сохранять выбор
   // от прежней значило бы отправить значение, которого новая модель не заявляла.
-  var lastFrame by remember(model) { mutableStateOf<File?>(null) }
   var duration by remember(model) { mutableStateOf<Int?>(null) }
   var resolution by remember(model) { mutableStateOf<String?>(null) }
   var aspectRatio by remember(model) { mutableStateOf<String?>(null) }
@@ -152,36 +151,30 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
             onSaveCurrent = { savingPreset = true },
           )
 
-        when (modality) {
-          GenerationModality.AUDIO -> VoiceField(
+        if (modality == GenerationModality.AUDIO) {
+          VoiceField(
             voice = voice,
             suggestions = modelsForModality.flatMap { it.voices }.distinct(),
             onVoiceChange = { voice = it },
           )
+        }
+      }
 
-          GenerationModality.IMAGE -> InputImageField(
-            picked = inputImage,
-            modality = modality,
-            onPick = { inputImage = pickImageFile() },
-            onClear = { inputImage = null },
-          )
-
-          // Кадры показываем только те, что модель заявила: у части видео-моделей их нет вовсе.
-          GenerationModality.VIDEO -> {
-            if (videoCaps?.supportsFirstFrame != false) {
-              FramePicker("Первый кадр", inputImage, { inputImage = pickImageFile() }) { inputImage = null }
-            }
-            if (videoCaps?.supportsLastFrame == true) {
-              FramePicker("Последний кадр", lastFrame, { lastFrame = pickImageFile() }) { lastFrame = null }
-            }
-            Text(
-              "не обязательно — можно только по промпту",
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
+        if (modality != GenerationModality.AUDIO) {
+          FieldGroup("Файлы", "каждый со своей ролью и тегами") {
+            AttachmentsField(
+              attachments = attachments,
+              modality = modality,
+              onAdd = {
+                pickImageFile()?.let {
+                  attachments = attachments + com.aiopenpocket.genai.InputAttachment(it.toString())
+                }
+              },
+              onChange = { i, item -> attachments = attachments.toMutableList().also { it[i] = item } },
+              onRemove = { i -> attachments = attachments.toMutableList().also { it.removeAt(i) } },
             )
           }
         }
-      }
 
         FieldGroup(if (compareModels) "Модели для сравнения" else "Модель", "слаг уходит в запрос") {
           if (compareModels) {
@@ -237,11 +230,10 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
               modality = modality,
               prompt = prompt.trim(),
               model = model.trim(),
-              inputImage = inputImage?.toString(),
+              attachments = attachments,
               voice = voice.trim().ifBlank { null },
               // Параметры видео уходят только с видео: у картинки и озвучки их нет, и слать туда
               // duration значило бы гадать за провайдера.
-              lastFrameImage = lastFrame?.toString()?.takeIf { video },
               durationSeconds = duration.takeIf { video },
               resolution = resolution.takeIf { video },
               aspectRatio = aspectRatio.takeIf { video },

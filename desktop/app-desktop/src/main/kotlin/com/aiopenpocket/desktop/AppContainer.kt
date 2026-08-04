@@ -117,7 +117,7 @@ class AppContainer(
    */
   fun refine(job: GenerationJob) {
     val source = job.artifacts.firstOrNull() ?: return
-    submitBatch(job.request.copy(inputImage = source, lastFrameImage = null), 1)
+    submitBatch(job.request.copy(inputImage = source, attachments = emptyList()), 1)
   }
 
   /**

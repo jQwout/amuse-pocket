@@ -11,6 +11,40 @@ enum class GenerationModality(val slug: String, val label: String) {
   AUDIO("audio", "Аудио"),
 }
 
+/**
+ * Роль вложения.
+ *
+ * Честность про API: у **видео** роли настоящие — `frame_images` с `frame_type` для первого и
+ * последнего кадра, `input_references` для остального. У **картинок** структуры ролей в API нет
+ * вовсе, там роль и теги уходят словами в промпт, и UI обязан говорить об этом прямо, а не делать
+ * вид, что провайдер их понимает.
+ */
+@Serializable
+enum class AttachmentRole(val label: String, val forVideoOnly: Boolean = false) {
+  BACKGROUND("Фон"),
+  CHARACTER("Персонаж"),
+  STYLE("Стиль"),
+  REFERENCE("Референс"),
+  FIRST_FRAME("Первый кадр", forVideoOnly = true),
+  LAST_FRAME("Последний кадр", forVideoOnly = true),
+}
+
+/**
+ * Входной файл: путь на диске или публичный URL.
+ *
+ * Здесь сознательно НЕ data-URL — по той же причине, что и раньше: запрос лежит в истории на диске,
+ * которая переписывается на каждом переходе статуса, и картинка на 6 МБ превратилась бы в 8 МБ
+ * base64, переписываемых по пять раз за генерацию.
+ */
+@Serializable
+data class InputAttachment(
+  val path: String,
+  val role: AttachmentRole = AttachmentRole.REFERENCE,
+  val tags: List<String> = emptyList(),
+) {
+  val name: String get() = path.substringAfterLast('/').substringAfterLast('\\')
+}
+
 @Serializable
 data class GenerationRequest(
   val modality: GenerationModality,
@@ -29,11 +63,8 @@ data class GenerationRequest(
   /** Голос для TTS; у остальных модальностей игнорируется. */
   val voice: String? = null,
 
-  /**
-   * Последний кадр для видео. Первым кадром служит [inputImage] — у него та же природа (путь или
-   * URL) и та же причина не разворачивать base64 раньше времени.
-   */
-  val lastFrameImage: String? = null,
+  /** Файлы на входе: несколько, каждый со своей ролью. */
+  val attachments: List<InputAttachment> = emptyList(),
 
   /**
    * Параметры видео. null означает «не задавать» — и это не то же самое, что «по умолчанию»:
