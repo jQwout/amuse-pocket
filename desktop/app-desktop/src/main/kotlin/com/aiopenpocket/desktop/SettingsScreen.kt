@@ -132,6 +132,7 @@ fun SettingsScreen(container: AppContainer) {
 private fun CatalogRow(container: AppContainer) {
   val snapshot by container.catalog.collectAsState()
   val refreshing by container.refreshingCatalog.collectAsState()
+  val failed by container.catalogRefreshFailed.collectAsState()
 
   Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
     OutlinedButton(enabled = !refreshing, onClick = { container.refreshCatalog() }) {
@@ -144,14 +145,14 @@ private fun CatalogRow(container: AppContainer) {
         style = MaterialTheme.typography.bodyMedium,
       )
       Text(
-        if (snapshot.authoritative) {
-          "Скачан с /api/v1/models и закеширован; обновляется раз в сутки сам."
-        } else {
-          "Живой список пока не получен — показываем встроенный. По нему нельзя судить, " +
+        when {
+          failed -> "Обновить не удалось — сеть или OpenRouter не ответили. Список остался прежним."
+          snapshot.authoritative -> "Скачан с /api/v1/models и закеширован; обновляется раз в сутки сам."
+          else -> "Живой список пока не получен — показываем встроенный. По нему нельзя судить, " +
             "что модель снята с обслуживания."
         },
         style = MaterialTheme.typography.bodySmall,
-        color = if (snapshot.authoritative) {
+        color = if (snapshot.authoritative && !failed) {
           MaterialTheme.colorScheme.onSurfaceVariant
         } else {
           MaterialTheme.colorScheme.error
