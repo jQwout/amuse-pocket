@@ -50,6 +50,21 @@ import com.aiopenpocket.genai.GenerationModality
 import com.aiopenpocket.genai.JobStatus
 import com.aiopenpocket.genai.PromptPreset
 import com.aiopenpocket.genai.VideoCapabilities
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
@@ -398,7 +413,6 @@ private fun ParamRow(
  * словами в промпт. Разница пользователю видна, иначе «Фон» выглядит как параметр, который
  * провайдер обязался соблюсти.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AttachmentsField(
   attachments: List<InputAttachment>,
@@ -409,26 +423,14 @@ fun AttachmentsField(
 ) {
   val roles = AttachmentRole.entries.filter { modality == GenerationModality.VIDEO || !it.forVideoOnly }
 
-  Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
     for ((index, attachment) in attachments.withIndex()) {
-      Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-          Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(attachment.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-            TextButton(onClick = { onRemove(index) }) { Text("×") }
-          }
-          FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            RolePicker(attachment.role, roles) { onChange(index, attachment.copy(role = it)) }
-            for (tag in attachment.tags) {
-              AssistChip(
-                onClick = { onChange(index, attachment.copy(tags = attachment.tags - tag)) },
-                label = { Text(tag) },
-              )
-            }
-            TagInput { tag -> onChange(index, attachment.copy(tags = attachment.tags + tag)) }
-          }
-        }
-      }
+      AttachmentCard(
+        attachment = attachment,
+        roles = roles,
+        onChange = { onChange(index, it) },
+        onRemove = { onRemove(index) },
+      )
     }
 
     OutlinedButton(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text("+  Добавить файл") }
@@ -445,11 +447,109 @@ fun AttachmentsField(
   }
 }
 
+/**
+ * Одна строка списка: миниатюра, имя, роль и теги.
+ *
+ * Всё в один ряд, а не в два: файлов бывает пять, и каждая лишняя строка выталкивает форму за
+ * экран. Имя обрезается посередине — у выгруженных файлов различается хвост, а не начало, и
+ * «83d7c5b2eddaa5e08388693ea993167dcc74f5df.jpg» целиком не читается вообще.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AttachmentCard(
+  attachment: InputAttachment,
+  roles: List<AttachmentRole>,
+  onChange: (InputAttachment) -> Unit,
+  onRemove: () -> Unit,
+) {
+  Card(Modifier.fillMaxWidth()) {
+    Row(
+      Modifier.padding(10.dp).fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      AttachmentThumb(attachment.path)
+      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+          attachment.name,
+          style = MaterialTheme.typography.bodyMedium,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+        )
+        FlowRow(
+          horizontalArrangement = Arrangement.spacedBy(6.dp),
+          verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+          RolePicker(attachment.role, roles) { onChange(attachment.copy(role = it)) }
+          for (tag in attachment.tags) {
+            TagPill(tag) { onChange(attachment.copy(tags = attachment.tags - tag)) }
+          }
+          TagAdder { tag -> onChange(attachment.copy(tags = attachment.tags + tag)) }
+        }
+      }
+      Text(
+        "×",
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.clickable(onClick = onRemove).padding(horizontal = 4.dp),
+      )
+    }
+  }
+}
+
+/** Миниатюра файла. Не загрузилась — полосатая заглушка, как в макете, а не пустой прямоугольник. */
+@Composable
+private fun AttachmentThumb(path: String) {
+  val bitmap by produceState<ImageBitmap?>(initialValue = null, path) {
+    value = withContext(Dispatchers.IO) { loadImage(File(path)) }
+  }
+  Box(
+    Modifier.size(44.dp)
+      .clip(MaterialTheme.shapes.small)
+      .background(MaterialTheme.colorScheme.surfaceVariant),
+  ) {
+    val ready = bitmap
+    if (ready != null) {
+      Image(
+        ready,
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier.size(44.dp),
+      )
+    } else {
+      Canvas(Modifier.size(44.dp)) {
+        var x = -size.height
+        while (x < size.width) {
+          drawLine(
+            color = StripeColor,
+            start = Offset(x, size.height),
+            end = Offset(x + size.height, 0f),
+            strokeWidth = 1.5f,
+          )
+          x += 8f
+        }
+      }
+    }
+  }
+}
+
+private val StripeColor = Color(0x22FFFFFF)
+
 @Composable
 private fun RolePicker(current: AttachmentRole, options: List<AttachmentRole>, onPick: (AttachmentRole) -> Unit) {
   var open by remember { mutableStateOf(false) }
   Box {
-    AssistChip(onClick = { open = true }, label = { Text(current.label + "  ▾") })
+    Surface(
+      shape = MaterialTheme.shapes.small,
+      color = MaterialTheme.colorScheme.primaryContainer,
+      modifier = Modifier.clickable { open = true },
+    ) {
+      Text(
+        current.label + "  \u25BE",
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onPrimaryContainer,
+        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+      )
+    }
     DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
       for (role in options) {
         DropdownMenuItem(
@@ -464,24 +564,66 @@ private fun RolePicker(current: AttachmentRole, options: List<AttachmentRole>, o
   }
 }
 
-/** Тег добавляется запятой или переводом строки: ловить Enter в Compose Desktop дороже, чем оно стоит. */
+/** Тег — компактная пилюля; клик убирает. Полноценный чип Material здесь вдвое выше строки. */
 @Composable
-private fun TagInput(onAdd: (String) -> Unit) {
+private fun TagPill(tag: String, onRemove: () -> Unit) {
+  Surface(
+    shape = MaterialTheme.shapes.small,
+    color = MaterialTheme.colorScheme.surfaceVariant,
+    modifier = Modifier.clickable(onClick = onRemove),
+  ) {
+    Text(
+      tag,
+      style = MaterialTheme.typography.labelMedium,
+      color = MaterialTheme.colorScheme.onSurface,
+      modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+    )
+  }
+}
+
+/**
+ * «+ тег» — приглушённая ссылка, и только по клику превращается в поле.
+ *
+ * Постоянно открытое поле ввода занимало целую строку в каждой карточке и перетягивало внимание
+ * на себя, хотя теги — необязательная приписка.
+ */
+@Composable
+private fun TagAdder(onAdd: (String) -> Unit) {
+  var editing by remember { mutableStateOf(false) }
   var text by remember { mutableStateOf("") }
-  OutlinedTextField(
+
+  if (!editing) {
+    Text(
+      "+ тег",
+      style = MaterialTheme.typography.labelMedium,
+      color = MaterialTheme.colorScheme.primary,
+      modifier = Modifier.clickable { editing = true }.padding(horizontal = 6.dp, vertical = 6.dp),
+    )
+    return
+  }
+
+  BasicTextField(
     value = text,
     onValueChange = { raw ->
+      // Запятая или перевод строки завершают тег: ловить Enter отдельно дороже, чем оно стоит.
       if (raw.endsWith(",") || raw.endsWith("\n")) {
         val tag = raw.dropLast(1).trim()
         if (tag.isNotEmpty()) onAdd(tag)
         text = ""
+        editing = false
       } else {
         text = raw
       }
     },
-    placeholder = { Text("+ тег,") },
     singleLine = true,
-    modifier = Modifier.width(140.dp),
+    textStyle = MaterialTheme.typography.labelMedium.copy(color = MaterialTheme.colorScheme.onSurface),
+    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+    modifier = Modifier.width(96.dp),
+    decorationBox = { inner ->
+      Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceVariant) {
+        Box(Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) { inner() }
+      }
+    },
   )
 }
 
