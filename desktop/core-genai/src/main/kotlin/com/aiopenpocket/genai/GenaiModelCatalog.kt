@@ -49,6 +49,15 @@ data class GenaiModelCatalog(
       return builtIn.takeIf { it.models.isNotEmpty() } ?: FALLBACK
     }
 
+    /**
+     * Только пользовательский файл, без встроенного списка. Пустой каталог — файла нет или он битый.
+     *
+     * Нужен отдельно от [load], потому что «список пользователя» и «подсказки на крайний случай» —
+     * разные вещи: первое живой каталог отменить не вправе, второе он замещает.
+     */
+    fun loadOverride(file: File?): GenaiModelCatalog =
+      file?.let(::readCatalog) ?: GenaiModelCatalog()
+
     private fun readCatalog(file: File): GenaiModelCatalog? {
       if (!file.isFile) return null
       val text = runCatching { file.readText() }.getOrNull() ?: return null

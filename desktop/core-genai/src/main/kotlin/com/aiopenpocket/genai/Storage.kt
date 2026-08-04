@@ -29,6 +29,12 @@ class AppPaths(
   val jobsFile: File get() = File(dataDir, "jobs.json")
   val modelsOverrideFile: File get() = File(configDir, "genai-models.json")
 
+  /**
+   * Кеш живого каталога моделей. В [dataDir], а не в [configDir]: это не настройка пользователя,
+   * а скачанное — руками его никто не правит, и потеря файла ничего не стоит.
+   */
+  val modelsCacheFile: File get() = File(dataDir, "genai-models-cache.json")
+
   /** Свои заготовки промптов. В отличие от моделей, сливаются со встроенными, а не заменяют их. */
   val promptsUserFile: File get() = File(configDir, "genai-prompts.json")
 

@@ -54,6 +54,23 @@ class GenaiModelCatalogTest {
   }
 
   @Test
+  fun `loadOverride returns the user list alone, without the built-in one`() {
+    val file = userFile()
+    file.parentFile.mkdirs()
+    file.writeText("""{"models":[{"id":"my/model","modality":"IMAGE","priority":1}]}""")
+
+    // Живому каталогу нужно отличать «пользователь так велел» от «встроенная подсказка»:
+    // первое он отменять не вправе, второе замещает.
+    assertEquals(listOf("my/model"), GenaiModelCatalog.loadOverride(file).models.map { it.id })
+  }
+
+  @Test
+  fun `loadOverride is empty when there is no user file`() {
+    assertTrue(GenaiModelCatalog.loadOverride(null).models.isEmpty())
+    assertTrue(GenaiModelCatalog.loadOverride(userFile()).models.isEmpty())
+  }
+
+  @Test
   fun `models are offered in priority order`() {
     val catalog = GenaiModelCatalog(
       listOf(

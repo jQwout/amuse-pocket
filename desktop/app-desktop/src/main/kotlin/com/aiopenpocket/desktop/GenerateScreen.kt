@@ -20,6 +20,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,11 +51,20 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
   var compareModels by remember { mutableStateOf(false) }
   var savingPreset by remember { mutableStateOf(false) }
 
+  val catalogSnapshot by container.catalog.collectAsState()
+  val catalog = catalogSnapshot.catalog
+
   // Модель и набор для сравнения сбрасываются при смене модальности: видео-модель в аудио бессмысленна.
-  var model by remember(modality) { mutableStateOf(container.catalog.defaultFor(modality)?.id ?: "") }
+  var model by remember(modality) { mutableStateOf(catalog.defaultFor(modality)?.id ?: "") }
   var selectedModels by remember(modality) { mutableStateOf(emptySet<String>()) }
 
-  val modelsForModality = container.catalog.forModality(modality)
+  val modelsForModality = catalog.forModality(modality)
+
+  // Живой каталог приезжает уже после первой отрисовки. Дефолт подставляем только в ПУСТОЕ поле:
+  // ключ remember по каталогу стирал бы модель, которую пользователь успел ввести руками.
+  LaunchedEffect(catalogSnapshot, modality) {
+    if (model.isBlank()) model = catalog.defaultFor(modality)?.id ?: ""
+  }
   val readyToSubmit = prompt.isNotBlank() && apiKey.isNotBlank() &&
     if (compareModels) selectedModels.isNotEmpty() else model.isNotBlank()
 
