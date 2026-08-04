@@ -2,7 +2,10 @@ package com.aiopenpocket.desktop
 
 // @trace desktop-genai-client-4c63b6
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.TooltipArea
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -24,6 +27,7 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -101,16 +105,19 @@ private fun AppRoot(container: AppContainer) {
 }
 
 /**
- * Узкая рельса вместо текстовых вкладок: экран генерации стал двухпанельным, и 220 dp под подписи
- * «Генерация / промпт → результат» отнимали место у формы. Подпись под иконкой всё же осталась —
- * три одинаково серых пиктограммы без слов угадываются хуже, чем кажется автору.
+ * Узкая рельса вместо текстовых вкладок: экран двухпанельный, и 220 dp под подписи вроде
+ * «Генерация / промпт → результат» отнимали место у формы.
+ *
+ * Только иконки, без подписей — по макету. Экранов три, они не меняются, и подпись под каждой
+ * читается ровно один раз в жизни; вместо неё — подсказка при наведении, чтобы догадка не стоила
+ * пользователю клика.
  *
  * «Настройки» прижаты вниз отдельно от остальных: это не третий равноправный экран, а служебный.
  */
 @Composable
 private fun IconRail(current: Screen, keyMissing: Boolean, onSelect: (Screen) -> Unit) {
   Column(
-    Modifier.width(76.dp).fillMaxHeight().padding(vertical = 16.dp),
+    Modifier.width(72.dp).fillMaxHeight().padding(vertical = 16.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {
@@ -125,35 +132,43 @@ private fun IconRail(current: Screen, keyMissing: Boolean, onSelect: (Screen) ->
   }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RailItem(item: Screen, selected: Boolean, badge: Boolean, onClick: () -> Unit) {
   val tint = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-  Column(
-    Modifier
-      .width(60.dp)
-      .clip(RoundedCornerShape(12.dp))
-      .background(if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.background)
-      .clickable(onClick = onClick)
-      .padding(vertical = 8.dp),
-    horizontalAlignment = Alignment.CenterHorizontally,
-    verticalArrangement = Arrangement.spacedBy(4.dp),
-  ) {
-    Box {
+  TooltipArea(tooltip = {
+    Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceVariant) {
+      Text(
+        item.title,
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+      )
+    }
+  }) {
+    Box(
+      Modifier
+        .size(44.dp)
+        .clip(MaterialTheme.shapes.medium)
+        .background(if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.background)
+        .border(
+          width = 1.dp,
+          color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+          shape = MaterialTheme.shapes.medium,
+        )
+        .clickable(onClick = onClick),
+      contentAlignment = Alignment.Center,
+    ) {
       Icon(item.icon, contentDescription = item.title, tint = tint)
       if (badge) {
         Box(
           Modifier
             .align(Alignment.TopEnd)
+            .padding(6.dp)
             .size(8.dp)
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.error),
         )
       }
     }
-    Text(
-      item.title,
-      style = MaterialTheme.typography.labelSmall,
-      color = tint,
-    )
   }
 }

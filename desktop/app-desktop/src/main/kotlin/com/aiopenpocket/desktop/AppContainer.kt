@@ -8,6 +8,7 @@ import com.aiopenpocket.genai.AppPaths
 import com.aiopenpocket.genai.GenaiCatalogSnapshot
 import com.aiopenpocket.genai.GenaiModelCatalog
 import com.aiopenpocket.genai.GenaiRuntime
+import com.aiopenpocket.genai.GenerationJob
 import com.aiopenpocket.genai.GenerationModality
 import com.aiopenpocket.genai.GenerationQueue
 import com.aiopenpocket.genai.GenerationRequest
@@ -103,6 +104,40 @@ class AppContainer(private val scope: CoroutineScope) : AutoCloseable {
   fun submitAcrossModels(request: GenerationRequest, models: List<String>) {
     _lastSubmitted.value = queue.submitAcrossModels(request, models)
   }
+
+  /**
+   * Доработать результат: тот же промпт и та же модель, но готовая картинка становится основой.
+   * Это обычный image-to-image, просто вход берётся не с диска, а из уже полученного результата.
+   */
+  fun refine(job: GenerationJob) {
+    val source = job.artifacts.firstOrNull() ?: return
+    submitBatch(job.request.copy(inputImage = source, lastFrameImage = null), 1)
+  }
+
+  /**
+   * Оживить результат: картинка уходит первым кадром в видео-модель.
+   *
+   * Модель берётся первая из каталога видео — своя у пользователя может быть не выбрана вовсе, а
+   * гадать нечего: видео и картинки живут в разных каталогах. Если видео-моделей нет, ничего не
+   * запускаем: лучше не сделать, чем послать запрос с пустым слагом и получить 400 за деньги.
+   */
+  fun animate(job: GenerationJob) {
+    val source = job.artifacts.firstOrNull() ?: return
+    val videoModel = _catalog.value.catalog.defaultFor(GenerationModality.VIDEO)?.id ?: return
+    submitBatch(
+      GenerationRequest(
+        modality = GenerationModality.VIDEO,
+        prompt = job.request.prompt,
+        model = videoModel,
+        inputImage = source,
+      ),
+      count = 1,
+    )
+  }
+
+  /** Есть ли куда «оживлять»: без видео-моделей кнопку показывать незачем. */
+  val canAnimate: Boolean
+    get() = _catalog.value.catalog.defaultFor(GenerationModality.VIDEO) != null
 
   /** Обновление каталога по кнопке — в обход суточного TTL. Неудача оставляет прежний список. */
   fun refreshCatalog() {

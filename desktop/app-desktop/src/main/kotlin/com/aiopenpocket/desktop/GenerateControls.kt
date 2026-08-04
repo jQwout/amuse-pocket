@@ -64,6 +64,26 @@ fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
   }
 }
 
+/**
+ * Плоская секция формы: жирная подпись и приглушённое пояснение в одну строку.
+ *
+ * Пришла на смену карточкам: по макету форма — это сплошная колонка с заголовками, а рамка вокруг
+ * каждого поля дробила её на коробки и съедала ширину, которой на половине окна и так немного.
+ * Карточки остались там, где они содержат объект (файл, результат), а не поле ввода.
+ */
+@Composable
+fun FieldGroup(title: String, hint: String? = null, content: @Composable ColumnScope.() -> Unit) {
+  Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+      Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+      hint?.let {
+        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
+    }
+    content()
+  }
+}
+
 /** Модель — свободный текст с подсказками: устаревший слаг в каталоге не должен мешать ввести свой. */
 @Composable
 fun ModelField(model: String, suggestions: List<GenaiModelEntry>, onModelChange: (String) -> Unit) {
