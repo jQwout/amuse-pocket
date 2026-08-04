@@ -9,6 +9,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.readBytes
 import java.io.File
+import java.net.URI
 import java.util.Locale
 
 /**
@@ -52,11 +53,28 @@ class ArtifactStore(
   private suspend fun download(url: String): ByteArray {
     val response = httpClient.get(url) {
       val key = apiKey()
-      if (key.isNotBlank()) header("Authorization", "Bearer $key")
+      if (key.isNotBlank() && isOpenRouterHost(url)) header("Authorization", "Bearer $key")
     }
     val code = response.status.value
     if (code !in 200..299) throw OpenRouterHttpException(code, "не удалось скачать $url")
     return response.readBytes()
+  }
+
+  /**
+   * Ключ уходит только на сам OpenRouter.
+   *
+   * Ссылки на результат берутся из ответа провайдера (`unsigned_urls`), то есть их выбирает не
+   * пользователь и не мы. Слать `Bearer` на любой хост, который назвали в JSON, — значит отдавать
+   * ключ тому, кого никто не выбирал: хватит одной подменённой или ошибочной ссылки. Совсем убрать
+   * заголовок нельзя — content-ссылки самого OpenRouter авторизации требуют, поэтому сужаем до
+   * хоста, а не выключаем.
+   *
+   * `java.net.URI`, а не разбор строки руками: `https://openrouter.ai@evil.example/x` для наивной
+   * проверки «содержит openrouter.ai» выглядит своим, а ведёт на чужой хост.
+   */
+  private fun isOpenRouterHost(url: String): Boolean {
+    val host = runCatching { URI(url).host }.getOrNull()?.lowercase() ?: return false
+    return host == OPENROUTER_HOST || host.endsWith(".$OPENROUTER_HOST")
   }
 
   /**
@@ -65,6 +83,10 @@ class ArtifactStore(
    */
   private fun safeDirName(jobId: String): String =
     jobId.filter { it.isLetterOrDigit() || it == '-' || it == '_' }.take(64).ifBlank { "job" }
+
+  private companion object {
+    const val OPENROUTER_HOST = "openrouter.ai"
+  }
 
   private fun extensionFor(mimeType: String): String = when (mimeType.substringBefore(';').trim()) {
     "image/png" -> "png"
