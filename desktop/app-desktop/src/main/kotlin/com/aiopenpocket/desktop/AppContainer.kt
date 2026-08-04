@@ -27,9 +27,15 @@ import java.io.File
  * экрана и одну очередь он даёт больше конфигурации, чем пользы, а при переезде в общий модуль
  * (фаза 4) граф всё равно будет собираться на стороне :app.
  */
-class AppContainer(private val scope: CoroutineScope) : AutoCloseable {
+class AppContainer(
+  private val scope: CoroutineScope,
+  /**
+   * Куда писать. Инъектируется ради offscreen-рендера экранов в PNG: тому нужен свой временный
+   * дом, иначе харнесс полез бы в настоящий ключ и настоящую историю пользователя.
+   */
+  private val paths: AppPaths = AppPaths(),
+) : AutoCloseable {
 
-  private val paths = AppPaths()
   private val keyStore = ApiKeyStore(paths)
 
   private val _apiKey = MutableStateFlow(keyStore.read())

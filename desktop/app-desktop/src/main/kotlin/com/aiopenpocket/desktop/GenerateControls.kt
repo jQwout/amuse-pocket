@@ -96,7 +96,7 @@ fun ModelField(model: String, suggestions: List<GenaiModelEntry>, onModelChange:
     OutlinedTextField(
       value = model,
       onValueChange = onModelChange,
-      label = { Text("Модель") },
+      placeholder = { Text("vendor/model") },
       singleLine = true,
       // Тянется по окну, а не фиксированные 520dp: слаги бывают длинными, и на широком окне
       // поле обрывало их посреди пустого места.

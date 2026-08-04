@@ -22,8 +22,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.ui.Alignment
@@ -52,9 +52,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 
-private enum class Screen(val title: String, val icon: ImageVector) {
-  GENERATE("Генерация", Icons.Default.Add),
-  HISTORY("История", Icons.Default.List),
+internal enum class Screen(val title: String, val icon: ImageVector) {
+  GENERATE("Генерация", Icons.Default.Image),
+  HISTORY("История", Icons.Default.PhotoLibrary),
   SETTINGS("Настройки", Icons.Default.Settings),
 }
 
@@ -115,7 +115,7 @@ private fun AppRoot(container: AppContainer) {
  * «Настройки» прижаты вниз отдельно от остальных: это не третий равноправный экран, а служебный.
  */
 @Composable
-private fun IconRail(current: Screen, keyMissing: Boolean, onSelect: (Screen) -> Unit) {
+internal fun IconRail(current: Screen, keyMissing: Boolean, onSelect: (Screen) -> Unit) {
   Column(
     Modifier.width(72.dp).fillMaxHeight().padding(vertical = 16.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
