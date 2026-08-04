@@ -15,6 +15,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -38,10 +48,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 
-private enum class Screen(val title: String, val subtitle: String) {
-  GENERATE("Генерация", "промпт → результат"),
-  HISTORY("История", "что уже сделано"),
-  SETTINGS("Настройки", "ключ и пути"),
+private enum class Screen(val title: String, val icon: ImageVector) {
+  GENERATE("Генерация", Icons.Default.Add),
+  HISTORY("История", Icons.Default.List),
+  SETTINGS("Настройки", Icons.Default.Settings),
 }
 
 fun main() {
@@ -73,13 +83,13 @@ private fun AppRoot(container: AppContainer) {
 
   Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
     Row(Modifier.fillMaxSize()) {
-      Sidebar(
+      IconRail(
         current = screen,
         keyMissing = apiKey.isBlank(),
         onSelect = { screen = it },
       )
       VerticalDivider()
-      Column(Modifier.fillMaxSize().padding(24.dp)) {
+      Column(Modifier.fillMaxSize().padding(20.dp)) {
         when (screen) {
           Screen.GENERATE -> GenerateScreen(container, onOpenSettings = { screen = Screen.SETTINGS })
           Screen.HISTORY -> HistoryScreen(container)
@@ -90,65 +100,60 @@ private fun AppRoot(container: AppContainer) {
   }
 }
 
+/**
+ * Узкая рельса вместо текстовых вкладок: экран генерации стал двухпанельным, и 220 dp под подписи
+ * «Генерация / промпт → результат» отнимали место у формы. Подпись под иконкой всё же осталась —
+ * три одинаково серых пиктограммы без слов угадываются хуже, чем кажется автору.
+ *
+ * «Настройки» прижаты вниз отдельно от остальных: это не третий равноправный экран, а служебный.
+ */
 @Composable
-private fun Sidebar(current: Screen, keyMissing: Boolean, onSelect: (Screen) -> Unit) {
+private fun IconRail(current: Screen, keyMissing: Boolean, onSelect: (Screen) -> Unit) {
   Column(
-    Modifier.width(220.dp).fillMaxHeight().padding(16.dp),
-    verticalArrangement = Arrangement.spacedBy(6.dp),
+    Modifier.width(76.dp).fillMaxHeight().padding(vertical = 16.dp),
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {
-    Text(
-      "AI Open Pocket",
-      style = MaterialTheme.typography.titleMedium,
-      fontWeight = FontWeight.SemiBold,
-    )
-    Text(
-      "клиент OpenRouter",
-      style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    Spacer(Modifier.height(20.dp))
+    for (item in Screen.entries - Screen.SETTINGS) {
+      RailItem(item, selected = item == current, badge = false) { onSelect(item) }
+    }
+    Spacer(Modifier.weight(1f))
+    // Без ключа не работает ничего, поэтому точка на «Настройках» видна с любого экрана.
+    RailItem(Screen.SETTINGS, selected = current == Screen.SETTINGS, badge = keyMissing) {
+      onSelect(Screen.SETTINGS)
+    }
+  }
+}
 
-    for (item in Screen.entries) {
-      val selected = item == current
-      Column(
-        Modifier
-          .fillMaxWidth()
-          .clip(RoundedCornerShape(10.dp))
-          .background(
-            if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-          )
-          .clickable { onSelect(item) }
-          .padding(horizontal = 12.dp, vertical = 10.dp),
-      ) {
-        Text(
-          item.title,
-          style = MaterialTheme.typography.bodyLarge,
-          color = if (selected) {
-            MaterialTheme.colorScheme.onPrimaryContainer
-          } else {
-            MaterialTheme.colorScheme.onSurface
-          },
-        )
-        Text(
-          item.subtitle,
-          style = MaterialTheme.typography.bodySmall,
-          color = if (selected) {
-            MaterialTheme.colorScheme.onPrimaryContainer
-          } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-          },
+@Composable
+private fun RailItem(item: Screen, selected: Boolean, badge: Boolean, onClick: () -> Unit) {
+  val tint = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+  Column(
+    Modifier
+      .width(60.dp)
+      .clip(RoundedCornerShape(12.dp))
+      .background(if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.background)
+      .clickable(onClick = onClick)
+      .padding(vertical = 8.dp),
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.spacedBy(4.dp),
+  ) {
+    Box {
+      Icon(item.icon, contentDescription = item.title, tint = tint)
+      if (badge) {
+        Box(
+          Modifier
+            .align(Alignment.TopEnd)
+            .size(8.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.error),
         )
       }
     }
-
-    if (keyMissing) {
-      Spacer(Modifier.height(16.dp))
-      // Без ключа не работает вообще ничего, поэтому предупреждение видно с любого экрана.
-      Text(
-        "Ключ OpenRouter не задан — открой «Настройки»",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.error,
-      )
-    }
+    Text(
+      item.title,
+      style = MaterialTheme.typography.labelSmall,
+      color = tint,
+    )
   }
 }

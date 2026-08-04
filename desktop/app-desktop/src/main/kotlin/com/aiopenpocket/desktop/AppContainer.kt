@@ -10,6 +10,7 @@ import com.aiopenpocket.genai.GenaiModelCatalog
 import com.aiopenpocket.genai.GenaiRuntime
 import com.aiopenpocket.genai.GenerationModality
 import com.aiopenpocket.genai.GenerationQueue
+import com.aiopenpocket.genai.GenerationRequest
 import com.aiopenpocket.genai.JobStore
 import com.aiopenpocket.genai.PromptLibrary
 import com.aiopenpocket.genai.PromptPreset
@@ -84,6 +85,24 @@ class AppContainer(private val scope: CoroutineScope) : AutoCloseable {
    */
   private val _catalogRefreshFailed = MutableStateFlow(false)
   val catalogRefreshFailed: StateFlow<Boolean> = _catalogRefreshFailed.asStateFlow()
+
+  /**
+   * Задания последнего запуска — то, что показывает панель результатов.
+   *
+   * Живёт в контейнере, а не в состоянии экрана: уход на «Историю» и обратно не должен стирать
+   * пачку, которая ещё считается. Хранятся id, а не сами задания: статус и пути к файлам меняются,
+   * и держать их копию значило бы показывать вчерашний снимок.
+   */
+  private val _lastSubmitted = MutableStateFlow<List<String>>(emptyList())
+  val lastSubmitted: StateFlow<List<String>> = _lastSubmitted.asStateFlow()
+
+  fun submitBatch(request: GenerationRequest, count: Int) {
+    _lastSubmitted.value = queue.submitBatch(request, count)
+  }
+
+  fun submitAcrossModels(request: GenerationRequest, models: List<String>) {
+    _lastSubmitted.value = queue.submitAcrossModels(request, models)
+  }
 
   /** Обновление каталога по кнопке — в обход суточного TTL. Неудача оставляет прежний список. */
   fun refreshCatalog() {
