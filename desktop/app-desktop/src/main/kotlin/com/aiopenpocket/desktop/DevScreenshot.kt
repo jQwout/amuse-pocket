@@ -58,6 +58,13 @@ object DevScreenshot {
     shoot(outDir, "generate", 1400, 950) {
       GenerateScreen(container, onOpenSettings = {})
     }
+    // Палитры одним прогоном: выбирать фон по описанию словами — то же гадание, от которого ушли.
+    for ((suffix, colors) in listOf("ink" to InkScheme, "violet" to VioletScheme, "graphite" to GraphiteScheme)) {
+      shoot(outDir, "palette-$suffix", 1400, 950, colors) {
+        GenerateScreen(container, onOpenSettings = {})
+      }
+    }
+
     shoot(outDir, "files", 620, 560) {
       androidx.compose.foundation.layout.Column(Modifier.width(520.dp)) {
         FieldGroup("Файлы", "каждый со своей ролью и тегами") {
@@ -112,9 +119,16 @@ object DevScreenshot {
    * показывал бы не то приложение, которое видит пользователь.
    */
   @OptIn(ExperimentalComposeUiApi::class)
-  private fun shoot(dir: File, name: String, width: Int, height: Int, content: @Composable () -> Unit) {
+  private fun shoot(
+    dir: File,
+    name: String,
+    width: Int,
+    height: Int,
+    colors: androidx.compose.material3.ColorScheme = InkScheme,
+    content: @Composable () -> Unit,
+  ) {
     val scene = ImageComposeScene(width = width, height = height, density = Density(1f)) {
-      AppTheme {
+      AppTheme(colors) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
           Row(Modifier.fillMaxSize()) {
             IconRail(current = Screen.GENERATE, keyMissing = false, onSelect = {})
