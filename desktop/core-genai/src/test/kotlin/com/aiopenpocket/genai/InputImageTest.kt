@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import java.nio.file.Files
+import java.io.File
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -29,9 +29,9 @@ class InputImageTest {
   // Те же настройки, что у JobStore: проверяем именно то, что уедет в файл истории.
   private val historyJson = Json { encodeDefaults = true }
 
-  private fun tempPng(): java.nio.file.Path {
-    val file = createTempDirectory("genai-input").resolve("source.png")
-    Files.write(file, pngBytes)
+  private fun tempPng(): File {
+    val file = File(createTempDirectory("genai-input").toFile(), "source.png")
+    file.writeBytes(pngBytes)
     return file
   }
 

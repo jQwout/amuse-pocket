@@ -31,7 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.genai.GenerationModality
 import com.aiopenpocket.genai.GenerationRequest
-import java.nio.file.Path
+import java.io.File
 
 private val VARIANT_OPTIONS = listOf(1, 2, 4)
 
@@ -44,7 +44,7 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
   var modality by remember { mutableStateOf(GenerationModality.IMAGE) }
   var prompt by remember { mutableStateOf("") }
   var voice by remember { mutableStateOf("") }
-  var inputImage by remember { mutableStateOf<Path?>(null) }
+  var inputImage by remember { mutableStateOf<File?>(null) }
   var lastError by remember { mutableStateOf<String?>(null) }
   var variants by remember { mutableStateOf(1) }
   var compareModels by remember { mutableStateOf(false) }

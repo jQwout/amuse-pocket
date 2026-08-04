@@ -1,6 +1,6 @@
 package com.aiopenpocket.genai
 
-import java.nio.file.Files
+import java.io.File
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 
 class PromptLibraryTest {
 
-  private fun userFile() = createTempDirectory("prompts").resolve("genai-prompts.json")
+  private fun userFile() = File(createTempDirectory("prompts").toFile(), "genai-prompts.json")
 
   @Test
   fun `built-in presets load without a user file`() {
@@ -83,8 +83,8 @@ class PromptLibraryTest {
   @Test
   fun `broken user file does not take the built-in presets down with it`() {
     val file = userFile()
-    file.parent.let(Files::createDirectories)
-    Files.writeString(file, "{ это не json")
+    file.parentFile.mkdirs()
+    file.writeText("{ это не json")
 
     // Порченый файл должен деградировать до встроенных, а не ронять экран генерации.
     assertEquals(PromptLibrary.load(null).presets.size, PromptLibrary.load(file).presets.size)

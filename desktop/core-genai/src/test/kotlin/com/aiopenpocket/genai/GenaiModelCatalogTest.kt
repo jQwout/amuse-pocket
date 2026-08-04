@@ -1,6 +1,6 @@
 package com.aiopenpocket.genai
 
-import java.nio.file.Files
+import java.io.File
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 
 class GenaiModelCatalogTest {
 
-  private fun userFile() = createTempDirectory("models").resolve("genai-models.json")
+  private fun userFile() = File(createTempDirectory("models").toFile(), "genai-models.json")
 
   @Test
   fun `built-in catalog covers every modality`() {
@@ -22,8 +22,8 @@ class GenaiModelCatalogTest {
   @Test
   fun `a user file replaces the built-in list`() {
     val file = userFile()
-    file.parent.let(Files::createDirectories)
-    Files.writeString(file, """{"models":[{"id":"my/model","modality":"IMAGE","priority":1}]}""")
+    file.parentFile.mkdirs()
+    file.writeText("""{"models":[{"id":"my/model","modality":"IMAGE","priority":1}]}""")
 
     // В отличие от промптов, каталог моделей пользователь ведёт целиком под себя.
     val catalog = GenaiModelCatalog.load(file)
@@ -33,8 +33,8 @@ class GenaiModelCatalogTest {
   @Test
   fun `a broken user file falls back to the built-in list, not to three emergency models`() {
     val file = userFile()
-    file.parent.let(Files::createDirectories)
-    Files.writeString(file, """{"models":[{"id":"my/model",]}""")
+    file.parentFile.mkdirs()
+    file.writeText("""{"models":[{"id":"my/model",]}""")
 
     val builtIn = GenaiModelCatalog.load(null)
     val loaded = GenaiModelCatalog.load(file)
@@ -47,8 +47,8 @@ class GenaiModelCatalogTest {
   @Test
   fun `an empty user file falls back too`() {
     val file = userFile()
-    file.parent.let(Files::createDirectories)
-    Files.writeString(file, """{"models":[]}""")
+    file.parentFile.mkdirs()
+    file.writeText("""{"models":[]}""")
 
     assertEquals(GenaiModelCatalog.load(null).models.size, GenaiModelCatalog.load(file).models.size)
   }

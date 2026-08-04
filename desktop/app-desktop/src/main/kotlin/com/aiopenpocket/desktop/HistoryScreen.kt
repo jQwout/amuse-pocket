@@ -41,7 +41,7 @@ import com.aiopenpocket.genai.JobStatus
 import com.aiopenpocket.genai.costSummary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.nio.file.Path
+import java.io.File
 
 @Composable
 fun HistoryScreen(container: AppContainer) {
@@ -156,8 +156,8 @@ private fun SingleRow(job: GenerationJob) {
       }
       Column(horizontalAlignment = Alignment.End) {
         for (artifact in job.artifacts) {
-          val path = Path.of(artifact)
-          TextButton(onClick = { openInSystem(path) }) { Text(path.fileName.toString()) }
+          val path = File(artifact)
+          TextButton(onClick = { openInSystem(path) }) { Text(path.name) }
         }
       }
     }
@@ -201,7 +201,7 @@ private fun BatchRow(group: List<GenerationJob>) {
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             job.artifacts.firstOrNull()?.let { artifact ->
-              TextButton(onClick = { openInSystem(Path.of(artifact)) }) { Text("открыть") }
+              TextButton(onClick = { openInSystem(File(artifact)) }) { Text("открыть") }
             }
           }
         }
@@ -221,7 +221,7 @@ private fun Thumbnail(job: GenerationJob) {
   // produceState + IO, а не remember { loadImage(...) }: чтение файла и декодирование прямо в
   // композиции подвешивают окно на каждой карточке — при истории в десяток картинок это видно.
   val bitmap by produceState<ImageBitmap?>(initialValue = null, first, isImage) {
-    value = if (isImage && first != null) withContext(Dispatchers.IO) { loadImage(Path.of(first)) } else null
+    value = if (isImage && first != null) withContext(Dispatchers.IO) { loadImage(File(first)) } else null
   }
   val ready = bitmap
   if (ready != null) {

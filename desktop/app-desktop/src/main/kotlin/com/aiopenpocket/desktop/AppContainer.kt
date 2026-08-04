@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.nio.file.Path
+import java.io.File
 
 /**
  * Ручная сборка графа зависимостей. Metro (как в :app) здесь не подключён сознательно: на два
@@ -54,10 +54,10 @@ class AppContainer(private val scope: CoroutineScope) : AutoCloseable {
    */
   val sessionStartedAtEpochMs: Long = System.currentTimeMillis()
 
-  val outputDir: Path get() = paths.outputDir
-  val configDir: Path get() = paths.configDir
-  val modelsOverrideFile: Path get() = paths.modelsOverrideFile
-  val promptsUserFile: Path get() = paths.promptsUserFile
+  val outputDir: File get() = paths.outputDir
+  val configDir: File get() = paths.configDir
+  val modelsOverrideFile: File get() = paths.modelsOverrideFile
+  val promptsUserFile: File get() = paths.promptsUserFile
 
   init {
     // Видео-задание, отправленное в прошлый запуск, продолжает опрашиваться; прерванные синхронные

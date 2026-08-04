@@ -7,12 +7,19 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
+/**
+ * Права проверяются через `java.nio` — это ТЕСТ, он живёт только на JVM. Сам `ApiKeyStore`
+ * сознательно обходится `java.io.File`: модуль едет в общий код с `:app`, где minSdk 24.
+ */
 class ApiKeyStoreTest {
 
   private fun store(): Pair<ApiKeyStore, AppPaths> {
-    val paths = AppPaths(home = createTempDirectory("genai-key"), env = { null })
+    val paths = AppPaths(home = createTempDirectory("genai-key").toFile(), env = { null })
     return ApiKeyStore(paths) to paths
   }
+
+  private fun permissionsOf(paths: AppPaths): Set<PosixFilePermission> =
+    Files.getPosixFilePermissions(paths.apiKeyFile.toPath())
 
   @Test
   fun `key survives a write-read round trip and is trimmed`() {
@@ -26,7 +33,7 @@ class ApiKeyStoreTest {
     val (keys, paths) = store()
     keys.write("sk-or-secret")
 
-    val perms = Files.getPosixFilePermissions(paths.apiKeyFile)
+    val perms = permissionsOf(paths)
     assertEquals(
       setOf(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE),
       perms,
@@ -39,20 +46,12 @@ class ApiKeyStoreTest {
     val (keys, paths) = store()
     keys.write("первый")
     // Кто-то (или прошлая версия приложения) распустил права — перезапись обязана их вернуть.
-    Files.setPosixFilePermissions(
-      paths.apiKeyFile,
-      setOf(
-        PosixFilePermission.OWNER_READ,
-        PosixFilePermission.OWNER_WRITE,
-        PosixFilePermission.GROUP_READ,
-        PosixFilePermission.OTHERS_READ,
-      ),
-    )
+    paths.apiKeyFile.setReadable(true, false)
 
     keys.write("второй")
 
     assertEquals("второй", keys.read())
-    val perms = Files.getPosixFilePermissions(paths.apiKeyFile)
+    val perms = permissionsOf(paths)
     assertTrue(PosixFilePermission.OTHERS_READ !in perms, "чужие всё ещё могут читать ключ: $perms")
     assertTrue(PosixFilePermission.GROUP_READ !in perms, "группа всё ещё может читать ключ: $perms")
   }
@@ -62,9 +61,7 @@ class ApiKeyStoreTest {
     val (keys, paths) = store()
     keys.write("sk-or-secret")
 
-    val leftovers = Files.list(paths.configDir).use { stream ->
-      stream.filter { it.fileName.toString().endsWith(".tmp") }.toList()
-    }
+    val leftovers = paths.configDir.listFiles().orEmpty().filter { it.name.endsWith(".tmp") }
     assertTrue(leftovers.isEmpty(), "остался временный файл с ключом: $leftovers")
   }
 
@@ -75,6 +72,6 @@ class ApiKeyStoreTest {
     keys.clear()
 
     assertEquals("", keys.read())
-    assertTrue(!Files.exists(paths.apiKeyFile))
+    assertTrue(!paths.apiKeyFile.exists())
   }
 }

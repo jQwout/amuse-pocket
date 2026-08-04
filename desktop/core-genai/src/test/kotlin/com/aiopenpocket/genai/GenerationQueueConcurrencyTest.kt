@@ -15,6 +15,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
+import java.io.File
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -46,7 +47,7 @@ class GenerationQueueConcurrencyTest {
   // метод молча не берёт в запуск — тест «проходит», ни разу не выполнившись.
   @Test
   fun `parallel jobs do not lose each other's status updates`(): Unit = runBlocking {
-    val home = createTempDirectory("genai-concurrency")
+    val home = createTempDirectory("genai-concurrency").toFile()
     val paths = AppPaths(home = home, env = { null })
     val engine = MockEngine { _ ->
       respond(content = ByteReadChannel(byteArrayOf(1)), status = HttpStatusCode.OK)
@@ -95,7 +96,7 @@ class GenerationQueueConcurrencyTest {
    */
   @Test
   fun `cancel never drags a finished job back out of its terminal state`(): Unit = runBlocking {
-    val home = createTempDirectory("genai-cancel-race")
+    val home = createTempDirectory("genai-cancel-race").toFile()
     val paths = AppPaths(home = home, env = { null })
     val engine = MockEngine { _ ->
       respond(content = ByteReadChannel(byteArrayOf(1)), status = HttpStatusCode.OK)

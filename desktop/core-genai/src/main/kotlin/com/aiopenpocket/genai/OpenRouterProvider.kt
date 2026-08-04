@@ -31,7 +31,8 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.put
-import java.util.Base64
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 /**
  * Единственный провайдер на все три модальности: OpenRouter покрывает картинки, видео и TTS
@@ -377,6 +378,7 @@ internal fun openRouterJson(): Json = Json {
  * Раньше называлась `decodeDataUrl` и в документации обещала null для обычной ссылки, хотя код
  * возвращал ссылку с жёстко зашитым `image/png` — jpeg сохранялся под именем `.png`.
  */
+@OptIn(ExperimentalEncodingApi::class)
 internal fun parseImageOutput(url: String): GenerationOutput? {
   if (!url.startsWith("data:")) return GenerationOutput.RemoteUrl(url, mimeForRemoteImage(url))
   val comma = url.indexOf(',')
@@ -385,7 +387,7 @@ internal fun parseImageOutput(url: String): GenerationOutput? {
   if (!meta.endsWith(";base64")) return null
   val mime = meta.removeSuffix(";base64").ifBlank { "image/png" }
   val bytes = try {
-    Base64.getDecoder().decode(url.substring(comma + 1))
+    Base64.decode(url.substring(comma + 1))
   } catch (e: IllegalArgumentException) {
     return null
   }

@@ -8,10 +8,8 @@ import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.readBytes
-import java.nio.file.Files
-import java.nio.file.Path
+import java.io.File
 import java.util.Locale
-import kotlin.io.path.createDirectories
 
 /**
  * Кладёт результаты генерации на диск и возвращает пути. Видео приходит ссылкой, а не байтами,
@@ -34,10 +32,10 @@ class ArtifactStore(
 
   override fun close() = httpClient.close()
 
-  /** Возвращает пути сохранённых файлов в порядке [outputs]. */
-  suspend fun save(jobId: String, outputs: List<GenerationOutput>): List<Path> {
-    val dir = paths.outputDir.resolve(safeDirName(jobId))
-    dir.createDirectories()
+  /** Возвращает сохранённые файлы в порядке [outputs]. */
+  suspend fun save(jobId: String, outputs: List<GenerationOutput>): List<File> {
+    val dir = File(paths.outputDir, safeDirName(jobId))
+    dir.mkdirs()
     return outputs.mapIndexed { index, output ->
       val bytes = when (output) {
         is GenerationOutput.Bytes -> output.data
@@ -45,8 +43,8 @@ class ArtifactStore(
       }
       // Locale.ROOT: в некоторых локалях %d даёт не ASCII-цифры, а имена файлов не место
       // для сюрпризов.
-      val file = dir.resolve("%02d.%s".format(Locale.ROOT, index + 1, extensionFor(output.mimeType)))
-      Files.write(file, bytes)
+      val file = File(dir, "%02d.%s".format(Locale.ROOT, index + 1, extensionFor(output.mimeType)))
+      file.writeBytes(bytes)
       file
     }
   }

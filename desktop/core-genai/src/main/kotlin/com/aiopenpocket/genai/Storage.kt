@@ -4,33 +4,33 @@ package com.aiopenpocket.genai
 
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.StandardCopyOption
-import java.nio.file.attribute.PosixFilePermission
-import java.nio.file.attribute.PosixFilePermissions
-import kotlin.io.path.createDirectories
+import java.io.File
 
 /**
  * Куда приложение пишет на диск. XDG-переменные учитываются, потому что иначе на настроенной
  * машине конфиг лёг бы не туда, где его ищет пользователь.
+ *
+ * Везде [File], а НЕ `java.nio.file.Path`: этот модуль по плану переезжает в общий код с `:app`,
+ * а `java.nio.file` появился на Android только в API 26 — при minSdk 24 и без десугаринга это
+ * `NoClassDefFoundError`, то есть `Error` мимо всех catch. Ровно на этом уже обожглись в `:app`
+ * (см. `OpenRouterCatalogCache`), и повторять в общем ядре тем более незачем.
  */
 class AppPaths(
-  private val home: Path = Path.of(System.getProperty("user.home")),
+  private val home: File = File(System.getProperty("user.home")),
   private val env: (String) -> String? = System::getenv,
 ) {
-  val configDir: Path get() = (env("XDG_CONFIG_HOME")?.let(Path::of) ?: home.resolve(".config")).resolve(APP_DIR)
-  val dataDir: Path get() = (env("XDG_DATA_HOME")?.let(Path::of) ?: home.resolve(".local/share")).resolve(APP_DIR)
+  val configDir: File get() = File(env("XDG_CONFIG_HOME")?.let(::File) ?: File(home, ".config"), APP_DIR)
+  val dataDir: File get() = File(env("XDG_DATA_HOME")?.let(::File) ?: File(home, ".local/share"), APP_DIR)
 
   /** Готовые файлы кладём на видное место: пользователь ищет их файловым менеджером, а не в ~/.local. */
-  val outputDir: Path get() = home.resolve("AiOpenPocket").resolve("generations")
+  val outputDir: File get() = File(File(home, "AiOpenPocket"), "generations")
 
-  val apiKeyFile: Path get() = configDir.resolve("openrouter.key")
-  val jobsFile: Path get() = dataDir.resolve("jobs.json")
-  val modelsOverrideFile: Path get() = configDir.resolve("genai-models.json")
+  val apiKeyFile: File get() = File(configDir, "openrouter.key")
+  val jobsFile: File get() = File(dataDir, "jobs.json")
+  val modelsOverrideFile: File get() = File(configDir, "genai-models.json")
 
   /** Свои заготовки промптов. В отличие от моделей, сливаются со встроенными, а не заменяют их. */
-  val promptsUserFile: Path get() = configDir.resolve("genai-prompts.json")
+  val promptsUserFile: File get() = File(configDir, "genai-prompts.json")
 
   private companion object {
     const val APP_DIR = "aiopenpocket"
@@ -38,47 +38,52 @@ class AppPaths(
 }
 
 /**
- * Ключ OpenRouter в файле с правами 600. EncryptedSharedPreferences из :app здесь нет, а кидать
- * ключ в переменную окружения или в git — хуже: файл под правами владельца — минимум, который
- * не врёт пользователю про «шифрование».
+ * Ключ OpenRouter в файле, доступном только владельцу. EncryptedSharedPreferences из :app здесь
+ * нет, а кидать ключ в переменную окружения или в git — хуже: файл под правами владельца — минимум,
+ * который не врёт пользователю про «шифрование».
  */
 class ApiKeyStore(private val paths: AppPaths = AppPaths()) {
 
-  fun read(): String =
-    runCatching { Files.readString(paths.apiKeyFile).trim() }.getOrDefault("")
+  fun read(): String = runCatching { paths.apiKeyFile.readText().trim() }.getOrDefault("")
 
   /**
-   * Пишем во временный файл, СОЗДАННЫЙ сразу с правами 600, и только потом переносим на место.
-   * Прямая запись в целевой файл создавала бы его под umask, и до `chmod` ключ был бы читаем
-   * всем на машине — окно короткое, но совершенно ненужное.
+   * Пишем во временный файл, у которого права сузили ДО записи ключа, и только потом переносим
+   * на место. Прямая запись в целевой файл создавала бы его под umask, и до сужения прав ключ был
+   * бы читаем всем на машине.
+   *
+   * Права через [File.setReadable]/[File.setWritable], а не `Files.setPosixFilePermissions`: те
+   * из `java.nio.file` и на Android живут с API 26, а эти есть везде.
    */
   fun write(key: String) {
     val file = paths.apiKeyFile
-    file.parent.createDirectories()
-    val tmp = file.resolveSibling(file.fileName.toString() + ".tmp")
-    runCatching { Files.deleteIfExists(tmp) }
-    // На не-POSIX ФС (Windows) прав в этом виде нет — там создаём как получится.
-    val restricted = runCatching {
-      Files.createFile(tmp, PosixFilePermissions.asFileAttribute(OWNER_ONLY))
-    }.isSuccess
-    if (!restricted) Files.createFile(tmp)
-    Files.writeString(tmp, key.trim())
-    // move сохраняет права источника, поэтому целевой файл получается уже закрытым.
-    Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING)
+    file.parentFile?.mkdirs()
+    val tmp = File(file.parentFile, file.name + ".tmp")
+    runCatching { tmp.delete() }
+    tmp.createNewFile()
+    restrictToOwner(tmp)
+    tmp.writeText(key.trim())
+    if (!tmp.renameTo(file)) {
+      // renameTo не перезаписывает существующий файл на части систем — сносим и повторяем.
+      file.delete()
+      if (!tmp.renameTo(file)) {
+        tmp.delete()
+        error("не удалось сохранить ключ в $file")
+      }
+    }
     restrictToOwner(file)
   }
 
   fun clear() {
-    runCatching { Files.deleteIfExists(paths.apiKeyFile) }
+    runCatching { paths.apiKeyFile.delete() }
   }
 
-  private fun restrictToOwner(file: Path) {
-    // На Windows POSIX-прав нет — тогда просто пропускаем, а не падаем.
-    runCatching { Files.setPosixFilePermissions(file, OWNER_ONLY) }
-  }
-
-  private companion object {
-    val OWNER_ONLY = setOf(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE)
+  private fun restrictToOwner(file: File) {
+    // Сначала снимаем у всех, потом возвращаем владельцу: иначе групповое/чужое чтение осталось бы.
+    file.setReadable(false, false)
+    file.setWritable(false, false)
+    file.setExecutable(false, false)
+    file.setReadable(true, true)
+    file.setWritable(true, true)
   }
 }
 
@@ -95,19 +100,33 @@ class JobStore(private val paths: AppPaths = AppPaths()) {
     encodeDefaults = true
   }
 
+  @Synchronized
   fun load(): List<GenerationJob> {
     val file = paths.jobsFile
-    if (!Files.isRegularFile(file)) return emptyList()
-    return runCatching { json.decodeFromString<List<GenerationJob>>(Files.readString(file)) }
+    if (!file.isFile) return emptyList()
+    return runCatching { json.decodeFromString<List<GenerationJob>>(file.readText()) }
       .getOrDefault(emptyList())
   }
 
+  /**
+   * [Synchronized] обязателен, а не «на всякий случай»: очередь пишет историю из своего потока
+   * записи, а `GenerationQueue.close()` дописывает её синхронно из потока закрытия окна. Две
+   * записи через один временный файл — и вторая не находит своего tmp, идёт в ветку
+   * «удалить и переименовать» и сносит уже сохранённую историю. Ровно это и поймали тесты.
+   */
+  @Synchronized
   fun save(jobs: List<GenerationJob>) {
     val file = paths.jobsFile
-    file.parent.createDirectories()
-    // Пишем через временный файл: обрыв записи на середине не должен превращать историю в мусор.
-    val tmp = file.resolveSibling(file.fileName.toString() + ".tmp")
-    Files.writeString(tmp, json.encodeToString(jobs))
-    Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING)
+    file.parentFile?.mkdirs()
+    // Пишем рядом и переименовываем: прямая запись сначала обрезает файл до нуля, и читатель,
+    // попавший в это окно, увидел бы обрубок вместо истории.
+    val tmp = File(file.parentFile, file.name + ".tmp")
+    tmp.writeText(json.encodeToString(jobs))
+    if (!tmp.renameTo(file)) {
+      // renameTo не перезаписывает существующий файл на части систем (Windows). Вторая ветка
+      // безопасна только потому, что сюда не может войти второй писатель.
+      file.delete()
+      if (!tmp.renameTo(file)) tmp.delete()
+    }
   }
 }
