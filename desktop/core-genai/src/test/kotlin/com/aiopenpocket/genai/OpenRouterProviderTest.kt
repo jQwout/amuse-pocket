@@ -56,6 +56,26 @@ class OpenRouterProviderTest {
   }
 
   @Test
+  fun `an exhausted poll leaves the video recoverable, not buried in a failure`() = runTest {
+    // Видео уже оплачено, polling_url сохранён. Терминальный отказ здесь означает, что
+    // resumeUnfinished() задание больше не подхватит (он пропускает терминальные), а единственная
+    // кнопка у пользователя — «Повторить», то есть заплатить второй раз за то же самое.
+    val engine = jsonEngine(
+      """{"id":"vid-1","polling_url":"https://openrouter.ai/api/v1/videos/vid-1","status":"processing"}""",
+    )
+
+    val events = provider(engine).generate(
+      GenerationRequest(GenerationModality.VIDEO, "кот в скафандре", "google/veo-3.1-fast"),
+    ).toList()
+
+    assertTrue(
+      events.filterIsInstance<GenerationProgress.Failed>().isEmpty(),
+      "исчерпанный опрос похоронил оплаченное видео в терминальном отказе",
+    )
+    assertTrue(events.last() is GenerationProgress.Status, "последним пришло ${events.last()}")
+  }
+
+  @Test
   fun `HTTP 200 without an image counts as a refusal, not a result`() = runTest {
     val engine = jsonEngine(
       """{"choices":[{"message":{"role":"assistant","content":"не могу нарисовать это"}}]}""",

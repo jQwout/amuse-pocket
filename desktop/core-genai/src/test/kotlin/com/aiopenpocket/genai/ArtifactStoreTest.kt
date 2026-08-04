@@ -11,6 +11,7 @@ import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ArtifactStoreTest {
@@ -68,6 +69,32 @@ class ArtifactStoreTest {
       file.path.startsWith(paths.outputDir.canonicalFile.path),
       "запись ушла за пределы папки результатов: $file",
     )
+  }
+
+  @Test
+  fun `the api key is not sent to hosts outside OpenRouter`() = runTest {
+    // Ссылки на результат приходят из ответа провайдера. Слать Bearer-ключ на любой хост, который
+    // назвали в JSON, — это отдавать ключ тому, кого мы не выбирали.
+    val paths = AppPaths(home = createTempDirectory("genai-artifacts").toFile(), env = { null })
+    val engine = MockEngine { respond(content = ByteReadChannel(byteArrayOf(1)), status = HttpStatusCode.OK) }
+    val store = ArtifactStore(engine = engine, apiKey = { "sk-secret" }, paths = paths)
+
+    store.save("job5", listOf(GenerationOutput.RemoteUrl("https://evil.example/v.mp4", "video/mp4")))
+
+    val sent = engine.requestHistory.single().headers["Authorization"]
+    assertNull(sent, "ключ уехал на чужой хост: $sent")
+  }
+
+  @Test
+  fun `the api key is still sent to OpenRouter itself`() = runTest {
+    // Content-ссылки OpenRouter авторизации требуют — сузить нужно ровно до чужих хостов.
+    val paths = AppPaths(home = createTempDirectory("genai-artifacts").toFile(), env = { null })
+    val engine = MockEngine { respond(content = ByteReadChannel(byteArrayOf(1)), status = HttpStatusCode.OK) }
+    val store = ArtifactStore(engine = engine, apiKey = { "sk-secret" }, paths = paths)
+
+    store.save("job6", listOf(GenerationOutput.RemoteUrl("https://openrouter.ai/v/1.mp4", "video/mp4")))
+
+    assertEquals("Bearer sk-secret", engine.requestHistory.single().headers["Authorization"])
   }
 
   @Test
