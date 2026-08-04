@@ -14,6 +14,7 @@ import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.width
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -56,6 +57,47 @@ object DevScreenshot {
 
     shoot(outDir, "generate", 1400, 950) {
       GenerateScreen(container, onOpenSettings = {})
+    }
+    shoot(outDir, "files", 620, 560) {
+      androidx.compose.foundation.layout.Column(Modifier.width(520.dp)) {
+        FieldGroup("Файлы", "каждый со своей ролью и тегами") {
+          AttachmentsField(
+            attachments = listOf(
+              com.aiopenpocket.genai.InputAttachment(
+                "/x/trassa_fog_11.jpg",
+                com.aiopenpocket.genai.AttachmentRole.BACKGROUND,
+                listOf("ночь", "туман"),
+              ),
+              com.aiopenpocket.genai.InputAttachment(
+                "/x/plash_back_02.png",
+                com.aiopenpocket.genai.AttachmentRole.CHARACTER,
+                listOf("спина", "плащ"),
+              ),
+              com.aiopenpocket.genai.InputAttachment(
+                "/x/film_grain_ref.jpg",
+                com.aiopenpocket.genai.AttachmentRole.STYLE,
+                listOf("плёнка"),
+              ),
+            ),
+            modality = com.aiopenpocket.genai.GenerationModality.IMAGE,
+            onAdd = {}, onChange = { _, _ -> }, onRemove = {},
+          )
+        }
+      }
+    }
+    shoot(outDir, "models", 700, 620) {
+      androidx.compose.material3.Surface(color = MaterialTheme.colorScheme.surface) {
+        androidx.compose.foundation.layout.Column(Modifier.width(460.dp)) {
+          ModelPickerList(
+            suggestions = container.catalog.value.catalog
+              .forModality(com.aiopenpocket.genai.GenerationModality.IMAGE),
+            current = "google/gemini-3-pro-image",
+            query = "",
+            onQuery = {},
+            onPick = {},
+          )
+        }
+      }
     }
     shoot(outDir, "history", 1400, 950) { HistoryScreen(container) }
     shoot(outDir, "settings", 1400, 950) { SettingsScreen(container) }

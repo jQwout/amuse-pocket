@@ -15,13 +15,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -34,9 +39,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.genai.AttachmentRole
 import com.aiopenpocket.genai.GenaiModelEntry
+import com.aiopenpocket.genai.InputAttachment
 import com.aiopenpocket.genai.GenerationJob
 import com.aiopenpocket.genai.GenerationModality
 import com.aiopenpocket.genai.JobStatus
@@ -88,64 +96,137 @@ fun FieldGroup(title: String, hint: String? = null, content: @Composable ColumnS
 @Composable
 fun ModelField(model: String, suggestions: List<GenaiModelEntry>, onModelChange: (String) -> Unit) {
   var expanded by remember { mutableStateOf(false) }
-  Row(
-    Modifier.fillMaxWidth(),
-    verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(8.dp),
-  ) {
-    OutlinedTextField(
-      value = model,
-      onValueChange = onModelChange,
-      placeholder = { Text("vendor/model") },
-      singleLine = true,
-      // Тянется по окну, а не фиксированные 520dp: слаги бывают длинными, и на широком окне
-      // поле обрывало их посреди пустого места.
-      modifier = Modifier.weight(1f),
-    )
-    Box {
+  var query by remember(expanded) { mutableStateOf("") }
+
+  Column(Modifier.fillMaxWidth()) {
+    Row(
+      Modifier.fillMaxWidth(),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      OutlinedTextField(
+        value = model,
+        onValueChange = onModelChange,
+        placeholder = { Text("vendor/model") },
+        singleLine = true,
+        // Тянется по окну, а не фиксированные 520dp: слаги бывают длинными, и на широком окне
+        // поле обрывало их посреди пустого места.
+        modifier = Modifier.weight(1f),
+      )
       OutlinedButton(onClick = { expanded = true }) { Text("Из списка") }
-      // Высота ограничена: моделей из живого каталога бывает второй десяток, и без предела меню
-      // накрывало собой промпт и половину экрана. Сверх предела меню прокручивается само.
-      DropdownMenu(
-        expanded = expanded,
-        onDismissRequest = { expanded = false },
-        modifier = Modifier.heightIn(max = 360.dp),
-      ) {
-        if (suggestions.isEmpty()) {
-          DropdownMenuItem(text = { Text("нет подсказок для этой модальности") }, onClick = {})
-        }
-        for (entry in suggestions) {
-          val current = entry.id == model
-          DropdownMenuItem(
-            text = {
-              // Две строки: имя читается, слаг остаётся видимым — именно он уходит в запрос, и
-              // подменять его красивым названием нельзя. Одной строкой список превращался в стену
-              // почти одинаковых идентификаторов.
-              Column {
-                Text(
-                  entry.displayName,
-                  style = MaterialTheme.typography.bodyMedium,
-                  fontWeight = if (current) FontWeight.SemiBold else FontWeight.Normal,
-                  color = if (current) {
-                    MaterialTheme.colorScheme.primary
-                  } else {
-                    MaterialTheme.colorScheme.onSurface
-                  },
-                )
-                Text(
-                  entry.id,
-                  style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-              }
-            },
-            onClick = {
-              onModelChange(entry.id)
-              expanded = false
-            },
-          )
-        }
-      }
+    }
+
+    // Меню висит на колонке, а не на кнопке: привязанное к кнопке, оно раскрывалось влево и
+    // накрывало собой промпт. Теперь разворачивается под полем, там же, где его и ищут.
+    DropdownMenu(
+      expanded = expanded,
+      onDismissRequest = { expanded = false },
+      modifier = Modifier.heightIn(max = 420.dp).width(460.dp),
+    ) {
+      ModelPickerList(
+        suggestions = suggestions,
+        current = model,
+        query = query,
+        onQuery = { query = it },
+        onPick = {
+          onModelChange(it)
+          expanded = false
+        },
+      )
+    }
+  }
+}
+
+/**
+ * Содержимое списка моделей: поиск, группировка по вендору, галочка у текущей.
+ *
+ * Отдельным композаблом, потому что раскрытое меню в offscreen-снимок не попадает — состояние
+ * внутреннее. Отдельно его снять можно, а значит и посмотреть, что получилось, прежде чем отдавать.
+ *
+ * Поиск здесь не украшение: в живом каталоге одиннадцать картиночных моделей, и половина из них —
+ * `gemini-3.1-flash-image` против `gemini-3.1-flash-image-preview`. Глазами это не разбирается.
+ */
+@Composable
+fun ModelPickerList(
+  suggestions: List<GenaiModelEntry>,
+  current: String,
+  query: String,
+  onQuery: (String) -> Unit,
+  onPick: (String) -> Unit,
+) {
+  if (suggestions.isEmpty()) {
+    Text(
+      "нет подсказок для этой модальности — введи слаг руками",
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      modifier = Modifier.padding(16.dp),
+    )
+    return
+  }
+
+  OutlinedTextField(
+    value = query,
+    onValueChange = onQuery,
+    placeholder = { Text("поиск: gemini, gpt, pro…") },
+    singleLine = true,
+    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+  )
+
+  val matched = suggestions.filter {
+    query.isBlank() || it.id.contains(query, ignoreCase = true) ||
+      it.displayName.contains(query, ignoreCase = true)
+  }
+  if (matched.isEmpty()) {
+    Text(
+      "ничего не нашлось",
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+    )
+    return
+  }
+
+  // Группировка по вендору: сортировкой список не спасти, а «google» над четырьмя близнецами
+  // сразу говорит, чем они отличаются от соседних.
+  for ((vendor, group) in matched.groupBy { it.vendor }) {
+    if (vendor.isNotBlank()) {
+      Text(
+        vendor,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 16.dp, top = 10.dp, bottom = 2.dp),
+      )
+    }
+    for (entry in group) {
+      val chosen = entry.id == current
+      DropdownMenuItem(
+        text = {
+          Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Icon(
+              Icons.Default.Check,
+              contentDescription = null,
+              tint = if (chosen) MaterialTheme.colorScheme.primary else Color.Transparent,
+              modifier = Modifier.size(16.dp),
+            )
+            Column {
+              // Имя читается, слаг остаётся видимым: именно он уходит в запрос, и подменять его
+              // красивым названием нельзя.
+              Text(
+                entry.displayName,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (chosen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+              )
+              Text(
+                entry.id,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+            }
+          }
+        },
+        onClick = { onPick(entry.id) },
+      )
     }
   }
 }
@@ -307,6 +388,101 @@ private fun ParamRow(
     }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), content = chips)
   }
+}
+
+/**
+ * Файлы на входе: несколько, у каждого роль и теги.
+ *
+ * Честность про роли вынесена в подпись, а не спрятана в KDoc. У видео роль — настоящее поле API
+ * (`frame_images`/`input_references`), у картинок такого поля нет вовсе, и роль с тегами уезжают
+ * словами в промпт. Разница пользователю видна, иначе «Фон» выглядит как параметр, который
+ * провайдер обязался соблюсти.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun AttachmentsField(
+  attachments: List<InputAttachment>,
+  modality: GenerationModality,
+  onAdd: () -> Unit,
+  onChange: (Int, InputAttachment) -> Unit,
+  onRemove: (Int) -> Unit,
+) {
+  val roles = AttachmentRole.entries.filter { modality == GenerationModality.VIDEO || !it.forVideoOnly }
+
+  Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    for ((index, attachment) in attachments.withIndex()) {
+      Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(attachment.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            TextButton(onClick = { onRemove(index) }) { Text("×") }
+          }
+          FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            RolePicker(attachment.role, roles) { onChange(index, attachment.copy(role = it)) }
+            for (tag in attachment.tags) {
+              AssistChip(
+                onClick = { onChange(index, attachment.copy(tags = attachment.tags - tag)) },
+                label = { Text(tag) },
+              )
+            }
+            TagInput { tag -> onChange(index, attachment.copy(tags = attachment.tags + tag)) }
+          }
+        }
+      }
+    }
+
+    OutlinedButton(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text("+  Добавить файл") }
+
+    Text(
+      if (modality == GenerationModality.VIDEO) {
+        "Кадры и референсы уходят отдельными полями запроса — роль здесь настоящая."
+      } else {
+        "У картинок в API нет поля для роли: роль и теги уйдут словами в промпт, как подсказка."
+      },
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+  }
+}
+
+@Composable
+private fun RolePicker(current: AttachmentRole, options: List<AttachmentRole>, onPick: (AttachmentRole) -> Unit) {
+  var open by remember { mutableStateOf(false) }
+  Box {
+    AssistChip(onClick = { open = true }, label = { Text(current.label + "  ▾") })
+    DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+      for (role in options) {
+        DropdownMenuItem(
+          text = { Text(role.label) },
+          onClick = {
+            onPick(role)
+            open = false
+          },
+        )
+      }
+    }
+  }
+}
+
+/** Тег добавляется запятой или переводом строки: ловить Enter в Compose Desktop дороже, чем оно стоит. */
+@Composable
+private fun TagInput(onAdd: (String) -> Unit) {
+  var text by remember { mutableStateOf("") }
+  OutlinedTextField(
+    value = text,
+    onValueChange = { raw ->
+      if (raw.endsWith(",") || raw.endsWith("\n")) {
+        val tag = raw.dropLast(1).trim()
+        if (tag.isNotEmpty()) onAdd(tag)
+        text = ""
+      } else {
+        text = raw
+      }
+    },
+    placeholder = { Text("+ тег,") },
+    singleLine = true,
+    modifier = Modifier.width(140.dp),
+  )
 }
 
 /** Сколько вариантов одного промпта запустить разом. */
