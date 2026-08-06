@@ -3,6 +3,7 @@ package com.aiopenpocket.genai
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class CostStatsTest {
@@ -13,9 +14,10 @@ class CostStatsTest {
     status: JobStatus = JobStatus.DONE,
     cost: Double? = null,
     createdAt: Long = 1_000L,
+    model: String = "модель",
   ) = GenerationJob(
     id = id,
-    request = GenerationRequest(modality, "промпт", "модель"),
+    request = GenerationRequest(modality, "промпт", model),
     createdAtEpochMs = createdAt,
     status = status,
     costUsd = cost,
@@ -80,5 +82,93 @@ class CostStatsTest {
     assertEquals(0.0, summary.totalUsd)
     assertEquals(0, summary.jobsCounted)
     assertFalse(summary.partial)
+  }
+
+  @Test
+  fun `average price is per model, not smeared across the whole history`() {
+    val jobs = listOf(
+      job("a", cost = 0.01, model = "flux"),
+      job("b", cost = 0.03, model = "flux"),
+      // Дорогое видео другой модели не должно поднимать оценку для flux.
+      job("c", GenerationModality.VIDEO, cost = 1.20, model = "veo"),
+    )
+
+    assertEquals(0.02, jobs.costEstimate("flux")!!.perRunUsd, 1e-9)
+    assertEquals(1.20, jobs.costEstimate("veo")!!.perRunUsd, 1e-9)
+  }
+
+  @Test
+  fun `no usable history means no price at all, not zero`() {
+    val jobs = listOf(
+      // Провалившееся денег не стоило, а у TTS цены в ответе нет вовсе: обе записи знанием о цене
+      // не являются, и выдавать по ним «$0.0000» значит обещать бесплатную генерацию.
+      job("failed", status = JobStatus.FAILED, cost = 0.99, model = "flux"),
+      job("no-cost", cost = null, model = "flux"),
+    )
+
+    assertNull(jobs.costEstimate("flux"))
+    assertNull(emptyList<GenerationJob>().costEstimate("flux"))
+    assertNull(jobs.costEstimate("модель, которой ещё не запускали"))
+  }
+
+  @Test
+  fun `estimate keeps how many jobs it is based on`() {
+    val jobs = listOf(
+      job("a", cost = 0.01, model = "flux"),
+      job("b", cost = 0.03, model = "flux"),
+      // Успешное задание без цены в ответе: на столько оценка занижена, и это должно быть видно.
+      job("c", cost = null, model = "flux"),
+    )
+
+    val estimate = jobs.costEstimate("flux")!!
+    assertEquals(2, estimate.samples)
+    assertEquals(1, estimate.jobsWithoutCost)
+    assertFalse(estimate.single, "две пробы — уже средняя, а не «в прошлый раз стоило столько»")
+  }
+
+  @Test
+  fun `a single past run is not called an average`() {
+    val estimate = listOf(job("only", cost = 0.05, model = "flux")).costEstimate("flux")!!
+
+    assertTrue(estimate.single)
+    assertTrue(
+      "по одному прошлому запуску" in runEstimateLine(estimate, count = 1),
+      "строка обязана сказать, что цена взята с одного раза: иначе догадка выглядит как статистика",
+    )
+  }
+
+  @Test
+  fun `unknown price is said out loud, not silently omitted`() {
+    val line = runEstimateLine(estimate = null, count = 2)
+
+    assertTrue("цену узнаем" in line, "молчание про деньги неотличимо от «бесплатно»: $line")
+    assertTrue("2 файла" in line, line)
+  }
+
+  @Test
+  fun `price is multiplied by the number of files`() {
+    val estimate = CostEstimate(perRunUsd = 0.0042, samples = 3, jobsWithoutCost = 0)
+
+    assertTrue("$0.0042" in runEstimateLine(estimate, count = 1), runEstimateLine(estimate, 1))
+    assertTrue("$0.0168" in runEstimateLine(estimate, count = 4), runEstimateLine(estimate, 4))
+  }
+
+  @Test
+  fun `file count is declined the Russian way`() {
+    val e = CostEstimate(perRunUsd = 0.01, samples = 2, jobsWithoutCost = 0)
+
+    assertTrue("1 файл ·" in runEstimateLine(e, 1), runEstimateLine(e, 1))
+    assertTrue("2 файла" in runEstimateLine(e, 2), runEstimateLine(e, 2))
+    assertTrue("5 файлов" in runEstimateLine(e, 5), runEstimateLine(e, 5))
+    // Одиннадцать-четырнадцать — исключение из правила «оканчивается на 2..4».
+    assertTrue("12 файлов" in runEstimateLine(e, 12), runEstimateLine(e, 12))
+    assertTrue("22 файла" in runEstimateLine(e, 22), runEstimateLine(e, 22))
+  }
+
+  @Test
+  fun `money is formatted the same everywhere, regardless of system locale`() {
+    // Точка, а не запятая: на русской локали «%.4f» иначе даёт «$0,0042».
+    assertEquals("$0.0042", formatUsd(0.0042))
+    assertEquals("—", formatUsd(null))
   }
 }

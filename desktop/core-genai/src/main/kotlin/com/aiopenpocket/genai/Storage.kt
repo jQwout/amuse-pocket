@@ -35,8 +35,18 @@ class AppPaths(
    */
   val modelsCacheFile: File get() = File(dataDir, "genai-models-cache.json")
 
+  /**
+   * Примеры картинок у моделей. Тоже скачанное и тоже одноразовое: снести папку — потерять только
+   * время на повторную загрузку. Рядом с кешем каталога, а не в [outputDir], потому что это не
+   * результат работы пользователя и в файловом менеджере ему делать нечего.
+   */
+  val modelPreviewsDir: File get() = File(dataDir, "model-previews")
+
   /** Свои заготовки промптов. В отличие от моделей, сливаются со встроенными, а не заменяют их. */
   val promptsUserFile: File get() = File(configDir, "genai-prompts.json")
+
+  /** Отмеченные звёздочкой модели. В [configDir]: это выбор пользователя, а не скачанное. */
+  val favoritesFile: File get() = File(configDir, "genai-favorites.json")
 
   private companion object {
     const val APP_DIR = "aiopenpocket"
@@ -123,13 +133,47 @@ class JobStore(private val paths: AppPaths = AppPaths()) {
     encodeDefaults = true
   }
 
+  /**
+   * Был ли файл истории при последней загрузке нечитаем. Не для логов: пользователь обязан узнать,
+   * что его история отложена в сторону, а не «сама пропала».
+   */
+  @Volatile
+  var lastLoadFailed: Boolean = false
+    private set
+
+  /**
+   * Читает историю. Битый файл НЕ превращается молча в пустую историю.
+   *
+   * Раньше `getOrDefault(emptyList())` делал именно это, и дальше срабатывала мина: `close()` при
+   * выходе безусловно пишет текущий список на диск. То есть достаточно было один раз открыть и
+   * закрыть приложение, чтобы неразобравшийся `jobs.json` был затёрт пустотой — без единого
+   * действия пользователя. Вместе с ним уходил бы и `polling_url` уже оплаченного видео-задания,
+   * то есть единственный способ забрать оплаченный результат.
+   *
+   * Поэтому непрочитанный файл отодвигается в `jobs.json.broken`: данные остаются на диске, их
+   * видно рядом, и перезаписывать поверх уже нечего. Ровно та же развилка «нет файла» против «файл
+   * сломан», что в `PromptLibrary.requireReadable`.
+   */
   @Synchronized
   fun load(): List<GenerationJob> {
+    lastLoadFailed = false
     val file = paths.jobsFile
     if (!file.isFile) return emptyList()
-    return runCatching { json.decodeFromString<List<GenerationJob>>(file.readText()) }
-      .getOrDefault(emptyList())
+
+    val parsed = runCatching { json.decodeFromString<List<GenerationJob>>(file.readText()) }.getOrNull()
+    if (parsed != null) return parsed
+
+    lastLoadFailed = true
+    val broken = File(file.parentFile, file.name + ".broken")
+    runCatching {
+      broken.delete()
+      if (!file.renameTo(broken)) file.copyTo(broken, overwrite = true).let { file.delete() }
+    }
+    return emptyList()
   }
+
+  /** Куда отложен нечитаемый файл истории. Показывается пользователю, а не только в KDoc. */
+  val brokenFile: File get() = File(paths.jobsFile.parentFile, paths.jobsFile.name + ".broken")
 
   /**
    * [Synchronized] обязателен, а не «на всякий случай»: очередь пишет историю из своего потока

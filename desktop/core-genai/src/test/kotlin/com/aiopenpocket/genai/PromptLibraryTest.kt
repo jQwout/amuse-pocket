@@ -4,6 +4,7 @@ import java.io.File
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class PromptLibraryTest {
@@ -120,5 +121,19 @@ class PromptLibraryTest {
     val tail = PromptLibrary.load(null).presets.single { it.id == "negative-tail" }
     assertTrue(PromptPreset.PLACEHOLDER in tail.prompt, "во встроенной приписке нет плейсхолдера")
     assertTrue(tail.applyTo("кот").startsWith("кот"), tail.applyTo("кот"))
+  }
+
+  @Test
+  fun `a broken user file refuses the write instead of wiping every saved preset`() {
+    // Одна лишняя запятая в genai-prompts.json — и следующее «Сохранить» писало «пустой список +
+    // новый пресет», то есть стирало всё накопленное, молча и с видом успеха.
+    val file = File(createTempDirectory("prompts").toFile(), "genai-prompts.json")
+    file.parentFile.mkdirs()
+    file.writeText("{ это не json ")
+
+    assertFailsWith<IllegalStateException> {
+      PromptLibrary.saveUserPreset(file, PromptPreset("p", "Заголовок", "промпт", GenerationModality.IMAGE))
+    }
+    assertEquals("{ это не json ", file.readText(), "битый файл обязан остаться нетронутым")
   }
 }

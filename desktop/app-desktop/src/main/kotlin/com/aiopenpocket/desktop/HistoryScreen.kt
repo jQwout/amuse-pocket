@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,7 +47,11 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 @Composable
-fun HistoryScreen(container: AppContainer) {
+fun HistoryScreen(
+  container: AppContainer,
+  /** Уводит на экран генерации. null — некуда (offscreen-снимок), кнопка тогда не рисуется. */
+  onOpenGenerate: (() -> Unit)? = null,
+) {
   val jobs by container.queue.jobs.collectAsState()
   val done = jobs.filter { it.status == JobStatus.DONE }.reversed()
   val total = jobs.costSummary()
@@ -63,7 +70,10 @@ fun HistoryScreen(container: AppContainer) {
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
-      TextButton(onClick = { openInSystem(container.outputDir) }) { Text("Открыть папку") }
+      // Тот же вид, что на «Генерации»: одно действие не должно выглядеть двумя разными кнопками.
+      OutlinedButton(onClick = { openInSystem(container.outputDir) }, shape = ButtonShape) {
+        Text("Открыть папку")
+      }
     }
     Spacer(Modifier.height(12.dp))
     CostPanel(total = total, session = session)
@@ -82,7 +92,13 @@ fun HistoryScreen(container: AppContainer) {
 
     LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
       items(groups, key = { it.first().id }) { group ->
-        if (group.size == 1) SingleRow(group.single()) else BatchRow(group)
+        val reuse = onOpenGenerate?.let { open ->
+          { job: GenerationJob ->
+            container.loadDraftFrom(job)
+            open()
+          }
+        }
+        if (group.size == 1) SingleRow(group.single(), reuse) else BatchRow(group, reuse)
       }
     }
   }
@@ -132,8 +148,76 @@ private fun CostFigure(label: String, summary: CostSummary) {
   }
 }
 
+/**
+ * «В генерацию» — перенести это задание обратно в форму и править дальше.
+ *
+ * Отдельно от «Повторить»: тот делает точную копию не спрашивая, а сюда жмут, чтобы поменять слово в
+ * промпте или подложить другой файл. Без этой кнопки удачный кадр приходилось перенабирать руками,
+ * глядя в соседнюю вкладку и вспоминая, какие у файлов были роли.
+ */
 @Composable
-private fun SingleRow(job: GenerationJob) {
+private fun ReuseButton(onClick: () -> Unit) {
+  OutlinedButton(onClick = onClick, shape = ButtonShape) { Text("В генерацию") }
+}
+
+/**
+ * Чем кормили модель: исходные файлы с ролями и тегами.
+ *
+ * Их не показывали вовсе, хотя в задании они лежат (`GenerationRequest.attachments`). Без них
+ * история отвечала на «что я просил», но не на «из чего это сделано», — а для картинки, собранной
+ * из фона, персонажа и стилевого референса, второе и есть главное.
+ *
+ * Миниатюры настоящие: файл-исходник живёт у пользователя и после генерации. Пропал — полосатая
+ * заглушка, как и везде, но имя с ролью остаются: по ним видно, чего не хватает.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SourceFiles(job: GenerationJob) {
+  val attachments = job.request.attachments
+  if (attachments.isEmpty()) return
+
+  FlowRow(
+    Modifier.padding(top = 4.dp),
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
+    verticalArrangement = Arrangement.spacedBy(4.dp),
+  ) {
+    for (attachment in attachments) {
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+      ) {
+        SourceThumb(attachment.path)
+        Text(
+          buildString {
+            append(attachment.role.label.lowercase()).append(": ").append(attachment.name)
+            if (attachment.tags.isNotEmpty()) append(" (").append(attachment.tags.joinToString(", ")).append(")")
+          },
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+    }
+  }
+}
+
+@Composable
+private fun SourceThumb(path: String) {
+  val bitmap by produceState<ImageBitmap?>(initialValue = null, path) {
+    value = withContext(Dispatchers.IO) { loadImage(File(path)) }
+  }
+  Box(
+    Modifier.size(28.dp)
+      .clip(RoundedCornerShape(4.dp))
+      .background(MaterialTheme.colorScheme.surfaceVariant),
+  ) {
+    bitmap?.let {
+      Image(it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+    }
+  }
+}
+
+@Composable
+private fun SingleRow(job: GenerationJob, onReuse: ((GenerationJob) -> Unit)?) {
   Card(Modifier.fillMaxWidth()) {
     Row(
       Modifier.padding(12.dp).fillMaxWidth(),
@@ -142,12 +226,15 @@ private fun SingleRow(job: GenerationJob) {
     ) {
       Thumbnail(job)
       Column(Modifier.weight(1f)) {
-        Text(job.request.prompt.take(160), style = MaterialTheme.typography.bodyMedium)
+        // Промпт целиком, а не первые 160 символов. История нужна затем, чтобы повторить или понять
+        // удачный кадр, — а обрезанный промпт для этого бесполезен ровно так же, как его отсутствие.
+        Text(job.request.prompt.ifBlank { "без промпта" }, style = MaterialTheme.typography.bodyMedium)
         Text(
           "${job.request.modality.label} · ${job.request.model}",
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        SourceFiles(job)
         Text(
           "${job.artifacts.size} файл(ов) · ${formatCost(job.costUsd)}",
           style = MaterialTheme.typography.bodySmall,
@@ -155,6 +242,7 @@ private fun SingleRow(job: GenerationJob) {
         )
       }
       Column(horizontalAlignment = Alignment.End) {
+        onReuse?.let { reuse -> ReuseButton { reuse(job) } }
         for (artifact in job.artifacts) {
           val path = File(artifact)
           TextButton(onClick = { openInSystem(path) }) { Text(path.name) }
@@ -170,14 +258,15 @@ private fun SingleRow(job: GenerationJob) {
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun BatchRow(group: List<GenerationJob>) {
+private fun BatchRow(group: List<GenerationJob>, onReuse: ((GenerationJob) -> Unit)?) {
   val first = group.first()
   val models = group.map { it.request.model }.distinct()
   val sum = group.mapNotNull { it.costUsd }.sum().takeIf { group.any { job -> job.costUsd != null } }
 
   Card(Modifier.fillMaxWidth()) {
     Column(Modifier.padding(12.dp)) {
-      Text(first.request.prompt.take(160), style = MaterialTheme.typography.bodyMedium)
+      Text(first.request.prompt.ifBlank { "без промпта" }, style = MaterialTheme.typography.bodyMedium)
+      SourceFiles(first)
       Text(
         buildString {
           append(first.request.modality.label)
@@ -185,10 +274,21 @@ private fun BatchRow(group: List<GenerationJob>) {
           append(if (models.size > 1) "сравнение ${models.size} моделей" else "${group.size} варианта(ов)")
           append(" · ")
           append(formatCost(sum))
+          // «по N из M», когда цену сообщили не все задания пачки: та же честность, что у
+          // CostSummary.partial, только строкой ниже. Без пометки сумма двух из четырёх выглядит
+          // как полная стоимость пачки.
+          val withCost = group.count { it.costUsd != null }
+          if (withCost < group.size) append(" (по $withCost из ${group.size})")
         },
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
+      // У пачки запрос один на всех, поэтому кнопка одна: брать за основу «второй вариант из
+      // четырёх» бессмысленно — промпт, модель и параметры у них те же самые.
+      onReuse?.let { reuse ->
+        Spacer(Modifier.height(8.dp))
+        ReuseButton { reuse(first) }
+      }
       Spacer(Modifier.height(10.dp))
       FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         for (job in group) {

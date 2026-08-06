@@ -40,5 +40,7 @@ internal fun mimeByExtension(fileName: String): String =
     "jpg", "jpeg" -> "image/jpeg"
     "webp" -> "image/webp"
     "gif" -> "image/gif"
-    else -> "application/octet-stream"
+    // Тот же список стережёт вход: см. SUPPORTED_EXTENSIONS в AttachmentIntake. Совпадение не
+    // случайно — «формат, для которого у нас нет mime» и есть «формат, который нельзя брать».
+    else -> FALLBACK_MIME
   }

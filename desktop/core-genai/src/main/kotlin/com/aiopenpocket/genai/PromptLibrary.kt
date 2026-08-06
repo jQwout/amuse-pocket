@@ -72,17 +72,35 @@ data class PromptLibrary(val presets: List<PromptPreset> = emptyList()) {
     /**
      * Добавляет пресет в пользовательский файл и возвращает объединённую библиотеку.
      * Пресет с таким же `id` перезаписывается — сохранение «того же самого» не плодит дубли.
+     *
+     * Бросает, если файл существует, но не разбирается: см. [requireReadable].
      */
     fun saveUserPreset(userFile: File, preset: PromptPreset): PromptLibrary {
-      val existing = loadUser(userFile).presets.filterNot { it.id == preset.id }
+      val existing = requireReadable(userFile).presets.filterNot { it.id == preset.id }
       writeFile(userFile, PromptLibrary(existing + preset))
       return load(userFile)
     }
 
     fun deleteUserPreset(userFile: File, id: String): PromptLibrary {
-      val remaining = loadUser(userFile).presets.filterNot { it.id == id }
+      val remaining = requireReadable(userFile).presets.filterNot { it.id == id }
       writeFile(userFile, PromptLibrary(remaining))
       return load(userFile)
+    }
+
+    /**
+     * Пресеты для ПЕРЕЗАПИСИ файла — с отказом, если файл есть, но не читается.
+     *
+     * Разница между «файла нет» и «файл сломан» здесь стоит всей библиотеки. Обе ситуации давали
+     * пустой список, а сохранение пишет `существующие + новый` — то есть одна лишняя запятая в
+     * `genai-prompts.json` превращала следующее «Сохранить» в стирание всех накопленных промптов,
+     * молча и с видом успеха. У каталога моделей эта развилка разведена давно и осознанно
+     * (`GenaiModelCatalog.load`: битый файл откатывается на встроенный список, а не на пустоту),
+     * здесь её просто не было.
+     */
+    private fun requireReadable(userFile: File): PromptLibrary {
+      if (!userFile.isFile) return PromptLibrary()
+      return readFile(userFile)
+        ?: error("файл заготовок $userFile не разбирается — правка перезаписала бы его пустым")
     }
 
     /**

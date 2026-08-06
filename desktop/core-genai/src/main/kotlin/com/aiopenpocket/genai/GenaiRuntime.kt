@@ -25,6 +25,13 @@ class GenaiRuntime(
   val artifacts: ArtifactStore = ArtifactStore(engine = engine, apiKey = apiKey, paths = paths)
 
   /**
+   * Примеры картинок у моделей. Единственный компонент, который ходит на сайт, а не в API, — почему
+   * так, разобрано в KDoc [ModelPreviews]. Ключ ему не передаётся: страница и ассеты публичные, и
+   * посылать туда ключ незачем.
+   */
+  val modelPreviews: ModelPreviews = ModelPreviews(engine = engine, paths = paths)
+
+  /**
    * Живой каталог моделей.
    *
    * Свой файл пользователя приходит сюда дважды, и это не дублирование: как `pinned` он даёт
@@ -47,6 +54,7 @@ class GenaiRuntime(
     openRouter.close()
     artifacts.close()
     catalogService.close()
+    modelPreviews.close()
     engine.close()
   }
 }

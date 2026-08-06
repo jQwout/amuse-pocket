@@ -100,6 +100,73 @@ class GenerationQueueTest {
   }
 
   @Test
+  fun `delete removes the record and wipes the file together`() = runTest {
+    val home = createTempDirectory("genai-queue").toFile()
+    val (paths, artifacts) = fixture(home)
+    val store = JobStore(paths)
+    val provider = FakeProvider(
+      listOf(
+        GenerationProgress.Completed(
+          GenerationResult(listOf(GenerationOutput.Bytes("картинка".toByteArray(), "image/png"))),
+        ),
+      ),
+    )
+    val queue = GenerationQueue(provider, artifacts, store, this@runTest, clock = { 1L }, newId = { "job1" })
+
+    queue.submit(imageRequest)
+    advanceUntilIdle()
+    val file = File(queue.jobs.value.single().artifacts.single())
+    assertTrue(file.isFile)
+
+    val stuck = queue.delete("job1")
+
+    assertTrue(stuck.isEmpty(), "ничего не должно было застрять: $stuck")
+    assertTrue(queue.jobs.value.isEmpty(), "запись обязана исчезнуть вместе с файлом")
+    assertTrue(!file.exists(), "файл остался на диске: $file")
+    // Половинчатое удаление хуже обоих целых, поэтому проверяем и диск с историей: запись без файла
+    // рисует карточку с вечной заглушкой, файл без записи копится безымянным мусором.
+    queue.close()
+    assertTrue(store.load().isEmpty())
+  }
+
+  @Test
+  fun `deleting an unknown job is a no-op, not a crash`() = runTest {
+    val home = createTempDirectory("genai-queue").toFile()
+    val (paths, artifacts) = fixture(home)
+    val queue = GenerationQueue(FakeProvider(), artifacts, JobStore(paths), this@runTest)
+
+    assertTrue(queue.delete("нет такого задания").isEmpty())
+  }
+
+  @Test
+  fun `delete reports files it could not wipe instead of pretending`() = runTest {
+    val home = createTempDirectory("genai-queue").toFile()
+    val (paths, artifacts) = fixture(home)
+    val provider = FakeProvider(
+      listOf(
+        GenerationProgress.Completed(
+          GenerationResult(listOf(GenerationOutput.Bytes("картинка".toByteArray(), "image/png"))),
+        ),
+      ),
+    )
+    val queue = GenerationQueue(provider, artifacts, JobStore(paths), this@runTest, newId = { "job1" })
+    queue.submit(imageRequest)
+    advanceUntilIdle()
+
+    // Подменяем готовый файл НЕПУСТЫМ каталогом по тому же пути: File.delete() такой не берёт —
+    // тот же исход, что у занятого другим процессом файла, который на Windows встречается постоянно.
+    val path = queue.jobs.value.single().artifacts.single()
+    File(path).delete()
+    File(path).mkdirs()
+    File(File(path), "inside").writeText("x")
+
+    val stuck = queue.delete("job1")
+
+    assertEquals(listOf(path), stuck, "неудача удаления обязана быть видна вызывающему")
+    assertTrue(queue.jobs.value.isEmpty(), "запись всё равно уходит: держать её из-за файла незачем")
+  }
+
+  @Test
   fun `provider refusal is not reported as success`() = runTest {
     val home = createTempDirectory("genai-queue").toFile()
     val (paths, artifacts) = fixture(home)
@@ -432,5 +499,44 @@ class GenerationQueueTest {
     assertFailsWith<IllegalArgumentException> { queue.submitAcrossModels(imageRequest, emptyList()) }
     assertFailsWith<IllegalArgumentException> { queue.submitBatch(imageRequest, count = 0) }
     assertTrue(queue.jobs.value.isEmpty())
+  }
+
+  @Test
+  fun `rating toggles off when pressed twice and survives a restart`() = runTest {
+    val home = createTempDirectory("genai-queue").toFile()
+    val (paths, artifacts) = fixture(home)
+    val store = JobStore(paths)
+    val queue = GenerationQueue(FakeProvider(), artifacts, store, this@runTest, newId = { "job1" })
+    queue.submit(imageRequest)
+    advanceUntilIdle()
+
+    queue.setRating("job1", JobRating.LIKED)
+    assertEquals(JobRating.LIKED, queue.jobs.value.single().rating)
+
+    // Повторное нажатие снимает: без этого передумать нельзя.
+    queue.setRating("job1", JobRating.LIKED)
+    assertEquals(JobRating.NONE, queue.jobs.value.single().rating)
+
+    queue.setRating("job1", JobRating.DISLIKED)
+    queue.close()
+    // Оценка — часть задания, а не состояние экрана: она обязана пережить перезапуск.
+    assertEquals(JobRating.DISLIKED, store.load().single().rating)
+  }
+
+  @Test
+  fun `an old jobs file without a rating still reads`() {
+    // Поле добавлено уже после первых релизов истории. Значение по умолчанию — единственное, что
+    // отделяет пользователя от «история не разобралась и отложена в сторону».
+    val home = createTempDirectory("genai-queue").toFile()
+    val paths = AppPaths(home = home, env = { null })
+    paths.jobsFile.parentFile.mkdirs()
+    paths.jobsFile.writeText(
+      """[{"id":"old","request":{"modality":"IMAGE","prompt":"кот","model":"m"},"createdAtEpochMs":1}]""",
+    )
+
+    val loaded = JobStore(paths).load()
+
+    assertEquals(1, loaded.size)
+    assertEquals(JobRating.NONE, loaded.single().rating)
   }
 }

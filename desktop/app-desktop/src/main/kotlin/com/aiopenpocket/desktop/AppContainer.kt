@@ -23,6 +23,25 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 /**
+ * Незавершённая работа на экране генерации — всё, что пользователь набрал, но ещё не отправил.
+ *
+ * Отдельный тип, а не три поля в контейнере: так видно, что это одно целое, и так его нельзя забыть
+ * восстановить по частям.
+ */
+data class GenerationDraft(
+  val prompt: String = "",
+  val attachments: List<com.aiopenpocket.genai.InputAttachment> = emptyList(),
+  /** Пусто означает «ещё не выбрана» — подставится модель по умолчанию из каталога. */
+  val model: String = "",
+  val promptExpanded: Boolean = false,
+  /** Параметры картинки. null — «не задавать», параметр не уйдёт в запрос вовсе. */
+  val resolution: String? = null,
+  val aspectRatio: String? = null,
+  val outputFormat: String? = null,
+  val quality: String? = null,
+)
+
+/**
  * Ручная сборка графа зависимостей. Metro (как в :app) здесь не подключён сознательно: на два
  * экрана и одну очередь он даёт больше конфигурации, чем пользы, а при переезде в общий модуль
  * (фаза 4) граф всё равно будет собираться на стороне :app.
@@ -34,6 +53,13 @@ class AppContainer(
    * дом, иначе харнесс полез бы в настоящий ключ и настоящую историю пользователя.
    */
   private val paths: AppPaths = AppPaths(),
+  /**
+   * Тянуть ли живой каталог из сети при старте. Выключается только offscreen-харнессом: он обещает
+   * детерминированный снимок, а живой каталог это обещание ломает — приоритетная модель у
+   * OpenRouter меняется сама по себе, и в форме на снимке оказывается то один слаг, то другой,
+   * без единой правки в коде. Со встроенным каталогом снимок зависит только от репозитория.
+   */
+  refreshCatalogOnStart: Boolean = true,
 ) : AutoCloseable {
 
   private val keyStore = ApiKeyStore(paths)
@@ -67,13 +93,68 @@ class AppContainer(
   private val _prompts = MutableStateFlow(PromptLibrary.load(paths.promptsUserFile))
   val prompts: StateFlow<PromptLibrary> = _prompts.asStateFlow()
 
+  private val favoriteModels = com.aiopenpocket.genai.FavoriteModels(paths.favoritesFile)
+
+  /** Отмеченные сердцем модели. Читаются с диска один раз при сборке графа: файл маленький и свой. */
+  private val _favorites = MutableStateFlow(favoriteModels.read())
+  val favorites: StateFlow<Set<String>> = _favorites.asStateFlow()
+
+  fun toggleFavorite(modelId: String) {
+    _favorites.value = favoriteModels.toggle(modelId)
+  }
+
   /**
    * Момент запуска — граница «за сессию» в сводке расходов. Берётся один раз здесь, а не в
    * экране: пересоздание экрана не должно обнулять счётчик потраченного.
    */
   val sessionStartedAtEpochMs: Long = System.currentTimeMillis()
 
+  /**
+   * Удаление результата запускается на scope ПРИЛОЖЕНИЯ, а не экрана.
+   *
+   * `rememberCoroutineScope()` умирает вместе с композицией: уход на «Историю» сразу после
+   * подтверждения обрывал бы удаление на середине. Внутри оно защищено `NonCancellable`, но саму
+   * корутину надо ещё и не убить снаружи, иначе она не дойдёт даже до первого шага.
+   */
+  fun delete(jobId: String) {
+    // Из панели id убираем сразу: иначе удаление единственного результата сессии оставляло панель
+    // пустой при полной истории — «запусков не было» рядом с двумя десятками готовых кадров.
+    _lastSubmitted.value = _lastSubmitted.value - jobId
+    scope.launch { _deleteFailures.value = queue.delete(jobId) }
+  }
+
+  /**
+   * Повтор через контейнер, а не напрямую в очередь: новое задание обязано попасть в панель
+   * результатов. Иначе повторённый кадр учитывался как «ещё N в работе», а по завершении исчезал.
+   */
+  fun retry(jobId: String) {
+    queue.retry(jobId)?.let { _lastSubmitted.value = listOf(it) + _lastSubmitted.value }
+  }
+
+  /**
+   * Файлы, которые стереть не удалось. Живёт в контейнере, а не в состоянии экрана, ровно по той же
+   * причине, по которой само удаление ушло на scope приложения: типичный сценарий — подтвердил и
+   * тут же ушёл на «Историю». Состояние экрана к этому моменту уничтожено, и отчёт о неудаче было
+   * бы некому получить — то есть в единственном случае, ради которого всё это писалось.
+   */
+  private val _deleteFailures = MutableStateFlow<List<String>>(emptyList())
+  val deleteFailures: StateFlow<List<String>> = _deleteFailures.asStateFlow()
+
+  fun clearDeleteFailures() {
+    _deleteFailures.value = emptyList()
+  }
+
+  fun setRating(jobId: String, rating: com.aiopenpocket.genai.JobRating) = queue.setRating(jobId, rating)
+
+  /** Витрина примеров у моделей. Единственное, что ходит на сайт OpenRouter, а не в его API. */
+  val modelPreviews: com.aiopenpocket.genai.ModelPreviews get() = runtime.modelPreviews
+
   val outputDir: File get() = paths.outputDir
+  val apiKeyFile: File get() = paths.apiKeyFile
+
+  /** История не читалась и отложена в сторону — экран настроек обязан сказать это вслух. */
+  val historyFileWasBroken: Boolean get() = queue.historyFileWasBroken
+  val brokenHistoryFile: File get() = queue.brokenHistoryFile
   val configDir: File get() = paths.configDir
   val modelsOverrideFile: File get() = paths.modelsOverrideFile
   val promptsUserFile: File get() = paths.promptsUserFile
@@ -83,7 +164,14 @@ class AppContainer(
     // задания помечаются упавшими, чтобы история не врала про «в работе».
     queue.resumeUnfinished()
     // Каталог подтягивается в фоне: ключ для этого не нужен, эндпоинт публичный.
-    scope.launch { _catalog.value = runtime.catalogService.refreshIfStale() }
+    //
+    // `force` — то есть в сеть на КАЖДЫЙ запуск, минуя суточный TTL. Кеш при этом не лишний, а
+    // меняет роль: по нему рисуется первый кадр, пока сеть отвечает, и он же остаётся единственным
+    // списком, когда сети нет. Цена решения — 43 запроса вместо трёх (общий каталог, картинки,
+    // видео и по одной ручке цены на каждую картиночную модель), все в фоне и под гейтом.
+    if (refreshCatalogOnStart) {
+      scope.launch { _catalog.value = runtime.catalogService.refreshIfStale(force = true) }
+    }
   }
 
   /**
@@ -104,12 +192,66 @@ class AppContainer(
   val lastSubmitted: StateFlow<List<String>> = _lastSubmitted.asStateFlow()
 
   fun submitBatch(request: GenerationRequest, count: Int) {
-    _lastSubmitted.value = queue.submitBatch(request, count)
+    // Накапливаем, а не заменяем. Раньше здесь было присваивание, и каждый новый запуск стирал с
+    // панели всё, что нагенерено до него: чтобы посмотреть на предыдущий кадр, приходилось уходить
+    // в «Историю» — а это другой экран с другой раскладкой. Панель результатов должна быть рабочим
+    // столом за эту сессию, а не окошком в последнюю пачку.
+    _lastSubmitted.value = queue.submitBatch(request, count) + _lastSubmitted.value
   }
 
-  fun submitAcrossModels(request: GenerationRequest, models: List<String>) {
-    _lastSubmitted.value = queue.submitAcrossModels(request, models)
+  /**
+   * Черновик формы: то, что набрано, но ещё не отправлено.
+   *
+   * Живёт в контейнере, а не в `remember` экрана, потому что экраны переключаются рельсой, а
+   * `GenerateScreen` при уходе на «Историю» уничтожается целиком. Вместе с ним пропадали набранный
+   * промпт и — что хуже — список прикреплённых файлов: их приходилось выбирать заново, уже не
+   * помня, какие теги и роли были проставлены.
+   */
+  private val _draft = MutableStateFlow(GenerationDraft())
+  val draft: StateFlow<GenerationDraft> = _draft.asStateFlow()
+
+  fun updateDraft(transform: (GenerationDraft) -> GenerationDraft) {
+    _draft.value = transform(_draft.value)
   }
+
+  /**
+   * Переносит прошлое задание обратно в форму: промпт, файлы с ролями и тегами, модель, параметры.
+   *
+   * Смысл не в повторе — для точного повтора есть «Повторить», он ничего не спрашивает. Здесь
+   * наоборот: взять удачный кадр за основу и что-то в нём поменять. Раньше для этого приходилось
+   * перенабирать промпт руками, глядя в другую вкладку, и заново выбирать файлы, вспоминая роли.
+   *
+   * Файлы, которых больше нет на диске, НЕ подставляются: путь ведёт в никуда, а вложение с
+   * несуществующим путём доедет до платного запроса и вернёт отказ. Их имена возвращаются, чтобы
+   * пользователь узнал, чего не хватает, а не гадал, почему файлов стало меньше.
+   */
+  fun loadDraftFrom(job: GenerationJob) {
+    val (alive, missing) = job.request.attachments.partition { File(it.path).isFile }
+    _draft.value = GenerationDraft(
+      prompt = job.request.prompt,
+      attachments = alive,
+      model = job.request.model,
+      resolution = job.request.resolution,
+      aspectRatio = job.request.aspectRatio,
+      outputFormat = job.request.outputFormat,
+      quality = job.request.quality,
+    )
+    _draftNotice.value = missing
+      .takeIf { it.isNotEmpty() }
+      ?.let { "Не нашли на диске: " + it.joinToString(", ") { a -> a.name } }
+  }
+
+  /** Что стоит знать о только что перенесённом черновике. null — переносить было нечего или всё цело. */
+  private val _draftNotice = MutableStateFlow<String?>(null)
+  val draftNotice: StateFlow<String?> = _draftNotice.asStateFlow()
+
+  fun clearDraftNotice() {
+    _draftNotice.value = null
+  }
+
+  // Обёртки submitAcrossModels здесь больше нет: режим сравнения моделей убран из UI, и вызывать её
+  // стало неоткуда. В ядре `GenerationQueue.submitAcrossModels` остаётся — она под тестами и это
+  // возможность очереди, а не экрана.
 
   /**
    * Доработать результат: тот же промпт и та же модель, но готовая картинка становится основой.
@@ -151,13 +293,18 @@ class AppContainer(
     _refreshingCatalog.value = true
     _catalogRefreshFailed.value = false
     scope.launch {
-      val fresh = runtime.catalogService.refresh()
-      if (fresh != null) {
-        _catalog.value = GenaiCatalogSnapshot(fresh, authoritative = true)
-      } else {
-        _catalogRefreshFailed.value = true
+      try {
+        val fresh = runtime.catalogService.refresh()
+        if (fresh != null) {
+          _catalog.value = GenaiCatalogSnapshot(fresh, authoritative = true)
+        } else {
+          _catalogRefreshFailed.value = true
+        }
+      } finally {
+        // В finally: без него отмена корутины оставляла бы кнопку «Обновить каталог» выключенной
+        // навсегда — и снаружи это выглядит как зависшее обновление.
+        _refreshingCatalog.value = false
       }
-      _refreshingCatalog.value = false
     }
   }
 
@@ -174,7 +321,15 @@ class AppContainer(
   }
 
   /** Сохраняет текущий промпт как заготовку. Возвращает false, если запись не удалась. */
-  fun savePreset(title: String, prompt: String, modality: GenerationModality): Boolean =
+  /**
+   * Возвращает причину отказа или null при успехе.
+   *
+   * Именно причину, а не голый `false`: с недавних пор `PromptLibrary` отказывается писать поверх
+   * неразобравшегося файла и объясняет, почему. Свернуть это обратно в булев флаг значило бы
+   * показать «не удалось сохранить» и на битом JSON, и на отказе в правах — а действия у них
+   * разные, и пользователь без подсказки будет жать «Сохранить» до бесконечности.
+   */
+  fun savePresetOrReason(title: String, prompt: String, modality: GenerationModality): String? =
     runCatching {
       _prompts.value = PromptLibrary.saveUserPreset(
         paths.promptsUserFile,
@@ -185,7 +340,7 @@ class AppContainer(
           modality = modality,
         ),
       )
-    }.isSuccess
+    }.exceptionOrNull()?.let { it.message ?: it.toString() }
 
   fun deletePreset(id: String): Boolean =
     runCatching { _prompts.value = PromptLibrary.deleteUserPreset(paths.promptsUserFile, id) }.isSuccess
@@ -204,8 +359,13 @@ class AppContainer(
     if (_checkingAccess.value) return
     _checkingAccess.value = true
     scope.launch {
-      _accessCheck.value = runtime.provider.checkAccess()
-      _checkingAccess.value = false
+      // finally по той же причине, что у refreshCatalog: без него отмена оставляет кнопку
+      // «Проверить связь» выключенной до конца работы приложения.
+      try {
+        _accessCheck.value = runtime.provider.checkAccess()
+      } finally {
+        _checkingAccess.value = false
+      }
     }
   }
 
