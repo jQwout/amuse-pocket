@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -61,6 +63,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.aiopenpocket.genai.ModelCard
 import com.aiopenpocket.genai.ModelPreviews
 import com.aiopenpocket.genai.PickerContext
@@ -164,7 +167,19 @@ fun ModelPickerDialog(
   onPick: (String) -> Unit,
   onToggleFavorite: (String) -> Unit,
 ) {
-  Dialog(onDismissRequest = onDismiss) {
+  // usePlatformDefaultWidth = false — не украшение, а условие существования этой раскладки.
+  //
+  // По умолчанию Dialog зажимает содержимое платформенной шириной диалога (около 640 px), и
+  // `Modifier.width(1120.dp)` внутри просто не действует: панель ужимается, колонка списка
+  // получает пару сотен пикселей, а текст в ней сыплется по одной букве в строку. Прежний список
+  // на 520 dp в этот потолок не упирался, поэтому проблема и вылезла только сейчас.
+  //
+  // Offscreen-снимок (`shots`) этого не ловит по построению: он рисует ModelPickerPanel напрямую,
+  // без Dialog, то есть без его ограничений. Проверять раскладку окна можно только живым запуском.
+  Dialog(
+    onDismissRequest = onDismiss,
+    properties = DialogProperties(usePlatformDefaultWidth = false),
+  ) {
     ModelPickerPanel(
       cards = cards,
       current = current,
@@ -220,8 +235,12 @@ fun ModelPickerPanel(
     color = MaterialTheme.colorScheme.background,
     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     modifier = Modifier
-      .width(1120.dp)
-      .height(720.dp)
+      // Доля окна с потолком, а не жёсткие 1120×720: окно приложения можно уменьшить, и панель
+      // фиксированного размера тогда вылезла бы за его края вместе с кнопкой «Выбрать».
+      .fillMaxWidth(0.94f)
+      .fillMaxHeight(0.92f)
+      .widthIn(max = 1120.dp)
+      .heightIn(max = 760.dp)
       // Esc ловим на корне, а не на поле поиска: превью-обход идёт сверху вниз, поэтому окно
       // закроется и когда курсор стоит в поиске.
       .onPreviewKeyEvent { event ->
