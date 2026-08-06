@@ -9,12 +9,18 @@ import java.awt.Desktop
 import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
-import java.util.Locale
 
-/** Открывает файл или папку в системном приложении. Тихо ничего не делает там, где AWT это не умеет. */
+/**
+ * Открывает файл или папку в системном приложении. Тихо ничего не делает там, где AWT это не умеет.
+ *
+ * Папку создаём, если её нет. Каталог результатов заводится только при записи первого файла, а
+ * кнопка «Открыть папку» заметнее всего как раз до первой генерации — и раньше она в этот момент
+ * молча не делала ничего, что неотличимо от сломанной кнопки.
+ */
 fun openInSystem(path: File) {
   runCatching {
     if (!Desktop.isDesktopSupported()) return
+    if (!path.exists() && path.extension.isEmpty()) path.mkdirs()
     if (path.exists()) Desktop.getDesktop().open(path)
   }
 }
@@ -46,10 +52,8 @@ fun loadImage(path: File): ImageBitmap? = runCatching {
 }.getOrNull()
 
 /**
- * Стоимость в долларах. Генерации бывают дешевле цента, поэтому округление до двух знаков
- * показывало бы «$0.00» — четыре знака честнее.
- *
- * Locale.ROOT: иначе на русской системе выходит «$0,0042» — точка и запятая вперемешку
- * в зависимости от машины.
+ * Стоимость в долларах. Переехала в ядро (`formatUsd`), когда туда же уехала строка сметы: формат
+ * денег обязан совпадать в обоих местах, а у `:app-desktop` тестов нет. Здесь остался псевдоним,
+ * чтобы не править десяток вызовов.
  */
-fun formatCost(costUsd: Double?): String = costUsd?.let { "$" + "%.4f".format(Locale.ROOT, it) } ?: "—"
+fun formatCost(costUsd: Double?): String = com.aiopenpocket.genai.formatUsd(costUsd)

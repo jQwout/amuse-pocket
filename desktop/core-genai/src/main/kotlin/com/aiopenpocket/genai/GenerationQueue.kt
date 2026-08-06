@@ -9,13 +9,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -64,6 +69,13 @@ class GenerationQueue(
   private val _jobs = MutableStateFlow(store.load())
   val jobs: StateFlow<List<GenerationJob>> = _jobs.asStateFlow()
 
+  /**
+   * Файл истории не читался и отложен в сторону (см. [JobStore.load]). Пробрасывается наружу, потому
+   * что «история вдруг пустая» пользователь обязан увидеть объяснённой, а не гадать.
+   */
+  val historyFileWasBroken: Boolean = store.lastLoadFailed
+  val brokenHistoryFile: File get() = store.brokenFile
+
   fun submit(request: GenerationRequest): String = submitOne(request, batchId = null)
 
   /**
@@ -111,6 +123,101 @@ class GenerationQueue(
     // Через mutate, а не «прочитал снимок — записал»: задание может завершиться прямо сейчас, и
     // запись по устаревшему снимку затёрла бы DONE вместе с путями к файлам и стоимостью.
     mutate(jobId) { if (it.status.isTerminal) null else it.copy(status = JobStatus.CANCELLED, note = null) }
+  }
+
+  /**
+   * Ставит или снимает оценку. Повторное нажатие той же кнопки снимает — иначе передумать нельзя.
+   *
+   * Через `mutate`, а не «прочитал — записал»: задание может в этот момент дописывать свой статус из
+   * потока прогресса, и снимок затёр бы его.
+   */
+  fun setRating(jobId: String, rating: JobRating) {
+    mutate(jobId) { it.copy(rating = if (it.rating == rating) JobRating.NONE else rating) }
+  }
+
+  /**
+   * Убирает задание из истории и стирает его файлы с диска.
+   *
+   * Одной операцией, а не двумя, потому что половинчатый результат хуже обоих целых: запись без
+   * файлов показывает карточку с вечной заглушкой, файлы без записи копятся в папке безымянным
+   * мусором, который уже не связать с промптом.
+   *
+   * Незавершённое задание сначала отменяется: удалить запись у работающей корутины — значит
+   * получить её обратно первым же `mutate` из потока прогресса.
+   *
+   * Возвращает пути, которые стереть НЕ удалось (файл занят, прав нет). Пустой список — всё чисто.
+   * Молча проглатывать отказ нельзя: пользователь нажал «удалить», а файл остался на диске, и без
+   * ответа он об этом не узнает.
+   *
+   * Запись уходит из истории ДАЖЕ если файл стереть не вышло. Это сознательный выбор в пользу
+   * намерения пользователя: он просил убрать результат с глаз, и оставить карточку висеть из-за
+   * заблокированного антивирусом файла значит не выполнить просьбу. Цена решения названа вслух —
+   * невытертый файл возвращается вызывающему, и показать его обязан он.
+   *
+   * **Про деньги.** Удалённое задание исчезает и из сводки расходов: она считается по живому списку.
+   * Потраченного это не отменяет, поэтому UI обязан предупредить об этом в подтверждении. Отдельного
+   * счётчика «потрачено на удалённое» здесь нет намеренно: он потребовал бы менять формат файла
+   * истории ради строки в одном экране.
+   *
+   * `suspend`, потому что удаление файла — блокирующий вызов к диску: на заблокированном или сетевом
+   * пути он подвешивает поток, а зовут его с UI-потока по нажатию в диалоге.
+   *
+   * Удаление необратимо и в корзину не кладётся — вызывающий обязан спросить подтверждение.
+   */
+  suspend fun delete(jobId: String): List<String> {
+    if (_jobs.value.none { it.id == jobId }) return emptyList()
+
+    // cancelAndJoin, а не cancel: отмена асинхронна, а запись файла блокирующая и отмену не слышит.
+    // Без ожидания задание успевало дописать свои артефакты ПОСЛЕ того, как мы прочитали пустой
+    // список путей, — и файлы оставались в папке уже без записи в истории.
+    // С потолком: join ограничен собственными таймаутами задания, а у скачивания артефакта это
+    // десять минут. Без ограничения удаление видео, качающегося прямо сейчас, молча висело бы всё
+    // это время. Не дождались — идём стирать по тому, что записано; хуже от этого не будет, а
+    // каталог задания всё равно сносится целиком.
+    withTimeoutOrNull(CANCEL_WAIT_MS) { running.remove(jobId)?.cancelAndJoin() }
+
+    // Список путей читается ПОСЛЕ join: до него он мог быть ещё пустым.
+    val job = _jobs.value.firstOrNull { it.id == jobId } ?: return emptyList()
+
+    val failed = withContext(Dispatchers.IO + NonCancellable) {
+      val stuck = job.artifacts.filter { path ->
+        val file = File(path)
+        // Файла уже нет — это успех удаления, а не отказ: цель достигнута.
+        file.exists() && !runCatching { file.delete() }.getOrDefault(false)
+      }
+      // Каталог задания сносим ЦЕЛИКОМ и по id, а не по списку путей.
+      //
+      // Список путей записывается только после того, как ArtifactStore.save отработал полностью.
+      // Отменённое на середине задание оставляет на диске уже записанные файлы, а в job.artifacts
+      // при этом пусто — и удаление по списку не находило ничего. Получались «файлы без записи,
+      // безымянным мусором», ровно то, что KDoc этого метода объявляет недопустимым. Плюс от
+      // упавшего задания оставался пустой каталог.
+      //
+      // Имя каталога выводится из id тем же способом, что при записи, так что задеть чужие файлы
+      // эта строка не может.
+      runCatching { artifacts.dirFor(jobId).deleteRecursively() }
+      stuck
+    }
+
+    // update, а не «прочитал снимок — записал»: задание из этой же пачки может завершиться прямо
+    // сейчас в потоке прогресса, и запись по устаревшему списку потеряла бы его DONE вместе с путём
+    // к уже оплаченному файлу и стоимостью. Ровно та же причина, что у cancel() выше.
+    //
+    // Снятие записи идёт СРАЗУ за удалением файлов и вместе с ним защищено от отмены: между этими
+    // двумя шагами и живёт то самое «полдела» — файлов нет, карточка есть.
+    withContext(Dispatchers.IO + NonCancellable) {
+      _jobs.update { list -> list.filterNot { it.id == jobId } }
+      // Пишем СИНХРОННО, а не через persist(): тот кидает задачу в persistScope, а close() при
+      // закрытии окна успевает сохранить ещё дореальный список и погасить этот scope. NonCancellable
+      // защищает нас, но не его — запись просто терялась, и на следующем запуске оставалась карточка
+      // со ссылками на уже стёртые файлы. store.save под @Synchronized, так что гонки с потоком
+      // записи здесь нет — но и порядка @Synchronized не даёт: задача, прочитавшая список до нашего
+      // update, может выиграть монитор после нас и вернуть удалённое. Окно микроскопическое и
+      // лечится любым следующим persist(); полностью закрывать его снимком внутри монитора здесь
+      // дороже, чем оно стоит.
+      runCatching { store.save(_jobs.value) }
+    }
+    return failed
   }
 
   /**
@@ -321,5 +428,8 @@ class GenerationQueue(
      * остаются — удаляет их пользователь сам.
      */
     const val MAX_HISTORY = 500
+
+    /** Сколько ждём отмены работающего задания при удалении. */
+    const val CANCEL_WAIT_MS = 3_000L
   }
 }

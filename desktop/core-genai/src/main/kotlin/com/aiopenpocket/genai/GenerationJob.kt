@@ -72,8 +72,13 @@ data class GenerationRequest(
    * им значение, которого они не заявляли, значит получать отказ на ровном месте.
    */
   val durationSeconds: Int? = null,
+  /** Тир разрешения. У видео это `720p`/`1080p`, у картинки — `1K`/`2K`: списки задаёт сама модель. */
   val resolution: String? = null,
   val aspectRatio: String? = null,
+  /** Формат файла на выходе (`png`/`jpeg`/`webp`). Только картинки и только там, где заявлен. */
+  val outputFormat: String? = null,
+  /** Уровень качества (`auto`/`low`/`medium`/`high`) — там, где модель его заявила. */
+  val quality: String? = null,
 )
 
 @Serializable
@@ -94,6 +99,15 @@ enum class JobStatus {
 
   val isTerminal: Boolean get() = this == DONE || this == FAILED || this == CANCELLED
 }
+
+/**
+ * Оценка результата пользователем.
+ *
+ * Хранится в задании, а не в отдельном файле: оценка бессмысленна в отрыве от промпта, модели и
+ * параметров, которыми кадр сделан, — а всё это уже лежит здесь.
+ */
+@Serializable
+enum class JobRating { NONE, LIKED, DISLIKED }
 
 @Serializable
 data class GenerationJob(
@@ -116,4 +130,6 @@ data class GenerationJob(
   val artifacts: List<String> = emptyList(),
   val costUsd: Double? = null,
   val error: String? = null,
+  /** Понравился кадр или нет. Значение по умолчанию делает старые `jobs.json` читаемыми как есть. */
+  val rating: JobRating = JobRating.NONE,
 )

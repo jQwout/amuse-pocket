@@ -2,12 +2,18 @@ package com.aiopenpocket.desktop
 
 // @trace desktop-genai-client-4c63b6
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.TooltipArea
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -17,6 +23,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -24,16 +32,23 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CloseFullscreen
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.ThumbDown
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -51,167 +66,296 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.genai.GenerationJob
 import com.aiopenpocket.genai.GenerationModality
 import com.aiopenpocket.genai.GenerationRequest
+import com.aiopenpocket.genai.JobRating
 import com.aiopenpocket.genai.JobStatus
+import com.aiopenpocket.genai.PickerContext
+import com.aiopenpocket.genai.buildCards
+import com.aiopenpocket.genai.costEstimate
+import com.aiopenpocket.genai.estimatedPixels
 import com.aiopenpocket.genai.humanModelName
+import com.aiopenpocket.genai.rejectionReason
+import com.aiopenpocket.genai.runEstimateLine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
-private val VARIANT_OPTIONS = listOf(1, 2, 4)
+/**
+ * Высота раскрытого поля промпта. Число, а не «вся колонка»: форма живёт внутри вертикальной
+ * прокрутки, где верхней границы высоты нет вовсе, и `fillMaxHeight` там растягивает в бесконечность.
+ * 560 dp — это примерно высота окна за вычетом строки запуска, то есть «весь экран» на практике.
+ */
+private val EXPANDED_PROMPT_HEIGHT = 560.dp
+
+/**
+ * Сколько последних заданий показать в панели, если в этой сессии ещё не запускали. Не «все»:
+ * панель — рабочий стол, а вся история живёт на своём экране и там сгруппирована по пачкам.
+ */
+private const val RESULTS_FROM_HISTORY = 8
+
+// Выбора «сколько вариантов разом» на экране больше нет — по просьбе пользователя. Пачки живы в
+// очереди (`GenerationQueue.submitBatch` под тестами), но кнопки для них нет, и запуск всегда даёт
+// один файл.
+
+/**
+ * Экран генерирует ТОЛЬКО картинки.
+ *
+ * Переключателя модальности здесь больше нет: ряд чипов «Картинка / Видео / Аудио» стоял над
+ * промптом, в макете его нет вовсе, и убран он по прямой просьбе. Следствие, которое нельзя
+ * замалчивать: **видео и озвучка из интерфейса недостижимы вовсе**. Ядро их умеет, каталог знает
+ * 21 видео-модель, тесты на них есть — а нажать негде. Последний вход, кнопка «сделать видео» на
+ * карточке результата, убран вместе с остальными иконками ряда; `AppContainer.animate` цел, но
+ * вызывать его неоткуда.
+ *
+ * Строительные блоки для них не удалены и ждут в `GenerateControls` (`VoiceField`,
+ * `VideoParamsFields`): вернуть модальность — это вернуть выбор в рельсу, как в макете, а не писать
+ * их заново. Список не исчерпывающий: в том же файле лежат и `FramePicker`, `InputImageField`,
+ * `SectionCard`, `JobRow` — они осиротели раньше и к этому решению отношения не имеют.
+ */
+private val MODALITY = GenerationModality.IMAGE
 
 /**
  * Две панели: слева форма, справа результаты последнего запуска.
  *
  * Раньше результат жил только на вкладке «История», и после нажатия «Сгенерировать» экран не менялся
  * вовсе — приходилось угадывать, случилось ли что-нибудь, и уходить смотреть в другое место.
+ *
+ * [initialPrompt] существует ради offscreen-снимков и по умолчанию пуст. С пустым промптом кнопка
+ * запуска выключена, а выключенная кнопка серая — то есть на снимке не видно ни акцента, ни сметы
+ * рядом с ней, ровно того, что этим снимком и проверяют. Причина та же, по которой харнесс
+ * подкладывает поддельную историю и ключ: пустой экран не показывает того, ради чего он снят.
  */
 @Composable
-fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
+fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit, initialPrompt: String = "") {
   val apiKey by container.apiKey.collectAsState()
   val prompts by container.prompts.collectAsState()
+  // История нужна форме, а не только панели результатов: по ней считается смета под кнопкой запуска.
+  val jobs by container.queue.jobs.collectAsState()
 
-  var modality by remember { mutableStateOf(GenerationModality.IMAGE) }
-  var prompt by remember { mutableStateOf("") }
-  var voice by remember { mutableStateOf("") }
-  var attachments by remember { mutableStateOf<List<com.aiopenpocket.genai.InputAttachment>>(emptyList()) }
   var lastError by remember { mutableStateOf<String?>(null) }
-  var variants by remember { mutableStateOf(1) }
-  var compareModels by remember { mutableStateOf(false) }
   var savingPreset by remember { mutableStateOf(false) }
+
+  // Промпт, вложения, модель и раскрытость поля живут в контейнере, а не здесь. Переключение
+  // вкладки рельсой уничтожает этот экран целиком, и вместе с ним раньше пропадало всё набранное —
+  // включая список прикреплённых файлов с уже расставленными ролями и тегами.
+  val draft by container.draft.collectAsState()
+  // Что стоит знать о перенесённом из истории черновике: например, что часть файлов не нашлась.
+  val draftNotice by container.draftNotice.collectAsState()
+  val prompt = draft.prompt
+  val attachments = draft.attachments
+  val promptExpanded = draft.promptExpanded
 
   val catalogSnapshot by container.catalog.collectAsState()
   val catalog = catalogSnapshot.catalog
 
-  // Модель и набор для сравнения сбрасываются при смене модальности: видео-модель в аудио бессмысленна.
-  var model by remember(modality) { mutableStateOf(catalog.defaultFor(modality)?.id ?: "") }
-  var selectedModels by remember(modality) { mutableStateOf(emptySet<String>()) }
+  val model = draft.model
+  val modelsForModality = catalog.forModality(MODALITY)
 
-  val modelsForModality = catalog.forModality(modality)
+  // Строки окна выбора собираются в ядре из четырёх источников: каталог, история запусков,
+  // избранное и то, что уже набрано в форме. Здесь только склейка — считать в композиции нечего.
+  val favorites by container.favorites.collectAsState()
+  val pickerContext = PickerContext(
+    attachments = attachments.size,
+    aspectRatio = draft.aspectRatio,
+    resolution = draft.resolution,
+  )
+  val modelCards = remember(modelsForModality, jobs, favorites, pickerContext) {
+    buildCards(modelsForModality, jobs, favorites, pickerContext)
+  }
+  var pickingModel by remember { mutableStateOf(false) }
 
-  // Возможности берутся у ВЫБРАННОЙ модели: у видео они свои у каждой, и общего набора не бывает.
-  val videoCaps = modelsForModality.firstOrNull { it.id == model }?.video
+  // Промпт из харнесса подставляем один раз: снимку нужен непустой экран, но затирать им набранное
+  // при каждой перерисовке нельзя.
+  LaunchedEffect(Unit) {
+    if (initialPrompt.isNotBlank() && draft.prompt.isBlank()) {
+      container.updateDraft { it.copy(prompt = initialPrompt) }
+    }
+  }
 
-  // Ключ по модели: у другой модели другой набор длительностей и разрешений, и сохранять выбор
-  // от прежней значило бы отправить значение, которого новая модель не заявляла.
-  var duration by remember(model) { mutableStateOf<Int?>(null) }
-  var resolution by remember(model) { mutableStateOf<String?>(null) }
-  var aspectRatio by remember(model) { mutableStateOf<String?>(null) }
+  // Смена модели чистит параметры, которых новая модель не заявляет.
+  //
+  // Иначе выбранное у прежней модели молча уезжает в запрос: контрол с экрана исчезает, а значение
+  // остаётся в черновике. Живой API отвечает на это HTTP 400 «No provider for … supports the
+  // requested …» — то есть отказ за деньги ровно там, где вся конструкция «показываем только
+  // заявленное» была должна его предотвратить.
+  LaunchedEffect(model, catalogSnapshot) {
+    val caps = catalog.forModality(MODALITY).firstOrNull { it.id == model }?.image
+    container.updateDraft { d ->
+      d.copy(
+        resolution = d.resolution?.takeIf { caps != null && it in caps.resolutions },
+        aspectRatio = d.aspectRatio?.takeIf { caps != null && it in caps.aspectRatios },
+        outputFormat = d.outputFormat?.takeIf { caps != null && it in caps.outputFormats },
+        quality = d.quality?.takeIf { caps != null && it in caps.qualities },
+      )
+    }
+  }
 
   // Живой каталог приезжает уже после первой отрисовки. Дефолт подставляем только в ПУСТОЕ поле:
-  // ключ remember по каталогу стирал бы модель, которую пользователь успел ввести руками.
-  LaunchedEffect(catalogSnapshot, modality) {
-    if (model.isBlank()) model = catalog.defaultFor(modality)?.id ?: ""
+  // затирать им модель, которую пользователь успел ввести руками, нельзя.
+  LaunchedEffect(catalogSnapshot) {
+    if (draft.model.isBlank()) {
+      catalog.defaultFor(MODALITY)?.id?.let { id -> container.updateDraft { it.copy(model = id) } }
+    }
   }
-  val readyToSubmit = prompt.isNotBlank() && apiKey.isNotBlank() &&
-    if (compareModels) selectedModels.isNotEmpty() else model.isNotBlank()
+  val readyToSubmit = prompt.isNotBlank() && apiKey.isNotBlank() && model.isNotBlank()
 
+  /**
+   * Берёт файлы во вложения, отсеивая негодные с ВИДИМОЙ причиной.
+   *
+   * Молча проигнорировать брошенный файл нельзя: пользователь решит, что перетаскивание не работает.
+   * Молча взять — тоже: `.mp4` доедет до платного запроса как картинка и вернёт отказ за деньги
+   * (см. `rejectionReason`).
+   */
+  fun takeFiles(files: List<File>) {
+    // Один проход, а не два: rejectionReason ходит на диск (exists/length), и считать его дважды
+    // на каждый файл значит удваивать эту работу прямо в обработчике нажатия.
+    val (accepted, rejected) = files
+      .map { file -> file to rejectionReason(file) }
+      .partition { (_, reason) -> reason == null }
+
+    container.clearDraftNotice()
+    if (accepted.isNotEmpty()) {
+      container.updateDraft { d ->
+        d.copy(
+          attachments = d.attachments +
+            accepted.map { (file, _) -> com.aiopenpocket.genai.InputAttachment(file.toString()) },
+        )
+      }
+    }
+    lastError = rejected.map { (file, reason) -> file.name to reason.orEmpty() }
+      .takeIf { it.isNotEmpty() }
+      ?.joinToString("; ") { (name, reason) -> "$name — $reason" }
+      ?.let { "Не взяли: $it" }
+  }
+
+  // Пропорция из макета: форма ~36%, результаты ~64%. Раньше было 42/58, и картинки — то, ради
+  // чего экран открыт — оказывались уже, чем поля ввода, которые заполняют один раз.
   Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-    Column(Modifier.weight(0.42f).fillMaxHeight()) {
+    Column(Modifier.weight(0.36f).fillMaxHeight()) {
       // Форма прокручивается, а кнопка запуска — нет: в макете она прижата вниз и видна всегда,
       // иначе на длинной форме приходится доскроллить до неё, чтобы просто нажать.
       Column(
         Modifier.weight(1f).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(18.dp),
       ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-          for (item in GenerationModality.entries) {
-            FilterChip(
-              selected = modality == item,
-              onClick = { modality = item },
-              label = { Text(item.label) },
-            )
-          }
-        }
-
         // Промпт первым: это то, ради чего экран открыт. Модель — настройка, и в макете её в
         // форме нет вовсе, она подписана в шапке окна.
         FieldGroup(
-          if (modality == GenerationModality.AUDIO) "Что озвучить" else "Опишите кадр",
+          "Опишите кадр",
           "своими словами",
+          action = {
+            IconAction(
+              if (promptExpanded) Icons.Default.CloseFullscreen else Icons.Default.OpenInFull,
+              if (promptExpanded) "Свернуть поле" else "Расширить поле",
+            ) { container.updateDraft { it.copy(promptExpanded = !it.promptExpanded) } }
+          },
         ) {
           OutlinedTextField(
             value = prompt,
-            onValueChange = { prompt = it },
+            onValueChange = { text -> container.updateDraft { it.copy(prompt = text) } },
             label = null,
             placeholder = { Text("Мокрый асфальт, фигура в плаще спиной к камере…") },
-            modifier = Modifier.fillMaxWidth().heightIn(min = 210.dp),
+            shape = ButtonShape,
+            // Высота, а не fillMaxHeight: колонка формы прокручивается, а внутри прокрутки высота
+            // не ограничена сверху — «на всю оставшуюся» там не значит ничего. Поэтому раскрытие
+            // это просто другой минимум, а остальная форма уезжает вниз под прокрутку.
+            modifier = Modifier
+              .fillMaxWidth()
+              .heightIn(min = if (promptExpanded) EXPANDED_PROMPT_HEIGHT else 210.dp),
             minLines = 7,
           )
 
           PresetPicker(
-            presets = prompts.forModality(modality),
-            onApply = { prompt = it.applyTo(prompt) },
+            presets = prompts.forModality(MODALITY),
+            onApply = { preset -> container.updateDraft { it.copy(prompt = preset.applyTo(it.prompt)) } },
             onSaveCurrent = { savingPreset = true },
           )
+        }
 
-        if (modality == GenerationModality.AUDIO) {
-          VoiceField(
-            voice = voice,
-            suggestions = modelsForModality.flatMap { it.voices }.distinct(),
-            onVoiceChange = { voice = it },
+        FieldGroup("Файлы", draftNotice ?: "каждый со своей ролью и тегами") {
+          AttachmentsField(
+            attachments = attachments,
+            modality = MODALITY,
+            // Оба пути добавления проходят через одну проверку. Диалог выбора не спасает: его
+            // setFilenameFilter на Windows не работает вовсе, и «выбрать .mp4» там ровно так же
+            // возможно, как бросить его в окно.
+            onAdd = { pickImageFile()?.let { file -> takeFiles(listOf(file)) } },
+            onFilesDropped = { files -> takeFiles(files) },
+            onChange = { i, item ->
+              container.updateDraft { d -> d.copy(attachments = d.attachments.toMutableList().also { it[i] = item }) }
+            },
+            onRemove = { i ->
+              container.updateDraft { d -> d.copy(attachments = d.attachments.toMutableList().also { it.removeAt(i) }) }
+            },
           )
         }
-      }
 
-        if (modality != GenerationModality.AUDIO) {
-          FieldGroup("Файлы", "каждый со своей ролью и тегами") {
-            AttachmentsField(
-              attachments = attachments,
-              modality = modality,
-              onAdd = {
-                pickImageFile()?.let {
-                  attachments = attachments + com.aiopenpocket.genai.InputAttachment(it.toString())
-                }
-              },
-              onChange = { i, item -> attachments = attachments.toMutableList().also { it[i] = item } },
-              onRemove = { i -> attachments = attachments.toMutableList().also { it.removeAt(i) } },
+        // Возможности берутся у ВЫБРАННОЙ модели: наборы у них разные, общего не бывает.
+        val caps = modelsForModality.firstOrNull { it.id == model }?.image
+
+        if (caps != null && caps.hasAspect) {
+          FieldGroup(
+            "Формат сторон",
+            draft.aspectRatio ?: "не выбран — решит провайдер",
+          ) {
+            AspectRatioField(
+              options = caps.aspectRatios,
+              selected = draft.aspectRatio,
+              estimated = estimatedPixels(draft.resolution, draft.aspectRatio),
+              onSelect = { v -> container.updateDraft { it.copy(aspectRatio = v) } },
             )
           }
         }
 
-        FieldGroup(if (compareModels) "Модели для сравнения" else "Модель", "слаг уходит в запрос") {
-          if (compareModels) {
-            ModelCompareField(
-              suggestions = modelsForModality,
-              selected = selectedModels,
-              onToggle = { id ->
-                selectedModels = if (id in selectedModels) selectedModels - id else selectedModels + id
-              },
+        if (caps != null && !caps.hasAnyControl) {
+          Text(
+            "Эта модель не сообщила, что умеет настраивать — отправим только промпт, " +
+              "остальное провайдер выберет сам.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
+
+        if (caps != null && caps.hasQuality) {
+          // Подпись описывает СОСТОЯНИЕ, а не общее правило. Раньше здесь висело неизменное
+          // «не выбрано — на усмотрение провайдера»: оно оставалось на месте и после выбора, то есть
+          // прямо противоречило чипам под собой.
+          val chosen = listOfNotNull(draft.resolution, draft.quality, draft.outputFormat?.uppercase())
+          FieldGroup(
+            "Качество",
+            if (chosen.isEmpty()) "не выбрано — решит провайдер" else chosen.joinToString(" · "),
+          ) {
+            ImageQualityFields(
+              caps = caps,
+              resolution = draft.resolution,
+              onResolution = { v -> container.updateDraft { it.copy(resolution = v) } },
+              quality = draft.quality,
+              onQuality = { v -> container.updateDraft { it.copy(quality = v) } },
+              outputFormat = draft.outputFormat,
+              onOutputFormat = { v -> container.updateDraft { it.copy(outputFormat = v) } },
             )
-          } else {
-            ModelField(model = model, suggestions = modelsForModality) { model = it }
           }
         }
 
-      if (modality == GenerationModality.VIDEO && !compareModels) {
-        FieldGroup("Параметры видео", "только то, что заявила модель") {
-          VideoParamsFields(
-            caps = videoCaps,
-            duration = duration,
-            onDuration = { duration = it },
-            resolution = resolution,
-            onResolution = { resolution = it },
-            aspectRatio = aspectRatio,
-            onAspectRatio = { aspectRatio = it },
+        FieldGroup("Модель") {
+          ModelChoiceRow(
+            modelId = model,
+            card = modelCards.firstOrNull { it.id == model },
+            tier = draft.resolution,
+            previews = container.modelPreviews,
+            onOpen = { pickingModel = true },
           )
         }
-      }
 
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-          FilterChip(
-            selected = compareModels,
-            onClick = { compareModels = !compareModels },
-            label = { Text("Сравнить модели") },
-          )
-          if (!compareModels) VariantsField(variants, VARIANT_OPTIONS) { variants = it }
-        }
       }
 
       HorizontalDivider()
@@ -225,58 +369,85 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit) {
             // подвесили бы обработчик клика, а сам data-URL раздул бы историю на диске. Разворачивает
             // его провайдер на IO-диспетчере, уже перед самим запросом.
             lastError = null
-            val video = modality == GenerationModality.VIDEO
             val request = GenerationRequest(
-              modality = modality,
+              modality = MODALITY,
               prompt = prompt.trim(),
               model = model.trim(),
               attachments = attachments,
-              voice = voice.trim().ifBlank { null },
-              // Параметры видео уходят только с видео: у картинки и озвучки их нет, и слать туда
-              // duration значило бы гадать за провайдера.
-              durationSeconds = duration.takeIf { video },
-              resolution = resolution.takeIf { video },
-              aspectRatio = aspectRatio.takeIf { video },
+              resolution = draft.resolution,
+              aspectRatio = draft.aspectRatio,
+              outputFormat = draft.outputFormat,
+              quality = draft.quality,
             )
-            if (compareModels) {
-              container.submitAcrossModels(request, selectedModels.toList())
-            } else {
-              container.submitBatch(request, variants)
-            }
+            container.submitBatch(request, 1)
           },
+          // Крупнее дефолтной: по макету запуск — самый весомый элемент экрана, а не такая же
+          // кнопка, как «Из списка» рядом с полем модели.
+          contentPadding = PaddingValues(horizontal = 22.dp, vertical = 14.dp),
+          shape = ButtonShape,
         ) {
-          Text(
-            when {
-              compareModels -> "Сравнить (${selectedModels.size})"
-              variants > 1 -> "Сгенерировать ×$variants"
-              else -> "Сгенерировать"
-            },
-          )
+          Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+          Spacer(Modifier.width(10.dp))
+          Text("Сгенерировать")
         }
 
-        if (apiKey.isBlank()) {
-          TextButton(onClick = onOpenSettings) { Text("Сначала укажи ключ OpenRouter") }
+        // Рядом с кнопкой стоит только смета: она короткая и предсказуемой длины. Предупреждение
+        // про ключ и текст ошибки уезжают строкой ниже — в колонке 36% ширины они не влезали рядом
+        // с кнопкой и переносились по слогам прямо в неё. Поймано на живом окне: в снимке ключ
+        // подставлен, и эта ветка туда не попадает вовсе.
+        if (apiKey.isNotBlank()) {
+          Text(
+            runEstimateLine(jobs.costEstimate(model.trim()), 1),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
         }
-        lastError?.let {
-          Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-        }
+      }
+
+      if (apiKey.isBlank()) {
+        TextButton(onClick = onOpenSettings) { Text("Сначала укажи ключ OpenRouter") }
+      }
+      lastError?.let {
+        Text(
+          it,
+          color = MaterialTheme.colorScheme.error,
+          style = MaterialTheme.typography.bodySmall,
+          modifier = Modifier.padding(top = 6.dp),
+        )
       }
     }
 
     VerticalDivider()
 
-    ResultsPane(container, Modifier.weight(0.58f).fillMaxHeight())
+    ResultsPane(container, Modifier.weight(0.64f).fillMaxHeight())
   }
 
   if (savingPreset) {
     SavePresetDialog(
       onDismiss = { savingPreset = false },
       onConfirm = { title ->
-        if (!container.savePreset(title, prompt, modality)) {
-          lastError = "Не удалось сохранить заготовку в ${container.promptsUserFile}"
+        container.savePresetOrReason(title, prompt, MODALITY)?.let { reason ->
+          // Причину показываем дословно: «битый JSON» и «нет прав» требуют разных действий, а
+          // общее «не удалось» заставляет жать «Сохранить» снова с тем же исходом.
+          lastError = "Не удалось сохранить заготовку в ${container.promptsUserFile}: $reason"
         }
         savingPreset = false
       },
+    )
+  }
+
+  if (pickingModel) {
+    ModelPickerDialog(
+      cards = modelCards,
+      current = model,
+      context = pickerContext,
+      previews = container.modelPreviews,
+      onDismiss = { pickingModel = false },
+      onPick = { picked ->
+        container.updateDraft { it.copy(model = picked) }
+        pickingModel = false
+      },
+      onToggleFavorite = container::toggleFavorite,
     )
   }
 }
@@ -292,17 +463,40 @@ private fun ResultsPane(container: AppContainer, modifier: Modifier = Modifier) 
   val jobs by container.queue.jobs.collectAsState()
   val lastIds by container.lastSubmitted.collectAsState()
 
-  // После перезапуска запусков в этой сессии ещё не было, но история есть — показываем последнюю
-  // пачку из неё. Пустая панель рядом с полной историей выглядела бы как «всё пропало».
-  val fromThisSession = lastIds.isNotEmpty()
+  // Задание, которое собираются удалить. Спрашиваем подтверждение всегда: файл стирается насовсем,
+  // мимо корзины, и «Отменить» после этого не существует.
+  var deleting by remember { mutableStateOf<GenerationJob?>(null) }
+  // Неудачи удаления приходят из контейнера, а не из состояния экрана: экран может быть уже закрыт.
+  val deleteFailures by container.deleteFailures.collectAsState()
+
+  deleting?.let { job ->
+    DeleteResultDialog(
+      job = job,
+      onDismiss = { deleting = null },
+      onConfirm = {
+        deleting = null
+        container.clearDeleteFailures()
+        // Через контейнер, а не через rememberCoroutineScope: тот умирает вместе с экраном, и уход
+        // на «Историю» сразу после подтверждения обрывал бы удаление на середине.
+        container.delete(job.id)
+      },
+    )
+  }
+
+  // Панель — рабочий стол за сессию, а не окошко в последнюю пачку. Копится всё запущенное с
+  // момента открытия окна, новое сверху: раньше каждый запуск стирал предыдущий, и чтобы взглянуть
+  // на кадр, сделанный пять минут назад, приходилось уходить на другой экран.
+  // Сначала разрешаем id в задания, потом решаем, чья это ветка. Обратный порядок означал, что
+  // id удалённого задания держит панель в режиме «эта сессия» с пустым списком — то есть «запусков
+  // не было» рядом с полной историей.
+  val resolved = lastIds.mapNotNull { id -> jobs.firstOrNull { it.id == id } }
+  val fromThisSession = resolved.isNotEmpty()
   val batch = if (fromThisSession) {
-    lastIds.mapNotNull { id -> jobs.firstOrNull { it.id == id } }
+    resolved
   } else {
-    // Запусков в этой сессии не было. Показываем последнюю пачку, а если задания одиночные —
-    // просто последние: группировка по batchId ?: id давала бы ровно одну карточку, потому что
-    // у одиночного задания «пачка» состоит из него самого.
-    val lastGroup = jobs.groupBy { it.batchId ?: it.id }.values.lastOrNull().orEmpty()
-    if (lastGroup.size > 1) lastGroup else jobs.takeLast(4)
+    // После перезапуска запусков ещё не было, но история есть: пустая панель рядом с полной
+    // историей выглядела бы как «всё пропало». Показываем последнее сделанное, новое сверху.
+    jobs.takeLast(RESULTS_FROM_HISTORY).reversed()
   }
   // Задания вне текущей пачки иначе пропали бы с глаз, а среди них может быть оплаченное видео.
   val otherActive = jobs.count { !it.status.isTerminal && it.id !in lastIds }
@@ -313,24 +507,37 @@ private fun ResultsPane(container: AppContainer, modifier: Modifier = Modifier) 
       horizontalArrangement = Arrangement.SpaceBetween,
       verticalAlignment = Alignment.CenterVertically,
     ) {
-      Column {
+      // Заголовок и мета в одну строку, как в макете: подзаголовок второй строкой поднимал шапку
+      // на две высоты и отжимал сетку вниз ровно там, где нужны картинки.
+      Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
           "Результаты",
           style = MaterialTheme.typography.titleLarge,
           fontWeight = FontWeight.SemiBold,
         )
+        val models = batch.map { it.request.model }.distinct()
         val subtitle = when {
-          batch.isEmpty() -> "последнего запуска пока не было"
-          fromThisSession -> "${batch.size} шт. · " + humanModelName(batch.first().request.model)
-          else -> "последние ${batch.size} · " + humanModelName(batch.first().request.model)
+          batch.isEmpty() -> "запусков пока не было"
+          // Моделей в панели теперь бывает несколько — она копится за всю сессию. Подписывать
+          // пачку из трёх моделей именем первой значило бы врать заголовком.
+          models.size > 1 -> "${batch.size} шт. · ${models.size} модели"
+          fromThisSession -> "${batch.size} шт. · " + humanModelName(models.first())
+          else -> "последние ${batch.size} · " + humanModelName(models.first())
         }
         Text(
           subtitle,
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.padding(bottom = 3.dp),
         )
       }
-      TextButton(onClick = { openInSystem(container.outputDir) }) { Text("Открыть папку") }
+      // В макете здесь «Скачать все», но скачивать нечего: файлы уже лежат на диске к моменту, когда
+      // карточка стала готовой. Форму кнопки берём из макета, смысл оставляем свой.
+      OutlinedButton(onClick = { openInSystem(container.outputDir) }, shape = ButtonShape) {
+        Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(8.dp))
+        Text("Открыть папку")
+      }
     }
 
     if (otherActive > 0) {
@@ -338,6 +545,14 @@ private fun ResultsPane(container: AppContainer, modifier: Modifier = Modifier) 
         "ещё $otherActive задание(й) в работе вне этой пачки",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+
+    if (deleteFailures.isNotEmpty()) {
+      Text(
+        "Не удалось стереть: " + deleteFailures.joinToString(", ") { File(it).name },
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error,
       )
     }
 
@@ -353,18 +568,24 @@ private fun ResultsPane(container: AppContainer, modifier: Modifier = Modifier) 
     LazyVerticalGrid(
       // Adaptive, а не фиксированные две колонки: на узком окне карточки не должны схлопываться
       // в нечитаемые полоски.
-      columns = GridCells.Adaptive(minSize = 240.dp),
+      //
+      // 300, а не 240: после расширения панели до 64% ширины прежний порог давал три колонки вместо
+      // двух — карточки становились уже, чем были до расширения, то есть места прибавилось, а
+      // картинки уменьшились. В макете колонок две, и по делу: разглядывать результат в узкой
+      // плитке нельзя, ради этого экран и открывают.
+      columns = GridCells.Adaptive(minSize = 300.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp),
       horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
       items(batch, key = { it.id }) { job ->
         ResultCard(
           job = job,
-          canAnimate = container.canAnimate,
           onCancel = { container.queue.cancel(job.id) },
-          onRetry = { container.queue.retry(job.id) },
-          onRefine = { container.refine(job) },
-          onAnimate = { container.animate(job) },
+          // Через контейнер: иначе повтор не попадает в накопительную панель и исчезает с глаз,
+          // едва завершившись.
+          onRetry = { container.retry(job.id) },
+          onDelete = { deleting = job },
+          onRate = { container.setRating(job.id, it) },
         )
       }
     }
@@ -372,23 +593,44 @@ private fun ResultsPane(container: AppContainer, modifier: Modifier = Modifier) 
 }
 
 /**
- * Три иконки на готовой карточке — это не декор из макета, а то, что ядро уже умеет: повтор,
- * image-to-image с этим же кадром на входе и видео, где кадр становится первым.
+ * Карточка результата: оценка слева, стоимость и удаление справа, открытие — кликом по кадру.
+ *
+ * Раньше в ряду стояли повтор, «доработать» (image-to-image с этим же кадром) и «сделать видео».
+ * Убраны по просьбе: пять иконок подряд читались ребусом. Ядро всё это по-прежнему умеет
+ * (`AppContainer.refine`, `AppContainer.animate`), входа в UI у них теперь нет.
  */
 @Composable
 private fun ResultCard(
   job: GenerationJob,
-  canAnimate: Boolean,
   onCancel: () -> Unit,
   onRetry: () -> Unit,
-  onRefine: () -> Unit,
-  onAnimate: () -> Unit,
+  onDelete: () -> Unit,
+  onRate: (JobRating) -> Unit,
 ) {
   val done = job.status == JobStatus.DONE && job.artifacts.isNotEmpty()
-  Card(Modifier.fillMaxWidth()) {
+
+  // Рамка по наведению вместо статичного «выбрано» из макета. Выделение в макете нарисовано, но
+  // потреблять его нечему: доработка и видео и так висят на самой карточке, и «выбранная» никуда
+  // больше не уходит. Подсветка под курсором — то же самое разделение карточек, но без выдуманного
+  // состояния, которое ни на что не влияет.
+  val interaction = remember { MutableInteractionSource() }
+  val hovered by interaction.collectIsHoveredAsState()
+
+  Card(
+    Modifier.fillMaxWidth().hoverable(interaction),
+    border = if (hovered) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+  ) {
     Column {
       Box(
-        Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp)),
+        Modifier
+          .fillMaxWidth()
+          .height(190.dp)
+          .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
+          // Открытие файла живёт здесь, а не иконкой в ряду: рука тянется к самому кадру. Иконку
+          // «Открыть» из ряда убрали, и без этой строки открыть результат стало бы нечем вовсе.
+          .clickable(enabled = done) {
+            job.artifacts.firstOrNull()?.let { openInSystem(File(it)) }
+          },
         contentAlignment = Alignment.Center,
       ) {
         Preview(job)
@@ -399,20 +641,26 @@ private fun ResultCard(
         verticalAlignment = Alignment.CenterVertically,
       ) {
         if (done) {
-          IconAction(Icons.Default.Refresh, "Повторить с тем же промптом", onRetry)
-          // Доработка и оживление берут на вход готовый файл — у видео и аудио его как картинку
-          // не переиспользовать, поэтому кнопки только у картинок.
-          if (job.request.modality == GenerationModality.IMAGE) {
-            IconAction(Icons.Default.Edit, "Доработать: этот кадр станет основой", onRefine)
-            if (canAnimate) IconAction(Icons.Default.PlayArrow, "Сделать видео из этого кадра", onAnimate)
-          }
+          // Слева — оценка кадра, а не действия над ним. Повтор, доработка и «сделать видео» отсюда
+          // убраны по просьбе: ряд из пяти иконок читался ребусом, а нужен он был раз в сто кадров.
+          // Открытие файла тоже ушло — оно теперь на самой картинке, куда и тянется рука.
+          IconAction(
+            if (job.rating == JobRating.LIKED) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+            if (job.rating == JobRating.LIKED) "Снять отметку" else "Нравится",
+            tint = if (job.rating == JobRating.LIKED) MaterialTheme.colorScheme.primary else null,
+          ) { onRate(JobRating.LIKED) }
+          IconAction(
+            Icons.Default.ThumbDown,
+            if (job.rating == JobRating.DISLIKED) "Снять отметку" else "Не нравится",
+            tint = if (job.rating == JobRating.DISLIKED) MaterialTheme.colorScheme.error else null,
+          ) { onRate(JobRating.DISLIKED) }
           Spacer(Modifier.weight(1f))
           Text(
             formatCost(job.costUsd),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
-          TextButton(onClick = { openInSystem(File(job.artifacts.first())) }) { Text("Открыть") }
+          IconAction(Icons.Default.DeleteOutline, "Удалить кадр и файл", onClick = onDelete)
         } else {
           if (job.status != JobStatus.FAILED) {
             Text(
@@ -427,17 +675,15 @@ private fun ResultCard(
             TextButton(onClick = onCancel) { Text("Отменить") }
           } else {
             TextButton(onClick = onRetry) { Text("Повторить") }
+            // Убрать неудачную карточку тоже надо: иначе пачка из четырёх с двумя отказами так и
+            // висит наполовину пустой, и «Открыть папку» не помогает — файлов там нет.
+            IconAction(Icons.Default.DeleteOutline, "Убрать из истории", onClick = onDelete)
           }
         }
       }
-      job.error?.let {
-        Text(
-          it,
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.error,
-          modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 10.dp),
-        )
-      }
+      // Текста ошибки под рядом действий больше нет: он висел ниже карточки, ломал её выравнивание
+      // в сетке и оставлял над собой пустой прямоугольник в высоту картинки. Теперь причина стоит
+      // на месте самой картинки — там, где её и ищут глазами.
     }
   }
 }
@@ -457,12 +703,31 @@ private fun Preview(job: GenerationJob) {
 
   val ready = bitmap
   when {
-    ready != null -> Image(
-      bitmap = ready,
-      contentDescription = job.request.prompt,
-      contentScale = ContentScale.Fit,
-      modifier = Modifier.fillMaxSize(),
-    )
+    ready != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+      Image(
+        bitmap = ready,
+        contentDescription = job.request.prompt,
+        contentScale = ContentScale.Fit,
+        modifier = Modifier.fillMaxSize(),
+      )
+      // Размер кадра — по макету. Берётся у уже загруженного битмапа, а не читается с диска второй
+      // раз, и поэтому не врёт: это ровно то, что показано выше.
+      //
+      // Плашка чёрная, а не из палитры: под ней произвольная картинка, и единственный цвет,
+      // на котором подпись читается всегда, — тёмная подложка со светлым текстом.
+      Surface(
+        color = ScrimColor,
+        shape = MaterialTheme.shapes.extraSmall,
+        modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
+      ) {
+        Text(
+          "${ready.width} × ${ready.height}",
+          style = MaterialTheme.typography.labelSmall,
+          color = Color(0xFFE8E9F0),
+          modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+        )
+      }
+    }
 
     !job.status.isTerminal -> Column(
       horizontalAlignment = Alignment.CenterHorizontally,
@@ -476,21 +741,125 @@ private fun Preview(job: GenerationJob) {
       )
     }
 
-    else -> Text(
-      when (job.status) {
-        JobStatus.DONE -> job.request.modality.label
-        else -> statusLabel(job.status)
-      },
+    // Провалившееся задание показывает ПРИЧИНУ, а не слово «ошибка»: слово занимало ровно столько
+    // же места, а знать, почему не вышло, приходилось из отдельной строчки под карточкой.
+    else -> FailureText(job)
+  }
+}
+
+/**
+ * Причина отказа на месте картинки.
+ *
+ * В карточку влезает четыре строки, а провайдер присылает до 300 символов — и отказ контент-фильтра
+ * обычно занимает все триста. Обрезать причину и не дать её дочитать хуже, чем прежнее «ошибка»:
+ * там хотя бы не возникало ощущения, что текст показан целиком. Больше её взять негде — «История»
+ * показывает только успешные задания. Поэтому полный текст висит подсказкой при наведении, тем же
+ * приёмом, что и у иконок-действий.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun FailureText(job: GenerationJob) {
+  val failed = job.status == JobStatus.FAILED
+  val text = when (job.status) {
+    JobStatus.DONE -> job.request.modality.label
+    JobStatus.FAILED -> job.error ?: statusLabel(job.status)
+    else -> statusLabel(job.status)
+  }
+
+  val body = @Composable {
+    Text(
+      text,
       style = MaterialTheme.typography.bodyMedium,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+      textAlign = TextAlign.Center,
+      maxLines = 4,
+      overflow = TextOverflow.Ellipsis,
+      modifier = Modifier.padding(horizontal = 16.dp),
     )
   }
+
+  // Подсказку вешаем только на отказ: у «готово» и «в очереди» текст короткий и не обрезается.
+  if (!failed) {
+    body()
+    return
+  }
+  TooltipArea(tooltip = {
+    Surface(
+      shape = MaterialTheme.shapes.small,
+      color = MaterialTheme.colorScheme.surfaceVariant,
+      border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+    ) {
+      Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.widthIn(max = 420.dp).padding(12.dp, 8.dp),
+      )
+    }
+  }) {
+    body()
+  }
+}
+
+/** Подложка подписи поверх картинки: см. [Preview] — на произвольном кадре палитре доверять нельзя. */
+private val ScrimColor = Color(0xB3000000)
+
+/**
+ * Подтверждение удаления.
+ *
+ * Спрашиваем всегда, даже у одной картинки: файл стирается насовсем, мимо корзины, и отменить
+ * это нечем. В тексте — имя файла и кусок промпта, потому что в пачке из четырёх карточки
+ * различаются только картинкой, а её в диалоге не видно.
+ */
+@Composable
+private fun DeleteResultDialog(job: GenerationJob, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+  val files = job.artifacts.map { File(it).name }
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text(if (files.isEmpty()) "Убрать из истории?" else "Удалить файл?") },
+    text = {
+      Column {
+        Text(
+          if (files.isEmpty()) {
+            "У этого задания файлов нет — исчезнет только запись в истории."
+          } else {
+            "Файл(ы) сотрутся с диска насовсем, не в корзину: " + files.joinToString(", ")
+          },
+          style = MaterialTheme.typography.bodyMedium,
+        )
+        // Про деньги предупреждаем прямо: сводка расходов считается по живому списку заданий, и
+        // удалённое из неё исчезнет. Потраченного это не возвращает, а промолчать здесь значит
+        // тихо занизить «Всего» — ровно то, от чего бережёт CostSummary.partial.
+        job.costUsd?.let {
+          Spacer(Modifier.height(8.dp))
+          Text(
+            "Из сводки расходов уйдёт ${formatCost(it)} — но списаны они уже были.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+          job.request.prompt.take(120).ifBlank { "без промпта" },
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+    },
+    confirmButton = { TextButton(onClick = onConfirm) { Text("Удалить") } },
+    dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+  )
 }
 
 /** Иконка-действие с подсказкой: без подписи ряд иконок иначе читается как ребус. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, hint: String, onClick: () -> Unit) {
+private fun IconAction(
+  icon: androidx.compose.ui.graphics.vector.ImageVector,
+  hint: String,
+  /** Цвет активной отметки. null — обычная приглушённая иконка действия. */
+  tint: Color? = null,
+  onClick: () -> Unit,
+) {
   TooltipArea(tooltip = {
     Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceVariant) {
       Text(hint, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(10.dp, 6.dp))
@@ -500,7 +869,7 @@ private fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, hi
       Icon(
         icon,
         contentDescription = hint,
-        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        tint = tint ?: MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.size(18.dp),
       )
     }

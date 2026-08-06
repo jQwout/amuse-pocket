@@ -9,7 +9,6 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.readBytes
 import java.io.File
-import java.net.URI
 import java.util.Locale
 
 /**
@@ -35,7 +34,7 @@ class ArtifactStore(
 
   /** Возвращает сохранённые файлы в порядке [outputs]. */
   suspend fun save(jobId: String, outputs: List<GenerationOutput>): List<File> {
-    val dir = File(paths.outputDir, safeDirName(jobId))
+    val dir = dirFor(jobId)
     dir.mkdirs()
     return outputs.mapIndexed { index, output ->
       val bytes = when (output) {
@@ -50,6 +49,11 @@ class ArtifactStore(
     }
   }
 
+  /**
+   * Ключ уходит только на сам OpenRouter — см. [isOpenRouterHost]. Ссылку на результат выбирает не
+   * пользователь и не мы, а JSON провайдера, и слать `Bearer` на любой названный там хост значит
+   * отдать ключ тому, кого никто не выбирал.
+   */
   private suspend fun download(url: String): ByteArray {
     val response = httpClient.get(url) {
       val key = apiKey()
@@ -61,21 +65,11 @@ class ArtifactStore(
   }
 
   /**
-   * Ключ уходит только на сам OpenRouter.
-   *
-   * Ссылки на результат берутся из ответа провайдера (`unsigned_urls`), то есть их выбирает не
-   * пользователь и не мы. Слать `Bearer` на любой хост, который назвали в JSON, — значит отдавать
-   * ключ тому, кого никто не выбирал: хватит одной подменённой или ошибочной ссылки. Совсем убрать
-   * заголовок нельзя — content-ссылки самого OpenRouter авторизации требуют, поэтому сужаем до
-   * хоста, а не выключаем.
-   *
-   * `java.net.URI`, а не разбор строки руками: `https://openrouter.ai@evil.example/x` для наивной
-   * проверки «содержит openrouter.ai» выглядит своим, а ведёт на чужой хост.
+   * Каталог, в который задание пишет свои файлы. Нужен снаружи: удаление сносит его целиком, потому
+   * что список путей в задании появляется только после успешной записи, а прерванное на середине
+   * задание оставляет файлы уже на диске.
    */
-  private fun isOpenRouterHost(url: String): Boolean {
-    val host = runCatching { URI(url).host }.getOrNull()?.lowercase() ?: return false
-    return host == OPENROUTER_HOST || host.endsWith(".$OPENROUTER_HOST")
-  }
+  fun dirFor(jobId: String): File = File(paths.outputDir, safeDirName(jobId))
 
   /**
    * Имя каталога из id задания. Свои id — безопасный UUID, но история лежит в правимом руками
@@ -84,14 +78,13 @@ class ArtifactStore(
   private fun safeDirName(jobId: String): String =
     jobId.filter { it.isLetterOrDigit() || it == '-' || it == '_' }.take(64).ifBlank { "job" }
 
-  private companion object {
-    const val OPENROUTER_HOST = "openrouter.ai"
-  }
-
   private fun extensionFor(mimeType: String): String = when (mimeType.substringBefore(';').trim()) {
     "image/png" -> "png"
     "image/jpeg", "image/jpg" -> "jpg"
     "image/webp" -> "webp"
+    // Ручка картинок умеет отдавать SVG (см. ImageDataDto.mediaType) — без этой строки он ложился
+    // на диск как .bin и в карточке рисовался словом «Картинка».
+    "image/svg+xml" -> "svg"
     "audio/mpeg", "audio/mp3" -> "mp3"
     "audio/wav", "audio/x-wav" -> "wav"
     "audio/pcm" -> "pcm"

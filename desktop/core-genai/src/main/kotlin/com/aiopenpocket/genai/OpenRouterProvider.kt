@@ -26,11 +26,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNamingStrategy
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
-import kotlinx.serialization.json.put
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -39,7 +35,7 @@ import kotlin.io.encoding.ExperimentalEncodingApi
  * одним ключом и одним биллингом (проверено 2026-07-29).
  *
  * Три разных протокола за одним интерфейсом:
- *  - картинки — `POST /chat/completions` с `modalities: ["image","text"]`, ответ синхронный;
+ *  - картинки — `POST /api/v1/images`, ответ синхронный (base64 в `data[].b64_json`);
  *  - видео — `POST /videos` отдаёт 202 + `polling_url`, результат забирается опросом;
  *  - аудио — `POST /audio/speech` отдаёт сырые байты, а не JSON.
  *
@@ -135,8 +131,24 @@ class OpenRouterProvider(
     }
   }
 
-  // --- Картинки: синхронный chat/completions -------------------------------------------------
+  // --- Картинки: собственная ручка POST /api/v1/images ---------------------------------------
 
+  /**
+   * Картинки уходят в `POST /api/v1/images`, а НЕ в `chat/completions`.
+   *
+   * Так было не всегда, и переезд не косметический. Через `chat/completions` картинку получить
+   * можно, но в этом запросе некуда положить ни разрешение, ни соотношение сторон, ни формат файла:
+   * у чата таких полей нет. Модель их заявляет (`/api/v1/images/models` → `supported_parameters`),
+   * пользователь их просит, а класть было некуда — и контролы пришлось бы рисовать декоративными.
+   *
+   * Вторая причина весомее: каталог картиночных моделей — это `/api/v1/images/models`, там сорок
+   * моделей, и через чат из них отвечает меньшинство. Пока список брался из общего `/models`,
+   * несовпадения не было видно; после расширения списка выбранная `qwen/qwen-image-3-pro` уходила
+   * бы в ручку, которая её не знает, — то есть отказ за деньги на ровном месте.
+   *
+   * Приятное следствие: вложения теперь уходят настоящим полем `input_references`, а не картинками
+   * внутри сообщения чата. Роль и теги по-прежнему словами в промпте — поля для них нет и здесь.
+   */
   private suspend fun kotlinx.coroutines.flow.FlowCollector<GenerationProgress>.generateImage(
     request: GenerationRequest,
     key: String,
@@ -148,55 +160,57 @@ class OpenRouterProvider(
       request.inputImage?.let { add(InputAttachment(it, AttachmentRole.REFERENCE)) }
       addAll(request.attachments)
     }
-    val content: JsonElement = if (inputs.isEmpty()) {
-      JsonPrimitive(request.prompt)
-    } else {
-      // image-to-image: контент становится массивом частей — текст, затем каждая картинка.
-      buildJsonArray {
-        add(buildJsonObject { put("type", "text"); put("text", describeAttachments(request.prompt, inputs)) })
-        for (attachment in inputs) {
-          val url = resolveInputImage(attachment.path)
-          add(
-            buildJsonObject {
-              put("type", "image_url")
-              put("image_url", buildJsonObject { put("url", url) })
-            },
-          )
-        }
-      }
+    val references = inputs.map { attachment ->
+      ImageReferenceDto(imageUrl = ImageUrlDto(resolveInputImage(attachment.path)))
     }
+
     val body = json.encodeToString(
-      ChatRequest(model = request.model, messages = listOf(ChatMessageDto("user", content))),
+      ImageRequestDto(
+        model = request.model,
+        prompt = describeAttachments(request.prompt, inputs),
+        resolution = request.resolution,
+        aspectRatio = request.aspectRatio,
+        outputFormat = request.outputFormat,
+        quality = request.quality,
+        inputReferences = references.ifEmpty { null },
+      ),
     )
-    val response = httpClient.post("$baseUrl/chat/completions") {
+    val response = httpClient.post("$baseUrl/images") {
       authorized(key)
       contentType(ContentType.Application.Json)
       setBody(body)
     }
     response.ensureSuccess()
-    val dto = json.decodeFromString<ChatResponseDto>(response.bodyAsText())
-    val images = dto.choices.firstOrNull()?.message?.images.orEmpty()
-    if (images.isEmpty()) {
-      // HTTP 200 без картинки — это не результат, а молчание модели (та же логика, что «пустой
-      // ответ ответом не считается» в OpenAiCompatClient). Текст ответа кладём в сообщение об
-      // ошибке: модели, отказавшие по контент-политике, объясняются именно там.
-      val said = dto.choices.firstOrNull()?.message?.content?.take(300)?.takeIf { it.isNotBlank() }
-      emit(
-        GenerationProgress.Failed(
-          "Модель не вернула картинку" + (said?.let { ": $it" } ?: ""),
-          code = "no_image",
-        ),
-      )
-      return
-    }
-    val outputs = images.mapNotNull { it.imageUrl?.url?.let(::parseImageOutput) }
+    val raw = response.bodyAsText()
+
+    // Строгий разбор — быстрый путь. Если он споткнулся, картинку из тела ВЫТАСКИВАЕМ РУКАМИ.
+    //
+    // Причина не гипотетическая. 2026-08-05 живой ответ пришёл с `"total_tokens":13680.64` —
+    // дробным числом в поле, которое нам не нужно вовсе. Разбор падал целиком, а в том же теле
+    // лежали и готовая картинка, и `"cost":0.075`. Пользователь заплатил и не получил ничего,
+    // увидев вместо кадра текст ошибки парсера.
+    //
+    // Отсюда правило: ответ за деньги нельзя терять из-за поля, которое мы не читаем. Схема у
+    // провайдера меняется без предупреждения, и следующий сюрприз будет в другом поле.
+    val dto = runCatching { json.decodeFromString<ImageResponseDto>(raw) }.getOrNull()
+    val outputs = dto?.data?.mapNotNull { it.toOutput() }?.takeIf { it.isNotEmpty() }
+      ?: salvageImages(raw)
+
     if (outputs.isEmpty()) {
-      emit(GenerationProgress.Failed("Картинка пришла в неизвестном формате", code = "bad_image"))
+      // HTTP 200 без картинки — это не результат, а молчание модели (та же логика, что «пустой
+      // ответ ответом не считается» в OpenAiCompatClient).
+      emit(GenerationProgress.Failed("Модель не вернула картинку", code = "no_image"))
       return
     }
     emit(
       GenerationProgress.Completed(
-        GenerationResult(outputs = outputs, costUsd = dto.usage?.cost, modelUsed = dto.model),
+        GenerationResult(
+          outputs = outputs,
+          // Цену тоже вытаскиваем руками, если разбор не удался: показать «—» там, где деньги
+          // списаны, значит занизить сводку расходов.
+          costUsd = dto?.usage?.cost ?: salvageCost(raw),
+          modelUsed = request.model,
+        ),
       ),
     )
   }
@@ -286,6 +300,14 @@ class OpenRouterProvider(
     pollingUrl: String,
     key: String,
   ) {
+    // Адрес опроса приходит из ответа провайдера, ложится в jobs.json и переигрывается при каждом
+    // запуске (resumeUnfinished). Без проверки хоста один битый или подправленный руками адрес
+    // получал бы ключ снова и снова. Отказываемся, а не шлём без заголовка: опрос без авторизации
+    // всё равно бесполезен, а тихий запрос на чужой хост — нет.
+    if (!isOpenRouterHost(pollingUrl)) {
+      emit(GenerationProgress.Failed("Адрес опроса ведёт не на OpenRouter — задание брошено", code = "bad_polling_host"))
+      return
+    }
     repeat(maxPollAttempts) { attempt ->
       if (attempt > 0) delay(pollIntervalMs)
       val response = httpClient.get(pollingUrl) { authorized(key) }
@@ -408,8 +430,9 @@ internal fun openRouterJson(): Json = Json {
 }
 
 /**
- * Роли и теги вложений уходят СЛОВАМИ в промпт: у `chat/completions` поля для роли картинки нет
- * вовсе. Это подсказка модели, а не гарантия, и UI обязан говорить об этом прямо — иначе «Фон» в
+ * Роли и теги вложений уходят СЛОВАМИ в промпт: поля для роли картинки нет ни у `chat/completions`,
+ * ни у `/api/v1/images` — сами картинки там едут настоящим `input_references`, а вот чем каждая из
+ * них является, сказать нечем. Это подсказка модели, а не гарантия, и UI обязан говорить об этом прямо — иначе «Фон» в
  * интерфейсе выглядит как параметр, который провайдер обещал соблюсти.
  *
  * У видео всё иначе: там роли ложатся на настоящие `frame_images`/`input_references`.
@@ -425,6 +448,38 @@ internal fun describeAttachments(prompt: String, images: List<InputAttachment>):
   }
   return prompt + "\n\nИсходники — " + lines + "."
 }
+
+/**
+ * Достаёт картинки из тела ответа в обход схемы — спасательный путь, когда строгий разбор упал.
+ *
+ * Ищем ровно два поля, которые и составляют результат: `b64_json` и `url`. Всё остальное в ответе
+ * нас не касается, и падать из-за него нельзя: за тело уже заплачено.
+ *
+ * Регулярка, а не «разобрать как JsonElement и походить по дереву»: дерево строит тот же парсер,
+ * который только что и споткнулся. Смысл спасательного пути в том, чтобы не зависеть от него.
+ */
+@OptIn(ExperimentalEncodingApi::class)
+internal fun salvageImages(raw: String): List<GenerationOutput> {
+  val fromBase64 = B64_FIELD.findAll(raw).mapNotNull { match ->
+    val bytes = runCatching { Base64.Mime.decode(match.groupValues[1]) }.getOrNull()
+    bytes?.takeIf { it.isNotEmpty() }?.let { GenerationOutput.Bytes(it, "image/png") }
+  }.toList()
+  if (fromBase64.isNotEmpty()) return fromBase64
+
+  return URL_FIELD.findAll(raw)
+    .map { it.groupValues[1] }
+    .filter { it.startsWith("http") || it.startsWith("data:") }
+    .mapNotNull(::parseImageOutput)
+    .toList()
+}
+
+/** Цена из тела в обход схемы — по той же причине, что и картинки: она уже списана. */
+internal fun salvageCost(raw: String): Double? =
+  COST_FIELD.find(raw)?.groupValues?.get(1)?.toDoubleOrNull()
+
+private val B64_FIELD = Regex(""""b64_json"\s*:\s*"([^"]+)"""")
+private val URL_FIELD = Regex(""""url"\s*:\s*"([^"]+)"""")
+private val COST_FIELD = Regex(""""cost"\s*:\s*([0-9.eE+-]+)""")
 
 /**
  * Разбирает то, что модель положила в `image_url`: обычно `data:image/png;base64,…`, но бывает и
@@ -458,40 +513,74 @@ private fun mimeForRemoteImage(url: String): String {
 
 // --- DTO ------------------------------------------------------------------------------------
 
+// --- DTO ручки картинок POST /api/v1/images -------------------------------------------------
+//
+// null-поля не сериализуются (explicitNulls = false), поэтому «пользователь не выбрал разрешение»
+// и «модель его не заявляла» дают одинаковый результат: параметра в запросе просто нет, и провайдер
+// применяет своё умолчание. Это честнее, чем выбрать значение за него.
+
 @Serializable
-private data class ChatRequest(
+private data class ImageRequestDto(
   val model: String,
-  val messages: List<ChatMessageDto>,
-  val modalities: List<String> = listOf("image", "text"),
+  val prompt: String,
+  val resolution: String? = null,
+  val aspectRatio: String? = null,
+  val outputFormat: String? = null,
+  val quality: String? = null,
+  val inputReferences: List<ImageReferenceDto>? = null,
 )
 
 @Serializable
-private data class ChatMessageDto(val role: String, val content: JsonElement)
+private data class ImageReferenceDto(
+  val type: String = "image_url",
+  val imageUrl: ImageUrlDto,
+)
 
 @Serializable
-private data class ChatResponseDto(
-  val model: String? = null,
-  val choices: List<ChoiceDto> = emptyList(),
+private data class ImageResponseDto(
+  val data: List<ImageDataDto> = emptyList(),
   val usage: UsageDto? = null,
 )
 
 @Serializable
-private data class ChoiceDto(val message: ResponseMessageDto? = null)
-
-@Serializable
-private data class ResponseMessageDto(
-  val content: String? = null,
-  val images: List<ResponseImageDto> = emptyList(),
-)
-
-@Serializable
-private data class ResponseImageDto(val type: String? = null, val imageUrl: ImageUrlDto? = null)
+private data class ImageDataDto(
+  /** Байты картинки в base64. Основной способ доставки у этой ручки. */
+  val b64Json: String? = null,
+  /** Тип пришедшего файла: `image/png`, `image/webp`, `image/svg+xml`. */
+  val mediaType: String? = null,
+  /** Часть провайдеров отдаёт ссылку вместо байтов — разбираем оба варианта. */
+  val url: String? = null,
+) {
+  @OptIn(ExperimentalEncodingApi::class)
+  fun toOutput(): GenerationOutput? {
+    b64Json?.takeIf { it.isNotBlank() }?.let { encoded ->
+      // Base64.Mime, а не строгий: переносы строк в теле — законная кодировка, а строгий декодер на
+      // них падает. Кадр к этому моменту уже оплачен, и терять его из-за переноса строки нельзя.
+      val bytes = runCatching { Base64.Mime.decode(encoded) }.getOrNull()
+      // Не разобралось — проваливаемся к ссылке той же записи, а не бросаем её целиком: часть
+      // провайдеров кладёт и то и другое.
+      if (bytes != null) return GenerationOutput.Bytes(bytes, mediaType ?: "image/png")
+    }
+    return url?.takeIf { it.isNotBlank() }?.let(::parseImageOutput)
+  }
+}
 
 @Serializable
 private data class ImageUrlDto(val url: String)
 
 @Serializable
-private data class UsageDto(val cost: Double? = null, val totalTokens: Int? = null)
+private data class UsageDto(
+  val cost: Double? = null,
+  /**
+   * ДРОБНОЕ, а не целое. Выглядит как ошибка в схеме, но так отвечает живой API: у картиночных
+   * моделей приходит `"total_tokens":13680.64`. С `Int` разбор ответа падал целиком — вместе с уже
+   * оплаченной картинкой и `cost` в том же теле. Хуже случая не придумать: деньги списаны, результат
+   * выброшен, а пользователю показана ошибка парсера.
+   */
+  val totalTokens: Double? = null,
+  val promptTokens: Double? = null,
+  val completionTokens: Double? = null,
+)
 
 @Serializable
 private data class SpeechRequest(

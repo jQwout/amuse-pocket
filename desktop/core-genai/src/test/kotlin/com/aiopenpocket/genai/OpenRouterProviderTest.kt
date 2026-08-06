@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -39,9 +41,7 @@ class OpenRouterProviderTest {
   fun `image arrives as a data URL and becomes bytes`() = runTest {
     val engine = jsonEngine(
       """
-      {"model":"black-forest-labs/flux.2-pro",
-       "choices":[{"message":{"role":"assistant","content":"готово",
-         "images":[{"type":"image_url","image_url":{"url":"data:image/png;base64,aGVsbG8="}}]}}],
+      {"created":1,"data":[{"b64_json":"aGVsbG8=","media_type":"image/png"}],
        "usage":{"cost":0.0042}}
       """.trimIndent(),
     )
@@ -125,10 +125,10 @@ class OpenRouterProviderTest {
   }
 
   @Test
-  fun `every attachment travels as its own image part`() = runTest {
-    val engine = jsonEngine(
-      """{"choices":[{"message":{"images":[{"image_url":{"url":"data:image/png;base64,aGVsbG8="}}]}}]}""",
-    )
+  fun `every attachment travels as its own input reference`() = runTest {
+    // Тело ответа — от РУЧКИ КАРТИНОК. С прежним чат-ответом тест проходил вхолостую: он смотрит
+    // только на запрос, а ответ, который не разбирается, этого не показывал.
+    val engine = jsonEngine("""{"data":[{"b64_json":"aGVsbG8="}]}""")
 
     provider(engine).generate(
       GenerationRequest(
@@ -143,17 +143,20 @@ class OpenRouterProviderTest {
     ).toList()
 
     val sent = sentBody(engine)
-    assertTrue(sent.contains("bg.jpg"), sent)
-    assertTrue(sent.contains("hero.png"), sent)
+    // Именно в input_references, а не просто «где-то в теле»: без этой проверки удаление поля из
+    // запроса осталось бы незамеченным — имена файлов есть и в тексте промпта.
+    assertTrue(sent.contains("input_references"), sent)
+    val references = sent.substringAfter("input_references")
+    assertTrue(references.contains("bg.jpg"), sent)
+    assertTrue(references.contains("hero.png"), sent)
   }
 
   @Test
   fun `roles and tags of an image reach the model as words in the prompt`() = runTest {
-    // У chat/completions нет поля для роли картинки. Роль — подсказка в тексте, и если она туда
-    // не попадёт, «Фон» в интерфейсе окажется контролом, который ни на что не влияет.
-    val engine = jsonEngine(
-      """{"choices":[{"message":{"images":[{"image_url":{"url":"data:image/png;base64,aGVsbG8="}}]}}]}""",
-    )
+    // Поля для РОЛИ картинки нет ни у чата, ни у /api/v1/images: сами картинки едут настоящим
+    // input_references, а чем каждая является — сказать нечем. Роль остаётся подсказкой в тексте,
+    // и если она туда не попадёт, «Фон» в интерфейсе окажется контролом без последствий.
+    val engine = jsonEngine("""{"data":[{"b64_json":"aGVsbG8="}]}""")
 
     provider(engine).generate(
       GenerationRequest(
@@ -219,17 +222,14 @@ class OpenRouterProviderTest {
 
   @Test
   fun `HTTP 200 without an image counts as a refusal, not a result`() = runTest {
-    val engine = jsonEngine(
-      """{"choices":[{"message":{"role":"assistant","content":"не могу нарисовать это"}}]}""",
-    )
+    // Ручка картинок отвечает 200 с пустым data — это молчание модели, а не результат.
+    val engine = jsonEngine("""{"created":1,"data":[]}""")
     val events = provider(engine).generate(
       GenerationRequest(GenerationModality.IMAGE, "запрещённое", "black-forest-labs/flux.2-pro"),
     ).toList()
 
     val failed = events.filterIsInstance<GenerationProgress.Failed>().single()
     assertEquals("no_image", failed.code)
-    // Текст модели попадает в сообщение — именно там объясняются отказы по контент-политике.
-    assertTrue(failed.message.contains("не могу нарисовать"), failed.message)
     assertTrue(events.none { it is GenerationProgress.Completed })
   }
 
@@ -320,9 +320,7 @@ class OpenRouterProviderTest {
 
   @Test
   fun `key and attribution go out in headers`() = runTest {
-    val engine = jsonEngine(
-      """{"choices":[{"message":{"images":[{"image_url":{"url":"data:image/png;base64,aGVsbG8="}}]}}]}""",
-    )
+    val engine = jsonEngine("""{"data":[{"b64_json":"aGVsbG8="}]}""")
     provider(engine).generate(
       GenerationRequest(GenerationModality.IMAGE, "кот", "black-forest-labs/flux.2-pro"),
     ).toList()
@@ -331,15 +329,14 @@ class OpenRouterProviderTest {
     assertEquals(HttpMethod.Post, request.method)
     assertEquals("Bearer sk-test", request.headers["Authorization"])
     assertEquals("AI Open Pocket Desktop", request.headers["X-Title"])
-    // modalities обязателен: без него chat/completions вернёт текст вместо картинки.
-    assertTrue(request.url.toString().endsWith("/chat/completions"))
+    // Своя ручка, а не chat/completions: только у неё есть поля разрешения, формата и соотношения.
+    assertTrue(request.url.toString().endsWith("/images"), request.url.toString())
   }
 
   @Test
   fun `a plain image url keeps its own type instead of becoming png`() = runTest {
-    val engine = jsonEngine(
-      """{"choices":[{"message":{"images":[{"image_url":{"url":"https://cdn.example/pic.jpg?v=2"}}]}}]}""",
-    )
+    // Часть провайдеров отдаёт ссылку вместо байтов — разбирать надо оба варианта.
+    val engine = jsonEngine("""{"data":[{"url":"https://cdn.example/pic.jpg?v=2"}]}""")
     val events = provider(engine).generate(
       GenerationRequest(GenerationModality.IMAGE, "кот", "black-forest-labs/flux.2-pro"),
     ).toList()
@@ -405,5 +402,163 @@ class OpenRouterProviderTest {
       .single().result.outputs.single() as GenerationOutput.RemoteUrl
     assertEquals("https://x/y.mp4", output.url)
     assertEquals(HttpMethod.Get, engine.requestHistory.single().method)
+  }
+
+  @Test
+  fun `polling never sends the key to a host that is not OpenRouter`() = runTest {
+    // polling_url приходит из ответа провайдера, ЛОЖИТСЯ В jobs.json и переигрывается при каждом
+    // запуске. Один битый ответ или одна правка файла руками — и ключ уходил бы на чужой хост
+    // снова и снова. Отказываемся молча наружу, но громко в статусе задания.
+    var requests = 0
+    val engine = MockEngine {
+      requests++
+      respond("{}", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+    }
+    val provider = OpenRouterProvider(engine = engine, apiKey = { "sk-or-secret" })
+
+    val events = provider.resume("https://evil.example/steal").toList()
+
+    assertEquals(0, requests, "на чужой хост не должно уйти ни одного запроса")
+    val failed = events.filterIsInstance<GenerationProgress.Failed>().single()
+    assertEquals("bad_polling_host", failed.code)
+    provider.close()
+  }
+
+  @Test
+  fun `userinfo trick does not make a foreign host look like ours`() {
+    // Наивная проверка «содержит openrouter.ai» тут ошибается: адрес ведёт на evil.example.
+    assertFalse(isOpenRouterHost("https://openrouter.ai@evil.example/x"))
+    assertFalse(isOpenRouterHost("https://openrouter.ai.evil.example/x"))
+    assertFalse(isOpenRouterHost("не адрес вовсе"))
+    assertFalse(isOpenRouterHost(""))
+
+    assertTrue(isOpenRouterHost("https://openrouter.ai/api/v1/videos/abc"))
+    assertTrue(isOpenRouterHost("https://cdn.openrouter.ai/file.mp4"))
+    assertTrue(isOpenRouterHost("https://OPENROUTER.AI/x"))
+  }
+
+  @Test
+  fun `images go to the dedicated endpoint with the declared parameters`() = runTest {
+    // Через chat/completions разрешение и формат положить некуда — у чата таких полей нет.
+    // Ради них (и ради сорока моделей из /api/v1/images/models) генерация и переехала на свою ручку.
+    var path: String? = null
+    var sent: String? = null
+    val encoded = java.util.Base64.getEncoder().encodeToString("кадр".toByteArray())
+    val engine = MockEngine { request ->
+      path = request.url.encodedPath
+      sent = (request.body as TextContent).text
+      respond(
+        """{"data":[{"b64_json":"$encoded","media_type":"image/webp"}],"usage":{"cost":0.075}}""",
+        HttpStatusCode.OK,
+        headersOf(HttpHeaders.ContentType, "application/json"),
+      )
+    }
+    val provider = OpenRouterProvider(engine = engine, apiKey = { "sk-or-test" })
+
+    val events = provider.generate(
+      GenerationRequest(
+        modality = GenerationModality.IMAGE,
+        prompt = "кот",
+        model = "qwen/qwen-image-3-pro",
+        resolution = "2K",
+        aspectRatio = "16:9",
+        outputFormat = "webp",
+      ),
+    ).toList()
+
+    assertEquals("/api/v1/images", path)
+    assertTrue("\"resolution\":\"2K\"" in sent!!, sent!!)
+    assertTrue("\"aspect_ratio\":\"16:9\"" in sent!!, sent!!)
+    assertTrue("\"output_format\":\"webp\"" in sent!!, sent!!)
+
+    val done = events.filterIsInstance<GenerationProgress.Completed>().single()
+    assertEquals(0.075, done.result.costUsd)
+    val bytes = done.result.outputs.single() as GenerationOutput.Bytes
+    assertEquals("кадр", String(bytes.data))
+    assertEquals("image/webp", bytes.mimeType)
+    provider.close()
+  }
+
+  @Test
+  fun `parameters the user did not choose are not sent at all`() = runTest {
+    // «Не выбрано» и «модель не заявляла» дают одно и то же: поля в запросе нет, провайдер берёт
+    // своё умолчание. Слать туда выдуманное значение — получать отказ за деньги.
+    var sent: String? = null
+    val engine = MockEngine { request ->
+      sent = (request.body as TextContent).text
+      respond(
+        """{"data":[{"b64_json":"eA=="}]}""",
+        HttpStatusCode.OK,
+        headersOf(HttpHeaders.ContentType, "application/json"),
+      )
+    }
+    val provider = OpenRouterProvider(engine = engine, apiKey = { "sk-or-test" })
+
+    provider.generate(
+      GenerationRequest(GenerationModality.IMAGE, "кот", "vendor/model"),
+    ).toList()
+
+    assertFalse("resolution" in sent!!, sent!!)
+    assertFalse("aspect_ratio" in sent!!, sent!!)
+    assertFalse("output_format" in sent!!, sent!!)
+    assertFalse("input_references" in sent!!, sent!!)
+    provider.close()
+  }
+
+  @Test
+  fun `fractional token counts do not throw away a paid image`() = runTest {
+    // Живой ответ 2026-08-05: "total_tokens":13680.64. С Int разбор падал целиком — вместе с уже
+    // оплаченной картинкой и её ценой в том же теле. Деньги списаны, результат выброшен.
+    val engine = jsonEngine(
+      """
+      {"created":1,"data":[{"b64_json":"aGVsbG8=","media_type":"image/png"}],
+       "usage":{"prompt_tokens":5488.64,"total_tokens":13680.64,"cost":0.075,"is_byok":false}}
+      """.trimIndent(),
+    )
+
+    val events = provider(engine).generate(
+      GenerationRequest(GenerationModality.IMAGE, "кот", "vendor/img"),
+    ).toList()
+
+    val done = events.filterIsInstance<GenerationProgress.Completed>().single()
+    assertEquals(0.075, done.result.costUsd)
+    assertEquals("hello", String((done.result.outputs.single() as GenerationOutput.Bytes).data))
+  }
+
+  @Test
+  fun `a schema surprise does not cost a paid image`() = runTest {
+    // Тот самый случай, только злее: пусть в ответе будет поле, которого схема не знает ВООБЩЕ и
+    // тип которого её ломает. Картинка и цена в теле есть — значит и результат обязан быть.
+    // За тело уже заплачено; терять его из-за поля, которое мы не читаем, нельзя.
+    val engine = jsonEngine(
+      """
+      {"created":1,"data":[{"b64_json":"aGVsbG8=","media_type":"image/png"}],
+       "usage":{"total_tokens":13680.64,"cost":0.075},
+       "provider_meta":{"latency":[1,2,{"nested":"что угодно"}]},"stats":нечисло}
+      """.trimIndent(),
+    )
+
+    val events = provider(engine).generate(
+      GenerationRequest(GenerationModality.IMAGE, "кот", "vendor/img"),
+    ).toList()
+
+    val done = events.filterIsInstance<GenerationProgress.Completed>().single()
+    assertEquals("hello", String((done.result.outputs.single() as GenerationOutput.Bytes).data))
+    assertEquals(0.075, done.result.costUsd, "цену тоже вытаскиваем: она уже списана")
+  }
+
+  @Test
+  fun `salvage takes the image url when there are no bytes`() {
+    val outputs = salvageImages("""{"data":[{"url":"https://cdn.example/pic.jpg"}],"stats":сломано}""")
+
+    val remote = outputs.single() as GenerationOutput.RemoteUrl
+    assertEquals("https://cdn.example/pic.jpg", remote.url)
+  }
+
+  @Test
+  fun `salvage finds nothing in a body without images`() {
+    // Пусто должно означать пусто: выдумывать результат там, где его нет, хуже, чем отказ.
+    assertTrue(salvageImages("""{"error":{"message":"нет провайдера"}}""").isEmpty())
+    assertNull(salvageCost("""{"data":[]}"""))
   }
 }

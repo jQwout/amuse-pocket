@@ -11,16 +11,13 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.FlowRowScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -36,36 +33,56 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.genai.AttachmentRole
-import com.aiopenpocket.genai.GenaiModelEntry
 import com.aiopenpocket.genai.InputAttachment
 import com.aiopenpocket.genai.GenerationJob
 import com.aiopenpocket.genai.GenerationModality
+import com.aiopenpocket.genai.ImageCapabilities
+import com.aiopenpocket.genai.aspectRatioValue
+import com.aiopenpocket.genai.megapixels
 import com.aiopenpocket.genai.JobStatus
+import com.aiopenpocket.genai.ModelPreviews
 import com.aiopenpocket.genai.PromptPreset
 import com.aiopenpocket.genai.VideoCapabilities
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.produceState
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.draganddrop.DragAndDropEvent
+import androidx.compose.ui.draganddrop.DragAndDropTarget
+import androidx.compose.ui.draganddrop.DragData
+import androidx.compose.ui.draganddrop.dragData
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.net.URI
 
 /**
  * Блок формы: подпись и содержимое в карточке.
@@ -95,197 +112,170 @@ fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
  * Карточки остались там, где они содержат объект (файл, результат), а не поле ввода.
  */
 @Composable
-fun FieldGroup(title: String, hint: String? = null, content: @Composable ColumnScope.() -> Unit) {
+fun FieldGroup(
+  title: String,
+  hint: String? = null,
+  /** Действие над всем блоком — прижимается к правому краю строки заголовка. */
+  action: @Composable (() -> Unit)? = null,
+  content: @Composable ColumnScope.() -> Unit,
+) {
   Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(
+      Modifier.fillMaxWidth(),
+      verticalAlignment = Alignment.Bottom,
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
       Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
       hint?.let {
         Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      }
+      action?.let {
+        Spacer(Modifier.weight(1f))
+        it()
       }
     }
     content()
   }
 }
 
-/** Модель — свободный текст с подсказками: устаревший слаг в каталоге не должен мешать ввести свой. */
-@Composable
-fun ModelField(model: String, suggestions: List<GenaiModelEntry>, onModelChange: (String) -> Unit) {
-  var expanded by remember { mutableStateOf(false) }
-  var query by remember(expanded) { mutableStateOf("") }
-
-  Column(Modifier.fillMaxWidth()) {
-    Row(
-      Modifier.fillMaxWidth(),
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-      OutlinedTextField(
-        value = model,
-        onValueChange = onModelChange,
-        placeholder = { Text("vendor/model") },
-        singleLine = true,
-        // Тянется по окну, а не фиксированные 520dp: слаги бывают длинными, и на широком окне
-        // поле обрывало их посреди пустого места.
-        modifier = Modifier.weight(1f),
-      )
-      OutlinedButton(onClick = { expanded = true }) { Text("Из списка") }
-    }
-
-    // Меню висит на колонке, а не на кнопке: привязанное к кнопке, оно раскрывалось влево и
-    // накрывало собой промпт. Теперь разворачивается под полем, там же, где его и ищут.
-    DropdownMenu(
-      expanded = expanded,
-      onDismissRequest = { expanded = false },
-      modifier = Modifier.heightIn(max = 420.dp).width(460.dp),
-    ) {
-      ModelPickerList(
-        suggestions = suggestions,
-        current = model,
-        query = query,
-        onQuery = { query = it },
-        onPick = {
-          onModelChange(it)
-          expanded = false
-        },
-      )
-    }
-  }
-}
-
 /**
- * Содержимое списка моделей: поиск, группировка по вендору, галочка у текущей.
+ * Формат сторон: чипы с нарисованной пропорцией.
  *
- * Отдельным композаблом, потому что раскрытое меню в offscreen-снимок не попадает — состояние
- * внутреннее. Отдельно его снять можно, а значит и посмотреть, что получилось, прежде чем отдавать.
+ * Значок не украшение. «2.39:1» и «16:9» словами различаются плохо, а глазом — мгновенно, и выбирают
+ * тут именно форму кадра. Пропорция рисуется из самой строки, поэтому значок не может разойтись с
+ * подписью; строку, которую разобрать не вышло (`auto` и всё, что провайдер придумает завтра),
+ * показываем текстом без значка, а не с квадратом наугад.
  *
- * Поиск здесь не украшение: в живом каталоге одиннадцать картиночных моделей, и половина из них —
- * `gemini-3.1-flash-image` против `gemini-3.1-flash-image-preview`. Глазами это не разбирается.
+ * Список приходит от модели: 37 из 40 заявляют свои соотношения, и они разные.
  */
-@Composable
-fun ModelPickerList(
-  suggestions: List<GenaiModelEntry>,
-  current: String,
-  query: String,
-  onQuery: (String) -> Unit,
-  onPick: (String) -> Unit,
-) {
-  if (suggestions.isEmpty()) {
-    Text(
-      "нет подсказок для этой модальности — введи слаг руками",
-      style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-      modifier = Modifier.padding(16.dp),
-    )
-    return
-  }
-
-  OutlinedTextField(
-    value = query,
-    onValueChange = onQuery,
-    placeholder = { Text("поиск: gemini, gpt, pro…") },
-    singleLine = true,
-    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-  )
-
-  val matched = suggestions.filter {
-    query.isBlank() || it.id.contains(query, ignoreCase = true) ||
-      it.displayName.contains(query, ignoreCase = true)
-  }
-  if (matched.isEmpty()) {
-    Text(
-      "ничего не нашлось",
-      style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-      modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-    )
-    return
-  }
-
-  // Группировка по вендору: сортировкой список не спасти, а «google» над четырьмя близнецами
-  // сразу говорит, чем они отличаются от соседних.
-  for ((vendor, group) in matched.groupBy { it.vendor }) {
-    if (vendor.isNotBlank()) {
-      Text(
-        vendor,
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 16.dp, top = 10.dp, bottom = 2.dp),
-      )
-    }
-    for (entry in group) {
-      val chosen = entry.id == current
-      DropdownMenuItem(
-        text = {
-          Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Icon(
-              Icons.Default.Check,
-              contentDescription = null,
-              tint = if (chosen) MaterialTheme.colorScheme.primary else Color.Transparent,
-              modifier = Modifier.size(16.dp),
-            )
-            Column {
-              // Имя читается, слаг остаётся видимым: именно он уходит в запрос, и подменять его
-              // красивым названием нельзя.
-              Text(
-                entry.displayName,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (chosen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-              )
-              Text(
-                entry.id,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-              )
-            }
-          }
-        },
-        onClick = { onPick(entry.id) },
-      )
-    }
-  }
-}
-
-/**
- * Сравнение моделей: один промпт уходит в несколько моделей сразу. Свободного ввода здесь нет
- * намеренно — набирать руками три слага дольше, чем отметить их в списке.
- */
-// FlowRow всё ещё @ExperimentalLayoutApi — единственная причина opt-in в этом файле.
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ModelCompareField(
-  suggestions: List<GenaiModelEntry>,
-  selected: Set<String>,
-  onToggle: (String) -> Unit,
+fun AspectRatioField(
+  options: List<String>,
+  selected: String?,
+  estimated: Pair<Int, Int>?,
+  onSelect: (String?) -> Unit,
 ) {
-  Column {
-    if (suggestions.isEmpty()) {
-      Text(
-        "Для этой модальности нет подсказок — сравнивать не из чего, выключи режим сравнения.",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.error,
-      )
-      return@Column
+  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+      verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      for (option in options) {
+        val chosen = selected == option
+        Surface(
+          shape = ButtonShape,
+          color = if (chosen) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+          border = BorderStroke(
+            1.dp,
+            if (chosen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+          ),
+          modifier = Modifier.clickable { onSelect(if (chosen) null else option) },
+        ) {
+          Row(
+            Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+          ) {
+            RatioGlyph(option, chosen)
+            Text(
+              option,
+              style = MaterialTheme.typography.labelLarge,
+              color = if (chosen) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+              } else {
+                MaterialTheme.colorScheme.onSurface
+              },
+            )
+          }
+        }
+      }
     }
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-      for (entry in suggestions) {
+    estimated?.let { size ->
+      val (w, h) = size
+      Text(
+        // Со знаком приблизительности намеренно: тир задаётся строкой, и во сколько пикселей он
+        // развернётся, провайдер в каталоге не обещает (см. estimatedPixels).
+        "≈ $w × $h · ${megapixels(size)}",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+  }
+}
+
+/** Прямоугольник в пропорции кадра. Неразобранная строка — пустое место, а не квадрат наугад. */
+@Composable
+private fun RatioGlyph(ratio: String, chosen: Boolean) {
+  val value = aspectRatioValue(ratio) ?: return
+  val box = 18.dp
+  val width = if (value >= 1.0) box else box * value.toFloat()
+  val height = if (value >= 1.0) box / value.toFloat() else box
+
+  Box(Modifier.size(box), contentAlignment = Alignment.Center) {
+    Box(
+      Modifier
+        .size(width = width, height = height)
+        .border(
+          1.5.dp,
+          if (chosen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+          RoundedCornerShape(2.dp),
+        ),
+    )
+  }
+}
+
+/**
+ * Качество: тир разрешения, уровень качества и формат файла — всё, что модель заявила о себе.
+ *
+ * Тот же принцип, что у [VideoParamsFields]: не заявлено — не показано. Разрешение объявляют 16
+ * моделей из сорока, качество — 6, формат файла — 6. Нарисовать «4K» там, где модель о нём молчала,
+ * значит предложить значение, на котором запрос вернётся отказом уже после нажатия «Сгенерировать»,
+ * то есть за деньги.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun ImageQualityFields(
+  caps: ImageCapabilities,
+  resolution: String?,
+  onResolution: (String?) -> Unit,
+  quality: String?,
+  onQuality: (String?) -> Unit,
+  outputFormat: String?,
+  onOutputFormat: (String?) -> Unit,
+) {
+  if (caps.resolutions.isNotEmpty()) {
+    ParamRow("Разрешение", onReset = { onResolution(null) }, isSet = resolution != null) {
+      for (option in caps.resolutions) {
         FilterChip(
-          selected = entry.id in selected,
-          onClick = { onToggle(entry.id) },
-          label = { Text(entry.displayName) },
+          selected = resolution == option,
+          onClick = { onResolution(if (resolution == option) null else option) },
+          label = { Text(option) },
         )
       }
     }
-    Spacer(Modifier.height(4.dp))
-    Text(
-      when (selected.size) {
-        0 -> "не выбрано ни одной модели"
-        1 -> "выбрана одна модель — запустится как обычная генерация"
-        else -> "${selected.size} модели: один промпт уйдёт в каждую"
-      },
-      style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+  }
+  if (caps.qualities.isNotEmpty()) {
+    ParamRow("Уровень", onReset = { onQuality(null) }, isSet = quality != null) {
+      for (option in caps.qualities) {
+        FilterChip(
+          selected = quality == option,
+          onClick = { onQuality(if (quality == option) null else option) },
+          label = { Text(option) },
+        )
+      }
+    }
+  }
+  if (caps.outputFormats.isNotEmpty()) {
+    ParamRow("Файл", onReset = { onOutputFormat(null) }, isSet = outputFormat != null) {
+      for (option in caps.outputFormats) {
+        FilterChip(
+          selected = outputFormat == option,
+          onClick = { onOutputFormat(if (outputFormat == option) null else option) },
+          label = { Text(option.uppercase()) },
+        )
+      }
+    }
   }
 }
 
@@ -296,7 +286,7 @@ fun ModelCompareField(
 @Composable
 fun FramePicker(label: String, picked: File?, onPick: () -> Unit, onClear: () -> Unit) {
   Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-    OutlinedButton(onClick = onPick) { Text(label) }
+    OutlinedButton(onClick = onPick, shape = ButtonShape) { Text(label) }
     if (picked == null) {
       Text(
         "не выбран",
@@ -418,6 +408,7 @@ fun AttachmentsField(
   attachments: List<InputAttachment>,
   modality: GenerationModality,
   onAdd: () -> Unit,
+  onFilesDropped: (List<File>) -> Unit,
   onChange: (Int, InputAttachment) -> Unit,
   onRemove: (Int) -> Unit,
 ) {
@@ -433,7 +424,7 @@ fun AttachmentsField(
       )
     }
 
-    OutlinedButton(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text("+  Добавить файл") }
+    FileDropZone(onAdd = onAdd, onFilesDropped = onFilesDropped)
 
     Text(
       if (modality == GenerationModality.VIDEO) {
@@ -443,6 +434,81 @@ fun AttachmentsField(
       },
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+  }
+}
+
+/**
+ * Пунктирная зона: одновременно кнопка и приёмник перетаскивания.
+ *
+ * Пунктир здесь не оформление, а обещание: рамка такого вида везде означает «сюда можно бросить
+ * файл». Поэтому под ней настоящий `dragAndDropTarget` — нарисовать пунктир и не принять drop
+ * значило бы соврать рамкой. Сплошная кнопка «+ Добавить файл», стоявшая здесь раньше, наоборот,
+ * ничего не обещала и про перетаскивание молчала, хотя оно на десктопе — первое, что пробуют.
+ *
+ * Подсветка на входе курсора нужна не для красоты: у окна несколько мест, куда файл логично
+ * бросить, и пользователь должен видеть, какое из них поймает.
+ */
+@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
+@Composable
+private fun FileDropZone(onAdd: () -> Unit, onFilesDropped: (List<File>) -> Unit) {
+  var dragOver by remember { mutableStateOf(false) }
+
+  // Колбэк захватывает текущий список вложений, то есть на каждый добавленный файл приезжает новая
+  // лямбда. Ключ по ней означал бы, что remember пересоздаёт приёмник ровно тогда, когда он занят
+  // делом, — то есть не помнит ничего. rememberUpdatedState разводит две вещи: узел живёт долго,
+  // а зовёт всегда свежий колбэк.
+  val latestOnFiles by rememberUpdatedState(onFilesDropped)
+
+  val target = remember {
+    object : DragAndDropTarget {
+      override fun onEntered(event: DragAndDropEvent) { dragOver = true }
+      override fun onExited(event: DragAndDropEvent) { dragOver = false }
+      override fun onEnded(event: DragAndDropEvent) { dragOver = false }
+
+      override fun onDrop(event: DragAndDropEvent): Boolean {
+        dragOver = false
+        val list = event.dragData() as? DragData.FilesList ?: return false
+        // readFiles отдаёт URI («file:/C:/…»), а не пути: File(String) на таком превратился бы
+        // в относительный путь с двоеточием и молча не нашёлся бы.
+        val files = list.readFiles().mapNotNull { runCatching { File(URI(it)) }.getOrNull() }
+        if (files.isEmpty()) return false
+        latestOnFiles(files)
+        return true
+      }
+    }
+  }
+
+  val shape = MaterialTheme.shapes.medium
+  val stroke = if (dragOver) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+  val label = if (dragOver) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+
+  Box(
+    Modifier
+      .fillMaxWidth()
+      .height(56.dp)
+      .clip(shape)
+      .background(
+        if (dragOver) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f) else Color.Transparent,
+      )
+      .drawBehind {
+        drawRoundRect(
+          color = stroke,
+          cornerRadius = CornerRadius(12.dp.toPx()),
+          style = Stroke(
+            width = 1.dp.toPx(),
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 5.dp.toPx())),
+          ),
+        )
+      }
+      .clickable(onClick = onAdd)
+      .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = target),
+    contentAlignment = Alignment.Center,
+  ) {
+    Text(
+      if (dragOver) "Отпустите — добавим в список" else "+   Перетащите файлы или добавьте",
+      style = MaterialTheme.typography.bodyMedium,
+      color = label,
     )
   }
 }
@@ -496,6 +562,75 @@ private fun AttachmentCard(
   }
 }
 
+/**
+ * Уже разобранные превью. Кеш на диске избавляет от похода в сеть, но не от чтения файла и
+ * декодирования: без этой карты каждое открытие списка снова читало бы девять webp с диска и гоняло
+ * бы Skia — и строки заметно «проявлялись» вместо того, чтобы просто быть.
+ *
+ * Держится в памяти процесса и не чистится: девять картинок 56×34 — это десятки килобайт, а список
+ * моделей конечен и невелик. Карта потокобезопасная: заполняется из корутин `produceState`, которые
+ * стартуют для всех видимых строк разом.
+ */
+private val decodedPreviews = java.util.concurrent.ConcurrentHashMap<String, ImageBitmap>()
+
+/**
+ * Пример картинки у модели — витрина, как на сайте OpenRouter.
+ *
+ * Грузится лениво и только для строк, которые Compose реально составил: пример у модели лежит на
+ * чужом сайте, и тянуть все девять заранее ради списка, который могут и не открыть, незачем.
+ *
+ * Пока не пришло — полосатая заглушка, как у вложений; не пришло вовсе — она же и остаётся. Место
+ * под превью занято всегда, иначе строки списка прыгали бы по мере загрузки.
+ */
+@Composable
+internal fun ModelPreviewThumb(
+  modelId: String,
+  previews: ModelPreviews,
+  /** Размер параметром: в строке списка это миниатюра, в панели деталей — витрина во всю ширину. */
+  width: Dp = 56.dp,
+  height: Dp = 34.dp,
+) {
+  val bitmap by produceState<ImageBitmap?>(initialValue = decodedPreviews[modelId], modelId) {
+    // produceState НЕ сбрасывает значение при смене ключа: внутри у него remember без ключей, и
+    // перезапускается только эффект. Без этой строки на месте новой модели секунду висела бы
+    // картинка предыдущей.
+    value = decodedPreviews[modelId]
+    if (value == null) {
+      val file = previews.preview(modelId)
+      val decoded = file?.let { withContext(Dispatchers.IO) { loadImage(it) } }
+      if (decoded != null) decodedPreviews[modelId] = decoded
+      value = decoded
+    }
+  }
+
+  Box(
+    Modifier.size(width = width, height = height)
+      .clip(MaterialTheme.shapes.extraSmall)
+      .background(MaterialTheme.colorScheme.surfaceVariant),
+  ) {
+    bitmap?.let {
+      Image(it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+    } ?: StripePlaceholder(width = width, height = height)
+  }
+}
+
+/** Полосатая заглушка на месте не загруженной картинки — общая для вложений и витрины моделей. */
+@Composable
+internal fun StripePlaceholder(width: Dp, height: Dp) {
+  Canvas(Modifier.size(width, height)) {
+    var x = -size.height
+    while (x < size.width) {
+      drawLine(
+        color = StripeColor,
+        start = Offset(x, size.height),
+        end = Offset(x + size.height, 0f),
+        strokeWidth = 1.5f,
+      )
+      x += 8f
+    }
+  }
+}
+
 /** Миниатюра файла. Не загрузилась — полосатая заглушка, как в макете, а не пустой прямоугольник. */
 @Composable
 private fun AttachmentThumb(path: String) {
@@ -516,18 +651,7 @@ private fun AttachmentThumb(path: String) {
         modifier = Modifier.size(44.dp),
       )
     } else {
-      Canvas(Modifier.size(44.dp)) {
-        var x = -size.height
-        while (x < size.width) {
-          drawLine(
-            color = StripeColor,
-            start = Offset(x, size.height),
-            end = Offset(x + size.height, 0f),
-            strokeWidth = 1.5f,
-          )
-          x += 8f
-        }
-      }
+      StripePlaceholder(width = 44.dp, height = 44.dp)
     }
   }
 }
@@ -627,27 +751,12 @@ private fun TagAdder(onAdd: (String) -> Unit) {
   )
 }
 
-/** Сколько вариантов одного промпта запустить разом. */
-@Composable
-fun VariantsField(variants: Int, options: List<Int>, onChange: (Int) -> Unit) {
-  Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-    Text("Вариантов:", style = MaterialTheme.typography.bodyMedium)
-    for (option in options) {
-      FilterChip(
-        selected = variants == option,
-        onClick = { onChange(option) },
-        label = { Text(option.toString()) },
-      )
-    }
-  }
-}
-
 @Composable
 fun PresetPicker(presets: List<PromptPreset>, onApply: (PromptPreset) -> Unit, onSaveCurrent: () -> Unit) {
   var expanded by remember { mutableStateOf(false) }
   Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
     Box {
-      OutlinedButton(onClick = { expanded = true }) { Text("Заготовки") }
+      OutlinedButton(onClick = { expanded = true }, shape = ButtonShape) { Text("Заготовки") }
       DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
         if (presets.isEmpty()) {
           DropdownMenuItem(text = { Text("заготовок нет") }, onClick = {})
@@ -689,6 +798,7 @@ fun SavePresetDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
           onValueChange = { title = it },
           label = { Text("Название") },
           singleLine = true,
+          shape = ButtonShape,
         )
         Spacer(Modifier.height(8.dp))
         Text(
@@ -740,7 +850,7 @@ fun InputImageField(
   onClear: () -> Unit,
 ) {
   Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-    OutlinedButton(onClick = onPick) {
+    OutlinedButton(onClick = onPick, shape = ButtonShape) {
       Text(if (modality == GenerationModality.VIDEO) "Картинка → видео" else "Картинка-основа")
     }
     if (picked == null) {

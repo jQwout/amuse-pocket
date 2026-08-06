@@ -55,6 +55,7 @@ fun SettingsScreen(container: AppContainer) {
         label = { Text("sk-or-…") },
         singleLine = true,
         visualTransformation = if (reveal) VisualTransformation.None else PasswordVisualTransformation(),
+        shape = ButtonShape,
         modifier = Modifier.width(520.dp),
       )
       TextButton(onClick = { reveal = !reveal }) { Text(if (reveal) "Скрыть" else "Показать") }
@@ -64,6 +65,7 @@ fun SettingsScreen(container: AppContainer) {
           container.saveApiKey(draft)
           saved = true
         },
+        shape = ButtonShape,
       ) { Text("Сохранить") }
     }
     Spacer(Modifier.height(6.dp))
@@ -71,13 +73,13 @@ fun SettingsScreen(container: AppContainer) {
       when {
         // «Права 600» обещать нельзя: на Windows их не существует и сузить их нечем. Пишем то,
         // что произошло на самом деле, — иначе экран врёт про защиту ключа.
-        saved && restricted == true -> "Сохранён в ${container.configDir}/openrouter.key (права 600)"
+        saved && restricted == true -> "Сохранён в ${container.apiKeyFile} (права 600)"
         saved && restricted == false ->
-          "Сохранён в ${container.configDir}/openrouter.key. Сузить права файла эта система не умеет " +
+          "Сохранён в ${container.apiKeyFile}. Сузить права файла эта система не умеет " +
             "(на Windows POSIX-прав нет): ключ защищён только правами профиля."
-        saved -> "Сохранён в ${container.configDir}/openrouter.key"
+        saved -> "Сохранён в ${container.apiKeyFile}"
         savedKey.isBlank() -> "Ключ не задан — генерация не запустится"
-        else -> "Ключ сохранён в ${container.configDir}/openrouter.key"
+        else -> "Ключ сохранён в ${container.apiKeyFile}"
       },
       style = MaterialTheme.typography.bodySmall,
       color = if (savedKey.isBlank() && !saved) {
@@ -98,6 +100,17 @@ fun SettingsScreen(container: AppContainer) {
     Spacer(Modifier.height(8.dp))
     PathRow("Результаты", container.outputDir.toString()) { openInSystem(container.outputDir) }
     PathRow("Конфиг и ключ", container.configDir.toString()) { openInSystem(container.configDir) }
+    // Пустая история без объяснения выглядит как потеря данных. Говорим прямо: файл не читался и
+    // отложен рядом — он на диске, а не «пропал».
+    if (container.historyFileWasBroken) {
+      Spacer(Modifier.height(8.dp))
+      Text(
+        "Файл истории не разобрался и отложен в ${container.brokenHistoryFile}. " +
+          "История начата с чистого листа, но старый файл на месте — его можно посмотреть или починить.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error,
+      )
+    }
     Spacer(Modifier.height(16.dp))
     CatalogRow(container)
     Spacer(Modifier.height(12.dp))
@@ -135,7 +148,7 @@ private fun CatalogRow(container: AppContainer) {
   val failed by container.catalogRefreshFailed.collectAsState()
 
   Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-    OutlinedButton(enabled = !refreshing, onClick = { container.refreshCatalog() }) {
+    OutlinedButton(enabled = !refreshing, onClick = { container.refreshCatalog() }, shape = ButtonShape) {
       Text(if (refreshing) "Обновляю…" else "Обновить каталог")
     }
     Column {
@@ -173,7 +186,11 @@ private fun AccessCheckRow(container: AppContainer) {
   val key by container.apiKey.collectAsState()
 
   Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-    OutlinedButton(enabled = key.isNotBlank() && !checking, onClick = { container.checkAccess() }) {
+    OutlinedButton(
+      enabled = key.isNotBlank() && !checking,
+      onClick = { container.checkAccess() },
+      shape = ButtonShape,
+    ) {
       Text(if (checking) "Проверяю…" else "Проверить связь")
     }
     when (val outcome = result) {
