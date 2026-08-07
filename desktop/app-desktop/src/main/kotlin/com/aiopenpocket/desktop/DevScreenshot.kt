@@ -122,6 +122,20 @@ object DevScreenshot {
         }
       }
     }
+    // Окно заготовок: библиотека настоящая (встроенный ресурс), счётчики и избранное — поддельные,
+    // иначе в кадр не попали бы ни «34 исп.», ни звёздочка, то есть половина того, что проверяем.
+    shoot(outDir, "prompts", 1360, 920) {
+      PromptPickerPanel(
+        cards = com.aiopenpocket.genai.buildPromptCards(
+          presets = com.aiopenpocket.genai.PromptLibrary.load()
+            .forModality(com.aiopenpocket.genai.GenerationModality.IMAGE),
+          usage = mapOf("product-shot" to 34, "flat-illustration" to 21, "product-podium" to 11, "negative-tail" to 57),
+          favorites = setOf("product-podium", "portrait-rim"),
+          ownIds = setOf("product-podium"),
+        ),
+        currentPrompt = SAMPLE_PROMPT,
+      )
+    }
     // Строка модели в форме — своим кадром: в `generate` она стоит внизу колонки, под сгибом, и
     // проверить по общему снимку её нельзя.
     shoot(outDir, "model-row", 620, 190) {
@@ -173,6 +187,14 @@ object DevScreenshot {
     shoot(outDir, "history", 1400, 950) { HistoryScreen(container, onOpenGenerate = {}) }
     shoot(outDir, "settings", 1400, 950) { SettingsScreen(container) }
 
+    // Журнал заполняем руками: сеть в харнессе выключена, а пустой экран не показывает ни строки
+    // запроса, ни свёрнутой картинки, ни отказа — то есть ровно ничего из того, ради чего он есть.
+    container.setRequestJournal(true)
+    // reversed(), потому что журнал кладёт новые записи сверху: в жизни они приходят по одной в
+    // порядке событий, а список здесь записан так, как выглядит на экране, — новыми вперёд.
+    SHOT_JOURNAL.reversed().forEach(container.requestJournal::record)
+    shoot(outDir, "journal", 1400, 950, journalVisible = true) { JournalScreen(container) }
+
     container.close()
     scope.cancel()
     home.deleteRecursively()
@@ -190,13 +212,20 @@ object DevScreenshot {
     width: Int,
     height: Int,
     colors: androidx.compose.material3.ColorScheme = GraphiteScheme,
+    /** Виден ли в рельсе отладочный журнал — как и в приложении, зависит от тумблера. */
+    journalVisible: Boolean = false,
     content: @Composable () -> Unit,
   ) {
     val scene = ImageComposeScene(width = width, height = height, density = Density(1f)) {
       AppTheme(colors) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
           Row(Modifier.fillMaxSize()) {
-            IconRail(current = Screen.GENERATE, keyMissing = false, onSelect = {})
+            IconRail(
+              current = if (journalVisible) Screen.JOURNAL else Screen.GENERATE,
+              keyMissing = false,
+              onSelect = {},
+              journalVisible = journalVisible,
+            )
             VerticalDivider()
             androidx.compose.foundation.layout.Column(Modifier.fillMaxSize().padding(20.dp)) {
               content()
@@ -240,6 +269,68 @@ object DevScreenshot {
    * Ошибка в последнем задании длинная намеренно: короткое «ошибка» умещалось где угодно, а
    * проверять надо перенос настоящего текста провайдера внутри карточки.
    */
+  /**
+   * Записи журнала для снимка — той же формы, что настоящие: удачный кадр со свёрнутым референсом,
+   * отказ провайдера и обрыв связи. Тела прогоняются через `journalSafe`, как и живые, поэтому в
+   * кадр попадает именно то, что увидит пользователь, а не приукрашенная версия.
+   */
+  private val SHOT_JOURNAL: List<com.aiopenpocket.genai.JournalEntry> = listOf(
+    journalEntry(
+      id = "j3",
+      atEpochMs = 1_754_400_000_000,
+      status = 200,
+      requestBody = """{"model":"black-forest-labs/flux.2-pro","prompt":"$SAMPLE_PROMPT",""" +
+        """"aspect_ratio":"16:9","resolution":"2K","input_references":[{"image_url":""" +
+        """{"url":"data:image/png;base64,${"QUJDRA".repeat(4000)}"}}]}""",
+      responseBody = """{"created":1754400001,"data":[{"b64_json":"iVBORw0KGgo…"}],""" +
+        """"usage":{"cost":0.0412,"total_tokens":13680.64}}""",
+      costUsd = 0.0412,
+      durationMs = 8_412,
+    ),
+    journalEntry(
+      id = "j2",
+      atEpochMs = 1_754_399_940_000,
+      status = 402,
+      requestBody = """{"model":"black-forest-labs/flux.2-pro","prompt":"кот в скафандре"}""",
+      responseBody = """{"error":{"code":402,"message":"Insufficient credits. Add more at """ +
+        """https://openrouter.ai/settings/credits"}}""",
+      durationMs = 391,
+    ),
+    journalEntry(
+      id = "j1",
+      atEpochMs = 1_754_399_880_000,
+      status = null,
+      requestBody = """{"model":"bytedance-seed/seedream-4.5","prompt":"кот в скафандре"}""",
+      responseBody = "",
+      durationMs = 15_003,
+      error = "Connect timeout has expired [url=https://openrouter.ai/api/v1/images, 15000 ms]",
+    ),
+  )
+
+  private fun journalEntry(
+    id: String,
+    atEpochMs: Long,
+    status: Int?,
+    requestBody: String,
+    responseBody: String,
+    durationMs: Long,
+    costUsd: Double? = null,
+    error: String? = null,
+  ) = com.aiopenpocket.genai.JournalEntry(
+    id = id,
+    atEpochMs = atEpochMs,
+    modality = com.aiopenpocket.genai.GenerationModality.IMAGE,
+    model = if (id == "j1") "bytedance-seed/seedream-4.5" else "black-forest-labs/flux.2-pro",
+    method = "POST",
+    url = "https://openrouter.ai/api/v1/images",
+    requestBody = com.aiopenpocket.genai.journalSafe(requestBody),
+    status = status,
+    responseBody = com.aiopenpocket.genai.journalSafe(responseBody),
+    durationMs = durationMs,
+    costUsd = costUsd,
+    error = error,
+  )
+
   /** Что уже набрано в форме, когда открывают окно выбора: два файла, формат 4:3, тир 1K. */
   private val SHOT_PICKER_CONTEXT = com.aiopenpocket.genai.PickerContext(
     attachments = 2,

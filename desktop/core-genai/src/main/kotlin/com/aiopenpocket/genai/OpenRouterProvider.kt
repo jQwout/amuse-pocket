@@ -49,6 +49,11 @@ class OpenRouterProvider(
   /** Интервал опроса видео-задания. Тесты передают 0, чтобы не ждать реальные секунды. */
   private val pollIntervalMs: Long = DEFAULT_POLL_INTERVAL_MS,
   private val maxPollAttempts: Int = DEFAULT_MAX_POLL_ATTEMPTS,
+  /**
+   * Куда писать, что и в каком виде ушло. По умолчанию — никуда: журнал это отладочная надстройка,
+   * и провайдер обязан работать так же, когда его нет.
+   */
+  private val journal: RequestJournal = RequestJournal.Off,
 ) : GenerationProvider, AutoCloseable {
 
   override val id: String = "openrouter"
@@ -175,13 +180,27 @@ class OpenRouterProvider(
         inputReferences = references.ifEmpty { null },
       ),
     )
+    val startedAt = System.currentTimeMillis()
     val response = httpClient.post("$baseUrl/images") {
       authorized(key)
       contentType(ContentType.Application.Json)
       setBody(body)
     }
-    response.ensureSuccess()
+    // Тело читается ДО проверки кода и одним разом: и журналу, и разбору, и сообщению об ошибке
+    // достаётся один и тот же текст. Второй раз тот же канал Ktor не отдаст.
     val raw = response.bodyAsText()
+    recordCall(
+      modality = GenerationModality.IMAGE,
+      model = request.model,
+      method = "POST",
+      url = "$baseUrl/images",
+      requestBody = body,
+      startedAtMs = startedAt,
+      status = response.status.value,
+      responseBody = raw,
+      costUsd = salvageCost(raw),
+    )
+    ensureSuccess(response.status.value, raw)
 
     // Строгий разбор — быстрый путь. Если он споткнулся, картинку из тела ВЫТАСКИВАЕМ РУКАМИ.
     //
@@ -225,14 +244,41 @@ class OpenRouterProvider(
     val body = json.encodeToString(
       SpeechRequest(model = request.model, input = request.prompt, voice = request.voice),
     )
+    val startedAt = System.currentTimeMillis()
     val response = httpClient.post("$baseUrl/audio/speech") {
       authorized(key)
       contentType(ContentType.Application.Json)
       setBody(body)
     }
-    response.ensureSuccess()
+    // Ветка отказа читает тело текстом, ветка успеха — байтами, и обе читают его РОВНО ОДИН раз:
+    // на успехе там mp3, и попытка сперва получить из него текст для журнала испортила бы аудио.
+    if (response.status.value !in 200..299) {
+      val error = response.bodyAsText()
+      recordCall(
+        modality = GenerationModality.AUDIO,
+        model = request.model,
+        method = "POST",
+        url = "$baseUrl/audio/speech",
+        requestBody = body,
+        startedAtMs = startedAt,
+        status = response.status.value,
+        responseBody = error,
+      )
+      throw OpenRouterHttpException(response.status.value, error)
+    }
     // Тело — поток mp3, а не JSON: читаем байтами, минуя ContentNegotiation.
     val bytes = response.readBytes()
+    recordCall(
+      modality = GenerationModality.AUDIO,
+      model = request.model,
+      method = "POST",
+      url = "$baseUrl/audio/speech",
+      requestBody = body,
+      startedAtMs = startedAt,
+      status = response.status.value,
+      // Показывать mp3 текстом нечего — говорим, сколько его приехало.
+      responseBody = "бинарный ответ, ${humanBytes(bytes.size.toLong())}",
+    )
     if (bytes.isEmpty()) {
       emit(GenerationProgress.Failed("Провайдер вернул пустое аудио", code = "empty_audio"))
       return
@@ -281,13 +327,25 @@ class OpenRouterProvider(
         inputReferences = references.ifEmpty { null },
       ),
     )
+    val startedAt = System.currentTimeMillis()
     val response = httpClient.post("$baseUrl/videos") {
       authorized(key)
       contentType(ContentType.Application.Json)
       setBody(body)
     }
-    response.ensureSuccess()
-    val accepted = json.decodeFromString<VideoJobDto>(response.bodyAsText())
+    val raw = response.bodyAsText()
+    recordCall(
+      modality = GenerationModality.VIDEO,
+      model = request.model,
+      method = "POST",
+      url = "$baseUrl/videos",
+      requestBody = body,
+      startedAtMs = startedAt,
+      status = response.status.value,
+      responseBody = raw,
+    )
+    ensureSuccess(response.status.value, raw)
+    val accepted = json.decodeFromString<VideoJobDto>(raw)
     // polling_url приходит абсолютным; собственный путь на случай, если провайдер его не отдал.
     val pollingUrl = accepted.pollingUrl
       ?: accepted.id?.let { "$baseUrl/videos/$it" }
@@ -310,9 +368,23 @@ class OpenRouterProvider(
     }
     repeat(maxPollAttempts) { attempt ->
       if (attempt > 0) delay(pollIntervalMs)
+      val startedAt = System.currentTimeMillis()
       val response = httpClient.get(pollingUrl) { authorized(key) }
-      response.ensureSuccess()
-      val dto = json.decodeFromString<VideoJobDto>(response.bodyAsText())
+      val raw = response.bodyAsText()
+      // Опрос — тоже запрос, и в журнале он виден наравне с остальными. Оговорка: долгое видео даёт
+      // до 180 опросов, и кольцо на 200 записей они вытеснят собой всё остальное.
+      recordCall(
+        modality = GenerationModality.VIDEO,
+        model = "",
+        method = "GET",
+        url = pollingUrl,
+        requestBody = "",
+        startedAtMs = startedAt,
+        status = response.status.value,
+        responseBody = raw,
+      )
+      ensureSuccess(response.status.value, raw)
+      val dto = json.decodeFromString<VideoJobDto>(raw)
       when (dto.status?.lowercase()) {
         in SUCCESS_STATUSES -> {
           val urls = dto.unsignedUrls
@@ -378,6 +450,51 @@ class OpenRouterProvider(
     throw OpenRouterHttpException(code, bodyAsText())
   }
 
+  /**
+   * То же самое, но по УЖЕ ПРОЧИТАННОМУ телу.
+   *
+   * Нужен там, где тело сначала попадает в журнал: ответ читается ровно один раз, и позвать после
+   * этого [ensureSuccess] нельзя — второе чтение того же канала Ktor не отдаст.
+   */
+  private fun ensureSuccess(code: Int, body: String) {
+    if (code in 200..299) return
+    throw OpenRouterHttpException(code, body)
+  }
+
+  /**
+   * Запись в журнал. Тела чистятся здесь, на входе, а не при показе: иначе сырое тело с ключом и
+   * мегабайтами base64 лежало бы в памяти в надежде, что никто не покажет его мимо чистилки.
+   */
+  private fun recordCall(
+    modality: GenerationModality,
+    model: String,
+    method: String,
+    url: String,
+    requestBody: String,
+    startedAtMs: Long,
+    status: Int? = null,
+    responseBody: String = "",
+    costUsd: Double? = null,
+    error: String? = null,
+  ) {
+    journal.record(
+      JournalEntry(
+        id = java.util.UUID.randomUUID().toString(),
+        atEpochMs = startedAtMs,
+        modality = modality,
+        model = model,
+        method = method,
+        url = url,
+        requestBody = journalSafe(requestBody),
+        status = status,
+        responseBody = journalSafe(responseBody),
+        durationMs = System.currentTimeMillis() - startedAtMs,
+        costUsd = costUsd,
+        error = error,
+      ),
+    )
+  }
+
   companion object {
     const val DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
 
@@ -438,15 +555,33 @@ internal fun openRouterJson(): Json = Json {
  * У видео всё иначе: там роли ложатся на настоящие `frame_images`/`input_references`.
  */
 internal fun describeAttachments(prompt: String, images: List<InputAttachment>): String {
-  val described = images.filter { it.role != AttachmentRole.REFERENCE || it.tags.isNotEmpty() }
-  if (described.isEmpty()) return prompt
-  val lines = described.joinToString("; ") { attachment ->
-    buildString {
-      append(attachment.role.label.lowercase()).append(": ").append(attachment.name)
-      if (attachment.tags.isNotEmpty()) append(" (").append(attachment.tags.joinToString(", ")).append(")")
-    }
+  if (images.isEmpty()) return prompt
+
+  // Одна картинка — нумеровать нечего, и «обращайся по номеру» звучало бы издевательством.
+  // Описываем её по старому правилу: молчим о безымянном референсе, у которого и сказать нечего.
+  if (images.size == 1) {
+    val only = images.single()
+    if (only.role == AttachmentRole.REFERENCE && only.tags.isEmpty()) return prompt
+    return prompt + "\n\nИсходник — " + describeOne(only) + "."
   }
-  return prompt + "\n\nИсходники — " + lines + "."
+
+  // Нумеруем ВСЕ и по настоящей позиции в массиве `input_references`.
+  //
+  // Номер — единственный способ сослаться на картинку: поля для имени или подписи у элемента
+  // массива в API нет вовсе (модели заявляют `input_references` лишь как диапазон, то есть
+  // «сколько штук»). Имя файла модель не видит — ей приходят байты в порядке массива.
+  //
+  // Отсюда и отказ от прежнего фильтра: раньше безымянный референс выпадал из перечисления, и
+  // нумерация в голове пользователя разъезжалась с настоящей. Он писал «второе изображение»,
+  // имея в виду второе в списке, а вторым в массиве лежало другое — то есть промпт указывал не
+  // на ту картинку, и понять это по ответу было нельзя.
+  val lines = images.mapIndexed { index, attachment -> "${index + 1}) " + describeOne(attachment) }
+  return prompt + "\n\nИсходники по порядку: " + lines.joinToString("; ") + ". Обращайся к ним по номеру."
+}
+
+private fun describeOne(attachment: InputAttachment): String = buildString {
+  append(attachment.role.label.lowercase()).append(": ").append(attachment.name)
+  if (attachment.tags.isNotEmpty()) append(" (").append(attachment.tags.joinToString(", ")).append(")")
 }
 
 /**

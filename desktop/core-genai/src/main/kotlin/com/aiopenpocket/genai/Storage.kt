@@ -48,6 +48,18 @@ class AppPaths(
   /** Отмеченные звёздочкой модели. В [configDir]: это выбор пользователя, а не скачанное. */
   val favoritesFile: File get() = File(configDir, "genai-favorites.json")
 
+  /** Отмеченные заготовки промптов — свой файл, чтобы слаги моделей и id заготовок не смешивались. */
+  val promptFavoritesFile: File get() = File(configDir, "genai-prompt-favorites.json")
+
+  /**
+   * Сколько раз какую заготовку вставляли. В [dataDir], а не в [configDir]: это накопленное
+   * приложением, а не настройка — потеря файла стоит только счётчиков.
+   */
+  val promptUsageFile: File get() = File(dataDir, "genai-prompt-usage.json")
+
+  /** Настройки приложения (журнал запросов и то, что появится дальше). */
+  val settingsFile: File get() = File(configDir, "genai-settings.json")
+
   private companion object {
     const val APP_DIR = "aiopenpocket"
   }

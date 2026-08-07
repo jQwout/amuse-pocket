@@ -17,6 +17,14 @@ data class PromptPreset(
   /** null — пресет годится для любой модальности (стилевые приписки вроде «кинематографично»). */
   val modality: GenerationModality? = null,
   val tags: List<String> = emptyList(),
+  /**
+   * Раздел в окне заготовок: «Предметка», «Портрет», «Приписки». Пусто — «Разное».
+   *
+   * Обычное поле, а не перечисление, потому что список категорий строится ИЗ библиотеки, а не задан
+   * кодом: пользователь заводит свои заготовки в `genai-prompts.json` и вправе завести свою
+   * категорию, не пересобирая приложение. Захардкоженный enum сделал бы её невидимой.
+   */
+  val category: String = "",
 ) {
   /**
    * Что подставить в поле промпта. Пресет с плейсхолдером [PLACEHOLDER] — это приписка: он
@@ -29,8 +37,38 @@ data class PromptPreset(
   fun applyTo(current: String): String =
     if (PLACEHOLDER in prompt) prompt.replace(PLACEHOLDER, current.trim()) else prompt
 
+  /**
+   * Приклеить к уже набранному, не затирая его, — кнопка «Дописать».
+   *
+   * У приписки (с [PLACEHOLDER]) это то же самое, что [applyTo]: она по своей природе оборачивает
+   * набранное, и склеивать её через запятую значило бы получить текст с «{основной промпт}» внутри.
+   * У самостоятельной заготовки — склейка через запятую, как пишут промпты руками.
+   */
+  fun appendTo(current: String): String = when {
+    PLACEHOLDER in prompt -> applyTo(current)
+    current.isBlank() -> prompt
+    else -> current.trimEnd().trimEnd(',') + ", " + prompt
+  }
+
+  /**
+   * Что в заготовке подставляется под кадр: `{объект}`, `{цвет фона}`. Без дубликатов и в порядке
+   * появления — панель показывает их подсказкой «в фигурных скобках — то, что подставляется».
+   *
+   * [PLACEHOLDER] сюда не попадает: это не поле для заполнения, а место для уже набранного промпта,
+   * и предлагать его заполнить руками — сбивать с толку.
+   */
+  val placeholders: List<String>
+    get() = PLACEHOLDER_PATTERN.findAll(prompt)
+      .map { it.value }
+      .filterNot { it == PLACEHOLDER }
+      .distinct()
+      .toList()
+
   companion object {
     const val PLACEHOLDER = "{основной промпт}"
+
+    /** Фигурные скобки без вложенности и без переводов строк — как их пишут в заготовках. */
+    val PLACEHOLDER_PATTERN = Regex("""\{[^{}\n]+}""")
   }
 }
 

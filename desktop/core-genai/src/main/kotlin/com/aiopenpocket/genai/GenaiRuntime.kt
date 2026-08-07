@@ -18,7 +18,15 @@ class GenaiRuntime(
 
   private val engine = CIO.create()
 
-  private val openRouter = OpenRouterProvider(engine = engine, apiKey = apiKey)
+  /**
+   * Журнал запросов. Живёт здесь, а не в провайдере, потому что читает его экран, а пишет
+   * провайдер: единственная точка, которую видят оба, — сборка сетевой части.
+   *
+   * Выключен по умолчанию — включается тумблером в настройках.
+   */
+  val requestJournal = InMemoryRequestJournal()
+
+  private val openRouter = OpenRouterProvider(engine = engine, apiKey = apiKey, journal = requestJournal)
 
   val provider: GenerationProvider get() = openRouter
 

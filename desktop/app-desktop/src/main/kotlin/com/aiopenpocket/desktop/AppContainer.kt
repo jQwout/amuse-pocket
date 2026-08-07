@@ -93,7 +93,66 @@ class AppContainer(
   private val _prompts = MutableStateFlow(PromptLibrary.load(paths.promptsUserFile))
   val prompts: StateFlow<PromptLibrary> = _prompts.asStateFlow()
 
-  private val favoriteModels = com.aiopenpocket.genai.FavoriteModels(paths.favoritesFile)
+  private val settingsStore = com.aiopenpocket.genai.AppSettingsStore(paths.settingsFile)
+
+  private val _settings = MutableStateFlow(settingsStore.read())
+  val settings: StateFlow<com.aiopenpocket.genai.AppSettings> = _settings.asStateFlow()
+
+  /**
+   * Журнал запросов — то, чем отвечается «что и в каком виде ушло». Читает его экран, пишет
+   * провайдер; здесь он только отдаётся наружу и включается.
+   */
+  val requestJournal: com.aiopenpocket.genai.RequestJournal get() = runtime.requestJournal
+
+  fun setRequestJournal(enabled: Boolean) {
+    // Сперва рантайм, потом файл: если запись на диск не удастся, тумблер всё равно уже работает,
+    // а несохранённая настройка переживается легче, чем включённый на вид и мёртвый журнал.
+    runtime.requestJournal.enabled = enabled
+    _settings.value = _settings.value.copy(requestJournal = enabled)
+    settingsStore.write(_settings.value)
+  }
+
+  fun clearRequestJournal() = runtime.requestJournal.clear()
+
+  private val promptFavoriteStore = com.aiopenpocket.genai.Favorites(paths.promptFavoritesFile)
+  private val _promptFavorites = MutableStateFlow(promptFavoriteStore.read())
+  val promptFavorites: StateFlow<Set<String>> = _promptFavorites.asStateFlow()
+
+  fun togglePromptFavorite(presetId: String) {
+    _promptFavorites.value = promptFavoriteStore.toggle(presetId)
+  }
+
+  private val promptUsageStore = com.aiopenpocket.genai.PromptUsage(paths.promptUsageFile)
+  private val _promptUsage = MutableStateFlow(promptUsageStore.read())
+  val promptUsage: StateFlow<Map<String, Int>> = _promptUsage.asStateFlow()
+
+  /**
+   * Заготовки из файла пользователя — раздел «Мои» и признак «это можно править».
+   *
+   * Считается по своему файлу, а не по разнице со встроенными: id пользователя ПЕРЕКРЫВАЕТ
+   * встроенный (так задумано в `PromptLibrary`), и переопределённая заготовка — своя, хотя такой же
+   * id есть и в поставке.
+   */
+  private val _ownPromptIds = MutableStateFlow(readOwnPromptIds())
+  val ownPromptIds: StateFlow<Set<String>> = _ownPromptIds.asStateFlow()
+
+  private fun readOwnPromptIds(): Set<String> =
+    PromptLibrary.loadUser(paths.promptsUserFile).presets.mapTo(mutableSetOf()) { it.id }
+
+  /**
+   * Применить заготовку к черновику. [append] — «Дописать»: приклеить к набранному, а не заменить.
+   *
+   * Счётчик использований растёт здесь, а не в окне: вставка — это то самое событие, которое он и
+   * считает, и оставлять его на совести вызывающего значило бы получить два места, где его забудут.
+   */
+  fun applyPreset(preset: com.aiopenpocket.genai.PromptPreset, append: Boolean) {
+    _draft.value = _draft.value.copy(
+      prompt = if (append) preset.appendTo(_draft.value.prompt) else preset.applyTo(_draft.value.prompt),
+    )
+    _promptUsage.value = promptUsageStore.increment(preset.id)
+  }
+
+  private val favoriteModels = com.aiopenpocket.genai.Favorites(paths.favoritesFile)
 
   /** Отмеченные сердцем модели. Читаются с диска один раз при сборке графа: файл маленький и свой. */
   private val _favorites = MutableStateFlow(favoriteModels.read())
@@ -160,6 +219,9 @@ class AppContainer(
   val promptsUserFile: File get() = paths.promptsUserFile
 
   init {
+    // Журнал поднимается в том состоянии, в каком его оставили: тумблер живёт в файле настроек,
+    // иначе после каждого запуска он молча оказывался бы выключен, а экран — пустым.
+    runtime.requestJournal.enabled = _settings.value.requestJournal
     // Видео-задание, отправленное в прошлый запуск, продолжает опрашиваться; прерванные синхронные
     // задания помечаются упавшими, чтобы история не врала про «в работе».
     queue.resumeUnfinished()
@@ -330,20 +392,32 @@ class AppContainer(
    * разные, и пользователь без подсказки будет жать «Сохранить» до бесконечности.
    */
   fun savePresetOrReason(title: String, prompt: String, modality: GenerationModality): String? =
+    savePresetOrReason(
+      PromptPreset(
+        id = PromptLibrary.idFor(title),
+        title = title.trim(),
+        prompt = prompt,
+        modality = modality,
+      ),
+    )
+
+  /**
+   * Сохраняет заготовку целиком — с категорией и тегами, как её собрал редактор.
+   *
+   * [id] считается по заголовку только у НОВОЙ заготовки. У правки он приходит готовым: иначе
+   * переименование создавало бы вторую запись вместо изменения первой, а старая оставалась висеть.
+   */
+  fun savePresetOrReason(preset: PromptPreset): String? =
     runCatching {
-      _prompts.value = PromptLibrary.saveUserPreset(
-        paths.promptsUserFile,
-        PromptPreset(
-          id = PromptLibrary.idFor(title),
-          title = title.trim(),
-          prompt = prompt,
-          modality = modality,
-        ),
-      )
+      _prompts.value = PromptLibrary.saveUserPreset(paths.promptsUserFile, preset)
+      _ownPromptIds.value = readOwnPromptIds()
     }.exceptionOrNull()?.let { it.message ?: it.toString() }
 
   fun deletePreset(id: String): Boolean =
-    runCatching { _prompts.value = PromptLibrary.deleteUserPreset(paths.promptsUserFile, id) }.isSuccess
+    runCatching {
+      _prompts.value = PromptLibrary.deleteUserPreset(paths.promptsUserFile, id)
+      _ownPromptIds.value = readOwnPromptIds()
+    }.isSuccess
 
   /**
    * Проверка связи и ключа — закрывает вопрос «дойдёт ли вообще запрос до OpenRouter» до первой

@@ -3,6 +3,8 @@ package com.aiopenpocket.desktop
 // @trace desktop-genai-client-4c63b6
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,6 +16,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -39,7 +42,11 @@ fun SettingsScreen(container: AppContainer) {
   var reveal by remember { mutableStateOf(false) }
   var saved by remember { mutableStateOf(false) }
 
-  Column(Modifier.fillMaxWidth()) {
+  // Прокрутка обязательна, а не «на всякий случай»: колонка росла молча, и всё, что не влезло в
+  // высоту окна, просто обрезалось краем — доскроллить было некуда. Поймано на тумблере журнала:
+  // он стоит последним блоком, и на реальном экране (настоящий ключ, результат проверки связи,
+  // строка каталога) его не было видно вовсе — фича выглядела ненаписанной.
+  Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
     Text("Настройки", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
     Spacer(Modifier.height(16.dp))
 
@@ -132,6 +139,40 @@ fun SettingsScreen(container: AppContainer) {
       "Загружено заготовок: ${prompts.presets.size}",
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(Modifier.height(16.dp))
+    JournalRow(container)
+  }
+}
+
+/**
+ * Тумблер журнала запросов.
+ *
+ * Выключен по умолчанию и назван отладочным прямо в подписи: журнал собирает тела запросов, то есть
+ * все промпты пользователя. Оговорка про память — не мелочь, а обещание: если ждать от журнала
+ * файла с историей за неделю, то первое же закрытие окна выглядит как потеря данных.
+ */
+@Composable
+private fun JournalRow(container: AppContainer) {
+  val settings by container.settings.collectAsState()
+
+  Row(
+    Modifier.fillMaxWidth(),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(12.dp),
+  ) {
+    Column(Modifier.weight(1f)) {
+      Text("Журнал запросов", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+      Text(
+        "Отладочный экран: видно, что и в каком виде уходит к провайдеру. Живёт только в памяти — " +
+          "закрыл окно, журнал чист. Ключ в него не попадает, картинки сворачиваются до размера.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
+    Switch(
+      checked = settings.requestJournal,
+      onCheckedChange = container::setRequestJournal,
     )
   }
 }

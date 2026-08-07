@@ -418,6 +418,7 @@ fun AttachmentsField(
     for ((index, attachment) in attachments.withIndex()) {
       AttachmentCard(
         attachment = attachment,
+        number = index + 1,
         roles = roles,
         onChange = { onChange(index, it) },
         onRemove = { onRemove(index) },
@@ -430,7 +431,9 @@ fun AttachmentsField(
       if (modality == GenerationModality.VIDEO) {
         "Кадры и референсы уходят отдельными полями запроса — роль здесь настоящая."
       } else {
-        "У картинок в API нет поля для роли: роль и теги уйдут словами в промпт, как подсказка."
+        "У картинок в API нет поля ни для роли, ни для имени: модель видит только порядок. " +
+          "Роль и теги уйдут словами в промпт, а ссылаться на картинку можно по её номеру — " +
+          "«на втором изображении…»."
       },
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -524,6 +527,8 @@ private fun FileDropZone(onAdd: () -> Unit, onFilesDropped: (List<File>) -> Unit
 @Composable
 private fun AttachmentCard(
   attachment: InputAttachment,
+  /** Номер картинки в запросе, с единицы. Единственное, чем на неё можно сослаться в промпте. */
+  number: Int,
   roles: List<AttachmentRole>,
   onChange: (InputAttachment) -> Unit,
   onRemove: () -> Unit,
@@ -535,12 +540,26 @@ private fun AttachmentCard(
     ) {
       AttachmentThumb(attachment.path)
       Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(
-          attachment.name,
-          style = MaterialTheme.typography.bodyMedium,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          // Номер на виду, потому что писать «второе изображение» приходится, глядя на этот список:
+          // в запросе картинки едут массивом, а поля для имени у элемента массива нет — модель
+          // видит только порядок. Считать его в уме по позиции карточки — лишний повод ошибиться.
+          Surface(shape = MaterialTheme.shapes.extraSmall, color = MaterialTheme.colorScheme.primaryContainer) {
+            Text(
+              number.toString(),
+              style = MaterialTheme.typography.labelSmall,
+              fontWeight = FontWeight.SemiBold,
+              color = MaterialTheme.colorScheme.onPrimaryContainer,
+              modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+            )
+          }
+          Text(
+            attachment.name,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+          )
+        }
         FlowRow(
           horizontalArrangement = Arrangement.spacedBy(6.dp),
           verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -751,70 +770,6 @@ private fun TagAdder(onAdd: (String) -> Unit) {
   )
 }
 
-@Composable
-fun PresetPicker(presets: List<PromptPreset>, onApply: (PromptPreset) -> Unit, onSaveCurrent: () -> Unit) {
-  var expanded by remember { mutableStateOf(false) }
-  Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-    Box {
-      OutlinedButton(onClick = { expanded = true }, shape = ButtonShape) { Text("Заготовки") }
-      DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-        if (presets.isEmpty()) {
-          DropdownMenuItem(text = { Text("заготовок нет") }, onClick = {})
-        }
-        for (preset in presets) {
-          DropdownMenuItem(
-            text = {
-              Column {
-                Text(preset.title)
-                Text(
-                  preset.prompt.take(80),
-                  style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-              }
-            },
-            onClick = {
-              onApply(preset)
-              expanded = false
-            },
-          )
-        }
-      }
-    }
-    TextButton(onClick = onSaveCurrent) { Text("Сохранить промпт") }
-  }
-}
-
-@Composable
-fun SavePresetDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
-  var title by remember { mutableStateOf("") }
-  AlertDialog(
-    onDismissRequest = onDismiss,
-    title = { Text("Сохранить как заготовку") },
-    text = {
-      Column {
-        OutlinedTextField(
-          value = title,
-          onValueChange = { title = it },
-          label = { Text("Название") },
-          singleLine = true,
-          shape = ButtonShape,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-          "Заготовка ляжет в твой файл промптов. Название с тем же смыслом перезапишет старую " +
-            "запись, а не создаст дубль.",
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
-    },
-    confirmButton = {
-      TextButton(enabled = title.isNotBlank(), onClick = { onConfirm(title) }) { Text("Сохранить") }
-    },
-    dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
-  )
-}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
