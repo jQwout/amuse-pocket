@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.Icon
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
@@ -51,6 +52,9 @@ import kotlinx.coroutines.cancel
 internal enum class Screen(val title: String, val icon: ImageVector) {
   GENERATE("Генерация", Icons.Default.Image),
   HISTORY("История", Icons.Default.PhotoLibrary),
+
+  /** Отладочный: в рельсе появляется, только когда журнал включён в настройках. */
+  JOURNAL("Журнал запросов", Icons.Default.Terminal),
   SETTINGS("Настройки", Icons.Default.Settings),
 }
 
@@ -80,12 +84,18 @@ fun main() {
 private fun AppRoot(container: AppContainer) {
   var screen by remember { mutableStateOf(Screen.GENERATE) }
   val apiKey by container.apiKey.collectAsState()
+  val settings by container.settings.collectAsState()
+
+  // Выключили журнал, стоя на его экране, — уходим с него сами. Иначе пользователь остался бы на
+  // экране, которого в рельсе уже нет, и вернуться на него было бы неоткуда.
+  if (screen == Screen.JOURNAL && !settings.requestJournal) screen = Screen.GENERATE
 
   Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
     Row(Modifier.fillMaxSize()) {
       IconRail(
         current = screen,
         keyMissing = apiKey.isBlank(),
+        journalVisible = settings.requestJournal,
         onSelect = { screen = it },
       )
       VerticalDivider()
@@ -93,6 +103,7 @@ private fun AppRoot(container: AppContainer) {
         when (screen) {
           Screen.GENERATE -> GenerateScreen(container, onOpenSettings = { screen = Screen.SETTINGS })
           Screen.HISTORY -> HistoryScreen(container, onOpenGenerate = { screen = Screen.GENERATE })
+          Screen.JOURNAL -> JournalScreen(container)
           Screen.SETTINGS -> SettingsScreen(container)
         }
       }
@@ -111,13 +122,20 @@ private fun AppRoot(container: AppContainer) {
  * «Настройки» прижаты вниз отдельно от остальных: это не третий равноправный экран, а служебный.
  */
 @Composable
-internal fun IconRail(current: Screen, keyMissing: Boolean, onSelect: (Screen) -> Unit) {
+internal fun IconRail(
+  current: Screen,
+  keyMissing: Boolean,
+  onSelect: (Screen) -> Unit,
+  /** Журнал — отладочный экран: без включённого тумблера его в рельсе нет вовсе. */
+  journalVisible: Boolean = false,
+) {
   Column(
     Modifier.width(72.dp).fillMaxHeight().padding(vertical = 16.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {
-    for (item in Screen.entries - Screen.SETTINGS) {
+    val hidden = setOfNotNull(Screen.SETTINGS, Screen.JOURNAL.takeIf { !journalVisible })
+    for (item in Screen.entries - hidden) {
       RailItem(item, selected = item == current, badge = false) { onSelect(item) }
     }
     Spacer(Modifier.weight(1f))

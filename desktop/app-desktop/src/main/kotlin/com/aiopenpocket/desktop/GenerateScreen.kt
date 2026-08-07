@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -80,6 +79,7 @@ import com.aiopenpocket.genai.JobRating
 import com.aiopenpocket.genai.JobStatus
 import com.aiopenpocket.genai.PickerContext
 import com.aiopenpocket.genai.buildCards
+import com.aiopenpocket.genai.buildPromptCards
 import com.aiopenpocket.genai.costEstimate
 import com.aiopenpocket.genai.estimatedPixels
 import com.aiopenpocket.genai.humanModelName
@@ -142,7 +142,6 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit, initialP
   val jobs by container.queue.jobs.collectAsState()
 
   var lastError by remember { mutableStateOf<String?>(null) }
-  var savingPreset by remember { mutableStateOf(false) }
 
   // Промпт, вложения, модель и раскрытость поля живут в контейнере, а не здесь. Переключение
   // вкладки рельсой уничтожает этот экран целиком, и вместе с ним раньше пропадало всё набранное —
@@ -172,6 +171,15 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit, initialP
     buildCards(modelsForModality, jobs, favorites, pickerContext)
   }
   var pickingModel by remember { mutableStateOf(false) }
+
+  // Заготовки собираются так же, как модели: библиотека, счётчик вставок, избранное и признак «своя».
+  val promptFavorites by container.promptFavorites.collectAsState()
+  val promptUsage by container.promptUsage.collectAsState()
+  val ownPromptIds by container.ownPromptIds.collectAsState()
+  val promptCards = remember(prompts, promptUsage, promptFavorites, ownPromptIds) {
+    buildPromptCards(prompts.forModality(MODALITY), promptUsage, promptFavorites, ownPromptIds)
+  }
+  var pickingPreset by remember { mutableStateOf(false) }
 
   // Промпт из харнесса подставляем один раз: снимку нужен непустой экран, но затирать им набранное
   // при каждой перерисовке нельзя.
@@ -265,20 +273,26 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit, initialP
             label = null,
             placeholder = { Text("Мокрый асфальт, фигура в плаще спиной к камере…") },
             shape = ButtonShape,
-            // Высота, а не fillMaxHeight: колонка формы прокручивается, а внутри прокрутки высота
-            // не ограничена сверху — «на всю оставшуюся» там не значит ничего. Поэтому раскрытие
-            // это просто другой минимум, а остальная форма уезжает вниз под прокрутку.
+            // Высота ТОЧНАЯ, а не минимальная, и это не косметика.
+            //
+            // Было `heightIn(min = …)`: сверху потолка нет, а родитель — прокручиваемая колонка,
+            // то есть места «сколько угодно». Поле росло вниз с каждой новой строкой, контейнер за
+            // курсором не ехал, и каретка уползала под нижний край окна. Снаружи это выглядело так,
+            // будто поле не принимает пробел и Enter: именно они переносят строку и уводят курсор
+            // из виду, а буквы «работали», потому что каретку вниз не двигают. Символы при этом
+            // вставлялись все до одного — проверено логом ввода.
+            //
+            // С точной высотой поле не растёт, а прокручивается внутри себя и само держит каретку
+            // на виду. Раскрытие — просто другая высота.
             modifier = Modifier
               .fillMaxWidth()
-              .heightIn(min = if (promptExpanded) EXPANDED_PROMPT_HEIGHT else 210.dp),
+              .height(if (promptExpanded) EXPANDED_PROMPT_HEIGHT else 210.dp),
             minLines = 7,
           )
 
-          PresetPicker(
-            presets = prompts.forModality(MODALITY),
-            onApply = { preset -> container.updateDraft { it.copy(prompt = preset.applyTo(it.prompt)) } },
-            onSaveCurrent = { savingPreset = true },
-          )
+          OutlinedButton(onClick = { pickingPreset = true }, shape = ButtonShape) {
+            Text("Заготовки · ${promptCards.size}")
+          }
         }
 
         FieldGroup("Файлы", draftNotice ?: "каждый со своей ролью и тегами") {
@@ -422,16 +436,26 @@ fun GenerateScreen(container: AppContainer, onOpenSettings: () -> Unit, initialP
     ResultsPane(container, Modifier.weight(0.64f).fillMaxHeight())
   }
 
-  if (savingPreset) {
-    SavePresetDialog(
-      onDismiss = { savingPreset = false },
-      onConfirm = { title ->
-        container.savePresetOrReason(title, prompt, MODALITY)?.let { reason ->
+  if (pickingPreset) {
+    PromptPickerDialog(
+      cards = promptCards,
+      currentPrompt = prompt,
+      onDismiss = { pickingPreset = false },
+      // Окно не закрываем: заготовку часто вставляют, смотрят и берут следующую или дописывают
+      // вторую поверх — закрытие после каждой вставки заставляло бы открывать его снова.
+      onApply = { preset, append -> container.applyPreset(preset, append) },
+      onToggleFavorite = container::togglePromptFavorite,
+      onSave = { preset ->
+        container.savePresetOrReason(preset)?.let { reason ->
           // Причину показываем дословно: «битый JSON» и «нет прав» требуют разных действий, а
           // общее «не удалось» заставляет жать «Сохранить» снова с тем же исходом.
           lastError = "Не удалось сохранить заготовку в ${container.promptsUserFile}: $reason"
         }
-        savingPreset = false
+      },
+      onDelete = { id ->
+        if (!container.deletePreset(id)) {
+          lastError = "Не удалось удалить заготовку из ${container.promptsUserFile}"
+        }
       },
     )
   }
@@ -853,7 +877,7 @@ private fun DeleteResultDialog(job: GenerationJob, onDismiss: () -> Unit, onConf
 /** Иконка-действие с подсказкой: без подписи ряд иконок иначе читается как ребус. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun IconAction(
+internal fun IconAction(
   icon: androidx.compose.ui.graphics.vector.ImageVector,
   hint: String,
   /** Цвет активной отметки. null — обычная приглушённая иконка действия. */
