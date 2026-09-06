@@ -38,7 +38,6 @@ import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Loop
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.Icons
@@ -547,12 +546,7 @@ internal fun IntegrationsSection(modifier: Modifier = Modifier) {
   val calendarGranted = remember(refreshTick) {
     isGranted(Manifest.permission.READ_CALENDAR) && isGranted(Manifest.permission.WRITE_CALENDAR)
   }
-  val smsGranted = remember(refreshTick) { isGranted(Manifest.permission.READ_SMS) }
-
   val calendarLauncher = rememberLauncherForActivityResult(
-    ActivityResultContracts.RequestMultiplePermissions(),
-  ) { refreshTick++ }
-  val smsLauncher = rememberLauncherForActivityResult(
     ActivityResultContracts.RequestMultiplePermissions(),
   ) { refreshTick++ }
 
@@ -570,13 +564,6 @@ internal fun IntegrationsSection(modifier: Modifier = Modifier) {
           arrayOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR),
         )
       },
-    )
-    IntegrationRow(
-      icon = Icons.Default.Sms,
-      title = "SMS",
-      subtitle = "Чтение входящих сообщений",
-      granted = smsGranted,
-      onRequest = { smsLauncher.launch(arrayOf(Manifest.permission.READ_SMS)) },
     )
     IntegrationRow(
       icon = Icons.Default.Alarm,

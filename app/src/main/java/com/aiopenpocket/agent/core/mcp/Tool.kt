@@ -36,8 +36,8 @@ interface Tool {
   fun riskFor(arguments: Map<String, JsonElement>): RiskClass = riskClass
 
   /**
-   * True when this tool returns content that originates outside the app's trust boundary (incoming
-   * SMS, calendar entries authored by others, files, future web/connector data). Such output is
+   * True when this tool returns content that originates outside the app's trust boundary (calendar
+   * entries authored by others, files, future web/connector data). Such output is
    * wrapped in an untrusted envelope before it re-enters the model, so injected instructions inside
    * it are treated as data, never commands.
    */

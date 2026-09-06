@@ -22,7 +22,7 @@ import org.robolectric.annotation.Config
  * ([com.aiopenpocket.agent.loop.ReactLoopRunner.toolMessageContent]) — то есть прочтёт модель встроенные
  * туда инструкции как данные или как команды.
  *
- * `memory_tool` этот флаг не ставил, и это открывало обход всего механизма: SmsTool/FileTools/
+ * `memory_tool` этот флаг не ставил, и это открывало обход всего механизма: FileTools/
  * CalendarTool честно помечают свой вывод недоверенным, но модель может прочитать такой текст и
  * положить его в `remember_fact` — после чего `search_memory`/`recall_episodes` возвращают ровно тот
  * же внешний текст уже БЕЗ конверта. Память оказывалась каналом отмывки вокруг ограды.
@@ -34,7 +34,6 @@ class ToolUntrustedContentTest {
   private lateinit var db: AppDatabase
   private lateinit var memoryTools: MemoryTools
   private lateinit var fileTools: FileTools
-  private lateinit var smsTool: SmsTool
   private lateinit var databaseQueryTool: DatabaseQueryTool
 
   @Before
@@ -45,7 +44,6 @@ class ToolUntrustedContentTest {
     val holder = TurnContextHolder()
     memoryTools = MemoryTools(MemoryRepository(db.factDao(), db.episodeDao()), holder)
     fileTools = FileTools(application, holder)
-    smsTool = SmsTool(context)
     databaseQueryTool = DatabaseQueryTool(db)
   }
 
@@ -61,7 +59,6 @@ class ToolUntrustedContentTest {
   fun `the tools that read outside the app stay marked untrusted`() {
     // Регресс-страховка для уже помеченных: снятие флага здесь молча снимает ограду в ReactLoopRunner.
     assertTrue("file_tool", fileTools.returnsUntrustedContent)
-    assertTrue("sms", smsTool.returnsUntrustedContent)
     assertTrue("database_query", databaseQueryTool.returnsUntrustedContent)
   }
 }

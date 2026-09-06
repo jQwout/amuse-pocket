@@ -226,7 +226,7 @@ data class AgentBuilderUiState(
   val showErrors: Boolean = false,
   val isSaving: Boolean = false,
   val canPublish: Boolean = false,
-  // PREVIEW, не LIVE: первый тестовый прогон черновика не должен по-настоящему слать SMS/писать в
+  // PREVIEW, не LIVE: первый тестовый прогон черновика не должен по-настоящему слать письма/писать в
   // календарь. Раньше поле дефолтилось в LIVE, а PREVIEW навязывался LaunchedEffect'ом в роуте —
   // подпорка, которая держалась только на том, что экран всегда открывают именно через тот роут.
   val executionMode: ExecutionMode = ExecutionMode.PREVIEW,

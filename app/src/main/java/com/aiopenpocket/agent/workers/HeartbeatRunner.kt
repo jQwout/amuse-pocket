@@ -330,7 +330,7 @@ class HeartbeatRunner(
     const val MAX_ATTEMPTS = 3
     /**
      * Чтение + уведомления + storage_tool (per-agent изолирован в коде через TurnContextHolder — так
-     * же безопасен в фоне, как memory_tool). Исключены: sms/email/файлы/alarm/сам heartbeat
+     * же безопасен в фоне, как memory_tool). Исключены: email/файлы/alarm/сам heartbeat
      * (самовоспроизводство)/render_card.
      */
     val SAFE_TOOL_NAMES = setOf(

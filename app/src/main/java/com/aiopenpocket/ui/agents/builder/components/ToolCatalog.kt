@@ -34,9 +34,9 @@ data class ToolCatalogEntry(
   /**
    * Whether selecting this tool must go through [com.aiopenpocket.ui.agents.builder.components.RiskConsentDialog]
    * first. Every non-[RiskClass.READ] tool gates on consent; [advancedOnly] tools ALSO gate on it even
-   * where their nominal ceiling reads [RiskClass.READ] (`database_query`'s default action, `sms`'s
-   * only action) — both are sensitive enough (arbitrary SQL; reading private messages) to still ask,
-   * on top of already being hidden behind the advanced-tools expander itself.
+   * where their nominal ceiling reads [RiskClass.READ] (`database_query`'s default action) — arbitrary
+   * SQL is sensitive enough to still ask, on top of already being hidden behind the advanced-tools
+   * expander itself.
    */
   val requiresConsent: Boolean get() = riskClass != RiskClass.READ || advancedOnly
 }
@@ -175,14 +175,6 @@ object ToolCatalog {
       // would otherwise silently under-warn.
       consequence = "Выполняет только SELECT-запросы (чтение) к локальной базе приложения, по " +
         "фиксированному списку таблиц — системные таблицы агентов недоступны. Запись не поддерживается.",
-      advancedOnly = true,
-    ),
-    ToolCatalogEntry(
-      name = "sms",
-      label = "Чтение SMS",
-      riskClass = RiskClass.READ,
-      permission = "READ_SMS",
-      consequence = "Читает последние входящие SMS пользователя (без отправки).",
       advancedOnly = true,
     ),
   )

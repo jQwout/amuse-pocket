@@ -62,7 +62,7 @@ object AgentValidator {
    */
   val KNOWN_TOOL_NAMES: Set<String> = setOf(
     "memory_tool", "file_tool", "external_files", "database_query", "render_card",
-    "notifications", "heartbeat", "work_manager", "calendar", "alarm", "email", "sms",
+    "notifications", "heartbeat", "work_manager", "calendar", "alarm", "email",
     "step_counter", "srs_tool", "load_skill", "storage_tool",
   )
 
