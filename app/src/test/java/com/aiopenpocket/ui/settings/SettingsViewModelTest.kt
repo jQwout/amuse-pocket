@@ -14,6 +14,10 @@ import com.aiopenpocket.agent.core.llm.ModelCatalogLoader
 import com.aiopenpocket.agent.core.llm.OpenRouterCatalogCache
 import com.aiopenpocket.agent.core.llm.OpenRouterCatalogService
 import com.aiopenpocket.data.repository.SettingsRepository
+import com.aiopenpocket.agent.core.llm.usage.LlmUsageByModel
+import com.aiopenpocket.agent.core.llm.usage.LlmUsageDao
+import com.aiopenpocket.agent.core.llm.usage.LlmUsageEntity
+import com.aiopenpocket.agent.core.llm.usage.LlmUsageTotals
 import com.aiopenpocket.data.repository.ThemeRepository
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -141,13 +145,32 @@ class SettingsViewModelTest {
 
   private var viewModelSeq = 0
 
-  private fun viewModelWith(engine: MockEngine): SettingsViewModel {
+  /**
+   * Расход в этих тестах не проверяется — они про ключи, провайдера и каталог моделей. Пустые
+   * сводки вместо Room: поднимать базу ради четырёх нулей значило бы привязать тесты настроек к
+   * схеме БД, которая до релиза пересоздаётся разрушительно.
+   */
+  private val emptyTotals =
+    LlmUsageTotals(calls = 0, promptTokens = 0, completionTokens = 0, costUsd = null, estimatedCalls = 0)
+
+  private val emptyUsageDao = object : LlmUsageDao {
+    override suspend fun insert(entity: LlmUsageEntity) = Unit
+    override suspend fun totalsSince(since: Long) = emptyTotals
+    override suspend fun totalsByModelSince(since: Long) = emptyList<LlmUsageByModel>()
+    override suspend fun backgroundTotalsSince(since: Long) = emptyTotals
+  }
+
+  private fun viewModelWith(
+    engine: MockEngine,
+    usageDao: LlmUsageDao = emptyUsageDao,
+  ): SettingsViewModel {
     val vm = SettingsViewModel(
       settingsRepository = settings,
       userPreferencesRepository = UserPreferencesRepository(testDataStore(application)),
       modelCatalogLoader = loader,
       openRouterCatalogService = OpenRouterCatalogService(cache, loader, engine),
       themeRepository = ThemeRepository(application),
+      llmUsageDao = usageDao,
     )
     // Кладём в store, чтобы его clear() в @After позвал onCleared и отменил viewModelScope.
     // Ключ свой на каждый экземпляр: под общим ключом второй ViewModel в одном тесте не попал бы
@@ -350,5 +373,57 @@ class SettingsViewModelTest {
     val state = vm.await { it.availableModels.contains("vendor/other") }
 
     assertEquals("vendor/alive", state.selectedModel)
+  }
+
+  /**
+   * Сводка расхода доезжает до экрана в том же виде, в каком её посчитала база.
+   *
+   * Проверяются именно ЧИСЛА, а не факт «что-то загрузилось»: по ним считаются тарифы, и
+   * перепутанные местами вход и выход (вход дороже выхода в разы у одних моделей и наоборот у
+   * других) дали бы правдоподобную, но неверную цену — ошибку, которую нечем заметить глазами.
+   */
+  @Test
+  fun `недельная сводка расхода доезжает в состояние экрана`() = runTest {
+    val dao = object : LlmUsageDao {
+      override suspend fun insert(entity: LlmUsageEntity) = Unit
+      override suspend fun totalsSince(since: Long) = LlmUsageTotals(
+        calls = 12,
+        promptTokens = 40_000,
+        completionTokens = 2_000,
+        costUsd = 0.031,
+        estimatedCalls = 3,
+      )
+      override suspend fun totalsByModelSince(since: Long) = listOf(
+        LlmUsageByModel(
+          model = "vendor/alive",
+          calls = 12,
+          promptTokens = 40_000,
+          completionTokens = 2_000,
+          costUsd = 0.031,
+        ),
+      )
+      override suspend fun backgroundTotalsSince(since: Long) = LlmUsageTotals(
+        calls = 4,
+        promptTokens = 8_000,
+        completionTokens = 200,
+        costUsd = 0.004,
+        estimatedCalls = 0,
+      )
+    }
+
+    val vm = viewModelWith(MockEngine { respond("{}") }, usageDao = dao)
+    val usage = vm.await { it.usage != null }.usage!!
+
+    assertEquals(12, usage.calls)
+    assertEquals(40_000L, usage.promptTokens)
+    assertEquals(2_000L, usage.completionTokens)
+    assertEquals(42_000L, usage.totalTokens)
+    assertEquals(3, usage.estimatedCalls)
+    // Фон — подмножество общего счёта, и показывается отдельной строкой: пользователь этих вызовов
+    // не заказывал, и именно их доля отвечает на «почему расход растёт, когда я ничего не делаю».
+    assertEquals(4, usage.backgroundCalls)
+    assertEquals(8_200L, usage.backgroundTokens)
+    assertEquals("vendor/alive", usage.byModel.single().model)
+    assertEquals(42_000L, usage.byModel.single().tokens)
   }
 }

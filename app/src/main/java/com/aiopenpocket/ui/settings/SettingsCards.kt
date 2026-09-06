@@ -79,6 +79,7 @@ import com.aiopenpocket.agent.core.identity.ChatFontScale
 import com.aiopenpocket.ui.components.glass.glassCardSurface
 import com.aiopenpocket.ui.components.MarkdownText
 import com.aiopenpocket.ui.theme.GlassTokens
+import java.util.Locale
 
 @Composable
 internal fun SettingsInfoCard(modifier: Modifier = Modifier) {
@@ -684,4 +685,108 @@ internal fun PersonaSelectorCard(
     testTag = "settings_persona_selector",
     modifier = modifier,
   )
+}
+
+/**
+ * Расход за неделю: сколько вызовов, токенов и денег ушло.
+ *
+ * Только чтение и никаких кнопок: карточка отвечает на вопрос «сколько я трачу», а не управляет
+ * лимитами. Три вещи названы вслух, потому что без них цифра выше вводит в заблуждение:
+ * доля фоновых вызовов (их пользователь не заказывал), доля оценок (провайдер не всегда называет
+ * расход) и отсутствие цены (NIM отдаёт только токены — придумывать доллары по ним нельзя).
+ */
+@Composable
+internal fun LlmUsageCard(
+  usage: UsageSummary?,
+  modifier: Modifier = Modifier,
+) {
+  Box(
+    modifier = modifier
+      .fillMaxWidth()
+      .glassCardSurface(SettingsCardShape)
+      .padding(horizontal = 20.dp, vertical = 18.dp),
+  ) {
+    if (usage == null || usage.calls == 0) {
+      Column {
+        Text(
+          text = "Пока не о чем отчитываться",
+          style = MaterialTheme.typography.bodyLarge,
+          color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+          text = "Счётчик заполняется по мере разговоров с агентом.",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
+      return@Box
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+      UsageRow(label = "Вызовов модели", value = usage.calls.toString())
+      UsageRow(
+        label = "Токенов",
+        value = "${formatTokens(usage.promptTokens)} вход / ${formatTokens(usage.completionTokens)} выход",
+      )
+      UsageRow(
+        label = "Стоимость",
+        // Пустая строка вместо нуля: ноль означал бы «бесплатно», а честный ответ — «не назвали».
+        value = usage.costUsd?.let { "$" + String.format(Locale.US, "%.4f", it) }
+          ?: "провайдер не называет",
+      )
+      if (usage.backgroundCalls > 0) {
+        UsageRow(
+          label = "Из них в фоне",
+          value = "${usage.backgroundCalls} · ${formatTokens(usage.backgroundTokens)} токенов",
+        )
+      }
+      if (usage.estimatedCalls > 0) {
+        UsageRow(label = "Посчитано оценкой", value = "${usage.estimatedCalls} из ${usage.calls}")
+      }
+      if (usage.byModel.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+          text = "ПО МОДЕЛЯМ",
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.colorScheme.primary,
+        )
+        // Три строки, а не весь список: у OpenRouter моделей сотни, и хвост из однократных вызовов
+        // не отвечает ни на один вопрос, ради которого сюда смотрят.
+        usage.byModel.take(3).forEach { model ->
+          UsageRow(
+            label = model.model.substringAfterLast('/'),
+            value = "${model.calls} · ${formatTokens(model.tokens)}",
+          )
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun UsageRow(label: String, value: String) {
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.SpaceBetween,
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Text(
+      text = label,
+      style = MaterialTheme.typography.bodyMedium,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Text(
+      text = value,
+      style = MaterialTheme.typography.bodyMedium,
+      color = MaterialTheme.colorScheme.onSurface,
+    )
+  }
+}
+
+/** Тысячи — в «12.3k»: точное число токенов не читается и ни на что не влияет. */
+private fun formatTokens(tokens: Long): String = when {
+  tokens < 1_000 -> tokens.toString()
+  tokens < 1_000_000 -> String.format(Locale.US, "%.1fk", tokens / 1_000.0)
+  else -> String.format(Locale.US, "%.2fM", tokens / 1_000_000.0)
 }
