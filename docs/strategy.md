@@ -50,7 +50,7 @@
 
 - Chat UI (Jetpack Compose / iOS-ный аналог через KMP)
 - `DrivenUiEngine` — рендеринг карточек по JSON-контракту
-- Tool runner — `CalendarTool`, `SmsTool`, `AlarmTool`, `EmailTool`, `file_tool`, `work_manager`, `memory_tool` (логика выполнения, не данные)
+- Tool runner — `CalendarTool`, `AlarmTool`, `EmailTool`, `file_tool`, `work_manager`, `memory_tool` (логика выполнения, не данные)
 - Скилл-формат (JSON Schema + парсер) — это **публичный стандарт**, его как раз и продвигаем как «AI Open Pocket Skill Schema»
 - Multi-provider LLM-клиент (NIM / Groq / GitHub Models — без ключей, ключи приходят с сервера или вводятся юзером)
 - Базовые персоны (1–2 «дефолтные», простые) — символическая демонстрация формата

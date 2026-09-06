@@ -787,12 +787,6 @@ internal fun samplePreviewState(): AgentDetailState {
         available = true,
       ),
       AgentDetailToolRow(
-        name = "sms",
-        description = "Читает последние входящие SMS пользователя.",
-        riskClass = RiskClass.READ,
-        available = true,
-      ),
-      AgentDetailToolRow(
         name = "email",
         description = "Готовит черновик письма в почтовом приложении.",
         riskClass = RiskClass.EXTERNAL,

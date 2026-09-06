@@ -467,7 +467,7 @@ class ReactLoopRunner(
 
   /**
    * Builds the tool-result message fed back to the model. Output from tools that return untrusted
-   * external content (SMS, files, calendar entries) is fenced in a `<tool_output trust="untrusted">`
+   * external content (files, calendar entries) is fenced in a `<tool_output trust="untrusted">`
    * envelope so any instructions embedded in it are read as data, never commands — the same
    * treatment `<user_data>` gets in the system prompt. Enforced in the harness, not in prompt text.
    */
@@ -475,8 +475,8 @@ class ReactLoopRunner(
     val raw = resultToString(result)
     val untrusted = result is ToolResult.Success && toolRegistry.get(toolName)?.returnsUntrustedContent == true
     if (!untrusted) return raw
-    // Neutralize any envelope tags inside the payload itself, so attacker-supplied content (e.g. an
-    // SMS body containing a literal </tool_output>) cannot close the fence early and smuggle
+    // Neutralize any envelope tags inside the payload itself, so attacker-supplied content (e.g. a
+    // file body containing a literal </tool_output>) cannot close the fence early and smuggle
     // instructions outside it. Shared with PrePromptAssembler's <user_data> fence: the invariant is
     // one, the places obliged to honour it are several, and the gap BETWEEN them was the actual hole.
     return UntrustedFence.wrap(

@@ -262,7 +262,6 @@ internal fun capabilityLabels(toolNames: Set<String>): List<String> =
       "memory_tool" -> "Память"
       "render_card" -> "Карточки"
       "load_skill" -> "Навыки"
-      "sms" -> "СМС"
       "email" -> "Почта"
       "alarm" -> "Будильник"
       "work_manager" -> "Фоновые задачи"

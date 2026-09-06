@@ -18,8 +18,8 @@
       "git": "92a42cd"
     },
     "app-settings-beb470": {
-      "hash": "7c637f75ba90",
-      "git": "94bf070"
+      "hash": "6b8bb9c52e66",
+      "git": "259a650"
     },
     "background-tasks-15a34a": {
       "hash": "6cc3fa68e3d2",
@@ -50,16 +50,16 @@
       "git": "3ed3e7f"
     },
     "heartbeat-napominalki-agenta-5f0442": {
-      "hash": "a9fbf9186af8",
-      "git": "661d682"
+      "hash": "392a5f1b7aeb",
+      "git": "259a650"
     },
     "mcp-tools-f77d9b": {
-      "hash": "be3b403e9dfd",
-      "git": "660f68b"
+      "hash": "674dd986d955",
+      "git": "259a650"
     },
     "multi-agent-orchestration-27b8e3": {
-      "hash": "013bfa0d6476",
-      "git": "3ed3e7f"
+      "hash": "b5098bba5d04",
+      "git": "259a650"
     },
     "multi-chat-conversations-b3c93b": {
       "hash": "5270de2048e5",
@@ -70,44 +70,44 @@
       "git": "aba348d"
     },
     "rezhimy-agenta-plan-i-goal-ee2361": {
-      "hash": "f93121348cc4",
-      "git": "9c9b98e"
+      "hash": "af6903f19e48",
+      "git": "259a650"
     },
     "smena-temy-svetlaya-temnaya-sistemnaya-palitra-lime-ink-paper-005bc6": {
       "hash": "cff08062092e",
       "git": "d589a94"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "da42958a72ed",
-      "git": "8312904"
+      "hash": "8d000d23e0a2",
+      "git": "259a650"
     },
     "structured-plan-engine-907066": {
-      "hash": "1faa2234e28c",
-      "git": "8312904"
+      "hash": "e6a3eba7547d",
+      "git": "259a650"
     },
     "swappable-persona-e5e65e": {
       "hash": "04658767fa08",
       "git": "3ed3e7f"
     },
     "uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2": {
-      "hash": "a7a2a30699fa",
-      "git": "3ed3e7f"
+      "hash": "eb7ccddee02a",
+      "git": "259a650"
     },
     "user-agent-builder-848153": {
-      "hash": "4c2726a577a8",
-      "git": "d5690f7"
+      "hash": "4211a343c879",
+      "git": "259a650"
     },
     "voice-input-1a0dfd": {
       "hash": "8b0186906f6c",
       "git": "6a6f145"
     },
     "vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53": {
-      "hash": "69238bdd0c8b",
-      "git": "15f578f"
+      "hash": "0cf1b4256954",
+      "git": "259a650"
     },
     "yazykovoy-agent-repetitor-s-intervalnymi-povtoreniyami-4a9360": {
-      "hash": "42cc33837142",
-      "git": "8a3b272"
+      "hash": "8ff6359d9027",
+      "git": "259a650"
     }
   }
 }

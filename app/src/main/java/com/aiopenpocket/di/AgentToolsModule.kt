@@ -13,7 +13,6 @@ import com.aiopenpocket.agent.tools.HeartbeatTool
 import com.aiopenpocket.agent.tools.MemoryTools
 import com.aiopenpocket.agent.tools.NotificationsTool
 import com.aiopenpocket.agent.tools.RenderCardTool
-import com.aiopenpocket.agent.tools.SmsTool
 import com.aiopenpocket.agent.tools.SrsTool
 import com.aiopenpocket.agent.tools.StepCounterTool
 import com.aiopenpocket.agent.tools.StorageTool
@@ -70,10 +69,6 @@ object AgentToolsModule {
   @Provides
   @IntoSet
   fun provideEmailTool(tool: EmailTool): Tool = tool
-
-  @Provides
-  @IntoSet
-  fun provideSmsTool(tool: SmsTool): Tool = tool
 
   @Provides
   @IntoSet

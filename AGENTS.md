@@ -298,12 +298,11 @@ Two independent integrations, both under the (correctly-placed) `com.aiopenpocke
 - **In-chat dictation** (`voice/input/VoiceInputController.kt`) wraps `android.speech.SpeechRecognizer` directly, exposing a `VoiceInputState` (Idle/Listening/Error) sealed interface and a transcript flow, driven by the `MicButton` composable in the chat input bar. `LocaleMapping.kt` maps the app's selected UI language to a BCP-47 recognition locale.
 
 ### System Integrations & Permissions
-Twelve tools expose Android/system capabilities to the LLM (`app/src/main/java/com/example/agent/tools/`, all registered via `@Provides @IntoSet` in `di/AgentToolsModule.kt`; the `load_skill` meta-tool is registered separately in `di/SkillModule.kt`):
+Eleven tools expose Android/system capabilities to the LLM (`app/src/main/java/com/example/agent/tools/`, all registered via `@Provides @IntoSet` in `di/AgentToolsModule.kt`; the `load_skill` meta-tool is registered separately in `di/SkillModule.kt`):
 
 | Tool (`name`) | Actions | Android API | Permission |
 |---|---|---|---|
 | `calendar` | `list_events`, `create_event`, `delete_event` | `CalendarContract` (Instances/Events) | `READ_CALENDAR`, `WRITE_CALENDAR` (runtime) |
-| `sms` | `read_recent` | `Telephony.Sms.Inbox` | `READ_SMS` (runtime) |
 | `alarm` | `set_alarm`, `show_alarms` | `AlarmClock.ACTION_SET_ALARM` / `ACTION_SHOW_ALARMS` intents | `SET_ALARM` (normal, auto-granted) |
 | `email` | `compose` | `Intent.ACTION_SENDTO` (`mailto:`) | none — composer only, no reading |
 | `notifications` | post a notification (title/message) | `NotificationCompat` via shared `NotificationHelper` | `POST_NOTIFICATIONS` (runtime, Android 13+) |
