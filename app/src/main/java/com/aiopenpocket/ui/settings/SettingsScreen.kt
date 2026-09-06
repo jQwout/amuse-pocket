@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Loop
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Psychology
@@ -437,6 +438,19 @@ fun SettingsScreen(
           style = MaterialTheme.typography.bodyLarge,
         )
       }
+
+      Spacer(modifier = Modifier.height(28.dp))
+
+      SettingsSectionHeader(
+        icon = Icons.Default.Insights,
+        title = "РАСХОД ЗА НЕДЕЛЮ",
+        modifier = Modifier.padding(horizontal = 20.dp),
+      )
+      Spacer(modifier = Modifier.height(12.dp))
+      LlmUsageCard(
+        usage = state.usage,
+        modifier = Modifier.padding(horizontal = 20.dp),
+      )
 
       Spacer(modifier = Modifier.height(28.dp))
 

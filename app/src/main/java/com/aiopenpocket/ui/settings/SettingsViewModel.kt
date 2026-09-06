@@ -12,6 +12,7 @@ import com.aiopenpocket.agent.core.llm.llmProviderOf
 import com.aiopenpocket.agent.core.llm.ModelCatalog
 import com.aiopenpocket.agent.core.llm.ModelCatalogLoader
 import com.aiopenpocket.agent.core.llm.OpenRouterCatalogService
+import com.aiopenpocket.agent.core.llm.usage.LlmUsageDao
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
 import com.aiopenpocket.data.repository.SettingsRepository
 import com.aiopenpocket.data.repository.ThemeRepository
@@ -40,6 +41,7 @@ class SettingsViewModel(
   private val modelCatalogLoader: ModelCatalogLoader,
   private val openRouterCatalogService: OpenRouterCatalogService,
   private val themeRepository: ThemeRepository,
+  private val llmUsageDao: LlmUsageDao,
 ) : ViewModel() {
 
   private val _state = MutableStateFlow(SettingsUiState())
@@ -79,6 +81,46 @@ class SettingsViewModel(
       }
       refreshOpenRouterCatalog(loaded.provider)
     }
+    loadUsage()
+  }
+
+  /**
+   * Расход за неделю — отдельной корутиной от остальных настроек.
+   *
+   * Не в общий блок чтения: там всё нужно ДО первого кадра (иначе селекторы моргнут значениями по
+   * умолчанию), а суммы по таблице учёта — нет. Их задержка не должна откладывать весь экран, и
+   * пустая карточка, доехавшая на кадр позже, честнее пустого экрана.
+   */
+  private fun loadUsage() {
+    viewModelScope.launch {
+      val summary = withContext(Dispatchers.IO) {
+        runCatching {
+          val since = System.currentTimeMillis() - USAGE_WINDOW_MS
+          val totals = llmUsageDao.totalsSince(since)
+          val background = llmUsageDao.backgroundTotalsSince(since)
+          UsageSummary(
+            calls = totals.calls,
+            promptTokens = totals.promptTokens,
+            completionTokens = totals.completionTokens,
+            costUsd = totals.costUsd,
+            estimatedCalls = totals.estimatedCalls,
+            backgroundCalls = background.calls,
+            backgroundTokens = background.promptTokens + background.completionTokens,
+            byModel = llmUsageDao.totalsByModelSince(since).map {
+              UsageSummary.ModelUsage(
+                model = it.model,
+                calls = it.calls,
+                tokens = it.promptTokens + it.completionTokens,
+                costUsd = it.costUsd,
+              )
+            },
+          )
+        }.getOrNull()
+      }
+      // Отказ чтения оставляет usage = null, то есть карточку «данных пока нет»: статистика не тот
+      // повод, ради которого стоит показывать пользователю ошибку на экране настроек.
+      if (summary != null) _state.update { it.copy(usage = summary) }
+    }
   }
 
   /** Снимок того, что читается с диска, — чтобы прочитать всё одним заходом на IO. */
@@ -92,6 +134,11 @@ class SettingsViewModel(
     val goalMaxIterations: Int,
     val chatFontScale: ChatFontScale,
   )
+
+  private companion object {
+    /** Окно сводки: неделя. Достаточно, чтобы увидеть будни и выходные, и коротко для «сейчас». */
+    const val USAGE_WINDOW_MS = 7L * 24 * 60 * 60 * 1000
+  }
 
   /**
    * Тянет свежий список моделей OpenRouter (не чаще раза в сутки — TTL внутри сервиса) и
