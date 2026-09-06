@@ -11,6 +11,8 @@ import com.aiopenpocket.agent.core.agent.UserAgentEntity
 import com.aiopenpocket.agent.core.hook.AgentHookDao
 import com.aiopenpocket.agent.core.hook.AgentHookEntity
 import com.aiopenpocket.agent.core.hook.AgentHookRunEntity
+import com.aiopenpocket.agent.core.llm.usage.LlmUsageDao
+import com.aiopenpocket.agent.core.llm.usage.LlmUsageEntity
 import com.aiopenpocket.agent.core.skill.UserSkillDao
 import com.aiopenpocket.agent.core.skill.UserSkillEntity
 import com.aiopenpocket.agent.core.storage.AgentStorageDao
@@ -53,8 +55,10 @@ import com.aiopenpocket.agent.core.srs.SrsWordEntity
 // of raw SQL; version bumped 7 -> 8. Message-pinning removed — MessageEntity lost its
 // isPinned column; version bumped 8 -> 9. UserAgentEntity gained stateKeyPrefixes so a USER agent
 // (in particular a clone of the "languages" preset) keeps its prompt state-injection prefixes instead
-// of silently reporting an empty set; version bumped 9 -> 10. No Migration is added any of these
-// times — see the policy comment on DatabaseBindings.provideDatabase.
+// of silently reporting an empty set; version bumped 9 -> 10. LlmUsageEntity/llmUsageDao()
+// registered for token metering (streaming-llm-chat-6595a1) — one row per completed LLM call, the
+// data the pricing/tariff work is sized from; version bumped 10 -> 11. No Migration is added any of
+// these times — see the policy comment on DatabaseBindings.provideDatabase.
 @Database(
   entities = [
     ConversationEntity::class,
@@ -74,8 +78,9 @@ import com.aiopenpocket.agent.core.srs.SrsWordEntity
     PlanEvidenceEntity::class,
     PlanEventEntity::class,
     AgentStorageEntity::class,
+    LlmUsageEntity::class,
   ],
-  version = 10,
+  version = 11,
   // exportSchema = true, хотя миграций пока нет и всё пересоздаётся разрушительно (см. политику на
   // DatabaseBindings.provideDatabase). Именно поэтому и включено: первую настоящую Migration придётся
   // писать ОТ схемы релизной версии, а взять её будет неоткуда, если снимки не начать копить заранее.
@@ -96,4 +101,5 @@ abstract class AppDatabase : RoomDatabase() {
   abstract fun agentHookDao(): AgentHookDao
   abstract fun planDao(): PlanDao
   abstract fun agentStorageDao(): AgentStorageDao
+  abstract fun llmUsageDao(): LlmUsageDao
 }

@@ -6,8 +6,8 @@
       "git": "661d682"
     },
     "agent-memory-05e545": {
-      "hash": "c99dfcc31010",
-      "git": "660f68b"
+      "hash": "a8841f96488a",
+      "git": "40a0f3f"
     },
     "agent-skills-7189cc": {
       "hash": "6d1595097f23",
@@ -78,8 +78,8 @@
       "git": "d589a94"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "8d000d23e0a2",
-      "git": "259a650"
+      "hash": "d2a4207fd37f",
+      "git": "40a0f3f"
     },
     "structured-plan-engine-907066": {
       "hash": "e6a3eba7547d",

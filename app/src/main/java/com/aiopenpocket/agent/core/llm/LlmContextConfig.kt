@@ -43,5 +43,12 @@ object LlmContextConfig {
   /** Upper bound on auto-generated tags per conversation. */
   const val MAX_TAGS = 5
 
-  fun estimateTokens(text: String): Int = maxOf(1, text.length / 3)
+  fun estimateTokens(text: String): Int = estimateTokens(text.length)
+
+  /**
+   * Та же оценка, когда на руках только длина. Нужна учёту расхода: там считать нечего по строке —
+   * тело запроса уже отправлено, а ответ приходил дельтами, и известна лишь сумма их длин. Одна
+   * формула на оба случая, иначе оценка окна контекста и оценка расхода разъедутся молча.
+   */
+  fun estimateTokens(chars: Int): Int = maxOf(1, chars / 3)
 }

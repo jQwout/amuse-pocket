@@ -10,6 +10,9 @@ import com.aiopenpocket.agent.core.agent.UserAgentDao
 import com.aiopenpocket.agent.core.hook.AgentHookDao
 import com.aiopenpocket.agent.core.plan.persistence.PlanDao
 import com.aiopenpocket.agent.core.skill.UserSkillDao
+import com.aiopenpocket.agent.core.llm.LlmUsageRecorder
+import com.aiopenpocket.agent.core.llm.usage.LlmUsageDao
+import com.aiopenpocket.agent.core.llm.usage.RoomLlmUsageRecorder
 import com.aiopenpocket.agent.core.storage.AgentStorageDao
 import com.aiopenpocket.agent.core.memory.dao.ConversationDao
 import com.aiopenpocket.agent.core.memory.dao.ConversationTagDao
@@ -94,4 +97,15 @@ object DatabaseBindings {
 
     @Provides
     fun provideAgentStorageDao(database: AppDatabase): AgentStorageDao = database.agentStorageDao()
+
+    @Provides
+    fun provideLlmUsageDao(database: AppDatabase): LlmUsageDao = database.llmUsageDao()
+
+    /**
+     * Учёт расхода — Room-реализация. Отдельной заглушки в проде нет намеренно: связывание тут
+     * обязательно, и если его убрать, сборка графа упадёт, а не начнёт молча не считать деньги.
+     */
+    @Provides
+    @SingleIn(AppScope::class)
+    fun provideLlmUsageRecorder(recorder: RoomLlmUsageRecorder): LlmUsageRecorder = recorder
 }
