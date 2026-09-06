@@ -34,6 +34,13 @@ import com.aiopenpocket.di.AppScope
 @SingleIn(AppScope::class)
 class OpenAiCompatClient(
   private val fallbackChain: ProviderFallbackChain,
+  /**
+   * Учёт расхода. Без значения по умолчанию — намеренно, по тому же доводу, что и провайдер в
+   * [LlmClient.streamChat]: заглушка «по умолчанию» превратила бы забытое связывание в тихо
+   * неработающий учёт денег, а так граф просто не соберётся. Тесты передают
+   * [NoOpLlmUsageRecorder] явно, и это заодно говорит читателю, что расход в них не проверяется.
+   */
+  private val usageRecorder: LlmUsageRecorder,
   // Движок инъектится (а не создаётся здесь), чтобы тест фолбэка подменял транспорт MockEngine'ом:
   // цепочку моделей нельзя проверить, не управляя ответами. Прод-движок — в LlmModule.
   engine: HttpClientEngine,
@@ -93,6 +100,10 @@ class OpenAiCompatClient(
           stream = true,
           temperature = p.temperature,
           topP = p.topP,
+          // Цену в долларах называет только OpenRouter и только когда её попросили. NIM про это
+          // поле не знает, и слать его туда — просить строгий провайдер отказать по неизвестному
+          // ключу; ровно та же осторожность, что с type:"function" у тулов.
+          usage = if (p.name == LlmProvider.OPENROUTER) UsageRequest() else null,
         )
         val bodyJson = json.encodeToString(requestBody)
         // Ключевая проверка сериализации: type:"function" должен присутствовать у тулов, иначе строгие
@@ -126,7 +137,7 @@ class OpenAiCompatClient(
           var toolCalls = 0
           var finishReason = "?"
           val channel = response.body<ByteReadChannel>()
-          consumeOpenAiSse(
+          val sseUsage = consumeOpenAiSse(
             channel = channel,
             json = json,
             onParseError = { Log.w(TAG, "$tag skipping unparseable SSE chunk: ${it.message}") },
@@ -155,6 +166,22 @@ class OpenAiCompatClient(
             TAG,
             "$attempt $tag ✓ done in ${ms}ms textChars=$textChars toolCalls=$toolCalls finish=$finishReason" +
               if (emptyAttempt) "  ⚠ EMPTY RESPONSE" else "",
+          )
+          // Пишем расход и для ПУСТОЙ попытки тоже: промпт у неё улетел целиком и оплачен, а
+          // ответа не было. Пропускать такие значило бы прятать самую дорогую разновидность
+          // потерь — деньги за деградировавшую модель, которую цепочка молча заменила следующей.
+          usageRecorder.record(
+            LlmCallUsage(
+              provider = p.name,
+              model = p.model,
+              // Тело запроса как мера промпта: в нём и системная часть, и история, и схемы тулов —
+              // сумма длин сообщений недосчитала бы ровно то, что дороже всего.
+              promptTokens = sseUsage?.promptTokens ?: LlmContextConfig.estimateTokens(bodyJson.length),
+              completionTokens = sseUsage?.completionTokens ?: LlmContextConfig.estimateTokens(textChars),
+              costUsd = sseUsage?.cost,
+              estimated = sseUsage == null,
+              hadTools = tools.isNotEmpty(),
+            ),
           )
           if (!emptyAttempt) emit(StreamEvent.Finish(finishReason))
         }
@@ -206,7 +233,22 @@ class OpenAiCompatClient(
     // null omitted via explicitNulls=false — providers without an override fall back to their own default.
     val temperature: Double? = null,
     val topP: Double? = null,
+    /**
+     * Просим провайдера прислать расход последним чанком стрима. Поле стандартное для
+     * OpenAI-совместимого API (`stream_options.include_usage`), и шлём его всегда: без него usage
+     * в стриме не приходит вовсе, а считать расход по оценке там, где провайдер готов назвать
+     * точное число, — терять единственный достоверный источник данных для тарифов.
+     */
+    val streamOptions: StreamOptions = StreamOptions(),
+    /** Только OpenRouter — см. место заполнения. */
+    val usage: UsageRequest? = null,
   )
+
+  @Serializable
+  private data class StreamOptions(val includeUsage: Boolean = true)
+
+  @Serializable
+  private data class UsageRequest(val include: Boolean = true)
 
   private companion object {
     const val TAG = "OpenAiCompatClient"
@@ -244,9 +286,11 @@ internal suspend fun consumeOpenAiSse(
   json: Json,
   onParseError: (Throwable) -> Unit = {},
   emit: suspend (StreamEvent) -> Unit,
-) {
+): SseUsage? {
   val toolAccumulators = LinkedHashMap<Int, ToolCallAccumulator>()
   var finishReason: String? = null
+  // Расход хода. Приезжает отдельным чанком в конце стрима, поэтому копится вне цикла.
+  var usage: SseUsage? = null
   // Reasoning-модели (deepseek-v4-flash, nemotron) стримят размышление в reasoning_content, а ответ
   // в content. Копим размышление отдельно: если у хода content так и не пришёл (модель уложила всё в
   // reasoning) и не было tool-call, отдаём размышление как ответ — иначе пользователь видит пустоту.
@@ -265,6 +309,11 @@ internal suspend fun consumeOpenAiSse(
       onParseError(e)
       continue
     }
+    // Строго ДО проверки choices ниже: usage приезжает отдельным финальным чанком, у которого
+    // choices пуст, и `firstOrNull() ?: continue` выбрасывал его вместе с чанком — расход хода
+    // оставался неизвестен, хотя провайдер его прислал. Присваиваем и продолжаем: за usage-чанком
+    // идёт ещё [DONE], да и порядок чанков провайдер не обещает.
+    sseChunk.usage?.let { usage = it }
     val choice = sseChunk.choices.firstOrNull() ?: continue
     choice.delta?.content?.let {
       // Пустая content-дельта (role-priming чанк «content:""» в начале стрима) текста не несёт, но
@@ -306,6 +355,7 @@ internal suspend fun consumeOpenAiSse(
   // Некоторые провайдеры закрывают поток без finish_reason — считаем это "stop",
   // иначе агент-цикл крутится до MAX_ITERATIONS и теряет готовый ответ.
   emit(StreamEvent.Finish(finishReason ?: "stop"))
+  return usage
 }
 
 private class ToolCallAccumulator(val index: Int) {
@@ -330,6 +380,23 @@ private fun parseToolArguments(
 private data class SseChunk(
   val id: String? = null,
   val choices: List<SseChoice> = emptyList(),
+  val usage: SseUsage? = null,
+)
+
+/**
+ * Расход одного вызова так, как его назвал сам провайдер.
+ *
+ * Отсутствие usage целиком (`consumeOpenAiSse` возвращает `null`) и нули в полях — РАЗНЫЕ
+ * утверждения, и различать их обязан тип: `null` значит «провайдер не сказал», и вызывающий берёт
+ * оценку по длине текста, помечая её приблизительной; нули значили бы «ход был бесплатным». Слить
+ * их в одно число — получить учёт, в котором молчание провайдера неотличимо от нулевого счёта.
+ */
+@Serializable
+internal data class SseUsage(
+  val promptTokens: Int = 0,
+  val completionTokens: Int = 0,
+  /** Цена вызова в USD. Присылает только OpenRouter и только когда её попросили; у NIM — null. */
+  val cost: Double? = null,
 )
 
 @Serializable

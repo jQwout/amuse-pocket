@@ -4,6 +4,7 @@ import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -162,5 +163,46 @@ class OpenAiSseParserTest {
     assertTrue("keep-alive must not surface as Error", events.none { it is StreamEvent.Error })
     val text = events.filterIsInstance<StreamEvent.TextDelta>().joinToString("") { it.content }
     assertEquals("hi", text)
+  }
+
+  /**
+   * Живой пропуск: usage приезжает ОТДЕЛЬНЫМ финальным чанком, у которого `choices` пуст. Разбор
+   * начинался со строки `choices.firstOrNull() ?: continue`, то есть ровно этот чанк выбрасывался —
+   * и расход хода был неизвестен, хотя провайдер его прислал.
+   */
+  @Test
+  fun `usage arrives in a final chunk with empty choices and is captured`() = runTest {
+    val sse = """
+      data: {"choices":[{"delta":{"content":"Привет"}}]}
+      data: {"choices":[{"delta":{},"finish_reason":"stop"}]}
+      data: {"choices":[],"usage":{"prompt_tokens":1200,"completion_tokens":48,"cost":0.00031}}
+      data: [DONE]
+    """.trimIndent()
+
+    val events = mutableListOf<StreamEvent>()
+    val usage = consumeOpenAiSse(ByteReadChannel(sse), openAiCompatJson()) { events += it }
+
+    assertEquals(1200, usage?.promptTokens)
+    assertEquals(48, usage?.completionTokens)
+    assertEquals(0.00031, usage?.cost ?: 0.0, 1e-9)
+    // Пустой choices не ломает остальной разбор: текст и finish дошли как обычно.
+    assertEquals("Привет", events.filterIsInstance<StreamEvent.TextDelta>().joinToString("") { it.content })
+    assertEquals("stop", (events.last() as StreamEvent.Finish).reason)
+  }
+
+  /**
+   * Провайдер, не приславший usage, обязан отличаться от приславшего нули: ноль токенов — это
+   * утверждение о бесплатном ходе, а `null` — честное «не знаем», по которому вызывающий берёт оценку.
+   */
+  @Test
+  fun `a stream without usage yields null, not zeroes`() = runTest {
+    val sse = """
+      data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}
+      data: [DONE]
+    """.trimIndent()
+
+    val usage = consumeOpenAiSse(ByteReadChannel(sse), openAiCompatJson()) { }
+
+    assertNull(usage)
   }
 }

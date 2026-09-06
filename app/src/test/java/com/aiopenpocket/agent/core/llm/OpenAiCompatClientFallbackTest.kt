@@ -63,6 +63,7 @@ class OpenAiCompatClientFallbackTest {
   private fun clientOf(models: List<String>, engine: MockEngine) = OpenAiCompatClient(
     fallbackChain = ProviderFallbackChain(mapOf(LlmProvider.NIM to models.map { config(it) })),
     engine = engine,
+    usageRecorder = NoOpLlmUsageRecorder,
   )
 
   @Test

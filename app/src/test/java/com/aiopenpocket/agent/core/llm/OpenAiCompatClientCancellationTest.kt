@@ -59,6 +59,7 @@ class OpenAiCompatClientCancellationTest {
     OpenAiCompatClient(
       fallbackChain = ProviderFallbackChain(mapOf(LlmProvider.NIM to models.map { config(it, attempts) })),
       engine = engine,
+      usageRecorder = NoOpLlmUsageRecorder,
     )
 
   @Test
