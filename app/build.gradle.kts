@@ -83,6 +83,61 @@ secrets {
   defaultPropertiesFileName = ".env.example"
 }
 
+// Начала живых ключей провайдеров: nvapi- (NVIDIA NIM), sk-or-v1- и sk- (OpenRouter/OpenAI),
+// AIza (Google). Плейсхолдеры из .env.example (MY_NVIDIA_API_KEY и т.п.) ни под один не подходят.
+val liveKeyPrefixes = listOf("nvapi-", "sk-or-v1-", "sk-", "AIza")
+
+/**
+ * Не дать магазинной сборке унести живой ключ провайдера.
+ *
+ * Значения из `.env` секретный плагин кладёт в BuildConfig, а BuildConfig едет ВНУТРИ артефакта:
+ * достать оттуда строку — вопрос одной распаковки AAB. То есть ключ, собранный в релиз, это не
+ * «утечка когда-нибудь», а раздача своей квоты всем, кто скачал приложение, с первого же дня.
+ * Проверено на живом артефакте 2026-09-06: `bundleRelease` унёс рабочий `nvapi-…` ключ.
+ *
+ * Сторож висит ТОЛЬКО на release: debug собирается с рабочим `.env` постоянно, и падать на нём
+ * значило бы сломать обычную разработку ради инварианта, который к debug не относится — тот
+ * артефакт никуда не уезжает.
+ */
+val checkReleaseSecrets = tasks.register("checkReleaseSecrets") {
+  description = "Fails the release build when .env carries a live provider key (it would ship inside BuildConfig)."
+  val envFile = rootProject.file(".env")
+  val prefixes = liveKeyPrefixes
+  // Файла может не быть вовсе (свежий клон без ключей) — это не ошибка: тогда в BuildConfig едут
+  // плейсхолдеры из .env.example, ровно то, что релизу и нужно.
+  inputs.files(files(envFile)).withPropertyName("envFile")
+  doLast {
+    if (!envFile.exists()) return@doLast
+    val offenders = envFile.readLines()
+      .map { it.trim() }
+      .filter { it.isNotEmpty() && !it.startsWith("#") && it.contains('=') }
+      .mapNotNull { line ->
+        val name = line.substringBefore('=').trim()
+        val value = line.substringAfter('=').trim().trim('"', '\'')
+        name.takeIf { prefixes.any(value::startsWith) }
+      }
+    if (offenders.isNotEmpty()) {
+      // Текст сообщения — ASCII сознательно: консоль Windows отдаёт вывод Gradle в cp866/cp1251, и
+      // кириллица в GradleException приезжает кракозябрами именно там, где её обязаны прочитать.
+      throw GradleException(
+        "Release build stopped: .env holds live provider key(s) (${offenders.joinToString()}). " +
+          "They are copied into BuildConfig and ship inside the AAB, where anyone can unpack them. " +
+          "Put placeholders (see .env.example) in .env before building a release; " +
+          "real keys for the paid path belong on the server, not in the artifact.",
+      )
+    }
+  }
+}
+
+// generateReleaseBuildConfig — момент, когда ключ физически попадает в код сборки; проверка перед
+// ним валит билд до компиляции, а не после четырёх минут работы. Дубль на самих артефактных
+// задачах — на случай, если BuildConfig окажется UP-TO-DATE и не выполнится вовсе.
+tasks.matching {
+  it.name in setOf("generateReleaseBuildConfig", "bundleRelease", "assembleRelease")
+}.configureEach {
+  dependsOn(checkReleaseSecrets)
+}
+
 // LessonAssetsValidationTest читает assets/lessons/*.json (+ картинки) напрямую через File() в
 // рантайме теста, минуя мёрж ресурсов. Gradle не видит их как входы задачи → при правках ТОЛЬКО
 // уроков testDebugUnitTest помечается UP-TO-DATE и валидатор НЕ запускается (битый урок мог пройти
