@@ -45,6 +45,17 @@ class DrivenUiEngineTest {
   }
 
   @Test
+  fun `image card keeps the lesson prompt for draw-it-for-me`() {
+    val card = DrivenUiEngine.parseJsonString(
+      """{"template":"image","params":{"asset":"a.webp","caption":"c","image_prompt":"A robot."}}""",
+    )
+    assertEquals(DrivenUiCard.ImageCard(asset = "a.webp", url = "", caption = "c", prompt = "A robot."), card)
+
+    val plain = DrivenUiEngine.parseJsonString("""{"template":"image","params":{"asset":"a.webp"}}""")
+    assertEquals("", (plain as DrivenUiCard.ImageCard).prompt)
+  }
+
+  @Test
   fun `unknown template yields error card`() {
     val card = DrivenUiEngine.parseJsonString("""{"template":"nope","params":{}}""")
     assertTrue(card is DrivenUiCard.ErrorCard)

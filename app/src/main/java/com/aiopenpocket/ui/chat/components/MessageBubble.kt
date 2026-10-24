@@ -63,6 +63,8 @@ internal fun MessageBubble(
     onCardAction: (String, Boolean) -> Unit = { _, _ -> },
     observeHeartbeat: (String) -> Flow<HeartbeatEntity?> = { kotlinx.coroutines.flow.flowOf(null) },
     onCancelHeartbeat: (String) -> Unit = {},
+    personalizingImages: Set<String> = emptySet(),
+    onPersonalizeImage: (DrivenUiCard.ImageCard) -> Unit = {},
 ) {
     // Панель действий (удалить) — по ТАПУ на пузырь, не по long-press: long-press занят выделением
     // текста (SelectionContainer внутри MarkdownText), с ним обработчик тапа не конфликтует.
@@ -150,6 +152,8 @@ internal fun MessageBubble(
                     observeHeartbeat = observeHeartbeat,
                     onCancelHeartbeat = onCancelHeartbeat,
                     lessonCard = interactiveCards,
+                    personalizingImages = personalizingImages,
+                    onPersonalizeImage = onPersonalizeImage,
                 )
             } else {
                 MarkdownText(text = displayText, compact = true, selectable = true, fontScale = fontScale)

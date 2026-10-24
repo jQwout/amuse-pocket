@@ -12,6 +12,7 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.client.engine.mock.respondError
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
@@ -45,6 +46,7 @@ class LessonChatControllerImageTest {
   private lateinit var db: AppDatabase
   private lateinit var repo: ConversationRepository
   private val calls = AtomicInteger(0)
+  private val sentBodies = mutableListOf<String>()
 
   @Before
   fun setUp() {
@@ -61,8 +63,9 @@ class LessonChatControllerImageTest {
   }
 
   private fun controller(fail: Boolean = false): LessonChatController {
-    val engine = MockEngine {
+    val engine = MockEngine { request ->
       calls.incrementAndGet()
+      synchronized(sentBodies) { sentBodies += (request.body as TextContent).text }
       if (fail) {
         respondError(HttpStatusCode.InternalServerError)
       } else {
@@ -118,6 +121,56 @@ class LessonChatControllerImageTest {
     controller(fail = true).postStep(id, lessonOf(step), 0)
 
     assertEquals("https://example.com/x.png", postedParams(id).getString("url"))
+  }
+
+  /** Промпт едет в карточку, иначе кнопке «Нарисуй под меня» нечего перерисовывать. */
+  @Test
+  fun `an illustration step carries its prompt for draw-it-for-me`() = runBlocking {
+    val id = repo.createConversation(title = "Урок", isTutorial = true)
+    val step = LessonStep(type = "image", asset = "lessons/images/llm_path.svg", imagePrompt = "робот читает книгу")
+
+    controller().postStep(id, lessonOf(step), 0)
+
+    assertEquals("робот читает книгу", postedParams(id).getString("image_prompt"))
+  }
+
+  @Test
+  fun `a step without a prompt offers no redraw`() = runBlocking {
+    val id = repo.createConversation(title = "Урок", isTutorial = true)
+
+    controller().postStep(id, lessonOf(LessonStep(type = "image", asset = "lessons/images/llm_path.svg")), 0)
+
+    assertTrue(!postedParams(id).has("image_prompt"))
+  }
+
+  /**
+   * Картинка «под меня» — отдельное сообщение под шагом, нарисованное по промпту шага и «о себе».
+   * У неё нет своего промпта, а значит и кнопки: перерисовывать перерисованное незачем.
+   */
+  @Test
+  fun `draw-it-for-me posts a personalized picture as its own card`() = runBlocking {
+    val id = repo.createConversation(title = "Урок", isTutorial = true)
+
+    val posted = controller().postPersonalizedImage(id, "A robot reads a book.", "Пакет", "Пеку хлеб", "ru")
+
+    assertTrue(posted)
+    val params = postedParams(id)
+    assertTrue(params.getString("url"), params.getString("url").startsWith("file://"))
+    assertEquals("Пакет — нарисовано под тебя", params.getString("caption"))
+    assertTrue(!params.has("image_prompt"))
+    val sent = sentBodies.single()
+    assertTrue(sent, sent.contains("A robot reads a book."))
+    assertTrue(sent, sent.contains("Пеку хлеб"))
+  }
+
+  @Test
+  fun `a failed redraw posts nothing`() = runBlocking {
+    val id = repo.createConversation(title = "Урок", isTutorial = true)
+
+    val posted = controller(fail = true).postPersonalizedImage(id, "A robot reads a book.", "Пакет", "Пеку хлеб", "ru")
+
+    assertTrue(!posted)
+    assertTrue(repo.getAllMessages(id).isEmpty())
   }
 
   /** Предзагрузка рисует заранее, и показ шага берёт картинку из кеша без нового запроса. */

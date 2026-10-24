@@ -101,6 +101,8 @@ data class ChatUiState(
   val lessonStepIndex: Int = 0,
   /** True, когда показана карточка завершения урока. */
   val lessonFinished: Boolean = false,
+  /** Картинки урока, которые сейчас перерисовываются «под меня» (по imagePrompt). */
+  val personalizingImagePrompts: Set<String> = emptySet(),
 ) {
   companion object {
     /**
