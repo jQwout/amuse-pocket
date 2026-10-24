@@ -18,12 +18,12 @@ class LlmProviderTest {
   }
 
   @Test
-  fun `unknown and empty names fall back to NIM`() {
-    assertEquals(LlmProvider.NIM, llmProviderOf(""))
-    assertEquals(LlmProvider.NIM, llmProviderOf("gpt"))
+  fun `unknown and empty names fall back to the default provider`() {
+    assertEquals(LlmProvider.OPENROUTER, llmProviderOf(""))
+    assertEquals(LlmProvider.OPENROUTER, llmProviderOf("gpt"))
     // Значения удалённых констант: у кого-то они остались в prefs с прошлой сборки.
-    assertEquals(LlmProvider.NIM, llmProviderOf("AUTO"))
-    assertEquals(LlmProvider.NIM, llmProviderOf("GROQ"))
+    assertEquals(LlmProvider.OPENROUTER, llmProviderOf("AUTO"))
+    assertEquals(LlmProvider.OPENROUTER, llmProviderOf("GROQ"))
   }
 
   /**

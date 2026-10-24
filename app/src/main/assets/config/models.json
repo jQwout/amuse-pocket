@@ -2,66 +2,57 @@
   "base_url": "https://integrate.api.nvidia.com/v1",
   "models": [
     {
-      "name": "z-ai/glm-5.2",
+      "name": "z-ai/glm-5.3",
       "priority": 1,
       "max_tokens": 32000,
       "reasoning": true
     },
     {
-      "name": "stepfun-ai/step-3.7-flash",
+      "name": "deepseek-ai/deepseek-v4.1-flash",
       "priority": 2,
-      "max_tokens": 32000,
+      "max_tokens": 16000,
       "reasoning": true
     },
     {
-      "name": "thinkingmachines/inkling",
+      "name": "moonshotai/kimi-k2.6",
       "priority": 3,
-      "max_tokens": 32000,
-      "reasoning": true,
-      "temperature": 1.0,
-      "top_p": 0.95
+      "max_tokens": 16000,
+      "reasoning": true
     },
     {
-      "name": "deepseek-ai/deepseek-v4-flash",
+      "name": "nvidia/nemotron-3-super-120b-a12b",
       "priority": 4,
       "max_tokens": 16000,
       "reasoning": true
     },
     {
-      "name": "minimaxai/minimax-m3",
+      "name": "z-ai/glm-5.3-flash",
       "priority": 5,
       "max_tokens": 16000,
+      "reasoning": true
+    },
+    {
+      "name": "minimaxai/minimax-m3.1-flash",
+      "priority": 6,
+      "max_tokens": 16000,
       "reasoning": true,
-      "temperature": 1.0,
-      "top_p": 0.95
+      "temperature": 1.0
     },
     {
       "name": "openai/gpt-oss-20b",
-      "priority": 6,
-      "max_tokens": 16000,
-      "reasoning": false
-    },
-    {
-      "name": "meta/llama-3.1-8b-instruct",
       "priority": 7,
       "max_tokens": 16000,
       "reasoning": false
     },
     {
-      "name": "nvidia/nemotron-3-nano-30b-a3b",
+      "name": "nvidia/nemotron-3.5-lightning-30b-a3b",
       "priority": 8,
       "max_tokens": 16000,
       "reasoning": true
     },
     {
-      "name": "mistralai/mistral-medium-3.5-128b",
+      "name": "mistralai/mistral-large",
       "priority": 9,
-      "max_tokens": 16000,
-      "reasoning": true
-    },
-    {
-      "name": "mistralai/mistral-large-3-675b-instruct-2512",
-      "priority": 10,
       "max_tokens": 16000,
       "reasoning": false
     }

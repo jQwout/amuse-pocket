@@ -37,16 +37,20 @@ interface SettingsRepository {
    * номером: ordinal сместился бы при любой правке enum и молча переключил бы пользователя на
    * другого вендора — ровно то, чего в этой фиче быть не должно.
    *
-   * Неизвестное значение (переименовали константу, откатили сборку) читается как NIM — тот всегда
-   * доступен, у него ключ может быть вшит в сборку (см. `llmProviderOf`).
+   * Неизвестное значение (переименовали константу, откатили сборку) читается как провайдер по
+   * умолчанию (см. `llmProviderOf`).
    */
   fun getSelectedProvider(): String
 
   fun setSelectedProvider(provider: String)
 
   companion object {
-    /** NIM: у него ключ может быть вшит в сборку, поэтому он работает «из коробки». */
-    const val DEFAULT_PROVIDER = "NIM"
+    /**
+     * OpenRouter: приложение работает на моделях Meta Muse (Meta-хакатон, docs/meta-hackathon-plan.md),
+     * а Muse Spark стоит первой в его каталоге. В отладочной сборке ключ может быть вшит из .env,
+     * поэтому Muse работает «из коробки», начиная с онбординга.
+     */
+    const val DEFAULT_PROVIDER = "OPENROUTER"
 
     /**
      * Имя файла EncryptedSharedPreferences. Константа, потому что оно дословно повторено в

@@ -12,6 +12,7 @@ import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.LlmUsageRecorder
 import com.aiopenpocket.agent.core.llm.ModelCatalog
 import com.aiopenpocket.agent.core.llm.bundledNvidiaKey
+import com.aiopenpocket.agent.core.llm.bundledOpenRouterKey
 import com.aiopenpocket.agent.core.llm.ModelCatalogLoader
 import com.aiopenpocket.agent.core.llm.OpenAiCompatClient
 import com.aiopenpocket.agent.core.llm.ProviderConfig
@@ -30,6 +31,13 @@ import io.ktor.client.engine.android.Android
 @ContributesTo(AppScope::class)
 @BindingContainer
 object LlmModule {
+
+  /**
+   * Ключ OpenRouter: из Настроек, иначе вшитый в отладочную сборку из .env. Одна функция на чат,
+   * картинки и видео — иначе Muse однажды заработала бы в чате и молча отказала в уроке.
+   */
+  private fun openRouterKey(settingsRepository: SettingsRepository): String =
+    settingsRepository.getApiKey("OPENROUTER").ifBlank { bundledOpenRouterKey(BuildConfig.OPENROUTER_API_KEY) }
 
   @Provides
   @SingleIn(AppScope::class)
@@ -58,7 +66,7 @@ object LlmModule {
   ): ImageGenClient = ImageGenClient(
     engine = engine,
     apiKey = {
-      if (selectedProvider() == LlmProvider.OPENROUTER) settingsRepository.getApiKey("OPENROUTER") else ""
+      if (selectedProvider() == LlmProvider.OPENROUTER) openRouterKey(settingsRepository) else ""
     },
     usageRecorder = usageRecorder,
   )
@@ -77,7 +85,7 @@ object LlmModule {
   ): VideoUnderstandingClient = VideoUnderstandingClient(
     engine = engine,
     apiKey = {
-      if (selectedProvider() == LlmProvider.OPENROUTER) settingsRepository.getApiKey("OPENROUTER") else ""
+      if (selectedProvider() == LlmProvider.OPENROUTER) openRouterKey(settingsRepository) else ""
     },
     usageRecorder = usageRecorder,
   )
@@ -127,10 +135,9 @@ object LlmModule {
       configsFor = { provider ->
         when (provider) {
           LlmProvider.NIM -> nimConfigs
-          // У OpenRouter вшитого в сборку ключа нет — только пользовательский из Настроек. Пустой
-          // ключ это нормальное состояние до того, как пользователь его введёт.
+          // Ключ из Настроек в приоритете; иначе — вшитый в отладочную сборку из .env.
           LlmProvider.OPENROUTER -> configsFor(provider, modelCatalogLoader.loadOpenRouter()) {
-            settingsRepository.getApiKey("OPENROUTER")
+            openRouterKey(settingsRepository)
           }
         }
       },

@@ -34,15 +34,26 @@ fun bundledNvidiaKey(buildKey: String): String =
 const val NVIDIA_KEY_PLACEHOLDER = "MY_NVIDIA_API_KEY"
 
 /**
+ * Ключ OpenRouter, вшитый в отладочную сборку из `.env`, или пустая строка. Та же схема, что у
+ * [bundledNvidiaKey]: без него приложение на Muse не дожило бы до Настроек — онбординг сам ходит в
+ * модель. В магазинную сборку живой ключ не пустит проверка в app/build.gradle.kts.
+ */
+fun bundledOpenRouterKey(buildKey: String): String =
+  buildKey.takeUnless { it.isBlank() || it == OPENROUTER_KEY_PLACEHOLDER }.orEmpty()
+
+const val OPENROUTER_KEY_PLACEHOLDER = "MY_OPENROUTER_API_KEY"
+
+/**
  * Провайдер по имени из настроек (`SettingsRepository.getSelectedProvider`).
  *
- * Неизвестное имя (переименовали константу, откатили сборку) — это NIM, а не исключение: провайдер
- * читается на каждом ходе, в том числе в фоне, и агент не должен умирать из-за строки в prefs. Одна
- * функция на всех, чтобы «тихий дефолт» не разъехался между вызывающими.
+ * Неизвестное имя (переименовали константу, откатили сборку) — это OpenRouter, провайдер по
+ * умолчанию, а не исключение: провайдер читается на каждом ходе, в том числе в фоне, и агент не
+ * должен умирать из-за строки в prefs. Одна функция на всех, чтобы «тихий дефолт» не разъехался
+ * между вызывающими.
  */
 fun llmProviderOf(name: String): LlmProvider =
   name.trim().uppercase().let { normalized -> LlmProvider.entries.firstOrNull { it.name == normalized } }
-    ?: LlmProvider.NIM
+    ?: LlmProvider.OPENROUTER
 
 /**
  * Текущий выбор пользователя — читается на каждом обращении, а не фиксируется при сборке графа:
