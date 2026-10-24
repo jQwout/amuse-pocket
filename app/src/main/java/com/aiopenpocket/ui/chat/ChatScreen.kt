@@ -222,6 +222,9 @@ fun ChatScreen(
     val onPersonalizeImage: (DrivenUiCard.ImageCard) -> Unit = remember {
         { card -> viewModel.handleIntent(ChatIntent.PersonalizeLessonImage(card.prompt, card.caption)) }
     }
+    val onLessonVideo: (String, android.net.Uri) -> Unit = remember {
+        { prompt, uri -> viewModel.handleIntent(ChatIntent.AnalyzeLessonVideo(prompt, uri)) }
+    }
     // Живая карточка reminder: подписка на heartbeat + отмена — стабильные ссылки на методы ViewModel.
     val observeHeartbeat: (String) -> Flow<HeartbeatEntity?> = remember { viewModel::observeHeartbeat }
     val onCancelHeartbeat: (String) -> Unit = remember { viewModel::cancelHeartbeat }
@@ -519,6 +522,8 @@ fun ChatScreen(
                         onCancelHeartbeat = onCancelHeartbeat,
                         personalizingImages = state.personalizingImagePrompts,
                         onPersonalizeImage = onPersonalizeImage,
+                        analyzingVideos = state.analyzingVideoPrompts,
+                        onLessonVideo = onLessonVideo,
                     )
                 }
                 if (hasStreamingItem) {
@@ -865,11 +870,15 @@ fun ChatScreen(
                     // Ручная кнопка — для шагов без собственного «завершения»: текст, картинка и карточки-
                     // отображения (reveal/concept/example). Интерактивные (quiz/fill/sort/match/scenario) двигают
                     // урок сами по факту прохождения; исключение — вырожденный quiz без вопросов, ему нужна кнопка.
+                    // "video" — тоже с кнопкой: снять ролик можно не всегда (нет OpenRouter, не та обстановка),
+                    // и урок не должен на этом застревать.
                     val displayStep = currentStep?.type in
-                            setOf("text", "image", "reveal", "concept", "example", "input", "challenge")
+                            setOf("text", "image", "video", "reveal", "concept", "example", "input", "challenge")
                     // !isLoading: во время стрима tutor-ответа не даём листать урок, иначе следующий шаг
-                    // впечатается в живой ход. Кнопка вернётся, когда ответ дойдёт.
+                    // впечатается в живой ход. Кнопка вернётся, когда ответ дойдёт. По той же причине прячем
+                    // её, пока модель смотрит видео: ответ про ролик должен лечь под своим шагом.
                     val needsManualAdvance = currentStep != null && !state.lessonFinished && !state.isLoading &&
+                            state.analyzingVideoPrompts.isEmpty() &&
                             (displayStep || (currentStep.type == "quiz" && currentStep.questions.isEmpty()))
                     // «Спросить» — свободный вопрос к LLM в любой момент урока (пока он не завершён).
                     // Курсор персистится отдельно (lessonStepIndex), так что вопрос не сдвигает шаги.

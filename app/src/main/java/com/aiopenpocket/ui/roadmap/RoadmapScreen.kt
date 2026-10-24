@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.TrackChanges
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.WavingHand
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -113,6 +114,14 @@ val ROADMAP_LEVELS = listOf(
     "Токены и скорость",
     "Что такое токен, входные и выходные токены, рассуждения моделей и отчего один ответ быстрый, а другой долгий и дорогой.",
     Icons.Default.Bolt,
+  ),
+  // Сразу за токенами: видео — это те же токены, только из кадров, и урок опирается на «больше
+  // токенов — дольше и дороже». Здесь же пользователь впервые отдаёт модели свои данные не словами.
+  RoadmapLevel(
+    "how_model_sees",
+    "Как модель видит",
+    "Фото и видео тоже становятся токенами. Сними 10 секунд вокруг себя — и посмотри, что увидит модель.",
+    Icons.Default.Videocam,
   ),
   // Сразу за токенами, а не в середине пути: урок про память начинается ровно там, где кончается
   // урок про окно — «окно ограничено, старое вытесняется, значит важное надо хранить снаружи».

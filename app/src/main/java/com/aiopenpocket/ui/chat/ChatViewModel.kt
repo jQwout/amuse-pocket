@@ -405,6 +405,7 @@ class ChatViewModel(
             is ChatIntent.AdvanceLesson -> advanceLesson()
             is ChatIntent.CompleteLessonQuiz -> completeLessonQuiz()
             is ChatIntent.PersonalizeLessonImage -> personalizeLessonImage(intent.imagePrompt, intent.caption)
+            is ChatIntent.AnalyzeLessonVideo -> analyzeLessonVideo(intent.videoPrompt, intent.video)
             is ChatIntent.AskDuringLesson -> askDuringLesson(intent.text)
             is ChatIntent.ApproveToolCall -> resolveToolApproval(approved = true)
             is ChatIntent.DenyToolCall -> resolveToolApproval(approved = false)
@@ -571,6 +572,75 @@ class ChatViewModel(
             }
             if (problem != null) _state.update { it.copy(error = problem, canRetry = false) }
         }
+    }
+
+    /**
+     * Шаг урока "video": ролик пользователя → Muse Spark → ответ в чат (LessonChatController.postVideoAnswer).
+     *
+     * Провайдера проверяем до чтения файла: видео уходит провайдеру целиком, и только тому, которого
+     * пользователь выбрал. Ролик читаем с потолком — длинное или 4K-видео не грузим в память целиком.
+     * Снятый камерой файл (наш, в cacheDir) удаляем при любом исходе; выбранный из галереи — чужой, его
+     * не трогаем.
+     */
+    private fun analyzeLessonVideo(videoPrompt: String, video: android.net.Uri) {
+        val convId = currentConversationId() ?: return
+        if (videoPrompt.isBlank() || videoPrompt in _state.value.analyzingVideoPrompts) return
+        _state.update {
+            it.copy(analyzingVideoPrompts = it.analyzingVideoPrompts + videoPrompt, error = null, canRetry = false)
+        }
+        viewModelScope.launch {
+            val problem = try {
+                val (language, provider) = withContext(Dispatchers.IO) {
+                    userPreferencesRepository.getLanguage() to llmProviderOf(settingsRepository.getSelectedProvider())
+                }
+                if (provider != LlmProvider.OPENROUTER) {
+                    "Видео разбирает Muse Spark — выбери OpenRouter в Настройках."
+                } else {
+                    val clip = withContext(Dispatchers.IO) { readLessonVideo(video) }
+                    when {
+                        clip == null -> "Видео слишком большое или не открылось — сними покороче, до 10 секунд."
+                        !lessonChatController.postVideoAnswer(convId, videoPrompt, clip.first, clip.second, language) ->
+                            "Не получилось разобрать видео. Проверь ключ OpenRouter и сеть и попробуй ещё раз."
+                        else -> null
+                    }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("ChatViewModel", "lesson video failed", e)
+                "Не получилось разобрать видео. Попробуй ещё раз."
+            } finally {
+                withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) { deleteOwnCapture(video) }
+                _state.update { it.copy(analyzingVideoPrompts = it.analyzingVideoPrompts - videoPrompt) }
+            }
+            if (problem != null) _state.update { it.copy(error = problem, canRetry = false) }
+        }
+    }
+
+    /** Байты ролика и его тип, или null: не открылся или длиннее [VideoUnderstandingClient.MAX_VIDEO_BYTES]. */
+    private fun readLessonVideo(video: android.net.Uri): Pair<ByteArray, String>? {
+        val resolver = context.contentResolver
+        val mimeType = resolver.getType(video)?.takeIf { it.startsWith("video/") } ?: "video/mp4"
+        val limit = com.aiopenpocket.agent.core.llm.VideoUnderstandingClient.MAX_VIDEO_BYTES
+        val bytes = resolver.openInputStream(video)?.use { input ->
+            val out = java.io.ByteArrayOutputStream()
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                out.write(buffer, 0, read)
+                if (out.size() > limit) return null
+            }
+            out.toByteArray()
+        } ?: return null
+        return bytes.takeIf { it.isNotEmpty() }?.let { it to mimeType }
+    }
+
+    /** Удаляет ролик, снятый камерой для урока: он наш и лежит в cacheDir. Ролики из галереи не трогаем. */
+    private fun deleteOwnCapture(video: android.net.Uri) {
+        if (video.authority != "${context.packageName}.fileprovider") return
+        val name = video.lastPathSegment ?: return
+        java.io.File(java.io.File(context.cacheDir, com.aiopenpocket.ui.chat.components.LESSON_VIDEO_DIR), name).delete()
     }
 
     /**

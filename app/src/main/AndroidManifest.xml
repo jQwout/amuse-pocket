@@ -57,6 +57,17 @@
             </intent-filter>
         </activity>
 
+        <!-- Камера пишет ролик для урока в наш cacheDir (не в галерею) — ей нужен content-URI на файл. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/lesson_file_paths" />
+        </provider>
+
         <!-- Регистрация приложения как системного голосового помощника. -->
         <service
             android:name="com.aiopenpocket.voice.AssistInteractionService"

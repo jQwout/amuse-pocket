@@ -138,6 +138,9 @@ fun RenderDrivenUiCard(
     /** Промпты картинок, которые прямо сейчас перерисовываются «под меня» — их кнопка показывает «Рисую…». */
     personalizingImages: Set<String> = emptySet(),
     onPersonalizeImage: (DrivenUiCard.ImageCard) -> Unit = {},
+    /** Задания шагов "video", чьи ролики модель прямо сейчас смотрит. */
+    analyzingVideos: Set<String> = emptySet(),
+    onLessonVideo: (videoPrompt: String, video: android.net.Uri) -> Unit = { _, _ -> },
 ) {
     // Приложение форсит тёмную тему всегда (Theme.kt: darkTheme=true, LightColorScheme=DarkColorScheme),
     // НЕЗАВИСИМО от системной темы устройства. Поэтому гейт — только по lessonCard, а не по
@@ -182,6 +185,11 @@ fun RenderDrivenUiCard(
                 } else {
                     null
                 },
+            )
+            is DrivenUiCard.LessonVideoCard -> LessonVideoCardView(
+                card = card,
+                analyzing = card.prompt in analyzingVideos,
+                onVideoChosen = { uri -> onLessonVideo(card.prompt, uri) },
             )
             is DrivenUiCard.RevealCard -> RevealCardView(card)
             is DrivenUiCard.ConceptCard -> ConceptCardView(card)

@@ -3,8 +3,10 @@ package com.aiopenpocket.agent.core.lesson
 // @trace uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2
 // @trace user-agent-builder-848153
 // @trace kartinki-urokov-cherez-muse-image-fd6f8c
+// @trace video-na-vhod-v-uroke-muse-spark-08ccdb
 
 import android.net.Uri
+import com.aiopenpocket.agent.core.llm.VideoUnderstandingClient
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
@@ -31,7 +33,28 @@ import org.json.JSONObject
 class LessonChatController(
   private val conversationRepository: ConversationRepository,
   private val imageGenerator: LessonImageGenerator,
+  private val videoClient: VideoUnderstandingClient,
 ) {
+
+  /**
+   * Ответ Muse Spark на ролик пользователя к шагу "video": задание урока ([videoPrompt]) плюс
+   * язык ответа. Ответ ложится в чат обычным сообщением ассистента под карточкой шага; курсор урока
+   * это не сдвигает. `false` — разобрать не вышло, сообщения нет.
+   */
+  suspend fun postVideoAnswer(
+    conversationId: String,
+    videoPrompt: String,
+    video: ByteArray,
+    mimeType: String,
+    languageCode: String,
+  ): Boolean {
+    val language = java.util.Locale.forLanguageTag(languageCode)
+      .getDisplayLanguage(java.util.Locale.ENGLISH).ifBlank { "the learner's language" }
+    val instruction = "${videoPrompt.trim()}\n\nAnswer in $language."
+    val answer = videoClient.describe(instruction, video, mimeType) ?: return false
+    conversationRepository.addMessage(conversationId, "assistant", answer)
+    return true
+  }
 
   /**
    * Заранее рисует картинки шагов урока, начиная с [fromIndex], — по порядку шагов, чтобы ближайшая
@@ -78,6 +101,7 @@ class LessonChatController(
     val cardSpec = when (step.type) {
       "quiz" -> buildQuizCardSpec(step)
       "image" -> buildImageCardSpec(step)
+      "video" -> buildVideoCardSpec(step)
       "reveal" -> buildRevealCardSpec(step)
       "concept" -> buildConceptCardSpec(step)
       "example" -> buildExampleCardSpec(step)
@@ -168,6 +192,14 @@ class LessonChatController(
     // только то, что знаешь, как нарисовать.
     if (step.imagePrompt.isNotBlank()) params.put("image_prompt", step.imagePrompt)
     return JSONObject().put("template", "image").put("params", params).toString()
+  }
+
+  /** "video": что снять (видит пользователь) + задание модели (уходит с роликом в Muse Spark). */
+  private fun buildVideoCardSpec(step: LessonStep): String {
+    val params = JSONObject()
+      .put("instruction", step.instruction)
+      .put("video_prompt", step.videoPrompt)
+    return JSONObject().put("template", "lesson_video").put("params", params).toString()
   }
 
   // imageKey — короткая форма: lessons/images/{key}.svg. Явный asset имеет приоритет.

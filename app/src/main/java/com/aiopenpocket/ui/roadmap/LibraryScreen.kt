@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.TrackChanges
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -197,5 +198,6 @@ private fun lessonIcon(key: String): ImageVector = when (key) {
   "layers", "context" -> Icons.Default.Layers
   "auto_awesome", "reflect" -> Icons.Default.AutoAwesome
   "book" -> Icons.AutoMirrored.Filled.MenuBook
+  "videocam", "vision" -> Icons.Default.Videocam
   else -> Icons.AutoMirrored.Filled.Article
 }

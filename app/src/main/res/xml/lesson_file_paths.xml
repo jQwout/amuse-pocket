@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Только папка роликов урока: камере открыт ровно этот каталог cacheDir, а не весь кеш. -->
+<paths>
+    <cache-path name="lesson_videos" path="lesson_videos/" />
+</paths>

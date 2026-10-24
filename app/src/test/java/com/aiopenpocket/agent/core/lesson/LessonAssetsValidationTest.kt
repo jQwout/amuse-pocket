@@ -130,6 +130,11 @@ class LessonAssetsValidationTest {
               }
             }
 
+            "video" -> {
+              if (step.instruction.isBlank()) err("пустой instruction — непонятно, что снимать")
+              if (step.videoPrompt.isBlank()) err("пустой videoPrompt — модели нечего делать с роликом")
+            }
+
             "reveal" -> {
               if (step.question.isBlank()) err("пустой question")
               if (step.answer.isBlank()) err("пустой answer — кнопка раскроет пустоту")

@@ -103,6 +103,8 @@ data class ChatUiState(
   val lessonFinished: Boolean = false,
   /** Картинки урока, которые сейчас перерисовываются «под меня» (по imagePrompt). */
   val personalizingImagePrompts: Set<String> = emptySet(),
+  /** Шаги "video", чьи ролики модель сейчас смотрит (по videoPrompt). Пока не пусто — «Дальше» спрятана. */
+  val analyzingVideoPrompts: Set<String> = emptySet(),
 ) {
   companion object {
     /**

@@ -5,6 +5,7 @@ import android.util.Base64
 import androidx.room.Room
 import com.aiopenpocket.agent.core.llm.ImageGenClient
 import com.aiopenpocket.agent.core.llm.NoOpLlmUsageRecorder
+import com.aiopenpocket.agent.core.llm.VideoUnderstandingClient
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.data.database.AppDatabase
 import io.ktor.client.engine.mock.MockEngine
@@ -74,7 +75,7 @@ class LessonChatControllerImageTest {
       }
     }
     val generator = LessonImageGenerator(application, ImageGenClient(engine, { "k" }, NoOpLlmUsageRecorder))
-    return LessonChatController(repo, generator)
+    return LessonChatController(repo, generator, VideoUnderstandingClient(engine, { "k" }, NoOpLlmUsageRecorder))
   }
 
   private fun lessonOf(step: LessonStep) = Lesson(id = "l", title = "Урок", steps = listOf(step))
