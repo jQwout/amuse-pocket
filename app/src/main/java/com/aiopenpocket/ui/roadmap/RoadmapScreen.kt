@@ -37,15 +37,19 @@ import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Loop
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.TrackChanges
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.WavingHand
 import androidx.compose.material3.Icon
@@ -123,6 +127,20 @@ val ROADMAP_LEVELS = listOf(
     "Фото и видео тоже становятся токенами. Покажи модели короткий ролик — и посмотри, что она увидит.",
     Icons.Default.Videocam,
   ),
+  // Модели Meta — сразу за видео: ученик только что видел, как Muse Spark смотрит ролик, и естественно
+  // спросить «а кто она и кто ещё есть». Режимы рассуждения — следом, пока свежи токены рассуждений.
+  RoadmapLevel(
+    "meta_models",
+    "Модели Meta: кто есть кто",
+    "У Meta не одна модель, а команда специалистов: Muse Spark, Muse Image, SAM, Llama. Кто за что отвечает и кто работает в этом приложении.",
+    Icons.Default.Hub,
+  ),
+  RoadmapLevel(
+    "muse_spark_modes",
+    "Muse Spark: быстро или вдумчиво",
+    "Режимы Instant, Thinking и Contemplating: зачем модели думать дольше и когда это того стоит.",
+    Icons.Default.Speed,
+  ),
   // Сразу за токенами, а не в середине пути: урок про память начинается ровно там, где кончается
   // урок про окно — «окно ограничено, старое вытесняется, значит важное надо хранить снаружи».
   // К тому же «Приватность» ниже опирается на виды памяти, и раньше ссылалась на шесть уроков вперёд.
@@ -138,11 +156,25 @@ val ROADMAP_LEVELS = listOf(
     "Что такое температура и почему один и тот же запрос даёт разные ответы.",
     Icons.Default.Thermostat,
   ),
+  // За температурой: «один промпт — новая картинка» — та же случайность, только в рисовании.
+  RoadmapLevel(
+    "muse_image_draws",
+    "Как рисует Muse Image",
+    "Модель Meta для картинок сначала планирует, потом рисует и проверяет. И почему один промпт каждый раз даёт новую картинку.",
+    Icons.Default.Palette,
+  ),
   RoadmapLevel(
     "privacy_and_reliability",
     "Приватность и надёжность",
     "Что уходит в облако, что остаётся у тебя, и что делать при сбоях.",
     Icons.Default.Shield,
+  ),
+  // За приватностью: «что уходит провайдеру» доводится до «а можно ли не отдавать вовсе».
+  RoadmapLevel(
+    "open_weights_and_api",
+    "Открытые веса и API",
+    "Где на самом деле живёт модель: на твоём сервере или у вендора. От этого зависит, кто видит твои данные и кто делает работу.",
+    Icons.Default.Storage,
   ),
   RoadmapLevel(
     "hallucinations",
