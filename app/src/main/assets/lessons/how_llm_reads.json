@@ -5,6 +5,7 @@
   "iconKey": "psychology",
   "steps": [
     {"type": "text", "text": "Мы уже знаем, что модель просто продолжает текст. Теперь заглянем под капот: что именно она получает, когда ты жмёшь «отправить»."},
+    {"type": "image", "asset": "lessons/images/generated/how_llm_reads-7c9138a9be.webp", "imagePrompt": "A parcel being packed on a conveyor belt: a small rulebook, a theatre mask, a stack of earlier chat bubbles and finally one new chat bubble go into a single box, which travels toward a friendly robot ready to read it.", "caption": "Модель получает не одну фразу, а целый пакет"},
     {"type": "text", "text": "Твоё сообщение для модели называется промпт — это запрос, на который она отвечает."},
     {"type": "text", "text": "Но перед твоим промптом я незаметно подставляю ещё текст — препромпт. Туда идут правила работы, выбранная персона и факты из твоего профиля."},
     {"type": "text", "text": "Почувствуй разницу на примере. Ты пишешь: «посоветуй ужин». А модель на самом деле получает: «Ты — дружелюбный помощник Саши, Саша не ест мясо» + история разговора + «посоветуй ужин». Поэтому ответ попадает в точку, а не звучит как из общего справочника."},

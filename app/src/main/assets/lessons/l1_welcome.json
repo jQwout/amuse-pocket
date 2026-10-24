@@ -6,6 +6,7 @@
   "firstRun": true,
   "steps": [
     {"type": "text", "stream": true, "text": "Привет! 👋 Это AI Open Pocket — карманный агент: не просто отвечаю, а ещё и делаю. Давай за пару минут настроим меня под тебя, а вся теория будет потом — по одному короткому уроку за раз."},
+    {"type": "image", "asset": "lessons/images/generated/l1_welcome-d55e3ae6a4.webp", "imagePrompt": "A friendly pocket-sized robot waves hello from inside a smartphone held in a hand, with a cozy desk and a cup of tea in the background.", "caption": "Карманный агент: не только отвечает, но и делает"},
     {"type": "language"},
     {"type": "text", "text": "Устроено всё просто: ты пишешь мне сообщение — я отвечаю. Как обычная переписка, только собеседник — программа. Никаких особых команд учить не нужно: спрашивай своими словами."},
     {"type": "text", "text": "Отвечать я могу на что угодно: объяснить непонятное, помочь с текстом, посчитать, подсказать идею. Не бойся спросить «глупое» — переспрашивать тут нормально, я не устану."},

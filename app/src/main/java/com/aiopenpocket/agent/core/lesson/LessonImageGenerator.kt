@@ -56,12 +56,7 @@ class LessonImageGenerator(
     }
   }
 
-  /**
-   * Общий стиль для всех картинок уроков. Без него каждый шаг выглядел бы как из другой книжки.
-   * «Без текста» — потому что подпись у карточки своя, а буквы, особенно кириллицу, модели рисуют
-   * криво. Горизонтальный кадр — под карточку 16:9: параметра формы у `meta/muse-image` нет.
-   */
-  private fun styled(prompt: String): String = "${prompt.trim()}\n\n$STYLE"
+  private fun styled(prompt: String): String = "${prompt.trim()}\n\n$LESSON_IMAGE_STYLE"
 
   private fun cacheName(fullPrompt: String): String {
     val digest = MessageDigest.getInstance("SHA-256").digest("${client.model}\n$fullPrompt".toByteArray())
@@ -93,8 +88,18 @@ class LessonImageGenerator(
     const val DIR_NAME = "lesson_images"
     // Расширение условное: тип картинки (png/webp/jpeg) Coil определяет по содержимому файла.
     const val EXTENSION = ".img"
-    const val STYLE = "Flat, clean editorial illustration for a mobile lesson about AI. " +
-      "Light background, soft colors, wide 16:9 landscape composition. " +
-      "No text, letters or numbers anywhere in the image."
   }
 }
+
+/**
+ * Общий стиль для всех картинок уроков. Без него каждый шаг выглядел бы как из другой книжки.
+ * «Без текста» — потому что подпись у карточки своя, а буквы, особенно кириллицу, модели рисуют
+ * криво. Горизонтальный кадр — под карточку 16:9: параметра формы у `meta/muse-image` нет.
+ *
+ * Ту же строку дословно дописывает скрипт предгенерации `tools/lesson-images/pregenerate.py` —
+ * иначе картинки из сборки и нарисованные на телефоне были бы в разном стиле. Расхождение ловит
+ * LessonImageStyleSyncTest.
+ */
+internal const val LESSON_IMAGE_STYLE = "Flat, clean editorial illustration for a mobile lesson about AI. " +
+  "Light background, soft colors, wide 16:9 landscape composition. " +
+  "No text, letters or numbers anywhere in the image."

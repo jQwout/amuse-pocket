@@ -122,6 +122,12 @@ class LessonAssetsValidationTest {
                 asset.isBlank() && step.url.isBlank() && step.imagePrompt.isBlank() ->
                   err("нет ни asset/imageKey, ни url, ни imagePrompt — карточка «Нет изображения»")
               }
+              // Скрипт предгенерации (tools/lesson-images) ищет промпт в файле дословно и вписывает
+              // перед ним asset: кавычка или обратный слеш поменяли бы запись в JSON. А по-английски
+              // модель рисует точнее — поэтому печатный ASCII.
+              if (step.imagePrompt.isNotBlank() && !step.imagePrompt.all { it in ' '..'~' && it != '"' && it != '\\' }) {
+                err("imagePrompt: только печатный ASCII без кавычек и обратных слешей")
+              }
             }
 
             "reveal" -> {
