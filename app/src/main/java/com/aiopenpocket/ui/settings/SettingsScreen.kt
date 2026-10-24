@@ -91,6 +91,7 @@ import androidx.compose.ui.unit.sp
 import com.aiopenpocket.BuildConfig
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.bundledNvidiaKey
+import com.aiopenpocket.agent.core.llm.bundledOpenRouterKey
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
 import com.aiopenpocket.ui.onboarding.components.PersonaCard
 import com.aiopenpocket.ui.components.AcademyBottomNav
@@ -301,7 +302,7 @@ fun SettingsScreen(
       // BuildConfig.NVIDIA_API_KEY остаётся плейсхолдером, и тогда дефолтный провайдер точно так же
       // молчит; поэтому проверяем оба, а не только OpenRouter.
       val keyMissing = when (state.provider) {
-        LlmProvider.OPENROUTER -> state.openRouterKey.isBlank()
+        LlmProvider.OPENROUTER -> state.openRouterKey.isBlank() && bundledOpenRouterKey(BuildConfig.OPENROUTER_API_KEY).isBlank()
         // Тем же предикатом, что и резолвер ключа в цепочке провайдеров, — иначе предупреждение и
         // реальное поведение однажды разойдутся.
         LlmProvider.NIM -> state.nvidiaKey.isBlank() && bundledNvidiaKey(BuildConfig.NVIDIA_API_KEY).isBlank()
