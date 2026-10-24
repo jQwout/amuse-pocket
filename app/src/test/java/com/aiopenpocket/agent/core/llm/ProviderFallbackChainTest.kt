@@ -160,6 +160,24 @@ class ProviderFallbackChainTest {
     assertEquals(listOf("with-tools"), mixed.resolve(LlmProvider.NIM).map { it.model })
   }
 
+  /**
+   * Кеш, записанный версией без фильтра, ещё может держать contributor-модель, а пользователь — иметь
+   * её выбранной. В цепочку она не попадает ни так, ни так.
+   */
+  @Test
+  fun `a model that trains on user data never enters the chain, even when preferred`() {
+    val openRouter = ProviderFallbackChain(
+      configs = mapOf(
+        LlmProvider.OPENROUTER to listOf(
+          config(LlmProvider.OPENROUTER, "meta/muse-spark-1.3-contributor"),
+          config(LlmProvider.OPENROUTER, "meta/muse-spark-1.3"),
+        ),
+      ),
+      preferredModel = { "meta/muse-spark-1.3-contributor" },
+    )
+    assertEquals(listOf("meta/muse-spark-1.3"), openRouter.resolve(LlmProvider.OPENROUTER).map { it.model })
+  }
+
   @Test
   fun `missing provider resolves to empty list`() {
     val partial = ProviderFallbackChain(mapOf(LlmProvider.NIM to listOf(config(LlmProvider.NIM))))
