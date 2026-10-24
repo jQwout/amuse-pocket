@@ -38,8 +38,8 @@
       "git": "98161c0"
     },
     "driven-ui-cards-0418d0": {
-      "hash": "a0dcacf4d524",
-      "git": "1a7895a"
+      "hash": "2abadfa03842",
+      "git": "6d2814d"
     },
     "fonovye-hody-agenta-dde42d": {
       "hash": "c2d9f3e50ffb",
@@ -69,6 +69,10 @@
       "hash": "5270de2048e5",
       "git": "47d6b57"
     },
+    "protsedurnye-animatsii-v-urokah-68b2bf": {
+      "hash": "60e33c6091aa",
+      "git": "6d2814d"
+    },
     "rezhim-refleksii-fca3c4": {
       "hash": "f6bf2deb2c2c",
       "git": "aba348d"
@@ -94,16 +98,16 @@
       "git": "3ed3e7f"
     },
     "uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2": {
-      "hash": "2fbc4add0307",
-      "git": "1a7895a"
+      "hash": "a5382d4b0866",
+      "git": "6d2814d"
     },
     "user-agent-builder-848153": {
-      "hash": "47741c72f263",
-      "git": "1a7895a"
+      "hash": "d5319064a01d",
+      "git": "6d2814d"
     },
     "video-na-vhod-v-uroke-muse-spark-08ccdb": {
-      "hash": "da31eb13d40c",
-      "git": "1a7895a"
+      "hash": "e5faea24281d",
+      "git": "6d2814d"
     },
     "voice-input-1a0dfd": {
       "hash": "8b0186906f6c",

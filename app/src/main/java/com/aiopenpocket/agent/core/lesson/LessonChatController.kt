@@ -4,6 +4,7 @@ package com.aiopenpocket.agent.core.lesson
 // @trace user-agent-builder-848153
 // @trace kartinki-urokov-cherez-muse-image-fd6f8c
 // @trace video-na-vhod-v-uroke-muse-spark-08ccdb
+// @trace protsedurnye-animatsii-v-urokah-68b2bf
 
 import android.net.Uri
 import com.aiopenpocket.agent.core.llm.VideoUnderstandingClient
@@ -102,6 +103,7 @@ class LessonChatController(
       "quiz" -> buildQuizCardSpec(step)
       "image" -> buildImageCardSpec(step)
       "video" -> buildVideoCardSpec(step)
+      "animation" -> buildAnimationCardSpec(step)
       "reveal" -> buildRevealCardSpec(step)
       "concept" -> buildConceptCardSpec(step)
       "example" -> buildExampleCardSpec(step)
@@ -192,6 +194,12 @@ class LessonChatController(
     // только то, что знаешь, как нарисовать.
     if (step.imagePrompt.isNotBlank()) params.put("image_prompt", step.imagePrompt)
     return JSONObject().put("template", "image").put("params", params).toString()
+  }
+
+  /** "animation": процедурная сцена по id + подпись под ней. */
+  private fun buildAnimationCardSpec(step: LessonStep): String {
+    val params = JSONObject().put("scene", step.scene).put("caption", step.caption)
+    return JSONObject().put("template", "lesson_animation").put("params", params).toString()
   }
 
   /** "video": что снять (видит пользователь) + задание модели (уходит с роликом в Muse Spark). */

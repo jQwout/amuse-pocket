@@ -31,6 +31,7 @@ object LessonQuestion {
     "scenario" -> "${step.situation} ${step.q} Варианты: ${step.options.joinToString(", ")}"
     "image" -> step.caption.ifBlank { step.alt }
     "video" -> step.instruction
+    "animation" -> step.caption
     "quiz" -> step.questions.joinToString("; ") { it.q }
     else -> step.text
   }
