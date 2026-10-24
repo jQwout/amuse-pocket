@@ -2,11 +2,14 @@ package com.aiopenpocket.agent.core.lesson
 
 // @trace uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2
 // @trace user-agent-builder-848153
+// @trace kartinki-urokov-cherez-muse-image-fd6f8c
 
+import android.net.Uri
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.intOrNull
@@ -25,7 +28,19 @@ import org.json.JSONObject
 @SingleIn(AppScope::class)
 class LessonChatController(
   private val conversationRepository: ConversationRepository,
+  private val imageGenerator: LessonImageGenerator,
 ) {
+
+  /**
+   * Заранее рисует картинки шагов урока, начиная с [fromIndex], — по порядку шагов, чтобы ближайшая
+   * была готова первой. Muse Image думает перед отрисовкой десятки секунд; без предзагрузки это
+   * время пользователь простоял бы на кнопке «Дальше». Уже нарисованные берутся из кеша мгновенно.
+   */
+  suspend fun prefetchImages(lesson: Lesson, fromIndex: Int = 0) {
+    lesson.steps.drop(fromIndex)
+      .filter { it.needsGeneratedImage() }
+      .forEach { imageGenerator.imageFor(it.imagePrompt) }
+  }
 
   /**
    * Публикует шаг урока [index] как одно сообщение ассистента. text → текст; остальные типы с
@@ -102,16 +117,36 @@ class LessonChatController(
     return JSONObject().put("template", "lesson_quiz").put("params", params).toString()
   }
 
-  /** Собирает cardSpec для карточки `image`: ассет (пробуется первым) + URL-фоллбек. */
-  private fun buildImageCardSpec(step: LessonStep): String {
-    // imageKey — короткая форма: lessons/images/{key}.svg. Явный asset имеет приоритет.
-    val asset = step.asset.ifBlank { step.imageKey.takeIf { it.isNotBlank() }?.let { "lessons/images/$it.svg" } ?: "" }
+  /**
+   * Собирает cardSpec для карточки `image`. Источники по порядку: ассет из бандла (работает без
+   * сети), картинка Muse Image по [LessonStep.imagePrompt], сетевой [LessonStep.url].
+   *
+   * Сгенерированная картинка уходит в `url` карточки как `file://` — рендер её от сетевой не
+   * отличает. Ждём её не дольше [STEP_IMAGE_WAIT_MS]: обычно она уже в кеше после
+   * [prefetchImages], а если нет — шаг выходит без неё. Держать пользователя на «Дальше» дольше
+   * хуже, чем показать шаг без картинки.
+   */
+  private suspend fun buildImageCardSpec(step: LessonStep): String {
+    val asset = step.bundledImageAsset()
+    val generated = if (step.needsGeneratedImage()) {
+      withTimeoutOrNull(STEP_IMAGE_WAIT_MS) { imageGenerator.imageFor(step.imagePrompt) }
+    } else {
+      null
+    }
     val params = JSONObject()
       .put("asset", asset)
-      .put("url", step.url)
+      .put("url", generated?.let { Uri.fromFile(it).toString() } ?: step.url)
       .put("caption", step.caption.ifBlank { step.alt })
     return JSONObject().put("template", "image").put("params", params).toString()
   }
+
+  // imageKey — короткая форма: lessons/images/{key}.svg. Явный asset имеет приоритет.
+  private fun LessonStep.bundledImageAsset(): String =
+    asset.ifBlank { imageKey.takeIf { it.isNotBlank() }?.let { "lessons/images/$it.svg" } ?: "" }
+
+  /** Рисовать есть смысл только шагу-картинке с промптом и без своего ассета. */
+  private fun LessonStep.needsGeneratedImage(): Boolean =
+    type == "image" && imagePrompt.isNotBlank() && bundledImageAsset().isBlank()
 
   /** "reveal": вопрос, по тапу раскрывается ответ. */
   private fun buildRevealCardSpec(step: LessonStep): String {
@@ -182,5 +217,9 @@ class LessonChatController(
       .put("correct", correctIndex)
       .put("explain", step.explain)
     return JSONObject().put("template", "scenario").put("params", params).toString()
+  }
+
+  private companion object {
+    const val STEP_IMAGE_WAIT_MS = 20_000L
   }
 }

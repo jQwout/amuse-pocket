@@ -2,6 +2,7 @@ package com.aiopenpocket.agent.core.lesson
 
 // @trace uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2
 // @trace user-agent-builder-848153
+// @trace kartinki-urokov-cherez-muse-image-fd6f8c
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
@@ -53,6 +54,12 @@ data class LessonStep(
   val imageKey: String = "",
   /** "image" step: accessibility text; used as caption fallback. */
   val alt: String = "",
+  /**
+   * "image" step: промпт для Muse Image. Картинка рисуется, только если у шага нет своего ассета
+   * ([asset]/[imageKey]): бандл работает без сети и ничего не стоит. Нарисованная кешируется на
+   * диске — повторный проход урока её не перерисовывает. См. [LessonImageGenerator].
+   */
+  val imagePrompt: String = "",
   /** "reveal" step: prompt shown first; tap reveals [answer]. */
   val question: String = "",
   /** "reveal" / "fill" step: the answer (revealed text, or the word to fill). */

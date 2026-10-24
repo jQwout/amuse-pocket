@@ -119,7 +119,8 @@ class LessonAssetsValidationTest {
               }
               when {
                 asset.isNotBlank() && !File(assetsDir, asset).isFile -> err("ассет не найден: $asset")
-                asset.isBlank() && step.url.isBlank() -> err("нет ни asset/imageKey, ни url — карточка «Нет изображения»")
+                asset.isBlank() && step.url.isBlank() && step.imagePrompt.isBlank() ->
+                  err("нет ни asset/imageKey, ни url, ни imagePrompt — карточка «Нет изображения»")
               }
             }
 

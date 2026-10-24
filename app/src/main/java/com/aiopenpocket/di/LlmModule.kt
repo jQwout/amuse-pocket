@@ -2,10 +2,13 @@ package com.aiopenpocket.di
 
 // @trace streaming-llm-chat-6595a1
 // @trace vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53
+// @trace kartinki-urokov-cherez-muse-image-fd6f8c
 
 import com.aiopenpocket.BuildConfig
+import com.aiopenpocket.agent.core.llm.ImageGenClient
 import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.llm.LlmUsageRecorder
 import com.aiopenpocket.agent.core.llm.ModelCatalog
 import com.aiopenpocket.agent.core.llm.bundledNvidiaKey
 import com.aiopenpocket.agent.core.llm.ModelCatalogLoader
@@ -34,6 +37,29 @@ object LlmModule {
   @Provides
   @SingleIn(AppScope::class)
   fun provideLlmHttpEngine(): HttpClientEngine = Android.create()
+
+  /**
+   * Muse Image через OpenRouter — для картинок уроков. Ключ тот же, что у чата на OpenRouter, и
+   * читается при каждой генерации: ключ, введённый в Настройках, действует без перезапуска.
+   *
+   * Только когда OpenRouter выбран провайдером. Иначе урок молча слал бы запросы вендору, которого
+   * пользователь не выбирал, и по его прайсу — ровно то, от чего избавились, убрав AUTO. Пустой ключ
+   * клиент понимает как «не рисовать», и урок на NIM показывает картинки из сборки.
+   */
+  @Provides
+  @SingleIn(AppScope::class)
+  fun provideImageGenClient(
+    engine: HttpClientEngine,
+    settingsRepository: SettingsRepository,
+    selectedProvider: SelectedLlmProvider,
+    usageRecorder: LlmUsageRecorder,
+  ): ImageGenClient = ImageGenClient(
+    engine = engine,
+    apiKey = {
+      if (selectedProvider() == LlmProvider.OPENROUTER) settingsRepository.getApiKey("OPENROUTER") else ""
+    },
+    usageRecorder = usageRecorder,
+  )
 
   /** Выбранный вендор — общий на всё приложение: чат, план-движок и фоновые heartbeat'ы. */
   @Provides

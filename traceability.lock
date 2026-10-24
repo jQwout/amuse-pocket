@@ -53,6 +53,10 @@
       "hash": "392a5f1b7aeb",
       "git": "259a650"
     },
+    "kartinki-urokov-cherez-muse-image-fd6f8c": {
+      "hash": "ea7b1d11e955",
+      "git": "c9ec42b"
+    },
     "mcp-tools-f77d9b": {
       "hash": "674dd986d955",
       "git": "259a650"
@@ -90,20 +94,20 @@
       "git": "3ed3e7f"
     },
     "uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2": {
-      "hash": "eb7ccddee02a",
-      "git": "259a650"
+      "hash": "2b6d25ac93c6",
+      "git": "c9ec42b"
     },
     "user-agent-builder-848153": {
-      "hash": "4211a343c879",
-      "git": "259a650"
+      "hash": "812f26f41860",
+      "git": "c9ec42b"
     },
     "voice-input-1a0dfd": {
       "hash": "8b0186906f6c",
       "git": "6a6f145"
     },
     "vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53": {
-      "hash": "a7cda88d806d",
-      "git": "d3ec517"
+      "hash": "91c2713b666d",
+      "git": "c9ec42b"
     },
     "yazykovoy-agent-repetitor-s-intervalnymi-povtoreniyami-4a9360": {
       "hash": "8ff6359d9027",
