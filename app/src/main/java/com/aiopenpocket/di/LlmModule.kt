@@ -3,6 +3,7 @@ package com.aiopenpocket.di
 // @trace streaming-llm-chat-6595a1
 // @trace vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53
 // @trace kartinki-urokov-cherez-muse-image-fd6f8c
+// @trace video-na-vhod-v-uroke-muse-spark-08ccdb
 
 import com.aiopenpocket.BuildConfig
 import com.aiopenpocket.agent.core.llm.ImageGenClient
@@ -16,6 +17,7 @@ import com.aiopenpocket.agent.core.llm.OpenAiCompatClient
 import com.aiopenpocket.agent.core.llm.ProviderConfig
 import com.aiopenpocket.agent.core.llm.ProviderFallbackChain
 import com.aiopenpocket.agent.core.llm.SelectedLlmProvider
+import com.aiopenpocket.agent.core.llm.VideoUnderstandingClient
 import com.aiopenpocket.agent.core.llm.llmProviderOf
 import com.aiopenpocket.data.repository.SettingsRepository
 import dev.zacsweers.metro.BindingContainer
@@ -54,6 +56,25 @@ object LlmModule {
     selectedProvider: SelectedLlmProvider,
     usageRecorder: LlmUsageRecorder,
   ): ImageGenClient = ImageGenClient(
+    engine = engine,
+    apiKey = {
+      if (selectedProvider() == LlmProvider.OPENROUTER) settingsRepository.getApiKey("OPENROUTER") else ""
+    },
+    usageRecorder = usageRecorder,
+  )
+
+  /**
+   * Muse Spark через OpenRouter — для видео в уроке. Тот же гейт, что у картинок: видео уходит
+   * провайдеру целиком, со всем, что попало в кадр, и только тому вендору, которого выбрал пользователь.
+   */
+  @Provides
+  @SingleIn(AppScope::class)
+  fun provideVideoUnderstandingClient(
+    engine: HttpClientEngine,
+    settingsRepository: SettingsRepository,
+    selectedProvider: SelectedLlmProvider,
+    usageRecorder: LlmUsageRecorder,
+  ): VideoUnderstandingClient = VideoUnderstandingClient(
     engine = engine,
     apiKey = {
       if (selectedProvider() == LlmProvider.OPENROUTER) settingsRepository.getApiKey("OPENROUTER") else ""

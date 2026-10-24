@@ -41,6 +41,7 @@ internal val LIBRARY_LESSON_IDS = listOf(
   "how_to_ask",
   "context_engineering",
   "tokens_and_speed",
+  "how_model_sees",
   "memory_and_context",
   "temperature_and_randomness",
   "privacy_and_reliability",

@@ -64,6 +64,9 @@ sealed class ChatIntent {
   /** «Нарисуй под меня» на шаге-картинке урока: перерисовать [imagePrompt] под профиль и язык. */
   data class PersonalizeLessonImage(val imagePrompt: String, val caption: String) : ChatIntent()
 
+  /** Шаг урока "video": пользователь снял или выбрал ролик [video] — отдать его Muse Spark с [videoPrompt]. */
+  data class AnalyzeLessonVideo(val videoPrompt: String, val video: android.net.Uri) : ChatIntent()
+
   /** Урок: свободный вопрос к LLM прямо во время урока (кнопка «Спросить»). */
   data class AskDuringLesson(val text: String) : ChatIntent()
 

@@ -65,6 +65,8 @@ internal fun MessageBubble(
     onCancelHeartbeat: (String) -> Unit = {},
     personalizingImages: Set<String> = emptySet(),
     onPersonalizeImage: (DrivenUiCard.ImageCard) -> Unit = {},
+    analyzingVideos: Set<String> = emptySet(),
+    onLessonVideo: (String, android.net.Uri) -> Unit = { _, _ -> },
 ) {
     // Панель действий (удалить) — по ТАПУ на пузырь, не по long-press: long-press занят выделением
     // текста (SelectionContainer внутри MarkdownText), с ним обработчик тапа не конфликтует.
@@ -154,6 +156,8 @@ internal fun MessageBubble(
                     lessonCard = interactiveCards,
                     personalizingImages = personalizingImages,
                     onPersonalizeImage = onPersonalizeImage,
+                    analyzingVideos = analyzingVideos,
+                    onLessonVideo = onLessonVideo,
                 )
             } else {
                 MarkdownText(text = displayText, compact = true, selectable = true, fontScale = fontScale)

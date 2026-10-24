@@ -3,6 +3,7 @@ package com.aiopenpocket.agent.core.lesson
 // @trace uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2
 // @trace user-agent-builder-848153
 // @trace kartinki-urokov-cherez-muse-image-fd6f8c
+// @trace video-na-vhod-v-uroke-muse-spark-08ccdb
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
@@ -26,7 +27,7 @@ data class Lesson(
 
 /**
  * One step. [type] is the discriminator:
- * "text" | "language" | "persona" | "profile" | "quiz" | "image" |
+ * "text" | "language" | "persona" | "profile" | "quiz" | "image" | "video" |
  * "reveal" | "concept" | "example" | "fill" | "sort" | "match" | "scenario".
  * Unused fields stay at their defaults — kept flat so JSON parses without polymorphic setup.
  */
@@ -60,6 +61,12 @@ data class LessonStep(
    * диске — повторный проход урока её не перерисовывает. См. [LessonImageGenerator].
    */
   val imagePrompt: String = "",
+  /**
+   * "video" step: задание модели к ролику, который пользователь снимет или выберет ([instruction] —
+   * то, что видит он сам). Видео разбирает Muse Spark, ответ ложится в чат. См.
+   * [LessonChatController.postVideoAnswer].
+   */
+  val videoPrompt: String = "",
   /** "reveal" step: prompt shown first; tap reveals [answer]. */
   val question: String = "",
   /** "reveal" / "fill" step: the answer (revealed text, or the word to fill). */

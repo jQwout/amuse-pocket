@@ -30,6 +30,7 @@ object LessonQuestion {
     "match" -> "${step.instruction} " + step.pairs.joinToString("; ") { "${it.term} — ${it.def}" }
     "scenario" -> "${step.situation} ${step.q} Варианты: ${step.options.joinToString(", ")}"
     "image" -> step.caption.ifBlank { step.alt }
+    "video" -> step.instruction
     "quiz" -> step.questions.joinToString("; ") { it.q }
     else -> step.text
   }

@@ -14,8 +14,8 @@
       "git": "afd92b7"
     },
     "ai-academy-onboarding-5d51bb": {
-      "hash": "8a99405c7f62",
-      "git": "92a42cd"
+      "hash": "cf8707d30482",
+      "git": "1a7895a"
     },
     "app-settings-beb470": {
       "hash": "b6caa360c0cd",
@@ -38,8 +38,8 @@
       "git": "98161c0"
     },
     "driven-ui-cards-0418d0": {
-      "hash": "f6b31ea1d094",
-      "git": "85979eb"
+      "hash": "a0dcacf4d524",
+      "git": "1a7895a"
     },
     "fonovye-hody-agenta-dde42d": {
       "hash": "c2d9f3e50ffb",
@@ -54,8 +54,8 @@
       "git": "259a650"
     },
     "kartinki-urokov-cherez-muse-image-fd6f8c": {
-      "hash": "3f5893d8cf16",
-      "git": "85979eb"
+      "hash": "bc9208743114",
+      "git": "1a7895a"
     },
     "mcp-tools-f77d9b": {
       "hash": "674dd986d955",
@@ -82,8 +82,8 @@
       "git": "d589a94"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "24af20a9aeea",
-      "git": "85979eb"
+      "hash": "03a8f9750fd4",
+      "git": "1a7895a"
     },
     "structured-plan-engine-907066": {
       "hash": "e6a3eba7547d",
@@ -94,12 +94,16 @@
       "git": "3ed3e7f"
     },
     "uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2": {
-      "hash": "c40fb8a6cc0a",
-      "git": "8393a7f"
+      "hash": "2fbc4add0307",
+      "git": "1a7895a"
     },
     "user-agent-builder-848153": {
-      "hash": "c2bd1bb605b2",
-      "git": "85979eb"
+      "hash": "47741c72f263",
+      "git": "1a7895a"
+    },
+    "video-na-vhod-v-uroke-muse-spark-08ccdb": {
+      "hash": "da31eb13d40c",
+      "git": "1a7895a"
     },
     "voice-input-1a0dfd": {
       "hash": "8b0186906f6c",
