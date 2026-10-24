@@ -110,6 +110,7 @@ class OpenRouterCatalogService(
    *
    * Отбор — только модели с `tools`: без function calling агентский луп, MCP-тулы и план-движок
    * просто перестают работать, и выглядит это как «агент отупел», а не как неверный выбор модели.
+   * И никаких моделей, на данных которых обучается вендор ([trainsOnUserData]).
    *
    * Порядок — сначала курируемый сид (проверенные вручную модели), потом всё остальное по дате
    * появления, новые выше. Алфавит здесь был бы худшим из вариантов: он поднял бы наверх случайных
@@ -125,6 +126,7 @@ class OpenRouterCatalogService(
       .distinctBy { it.id }
       .filter { it.supportedParameters.contains(TOOLS_PARAM) }
       .filter { it.architecture.inputModalities.contains(TEXT_MODALITY) }
+      .filterNot { trainsOnUserData(it.id) }
       .sortedWith(
         compareBy<OpenRouterModel> { seedOrder.indexOf(it.id).takeIf { i -> i >= 0 } ?: Int.MAX_VALUE }
           .thenByDescending { it.created },

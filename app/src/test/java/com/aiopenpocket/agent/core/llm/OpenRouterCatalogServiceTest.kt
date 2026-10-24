@@ -91,6 +91,17 @@ class OpenRouterCatalogServiceTest {
     assertEquals(listOf("vendor/text"), catalog?.models?.map { it.name })
   }
 
+  /** Contributor-версия приходит в том же списке, с tools и текстом — отличает её только суффикс. */
+  @Test
+  fun `models that train on user data never reach the catalog`() = runTest {
+    val catalog = service(
+      model("meta/muse-spark-1.3"),
+      model("meta/muse-spark-1.3-contributor"),
+    ).refresh()
+
+    assertEquals(listOf("meta/muse-spark-1.3"), catalog?.models?.map { it.name })
+  }
+
   /** Курируемый сид — сверху; всё остальное — новые выше. */
   @Test
   fun `seeded models come first, the rest by creation date descending`() = runTest {

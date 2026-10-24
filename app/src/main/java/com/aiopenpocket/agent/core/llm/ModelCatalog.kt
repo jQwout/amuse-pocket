@@ -68,6 +68,18 @@ data class ModelEntry(
   val supportsTools: Boolean = true,
 )
 
+/**
+ * Модель, на данных которой обучается сам вендор. У Meta это `-contributor`-версии Muse Spark: они в
+ * 12 раз дешевле, потому что пользователь платит своим контентом.
+ *
+ * В приложении, через которое идут профиль, дневник, фото и память, такая модель недопустима — ни в
+ * выборе, ни в цепочке. И попасть туда она может молча: OpenRouter отдаёт её в общем списке рядом с
+ * обычной версией, с tools и тем же именем, только с суффиксом.
+ */
+fun trainsOnUserData(modelId: String): Boolean = modelId.endsWith(CONTRIBUTOR_SUFFIX)
+
+private const val CONTRIBUTOR_SUFFIX = "-contributor"
+
 @SingleIn(AppScope::class)
 @Inject
 class ModelCatalogLoader(
