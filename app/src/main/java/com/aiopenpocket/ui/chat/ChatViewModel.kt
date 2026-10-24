@@ -31,6 +31,7 @@ import com.aiopenpocket.agent.loop.TurnStatus
 import com.aiopenpocket.agent.tools.HeartbeatTool
 import com.aiopenpocket.data.repository.SettingsRepository
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.ui.chat.components.bundledAssetPath
 import com.aiopenpocket.voice.input.VoiceInputController
 import com.aiopenpocket.voice.input.VoiceInputState
 import com.aiopenpocket.voice.input.appLanguageToBcp47
@@ -622,7 +623,10 @@ class ChatViewModel(
         val resolver = context.contentResolver
         val mimeType = resolver.getType(video)?.takeIf { it.startsWith("video/") } ?: "video/mp4"
         val limit = com.aiopenpocket.agent.core.llm.VideoUnderstandingClient.MAX_VIDEO_BYTES
-        val bytes = resolver.openInputStream(video)?.use { input ->
+        // Ролик-пример урока лежит в assets APK: content resolver file:///android_asset не открывает.
+        val asset = video.bundledAssetPath()
+        val stream = if (asset != null) context.assets.open(asset) else resolver.openInputStream(video)
+        val bytes = stream?.use { input ->
             val out = java.io.ByteArrayOutputStream()
             val buffer = ByteArray(64 * 1024)
             while (true) {

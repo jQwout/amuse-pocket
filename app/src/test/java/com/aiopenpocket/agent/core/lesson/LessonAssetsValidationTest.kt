@@ -2,6 +2,7 @@ package com.aiopenpocket.agent.core.lesson
 
 // @trace uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2
 
+import com.aiopenpocket.agent.core.llm.VideoUnderstandingClient
 import com.aiopenpocket.ui.roadmap.LESSON_QUIZZES
 import com.aiopenpocket.ui.roadmap.LIBRARY_LESSON_IDS
 import com.aiopenpocket.ui.roadmap.ROADMAP_LEVELS
@@ -137,6 +138,13 @@ class LessonAssetsValidationTest {
             "video" -> {
               if (step.instruction.isBlank()) err("пустой instruction — непонятно, что снимать")
               if (step.videoPrompt.isBlank()) err("пустой videoPrompt — модели нечего делать с роликом")
+              // Кнопка «Показать на примере» с битым путём уронила бы главный путь шага в ошибку.
+              for (sample in listOf(step.sampleVideo, step.samplePreview)) {
+                if (sample.isNotBlank() && !File(assetsDir, sample).isFile) err("ролик-пример не найден: $sample")
+              }
+              if (step.sampleVideo.isNotBlank() && File(assetsDir, step.sampleVideo).length() > VideoUnderstandingClient.MAX_VIDEO_BYTES) {
+                err("ролик-пример больше потолка VideoUnderstandingClient.MAX_VIDEO_BYTES")
+              }
             }
 
             "reveal" -> {

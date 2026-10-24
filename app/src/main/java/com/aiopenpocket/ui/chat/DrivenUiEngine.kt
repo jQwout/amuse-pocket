@@ -32,8 +32,16 @@ sealed class DrivenUiCard {
     data class ReminderCard(val heartbeatId: String) : DrivenUiCard()
     /** [prompt] — imagePrompt шага урока: по нему кнопка «Нарисуй под меня» перерисует картинку. */
     data class ImageCard(val asset: String, val url: String, val caption: String, val prompt: String = "") : DrivenUiCard()
-    /** Шаг урока "video": [instruction] — что снять, [prompt] — задание модели к ролику. */
-    data class LessonVideoCard(val instruction: String, val prompt: String) : DrivenUiCard()
+    /**
+     * Шаг урока "video": [instruction] — что снять, [prompt] — задание модели к ролику, [sampleVideo] и
+     * [samplePreview] — ролик-пример из assets для кнопки «Показать на примере» (пусто — только своё видео).
+     */
+    data class LessonVideoCard(
+        val instruction: String,
+        val prompt: String,
+        val sampleVideo: String = "",
+        val samplePreview: String = "",
+    ) : DrivenUiCard()
     /** Шаг урока "animation": процедурная сцена [scene] (см. LESSON_ANIMATION_SCENES) с подписью. */
     data class LessonAnimationCard(val scene: String, val caption: String) : DrivenUiCard()
     data class RevealCard(val question: String, val answer: String) : DrivenUiCard()
@@ -198,6 +206,8 @@ object DrivenUiEngine {
             "lesson_video" -> DrivenUiCard.LessonVideoCard(
                 instruction = p.optString("instruction", ""),
                 prompt = p.optString("video_prompt", ""),
+                sampleVideo = p.optString("sample_video", ""),
+                samplePreview = p.optString("sample_preview", ""),
             )
             "reveal" -> DrivenUiCard.RevealCard(
                 question = p.optString("question", ""),
