@@ -1,0 +1,166 @@
+package com.aiopenpocket.ui.chat.components
+
+// @trace protsedurnye-animatsii-v-urokah-68b2bf
+
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import java.util.Locale
+
+/** Время на чипе: как его пишет человек и как модель раскладывает его в параметры вызова. */
+private class AlarmTime(val label: String, val hour: Int, val minute: Int)
+
+private val TIMES = listOf(AlarmTime("6:30", 6, 30), AlarmTime("7:00", 7, 0), AlarmTime("8:15", 8, 15))
+
+// Три коробки сверху вниз — и есть направление: модель → приложение → модель.
+private val HEADERS = listOf(
+    "Модель → приложению: вызов",
+    "Приложение → модели: результат",
+    "Модель → тебе: ответ",
+)
+
+private val NOTES = listOf(
+    "Выбери время и жми «Отправить» — смотри, кто что делает.",
+    "Сама модель будильник не поставит — она только пишет вызов: инструмент и параметры.",
+    "Будильник ставит приложение — и возвращает результат обратно в разговор.",
+    "Модель только написала вызов, выполнило его приложение. Ответ — уже после результата.",
+)
+
+private val BUTTONS = listOf("Отправить", "Выполнить в приложении", "Вернуть результат модели", "Сначала")
+
+/**
+ * «Вызов инструмента»: пользователь выбирает время будильника и кнопкой проводит один вызов
+ * целиком — модель пишет просьбу, приложение её выполняет, результат возвращается модели, и только
+ * тогда она отвечает. Видно, что параметры берутся из твоих слов, а руки — у приложения.
+ */
+@Composable
+internal fun ToolCallScene() {
+    var timeIndex by rememberSaveable { mutableIntStateOf(1) }
+    // 0 — ещё не отправили, 1 — модель написала вызов, 2 — приложение вернуло результат, 3 — ответ.
+    var step by rememberSaveable { mutableIntStateOf(0) }
+    val time = TIMES[timeIndex]
+    val clock = String.format(Locale.US, "%02d:%02d", time.hour, time.minute)
+    // Имя, действие, параметры и строка-результат — как у настоящего инструмента будильника в приложении.
+    val contents = listOf(
+        "{\"tool\": \"alarm\",\n \"action\": \"set_alarm\",\n \"hour\": ${time.hour}, \"minute\": ${time.minute}}",
+        "\"Будильник на $clock открыт\n в приложении часов.\"",
+        "Готово: будильник на ${time.label} стоит!",
+    )
+    val primary = MaterialTheme.colorScheme.primary
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = "Ты пишешь: «Поставь будильник на ${time.label}»",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+        // Время можно менять на любом шаге: параметры вызова тут же следуют за твоими словами.
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TIMES.forEachIndexed { index, t ->
+                FilterChip(selected = index == timeIndex, onClick = { timeIndex = index }, label = { Text(t.label) })
+            }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            contents.forEachIndexed { index, content ->
+                if (index > 0) {
+                    Text(
+                        text = "↓",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = if (step > index) primary else primary.copy(alpha = 0.25f),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                CallBox(
+                    header = HEADERS[index],
+                    content = content,
+                    lines = if (index == 0) 3 else 2,
+                    mono = index < 2,
+                    shown = step > index,
+                    active = step == index + 1,
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (step == 3) primary.copy(alpha = 0.14f) else Color.White)
+                .padding(12.dp),
+        ) {
+            Text(
+                text = NOTES[step],
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (step == 3) FontWeight.SemiBold else FontWeight.Normal,
+                color = SceneInk,
+                minLines = 3,
+            )
+        }
+        Button(onClick = { step = (step + 1) % BUTTONS.size }, modifier = Modifier.fillMaxWidth()) {
+            Text(BUTTONS[step])
+        }
+    }
+}
+
+/** Коробка одного шага. Место под текст занято с самого начала — появление содержимого ничего не сдвигает. */
+@Composable
+private fun CallBox(header: String, content: String, lines: Int, mono: Boolean, shown: Boolean, active: Boolean) {
+    val primary = MaterialTheme.colorScheme.primary
+    val contentAlpha by animateFloatAsState(if (shown) 1f else 0f, tween(350), label = "callContent")
+    val border by animateColorAsState(if (active) primary else Color.Transparent, tween(300), label = "callBorder")
+    Column(
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (shown) Color.White else Color.White.copy(alpha = 0.4f))
+            .border(2.dp, border, RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = header,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = if (shown) primary else SceneInk.copy(alpha = 0.45f),
+        )
+        Text(
+            text = content,
+            color = SceneInk,
+            style = if (mono) {
+                MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+            } else {
+                MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
+            },
+            minLines = lines,
+            maxLines = lines,
+            modifier = Modifier.alpha(contentAlpha),
+        )
+    }
+}
