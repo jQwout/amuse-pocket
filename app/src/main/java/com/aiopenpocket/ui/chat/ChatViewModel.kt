@@ -313,6 +313,11 @@ class ChatViewModel(
         val conversation = conversationRepository.getConversation(id)
         val persistedIndex = conversation?.lessonStepIndex ?: 0
         val persistedFinished = conversation?.lessonFinished ?: false
+        if (!persistedFinished) {
+            // Отдельной корутиной: картинки Muse Image рисуются десятки секунд, а первый шаг урока
+            // ждать их не должен. Пройденные шаги не рисуем — их карточки уже в истории.
+            viewModelScope.launch { lessonChatController.prefetchImages(lesson, fromIndex = persistedIndex) }
+        }
 
         if (lesson.steps.isEmpty()) {
             // Урок без шагов: карточка завершения, чтобы экран не завис пустым — но без дублей при переоткрытии.
