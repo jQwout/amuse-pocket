@@ -64,6 +64,10 @@ internal fun LessonAnimationCardView(card: DrivenUiCard.LessonAnimationCard) {
         when (card.scene) {
             "tokens" -> TokensScene()
             "temperature" -> TemperatureScene()
+            "video_frames" -> VideoFramesScene()
+            "react_loop" -> ReactLoopScene()
+            "context_window" -> ContextWindowScene()
+            "rag" -> RagScene()
             // Сюда попадает только урок новее приложения: проверка уроков не пустит неизвестную сцену в сборку.
             else -> Text("Эта анимация появится в следующей версии приложения.", style = MaterialTheme.typography.bodyMedium)
         }
@@ -86,11 +90,11 @@ private val RU_TOKENS = listOf("Пос", "овет", "уй", ",", " что", " �
 private val EN_TOKENS = listOf("Suggest", " what", " to", " cook", " for", " dinner")
 
 /** Светлые тона, читаемые тёмным текстом на серебре карточки урока в любой теме. */
-private val TokenPalette = listOf(
+internal val ScenePalette = listOf(
     Color(0xFFB9D7F0), Color(0xFFF4C7A1), Color(0xFFC9E4B4),
     Color(0xFFE6C3E8), Color(0xFFF6E3A1), Color(0xFFB8E3DD),
 )
-private val TokenInk = Color(0xFF1F1D24)
+internal val SceneInk = Color(0xFF1F1D24)
 
 private const val TOKEN_STEP_MS = 320
 
@@ -145,7 +149,7 @@ private fun TokenRow(label: String, tokens: List<String>, splitCount: Int) {
         // как обычная фраза. Отколотый получает цвет и зазор, и фраза на глазах распадается на токены.
         FlowRow(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             tokens.forEachIndexed { index, token ->
-                TokenChip(token = token, split = index < splitCount, color = TokenPalette[index % TokenPalette.size])
+                TokenChip(token = token, split = index < splitCount, color = ScenePalette[index % ScenePalette.size])
             }
         }
     }
@@ -161,15 +165,15 @@ private fun TokenChip(token: String, split: Boolean, color: Color) {
             .padding(horizontal = gap)
             .clip(RoundedCornerShape(radius))
             .background(background)
-            .border(1.dp, if (split) TokenInk.copy(alpha = 0.18f) else Color.Transparent, RoundedCornerShape(radius))
+            .border(1.dp, if (split) SceneInk.copy(alpha = 0.18f) else Color.Transparent, RoundedCornerShape(radius))
             .padding(horizontal = 6.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Ведущий пробел — тоже часть токена: показываем его точкой, иначе «пробелы идут в счёт» не увидеть.
         if (token.startsWith(" ")) {
-            Text("·", color = TokenInk.copy(alpha = 0.45f), style = MaterialTheme.typography.bodyLarge)
+            Text("·", color = SceneInk.copy(alpha = 0.45f), style = MaterialTheme.typography.bodyLarge)
         }
-        Text(token.trimStart(), color = TokenInk, style = MaterialTheme.typography.bodyLarge)
+        Text(token.trimStart(), color = SceneInk, style = MaterialTheme.typography.bodyLarge)
     }
 }
 
