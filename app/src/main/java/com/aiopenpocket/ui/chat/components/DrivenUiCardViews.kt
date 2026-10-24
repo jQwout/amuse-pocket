@@ -135,6 +135,9 @@ fun RenderDrivenUiCard(
     onCancelHeartbeat: (String) -> Unit = {},
     /** true → карточка урока: в тёмной теме рисуем светлым серебром с тёмным текстом. */
     lessonCard: Boolean = false,
+    /** Промпты картинок, которые прямо сейчас перерисовываются «под меня» — их кнопка показывает «Рисую…». */
+    personalizingImages: Set<String> = emptySet(),
+    onPersonalizeImage: (DrivenUiCard.ImageCard) -> Unit = {},
 ) {
     // Приложение форсит тёмную тему всегда (Theme.kt: darkTheme=true, LightColorScheme=DarkColorScheme),
     // НЕЗАВИСИМО от системной темы устройства. Поэтому гейт — только по lessonCard, а не по
@@ -169,7 +172,17 @@ fun RenderDrivenUiCard(
             is DrivenUiCard.SwitchCard -> SwitchCardView(card, onAction)
             is DrivenUiCard.NotificationPermissionCard -> NotificationPermissionCardView(card)
             is DrivenUiCard.ReminderCard -> ReminderCardView(card, observeHeartbeat, onCancelHeartbeat)
-            is DrivenUiCard.ImageCard -> ImageCardView(card)
+            // Кнопка «Нарисуй под меня» — только у картинок урока с промптом: картинку, которую
+            // нарисовал агент в обычном чате, перерисовывать «под урок» нечего.
+            is DrivenUiCard.ImageCard -> ImageCardView(
+                card = card,
+                personalizing = card.prompt in personalizingImages,
+                onPersonalize = if (lessonCard && card.prompt.isNotBlank()) {
+                    { onPersonalizeImage(card) }
+                } else {
+                    null
+                },
+            )
             is DrivenUiCard.RevealCard -> RevealCardView(card)
             is DrivenUiCard.ConceptCard -> ConceptCardView(card)
             is DrivenUiCard.ExampleCard -> ExampleCardView(card)
@@ -907,7 +920,12 @@ fun NotificationPermissionCardView(card: DrivenUiCard.NotificationPermissionCard
  * итемом ленты, и при возврате пузыря в вьюпорт картинка грузилась заново (пустой пузырь → скачок).
  */
 @Composable
-fun ImageCardView(card: DrivenUiCard.ImageCard) {
+fun ImageCardView(
+    card: DrivenUiCard.ImageCard,
+    personalizing: Boolean = false,
+    // null — кнопки нет. Не Boolean-флаг рядом с колбэком: «показать кнопку без действия» не бывает.
+    onPersonalize: (() -> Unit)? = null,
+) {
     val context = LocalContext.current
     val assetData = card.asset.takeIf { it.isNotBlank() }?.let { "file:///android_asset/$it" }
     val urlData = card.url.takeIf { it.isNotBlank() }
@@ -961,6 +979,21 @@ fun ImageCardView(card: DrivenUiCard.ImageCard) {
                 color = MaterialTheme.colorScheme.outline,
                 textAlign = TextAlign.Center,
             )
+        }
+        if (onPersonalize != null) {
+            // Muse Image думает перед отрисовкой десятки секунд: без явного «Рисую…» повторные тапы
+            // выглядели бы как сломанная кнопка, а каждый был бы ещё одной оплаченной генерацией.
+            OutlinedButton(onClick = onPersonalize, enabled = !personalizing) {
+                if (personalizing) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Рисую под тебя…")
+                } else {
+                    Icon(Icons.Default.Brush, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Нарисуй под меня")
+                }
+            }
         }
     }
 }

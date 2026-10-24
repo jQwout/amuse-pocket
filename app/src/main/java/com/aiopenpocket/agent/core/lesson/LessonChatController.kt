@@ -21,8 +21,10 @@ import org.json.JSONObject
  * что рисовать, публикуя по одному сообщению ассистента на шаг. LLM в этот поток не вмешивается —
  * чётко разделяя «шаги урока» (код) и «команды для LLM-чата» (явные хода, которых тут нет).
  *
- * Контракт: 1 шаг = ровно 1 assistant-сообщение. Поэтому позицию в уроке можно восстановить простым
- * счётом assistant-сообщений (этим пользуется [com.aiopenpocket.ui.chat.ChatViewModel]).
+ * Контракт: 1 шаг = ровно 1 assistant-сообщение. Курсор урока при этом — явное состояние диалога
+ * (lessonStepIndex в [com.aiopenpocket.ui.chat.ChatViewModel]), а не счёт сообщений: поэтому
+ * дополнительные сообщения — ответ на вопрос по ходу урока, картинка «Нарисуй под меня» — шаг не
+ * сдвигают.
  */
 @Inject
 @SingleIn(AppScope::class)
@@ -40,6 +42,31 @@ class LessonChatController(
     lesson.steps.drop(fromIndex)
       .filter { it.needsGeneratedImage() }
       .forEach { imageGenerator.imageFor(it.imagePrompt) }
+  }
+
+  /**
+   * «Нарисуй под меня»: картинка шага заново, под «о себе» и язык пользователя
+   * ([personalizedImagePrompt]). Публикуется отдельным сообщением под шагом — видно «было / стало».
+   *
+   * Без [STEP_IMAGE_WAIT_MS]: пользователь нажал сам и видит «Рисую…», ждать он согласен; потолок
+   * всё равно есть — таймаут запроса в ImageGenClient. У новой карточки нет промпта, значит нет и
+   * кнопки: перерисовывать перерисованное незачем. `false` — нарисовать не вышло, сообщения нет.
+   */
+  suspend fun postPersonalizedImage(
+    conversationId: String,
+    imagePrompt: String,
+    caption: String,
+    aboutMe: String,
+    languageCode: String,
+  ): Boolean {
+    val file = imageGenerator.imageFor(personalizedImagePrompt(imagePrompt, aboutMe, languageCode)) ?: return false
+    val params = JSONObject()
+      .put("asset", "")
+      .put("url", Uri.fromFile(file).toString())
+      .put("caption", if (caption.isBlank()) "Нарисовано под тебя" else "$caption — нарисовано под тебя")
+    val spec = JSONObject().put("template", "image").put("params", params).toString()
+    conversationRepository.addMessage(conversationId, "assistant", "", cardSpec = spec)
+    return true
   }
 
   /**
@@ -137,6 +164,9 @@ class LessonChatController(
       .put("asset", asset)
       .put("url", generated?.let { Uri.fromFile(it).toString() } ?: step.url)
       .put("caption", step.caption.ifBlank { step.alt })
+    // Промпт едет в карточку ради кнопки «Нарисуй под меня»: перерисовать под пользователя можно
+    // только то, что знаешь, как нарисовать.
+    if (step.imagePrompt.isNotBlank()) params.put("image_prompt", step.imagePrompt)
     return JSONObject().put("template", "image").put("params", params).toString()
   }
 

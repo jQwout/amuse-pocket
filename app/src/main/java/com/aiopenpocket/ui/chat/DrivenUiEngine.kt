@@ -30,7 +30,8 @@ sealed class DrivenUiCard {
     data class NotificationPermissionCard(val title: String, val description: String, val buttonLabel: String) : DrivenUiCard()
     /** Живая карточка heartbeat'а: содержимое подтягивается по [heartbeatId] из Room (см. [ReminderCardView]). */
     data class ReminderCard(val heartbeatId: String) : DrivenUiCard()
-    data class ImageCard(val asset: String, val url: String, val caption: String) : DrivenUiCard()
+    /** [prompt] — imagePrompt шага урока: по нему кнопка «Нарисуй под меня» перерисует картинку. */
+    data class ImageCard(val asset: String, val url: String, val caption: String, val prompt: String = "") : DrivenUiCard()
     data class RevealCard(val question: String, val answer: String) : DrivenUiCard()
     data class ConceptCard(val term: String, val definition: String, val example: String) : DrivenUiCard()
     data class ExampleCard(val label: String, val parts: List<ExamplePart>) : DrivenUiCard()
@@ -184,6 +185,7 @@ object DrivenUiEngine {
                 asset = p.optString("asset", ""),
                 url = p.optString("url", ""),
                 caption = p.optString("caption", ""),
+                prompt = p.optString("image_prompt", ""),
             )
             "reveal" -> DrivenUiCard.RevealCard(
                 question = p.optString("question", ""),

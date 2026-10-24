@@ -61,6 +61,9 @@ sealed class ChatIntent {
   /** Урок: квиз пройден — показать карточку завершения. */
   data object CompleteLessonQuiz : ChatIntent()
 
+  /** «Нарисуй под меня» на шаге-картинке урока: перерисовать [imagePrompt] под профиль и язык. */
+  data class PersonalizeLessonImage(val imagePrompt: String, val caption: String) : ChatIntent()
+
   /** Урок: свободный вопрос к LLM прямо во время урока (кнопка «Спросить»). */
   data class AskDuringLesson(val text: String) : ChatIntent()
 

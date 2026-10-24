@@ -12,9 +12,13 @@ import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.lesson.LessonChatController
 import com.aiopenpocket.agent.core.lesson.LessonRepository
+import com.aiopenpocket.agent.core.lesson.aboutMeFrom
+import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.llm.llmProviderOf
 import com.aiopenpocket.agent.core.memory.dao.HeartbeatDao
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
+import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
 import com.aiopenpocket.agent.core.plan.execution.PlanCommands
 import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
 import com.aiopenpocket.agent.core.plan.model.PlanSnapshot
@@ -66,6 +70,7 @@ class ChatViewModel(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val lessonRepository: LessonRepository,
     private val lessonChatController: LessonChatController,
+    private val memoryRepository: MemoryRepository,
     private val voiceController: VoiceInputController,
     private val heartbeatDao: HeartbeatDao,
     private val agentResolver: AgentResolver,
@@ -399,6 +404,7 @@ class ChatViewModel(
             is ChatIntent.EditPlan -> _state.update { it.copy(pendingPlanApproval = null) }
             is ChatIntent.AdvanceLesson -> advanceLesson()
             is ChatIntent.CompleteLessonQuiz -> completeLessonQuiz()
+            is ChatIntent.PersonalizeLessonImage -> personalizeLessonImage(intent.imagePrompt, intent.caption)
             is ChatIntent.AskDuringLesson -> askDuringLesson(intent.text)
             is ChatIntent.ApproveToolCall -> resolveToolApproval(approved = true)
             is ChatIntent.DenyToolCall -> resolveToolApproval(approved = false)
@@ -522,6 +528,48 @@ class ChatViewModel(
                 android.util.Log.e("ChatViewModel", "lesson ask failed", e)
                 _state.update { it.copy(error = e.message, canRetry = false) }
             }
+        }
+    }
+
+    /**
+     * «Нарисуй под меня» на шаге-картинке урока (см. LessonChatController.postPersonalizedImage).
+     *
+     * Сначала проверяем то, что пользователь может исправить сам, и называем это прямо. Без «о себе»
+     * рисовать не под кого. Без выбранного OpenRouter запрос никуда не уйдёт: картинки идут только к
+     * вендору, которого пользователь выбрал. Иначе на всё был бы один ответ «не вышло».
+     */
+    private fun personalizeLessonImage(imagePrompt: String, caption: String) {
+        val convId = currentConversationId() ?: return
+        if (imagePrompt.isBlank() || imagePrompt in _state.value.personalizingImagePrompts) return
+        _state.update {
+            it.copy(personalizingImagePrompts = it.personalizingImagePrompts + imagePrompt, error = null, canRetry = false)
+        }
+        viewModelScope.launch {
+            val problem = try {
+                // Профиль из Room, язык из DataStore, провайдер из EncryptedSharedPreferences — всё на IO.
+                val (aboutMe, language, provider) = withContext(Dispatchers.IO) {
+                    Triple(
+                        aboutMeFrom(memoryRepository.getFactsByCategory("profile")),
+                        userPreferencesRepository.getLanguage(),
+                        llmProviderOf(settingsRepository.getSelectedProvider()),
+                    )
+                }
+                when {
+                    aboutMe.isBlank() -> "Чтобы нарисовать под тебя, расскажи о себе в профиле."
+                    provider != LlmProvider.OPENROUTER -> "Рисовать картинки я могу, когда в Настройках выбран OpenRouter."
+                    !lessonChatController.postPersonalizedImage(convId, imagePrompt, caption, aboutMe, language) ->
+                        "Не получилось нарисовать. Проверь ключ OpenRouter и сеть и попробуй ещё раз."
+                    else -> null
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("ChatViewModel", "personalize lesson image failed", e)
+                "Не получилось нарисовать. Попробуй ещё раз."
+            } finally {
+                _state.update { it.copy(personalizingImagePrompts = it.personalizingImagePrompts - imagePrompt) }
+            }
+            if (problem != null) _state.update { it.copy(error = problem, canRetry = false) }
         }
     }
 

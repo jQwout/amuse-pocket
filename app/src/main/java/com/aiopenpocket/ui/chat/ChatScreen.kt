@@ -219,6 +219,9 @@ fun ChatScreen(
     val onCardAction: (String, Boolean) -> Unit = remember { { _, _ -> } }
     val onChoiceSelected: (String) -> Unit = remember { { text: String -> viewModel.sendUserMessage(text) } }
     val onLessonQuizComplete: () -> Unit = remember { { viewModel.handleIntent(ChatIntent.CompleteLessonQuiz) } }
+    val onPersonalizeImage: (DrivenUiCard.ImageCard) -> Unit = remember {
+        { card -> viewModel.handleIntent(ChatIntent.PersonalizeLessonImage(card.prompt, card.caption)) }
+    }
     // Живая карточка reminder: подписка на heartbeat + отмена — стабильные ссылки на методы ViewModel.
     val observeHeartbeat: (String) -> Flow<HeartbeatEntity?> = remember { viewModel::observeHeartbeat }
     val onCancelHeartbeat: (String) -> Unit = remember { viewModel::cancelHeartbeat }
@@ -514,6 +517,8 @@ fun ChatScreen(
                         onCardAction = onCardAction,
                         observeHeartbeat = observeHeartbeat,
                         onCancelHeartbeat = onCancelHeartbeat,
+                        personalizingImages = state.personalizingImagePrompts,
+                        onPersonalizeImage = onPersonalizeImage,
                     )
                 }
                 if (hasStreamingItem) {
