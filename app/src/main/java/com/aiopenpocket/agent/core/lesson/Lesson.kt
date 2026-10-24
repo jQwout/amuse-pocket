@@ -68,6 +68,13 @@ data class LessonStep(
    * [LessonChatController.postVideoAnswer].
    */
   val videoPrompt: String = "",
+  /**
+   * "video" step: ролик-пример в assets (mp4) и его превью. С ними главная кнопка шага — «Показать
+   * на примере»: снимать своё на телефоне трудно (камера, разрешения, свет), а смысл урока — что
+   * модель видит в кадрах — виден и на готовом ролике. Своя съёмка остаётся вторым вариантом.
+   */
+  val sampleVideo: String = "",
+  val samplePreview: String = "",
   /** "animation" step: какую процедурную сцену показать (см. [LESSON_ANIMATION_SCENES]); подпись — [caption]. */
   val scene: String = "",
   /** "reveal" step: prompt shown first; tap reveals [answer]. */

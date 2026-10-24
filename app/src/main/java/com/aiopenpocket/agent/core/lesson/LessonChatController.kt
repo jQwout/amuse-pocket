@@ -207,6 +207,8 @@ class LessonChatController(
     val params = JSONObject()
       .put("instruction", step.instruction)
       .put("video_prompt", step.videoPrompt)
+      .put("sample_video", step.sampleVideo)
+      .put("sample_preview", step.samplePreview)
     return JSONObject().put("template", "lesson_video").put("params", params).toString()
   }
 
