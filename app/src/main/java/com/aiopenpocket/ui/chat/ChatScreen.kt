@@ -873,7 +873,7 @@ fun ChatScreen(
                     // "video" — тоже с кнопкой: снять ролик можно не всегда (нет OpenRouter, не та обстановка),
                     // и урок не должен на этом застревать.
                     val displayStep = currentStep?.type in
-                            setOf("text", "image", "video", "reveal", "concept", "example", "input", "challenge")
+                            setOf("text", "image", "video", "animation", "reveal", "concept", "example", "input", "challenge")
                     // !isLoading: во время стрима tutor-ответа не даём листать урок, иначе следующий шаг
                     // впечатается в живой ход. Кнопка вернётся, когда ответ дойдёт. По той же причине прячем
                     // её, пока модель смотрит видео: ответ про ролик должен лечь под своим шагом.

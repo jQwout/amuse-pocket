@@ -4,6 +4,7 @@ package com.aiopenpocket.agent.core.lesson
 // @trace user-agent-builder-848153
 // @trace kartinki-urokov-cherez-muse-image-fd6f8c
 // @trace video-na-vhod-v-uroke-muse-spark-08ccdb
+// @trace protsedurnye-animatsii-v-urokah-68b2bf
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
@@ -27,7 +28,7 @@ data class Lesson(
 
 /**
  * One step. [type] is the discriminator:
- * "text" | "language" | "persona" | "profile" | "quiz" | "image" | "video" |
+ * "text" | "language" | "persona" | "profile" | "quiz" | "image" | "video" | "animation" |
  * "reveal" | "concept" | "example" | "fill" | "sort" | "match" | "scenario".
  * Unused fields stay at their defaults — kept flat so JSON parses without polymorphic setup.
  */
@@ -67,6 +68,8 @@ data class LessonStep(
    * [LessonChatController.postVideoAnswer].
    */
   val videoPrompt: String = "",
+  /** "animation" step: какую процедурную сцену показать (см. [LESSON_ANIMATION_SCENES]); подпись — [caption]. */
+  val scene: String = "",
   /** "reveal" step: prompt shown first; tap reveals [answer]. */
   val question: String = "",
   /** "reveal" / "fill" step: the answer (revealed text, or the word to fill). */

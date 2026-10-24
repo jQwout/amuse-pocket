@@ -186,6 +186,7 @@ fun RenderDrivenUiCard(
                     null
                 },
             )
+            is DrivenUiCard.LessonAnimationCard -> LessonAnimationCardView(card)
             is DrivenUiCard.LessonVideoCard -> LessonVideoCardView(
                 card = card,
                 analyzing = card.prompt in analyzingVideos,

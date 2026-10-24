@@ -130,6 +130,10 @@ class LessonAssetsValidationTest {
               }
             }
 
+            "animation" -> if (step.scene !in LESSON_ANIMATION_SCENES) {
+              err("сцена «${step.scene}» не из $LESSON_ANIMATION_SCENES — вместо анимации будет заглушка")
+            }
+
             "video" -> {
               if (step.instruction.isBlank()) err("пустой instruction — непонятно, что снимать")
               if (step.videoPrompt.isBlank()) err("пустой videoPrompt — модели нечего делать с роликом")

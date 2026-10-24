@@ -34,6 +34,8 @@ sealed class DrivenUiCard {
     data class ImageCard(val asset: String, val url: String, val caption: String, val prompt: String = "") : DrivenUiCard()
     /** Шаг урока "video": [instruction] — что снять, [prompt] — задание модели к ролику. */
     data class LessonVideoCard(val instruction: String, val prompt: String) : DrivenUiCard()
+    /** Шаг урока "animation": процедурная сцена [scene] (см. LESSON_ANIMATION_SCENES) с подписью. */
+    data class LessonAnimationCard(val scene: String, val caption: String) : DrivenUiCard()
     data class RevealCard(val question: String, val answer: String) : DrivenUiCard()
     data class ConceptCard(val term: String, val definition: String, val example: String) : DrivenUiCard()
     data class ExampleCard(val label: String, val parts: List<ExamplePart>) : DrivenUiCard()
@@ -189,6 +191,10 @@ object DrivenUiEngine {
                 caption = p.optString("caption", ""),
                 prompt = p.optString("image_prompt", ""),
             )
+            "lesson_animation" -> DrivenUiCard.LessonAnimationCard(
+                scene = p.optString("scene", ""),
+                caption = p.optString("caption", ""),
+            )
             "lesson_video" -> DrivenUiCard.LessonVideoCard(
                 instruction = p.optString("instruction", ""),
                 prompt = p.optString("video_prompt", ""),
@@ -337,6 +343,8 @@ fun DrivenUiCard.toMarkdown(): String = when (this) {
     }.trim()
 
     is DrivenUiCard.LessonVideoCard -> "🎥 ${instruction.ifBlank { "Сними короткое видео" }}"
+
+    is DrivenUiCard.LessonAnimationCard -> "🎬 ${caption.ifBlank { "Анимация урока" }}"
 
     is DrivenUiCard.RevealCard -> buildString {
         appendLine("**$question**")
