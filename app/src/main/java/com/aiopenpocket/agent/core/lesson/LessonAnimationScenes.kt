@@ -10,4 +10,5 @@ package com.aiopenpocket.agent.core.lesson
  * Один список на рендер и на проверку уроков: шаг с неизвестной сценой показал бы заглушку
  * вместо урока, и LessonAssetsValidationTest ловит это до сборки.
  */
-val LESSON_ANIMATION_SCENES: Set<String> = setOf("tokens", "temperature")
+val LESSON_ANIMATION_SCENES: Set<String> =
+  setOf("tokens", "temperature", "video_frames", "react_loop", "context_window", "rag")
