@@ -28,7 +28,11 @@ import com.aiopenpocket.ui.theme.GlassTokens
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.ui.theme.ThemeMode
 
-/** One selectable language. Only [enabled] languages can be picked (RU only for now). */
+/**
+ * One selectable language. Only [enabled] languages can be picked: the UI and all lessons exist in
+ * Russian only. English is shown as «Скоро» because it is the next one (lessons translated by Muse
+ * Spark); enabling it before the UI is translated would give English replies in a Russian app.
+ */
 private data class LanguageOption(
   val code: String,
   val flag: String,
@@ -39,7 +43,6 @@ private data class LanguageOption(
 private val LANGUAGES = listOf(
   LanguageOption("ru", "🇷🇺", "Русский", enabled = true),
   LanguageOption("en", "🇬🇧", "English", enabled = false),
-  LanguageOption("de", "🇩🇪", "Deutsch", enabled = false),
 )
 
 @Composable
@@ -58,7 +61,7 @@ fun LanguageSelectionStep(
       style = MaterialTheme.typography.headlineSmall,
     )
     Text(
-      text = "Choose your language · Sprache wählen",
+      text = "Choose your language",
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
       modifier = Modifier.padding(top = 4.dp, bottom = 20.dp),

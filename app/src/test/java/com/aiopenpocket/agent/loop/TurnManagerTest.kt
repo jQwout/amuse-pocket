@@ -133,7 +133,7 @@ class TurnManagerTest {
   private var inForeground = true
 
   /** Что «выбрано в Настройках» на момент хода: тест меняет это между ходами. */
-  private var selectedProvider = LlmProvider.NIM
+  private var selectedProvider = LlmProvider.OPENROUTER
 
   // Скоуп менеджера на UnconfinedTestDispatcher(testScheduler): ходы исполняются жадно на том же
   // виртуальном планировщике, что и тест, — advanceUntilIdle() догоняет любые задержки. Job берём
@@ -149,25 +149,6 @@ class TurnManagerTest {
     selectedProvider = { selectedProvider },
     log = NoopLog,
   )
-
-  /**
-   * Провайдер берётся из настроек на КАЖДОМ ходе, а не фиксируется при создании менеджера: иначе
-   * переключение вендора в Настройках начинало бы действовать только после перезапуска процесса, а
-   * до этого запросы молча уходили бы прежнему.
-   */
-  @Test
-  fun `каждый ход идёт к провайдеру, выбранному на момент этого хода`() = runTest {
-    val m = manager()
-    selectedProvider = LlmProvider.NIM
-    m.launchTurn("c1", "первый", AgentMode.CHAT)
-    advanceUntilIdle()
-
-    selectedProvider = LlmProvider.OPENROUTER
-    m.launchTurn("c1", "второй", AgentMode.CHAT)
-    advanceUntilIdle()
-
-    assertEquals(listOf(LlmProvider.NIM, LlmProvider.OPENROUTER), executor.providers)
-  }
 
   @Test
   fun `завершённый ход пишет user и assistant в БД и даёт Completed с id ответа`() = runTest {

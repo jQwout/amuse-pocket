@@ -20,3 +20,6 @@ build_check.log
 
 # harness git worktrees (transient; nested checkout breaks Android Studio indexing)
 .claude/worktrees/
+
+# Build artifacts never belong in git: a debug APK carries the .env keys inside BuildConfig.
+.build-outputs/

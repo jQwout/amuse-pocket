@@ -553,9 +553,9 @@ class PlanRunnerTest {
 
   /**
    * Провайдер в этих тестах не участвует: проверяется механика прогона плана, а не адресат запроса.
-   * Хелпер, чтобы `LlmProvider.NIM` не повторялся в каждом из вызовов и не создавал впечатление,
+   * Хелпер, чтобы `LlmProvider.OPENROUTER` не повторялся в каждом из вызовов и не создавал впечатление,
    * будто выбор вендора здесь что-то значит.
    */
-  private suspend fun PlanRunner.runNim(request: PlanRunRequest) = run(request, LlmProvider.NIM)
+  private suspend fun PlanRunner.runNim(request: PlanRunRequest) = run(request, LlmProvider.OPENROUTER)
 
 }

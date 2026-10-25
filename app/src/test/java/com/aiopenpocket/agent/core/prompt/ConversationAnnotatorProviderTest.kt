@@ -63,7 +63,7 @@ class ConversationAnnotatorProviderTest {
   }
 
   @Test
-  fun `аннотация диалога идёт к выбранному провайдеру, а не к NIM по умолчанию`() = runTest {
+  fun `аннотация диалога идёт к выбранному провайдеру, а не к дефолту`() = runTest {
     val repository = ConversationRepository(db.conversationDao(), db.conversationTagDao(), db.messageDao())
     val conversationId = repository.createConversation(title = "Test")
     repository.addMessage(conversationId, "user", "привет")

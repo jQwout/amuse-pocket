@@ -39,24 +39,11 @@ class ExtractUserProfileProviderTest {
   }
 
   @Test
-  fun `извлечение профиля идёт к выбранному провайдеру, а не к NIM по умолчанию`() = runTest {
+  fun `извлечение профиля идёт к выбранному провайдеру, а не к дефолту`() = runTest {
     val llm = RecordingLlm()
 
     ExtractUserProfileUseCase(llm) { LlmProvider.OPENROUTER }("Меня зовут Аня, мне 30")
 
     assertEquals(listOf(LlmProvider.OPENROUTER), llm.providers)
-  }
-
-  @Test
-  fun `смена выбора подхватывается на следующем вызове, а не фиксируется при создании`() = runTest {
-    val llm = RecordingLlm()
-    var selected = LlmProvider.NIM
-    val useCase = ExtractUserProfileUseCase(llm) { selected }
-
-    useCase("первый рассказ")
-    selected = LlmProvider.OPENROUTER
-    useCase("второй рассказ")
-
-    assertEquals(listOf(LlmProvider.NIM, LlmProvider.OPENROUTER), llm.providers)
   }
 }

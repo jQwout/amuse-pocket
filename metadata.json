@@ -1,6 +1,0 @@
-{
-  "name": "AI Open Pocket",
-  "description": "AI open-source companion and pocket-sized client with secured local database, cookie state extraction, and elegant Material 3 design.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

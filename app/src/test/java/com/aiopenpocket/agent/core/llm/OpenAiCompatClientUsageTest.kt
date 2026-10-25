@@ -102,8 +102,8 @@ class OpenAiCompatClientUsageTest {
   @Test
   fun `silence from the provider becomes an estimate, explicitly flagged`() = runTest {
     val recorder = RecordingUsageRecorder()
-    clientOf(LlmProvider.NIM, withoutUsageSse, recorder)
-      .streamChat(message, emptyList(), LlmProvider.NIM).toList()
+    clientOf(LlmProvider.OPENROUTER, withoutUsageSse, recorder)
+      .streamChat(message, emptyList(), LlmProvider.OPENROUTER).toList()
 
     val usage = recorder.recorded.single()
     assertTrue("оценка обязана быть помечена оценкой", usage.estimated)
@@ -120,8 +120,8 @@ class OpenAiCompatClientUsageTest {
   @Test
   fun `an empty 200 attempt is still recorded`() = runTest {
     val recorder = RecordingUsageRecorder()
-    clientOf(LlmProvider.NIM, emptySse, recorder)
-      .streamChat(message, emptyList(), LlmProvider.NIM).toList()
+    clientOf(LlmProvider.OPENROUTER, emptySse, recorder)
+      .streamChat(message, emptyList(), LlmProvider.OPENROUTER).toList()
 
     assertEquals(1, recorder.recorded.size)
     assertTrue(recorder.recorded.single().promptTokens > 0)
@@ -130,8 +130,8 @@ class OpenAiCompatClientUsageTest {
   @Test
   fun `the request asks for usage through the standard stream_options field`() = runTest {
     val bodies = mutableListOf<String>()
-    clientOf(LlmProvider.NIM, withoutUsageSse, RecordingUsageRecorder(), bodies)
-      .streamChat(message, emptyList(), LlmProvider.NIM).toList()
+    clientOf(LlmProvider.OPENROUTER, withoutUsageSse, RecordingUsageRecorder(), bodies)
+      .streamChat(message, emptyList(), LlmProvider.OPENROUTER).toList()
 
     assertTrue(
       "без stream_options.include_usage провайдер не пришлёт расход вовсе: ${bodies.single()}",
@@ -139,20 +139,12 @@ class OpenAiCompatClientUsageTest {
     )
   }
 
-  /**
-   * `usage: {"include": true}` — расширение OpenRouter, а не стандарт. Строгий провайдер отвечает на
-   * неизвестное поле HTTP 400 (так уже было с `type` у тулов), и цепочка молча ушла бы в фолбэк.
-   */
+  /** `usage: {"include": true}` — расширение OpenRouter: без него цену в долларах он не назовёт. */
   @Test
-  fun `the OpenRouter-only usage field is not sent to NIM`() = runTest {
-    val nimBodies = mutableListOf<String>()
-    clientOf(LlmProvider.NIM, withoutUsageSse, RecordingUsageRecorder(), nimBodies)
-      .streamChat(message, emptyList(), LlmProvider.NIM).toList()
-    assertFalse(nimBodies.single().contains("\"usage\""))
-
-    val orBodies = mutableListOf<String>()
-    clientOf(LlmProvider.OPENROUTER, withUsageSse, RecordingUsageRecorder(), orBodies)
+  fun `the OpenRouter usage field asks for the price`() = runTest {
+    val bodies = mutableListOf<String>()
+    clientOf(LlmProvider.OPENROUTER, withUsageSse, RecordingUsageRecorder(), bodies)
       .streamChat(message, emptyList(), LlmProvider.OPENROUTER).toList()
-    assertTrue(orBodies.single().contains("\"usage\":{\"include\":true}"))
+    assertTrue(bodies.single().contains("\"usage\":{\"include\":true}"))
   }
 }

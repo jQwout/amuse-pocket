@@ -1,21 +1,31 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# AI Open Pocket
 
-# Run and deploy your AI Studio app
+An Android AI agent that teaches people how AI agents work — inside the agent itself. 31 short
+lessons, each with an interactive scene you can touch; illustrations drawn by Muse Image; a lesson
+where Muse Spark watches a video; and an agent builder at the end. The agent runs on Meta's Muse
+models.
 
-This contains everything you need to run your app locally.
+## Built on Meta models
 
-View your app in AI Studio: https://ai.studio/apps/5bca03ae-face-4d0d-8485-0b9ac343e740
+- **Muse Spark** (`meta/muse-spark-1.3`) — the agent's brain: the tool loop, onboarding and every
+  lesson question; it also watches short videos in the «Как модель видит» lesson.
+- **Muse Image** (`meta/muse-image`) — illustrates the lessons (pre-generated and bundled) and
+  redraws a lesson scene around the learner on request.
 
-## Run Locally
+Both are reached through [OpenRouter](https://openrouter.ai). Only Meta models are used: the model
+list and the fallback chain accept `meta/…` models only, and the `-contributor` variants (which the
+vendor may train on) are filtered out.
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
+## Run locally
 
+Prerequisites: [Android Studio](https://developer.android.com/studio), an OpenRouter API key.
 
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `NVIDIA_API_KEY` in that file to your NVIDIA NIM API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
+1. Open the project in Android Studio.
+2. Create `.env` in the project root (see `.env.example`) and set `OPENROUTER_API_KEY` to your key.
+   The key is baked into **debug** builds only; a release build refuses a live key.
+   You can also enter the key later in the app: Settings → API KEYS.
+3. Run the `app` configuration on an emulator or a device (Android 7.0+).
+
+## Stack
+
+Kotlin, Jetpack Compose, Metro DI, Ktor (SSE streaming), Room, WorkManager, Coil.

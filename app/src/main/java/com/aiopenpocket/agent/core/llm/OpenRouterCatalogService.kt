@@ -110,7 +110,8 @@ class OpenRouterCatalogService(
    *
    * Отбор — только модели с `tools`: без function calling агентский луп, MCP-тулы и план-движок
    * просто перестают работать, и выглядит это как «агент отупел», а не как неверный выбор модели.
-   * И никаких моделей, на данных которых обучается вендор ([trainsOnUserData]).
+   * И никаких моделей, на данных которых обучается вендор ([trainsOnUserData]), и только модели Meta
+   * ([isMetaModel]): приложение работает на Muse.
    *
    * Порядок — сначала курируемый сид (проверенные вручную модели), потом всё остальное по дате
    * появления, новые выше. Алфавит здесь был бы худшим из вариантов: он поднял бы наверх случайных
@@ -127,6 +128,7 @@ class OpenRouterCatalogService(
       .filter { it.supportedParameters.contains(TOOLS_PARAM) }
       .filter { it.architecture.inputModalities.contains(TEXT_MODALITY) }
       .filterNot { trainsOnUserData(it.id) }
+      .filter { isMetaModel(it.id) }
       .sortedWith(
         compareBy<OpenRouterModel> { seedOrder.indexOf(it.id).takeIf { i -> i >= 0 } ?: Int.MAX_VALUE }
           .thenByDescending { it.created },
@@ -137,7 +139,7 @@ class OpenRouterCatalogService(
         ModelEntry(
           name = m.id,
           priority = index + 1,
-          // Потолок ответа общий с NIM-каталогом; если провайдер разрешает меньше — берём его число.
+          // Потолок ответа общий для всех моделей; если провайдер разрешает меньше — берём его число.
           maxTokens = m.topProvider.maxCompletionTokens?.coerceAtMost(MAX_TOKENS) ?: MAX_TOKENS,
           reasoning = m.supportedParameters.contains(REASONING_PARAM),
           inputModalities = m.architecture.inputModalities,

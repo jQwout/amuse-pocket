@@ -11,7 +11,6 @@ import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.LlmUsageRecorder
 import com.aiopenpocket.agent.core.llm.ModelCatalog
-import com.aiopenpocket.agent.core.llm.bundledNvidiaKey
 import com.aiopenpocket.agent.core.llm.bundledOpenRouterKey
 import com.aiopenpocket.agent.core.llm.ModelCatalogLoader
 import com.aiopenpocket.agent.core.llm.OpenAiCompatClient
@@ -19,7 +18,7 @@ import com.aiopenpocket.agent.core.llm.ProviderConfig
 import com.aiopenpocket.agent.core.llm.ProviderFallbackChain
 import com.aiopenpocket.agent.core.llm.SelectedLlmProvider
 import com.aiopenpocket.agent.core.llm.VideoUnderstandingClient
-import com.aiopenpocket.agent.core.llm.llmProviderOf
+import com.aiopenpocket.agent.core.llm.isMetaModel
 import com.aiopenpocket.data.repository.SettingsRepository
 import dev.zacsweers.metro.BindingContainer
 import dev.zacsweers.metro.ContributesTo
@@ -49,52 +48,39 @@ object LlmModule {
   fun provideLlmHttpEngine(): HttpClientEngine = Android.create()
 
   /**
-   * Muse Image через OpenRouter — для картинок уроков. Ключ тот же, что у чата на OpenRouter, и
-   * читается при каждой генерации: ключ, введённый в Настройках, действует без перезапуска.
-   *
-   * Только когда OpenRouter выбран провайдером. Иначе урок молча слал бы запросы вендору, которого
-   * пользователь не выбирал, и по его прайсу — ровно то, от чего избавились, убрав AUTO. Пустой ключ
-   * клиент понимает как «не рисовать», и урок на NIM показывает картинки из сборки.
+   * Muse Image через OpenRouter — для картинок уроков. Ключ тот же, что у чата, и читается при
+   * каждой генерации: ключ, введённый в Настройках, действует без перезапуска. Пустой ключ клиент
+   * понимает как «не рисовать» — урок показывает картинки из сборки.
    */
   @Provides
   @SingleIn(AppScope::class)
   fun provideImageGenClient(
     engine: HttpClientEngine,
     settingsRepository: SettingsRepository,
-    selectedProvider: SelectedLlmProvider,
     usageRecorder: LlmUsageRecorder,
   ): ImageGenClient = ImageGenClient(
     engine = engine,
-    apiKey = {
-      if (selectedProvider() == LlmProvider.OPENROUTER) openRouterKey(settingsRepository) else ""
-    },
+    apiKey = { openRouterKey(settingsRepository) },
     usageRecorder = usageRecorder,
   )
 
-  /**
-   * Muse Spark через OpenRouter — для видео в уроке. Тот же гейт, что у картинок: видео уходит
-   * провайдеру целиком, со всем, что попало в кадр, и только тому вендору, которого выбрал пользователь.
-   */
+  /** Muse Spark через OpenRouter — для видео в уроке. Ключ тот же, что у чата и картинок. */
   @Provides
   @SingleIn(AppScope::class)
   fun provideVideoUnderstandingClient(
     engine: HttpClientEngine,
     settingsRepository: SettingsRepository,
-    selectedProvider: SelectedLlmProvider,
     usageRecorder: LlmUsageRecorder,
   ): VideoUnderstandingClient = VideoUnderstandingClient(
     engine = engine,
-    apiKey = {
-      if (selectedProvider() == LlmProvider.OPENROUTER) openRouterKey(settingsRepository) else ""
-    },
+    apiKey = { openRouterKey(settingsRepository) },
     usageRecorder = usageRecorder,
   )
 
-  /** Выбранный вендор — общий на всё приложение: чат, план-движок и фоновые heartbeat'ы. */
+  /** Провайдер на всё приложение: чат, план-движок и фоновые heartbeat'ы. Пока он один — OpenRouter. */
   @Provides
   @SingleIn(AppScope::class)
-  fun provideSelectedLlmProvider(settingsRepository: SettingsRepository): SelectedLlmProvider =
-    SelectedLlmProvider { llmProviderOf(settingsRepository.getSelectedProvider()) }
+  fun provideSelectedLlmProvider(): SelectedLlmProvider = SelectedLlmProvider { LlmProvider.OPENROUTER }
 
   @Provides
   @SingleIn(AppScope::class)
@@ -102,12 +88,15 @@ object LlmModule {
     settingsRepository: SettingsRepository,
     modelCatalogLoader: ModelCatalogLoader,
   ): ProviderFallbackChain {
-    // Каталог на провайдера (см. ModelCatalogLoader): у NIM статичный ассет, у OpenRouter — сид,
-    // который в бою заменяется списком с /api/v1/models.
+    // Каталог OpenRouter (см. ModelCatalogLoader): сид из ассетов, который в бою заменяется списком
+    // с /api/v1/models.
     // OpenAiCompatClient постит на полный endpoint, поэтому дописываем /chat/completions к base_url.
     fun configsFor(provider: LlmProvider, catalog: ModelCatalog, apiKey: () -> String): List<ProviderConfig> {
       val endpoint = catalog.baseUrl.trimEnd('/') + "/chat/completions"
-      return catalog.models.map { entry ->
+      // Только модели Meta: приложение работает на Muse. Отсев здесь, а не только в разборе живого
+      // каталога: кеш, записанный прошлой версией, ещё может держать чужие модели, и модель, выбранная
+      // в Настройках до обновления, иначе осталась бы в цепочке первой.
+      return catalog.models.filter { isMetaModel(it.name) }.map { entry ->
         ProviderConfig(
           name = provider,
           baseUrl = endpoint,
@@ -124,17 +113,11 @@ object LlmModule {
       }
     }
 
-    // NIM считаем один раз: его каталог — статичный ассет. У OpenRouter каталог обновляется в
-    // рантайме (OpenRouterCatalogService пишет кеш), поэтому он пересобирается на каждый resolve —
-    // иначе новый список не действовал бы до перезапуска процесса.
-    val nimConfigs = configsFor(LlmProvider.NIM, modelCatalogLoader.loadNim()) {
-      // Ручной ключ из Настроек в приоритете; иначе — ключ, вшитый в сборку из .env (BuildConfig).
-      settingsRepository.getApiKey("NVIDIA").ifBlank { bundledNvidiaKey(BuildConfig.NVIDIA_API_KEY) }
-    }
+    // Каталог обновляется в рантайме (OpenRouterCatalogService пишет кеш), поэтому он пересобирается
+    // на каждый resolve — иначе новый список не действовал бы до перезапуска процесса.
     return ProviderFallbackChain(
       configsFor = { provider ->
         when (provider) {
-          LlmProvider.NIM -> nimConfigs
           // Ключ из Настроек в приоритете; иначе — вшитый в отладочную сборку из .env.
           LlmProvider.OPENROUTER -> configsFor(provider, modelCatalogLoader.loadOpenRouter()) {
             openRouterKey(settingsRepository)
