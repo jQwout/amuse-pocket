@@ -181,7 +181,7 @@ private fun PersonaAskBubble(personaName: String, line: String) {
 private fun personaAsk(personaId: String): String = when (personaId) {
   "silent_butler" -> "Слушаю."
   "attentive_secretary" ->
-    "Расскажите о себе — это поможет мне быть точнее. Имя, как к вам обращаться, возраст, чем занимаетесь?"
+    "Расскажи о себе — это поможет мне быть точнее. Имя, как к тебе обращаться, возраст, чем занимаешься?"
   "sharp_partner" ->
     "Окей. Кто ты — имя, как обращаться, возраст, чем занят? Без воды."
   "egalitarian_partner" ->

@@ -36,6 +36,7 @@ import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.hook.HookActionType
 import com.aiopenpocket.agent.core.hook.HookEngine
 import com.aiopenpocket.agent.core.hook.HookEvent
+import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.agent.loop.AgentMode
 import java.util.UUID
 import kotlinx.serialization.Serializable
@@ -152,11 +153,12 @@ fun HookEditorDialog(
             )
           } else {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-              agentToolNames.sorted().forEach { name ->
+              // В условие пишется сырое имя тула (его сверяет HookEngine), а на чипе — человеческое.
+              agentToolNames.sortedBy(CapabilityNames::tool).forEach { name ->
                 FilterChip(
                   selected = name in scopedToTools,
                   onClick = { scopedToTools = if (name in scopedToTools) scopedToTools - name else scopedToTools + name },
-                  label = { Text(name) },
+                  label = { Text(CapabilityNames.tool(name)) },
                 )
               }
             }
@@ -239,11 +241,11 @@ private fun parsePayloadText(hook: AgentHook): String =
     ""
   }
 
-/** Human summary of an [AgentHook]'s condition, for [HooksStep]'s list — never the raw JSON. */
+/** Human summary of an [AgentHook]'s condition, for [HooksStep]'s list — never the raw JSON, never raw tool ids. */
 internal fun hookConditionSummary(hook: AgentHook): String =
   if (hook.conditionType == "tool_name_in") {
     val names = parseScopedToolNames(hook)
-    if (names.isEmpty()) "любой инструмент" else "инструменты: ${names.sorted().joinToString(", ")}"
+    if (names.isEmpty()) "любой инструмент" else "инструменты: ${names.map(CapabilityNames::tool).sorted().joinToString(", ")}"
   } else {
     "всегда"
   }

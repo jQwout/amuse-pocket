@@ -326,7 +326,7 @@ class PlanRunner @Inject constructor(
     PlanStatus.CANCELLED -> PlanRunResult(snapshot.plan.id, PlanRunOutcome.CANCELLED, emptyList(), "План отменён.")
     PlanStatus.FAILED -> PlanRunResult(snapshot.plan.id, PlanRunOutcome.FAILED, emptyList(), "План завершился ошибкой.")
     PlanStatus.PAUSED -> PlanRunResult(snapshot.plan.id, PlanRunOutcome.PARTIAL, emptyList(), PLAN_PAUSED_REASON)
-    PlanStatus.AWAITING_APPROVAL -> PlanRunResult(snapshot.plan.id, PlanRunOutcome.PARTIAL, emptyList(), "У плана новая версия — сначала одобри её.")
+    PlanStatus.AWAITING_APPROVAL -> PlanRunResult(snapshot.plan.id, PlanRunOutcome.PARTIAL, emptyList(), "План ждёт одобрения — нажми «Одобрить» в карточке плана.")
     PlanStatus.NEEDS_REVISION -> PlanRunResult(snapshot.plan.id, PlanRunOutcome.PARTIAL, emptyList(), "План нужно пересобрать — попроси правки в его карточке.")
     PlanStatus.DRAFT, PlanStatus.NEEDS_INFO -> PlanRunResult(snapshot.plan.id, PlanRunOutcome.PARTIAL, emptyList(), "План ещё не одобрен.")
   }

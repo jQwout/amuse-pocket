@@ -40,7 +40,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -202,11 +201,12 @@ private fun AgentDetailModalHeader(
             .background(if (enabled) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)),
         )
         Text(
-          // id + версия конфига: версия — единственный видимый признак того, что «Опубликовать»
-          // действительно зафиксировало правки (шапка со «status · vN» уехала вместе со старым
-          // полноэкранным вариантом, и версию перестало быть видно вообще где-либо).
-          text = "${agent.id} · v${agent.configVersion}",
-          style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace),
+          // Версия конфига — единственный видимый признак того, что «Опубликовать» действительно
+          // зафиксировало правки (шапка со «status · vN» уехала вместе со старым полноэкранным
+          // вариантом). Сырой id агента (`budget`, uuid) здесь больше не показываем: пользователю он
+          // ничего не говорит, имя агента стоит строкой выше.
+          text = "версия ${agent.configVersion}",
+          style = MaterialTheme.typography.labelMedium,
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,

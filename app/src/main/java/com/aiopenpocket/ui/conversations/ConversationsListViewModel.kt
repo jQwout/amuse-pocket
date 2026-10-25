@@ -56,23 +56,15 @@ class ConversationsListViewModel(
    *  только с главного потока (viewModelScope), поэтому обычного флага достаточно. */
   private var creatingConversation = false
 
-  suspend fun createConversation(initialMessage: String? = null): String? {
+  suspend fun createConversation(): String? {
     if (creatingConversation) return null
     creatingConversation = true
     try {
-      // Без начального сообщения — это тап «Новый чат»: переиспользуем уже созданный пустой чат,
-      // если пользователь просто открывал его и не написал ничего, иначе каждый повторный тап
-      // плодил бы новый пустой «Новый чат» в списке диалогов.
-      if (initialMessage == null) {
-        conversationRepository.findReusableNewChat()?.let { return it.id }
-      }
-      val title = initialMessage?.let { ConversationRepository.placeholderTitle(it) } ?: "Новый чат"
+      // Тап «Новый чат»: переиспользуем уже созданный пустой чат, если пользователь просто открывал
+      // его и не написал ничего, иначе каждый повторный тап плодил бы новый пустой «Новый чат».
+      conversationRepository.findReusableNewChat()?.let { return it.id }
       val personaId = userPreferencesRepository.getDefaultPersonaId()
-      val createdId = conversationRepository.createConversation(title, personaId)
-      if (initialMessage != null) {
-        conversationRepository.addMessage(createdId, "user", initialMessage)
-      }
-      return createdId
+      return conversationRepository.createConversation("Новый чат", personaId)
     } finally {
       creatingConversation = false
     }

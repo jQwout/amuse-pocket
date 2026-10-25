@@ -419,7 +419,9 @@ class AgentBuilderScreenTest {
     )
 
     composeTestRule.onNodeWithTag("agent_builder_tool_trace").assertExists()
-    composeTestRule.onNodeWithText("calendar", substring = true).assertExists()
+    // Журнал зовёт тул по-человечески, сырой id `calendar` на экран не попадает.
+    composeTestRule.onNodeWithText("Календарь", substring = true).assertExists()
+    composeTestRule.onNodeWithText("calendar", substring = true).assertDoesNotExist()
   }
 
   private fun testStepState(draft: AgentDraft = validDraft(), justPublished: Boolean = false): AgentBuilderUiState {
@@ -455,6 +457,8 @@ class AgentBuilderScreenTest {
     )
 
     composeTestRule.onNodeWithText("Агенту нужно разрешение").assertExists()
+    // Бар называет тул так же, как конструктор, а не сырым `calendar`.
+    composeTestRule.onNodeWithText("Календарь").assertExists()
     composeTestRule.onNodeWithText("Отклонить").performScrollTo().performClick()
     assertEquals(false, answer)
   }

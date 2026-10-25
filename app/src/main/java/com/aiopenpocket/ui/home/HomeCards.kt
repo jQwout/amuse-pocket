@@ -70,7 +70,7 @@ internal fun HomeHero() {
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Задайте вопрос или продолжите обучение",
+            text = "Задай вопрос или продолжи обучение",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
             textAlign = TextAlign.Center,

@@ -177,7 +177,6 @@ import kotlinx.serialization.json.JsonElement
 fun ChatScreen(
     conversationId: String,
     onNavigateBack: () -> Unit,
-    onOpenQuiz: (String) -> Unit = {},
     // Тап по «шапке» агент-чата (Task 21) открывает полноэкранный AgentDetailScreen
     // (com.aiopenpocket.ui.agents.detail.AgentDetailRoute, маршрут "agent/{agentId}") — заменяет
     // старый read-only инспектор-шторку, которая раньше жила прямо в этом экране.
@@ -488,16 +487,11 @@ fun ChatScreen(
                     val onDelete = remember(message.id) {
                         { viewModel.handleIntent(ChatIntent.DeleteMessage(message.id)) }
                     }
-                    val onLessonComplete = remember(message.id, state.lessonMode, state.levelId) {
+                    val onLessonComplete = remember(message.id, state.lessonMode) {
                         {
-                            if (state.lessonMode) {
-                                // JSON-урок: отметить пройденным и вернуться к списку.
-                                viewModel.completeLesson(onNavigateBack)
-                            } else {
-                                // Старый roadmap-урок: финальная карточка ведёт на отдельный экран-квиз.
-                                val levelId = state.levelId
-                                if (levelId != null) onOpenQuiz(levelId) else onNavigateBack()
-                            }
+                            // JSON-урок: отметить пройденным и вернуться к списку. Старых roadmap-уроков
+                            // с отдельным экраном-квизом больше нет — все уроки JSON со своим квизом.
+                            if (state.lessonMode) viewModel.completeLesson(onNavigateBack) else onNavigateBack()
                         }
                     }
                     // CTA капстоуна (Task 23): рендерится ТОЛЬКО когда сама карточка несёт
@@ -849,7 +843,15 @@ fun ChatScreen(
                                     glassState = glassState,
                                     placeholder = when (state.agentMode) {
                                         AgentMode.PLAN -> "Опиши задачу — агент составит план…"
-                                        AgentMode.GOAL -> "Сформулируй цель…"
+                                        // Текст GOAL берёт, только пока у диалога нет плана (тогда это
+                                        // задача для планировщика). Есть план — исполняется его шаг, а
+                                        // реплика игнорируется (StructuredPlanOrchestrator.executeGoal),
+                                        // поэтому «сформулируй цель» здесь обманывало.
+                                        AgentMode.GOAL -> when {
+                                            state.pendingPlanApproval != null -> "Сначала одобри план в карточке выше…"
+                                            state.activePlanId != null -> "Напиши «дальше» — агент сделает следующий шаг плана…"
+                                            else -> "Напиши цель — сначала придёт план…"
+                                        }
                                         AgentMode.REFLECT -> "Спроси — агент даст черновик, критику и итог…"
                                         // TUTOR не выбирается пользователем (только разовый вопрос в уроке) — как обычный чат.
                                         AgentMode.CHAT, AgentMode.TUTOR -> "Сообщение..."

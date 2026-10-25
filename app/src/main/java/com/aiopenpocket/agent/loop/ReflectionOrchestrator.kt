@@ -51,7 +51,7 @@ class ReflectionOrchestrator(
     userMessage: String,
     provider: LlmProvider,
     executionMode: ExecutionMode = ExecutionMode.LIVE,
-  ): Flow<AgentEvent> = agentTurnFlow(log, TAG, "Reflection failed") {
+  ): Flow<AgentEvent> = agentTurnFlow(log, TAG, REFLECTION_FAILED) {
     // Каждый TextDelta зеркалим в transcript, чтобы сохранённое сообщение совпало с тем, что
     // пользователь видел в стриме (черновик + критика + итог), а не только с финальным ответом.
     val transcript = StringBuilder()
@@ -63,7 +63,7 @@ class ReflectionOrchestrator(
     // событие ошибки, а не в мнимый «успех». Досрочный выход из хода — return@agentTurnFlow.
     suspend fun emitError(message: String?) {
       send(AgentEvent.StateChanged(AgentState.ERROR))
-      send(AgentEvent.Error(message ?: "Reflection failed"))
+      send(AgentEvent.Error(message ?: REFLECTION_FAILED))
     }
 
     val context = prePromptAssembler.assemble(conversationId, userMessage)
@@ -196,6 +196,7 @@ class ReflectionOrchestrator(
 
   companion object {
     private const val TAG = "Reflection"
+    private const val REFLECTION_FAILED = "Рефлексия не получилась — попробуй ещё раз."
 
     private const val CRITIC_SYSTEM =
       "Ты — строгий критик-редактор. Тебе дают запрос пользователя и черновик ответа на него. " +

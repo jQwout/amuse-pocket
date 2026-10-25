@@ -3,11 +3,13 @@ package com.aiopenpocket.agent.loop
 // @trace streaming-llm-chat-6595a1
 // @trace structured-plan-engine-907066
 
+import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.plan.execution.PlanRunResult
 import com.aiopenpocket.agent.core.plan.execution.PlanStepOutput
 import com.aiopenpocket.agent.core.plan.model.PlanRunOutcome
 import com.aiopenpocket.agent.core.plan.model.StepStatus
+import kotlinx.serialization.json.JsonElement
 
 /**
  * Все пользовательские тексты слоя ходов — единственное место (задел под i18n: UI-слой сможет
@@ -31,7 +33,11 @@ object TurnTexts {
    */
   const val TOOL_PROGRESS = "Использую инструмент…"
 
-  fun toolProgress(toolName: String): String = "Использую инструмент: $toolName…"
+  fun toolProgress(toolName: String, arguments: Map<String, JsonElement> = emptyMap()): String =
+    "Использую инструмент: ${CapabilityNames.call(toolName, arguments)}…"
+
+  /** Ход упал не по вине модели (запись в базу, неожиданное исключение): подробности — в лог. */
+  const val TURN_FAILED = "Что-то пошло не так — попробуй ещё раз."
 
   /**
    * Task 10 (structured-plan-engine-907066): PLAN turn persisted a proposal —

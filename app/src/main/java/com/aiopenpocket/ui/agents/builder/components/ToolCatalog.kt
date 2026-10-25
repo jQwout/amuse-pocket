@@ -3,6 +3,7 @@ package com.aiopenpocket.ui.agents.builder.components
 // @trace user-agent-builder-848153
 
 import com.aiopenpocket.agent.core.agent.AgentValidator
+import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.agent.core.mcp.RiskClass
 
 /**
@@ -24,13 +25,18 @@ import com.aiopenpocket.agent.core.mcp.RiskClass
  */
 data class ToolCatalogEntry(
   val name: String,
-  val label: String,
   val riskClass: RiskClass,
   val permission: String?,
   val consequence: String,
   /** Hidden from [ToolCatalog.default] — only offered via the CAPABILITIES step's "Advanced tools" expander. */
   val advancedOnly: Boolean = false,
 ) {
+  /**
+   * Имя тула — из общего [CapabilityNames], а не своё: конструктор, чипы «Умеет», экран агента и бар
+   * подтверждения обязаны звать один и тот же тул одинаково (раньше тут был отдельный словарь).
+   */
+  val label: String get() = CapabilityNames.tool(name)
+
   /**
    * Whether selecting this tool must go through [com.aiopenpocket.ui.agents.builder.components.RiskConsentDialog]
    * first. Every non-[RiskClass.READ] tool gates on consent; [advancedOnly] tools ALSO gate on it even
@@ -52,14 +58,12 @@ object ToolCatalog {
   val entries: List<ToolCatalogEntry> = listOf(
     ToolCatalogEntry(
       name = "memory_tool",
-      label = "Память",
       riskClass = RiskClass.WRITE,
       permission = null,
       consequence = "Может сохранять факты о тебе в долговременную память агента.",
     ),
     ToolCatalogEntry(
       name = "storage_tool",
-      label = "Хранилище агента",
       riskClass = RiskClass.WRITE,
       permission = null,
       // Part B of the database_query security hardening (user-agent-builder-848153, 2026-07-15): the
@@ -71,7 +75,6 @@ object ToolCatalog {
     ),
     ToolCatalogEntry(
       name = "file_tool",
-      label = "Файлы агента",
       riskClass = RiskClass.WRITE,
       permission = null,
       consequence = "Создаёт, читает и изменяет файлы агента в его собственной песочнице.",
@@ -83,87 +86,75 @@ object ToolCatalog {
     // app's own private storage through file://, which is exactly what the gate now refuses.
     ToolCatalogEntry(
       name = "external_files",
-      label = "Внешние файлы",
       riskClass = RiskClass.WRITE,
       permission = null,
       consequence = "Читает и пишет файлы вне песочницы — только те, доступ к которым пользователь " +
         "уже выдал системе. Выбора папки в приложении пока нет, поэтому тул сейчас всегда отвечает " +
-        "отказом: для файлов агента используйте «Файлы агента».",
+        "отказом: для файлов агента используй «Файлы агента».",
       advancedOnly = true,
     ),
     ToolCatalogEntry(
       name = "render_card",
-      label = "Карточки",
       riskClass = RiskClass.READ,
       permission = null,
       consequence = "Показывает интерактивные карточки в чате.",
     ),
     ToolCatalogEntry(
       name = "notifications",
-      label = "Уведомления",
       riskClass = RiskClass.WRITE,
       permission = "POST_NOTIFICATIONS",
       consequence = "Показывает системные push-уведомления.",
     ),
     ToolCatalogEntry(
       name = "heartbeat",
-      label = "Фоновые напоминания",
       riskClass = RiskClass.DESTRUCTIVE,
       permission = null,
       consequence = "Планирует фоновые пробуждения агента и может безвозвратно отменять уже запланированные.",
     ),
     ToolCatalogEntry(
       name = "work_manager",
-      label = "Фоновые задачи",
       riskClass = RiskClass.DESTRUCTIVE,
       permission = null,
       consequence = "Планирует фоновые задачи и может безвозвратно отменять уже запланированные.",
     ),
     ToolCatalogEntry(
       name = "calendar",
-      label = "Календарь",
       riskClass = RiskClass.DESTRUCTIVE,
       permission = "READ_CALENDAR, WRITE_CALENDAR",
       consequence = "Создаёт, изменяет и безвозвратно удаляет события в календаре устройства.",
     ),
     ToolCatalogEntry(
       name = "alarm",
-      label = "Будильник",
       riskClass = RiskClass.WRITE,
       permission = "SET_ALARM",
       consequence = "Ставит будильники на устройстве.",
     ),
     ToolCatalogEntry(
       name = "email",
-      label = "Почта",
       riskClass = RiskClass.EXTERNAL,
       permission = null,
       consequence = "Готовит черновик письма в почтовом приложении (без автоотправки) — данные покидают устройство.",
     ),
     ToolCatalogEntry(
       name = "srs_tool",
-      label = "Словарь (SRS)",
       riskClass = RiskClass.WRITE,
       permission = null,
       consequence = "Сохраняет слова и планирует их повторение — записывает данные на устройстве.",
     ),
     ToolCatalogEntry(
       name = "step_counter",
-      label = "Шагомер",
       riskClass = RiskClass.READ,
       permission = "ACTIVITY_RECOGNITION",
       consequence = "Читает счётчик шагов с датчика устройства.",
     ),
     ToolCatalogEntry(
       name = "load_skill",
-      label = "Загрузка навыков",
       riskClass = RiskClass.READ,
       permission = null,
       consequence = "Подгружает подробную инструкцию навыка в контекст агента.",
     ),
     ToolCatalogEntry(
       name = "database_query",
-      label = "SQL-запросы к базе",
       riskClass = RiskClass.DESTRUCTIVE,
       permission = null,
       // Read-only since Part A of the database_query security hardening (user-agent-builder-848153,

@@ -138,11 +138,11 @@ fun PersonaSelectionStep(
       ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
           Text(
-            text = "Выберите характер помощника",
+            text = "Выбери характер помощника",
             style = MaterialTheme.typography.headlineSmall,
           )
           Text(
-            text = "Настройте стиль общения вашего ИИ для комфортного обучения.",
+            text = "Настрой стиль общения своего ИИ для комфортного обучения.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp),

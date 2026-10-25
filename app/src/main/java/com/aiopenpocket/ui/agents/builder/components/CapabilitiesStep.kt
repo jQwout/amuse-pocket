@@ -41,6 +41,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.AgentValidator
 import com.aiopenpocket.agent.core.agent.ValidationIssue
+import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.agent.tools.LESSON_CARD_TEMPLATES
 import com.aiopenpocket.ui.agents.builder.AgentDraft
 import com.aiopenpocket.ui.agents.builder.CustomSkillDraft
@@ -265,7 +266,8 @@ private fun SkillChip(id: String, selected: Boolean, onClick: () -> Unit) {
   FilterChip(
     selected = selected,
     onClick = onClick,
-    label = { Text(skillLabel(id)) },
+    // Название — из общего CapabilityNames: тот же навык на экране агента зовётся так же.
+    label = { Text(CapabilityNames.skill(id)) },
     modifier = Modifier.testTag("agent_builder_skill_$id"),
   )
 }
@@ -293,14 +295,6 @@ private fun widgetTemplateLabel(template: String): String = when (template) {
   "match" -> "Сопоставление"
   "scenario" -> "Сценарий"
   else -> template
-}
-
-private fun skillLabel(id: String): String = when (id) {
-  "budget" -> "Бюджет"
-  "diary" -> "Дневник"
-  "fitness" -> "Фитнес"
-  "languages" -> "Языки"
-  else -> id
 }
 
 @Composable

@@ -62,17 +62,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.agent.core.agent.AgentDefinition
+import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.ui.agents.builder.components.riskClassLabel
 import com.aiopenpocket.ui.agents.builder.components.riskColor
 import com.aiopenpocket.ui.components.glass.GlassCard
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * Строка поиска в шапке: поле ввода + счётчик совпадений и стрелки навигации (пред/след), крестик —
@@ -204,7 +205,7 @@ private fun ModeChip(
 /**
  * Модал/бар подтверждения тула (Task 9 backend, Task 21 UI): показывается, пока
  * `state.pendingToolApproval` не null — BEFORE_TOOL-хук агента потребовал разрешения перед вызовом
- * инструмента. Показывает имя тула, риск-класс (тот же бейдж-стиль, что и на экране агента —
+ * инструмента. Показывает человеческое имя вызова ([CapabilityNames.call]), риск-класс (тот же бейдж-стиль, что и на экране агента —
  * [riskClassLabel]/[riskColor]) и аргументы вызова; «Разрешить»/«Отклонить» шлют
  * [ChatIntent.ApproveToolCall]/[ChatIntent.DenyToolCall] — ChatViewModel сам резолвит их против
  * ТЕКУЩЕГО `state.pendingToolApproval`, здесь достаточно просто послать интент.
@@ -246,15 +247,18 @@ internal fun ToolApprovalBar(
                 }
             }
             Spacer(Modifier.height(6.dp))
+            // Что именно агент хочет сделать — по-человечески («Календарь: удалить событие»), а не
+            // сырым `calendar` моноширинным шрифтом: решение «разрешить» принимает пользователь.
             Text(
-                text = request.toolName,
-                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                text = CapabilityNames.call(request.toolName, request.arguments),
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )
-            if (request.arguments.isNotEmpty()) {
+            val argumentsText = formatToolArguments(request.toolName, request.arguments)
+            if (argumentsText.isNotEmpty()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = formatToolArguments(request.arguments),
+                    text = argumentsText,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                     maxLines = 4,
@@ -277,8 +281,14 @@ internal fun ToolApprovalBar(
     }
 }
 
-private fun formatToolArguments(arguments: Map<String, JsonElement>): String =
-    arguments.entries.joinToString(", ") { (key, value) -> "$key: $value" }
+/**
+ * Аргументы вызова под заголовком бара. `action` (и `id` навыка у load_skill) уже сказаны в заголовке
+ * через [CapabilityNames.call] — повторять их сырым id ниже незачем. Строки — без JSON-кавычек.
+ */
+private fun formatToolArguments(toolName: String, arguments: Map<String, JsonElement>): String =
+    arguments.entries
+        .filterNot { (key, _) -> key == "action" || (toolName == "load_skill" && key == "id") }
+        .joinToString(", ") { (key, value) -> "$key: ${(value as? JsonPrimitive)?.content ?: value}" }
 
 /**
  * Панель записи голоса в стиле Telegram/Claude — подменяет поле ввода, пока идёт распознавание.

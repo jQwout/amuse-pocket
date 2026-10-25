@@ -109,7 +109,7 @@ class StructuredPlanOrchestrator @Inject constructor(
     conversationId: String,
     userMessage: String,
     provider: LlmProvider,
-  ): Flow<AgentEvent> = agentTurnFlow(log, TAG, "Не получилось составить план.") {
+  ): Flow<AgentEvent> = agentTurnFlow(log, TAG, PROPOSE_FAILED_MESSAGE, exposeExceptionMessage = false) {
     send(AgentEvent.StateChanged(AgentState.STREAMING))
     val agentId = conversationRepository.getConversation(conversationId)?.agentId
     val target = resolveDraftTarget(conversationId, agentId)
@@ -181,7 +181,7 @@ class StructuredPlanOrchestrator @Inject constructor(
     provider: LlmProvider,
     budget: PlanRunBudget = PlanRunBudget(),
     executionMode: ExecutionMode = ExecutionMode.LIVE,
-  ): Flow<AgentEvent> = agentTurnFlow(log, TAG, "Не получилось выполнить шаг плана.") {
+  ): Flow<AgentEvent> = agentTurnFlow(log, TAG, GOAL_FAILED_MESSAGE, exposeExceptionMessage = false) {
     send(AgentEvent.StateChanged(AgentState.STREAMING))
     val resolvedPlanId = planId ?: resolveExistingPlanId(conversationId)
 
@@ -229,7 +229,15 @@ class StructuredPlanOrchestrator @Inject constructor(
 
     if (result.outcome == PlanRunOutcome.FAILED) {
       send(AgentEvent.StateChanged(AgentState.ERROR))
-      send(AgentEvent.Error(result.blockedReason ?: "Выполнение шага плана завершилось ошибкой."))
+      // Ответы шагов едут вместе с ошибкой: упавший шаг мог успеть сказать главное (проверка
+      // сломалась уже после ответа), а без них foreground-путь терял этот текст, хотя фоновый
+      // heartbeat пишет его в чат и при FAILED.
+      send(
+        AgentEvent.Error(
+          result.blockedReason ?: "Выполнение шага плана завершилось ошибкой.",
+          planStepOutputs = result.stepOutputs,
+        ),
+      )
     } else {
       send(AgentEvent.PlanProgressed(result))
       // (C3) A foreground GOAL run can race this plan's OWN heartbeat: the heartbeat gets tryLock-
@@ -300,6 +308,13 @@ class StructuredPlanOrchestrator @Inject constructor(
     /** Что видит пользователь, когда план от модели не прошёл [com.aiopenpocket.agent.core.plan.validation.PlanValidator]. */
     internal const val INVALID_PLAN_MESSAGE =
       "Модель составила план с ошибками — попробуй ещё раз или уточни задачу."
+
+    /**
+     * Баннер, когда ход упал исключением (а не типизированным результатом): движок бросает
+     * require/check с английской диагностикой — она уходит в лог (см. agentTurnFlow), не сюда.
+     */
+    internal const val PROPOSE_FAILED_MESSAGE = "Не получилось составить план — попробуй ещё раз."
+    internal const val GOAL_FAILED_MESSAGE = "Не получилось выполнить шаг плана — попробуй ещё раз."
     private const val GOAL_RUN_REFUSED_MESSAGE =
       "Не получилось выполнить шаг: план изменился во время запуска. Попробуй ещё раз."
     private val TERMINAL_PLAN_STATUSES = setOf(PlanStatus.COMPLETED, PlanStatus.CANCELLED, PlanStatus.FAILED)

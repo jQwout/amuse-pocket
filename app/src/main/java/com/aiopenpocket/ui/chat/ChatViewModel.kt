@@ -486,7 +486,9 @@ class ChatViewModel(
                 throw e
             } catch (e: Exception) {
                 android.util.Log.e("ChatViewModel", "plan command failed", e)
-                _state.update { it.copy(error = e.message ?: "Не удалось выполнить действие с планом") }
+                // e.message здесь — проверки движка вроде «Cannot apply Pause to plan …» по-английски;
+                // человеку нужна одна понятная строка, подробности — в логе.
+                _state.update { it.copy(error = "Не удалось выполнить действие с планом — попробуй ещё раз.") }
             }
         }
     }
@@ -868,6 +870,6 @@ private fun VoiceInputState.ErrorReason.toUserMessage(): String = when (this) {
     VoiceInputState.ErrorReason.Network -> "Нет сети для распознавания речи"
     VoiceInputState.ErrorReason.Audio -> "Ошибка микрофона"
     VoiceInputState.ErrorReason.Permission -> "Нет разрешения на доступ к микрофону"
-    VoiceInputState.ErrorReason.Busy -> "Распознаватель занят, попробуйте ещё раз"
+    VoiceInputState.ErrorReason.Busy -> "Распознаватель занят, попробуй ещё раз"
     VoiceInputState.ErrorReason.Other -> "Не удалось распознать речь"
 }

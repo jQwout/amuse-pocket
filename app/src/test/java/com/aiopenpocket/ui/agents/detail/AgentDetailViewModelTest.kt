@@ -209,6 +209,8 @@ class AgentDetailViewModelTest {
     assertEquals(listOf("custom-skill-1"), state.skills.map { it.id })
     assertTrue(state.skills.single().available)
     assertEquals("Тестовый кастомный навык", state.skills.single().description)
+    // На экран идёт название своего навыка из Room, а не его id.
+    assertEquals("Мой навык", state.skills.single().title)
     assertEquals(listOf("hook1"), state.hooks.map { it.hook.id })
     assertEquals(listOf("run1"), state.hooks.single().recentRuns.map { it.id })
     assertEquals(listOf("hb1"), state.activeHeartbeats.map { it.id })

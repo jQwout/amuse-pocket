@@ -293,7 +293,24 @@ class PlanDetailViewModelTest {
     vm.pause()
     val state = vm.state.first { it.actionError != null }
 
-    assertTrue(state.actionError!!.isNotBlank())
+    // Русская строка, а не английский текст require/check из PlanRepository с id плана.
+    assertEquals(PlanDetailViewModel.ACTION_FAILED_MESSAGE, state.actionError)
+  }
+
+  // --- «Последний результат» шага ----------------------------------------------------------------------
+
+  @Test
+  fun `machine evidence summary is shown as the proven criterion, human summaries as is`() {
+    val criteria = listOf(criterion("c1")).associateBy { it.id }
+    val toolEvidence = evidence(criterionId = "c1").copy(summary = "Инструмент «memory_tool» выполнен успешно: {\"ok\":true}")
+
+    // Сырое имя инструмента и JSON — не для пользователя: показываем, какой критерий подтверждён.
+    assertEquals("подтверждён критерий «Description c1»", displayEvidenceSummary(toolEvidence, criteria))
+    // Критерий неизвестен — лучше исходная сводка, чем пусто.
+    assertEquals(toolEvidence.summary, displayEvidenceSummary(toolEvidence.copy(criterionId = "gone"), criteria))
+    // Подтверждение пользователя и оценка модели — уже человеческий текст.
+    val confirmed = evidence(criterionId = "c1").copy(source = EvidenceSource.USER_CONFIRMATION, summary = "Пользователь подтвердил: лимиты")
+    assertEquals("Пользователь подтвердил: лимиты", displayEvidenceSummary(confirmed, criteria))
   }
 
   // --- initial / not-found state ----------------------------------------------------------------------

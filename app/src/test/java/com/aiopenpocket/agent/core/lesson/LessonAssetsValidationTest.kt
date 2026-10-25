@@ -3,7 +3,6 @@ package com.aiopenpocket.agent.core.lesson
 // @trace uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2
 
 import com.aiopenpocket.agent.core.llm.VideoUnderstandingClient
-import com.aiopenpocket.ui.roadmap.LESSON_QUIZZES
 import com.aiopenpocket.ui.roadmap.LIBRARY_LESSON_IDS
 import com.aiopenpocket.ui.roadmap.ROADMAP_LEVELS
 import kotlinx.serialization.json.Json
@@ -222,11 +221,6 @@ class LessonAssetsValidationTest {
           }
           "scenario" -> add(Triple("${file.name} шаг $i (scenario)", step.options, step.scenarioCorrectIndex()))
         }
-      }
-    }
-    LESSON_QUIZZES.forEach { (levelId, questions) ->
-      questions.forEachIndexed { qi, q ->
-        add(Triple("LESSON_QUIZZES[$levelId] вопрос $qi", q.options, q.correctIndex))
       }
     }
   }

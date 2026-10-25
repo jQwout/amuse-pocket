@@ -13,6 +13,7 @@ import com.aiopenpocket.agent.core.agent.UserAgentRepository
 import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.hook.AgentHookRepository
 import com.aiopenpocket.agent.core.hook.AgentHookRunEntity
+import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
 import com.aiopenpocket.agent.core.memory.dao.HeartbeatDao
@@ -54,6 +55,11 @@ data class AgentDetailToolRow(
 /** One resolved row for the Навыки section — real skill-pack metadata, never "есть/нет". */
 data class AgentDetailSkillRow(
   val id: String,
+  /**
+   * Что видит пользователь вместо [id]: название своего навыка из Room либо имя встроенного из
+   * [CapabilityNames.skill]. Сам [id] — контракт с моделью (`load_skill(id)`), на экран не идёт.
+   */
+  val title: String,
   val description: String,
   val whenToUse: String,
   val available: Boolean,
@@ -206,12 +212,19 @@ class AgentDetailViewModel(
     viewModelScope.launch {
       try {
         val definition = agentResolver.resolve(id)
+        // Сортировка по тому, что видно на экране (имени), а не по сырому id.
         val toolRows = definition?.toolNames.orEmpty()
           .map(::resolveToolRow)
-          .sortedBy { it.name }
+          .sortedBy { CapabilityNames.tool(it.name) }
+        // Названия своих навыков агента: у custom-навыка в манифесте только id, имя живёт в Room.
+        val ownSkillNames = if (definition != null) {
+          userSkillRepository.getForAgent(id).associate { it.id to it.name }
+        } else {
+          emptyMap()
+        }
         val skillRows = definition?.skillIds.orEmpty()
-          .map { skillId -> resolveSkillRow(skillId) }
-          .sortedBy { it.id }
+          .map { skillId -> resolveSkillRow(skillId, ownSkillNames[skillId]) }
+          .sortedBy { it.title }
         // Хуки/файлы только для реально резолвящегося агента: пропускаем их для несуществующего id
         // вместо похода в agentFilesRepository с потенциально «грязным» id (см. sandboxRoot).
         val hooks = if (definition != null) agentHookRepository.getForAgent(id) else emptyList()
@@ -257,13 +270,17 @@ class AgentDetailViewModel(
     }
   }
 
-  /** Mirrors [resolveToolRow] for an [AgentDefinition.skillIds] entry the composite [SkillRegistry] no longer resolves. */
-  private suspend fun resolveSkillRow(id: String): AgentDetailSkillRow {
+  /**
+   * Mirrors [resolveToolRow] for an [AgentDefinition.skillIds] entry the composite [SkillRegistry] no longer resolves.
+   * [ownName] — название своего навыка агента из Room (пустое/нет — берём имя встроенного навыка).
+   */
+  private suspend fun resolveSkillRow(id: String, ownName: String?): AgentDetailSkillRow {
     val skill = skillRegistry.get(id)
+    val title = ownName?.takeIf { it.isNotBlank() } ?: CapabilityNames.skill(id)
     return if (skill != null) {
-      AgentDetailSkillRow(id = id, description = skill.manifest.description, whenToUse = skill.manifest.whenToUse, available = true)
+      AgentDetailSkillRow(id = id, title = title, description = skill.manifest.description, whenToUse = skill.manifest.whenToUse, available = true)
     } else {
-      AgentDetailSkillRow(id = id, description = "Навык недоступен в этой версии приложения", whenToUse = "", available = false)
+      AgentDetailSkillRow(id = id, title = title, description = "Навык недоступен в этой версии приложения", whenToUse = "", available = false)
     }
   }
 

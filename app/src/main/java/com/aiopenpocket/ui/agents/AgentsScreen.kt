@@ -48,7 +48,7 @@ import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.core.agent.toDefinition
-import com.aiopenpocket.ui.agents.builder.components.ToolCatalog
+import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
 import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.components.glass.rememberGlassState
@@ -260,30 +260,13 @@ private fun CapabilityChip(label: String) {
 }
 
 /**
- * Человекочитаемые ярлыки инструментов агента — его «оснащение». Короткие имена — для частых тулов,
- * остальное берётся из [ToolCatalog] (тот же список, что в конструкторе). Раньше неизвестные имена
- * молча выпадали, и у агента из одних «Хранилища»/«Уведомлений»/«Шагомера» строка «Умеет» была пустой.
- * Пропускаем только то, чего нет даже в каталоге (тул из более новой версии приложения).
+ * Человекочитаемые ярлыки инструментов агента — его «оснащение». Имена — из общего [CapabilityNames]:
+ * раньше здесь был свой словарь, и один и тот же тул в чипе и в конструкторе звался по-разному
+ * («Файлы» / «Файлы агента»). Пропускаем только тул, у которого имени нет вовсе (тул из более новой
+ * версии приложения) — подпись по сырому id в чипе хуже, чем её отсутствие.
  */
 internal fun capabilityLabels(toolNames: Set<String>): List<String> =
-  toolNames.mapNotNull { tool ->
-    when (tool) {
-      "memory_tool" -> "Память"
-      "render_card" -> "Карточки"
-      "load_skill" -> "Навыки"
-      "email" -> "Почта"
-      "alarm" -> "Будильник"
-      "work_manager" -> "Фоновые задачи"
-      "calendar" -> "Календарь"
-      "file_tool" -> "Файлы"
-      "srs_tool" -> "Словарь"
-      "storage_tool" -> "Хранилище"
-      "heartbeat" -> "Напоминания"
-      "notifications" -> "Уведомления"
-      "step_counter" -> "Шагомер"
-      else -> ToolCatalog.get(tool)?.label
-    }
-  }.distinct()
+  toolNames.filter(CapabilityNames::isKnownTool).map(CapabilityNames::tool).distinct()
 
 internal fun iconFor(key: String): ImageVector = when (key) {
   "wallet" -> Icons.Default.AccountBalanceWallet
