@@ -34,10 +34,11 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-/** Один вызов: инструмент, действие, класс риска (индекс в [RISKS]) и что вышло при «Разрешить»/«Запретить». */
+/** Один вызов: инструмент, действие, класс риска (индекс в [RISKS]) и что вышло при «Разрешить»/«Отклонить». */
 private class GateCall(val tool: String, val action: String, val risk: Int, val allowed: String, val denied: String)
 
-// Четыре класса из урока. Всё, что не «только чтение», ждёт твоего «ок».
+// Четыре класса из урока. У агента в сцене правило-хук «спрашивай перед всем, кроме чтения»,
+// поэтому всё, что не «только чтение», ждёт твоего «ок».
 private val RISKS = listOf("только чтение", "изменяет данные", "покидает устройство", "может удалить необратимо")
 
 // «Напоминания» встречаются дважды: тот же инструмент, но риск у вызовов разный.
@@ -51,7 +52,7 @@ private val CALLS = listOf(
 
 /**
  * «Полоса подтверждения»: вызовы агента приходят по одному и сами раскладываются по дорожкам —
- * читающие проходят молча, остальные замирают и ждут твоего «Разрешить» или «Запретить». Видно,
+ * читающие проходят молча, остальные замирают и ждут твоего «Разрешить» или «Отклонить». Видно,
  * что риск считают по каждому вызову: «напоминания» молча показывают список, но «отменить все» спросит.
  */
 @Composable
@@ -104,7 +105,7 @@ internal fun RiskGateScene() {
         ) {
             Text(
                 text = when {
-                    current == null -> "Жми «Следующий вызов» — приложение посмотрит на класс риска."
+                    current == null -> "Жми «Следующий вызов». У агента правило: спрашивать перед всем, кроме чтения."
                     finished -> "«Напоминания»: список — молча, «отменить все» — с твоим «ок». Риск считают по каждому вызову."
                     current.risk == 0 -> "${current.tool}: ${current.action} — «${RISKS[0]}», нечего испортить. Выполнено молча."
                     pending -> "${current.tool}: ${current.action} — «${RISKS[current.risk]}». Ход замер и ждёт тебя."
@@ -120,7 +121,7 @@ internal fun RiskGateScene() {
         // Полоса подтверждения — как внизу чата. Место под неё занято всегда, чтобы кнопка ниже не прыгала.
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(48.dp)) {
             if (pending) {
-                OutlinedButton(onClick = { deniedMask = deniedMask or currentBit }, modifier = Modifier.weight(1f)) { Text("Запретить", color = error) }
+                OutlinedButton(onClick = { deniedMask = deniedMask or currentBit }, modifier = Modifier.weight(1f)) { Text("Отклонить", color = error) }
                 Button(onClick = { allowedMask = allowedMask or currentBit }, modifier = Modifier.weight(1f)) { Text("Разрешить") }
             } else {
                 Text(

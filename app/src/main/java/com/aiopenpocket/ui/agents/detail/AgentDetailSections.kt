@@ -64,6 +64,9 @@ import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.plan.model.PlanStatus
 import com.aiopenpocket.data.repository.AgentFile
+import com.aiopenpocket.ui.agents.builder.components.hookActionLabel
+import com.aiopenpocket.ui.agents.builder.components.hookConditionSummary
+import com.aiopenpocket.ui.agents.builder.components.hookEventLabel
 import com.aiopenpocket.ui.agents.builder.components.riskColor
 import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.plan.PlanStatusBadge
@@ -147,30 +150,30 @@ internal fun InvalidCapabilitiesBanner(modifier: Modifier = Modifier) {
   }
 }
 
+/**
+ * Сводка-счётчики. Плитки НЕ кликабельны: раньше у каждой был пустой onClick — ripple обещал
+ * переход, а тап ничего не делал. Сами секции и так идут ниже по порядку.
+ */
 @Composable
 internal fun StatTiles(
   state: AgentDetailState,
-  onToolsClick: () -> Unit,
-  onSkillsClick: () -> Unit,
-  onHeartbeatClick: () -> Unit,
-  onHooksClick: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
   Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-      StatTile(label = "Инструменты", value = state.tools.size.toString(), modifier = Modifier.weight(1f), onClick = onToolsClick)
-      StatTile(label = "Навыки", value = state.skills.size.toString(), modifier = Modifier.weight(1f), onClick = onSkillsClick)
+      StatTile(label = "Инструменты", value = state.tools.size.toString(), modifier = Modifier.weight(1f))
+      StatTile(label = "Навыки", value = state.skills.size.toString(), modifier = Modifier.weight(1f))
     }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-      StatTile(label = "Heartbeat", value = state.activeHeartbeats.size.toString(), modifier = Modifier.weight(1f), onClick = onHeartbeatClick)
-      StatTile(label = "Хуки", value = state.hooks.size.toString(), modifier = Modifier.weight(1f), onClick = onHooksClick)
+      StatTile(label = "Напоминания", value = state.activeHeartbeats.size.toString(), modifier = Modifier.weight(1f))
+      StatTile(label = "Хуки", value = state.hooks.size.toString(), modifier = Modifier.weight(1f))
     }
   }
 }
 
 @Composable
-private fun StatTile(label: String, value: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-  GlassCard(modifier = modifier, shape = RoundedCornerShape(16.dp), onClick = onClick) {
+private fun StatTile(label: String, value: String, modifier: Modifier = Modifier) {
+  GlassCard(modifier = modifier, shape = RoundedCornerShape(16.dp)) {
     Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
       // Как в макете: метка uppercase серым сверху, крупное значение снизу.
       Text(
@@ -500,8 +503,10 @@ internal fun HeartbeatSection(heartbeats: List<HeartbeatEntity>, modifier: Modif
   Column(modifier = modifier.fillMaxWidth()) {
     AgentSectionHeader(
       icon = Icons.Default.GraphicEq,
-      label = "Heartbeat",
-      trailing = heartbeats.size.takeIf { it > 0 }?.let { "$it активны" },
+      // «Напоминания», а не «Heartbeat»: так этот тул называется и в конструкторе («Фоновые
+      // напоминания»), и в пустом состоянии ниже.
+      label = "Напоминания",
+      trailing = heartbeats.size.takeIf { it > 0 }?.let { "активных: $it" },
     )
     Spacer(modifier = Modifier.height(8.dp))
     if (heartbeats.isEmpty()) {
@@ -617,15 +622,17 @@ private fun HookRow(row: AgentDetailHookRow, modifier: Modifier = Modifier) {
         .fillMaxWidth()
         .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
+      // Те же подписи, что в конструкторе (HooksStep): событие → действие и условие. Раньше здесь
+      // стояли UUID хука и сырые enum'ы вида «BEFORE_TOOL → DENY».
       Row(verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
           Text(
-            text = row.hook.id,
-            style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+            text = "${hookEventLabel(row.hook.event)} → ${hookActionLabel(row.hook.actionType)}",
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface,
           )
           Text(
-            text = "${row.hook.event} → ${row.hook.actionType}",
+            text = "Условие: ${hookConditionSummary(row.hook)}",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
           )
@@ -650,11 +657,14 @@ private fun HookRow(row: AgentDetailHookRow, modifier: Modifier = Modifier) {
 
 @Composable
 private fun HookRunLine(run: AgentHookRunEntity, modifier: Modifier = Modifier) {
+  // status — HookActionType.name (что хук сделал), errorMessage — текст исключения парсера JSON.
+  // Ни то, ни другое как есть не показываем: подпись действия как в конструкторе, ошибка — по-русски.
+  val action = runCatching { HookActionType.valueOf(run.status) }.getOrNull()
   val text = buildString {
     append(formatRelativeDate(run.timestamp))
     append(" — ")
-    append(run.status)
-    run.errorMessage?.let { append(": $it") }
+    append(action?.let(::hookActionLabel) ?: run.status)
+    if (run.errorMessage != null) append(": настройки хука не прочитались")
   }
   Text(
     text = text,
@@ -679,12 +689,13 @@ private fun HookEnabledBadge(enabled: Boolean, modifier: Modifier = Modifier) {
 }
 
 @Composable
-internal fun FilesSection(agentId: String, files: List<AgentFile>, modifier: Modifier = Modifier) {
+internal fun FilesSection(files: List<AgentFile>, modifier: Modifier = Modifier) {
   Column(modifier = modifier.fillMaxWidth()) {
     SectionLabel("Файлы")
     Spacer(modifier = Modifier.height(8.dp))
     Text(
-      text = "Песочница агента (filesDir/agents/$agentId)",
+      // Без внутреннего пути «filesDir/agents/<id>»: пользователю он ничего не говорит.
+      text = "Личная папка агента — другие агенты её не видят.",
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
     )
@@ -935,13 +946,7 @@ internal fun StatTilesPreview() {
         .background(MaterialTheme.colorScheme.background)
         .padding(16.dp),
     ) {
-      StatTiles(
-        state = samplePreviewState(),
-        onToolsClick = {},
-        onSkillsClick = {},
-        onHeartbeatClick = {},
-        onHooksClick = {},
-      )
+      StatTiles(state = samplePreviewState())
     }
   }
 }

@@ -4,6 +4,7 @@ package com.aiopenpocket.agent.core.plan.execution
 
 import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.plan.model.PlanEvent
 import com.aiopenpocket.agent.core.plan.model.PlanEventType
 import com.aiopenpocket.agent.core.plan.model.PlanRunOutcome
@@ -14,6 +15,8 @@ import com.aiopenpocket.agent.core.plan.model.PlanStepState
 import com.aiopenpocket.agent.core.plan.model.StepStatus
 import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
 import com.aiopenpocket.agent.core.policy.ExecutionMode
+import com.aiopenpocket.agent.loop.RENDER_CARD_TOOL
+import com.aiopenpocket.agent.loop.ToolTrace
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -42,12 +45,43 @@ data class PlanRunRequest(
   val executionMode: ExecutionMode = ExecutionMode.LIVE,
 )
 
-/** Terminal outcome of one [PlanRunner.run] call (plan's Task 10 Step 1 sketch, reproduced here). */
+/**
+ * Что сказал пользователю один исполненный шаг — сам ответ, ради которого план и запускали (меню,
+ * подборка, расчёт). Раньше [PlanRunResult] нёс только id шагов, и текст шага ([PlanStepExecutionResult.text])
+ * вместе с его render_card терялся на выходе из [PlanRunner]: карточка честно писала «все шаги
+ * выполнены», а самого результата не было нигде. Теперь его пишут в чат плана оба вызывающих —
+ * foreground-ход (TurnManager) и фоновый heartbeat (HeartbeatRunner).
+ *
+ * [title] — чтобы пользовательские тексты называли шаг по-человечески, а не сырым id.
+ * [status] — статус шага сразу после этого запуска (null, если строки состояния почему-то нет).
+ */
+data class PlanStepOutput(
+  val stepId: String,
+  val title: String,
+  val status: StepStatus?,
+  val text: String,
+  /** render_card-спеки из трейса шага — станут инлайн-карточками, как у обычного хода. */
+  val cardSpecs: List<String>,
+  val toolTrace: List<ToolTrace>,
+) {
+  /** Есть ли что показать в чате: шаг, отработавший молча (только инструменты), сообщения не даёт. */
+  val hasContent: Boolean get() = text.isNotBlank() || cardSpecs.isNotEmpty()
+}
+
+/**
+ * Terminal outcome of one [PlanRunner.run] call (plan's Task 10 Step 1 sketch, reproduced here).
+ *
+ * [blockedReason] — текст для ПОЛЬЗОВАТЕЛЯ (чат, баннер, пуш, карточка напоминания): по-русски и с
+ * названиями шагов, без id и внутренних подробностей — те остаются в событиях плана.
+ * [stepOutputs] — по одному [PlanStepOutput] на исполненный шаг (повтор того же шага в одном запуске
+ * заменяет прошлую попытку), в порядке исполнения.
+ */
 data class PlanRunResult(
   val planId: String,
   val outcome: PlanRunOutcome,
   val executedStepIds: List<String>,
   val blockedReason: String?,
+  val stepOutputs: List<PlanStepOutput> = emptyList(),
 )
 
 /**
@@ -165,7 +199,7 @@ class PlanRunner @Inject constructor(
         planId = planId,
         outcome = PlanRunOutcome.PARTIAL,
         executedStepIds = emptyList(),
-        blockedReason = "Plan '$planId' is already executing (a foreground or background run is in flight); refusing a concurrent run.",
+        blockedReason = ALREADY_RUNNING_REASON,
       )
     }
     try {
@@ -190,13 +224,19 @@ class PlanRunner @Inject constructor(
 
   private suspend fun runLocked(planId: String, request: PlanRunRequest, provider: LlmProvider): PlanRunResult {
     val executedSteps = mutableListOf<String>()
+    val outputs = mutableListOf<PlanStepOutput>()
     var stepsLeft = request.budget.maxStepsPerRun
     var pinnedStepId = request.requestedStepId
     var recovered = false
 
+    // Каждый выход из цикла несёт и id, и ответы уже исполненных шагов — иначе ранний return
+    // (план исчез, шаг заблокирован) снова терял бы то, что шаг успел сказать.
+    fun result(outcome: PlanRunOutcome, reason: String?) =
+      PlanRunResult(planId, outcome, executedSteps.toList(), reason, outputs.toList())
+
     while (true) {
       var snapshot = repository.snapshot(planId)
-        ?: return PlanRunResult(planId, PlanRunOutcome.FAILED, executedSteps, "Plan '$planId' does not exist.")
+        ?: return result(PlanRunOutcome.FAILED, PLAN_NOT_FOUND_REASON)
       check(snapshot.plan.conversationId == request.conversationId) {
         "Plan '$planId' belongs to conversation '${snapshot.plan.conversationId}', not the requested '${request.conversationId}'."
       }
@@ -212,18 +252,18 @@ class PlanRunner @Inject constructor(
         recovered = true
         if (PlanRecovery.recoverSnapshot(repository, snapshot, clock())) {
           snapshot = repository.snapshot(planId)
-            ?: return PlanRunResult(planId, PlanRunOutcome.FAILED, executedSteps, "Plan '$planId' vanished during recovery.")
+            ?: return result(PlanRunOutcome.FAILED, PLAN_NOT_FOUND_REASON)
         }
       }
 
-      statusStop(snapshot)?.let { return it.copy(executedStepIds = executedSteps.toList()) }
+      statusStop(snapshot)?.let { return it.copy(executedStepIds = executedSteps.toList(), stepOutputs = outputs.toList()) }
 
       if (stepsLeft <= 0) {
-        return PlanRunResult(planId, PlanRunOutcome.PARTIAL, executedSteps, "This run's step budget (${request.budget.maxStepsPerRun}) is used up.")
+        return result(PlanRunOutcome.PARTIAL, STEP_BUDGET_USED_REASON)
       }
 
       val step = selectStep(snapshot, pinnedStepId, clock())
-        ?: return finishNoRunnableStep(snapshot, executedSteps, pinnedStepId)
+        ?: return finishNoRunnableStep(snapshot, executedSteps, outputs, pinnedStepId)
 
       val agent = agentResolver.resolve(snapshot.plan.agentId)
       val stepResult = executor.execute(
@@ -242,42 +282,71 @@ class PlanRunner @Inject constructor(
       pinnedStepId = null
 
       val after = repository.snapshot(planId)
-        ?: return PlanRunResult(planId, PlanRunOutcome.FAILED, executedSteps, "Plan '$planId' vanished mid-run.")
-      when (after.stepStates.find { it.stepId == step.id }?.status) {
+      val stepStatus = after?.stepStates?.find { it.stepId == step.id }?.status
+      // Повтор того же шага в одном запуске заменяет прошлую попытку: пользователю нужен последний
+      // ответ шага, а не все черновики подряд.
+      outputs.removeAll { it.stepId == step.id }
+      outputs += stepOutput(step, stepStatus, stepResult)
+      if (after == null) return result(PlanRunOutcome.FAILED, PLAN_NOT_FOUND_REASON)
+      when (stepStatus) {
         StepStatus.COMPLETED -> {
           val completed = repository.tryComplete(planId)
           if (completed.plan.status == PlanStatus.COMPLETED) {
             repository.appendEvent(planCompletedEvent(completed))
-            return PlanRunResult(planId, PlanRunOutcome.COMPLETED, executedSteps, null)
+            return result(PlanRunOutcome.COMPLETED, null)
           }
           // Not every required criterion has evidence yet, or more steps remain — keep looping.
         }
-        StepStatus.BLOCKED ->
-          return PlanRunResult(planId, PlanRunOutcome.PARTIAL, executedSteps, stepResult.error ?: "Step '${step.id}' is blocked.")
-        StepStatus.FAILED ->
-          return PlanRunResult(planId, PlanRunOutcome.FAILED, executedSteps, stepResult.error ?: "Step '${step.id}' failed.")
+        // stepResult.error сюда больше не пробрасывается: там английская диагностика (бюджет,
+        // хук, ответ провайдера), и она уже записана в событиях плана. Пользователю — короткая
+        // русская причина с названием шага.
+        StepStatus.BLOCKED -> return result(PlanRunOutcome.PARTIAL, blockedStepReason(step, stepResult))
+        StepStatus.FAILED -> return result(PlanRunOutcome.FAILED, failedStepReason(step))
         else -> Unit // READY (retryable within budget), or a pre-flight budget refusal — loop back and re-select.
       }
     }
   }
 
-  /** Pre-flight status gate — re-checked fresh every iteration since a hook/other run/the user can move [PlanStatus] between iterations. Null means "ACTIVE, proceed"; [executedStepIds] is always empty here and overwritten by the caller. */
+  private fun stepOutput(step: PlanStep, status: StepStatus?, stepResult: PlanStepExecutionResult) = PlanStepOutput(
+    stepId = step.id,
+    title = step.title,
+    status = status,
+    text = stepResult.text,
+    // Тот же отбор, что у обычного хода (resolveCompletedTurn): успешные вызовы render_card.
+    cardSpecs = stepResult.toolTrace
+      .filter { it.toolName == RENDER_CARD_TOOL }
+      .mapNotNull { (it.result as? ToolResult.Success)?.data },
+    toolTrace = stepResult.toolTrace,
+  )
+
+  /** Pre-flight status gate — re-checked fresh every iteration since a hook/other run/the user can move [PlanStatus] between iterations. Null means "ACTIVE, proceed"; [executedStepIds]/[PlanRunResult.stepOutputs] are always empty here and overwritten by the caller. */
   private fun statusStop(snapshot: PlanSnapshot): PlanRunResult? = when (snapshot.plan.status) {
     PlanStatus.ACTIVE -> null
     PlanStatus.COMPLETED -> PlanRunResult(snapshot.plan.id, PlanRunOutcome.COMPLETED, emptyList(), null)
-    PlanStatus.CANCELLED -> PlanRunResult(snapshot.plan.id, PlanRunOutcome.CANCELLED, emptyList(), "Plan is cancelled.")
-    PlanStatus.FAILED -> PlanRunResult(snapshot.plan.id, PlanRunOutcome.FAILED, emptyList(), "Plan is failed.")
-    PlanStatus.PAUSED -> PlanRunResult(snapshot.plan.id, PlanRunOutcome.PARTIAL, emptyList(), "Plan is paused; resume it before running GOAL.")
-    PlanStatus.AWAITING_APPROVAL -> PlanRunResult(snapshot.plan.id, PlanRunOutcome.PARTIAL, emptyList(), "Plan has a version awaiting approval; approve it before running GOAL.")
-    PlanStatus.NEEDS_REVISION -> PlanRunResult(snapshot.plan.id, PlanRunOutcome.PARTIAL, emptyList(), "Plan needs a new proposal before running GOAL.")
-    PlanStatus.DRAFT, PlanStatus.NEEDS_INFO -> PlanRunResult(snapshot.plan.id, PlanRunOutcome.PARTIAL, emptyList(), "Plan has never been approved yet.")
+    PlanStatus.CANCELLED -> PlanRunResult(snapshot.plan.id, PlanRunOutcome.CANCELLED, emptyList(), "План отменён.")
+    PlanStatus.FAILED -> PlanRunResult(snapshot.plan.id, PlanRunOutcome.FAILED, emptyList(), "План завершился ошибкой.")
+    PlanStatus.PAUSED -> PlanRunResult(snapshot.plan.id, PlanRunOutcome.PARTIAL, emptyList(), PLAN_PAUSED_REASON)
+    PlanStatus.AWAITING_APPROVAL -> PlanRunResult(snapshot.plan.id, PlanRunOutcome.PARTIAL, emptyList(), "У плана новая версия — сначала одобри её.")
+    PlanStatus.NEEDS_REVISION -> PlanRunResult(snapshot.plan.id, PlanRunOutcome.PARTIAL, emptyList(), "План нужно пересобрать — попроси правки в его карточке.")
+    PlanStatus.DRAFT, PlanStatus.NEEDS_INFO -> PlanRunResult(snapshot.plan.id, PlanRunOutcome.PARTIAL, emptyList(), "План ещё не одобрен.")
   }
 
-  private suspend fun finishNoRunnableStep(snapshot: PlanSnapshot, executedSteps: List<String>, pinnedStepId: String?): PlanRunResult {
+  private suspend fun finishNoRunnableStep(
+    snapshot: PlanSnapshot,
+    executedSteps: List<String>,
+    outputs: List<PlanStepOutput>,
+    pinnedStepId: String?,
+  ): PlanRunResult {
     val planId = snapshot.plan.id
+    fun result(outcome: PlanRunOutcome, reason: String?) =
+      PlanRunResult(planId, outcome, executedSteps.toList(), reason, outputs.toList())
     if (pinnedStepId != null) {
       // A specific step was requested (typed heartbeat target) but isn't selectable right now.
-      return PlanRunResult(planId, PlanRunOutcome.PARTIAL, executedSteps, "Requested step '$pinnedStepId' is not runnable/due right now.")
+      val title = snapshot.version.steps.find { it.id == pinnedStepId }?.title
+      return result(
+        PlanRunOutcome.PARTIAL,
+        if (title != null) "Шаг «$title» сейчас не готов к запуску." else "Этот шаг сейчас не готов к запуску.",
+      )
     }
     val statusByStepId = snapshot.stepStates.associateBy { it.stepId }
     val allDone = snapshot.version.steps.all { statusByStepId[it.id]?.status in PLAN_COMPLETE_STEP_STATUSES }
@@ -289,19 +358,34 @@ class PlanRunner @Inject constructor(
       val completed = repository.tryComplete(planId)
       if (completed.plan.status == PlanStatus.COMPLETED) {
         repository.appendEvent(planCompletedEvent(completed))
-        return PlanRunResult(planId, PlanRunOutcome.COMPLETED, executedSteps, null)
+        return result(PlanRunOutcome.COMPLETED, null)
       }
-      return PlanRunResult(
-        planId, PlanRunOutcome.PARTIAL, executedSteps,
-        "All steps are finished but the plan has not reached COMPLETED yet (check required-criteria evidence).",
+      return result(
+        PlanRunOutcome.PARTIAL,
+        "Все шаги выполнены, но не все критерии плана подтверждены — загляни в карточку плана.",
       )
     }
     val blocked = snapshot.version.steps.firstOrNull { statusByStepId[it.id]?.status == StepStatus.BLOCKED }
     if (blocked != null) {
-      return PlanRunResult(planId, PlanRunOutcome.PARTIAL, executedSteps, "Step '${blocked.id}' is blocked and needs manual resolution.")
+      return result(PlanRunOutcome.PARTIAL, "Шаг «${blocked.title}» ждёт твоего решения — загляни в карточку плана.")
     }
-    return PlanRunResult(planId, PlanRunOutcome.PARTIAL, executedSteps, "No runnable or due step right now.")
+    return result(PlanRunOutcome.PARTIAL, "Сейчас нет шагов, готовых к запуску.")
   }
+
+  /**
+   * Почему шаг остановился в BLOCKED — по-русски, по признакам [PlanStepExecutionResult], без её
+   * английского `error`: [PlanStepExecutionResult.stoppedByBudget] — лимит витков/инструментов/попыток
+   * или дедлайн; иначе непустой `error` — блок от BEFORE_PLAN_STEP-хука агента; иначе это вердикт
+   * проверки (нужно подтверждение пользователя или правка плана) — решать пользователю.
+   */
+  private fun blockedStepReason(step: PlanStep, stepResult: PlanStepExecutionResult): String = when {
+    stepResult.stoppedByBudget -> "Шаг «${step.title}» не уложился в отведённый лимит и остановлен — загляни в карточку плана."
+    stepResult.error != null -> "Шаг «${step.title}» остановлен правилом агента."
+    else -> "Шаг «${step.title}» ждёт твоего решения — загляни в карточку плана."
+  }
+
+  // Без «попробуй ещё раз»: FAILED бывает и при исчерпанных попытках, где повтор ничего не даст.
+  private fun failedStepReason(step: PlanStep): String = "Шаг «${step.title}» завершился ошибкой."
 
   private fun planCompletedEvent(snapshot: PlanSnapshot): PlanEvent = PlanEvent(
     id = UUID.randomUUID().toString(),
@@ -314,6 +398,13 @@ class PlanRunner @Inject constructor(
   )
 
   companion object {
+    // Пользовательские причины, на которые ссылаются тесты (остальные — по месту, с названием шага).
+    internal const val ALREADY_RUNNING_REASON = "План уже выполняется — дождись, пока закончится текущий шаг."
+    internal const val PLAN_NOT_FOUND_REASON = "План не найден — похоже, его удалили."
+    internal const val PLAN_PAUSED_REASON = "План на паузе — продолжи его в карточке плана."
+    /** Лимит шагов на запуск исчерпан ([PlanRunBudget.maxStepsPerRun]) — это не сбой: и следующий шаг, и повтор этого придут следующим запуском. */
+    internal const val STEP_BUDGET_USED_REASON = "Продолжу следующим запуском."
+
     private val TERMINAL_PLAN_STATUSES = setOf(PlanStatus.COMPLETED, PlanStatus.CANCELLED, PlanStatus.FAILED)
     private val PLAN_COMPLETE_STEP_STATUSES = setOf(StepStatus.COMPLETED, StepStatus.SKIPPED)
 

@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.core.agent.toDefinition
+import com.aiopenpocket.ui.agents.builder.components.ToolCatalog
 import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
 import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.components.glass.rememberGlassState
@@ -223,20 +224,23 @@ private fun AgentCard(agent: AgentDefinition, onClick: () -> Unit, isDraft: Bool
       }
 
       // «Под капотом»: что у агента в распоряжении — инструменты и навыки (его скоуп). Делает
-      // карточку информативной: видно, на что агент способен, ещё до открытия чата.
-      Spacer(modifier = Modifier.height(12.dp))
-      Text(
-        text = "Умеет",
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
-      )
-      Spacer(modifier = Modifier.height(6.dp))
-      FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-      ) {
-        val labels = remember(agent.toolNames) { capabilityLabels(agent.toolNames) }
-        labels.forEach { CapabilityChip(it) }
+      // карточку информативной: видно, на что агент способен, ещё до открытия чата. Пустой список —
+      // без заголовка: голое «Умеет» над пустотой выглядит как поломка.
+      val labels = remember(agent.toolNames) { capabilityLabels(agent.toolNames) }
+      if (labels.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+          text = "Умеет",
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        FlowRow(
+          horizontalArrangement = Arrangement.spacedBy(6.dp),
+          verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+          labels.forEach { CapabilityChip(it) }
+        }
       }
     }
   }
@@ -255,7 +259,12 @@ private fun CapabilityChip(label: String) {
   )
 }
 
-/** Человекочитаемые ярлыки инструментов агента — его «оснащение». Неизвестные имена пропускаем. */
+/**
+ * Человекочитаемые ярлыки инструментов агента — его «оснащение». Короткие имена — для частых тулов,
+ * остальное берётся из [ToolCatalog] (тот же список, что в конструкторе). Раньше неизвестные имена
+ * молча выпадали, и у агента из одних «Хранилища»/«Уведомлений»/«Шагомера» строка «Умеет» была пустой.
+ * Пропускаем только то, чего нет даже в каталоге (тул из более новой версии приложения).
+ */
 internal fun capabilityLabels(toolNames: Set<String>): List<String> =
   toolNames.mapNotNull { tool ->
     when (tool) {
@@ -268,7 +277,11 @@ internal fun capabilityLabels(toolNames: Set<String>): List<String> =
       "calendar" -> "Календарь"
       "file_tool" -> "Файлы"
       "srs_tool" -> "Словарь"
-      else -> null
+      "storage_tool" -> "Хранилище"
+      "heartbeat" -> "Напоминания"
+      "notifications" -> "Уведомления"
+      "step_counter" -> "Шагомер"
+      else -> ToolCatalog.get(tool)?.label
     }
   }.distinct()
 

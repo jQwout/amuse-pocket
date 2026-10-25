@@ -1,6 +1,6 @@
 package com.aiopenpocket.agent.core.prompt
 
-// @trace rezhimy-agenta-plan-i-goal-ee2361
+// @trace streaming-llm-chat-6595a1
 
 /**
  * Порт чтения текстовых ассетов (prompts/, personas/) для сборки промпта: PrePromptAssembler не

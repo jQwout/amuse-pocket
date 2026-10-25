@@ -12,11 +12,14 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.github.takahirom.roborazzi.captureRoboImage
+import com.aiopenpocket.agent.core.agent.AgentStatus
 import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.hook.HookActionType
 import com.aiopenpocket.agent.core.hook.HookEvent
+import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.policy.ExecutionMode
+import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.agent.loop.ToolTrace
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.ui.theme.ThemeMode
@@ -66,6 +69,9 @@ class AgentBuilderScreenTest {
     onSendTestMessage: (String) -> Unit = {},
     onPublish: () -> Unit = {},
     onArchive: () -> Unit = {},
+    testPendingApproval: ToolApprovalRequest? = null,
+    onResolveTestApproval: (Boolean) -> Unit = {},
+    onOpenChat: (() -> Unit)? = null,
   ) {
     composeTestRule.setContent {
       MyApplicationTheme(mode = ThemeMode.DARK) {
@@ -83,6 +89,9 @@ class AgentBuilderScreenTest {
           onSendTestMessage = onSendTestMessage,
           onPublish = onPublish,
           onArchive = onArchive,
+          testPendingApproval = testPendingApproval,
+          onResolveTestApproval = onResolveTestApproval,
+          onOpenChat = onOpenChat,
         )
       }
     }
@@ -411,5 +420,59 @@ class AgentBuilderScreenTest {
 
     composeTestRule.onNodeWithTag("agent_builder_tool_trace").assertExists()
     composeTestRule.onNodeWithText("calendar", substring = true).assertExists()
+  }
+
+  private fun testStepState(draft: AgentDraft = validDraft(), justPublished: Boolean = false): AgentBuilderUiState {
+    val errors = AgentBuilderValidator.validate(draft)
+    return AgentBuilderUiState(
+      draft = draft,
+      step = BuilderStep.TEST,
+      errors = errors,
+      canPublish = AgentBuilderValidator.canPublish(errors),
+      isLoading = false,
+      justPublished = justPublished,
+    )
+  }
+
+  /**
+   * Хук «Требовать подтверждение» ставит вызов на ожидание и в тестовом прогоне. Без бара на шаге
+   * «Проверка» ответить было негде, и ход молча висел две минуты до таймаута координатора.
+   */
+  @Test
+  fun test_step_shows_the_tool_approval_bar_and_forwards_the_answer() {
+    var answer: Boolean? = null
+    render(
+      state = testStepState(),
+      testPendingApproval = ToolApprovalRequest(
+        requestId = "req-1",
+        runId = "run-1",
+        conversationId = "conv-test",
+        toolName = "calendar",
+        riskClass = RiskClass.DESTRUCTIVE,
+        arguments = emptyMap(),
+      ),
+      onResolveTestApproval = { answer = it },
+    )
+
+    composeTestRule.onNodeWithText("Агенту нужно разрешение").assertExists()
+    composeTestRule.onNodeWithText("Отклонить").performScrollTo().performClick()
+    assertEquals(false, answer)
+  }
+
+  /** После успешной публикации — подтверждение и переход в чат агента. */
+  @Test
+  fun test_step_confirms_a_publish_and_offers_to_open_the_chat() {
+    var openChatClicks = 0
+    render(
+      state = testStepState(
+        draft = validDraft().copy(status = AgentStatus.PUBLISHED, configVersion = 1L),
+        justPublished = true,
+      ),
+      onOpenChat = { openChatClicks++ },
+    )
+
+    composeTestRule.onNodeWithTag("agent_builder_published").assertExists()
+    composeTestRule.onNodeWithTag("agent_builder_open_chat").performScrollTo().performClick()
+    assertEquals(1, openChatClicks)
   }
 }

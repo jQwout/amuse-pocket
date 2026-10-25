@@ -6,32 +6,28 @@
       "git": "661d682"
     },
     "agent-memory-05e545": {
-      "hash": "a8841f96488a",
-      "git": "40a0f3f"
+      "hash": "2f44741f6e23",
+      "git": "197306c"
     },
     "agent-skills-7189cc": {
-      "hash": "6d1595097f23",
-      "git": "afd92b7"
+      "hash": "9bd9a03721eb",
+      "git": "197306c"
     },
     "ai-academy-onboarding-5d51bb": {
-      "hash": "0d09dad208e9",
-      "git": "ff190fd"
+      "hash": "4c086bd0ca43",
+      "git": "197306c"
     },
     "app-settings-beb470": {
       "hash": "1d4cac5a4014",
       "git": "ff190fd"
     },
     "background-tasks-15a34a": {
-      "hash": "6cc3fa68e3d2",
-      "git": "660f68b"
+      "hash": "dcfb1e279629",
+      "git": "197306c"
     },
     "chat-font-size-setting-c72418": {
       "hash": "39240a79ecd0",
       "git": "b49d906"
-    },
-    "classic-typography-a44c05": {
-      "hash": "543c953adb9c",
-      "git": "44b0648"
     },
     "desktop-genai-client-4c63b6": {
       "hash": "315eba16e382",
@@ -46,52 +42,48 @@
       "git": "d5690f7"
     },
     "glass-design-system-21a3fe": {
-      "hash": "7a9bae87e320",
-      "git": "3ed3e7f"
+      "hash": "1d94c9d1cead",
+      "git": "197306c"
     },
     "heartbeat-napominalki-agenta-5f0442": {
-      "hash": "392a5f1b7aeb",
-      "git": "259a650"
+      "hash": "7f12aab035c0",
+      "git": "197306c"
     },
     "kartinki-urokov-cherez-muse-image-fd6f8c": {
       "hash": "decf0758e981",
       "git": "ff190fd"
     },
     "mcp-tools-f77d9b": {
-      "hash": "674dd986d955",
-      "git": "259a650"
+      "hash": "32d670f44db9",
+      "git": "197306c"
     },
     "multi-agent-orchestration-27b8e3": {
       "hash": "b5098bba5d04",
       "git": "259a650"
     },
     "multi-chat-conversations-b3c93b": {
-      "hash": "5270de2048e5",
-      "git": "47d6b57"
+      "hash": "ec0b294904e2",
+      "git": "197306c"
     },
     "protsedurnye-animatsii-v-urokah-68b2bf": {
-      "hash": "f8f685e5a985",
-      "git": "4910b95"
+      "hash": "ee3608aa10d4",
+      "git": "197306c"
     },
     "rezhim-refleksii-fca3c4": {
-      "hash": "f6bf2deb2c2c",
-      "git": "aba348d"
-    },
-    "rezhimy-agenta-plan-i-goal-ee2361": {
-      "hash": "af6903f19e48",
-      "git": "259a650"
+      "hash": "774ab8afd562",
+      "git": "197306c"
     },
     "smena-temy-svetlaya-temnaya-sistemnaya-palitra-lime-ink-paper-005bc6": {
-      "hash": "cff08062092e",
-      "git": "d589a94"
+      "hash": "e7234480f80e",
+      "git": "197306c"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "f6de59f0358d",
-      "git": "ff190fd"
+      "hash": "e6df3d1fabf8",
+      "git": "197306c"
     },
     "structured-plan-engine-907066": {
-      "hash": "e6a3eba7547d",
-      "git": "259a650"
+      "hash": "b33b5b260baa",
+      "git": "197306c"
     },
     "swappable-persona-e5e65e": {
       "hash": "04658767fa08",
@@ -102,20 +94,20 @@
       "git": "4910b95"
     },
     "user-agent-builder-848153": {
-      "hash": "642cfbe868af",
-      "git": "ff190fd"
+      "hash": "fd8648a2bca6",
+      "git": "197306c"
     },
     "video-na-vhod-v-uroke-muse-spark-08ccdb": {
       "hash": "10da17134264",
       "git": "ff190fd"
     },
     "voice-input-1a0dfd": {
-      "hash": "8b0186906f6c",
-      "git": "6a6f145"
+      "hash": "3ef7f56d2b20",
+      "git": "197306c"
     },
     "vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53": {
-      "hash": "ad3598b8b847",
-      "git": "ff190fd"
+      "hash": "c5366f3a7762",
+      "git": "197306c"
     },
     "yazykovoy-agent-repetitor-s-intervalnymi-povtoreniyami-4a9360": {
       "hash": "8ff6359d9027",

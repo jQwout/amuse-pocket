@@ -381,6 +381,29 @@ class HeartbeatRunnerTest {
   }
 
   @Test
+  fun `agent mode with a task can stay silent too - HEARTBEAT_OK means nothing to report`() = runTest {
+    // Раньше молчать разрешалось только «пульсу» без задачи: с задачей HEARTBEAT_OK уходил в чат и пушем.
+    db.heartbeatDao().insert(hb(mode = "agent", prompt = "проверь, есть ли просроченные задачи"))
+    val doubles = runnerWithRegistry(
+      listOf(StreamEvent.TextDelta("HEARTBEAT_OK"), StreamEvent.Finish("stop")),
+      ToolRegistry(emptySet()),
+    )
+
+    assertEquals(FireOutcome.DONE, doubles.runner.handleFire("hb1", attempt = 0))
+
+    assertTrue(db.messageDao().getAllOrdered("conv1").isEmpty())
+    assertTrue(notifier.calls.isEmpty())
+    assertEquals("fired", db.heartbeatDao().getById("hb1")?.status)
+    // И право промолчать агенту действительно объявлено — не только «пульсу».
+    assertTrue(doubles.llm.calls.single().first().content!!.contains(HeartbeatRunner.HEARTBEAT_OK))
+  }
+
+  @Test
+  fun `background agent run may call srs_tool`() {
+    assertTrue(HeartbeatRunner.SAFE_TOOL_NAMES.contains("srs_tool"))
+  }
+
+  @Test
   fun `llm error retries then marks error`() = runTest {
     db.heartbeatDao().insert(hb(mode = "agent", prompt = "x"))
     val runner = runner(listOf(StreamEvent.Error("network down")))
@@ -571,6 +594,27 @@ class HeartbeatRunnerTest {
   }
 
   @Test
+  fun `typed plan-step heartbeat writes the step's answer into the plan's chat`() = runTest {
+    // Сценарий аудита: «составь меню на неделю» → Одобрить → шаг исполняется ЗДЕСЬ, в фоне. Раньше
+    // карточка писала «все шаги выполнены», пуш — «План выполнен.», а самого меню не было нигде.
+    val (runner, _, planRepository, _) = runnerWithRegistry(
+      listOf(StreamEvent.TextDelta("Понедельник: гречка с овощами"), StreamEvent.Finish("stop")),
+      ToolRegistry(emptySet()),
+    )
+    planRepository.saveProposal(plan(id = "plan-1"), planVersion(planId = "plan-1", steps = listOf(planStep(id = "step-1"))))
+    planRepository.approve("plan-1", 1)
+    db.heartbeatDao().insert(planHeartbeat())
+
+    assertEquals(FireOutcome.DONE, runner.handleFire("hb1", attempt = 0))
+
+    val assistant = db.messageDao().getAllOrdered("conv1").filter { it.role == "assistant" }
+    assertEquals(1, assistant.size)
+    assertTrue(assistant.single().content.contains("Понедельник: гречка с овощами"))
+    assertTrue(assistant.single().content.contains("Title step-1")) // заголовок — название шага
+    assertEquals("План выполнен.", notifier.calls.single().preview)
+  }
+
+  @Test
   fun `typed plan-step heartbeat never blocks on approval - a BEFORE_PLAN_STEP REQUIRE_APPROVAL hook resolves to BLOCKED instead of waiting`() = runTest {
     val requireApprovalHook = AgentHook(
       id = "hook-1",
@@ -598,8 +642,8 @@ class HeartbeatRunnerTest {
     assertTrue("the step turn's LLM must never even be called once BEFORE_PLAN_STEP blocks it", llm.calls.isEmpty())
     assertEquals(StepStatus.BLOCKED, planRepository.snapshot("plan-1")!!.stepStates.single().status)
     assertTrue(
-      "user must be told the plan step needs attention",
-      notifier.calls.any { it.preview.contains("Шаг плана требует внимания") },
+      "user must be told the plan step needs attention — in Russian, by step title",
+      notifier.calls.any { it.preview == "Шаг «Title step-1» остановлен правилом агента." },
     )
     // Plan stays ACTIVE (a blocked STEP never flips whole-plan status) -> re-synced, not cancelled
     // outright; PlanScheduler itself (tested separately) finds nothing selectable and cancels.

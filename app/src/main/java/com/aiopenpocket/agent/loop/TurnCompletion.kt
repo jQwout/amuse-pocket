@@ -1,11 +1,13 @@
 package com.aiopenpocket.agent.loop
 
-// @trace rezhimy-agenta-plan-i-goal-ee2361
+// @trace streaming-llm-chat-6595a1
 // @trace structured-plan-engine-907066
 
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.plan.execution.PlanRunResult
+import com.aiopenpocket.agent.core.plan.execution.PlanStepOutput
 import com.aiopenpocket.agent.core.plan.model.PlanRunOutcome
+import com.aiopenpocket.agent.core.plan.model.StepStatus
 
 /**
  * Все пользовательские тексты слоя ходов — единственное место (задел под i18n: UI-слой сможет
@@ -37,21 +39,67 @@ object TurnTexts {
    * `PlanRepository.observeByConversation` is what actually raises the approval bar
    * (`ChatUiState.pendingPlanApproval`); this text is only the chat-history record of the event.
    */
+  // Карточка плана стоит НАД полем ввода, то есть под этим сообщением — отсюда «ниже».
   fun planProposedMessage(planId: String, version: Int): String =
-    "📋 План предложен (версия $version). Проверь его выше и одобри, чтобы начать выполнение."
+    "📋 План предложен (версия $version). Проверь его в карточке ниже и одобри, чтобы начать выполнение."
 
-  /** Task 10: GOAL turn's [PlanRunResult] rendered as a plain assistant message — one branch per [PlanRunOutcome]. */
+  /**
+   * Task 10: GOAL turn's [PlanRunResult] rendered as a plain assistant message — one branch per [PlanRunOutcome].
+   * Шаги называются по названиям ([PlanStepOutput.title]), не по id: раньше сюда попадало
+   * «Выполнено шагов: collect_limits». Сам ответ шага — отдельным сообщением ([planStepOutputMessage]).
+   */
   fun planProgressMessage(result: PlanRunResult): String = when (result.outcome) {
     PlanRunOutcome.COMPLETED -> "✅ План выполнен: все шаги завершены."
-    PlanRunOutcome.PARTIAL -> if (result.executedStepIds.isEmpty()) {
-      result.blockedReason ?: "Пока нет шагов, готовых к выполнению."
-    } else {
-      "Выполнено шагов: ${result.executedStepIds.joinToString()}. " +
-        (result.blockedReason ?: "Продолжи, когда будешь готов.")
+    PlanRunOutcome.PARTIAL -> {
+      val done = completedStepsLine(result)
+      if (done == null) {
+        result.blockedReason ?: "Пока нет шагов, готовых к выполнению."
+      } else {
+        "$done ${result.blockedReason ?: "Продолжи, когда будешь готов."}"
+      }
     }
     PlanRunOutcome.FAILED -> result.blockedReason ?: "Выполнение шага плана завершилось ошибкой."
     PlanRunOutcome.CANCELLED -> "Выполнение плана отменено."
   }
+
+  /** «Шаг «X» выполнен.» по шагам, которые в этом запуске дошли до COMPLETED; null — таких нет. */
+  private fun completedStepsLine(result: PlanRunResult): String? {
+    val titles = result.stepOutputs.filter { it.status == StepStatus.COMPLETED }.map { "«${it.title}»" }
+    return when (titles.size) {
+      0 -> null
+      1 -> "Шаг ${titles.single()} выполнен."
+      else -> "Выполнены шаги: ${titles.joinToString()}."
+    }
+  }
+
+  /**
+   * Ответ исполненного шага плана как сообщение ассистента: заголовок с названием шага (в фоне такие
+   * сообщения приходят без реплики пользователя — без заголовка непонятно, к чему они) и сам текст.
+   * Ответ из одних карточек остаётся без текста — как card-only ответ обычного хода.
+   */
+  fun planStepOutputMessage(output: PlanStepOutput): String {
+    val text = output.text.trim()
+    return if (text.isEmpty()) "" else "**Шаг «${output.title}»**\n\n$text"
+  }
+}
+
+/**
+ * Пишет ответы исполненных шагов плана ([PlanRunResult.stepOutputs]) в чат: текст с первой карточкой,
+ * остальные карточки — отдельными сообщениями, как [TurnManager] делает для обычного хода. Общая
+ * для foreground-хода (TurnManager, через TurnPersistence) и фонового heartbeat'а (HeartbeatRunner,
+ * через ConversationRepository) — у них разные порты записи, поэтому запись приходит лямбдой.
+ * Шаги без текста и карточек пропускаются. Возвращает id последнего вставленного сообщения.
+ */
+internal suspend fun persistPlanStepOutputs(
+  outputs: List<PlanStepOutput>,
+  addAssistantMessage: suspend (text: String, cardSpec: String?) -> String,
+): String? {
+  var lastId: String? = null
+  outputs.filter { it.hasContent }.forEach { output ->
+    lastId = addAssistantMessage(TurnTexts.planStepOutputMessage(output), output.cardSpecs.firstOrNull())
+    output.cardSpecs.drop(1).forEach { spec -> lastId = addAssistantMessage("", spec) }
+  }
+  return lastId
 }
 
 /** Имя тула инлайн-карточек — общее для извлечения (здесь) и фильтра черновика в ReflectionOrchestrator. */

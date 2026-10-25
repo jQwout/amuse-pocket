@@ -180,7 +180,7 @@ fun SettingsScreen(
               modifier = Modifier.size(14.dp),
             )
             Text(
-              text = "Ключи хранятся в зашифрованном виде на устройстве.",
+              text = "Ключ хранится в зашифрованном виде на устройстве.",
               style = MaterialTheme.typography.bodySmall,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -245,7 +245,7 @@ fun SettingsScreen(
 
       SettingsSectionHeader(
         icon = Icons.Default.Key,
-        title = "API KEYS",
+        title = "КЛЮЧ API",
         modifier = Modifier.padding(horizontal = 20.dp),
       )
       Spacer(modifier = Modifier.height(12.dp))
@@ -254,7 +254,7 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
       ) {
         ApiKeyField(
-          label = "OpenRouter API Key",
+          label = "Ключ OpenRouter",
           value = state.openRouterKey,
           onValueChange = viewModel::updateOpenRouterKey,
         )
@@ -294,7 +294,7 @@ fun SettingsScreen(
       Spacer(modifier = Modifier.height(12.dp))
       SelectorCard(
         label = "ТЕКУЩАЯ МОДЕЛЬ",
-        selected = state.selectedModel,
+        selected = modelLabel(state.selectedModel),
         // Та же иконка, что у заголовка секции — строка и заголовок читаются как одно целое.
         icon = Icons.Default.Memory,
         onClick = { showModelSheet = true },
@@ -428,11 +428,11 @@ fun SettingsScreen(
     SelectorSheet(
       title = "Выбор модели",
       subtitle = "На чём агент будет думать. Быстрее — не всегда умнее.",
-      options = state.availableModels,
-      selected = state.selectedModel,
+      options = state.availableModels.map(::modelLabel),
+      selected = modelLabel(state.selectedModel),
       sheetState = modelSheetState,
-      onSelect = { model ->
-        viewModel.updateModel(model)
+      onSelect = { label ->
+        state.availableModels.firstOrNull { modelLabel(it) == label }?.let(viewModel::updateModel)
         showModelSheet = false
       },
       onDismiss = { showModelSheet = false },
@@ -497,3 +497,17 @@ fun SettingsScreen(
   }
 }
 
+/**
+ * Имя модели для человека: «meta/muse-spark-1.3» → «Muse Spark 1.3», "AUTO" → «Авто — по приоритету».
+ * Id остаётся ключом в настройках и в цепочке; здесь только подпись — без префикса вендора (он у всех
+ * один) и без сентинела настроек, который пользователю ничего не говорит.
+ */
+internal fun modelLabel(id: String): String {
+  if (id == "AUTO") return "Авто — по приоритету"
+  return id.substringAfter('/')
+    .split('-')
+    // «30b» — размер модели в миллиардах параметров, его пишут «30B».
+    .joinToString(" ") { part -> if (part.matches(SIZE_SUFFIX)) part.uppercase() else part.replaceFirstChar { it.uppercase() } }
+}
+
+private val SIZE_SUFFIX = Regex("\\d+b")

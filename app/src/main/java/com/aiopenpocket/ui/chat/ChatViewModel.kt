@@ -222,7 +222,8 @@ class ChatViewModel(
      * Task 12 (structured-plan-engine-907066): reactive derivation of `ChatUiState.activePlanId` —
      * mirrors [observePendingPlanApproval] but picks the conversation's ACTIVE/PAUSED plan instead of
      * its AWAITING_APPROVAL one, so `PlanCard` in the chat stream can keep showing live progress once
-     * GOAL has started executing an approved plan (a case [pendingPlanApproval] never covers, since it
+     * the plan is approved — исполнение стартует сразу, в фоне (см. [runPlanCommand]) — or GOAL
+     * advances it (a case [pendingPlanApproval] never covers, since it
      * only ever holds a plan awaiting a decision). Only the plan id is kept in state — the card itself
      * subscribes to the full [PlanSnapshot] via [observePlan], the same "card owns its own live
      * subscription" shape as `ReminderCardView`/[observeHeartbeat].
@@ -290,7 +291,9 @@ class ChatViewModel(
                     levelId = if (tutorial) title else null,
                     agentId = conversation?.agentId,
                     agent = agent,
-                    title = agent?.name ?: title,
+                    // У урока заголовок диалога — его id (по нему урок и находится), а в шапке нужно
+                    // человеческое название: иначе там висело бы «tokens_and_speed».
+                    title = agent?.name ?: lesson?.title?.takeIf { it.isNotBlank() } ?: title,
                     lessonMode = lesson != null,
                     lesson = lesson,
                     // Режим по умолчанию из конфига агента. До этого поле конструктора не читал вообще
@@ -387,9 +390,12 @@ class ChatViewModel(
                 _state.update { it.copy(voiceError = null) }
             }
             // Смена режима инвалидирует «Повторить» прошлого хода (иначе ретрай уйдёт в старый режим).
+            // pendingPlanApproval НЕ трогаем: это состояние плана в PlanRepository, а не режима чата.
+            // Раньше чип обнулял его, а производный поток (distinctUntilChanged) заново его не
+            // присылал — единственная карточка одобрения пропадала до перезахода в диалог.
             is ChatIntent.SetMode -> {
                 currentConversationId()?.let { turnManager.invalidateRetry(it) }
-                _state.update { it.copy(agentMode = intent.mode, pendingPlanApproval = null, canRetry = false) }
+                _state.update { it.copy(agentMode = intent.mode, canRetry = false) }
             }
             is ChatIntent.ApprovePlan -> approvePlanCommand(intent.planId, intent.version)
             is ChatIntent.RequestPlanChanges -> requestPlanChanges(intent.planId, intent.version, intent.feedback)
@@ -463,9 +469,11 @@ class ChatViewModel(
 
     /**
      * Task 5 (structured-plan-engine-907066): typed plan commands go straight to [PlanCommands] —
-     * no [TurnManager] turn, no magic chat message. Approval alone does not start execution (design
-     * spec §9: "после approval остаётся в Plan UI, но не запускает исполнение автоматически") — GOAL
-     * separately picks up the approved version on its own turn (Task 10). [runPlanCommand] mirrors
+     * no magic chat message. Одобрение ЗАПУСКАЕТ исполнение: [PlanCommands.approve] вызывает
+     * `PlanScheduleSync.sync`, а тот сразу ставит heartbeat на первый шаг без расписания — шаги идут
+     * в фоне (HeartbeatRunner), их ответы пишутся в этот же чат. GOAL-ход по-прежнему может продвинуть
+     * план и вручную. «Попросить правки» ([requestPlanChanges]) — единственная команда, которая
+     * следом сама заводит ход (PLAN), иначе новая версия плана не появлялась бы никогда. [runPlanCommand] mirrors
      * [sendMessage]'s own cancellation/error handling so a rejected command (e.g. approving a
      * superseded version — see `PlanRepository.approve`) surfaces the same way any other action
      * failure does on this screen, instead of crashing the ViewModel's scope.
@@ -488,9 +496,19 @@ class ChatViewModel(
         _state.update { it.copy(pendingPlanApproval = null) }
     }
 
+    /**
+     * «Попросить правки»: план уходит в DRAFT, и сразу же — PLAN-ход в этом диалоге с текстом правок
+     * (или с [DEFAULT_PLAN_REVISION_REQUEST], если поле пустое), чтобы планировщик предложил новую
+     * версию. Раньше команда только переводила план в DRAFT: отзыв нигде не сохранялся
+     * (PlanRepository.requestRevision его не хранит), карточка исчезала, и ничего не происходило.
+     * Отзыв уходит репликой пользователя — так он и виден в чате, и попадает в промпт планировщика.
+     */
     private fun requestPlanChanges(planId: String, version: Int, feedback: String) = runPlanCommand {
         planCommands.requestChanges(planId, version, feedback)
         _state.update { it.copy(pendingPlanApproval = null) }
+        val convId = currentConversationId() ?: return@runPlanCommand
+        val request = feedback.trim().ifEmpty { DEFAULT_PLAN_REVISION_REQUEST }
+        turnManager.launchTurn(convId, request, AgentMode.PLAN)
     }
 
     /** «Дальше» по тексту и прохождение квиза одинаково продвигают курсор урока на следующий шаг. */
@@ -727,7 +745,12 @@ class ChatViewModel(
     private suspend fun ensureConversation(firstMessage: String): String {
         _state.value.conversationId?.takeIf { it.isNotBlank() }?.let { return it }
         val title = ConversationRepository.placeholderTitle(firstMessage)
-        val newId = conversationRepository.createConversation(title = title)
+        // Персона из Настроек, а не дефолт репозитория: этим путём приходят чаты, начатые голосовым
+        // ассистентом (маршрут chat/new), и без неё они всегда говорили бы «Резким напарником».
+        val newId = conversationRepository.createConversation(
+            title = title,
+            personaId = userPreferencesRepository.getDefaultPersonaId(),
+        )
         _state.update { it.copy(conversationId = newId) }
         observeMessages(newId)
         observeSession(newId)
@@ -827,6 +850,9 @@ class ChatViewModel(
 
         /** Дебаунс поискового ввода перед сканом истории. */
         private const val SEARCH_DEBOUNCE_MS = 250L
+
+        /** Реплика для PLAN-хода после «Попросить правки» с пустым полем отзыва. */
+        internal const val DEFAULT_PLAN_REVISION_REQUEST = "Пересобери план с учётом правок"
     }
 }
 

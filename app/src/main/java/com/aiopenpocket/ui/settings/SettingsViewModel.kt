@@ -10,6 +10,7 @@ import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.llm.ModelCatalog
 import com.aiopenpocket.agent.core.llm.ModelCatalogLoader
 import com.aiopenpocket.agent.core.llm.isMetaModel
+import com.aiopenpocket.agent.core.llm.trainsOnUserData
 import com.aiopenpocket.agent.core.llm.OpenRouterCatalogService
 import com.aiopenpocket.agent.core.llm.usage.LlmUsageDao
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
@@ -188,7 +189,7 @@ class SettingsViewModel(
     // distinct: одинаковые имена — краш LazyColumn на дублирующихся ключах. Живой каталог уже
     // дедуплицирован (OpenRouterCatalogService), но ассет правится руками, а кеш мог быть записан
     // прошлой версией приложения.
-    (listOf("AUTO") + catalog.models.filter { it.supportsTools && isMetaModel(it.name) }.map { it.name }).distinct()
+    (listOf("AUTO") + catalog.models.filter { it.supportsTools && isMetaModel(it.name) && !trainsOnUserData(it.name) }.map { it.name }).distinct()
 
   fun updatePersona(personaId: String) {
     _state.update { it.copy(personaId = personaId, saved = false) }

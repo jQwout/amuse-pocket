@@ -45,7 +45,9 @@ class MemoryGraphViewModel(
     val chatNodes = mutableListOf<MemoryNode>()
     val tagDegree = LinkedHashMap<String, Int>()
 
-    conversations.forEach { conversation ->
+    // Чаты уроков — не память о пользователе: тегов у них нет (аннотатор их не трогает), а заголовок —
+    // id урока вроде «tokens_and_speed», так что в графе они висели бы сырыми одинокими узлами.
+    conversations.filterNot { it.isTutorial }.forEach { conversation ->
       val chatNodeId = "chat:${conversation.id}"
       chatNodes += MemoryNode(
         id = chatNodeId,

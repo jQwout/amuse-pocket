@@ -35,7 +35,7 @@ import com.aiopenpocket.di.AppScope
  * along with the `prompts/modes` assets it depended on — Structured Plan Engine is now the only
  * PLAN/GOAL implementation.
  */
-// @trace rezhimy-agenta-plan-i-goal-ee2361
+// @trace streaming-llm-chat-6595a1
 @SingleIn(AppScope::class)
 @Inject
 class AgentLoopOrchestrator(

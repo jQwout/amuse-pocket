@@ -53,7 +53,8 @@ import com.aiopenpocket.ui.components.glass.auroraBackground
  * решение «модалка 1:1 с ✕» по присланному макету): аврора-фон, компактная шапка
  * [AgentDetailModalHeader] (иконка+имя+статус+id, крестик закрытия), сегмент-табы [AgentDetailTabs]
  * Обзор/Файлы и прокручиваемый контент. Вкладка «Обзор» — «Открыть чат» → действия → стат-плитки →
- * препромпт → Планы → Инструменты → Навыки → Heartbeat → Хуки; вкладка «Файлы» — секция файлов.
+ * препромпт → Планы → Инструменты → Навыки → Напоминания (heartbeat) → Хуки; вкладка «Файлы» —
+ * секция файлов.
  *
  * Все секции — stateless-компоненты из AgentDetailSections.kt на реальном [AgentDetailState] (у
  * каждой есть фокусное @Preview). Планы (Task 12) тапом открывают `plan/{planId}` ([onOpenPlan]),
@@ -112,7 +113,7 @@ fun AgentDetailScreen(
         ) {
           if (tab == 1) {
             Spacer(modifier = Modifier.height(8.dp))
-            FilesSection(agentId = agent.id, files = state.files)
+            FilesSection(files = state.files)
           } else {
             Spacer(modifier = Modifier.height(8.dp))
             Button(
@@ -131,18 +132,23 @@ fun AgentDetailScreen(
               onToggleEnabled = onToggleEnabled,
               onArchive = onArchive,
             )
+            // Ошибка последнего действия (включить/дублировать/архивировать). Раньше она писалась в
+            // state и нигде не показывалась: неудачное «Включить» выглядело как тап в пустоту.
+            state.actionError?.let { error ->
+              Spacer(modifier = Modifier.height(8.dp))
+              Text(
+                text = error,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.testTag("agent_detail_action_error"),
+              )
+            }
             if (state.hasInvalidCapabilities) {
               Spacer(modifier = Modifier.height(16.dp))
               InvalidCapabilitiesBanner()
             }
             Spacer(modifier = Modifier.height(20.dp))
-            StatTiles(
-              state = state,
-              onToolsClick = {},
-              onSkillsClick = {},
-              onHeartbeatClick = {},
-              onHooksClick = {},
-            )
+            StatTiles(state = state)
             Spacer(modifier = Modifier.height(24.dp))
             PromptSection(agent = agent)
             Spacer(modifier = Modifier.height(24.dp))

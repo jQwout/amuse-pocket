@@ -2,12 +2,15 @@ package com.aiopenpocket.voice.input
 
 // @trace voice-input-1a0dfd
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.speech.RecognitionListener
+import android.speech.RecognitionService
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import dev.zacsweers.metro.Inject
@@ -47,7 +50,7 @@ class VoiceInputController(
         _state.value = VoiceInputState.Error(VoiceInputState.ErrorReason.Unavailable)
         return@runOnMain
       }
-      val r = recognizer ?: SpeechRecognizer.createSpeechRecognizer(context).also {
+      val r = recognizer ?: createRecognizer().also {
         it.setRecognitionListener(listener)
         recognizer = it
       }
@@ -92,6 +95,38 @@ class VoiceInputController(
     if (_state.value is VoiceInputState.Error) {
       _state.value = VoiceInputState.Idle
     }
+  }
+
+  private fun createRecognizer(): SpeechRecognizer {
+    val component = externalRecognizerIfDefaultIsOurs()
+    return if (component != null) {
+      SpeechRecognizer.createSpeechRecognizer(context, component)
+    } else {
+      SpeechRecognizer.createSpeechRecognizer(context)
+    }
+  }
+
+  /**
+   * Наш [com.aiopenpocket.voice.AssistRecognitionService] — заглушка: она нужна только для
+   * регистрации помощника и на любой запрос отвечает ERROR_RECOGNIZER_BUSY. Когда приложение
+   * становится помощником по умолчанию, система может сделать распознавателем по умолчанию и её —
+   * и голосовой ввод в чате молча ломался бы на «занято». Поэтому, если дефолт наш или его не
+   * прочитать, берём первый установленный распознаватель ЧУЖОГО пакета явно. Если дефолт чужой —
+   * null, работаем через него, как раньше; если чужих нет вовсе — тоже null (системный дефолт).
+   * Видимость чужих сервисов на Android 11+ даёт `<queries>` на RecognitionService в манифесте.
+   */
+  @Suppress("DEPRECATION") // queryIntentServices с ResolveInfoFlags — только с API 33, minSdk ниже.
+  private fun externalRecognizerIfDefaultIsOurs(): ComponentName? {
+    val ours = context.packageName
+    val default = runCatching {
+      Settings.Secure.getString(context.contentResolver, VOICE_RECOGNITION_SERVICE_SETTING)
+    }.getOrNull()?.let(ComponentName::unflattenFromString)
+    if (default != null && default.packageName != ours) return null
+    return context.packageManager
+      .queryIntentServices(Intent(RecognitionService.SERVICE_INTERFACE), 0)
+      .map { it.serviceInfo }
+      .firstOrNull { it.packageName != ours }
+      ?.let { ComponentName(it.packageName, it.name) }
   }
 
   private fun runOnMain(block: () -> Unit) {
@@ -147,5 +182,10 @@ class VoiceInputController(
       }
       _state.value = VoiceInputState.Error(reason)
     }
+  }
+
+  private companion object {
+    /** Settings.Secure.VOICE_RECOGNITION_SERVICE — скрытая константа, поэтому строкой. */
+    const val VOICE_RECOGNITION_SERVICE_SETTING = "voice_recognition_service"
   }
 }

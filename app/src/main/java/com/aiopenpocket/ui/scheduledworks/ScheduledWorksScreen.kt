@@ -34,6 +34,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.work.WorkInfo
+import com.aiopenpocket.agent.tools.WorkManagerTool
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.ui.util.formatDateTime
 import dev.zacsweers.metrox.viewmodel.metroViewModel
@@ -57,7 +59,7 @@ private fun ScheduledWorksContent(
   works: List<ScheduledWorkItem>,
   isLoading: Boolean,
   onNavigateBack: () -> Unit,
-  onCancel: (String) -> Unit,
+  onCancel: (ScheduledWorkItem) -> Unit,
 ) {
   Scaffold(
     topBar = {
@@ -81,7 +83,7 @@ private fun ScheduledWorksContent(
           verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
           items(works, key = { it.id }) { work ->
-            WorkItemCard(work = work, onCancel = { onCancel(work.id) })
+            WorkItemCard(work = work, onCancel = { onCancel(work) })
           }
         }
       }
@@ -126,10 +128,8 @@ private fun WorkItemCard(work: ScheduledWorkItem, onCancel: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
       ) {
         Column {
-          Text("Состояние: ${work.state}", style = MaterialTheme.typography.labelMedium)
-          val dateStr = if (work.nextScheduleTimeMillis > 0) {
-            formatDateTime(work.nextScheduleTimeMillis)
-          } else "—"
+          Text("Состояние: ${work.state.label()}", style = MaterialTheme.typography.labelMedium)
+          val dateStr = work.nextScheduleTimeMillis?.let(::formatDateTime) ?: "—"
           Text("Следующий запуск: $dateStr", style = MaterialTheme.typography.labelMedium)
         }
         TextButton(onClick = onCancel) { Text("Отменить") }
@@ -141,12 +141,12 @@ private fun WorkItemCard(work: ScheduledWorkItem, onCancel: () -> Unit) {
 @Composable
 private fun TypeBadge(type: String) {
   val (label, bg, fg) = when (type) {
-    "one_time" -> Triple(
+    WorkManagerTool.TAG_ONE_TIME -> Triple(
       "Разовая",
       MaterialTheme.colorScheme.primaryContainer,
       MaterialTheme.colorScheme.onPrimaryContainer,
     )
-    "periodic" -> Triple(
+    WorkManagerTool.TAG_PERIODIC -> Triple(
       "Периодическая",
       MaterialTheme.colorScheme.secondaryContainer,
       MaterialTheme.colorScheme.onSecondaryContainer,
@@ -173,8 +173,14 @@ private fun ScheduledWorksPreview() {
   MyApplicationTheme {
     ScheduledWorksContent(
       works = listOf(
-        ScheduledWorkItem("1", "Купить кофе", "Не забудь зайти в кофейню", "ENQUEUED", "one_time", 1_700_000_000_000L),
-        ScheduledWorkItem("2", "Утренний чек-ин", "", "RUNNING", "periodic", 1_700_001_000_000L),
+        ScheduledWorkItem(
+          "1", "a", "Купить кофе", "Не забудь зайти в кофейню",
+          WorkInfo.State.ENQUEUED, WorkManagerTool.TAG_ONE_TIME, 1_700_000_000_000L,
+        ),
+        ScheduledWorkItem(
+          "2", "b", "Утренний чек-ин", "",
+          WorkInfo.State.RUNNING, WorkManagerTool.TAG_PERIODIC, null,
+        ),
       ),
       isLoading = false,
       onNavigateBack = {},

@@ -376,7 +376,18 @@ class TurnManager(
         // — свой текст, без resolveCompletedTurn (тот обслуживает только CHAT/REFLECT/TUTOR, которые
         // сюда как AgentEvent.Completed приходят; PLAN/GOAL с этих режимов не приходят вовсе).
         is AgentEvent.PlanProposed -> finishPlanMessage(session, TurnTexts.planProposedMessage(event.planId, event.version))
-        is AgentEvent.PlanProgressed -> finishPlanMessage(session, TurnTexts.planProgressMessage(event.result))
+        is AgentEvent.PlanProgressed -> {
+          // Сначала сам ответ шага (ради него план и запускали), потом строка прогресса. Раньше
+          // писалась только строка прогресса, и результат шага пропадал целиком.
+          persistPlanStepOutputs(event.result.stepOutputs) { text, card ->
+            persistence.addAssistantMessage(session.conversationId, text, card)
+          }
+          finishPlanMessage(
+            session,
+            TurnTexts.planProgressMessage(event.result),
+            toolTrace = event.result.stepOutputs.flatMap { it.toolTrace },
+          )
+        }
         is AgentEvent.PlanBlocked -> finishPlanMessage(session, event.reason)
 
         // Уточняем прогресс именем инструмента (EXECUTING_TOOL мгновением раньше показал общий текст).
@@ -430,15 +441,17 @@ class TurnManager(
    * [AgentEvent.PlanProgressed]/[AgentEvent.PlanBlocked] — persists [text] as a plain assistant
    * message (no card yet — a dedicated `agent_plan` PlanCard is Task 12's Plan UI, not this task)
    * and completes the session, mirroring [handleCompleted]'s own "insert, update status, notify"
-   * bookkeeping. No token/toolTrace stats: a plan turn's LLM calls happen inside
+   * bookkeeping. No token stats: a plan turn's LLM calls happen inside
    * `com.aiopenpocket.agent.core.plan.planner.PlanPlanner`/`com.aiopenpocket.agent.core.plan.execution.PlanExecutor`,
-   * not this loop, and are not surfaced here. Always `canRetry = false` — unlike a blank/network
-   * error, there is nothing to retry: the user can just send another PLAN/GOAL turn.
+   * not this loop, and are not surfaced here. [toolTrace] — трейс исполненных шагов (GOAL), чтобы
+   * панель инструментов показывала, что шаг реально вызывал; у PLAN/NeedsInfo он пуст. Always
+   * `canRetry = false` — unlike a blank/network error, there is nothing to retry: the user can just
+   * send another PLAN/GOAL turn.
    */
-  private suspend fun finishPlanMessage(session: TurnSession, text: String) {
+  private suspend fun finishPlanMessage(session: TurnSession, text: String, toolTrace: List<ToolTrace> = emptyList()) {
     val convId = session.conversationId
     val insertedId = persistence.addAssistantMessage(convId, text, cardSpec = null)
-    session.toolTraceFlow.value = emptyList()
+    session.toolTraceFlow.value = toolTrace
     session.statusFlow.value = TurnStatus.Completed(
       insertedMessageId = insertedId,
       responseTimeMs = System.currentTimeMillis() - session.responseStartTime,

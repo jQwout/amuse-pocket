@@ -106,7 +106,11 @@ class ConversationRepository(
     summary?.trim()?.takeIf { it.isNotBlank() }?.let { conversationDao.updateSummary(id, it) }
     val normalized = tags.map(::normalizeTag).filter { it.isNotBlank() }.distinct()
     if (normalized.isNotEmpty()) {
-      conversationTagDao.replaceTags(id, normalized.map { ConversationTagEntity(id, it) })
+      // Служебные теги («__…», например BUILDER_TEST_TAG) ставит код, а не аннотатор, и затирать их
+      // нельзя: без метки тестовый чат конструктора после первой же аннотации всплывал бы в списке
+      // диалогов и находился бы как «чат агента».
+      val reserved = conversationTagDao.getTagsForConversation(id).filter { it.startsWith(RESERVED_TAG_PREFIX) }
+      conversationTagDao.replaceTags(id, (normalized + reserved).distinct().map { ConversationTagEntity(id, it) })
     }
   }
 
@@ -270,6 +274,9 @@ class ConversationRepository(
      * bump would destructively reset the local database before release).
      */
     const val BUILDER_TEST_TAG = "__builder_test"
+
+    /** Префикс служебных тегов, которые ставит код: аннотатор их не затирает (см. updateAnnotation). */
+    const val RESERVED_TAG_PREFIX = "__"
 
     /**
      * Title shown until the background annotator generates a real one: the first message,

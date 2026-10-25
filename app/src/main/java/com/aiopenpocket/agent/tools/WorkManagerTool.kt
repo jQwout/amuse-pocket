@@ -66,10 +66,10 @@ class WorkManagerTool(
     return when (action) {
       "schedule_notification" -> {
         val delay = arguments.long("delay_minutes") ?: 0L
-        val (title, message, id) = buildNotificationFields(arguments, defaultTitle = "Reminder")
+        val (title, message, id) = buildNotificationFields(arguments, defaultTitle = "Напоминание")
         val request = OneTimeWorkRequestBuilder<NotificationWorker>()
           .setInitialDelay(delay, TimeUnit.MINUTES)
-          .applyNotificationFields(title, message, id, kindTag = "one_time")
+          .applyNotificationFields(title, message, id, kindTag = TAG_ONE_TIME)
           .build()
         workManager.enqueueUniqueWork(id, ExistingWorkPolicy.REPLACE, request)
         ToolResult.Success("Scheduled one-time notification in $delay minutes. Work ID: $id")
@@ -80,9 +80,9 @@ class WorkManagerTool(
         if (interval < 15) {
           return ToolResult.Error("Periodic work interval must be at least 15 minutes (Android WorkManager limit).")
         }
-        val (title, message, id) = buildNotificationFields(arguments, defaultTitle = "Periodic Check")
+        val (title, message, id) = buildNotificationFields(arguments, defaultTitle = "Регулярная проверка")
         val request = PeriodicWorkRequestBuilder<NotificationWorker>(interval, TimeUnit.MINUTES)
-          .applyNotificationFields(title, message, id, kindTag = "periodic")
+          .applyNotificationFields(title, message, id, kindTag = TAG_PERIODIC)
           .build()
         workManager.enqueueUniquePeriodicWork(id, ExistingPeriodicWorkPolicy.UPDATE, request)
         ToolResult.Success("Scheduled periodic work every $interval minutes. Work ID: $id")
@@ -122,7 +122,20 @@ class WorkManagerTool(
       .build(),
   )
     .addTag(kindTag)
-    .addTag("title:$title")
-    .addTag("msg:$message")
-    .addTag("id:$id")
+    .addTag("$TAG_TITLE_PREFIX$title")
+    .addTag("$TAG_MESSAGE_PREFIX$message")
+    .addTag("$TAG_ID_PREFIX$id")
+
+  /**
+   * Теги, которыми тул метит свои задачи. Их читает экран «Запланированные задачи»: по виду
+   * ([TAG_ONE_TIME]/[TAG_PERIODIC]) он отличает наши задачи от чужих (напоминания
+   * HeartbeatScheduler, служебные воркеры), а по [TAG_ID_PREFIX] — отменяет по уникальному имени.
+   */
+  companion object {
+    const val TAG_ONE_TIME = "one_time"
+    const val TAG_PERIODIC = "periodic"
+    const val TAG_TITLE_PREFIX = "title:"
+    const val TAG_MESSAGE_PREFIX = "msg:"
+    const val TAG_ID_PREFIX = "id:"
+  }
 }
