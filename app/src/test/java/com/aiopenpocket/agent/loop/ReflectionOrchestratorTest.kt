@@ -140,7 +140,7 @@ class ReflectionOrchestratorTest {
       toolRegistry,
       assembler,
       reactLoopRunner,
-      ConversationAnnotator(llm, conversationRepository) { LlmProvider.NIM },
+      ConversationAnnotator(llm, conversationRepository) { LlmProvider.OPENROUTER },
       turnContextHolder,
       NoopLog,
     )
@@ -295,10 +295,10 @@ class ReflectionOrchestratorTest {
 
   /**
    * Провайдер в этих тестах не участвует — проверяется механика, а не адресат запроса. Хелперы,
-   * чтобы `LlmProvider.NIM` не повторялся в каждом вызове и не создавал впечатление, будто выбор
+   * чтобы `LlmProvider.OPENROUTER` не повторялся в каждом вызове и не создавал впечатление, будто выбор
    * вендора здесь что-то значит.
    */
   private fun ReflectionOrchestrator.executeNim(conversationId: String, message: String) =
-    execute(conversationId, message, LlmProvider.NIM)
+    execute(conversationId, message, LlmProvider.OPENROUTER)
 
 }

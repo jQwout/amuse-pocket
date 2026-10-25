@@ -79,7 +79,7 @@ import org.robolectric.annotation.Config
 class HeartbeatRunnerTest {
 
   /** Что «выбрано в Настройках» на момент фонового хода. */
-  private var selectedProvider = LlmProvider.NIM
+  private var selectedProvider = LlmProvider.OPENROUTER
 
   private class FakeLlm(private val events: List<StreamEvent>) : LlmClient {
     /** Snapshot (not a live reference) of `messages` as seen on each `streamChat` call — lets a test

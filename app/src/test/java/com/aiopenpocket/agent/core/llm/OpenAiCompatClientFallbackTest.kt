@@ -42,7 +42,7 @@ class OpenAiCompatClientFallbackTest {
   """.trimIndent()
 
   private fun config(model: String) = ProviderConfig(
-    name = LlmProvider.NIM,
+    name = LlmProvider.OPENROUTER,
     baseUrl = "https://nim.test/chat/completions",
     model = model,
     apiKeyResolver = { "test-key" },
@@ -61,7 +61,7 @@ class OpenAiCompatClientFallbackTest {
   }
 
   private fun clientOf(models: List<String>, engine: MockEngine) = OpenAiCompatClient(
-    fallbackChain = ProviderFallbackChain(mapOf(LlmProvider.NIM to models.map { config(it) })),
+    fallbackChain = ProviderFallbackChain(mapOf(LlmProvider.OPENROUTER to models.map { config(it) })),
     engine = engine,
     usageRecorder = NoOpLlmUsageRecorder,
   )
@@ -74,7 +74,7 @@ class OpenAiCompatClientFallbackTest {
       engine = engineFor(mapOf("empty-model" to emptySse, "good-model" to textSse), calls),
     )
 
-    val events = client.streamChat(emptyList(), emptyList(), LlmProvider.NIM).toList()
+    val events = client.streamChat(emptyList(), emptyList(), LlmProvider.OPENROUTER).toList()
 
     // Пустой 200 — не ответ: ход обязан доехать до следующей модели, а не закончиться пустотой.
     assertEquals(listOf("empty-model", "good-model"), calls)
@@ -91,7 +91,7 @@ class OpenAiCompatClientFallbackTest {
       engine = engineFor(mapOf("good-model" to textSse, "never-called" to textSse), calls),
     )
 
-    client.streamChat(emptyList(), emptyList(), LlmProvider.NIM).toList()
+    client.streamChat(emptyList(), emptyList(), LlmProvider.OPENROUTER).toList()
 
     // Инвариант: получив реальный ответ, дальше по цепочке не идём (иначе склеим два ответа в один).
     assertEquals(listOf("good-model"), calls)
@@ -105,7 +105,7 @@ class OpenAiCompatClientFallbackTest {
       engine = engineFor(mapOf("empty-1" to emptySse, "empty-2" to emptySse), calls),
     )
 
-    val events = client.streamChat(emptyList(), emptyList(), LlmProvider.NIM).toList()
+    val events = client.streamChat(emptyList(), emptyList(), LlmProvider.OPENROUTER).toList()
 
     // Цепочка исчерпана — пользователь должен увидеть ошибку, а не немой экран.
     assertEquals(listOf("empty-1", "empty-2"), calls)

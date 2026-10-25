@@ -344,7 +344,7 @@ class StructuredPlanOrchestratorTest {
   fun `executeGoal falls back to propose when the conversation has no plan yet`() = runTest {
     val convId = conversationRepository.createConversation(title = "Test", agentId = "agent-1")
 
-    val events = orchestrator().executeGoal(convId, planId = null, userMessage = "начни", provider = LlmProvider.NIM).toList()
+    val events = orchestrator().executeGoal(convId, planId = null, userMessage = "начни", provider = LlmProvider.OPENROUTER).toList()
 
     assertTrue("no plan existed yet, so GOAL must fall back to a proposal", events.any { it is AgentEvent.PlanProposed })
     assertEquals(0, stepRunner.callCount)
@@ -359,7 +359,7 @@ class StructuredPlanOrchestratorTest {
     repository.approve(planId, 1)
     stepRunner.script = { AgentResult(text = "ok", toolTrace = emptyList(), state = AgentState.FINISHED, iterations = 1) }
 
-    val events = org.executeGoal(convId, planId = null, userMessage = "продолжай", provider = LlmProvider.NIM).toList()
+    val events = org.executeGoal(convId, planId = null, userMessage = "продолжай", provider = LlmProvider.OPENROUTER).toList()
 
     val progressed = events.filterIsInstance<AgentEvent.PlanProgressed>().single()
     assertEquals(PlanRunOutcome.COMPLETED, progressed.result.outcome) // single criteria-less step -> trivially COMPLETED
@@ -376,7 +376,7 @@ class StructuredPlanOrchestratorTest {
     repository.approve(planId, 1)
     stepRunner.script = { AgentResult(text = "ok", toolTrace = emptyList(), state = AgentState.FINISHED, iterations = 1) }
 
-    org.executeGoal(convId, planId = null, userMessage = "продолжай", provider = LlmProvider.NIM, executionMode = ExecutionMode.PREVIEW).toList()
+    org.executeGoal(convId, planId = null, userMessage = "продолжай", provider = LlmProvider.OPENROUTER, executionMode = ExecutionMode.PREVIEW).toList()
 
     // A GOAL turn started from the builder's Preview must reach ExecutionPolicy as PREVIEW so WRITE/
     // EXTERNAL tools are simulated, not run. If any link (executeGoal -> PlanRunRequest -> PlanRunner
@@ -397,7 +397,7 @@ class StructuredPlanOrchestratorTest {
     repository.approve(planId, 1)
     stepRunner.script = { AgentResult(text = "ok", toolTrace = emptyList(), state = AgentState.FINISHED, iterations = 1) }
 
-    org.executeGoal(convId, planId = null, userMessage = "продолжай", provider = LlmProvider.NIM, budget = PlanRunBudget(maxStepsPerRun = 1)).toList()
+    org.executeGoal(convId, planId = null, userMessage = "продолжай", provider = LlmProvider.OPENROUTER, budget = PlanRunBudget(maxStepsPerRun = 1)).toList()
 
     assertEquals(PlanStatus.ACTIVE, repository.snapshot(planId)!!.plan.status)
     assertTrue(
@@ -415,7 +415,7 @@ class StructuredPlanOrchestratorTest {
     repository.approve(planId, 1)
     stepRunner.script = { AgentResult(text = "", toolTrace = emptyList(), state = AgentState.ERROR, iterations = 1, errorMessage = "boom") }
 
-    val events = org.executeGoal(convId, planId = null, userMessage = "продолжай", provider = LlmProvider.NIM).toList()
+    val events = org.executeGoal(convId, planId = null, userMessage = "продолжай", provider = LlmProvider.OPENROUTER).toList()
 
     assertTrue(events.any { it is AgentEvent.Error })
     assertTrue(events.none { it is AgentEvent.PlanProgressed })
@@ -423,10 +423,10 @@ class StructuredPlanOrchestratorTest {
 
   /**
    * Провайдер в этих тестах не участвует — проверяется механика, а не адресат запроса. Хелперы,
-   * чтобы `LlmProvider.NIM` не повторялся в каждом вызове и не создавал впечатление, будто выбор
+   * чтобы `LlmProvider.OPENROUTER` не повторялся в каждом вызове и не создавал впечатление, будто выбор
    * вендора здесь что-то значит.
    */
   private fun StructuredPlanOrchestrator.proposeNim(conversationId: String, message: String) =
-    propose(conversationId, message, LlmProvider.NIM)
+    propose(conversationId, message, LlmProvider.OPENROUTER)
 
 }

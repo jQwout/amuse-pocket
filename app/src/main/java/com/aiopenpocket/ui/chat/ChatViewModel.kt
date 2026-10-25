@@ -13,8 +13,6 @@ import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.lesson.LessonChatController
 import com.aiopenpocket.agent.core.lesson.LessonRepository
 import com.aiopenpocket.agent.core.lesson.aboutMeFrom
-import com.aiopenpocket.agent.core.llm.LlmProvider
-import com.aiopenpocket.agent.core.llm.llmProviderOf
 import com.aiopenpocket.agent.core.memory.dao.HeartbeatDao
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
@@ -29,7 +27,6 @@ import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.loop.TurnManager
 import com.aiopenpocket.agent.loop.TurnStatus
 import com.aiopenpocket.agent.tools.HeartbeatTool
-import com.aiopenpocket.data.repository.SettingsRepository
 import com.aiopenpocket.di.AppScope
 import com.aiopenpocket.ui.chat.components.bundledAssetPath
 import com.aiopenpocket.voice.input.VoiceInputController
@@ -67,7 +64,6 @@ class ChatViewModel(
     private val turnManager: TurnManager,
     private val planCommands: PlanCommands,
     private val planRepository: PlanRepository,
-    private val settingsRepository: SettingsRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val lessonRepository: LessonRepository,
     private val lessonChatController: LessonChatController,
@@ -536,9 +532,8 @@ class ChatViewModel(
     /**
      * «Нарисуй под меня» на шаге-картинке урока (см. LessonChatController.postPersonalizedImage).
      *
-     * Сначала проверяем то, что пользователь может исправить сам, и называем это прямо. Без «о себе»
-     * рисовать не под кого. Без выбранного OpenRouter запрос никуда не уйдёт: картинки идут только к
-     * вендору, которого пользователь выбрал. Иначе на всё был бы один ответ «не вышло».
+     * Сначала проверяем то, что пользователь может исправить сам, и называем это прямо: без «о себе»
+     * рисовать не под кого. Иначе на всё был бы один ответ «не вышло».
      */
     private fun personalizeLessonImage(imagePrompt: String, caption: String) {
         val convId = currentConversationId() ?: return
@@ -548,17 +543,12 @@ class ChatViewModel(
         }
         viewModelScope.launch {
             val problem = try {
-                // Профиль из Room, язык из DataStore, провайдер из EncryptedSharedPreferences — всё на IO.
-                val (aboutMe, language, provider) = withContext(Dispatchers.IO) {
-                    Triple(
-                        aboutMeFrom(memoryRepository.getFactsByCategory("profile")),
-                        userPreferencesRepository.getLanguage(),
-                        llmProviderOf(settingsRepository.getSelectedProvider()),
-                    )
+                // Профиль из Room, язык из DataStore — всё на IO.
+                val (aboutMe, language) = withContext(Dispatchers.IO) {
+                    aboutMeFrom(memoryRepository.getFactsByCategory("profile")) to userPreferencesRepository.getLanguage()
                 }
                 when {
                     aboutMe.isBlank() -> "Чтобы нарисовать под тебя, расскажи о себе в профиле."
-                    provider != LlmProvider.OPENROUTER -> "Рисовать картинки я могу, когда в Настройках выбран OpenRouter."
                     !lessonChatController.postPersonalizedImage(convId, imagePrompt, caption, aboutMe, language) ->
                         "Не получилось нарисовать. Проверь ключ OpenRouter и сеть и попробуй ещё раз."
                     else -> null
@@ -578,8 +568,7 @@ class ChatViewModel(
     /**
      * Шаг урока "video": ролик пользователя → Muse Spark → ответ в чат (LessonChatController.postVideoAnswer).
      *
-     * Провайдера проверяем до чтения файла: видео уходит провайдеру целиком, и только тому, которого
-     * пользователь выбрал. Ролик читаем с потолком — длинное или 4K-видео не грузим в память целиком.
+     * Ролик читаем с потолком — длинное или 4K-видео не грузим в память целиком.
      * Снятый камерой файл (наш, в cacheDir) удаляем при любом исходе; выбранный из галереи — чужой, его
      * не трогаем.
      */
@@ -591,19 +580,13 @@ class ChatViewModel(
         }
         viewModelScope.launch {
             val problem = try {
-                val (language, provider) = withContext(Dispatchers.IO) {
-                    userPreferencesRepository.getLanguage() to llmProviderOf(settingsRepository.getSelectedProvider())
-                }
-                if (provider != LlmProvider.OPENROUTER) {
-                    "Видео разбирает Muse Spark — выбери OpenRouter в Настройках."
-                } else {
-                    val clip = withContext(Dispatchers.IO) { readLessonVideo(video) }
-                    when {
-                        clip == null -> "Видео слишком большое или не открылось — сними покороче, до 10 секунд."
-                        !lessonChatController.postVideoAnswer(convId, videoPrompt, clip.first, clip.second, language) ->
-                            "Не получилось разобрать видео. Проверь ключ OpenRouter и сеть и попробуй ещё раз."
-                        else -> null
-                    }
+                val language = withContext(Dispatchers.IO) { userPreferencesRepository.getLanguage() }
+                val clip = withContext(Dispatchers.IO) { readLessonVideo(video) }
+                when {
+                    clip == null -> "Видео слишком большое или не открылось — сними покороче, до 10 секунд."
+                    !lessonChatController.postVideoAnswer(convId, videoPrompt, clip.first, clip.second, language) ->
+                        "Не получилось разобрать видео. Проверь ключ OpenRouter и сеть и попробуй ещё раз."
+                    else -> null
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e

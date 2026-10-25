@@ -14,29 +14,26 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
 
 /**
- * Ranked model catalog for ONE provider, loaded from assets.
+ * Ranked model catalog of the provider.
  * The model with the lowest [ModelEntry.priority] is tried first, the rest act as fallbacks
  * (handled by [ProviderFallbackChain] + [OpenAiCompatClient]).
  *
- * Файл на провайдера, а не один общий: у NIM список статичен и правится руками, а у OpenRouter
- * ассет — лишь СИД на первый запуск и офлайн; в бою его список тянется с `/api/v1/models` и
- * кешируется. Складывать источники с разной природой в один файл значило бы притворяться, что они
- * одинаковые.
+ * Ассет `config/models_openrouter.json` — лишь СИД на первый запуск и офлайн; в бою список тянется
+ * с `/api/v1/models` OpenRouter и кешируется (см. [OpenRouterCatalogService]).
  */
 @Serializable
 data class ModelCatalog(
-  val baseUrl: String = DEFAULT_BASE_URL,
+  val baseUrl: String = OPENROUTER_BASE_URL,
   val models: List<ModelEntry> = emptyList(),
 ) {
   companion object {
-    const val DEFAULT_BASE_URL = "https://integrate.api.nvidia.com/v1"
     const val OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
   }
 }
 
 @Serializable
 data class ModelEntry(
-  /** Model id as the provider names it, e.g. `deepseek-ai/deepseek-v4-flash` or `anthropic/claude-sonnet-5`. */
+  /** Model id as the provider names it, e.g. `meta/muse-spark-1.3`. */
   val name: String,
   /** Selection order — 1 is tried first, then 2, 3, ... as fallbacks. */
   val priority: Int = Int.MAX_VALUE,
@@ -54,7 +51,7 @@ data class ModelEntry(
    * В ЭТОЙ фазе не используется — гейт для будущих вложений: скрепку и камеру можно показывать
    * только там, где модель действительно умеет их принять, иначе пользователь прикрепит фото и
    * получит молчаливое игнорирование. Хранить начинаем сразу, чтобы не переделывать формат потом.
-   * Пустой список означает «неизвестно» (так у статичного NIM-каталога), НЕ «только текст».
+   * Пустой список означает «неизвестно» (так у сида из ассетов), НЕ «только текст».
    */
   val inputModalities: List<String> = emptyList(),
   /**
@@ -80,6 +77,19 @@ fun trainsOnUserData(modelId: String): Boolean = modelId.endsWith(CONTRIBUTOR_SU
 
 private const val CONTRIBUTOR_SUFFIX = "-contributor"
 
+/**
+ * Модель Meta (семейство Muse) — только такие приложение и берёт с OpenRouter.
+ *
+ * Курс учит на Muse и рассказывает про модели Meta: агент, который при этом отвечает чужой моделью,
+ * учил бы одному, а показывал другое. Отсев стоит и в разборе живого каталога, и при сборке цепочки
+ * (LlmModule), и в списке Настроек — кеш, записанный прошлой версией, и модель, выбранная до
+ * обновления, ещё могут быть чужими.
+ * `meta-llama/` сюда не входит: Llama на OpenRouter обслуживают сторонние хостеры, а не Meta.
+ */
+fun isMetaModel(modelId: String): Boolean = modelId.startsWith(META_PREFIX)
+
+private const val META_PREFIX = "meta/"
+
 @SingleIn(AppScope::class)
 @Inject
 class ModelCatalogLoader(
@@ -94,9 +104,6 @@ class ModelCatalogLoader(
     isLenient = true
     namingStrategy = JsonNamingStrategy.SnakeCase
   }
-
-  /** Статичный список моделей NIM — правится руками, других источников у него нет. */
-  fun loadNim(): ModelCatalog = load(NIM_ASSET_PATH, NIM_FALLBACK)
 
   /**
    * Актуальный каталог OpenRouter: скачанный и закешированный ([OpenRouterCatalogService]), а если
@@ -133,19 +140,15 @@ class ModelCatalogLoader(
 
   private companion object {
     const val TAG = "ModelCatalogLoader"
-    const val NIM_ASSET_PATH = "config/models.json"
     const val OPENROUTER_ASSET_PATH = "config/models_openrouter.json"
-    val NIM_FALLBACK = ModelCatalog(
-      models = listOf(ModelEntry(name = "meta/llama-3.1-70b-instruct", priority = 1)),
-    )
     val OPENROUTER_FALLBACK = ModelCatalog(
       baseUrl = ModelCatalog.OPENROUTER_BASE_URL,
       models = listOf(
         ModelEntry(
-          name = "anthropic/claude-sonnet-5",
+          name = "meta/muse-spark-1.3",
           priority = 1,
           maxTokens = 16000,
-          inputModalities = listOf("text", "image", "file"),
+          inputModalities = listOf("text", "image", "video", "file"),
         ),
       ),
     )

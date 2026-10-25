@@ -76,9 +76,8 @@ class ImageGenClient(
   suspend fun generate(prompt: String): GeneratedImage? {
     val key = apiKey()
     if (key.isBlank()) {
-      // Без ключа запрос гарантированно получит 401 — не тратим на него сеть и время шага. Пустой
-      // ключ приходит и тогда, когда провайдером выбран не OpenRouter (см. LlmModule).
-      Log.i(TAG, "No OpenRouter key or OpenRouter not selected — skipping image generation")
+      // Без ключа запрос гарантированно получит 401 — не тратим на него сеть и время шага.
+      Log.i(TAG, "No OpenRouter key — skipping image generation")
       return null
     }
     return try {

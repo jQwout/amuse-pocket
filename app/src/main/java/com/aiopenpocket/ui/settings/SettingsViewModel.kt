@@ -7,10 +7,9 @@ import com.aiopenpocket.agent.core.identity.ChatFontScale
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
-import com.aiopenpocket.agent.core.llm.LlmProvider
-import com.aiopenpocket.agent.core.llm.llmProviderOf
 import com.aiopenpocket.agent.core.llm.ModelCatalog
 import com.aiopenpocket.agent.core.llm.ModelCatalogLoader
+import com.aiopenpocket.agent.core.llm.isMetaModel
 import com.aiopenpocket.agent.core.llm.OpenRouterCatalogService
 import com.aiopenpocket.agent.core.llm.usage.LlmUsageDao
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
@@ -53,13 +52,10 @@ class SettingsViewModel(
       // Keystore), и каталог моделей. Живой каталог OpenRouter — сотни моделей, а не пять строк
       // ассета, так что на главном потоке это заметный кадр при каждом входе в Настройки.
       val loaded = withContext(Dispatchers.IO) {
-        val provider = llmProviderOf(settingsRepository.getSelectedProvider())
         LoadedSettings(
-          provider = provider,
-          nvidiaKey = settingsRepository.getApiKey("NVIDIA"),
           openRouterKey = settingsRepository.getApiKey("OPENROUTER"),
           selectedModel = settingsRepository.getSelectedModel(),
-          availableModels = modelOptions(provider),
+          availableModels = modelOptions(modelCatalogLoader.loadOpenRouter()),
           personaId = userPreferencesRepository.getDefaultPersonaId(),
           goalMaxIterations = userPreferencesRepository.getGoalModeMaxIterations(),
           chatFontScale = userPreferencesRepository.getChatFontScale(),
@@ -67,9 +63,7 @@ class SettingsViewModel(
       }
       _state.update {
         it.copy(
-          nvidiaKey = loaded.nvidiaKey,
           openRouterKey = loaded.openRouterKey,
-          provider = loaded.provider,
           selectedModel = loaded.selectedModel,
           availableModels = loaded.availableModels,
           personaId = loaded.personaId,
@@ -79,7 +73,7 @@ class SettingsViewModel(
           personas = PersonaCatalog.all.map { it.id },
         )
       }
-      refreshOpenRouterCatalog(loaded.provider)
+      refreshOpenRouterCatalog()
     }
     loadUsage()
   }
@@ -125,8 +119,6 @@ class SettingsViewModel(
 
   /** Снимок того, что читается с диска, — чтобы прочитать всё одним заходом на IO. */
   private data class LoadedSettings(
-    val provider: LlmProvider,
-    val nvidiaKey: String,
     val openRouterKey: String,
     val selectedModel: String,
     val availableModels: List<String>,
@@ -144,12 +136,10 @@ class SettingsViewModel(
    * Тянет свежий список моделей OpenRouter (не чаще раза в сутки — TTL внутри сервиса) и
    * подставляет его в селектор.
    *
-   * Только когда выбран OpenRouter: ходить в сеть за чужим каталогом, пока пользователь сидит на
-   * NIM, незачем. Сеть недоступна — список остаётся прежним (кеш или сид), ошибку не показываем:
-   * пользователь пришёл в Настройки не за отчётом о фоновом запросе.
+   * Сеть недоступна — список остаётся прежним (кеш или сид), ошибку не показываем: пользователь
+   * пришёл в Настройки не за отчётом о фоновом запросе.
    */
-  private fun refreshOpenRouterCatalog(provider: LlmProvider) {
-    if (provider != LlmProvider.OPENROUTER) return
+  private fun refreshOpenRouterCatalog() {
     viewModelScope.launch {
       // Берём каталог, который вернул сервис, вместо повторного чтения файла: это и лишний поход
       // на диск, и расхождение — запись в кеш могла не удаться, и тогда мы показали бы старый
@@ -157,8 +147,6 @@ class SettingsViewModel(
       val snapshot = openRouterCatalogService.refreshIfStale()
       val options = modelOptions(snapshot.catalog)
       _state.update {
-        // Провайдер мог смениться, пока мы ходили в сеть — тогда список уже не наш.
-        if (it.provider != LlmProvider.OPENROUTER) return@update it
         val model = if (snapshot.authoritative) pruneMissingModel(it.selectedModel, options) else it.selectedModel
         it.copy(availableModels = options, selectedModel = model, saved = it.saved && model == it.selectedModel)
       }
@@ -170,8 +158,7 @@ class SettingsViewModel(
    *
    * OpenRouter регулярно снимает модели. Без этого Настройки продолжали бы показывать снятую модель
    * как выбранную, `save()` записал бы её обратно, а цепочка провайдеров молча ушла бы на первую по
-   * priority — ровно тот разрыв между тем, что показано, и тем, что происходит, ради которого
-   * сбрасывается модель при смене провайдера.
+   * priority — разрыв между тем, что показано, и тем, что происходит.
    *
    * Вызывается ТОЛЬКО на авторитетном каталоге (сеть или кеш). Сид из ассетов — пять курируемых
    * моделей, и по нему нельзя заключить, что выбранная модель снята: иначе первый же запуск без
@@ -180,35 +167,8 @@ class SettingsViewModel(
   private fun pruneMissingModel(selected: String, options: List<String>): String =
     if (selected in options) selected else "AUTO"
 
-  fun updateNvidiaKey(key: String) {
-    _state.update { it.copy(nvidiaKey = key, saved = false) }
-  }
-
   fun updateOpenRouterKey(key: String) {
     _state.update { it.copy(openRouterKey = key, saved = false) }
-  }
-
-  /**
-   * Смена провайдера сбрасывает выбранную модель на "AUTO": имена моделей у вендоров свои, и
-   * оставленное `deepseek-ai/...` на OpenRouter просто не нашлось бы в каталоге — фолбэк молча увёл
-   * бы пользователя на первую попавшуюся модель вместо той, что показана в интерфейсе.
-   */
-  fun updateProvider(provider: LlmProvider) {
-    if (provider == _state.value.provider) return
-    // Сам переключатель — мгновенно, без похода на диск: это обработчик тапа на главном потоке.
-    // Список моделей на это время — только "AUTO": он верен для любого провайдера, а показать
-    // остатки списка ПРЕДЫДУЩЕГО вендора было бы ровно тем враньём, ради которого сбрасывается
-    // модель.
-    _state.update {
-      it.copy(provider = provider, selectedModel = "AUTO", availableModels = listOf("AUTO"), saved = false)
-    }
-    viewModelScope.launch {
-      val options = withContext(Dispatchers.IO) { modelOptions(provider) }
-      _state.update { if (it.provider == provider) it.copy(availableModels = options) else it }
-      // Пользователь мог за это время уйти к другому вендору — незачем ходить в сеть за каталогом,
-      // который всё равно будет отброшен.
-      if (_state.value.provider == provider) refreshOpenRouterCatalog(provider)
-    }
   }
 
   fun updateModel(model: String) {
@@ -216,24 +176,19 @@ class SettingsViewModel(
   }
 
   /**
-   * Опции селектора модели: "AUTO" (идти по priority) + модели каталога провайдера.
+   * Опции селектора модели: "AUTO" (идти по priority) + модели каталога.
    *
    * Каталог уже отсортирован по priority (ModelCatalogLoader) — тот же порядок, что и в
-   * фоллбэк-цепочке, поэтому список в Настройках совпадает с реальным порядком попыток. Модели без
-   * function calling отфильтрованы: см. [com.aiopenpocket.agent.core.llm.ModelEntry.supportsTools].
+   * фоллбэк-цепочке, поэтому список в Настройках совпадает с реальным порядком попыток. Отсев тот же,
+   * что в цепочке: только модели Meta с function calling (см. [isMetaModel] и
+   * [com.aiopenpocket.agent.core.llm.ModelEntry.supportsTools]) — кеш прошлой версии ещё может держать
+   * чужие модели, и показать их значило бы предложить выбор, который цепочка молча отбросит.
    */
-  private fun modelOptions(provider: LlmProvider): List<String> = modelOptions(
-    when (provider) {
-      LlmProvider.NIM -> modelCatalogLoader.loadNim()
-      LlmProvider.OPENROUTER -> modelCatalogLoader.loadOpenRouter()
-    },
-  )
-
   private fun modelOptions(catalog: ModelCatalog): List<String> =
     // distinct: одинаковые имена — краш LazyColumn на дублирующихся ключах. Живой каталог уже
     // дедуплицирован (OpenRouterCatalogService), но ассет правится руками, а кеш мог быть записан
     // прошлой версией приложения.
-    (listOf("AUTO") + catalog.models.filter { it.supportsTools }.map { it.name }).distinct()
+    (listOf("AUTO") + catalog.models.filter { it.supportsTools && isMetaModel(it.name) }.map { it.name }).distinct()
 
   fun updatePersona(personaId: String) {
     _state.update { it.copy(personaId = personaId, saved = false) }
@@ -256,8 +211,7 @@ class SettingsViewModel(
   /**
    * Сохранения не должны наслаиваться. Пока запись шла на главном потоке, два нажатия были
    * сериализованы сами собой; после переезда на IO — уже нет, и два блока могли перемешаться,
-   * записав провайдера от одного нажатия и модель от другого. Это ровно та невалидная пара, которую
-   * запрещает комментарий внутри.
+   * записав ключ от одного нажатия и модель от другого.
    */
   private val saveMutex = Mutex()
 
@@ -273,11 +227,7 @@ class SettingsViewModel(
     // вызывающем потоке, а первое обращение к ним поднимает Keystore. Нажать «Сохранить» можно
     // раньше, чем завершится чтение в init, — и тогда главный поток вставал бы на том же мониторе.
     withContext(Dispatchers.IO) {
-      settingsRepository.setApiKey("NVIDIA", current.nvidiaKey)
       settingsRepository.setApiKey("OPENROUTER", current.openRouterKey)
-      // Провайдер и модель пишем вместе: между ними инвариант (модель принадлежит каталогу
-      // провайдера), и запись только одного из них оставила бы настройки в невалидной паре.
-      settingsRepository.setSelectedProvider(current.provider.name)
       settingsRepository.setSelectedModel(current.selectedModel)
     }
     // «Сохранено» показываем только после реальной записи в DataStore (suspend), а не до неё.

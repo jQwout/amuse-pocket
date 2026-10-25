@@ -10,7 +10,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
- * Каталоги провайдеров РЕАЛЬНО парсятся из ассетов.
+ * Сид-каталог OpenRouter РЕАЛЬНО парсится из ассетов.
  *
  * Загрузчик по устройству отказывает молча: опечатка в JSON — и `load()` возвращает fallback из
  * одной модели, залогировав warning, который никто не читает. Со стороны это выглядит как «в
@@ -23,14 +23,6 @@ class ModelCatalogLoaderTest {
 
   private val application = RuntimeEnvironment.getApplication() as Application
   private val loader = ModelCatalogLoader(application, OpenRouterCatalogCache(application))
-
-  @Test
-  fun `NIM catalog parses and is sorted by priority`() {
-    val catalog = loader.loadNim()
-    assertTrue("ожидали больше одной модели, похоже на fallback", catalog.models.size > 1)
-    assertEquals(ModelCatalog.DEFAULT_BASE_URL, catalog.baseUrl)
-    assertEquals(catalog.models.map { it.priority }.sorted(), catalog.models.map { it.priority })
-  }
 
   @Test
   fun `OpenRouter seed parses and is sorted by priority`() {
@@ -52,8 +44,14 @@ class ModelCatalogLoaderTest {
 
   /** Каталог без единой tools-модели оставил бы агента без инструментов — это не конфигурация, это баг. */
   @Test
-  fun `both catalogs offer tool-capable models`() {
-    assertTrue(loader.loadNim().models.any { it.supportsTools })
+  fun `seed offers tool-capable models`() {
     assertTrue(loader.loadOpenRouterSeed().models.any { it.supportsTools })
+  }
+
+  /** Сид — первый запуск и офлайн: чужая модель в нём была бы выбором, который цепочка молча отбросит. */
+  @Test
+  fun `seed holds only Meta models`() {
+    val foreign = loader.loadOpenRouterSeed().models.map { it.name }.filterNot(::isMetaModel)
+    assertEquals(emptyList<String>(), foreign)
   }
 }

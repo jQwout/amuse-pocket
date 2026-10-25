@@ -38,7 +38,6 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Loop
@@ -89,8 +88,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aiopenpocket.BuildConfig
-import com.aiopenpocket.agent.core.llm.LlmProvider
-import com.aiopenpocket.agent.core.llm.bundledNvidiaKey
 import com.aiopenpocket.agent.core.llm.bundledOpenRouterKey
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
 import com.aiopenpocket.ui.onboarding.components.PersonaCard
@@ -128,19 +125,6 @@ fun SettingsScreen(
   val modelSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   var showThemeSheet by remember { mutableStateOf(false) }
   val themeSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-  var showProviderSheet by remember { mutableStateOf(false) }
-  val providerSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-  // Человеческие названия вендоров: в enum они NIM/OPENROUTER, а в списке пользователь ищет глазами
-  // «OpenRouter», а не константу. Порядок фиксированный — LinkedHashMap.
-  val providerLabels = remember {
-    linkedMapOf(
-      LlmProvider.NIM to "NVIDIA NIM",
-      LlmProvider.OPENROUTER to "OpenRouter",
-    )
-  }
-  val providerByLabel = remember { providerLabels.entries.associate { (p, label) -> label to p } }
-
   // Лист темы живёт вне прокручиваемой колонки, поэтому маппинг label↔enum поднят сюда (раньше
   // объявлялся прямо у селектора). Порядок фиксированный — LinkedHashMap.
   val themeLabels = remember {
@@ -270,43 +254,16 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
       ) {
         ApiKeyField(
-          label = "NVIDIA NIM API Key",
-          value = state.nvidiaKey,
-          onValueChange = viewModel::updateNvidiaKey,
-        )
-        ApiKeyField(
           label = "OpenRouter API Key",
           value = state.openRouterKey,
           onValueChange = viewModel::updateOpenRouterKey,
         )
       }
 
-      Spacer(modifier = Modifier.height(28.dp))
-
-      SettingsSectionHeader(
-        icon = Icons.Default.Hub,
-        title = "ПРОВАЙДЕР",
-        modifier = Modifier.padding(horizontal = 20.dp),
-      )
-      Spacer(modifier = Modifier.height(12.dp))
-      SelectorCard(
-        label = "КУДА ИДУТ ЗАПРОСЫ",
-        selected = providerLabels.getValue(state.provider),
-        icon = Icons.Default.Hub,
-        onClick = { showProviderSheet = true },
-        modifier = Modifier.padding(horizontal = 20.dp),
-        testTag = "settings_provider_selector",
-      )
       // Без этой строки первым сигналом о забытом ключе был бы «All providers failed» в чате, уже
-      // после отправки вопроса. У NIM ключ МОЖЕТ быть вшит в сборку из .env — но в сборке без него
-      // BuildConfig.NVIDIA_API_KEY остаётся плейсхолдером, и тогда дефолтный провайдер точно так же
-      // молчит; поэтому проверяем оба, а не только OpenRouter.
-      val keyMissing = when (state.provider) {
-        LlmProvider.OPENROUTER -> state.openRouterKey.isBlank() && bundledOpenRouterKey(BuildConfig.OPENROUTER_API_KEY).isBlank()
-        // Тем же предикатом, что и резолвер ключа в цепочке провайдеров, — иначе предупреждение и
-        // реальное поведение однажды разойдутся.
-        LlmProvider.NIM -> state.nvidiaKey.isBlank() && bundledNvidiaKey(BuildConfig.NVIDIA_API_KEY).isBlank()
-      }
+      // после отправки вопроса. Тем же предикатом, что и резолвер ключа в цепочке, — иначе
+      // предупреждение и реальное поведение однажды разойдутся.
+      val keyMissing = state.openRouterKey.isBlank() && bundledOpenRouterKey(BuildConfig.OPENROUTER_API_KEY).isBlank()
       if (keyMissing) {
         Row(
           verticalAlignment = Alignment.CenterVertically,
@@ -320,7 +277,7 @@ fun SettingsScreen(
             modifier = Modifier.size(14.dp),
           )
           Text(
-            text = "Ключ ${providerLabels.getValue(state.provider)} не задан — запросы не уйдут.",
+            text = "Ключ OpenRouter не задан — запросы не уйдут.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.error,
           )
@@ -479,21 +436,6 @@ fun SettingsScreen(
         showModelSheet = false
       },
       onDismiss = { showModelSheet = false },
-    )
-  }
-
-  if (showProviderSheet) {
-    SelectorSheet(
-      title = "Провайдер",
-      subtitle = "Через кого идут запросы. У каждого свой ключ и свой список моделей.",
-      options = providerLabels.values.toList(),
-      selected = providerLabels.getValue(state.provider),
-      sheetState = providerSheetState,
-      onSelect = { label ->
-        providerByLabel[label]?.let(viewModel::updateProvider)
-        showProviderSheet = false
-      },
-      onDismiss = { showProviderSheet = false },
     )
   }
 

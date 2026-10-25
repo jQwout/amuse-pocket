@@ -69,7 +69,7 @@ class VideoUnderstandingClient(
   suspend fun describe(instruction: String, video: ByteArray, mimeType: String): String? {
     val key = apiKey()
     if (key.isBlank()) {
-      Log.i(TAG, "No OpenRouter key or OpenRouter not selected — skipping video")
+      Log.i(TAG, "No OpenRouter key — skipping video")
       return null
     }
     return try {

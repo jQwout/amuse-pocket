@@ -46,7 +46,7 @@ class OpenAiCompatClientCancellationTest {
    * показывает, дошёл ли цикл до следующих моделей после отмены.
    */
   private fun config(model: String, attempts: AtomicInteger) = ProviderConfig(
-    name = LlmProvider.NIM,
+    name = LlmProvider.OPENROUTER,
     baseUrl = "https://nim.test/chat/completions",
     model = model,
     apiKeyResolver = {
@@ -57,7 +57,7 @@ class OpenAiCompatClientCancellationTest {
 
   private fun clientOf(models: List<String>, attempts: AtomicInteger, engine: MockEngine) =
     OpenAiCompatClient(
-      fallbackChain = ProviderFallbackChain(mapOf(LlmProvider.NIM to models.map { config(it, attempts) })),
+      fallbackChain = ProviderFallbackChain(mapOf(LlmProvider.OPENROUTER to models.map { config(it, attempts) })),
       engine = engine,
       usageRecorder = NoOpLlmUsageRecorder,
     )
@@ -77,7 +77,7 @@ class OpenAiCompatClientCancellationTest {
     val client = clientOf(listOf("hanging-model", "second-model", "third-model"), attempts, engine)
 
     val job = launch {
-      client.streamChat(emptyList(), emptyList(), LlmProvider.NIM).toList()
+      client.streamChat(emptyList(), emptyList(), LlmProvider.OPENROUTER).toList()
     }
     firstCallEntered.await()
     job.cancelAndJoin()
@@ -95,7 +95,7 @@ class OpenAiCompatClientCancellationTest {
     // Ловим руками, а не assertThrows: отмена прилетает из движка, сам тестовый job при этом не
     // отменяется, поэтому перехват здесь безопасен и не ломает scope runTest.
     val thrown = try {
-      client.streamChat(emptyList(), emptyList(), LlmProvider.NIM).toList()
+      client.streamChat(emptyList(), emptyList(), LlmProvider.OPENROUTER).toList()
       null
     } catch (e: Throwable) {
       e
@@ -122,7 +122,7 @@ class OpenAiCompatClientCancellationTest {
     }
     val client = clientOf(listOf("broken-model", "good-model"), attempts, engine)
 
-    val events = client.streamChat(emptyList(), emptyList(), LlmProvider.NIM).toList()
+    val events = client.streamChat(emptyList(), emptyList(), LlmProvider.OPENROUTER).toList()
 
     assertEquals(2, attempts.get())
     assertEquals("Привет", events.filterIsInstance<StreamEvent.TextDelta>().joinToString("") { it.content })

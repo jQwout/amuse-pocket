@@ -100,9 +100,10 @@ class OpenAiCompatClient(
           stream = true,
           temperature = p.temperature,
           topP = p.topP,
-          // Цену в долларах называет только OpenRouter и только когда её попросили. NIM про это
-          // поле не знает, и слать его туда — просить строгий провайдер отказать по неизвестному
-          // ключу; ровно та же осторожность, что с type:"function" у тулов.
+          // Цену в долларах называет OpenRouter, и только когда её попросили. Другой провайдер
+          // (следующим станет прямой Meta Model API) может этого поля не знать, а слать его туда —
+          // просить строгий API отказать по неизвестному ключу; та же осторожность, что с
+          // type:"function" у тулов.
           usage = if (p.name == LlmProvider.OPENROUTER) UsageRequest() else null,
         )
         val bodyJson = json.encodeToString(requestBody)
@@ -395,7 +396,7 @@ private data class SseChunk(
 internal data class SseUsage(
   val promptTokens: Int = 0,
   val completionTokens: Int = 0,
-  /** Цена вызова в USD. Присылает только OpenRouter и только когда её попросили; у NIM — null. */
+  /** Цена вызова в USD. Присылает OpenRouter, и только когда её попросили; иначе — null. */
   val cost: Double? = null,
 )
 
@@ -410,7 +411,7 @@ private data class SseChoice(
 private data class SseDelta(
   val role: String? = null,
   val content: String? = null,
-  // reasoning-модели NIM кладут цепочку рассуждений сюда (snake_case: reasoning_content).
+  // reasoning-модели кладут цепочку рассуждений сюда (snake_case: reasoning_content).
   val reasoningContent: String? = null,
   val toolCalls: List<SseToolCall>? = null,
 )

@@ -90,8 +90,8 @@ object TurnModule {
     // Свой скоуп уровня приложения: ход агента живёт, пока жив процесс, а не экран.
     scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     monotonicNowMs = android.os.SystemClock::uptimeMillis,
-    // Лямбда, а не значение: провайдер читается на каждом ходе, поэтому переключение в Настройках
-    // подхватывается сразу, без пересборки DI-графа.
+    // Лямбда, а не значение: провайдер читается на каждом ходе — когда их станет больше одного
+    // (прямой Meta Model API), выбор подхватится сразу, без пересборки DI-графа.
     selectedProvider = { selectedProvider() },
     log = log,
   )

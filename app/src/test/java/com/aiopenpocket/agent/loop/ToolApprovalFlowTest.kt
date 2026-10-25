@@ -169,7 +169,7 @@ class ToolApprovalFlowTest {
         conversationId = "c1",
         messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
         tools = toolRegistry.getAllSchemas(),
-        provider = LlmProvider.NIM,
+        provider = LlmProvider.OPENROUTER,
         agent = agentWithApprovalHook(setOf("fake_tool")),
       ) { }
     }
@@ -204,7 +204,7 @@ class ToolApprovalFlowTest {
         conversationId = "c1",
         messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
         tools = toolRegistry.getAllSchemas(),
-        provider = LlmProvider.NIM,
+        provider = LlmProvider.OPENROUTER,
         agent = agentWithApprovalHook(setOf("fake_tool")),
       ) { }
     }
@@ -229,7 +229,7 @@ class ToolApprovalFlowTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = toolRegistry.getAllSchemas(),
-      provider = LlmProvider.NIM,
+      provider = LlmProvider.OPENROUTER,
       agent = agentWithApprovalHook(setOf("fake_tool")),
       interactiveApproval = false,
     ) { }

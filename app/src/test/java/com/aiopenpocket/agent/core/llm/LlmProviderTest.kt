@@ -1,45 +1,31 @@
 package com.aiopenpocket.agent.core.llm
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [llmProviderOf] — единственная точка чтения провайдера из настроек (строка в prefs).
- *
- * Тихий дефолт здесь не украшение: значение читается на КАЖДОМ ходе, в том числе в фоне из
- * WorkManager, и исключение из-за строки в настройках убивало бы ход агента целиком.
+ * Два предиката, на которых держится «всё на Muse»: какой ключ OpenRouter считать настоящим и какую
+ * модель пускать в выбор и в цепочку.
  */
 class LlmProviderTest {
 
+  /** Плейсхолдер из `.env.example` — не ключ: уйди он в запрос, вместо предупреждения в Настройках был бы 401. */
   @Test
-  fun `known names resolve to their provider`() {
-    assertEquals(LlmProvider.NIM, llmProviderOf("NIM"))
-    assertEquals(LlmProvider.OPENROUTER, llmProviderOf("OPENROUTER"))
+  fun `placeholder and blank build keys are treated as no key`() {
+    assertEquals("", bundledOpenRouterKey(""))
+    assertEquals("", bundledOpenRouterKey(OPENROUTER_KEY_PLACEHOLDER))
+    assertEquals("sk-or-v1-test", bundledOpenRouterKey("sk-or-v1-test"))
   }
 
   @Test
-  fun `unknown and empty names fall back to the default provider`() {
-    assertEquals(LlmProvider.OPENROUTER, llmProviderOf(""))
-    assertEquals(LlmProvider.OPENROUTER, llmProviderOf("gpt"))
-    // Значения удалённых констант: у кого-то они остались в prefs с прошлой сборки.
-    assertEquals(LlmProvider.OPENROUTER, llmProviderOf("AUTO"))
-    assertEquals(LlmProvider.OPENROUTER, llmProviderOf("GROQ"))
-  }
-
-  /**
-   * Регистр и пробелы не должны решать, к какому вендору уходят данные: «openrouter» с иным
-   * регистром — это тот же осознанный выбор пользователя, а не повод молча вернуть его к NVIDIA.
-   */
-  @Test
-  fun `names are matched case- and whitespace-insensitively`() {
-    assertEquals(LlmProvider.OPENROUTER, llmProviderOf("openrouter"))
-    assertEquals(LlmProvider.OPENROUTER, llmProviderOf(" OPENROUTER "))
-    assertEquals(LlmProvider.NIM, llmProviderOf("nim"))
-  }
-
-  /** Круговой инвариант: всё, что мы записали в настройки, читается обратно тем же провайдером. */
-  @Test
-  fun `every provider survives a name round-trip`() {
-    LlmProvider.entries.forEach { assertEquals(it, llmProviderOf(it.name)) }
+  fun `only Meta models pass the Muse gate`() {
+    assertTrue(isMetaModel("meta/muse-spark-1.3"))
+    assertTrue(isMetaModel("meta/muse-wonder"))
+    // Llama на OpenRouter обслуживают сторонние хостеры, а не Meta.
+    assertFalse(isMetaModel("meta-llama/llama-4-maverick"))
+    assertFalse(isMetaModel("anthropic/claude-sonnet-5"))
+    assertFalse(isMetaModel(""))
   }
 }

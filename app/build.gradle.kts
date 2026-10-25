@@ -83,8 +83,10 @@ secrets {
   defaultPropertiesFileName = ".env.example"
 }
 
-// Начала живых ключей провайдеров: nvapi- (NVIDIA NIM), sk-or-v1- и sk- (OpenRouter/OpenAI),
-// AIza (Google). Плейсхолдеры из .env.example (MY_NVIDIA_API_KEY и т.п.) ни под один не подходят.
+// Начала живых ключей провайдеров: sk-or-v1- и sk- (OpenRouter/OpenAI), nvapi- (NVIDIA NIM), AIza
+// (Google). NIM из приложения выпилен, но секретный плагин кладёт в BuildConfig ЛЮБУЮ строку .env,
+// так что старый ключ, оставшийся в файле, уехал бы в релиз и без кода, который его читает.
+// Плейсхолдер из .env.example (MY_OPENROUTER_API_KEY) ни под один префикс не подходит.
 val liveKeyPrefixes = listOf("nvapi-", "sk-or-v1-", "sk-", "AIza")
 
 /**

@@ -41,7 +41,7 @@ data class LlmUsageTotals(
   val calls: Int,
   val promptTokens: Long,
   val completionTokens: Long,
-  /** `null`, когда цену не назвал ни один вызов периода (например, весь период работали на NIM). */
+  /** `null`, когда цену не назвал ни один вызов периода (провайдер отдал только токены). */
   val costUsd: Double?,
   /** Сколько строк периода посчитаны оценкой, а не замером — мера доверия к сводке. */
   val estimatedCalls: Int,

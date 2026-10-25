@@ -173,7 +173,7 @@ class ReactLoopHooksTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = toolRegistry.getAllSchemas(),
-      provider = LlmProvider.NIM,
+      provider = LlmProvider.OPENROUTER,
       agent = agentWithHooks(logHooks, toolNames = setOf("fake_tool")),
     ) { }
 
@@ -194,7 +194,7 @@ class ReactLoopHooksTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = emptyList(),
-      provider = LlmProvider.NIM,
+      provider = LlmProvider.OPENROUTER,
       agent = agentWithHooks(listOf(errorHook)),
     ) { }
 
@@ -212,7 +212,7 @@ class ReactLoopHooksTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = emptyList(),
-      provider = LlmProvider.NIM,
+      provider = LlmProvider.OPENROUTER,
       agent = null,
     ) { }
 
@@ -237,7 +237,7 @@ class ReactLoopHooksTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = toolRegistry.getAllSchemas(),
-      provider = LlmProvider.NIM,
+      provider = LlmProvider.OPENROUTER,
       agent = agentWithHooks(listOf(instructionHook), toolNames = setOf("fake_tool")),
     ) { }
 
@@ -285,7 +285,7 @@ class ReactLoopHooksTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = toolRegistry.getAllSchemas(),
-      provider = LlmProvider.NIM,
+      provider = LlmProvider.OPENROUTER,
       agent = agentWithHooks(listOf(denyHook), toolNames = setOf("fake_tool")),
     ) { }
 
@@ -311,7 +311,7 @@ class ReactLoopHooksTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = toolRegistry.getAllSchemas(),
-      provider = LlmProvider.NIM,
+      provider = LlmProvider.OPENROUTER,
       agent = agentWithHooks(listOf(approvalHook), toolNames = setOf("fake_tool")),
     ) { }
 
@@ -329,7 +329,7 @@ class ReactLoopHooksTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = emptyList(),
-      provider = LlmProvider.NIM,
+      provider = LlmProvider.OPENROUTER,
       agent = agentWithHooks(listOf(stopHook)),
     ) { }
 
@@ -364,7 +364,7 @@ class ReactLoopHooksTest {
       conversationId = "c1",
       messages = messages,
       tools = toolRegistry.getAllSchemas(),
-      provider = LlmProvider.NIM,
+      provider = LlmProvider.OPENROUTER,
       agent = agentWithHooks(listOf(stopHook), toolNames = setOf("first", "second")),
     ) { }
 
