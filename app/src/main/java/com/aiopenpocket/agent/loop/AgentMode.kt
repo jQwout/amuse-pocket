@@ -1,6 +1,6 @@
 package com.aiopenpocket.agent.loop
 
-// @trace rezhimy-agenta-plan-i-goal-ee2361
+// @trace streaming-llm-chat-6595a1
 // @trace structured-plan-engine-907066
 
 /**

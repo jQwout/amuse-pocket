@@ -184,7 +184,16 @@ class OpenAiCompatClient(
               hadTools = tools.isNotEmpty(),
             ),
           )
-          if (!emptyAttempt) emit(StreamEvent.Finish(finishReason))
+          // finish_reason "error" — OpenRouter так закрывает стрим, когда модель упала посреди ответа.
+          // Часть текста уже у пользователя, и обычный Finish сохранил бы обрывок как готовый ответ;
+          // ошибка даёт «Повторить» (фолбэк здесь нельзя — см. emittedAnswer ниже).
+          if (!emptyAttempt) {
+            if (finishReason == "error") {
+              emit(StreamEvent.Error(userFacingLlmError(null, interrupted = true), code = "finish_error"))
+            } else {
+              emit(StreamEvent.Finish(finishReason))
+            }
+          }
         }
         if (emptyAttempt) {
           // Ни текста, ни тул-колла при HTTP 200 — это не ответ, а молчание (живой случай: NIM так
@@ -211,15 +220,19 @@ class OpenAiCompatClient(
           // Часть ответа уже ушла потребителю — молча перезапускать на другом провайдере нельзя,
           // иначе в чат попадёт обрывок + новый полный ответ.
           Log.w(TAG, "$tag interrupted mid-stream — НЕ фолбэчим (часть ответа уже у пользователя)")
-          emit(StreamEvent.Error("Stream interrupted: ${e.message}", code = lastErrorCode))
+          emit(StreamEvent.Error(userFacingLlmError(lastErrorCode, interrupted = true), code = lastErrorCode))
           return@flow
         }
+        // Ключ не подошёл или на счёте пусто — это отказ ключа, а не модели: следующая модель того же
+        // провайдера получит тот же ответ. Перебирать цепочку дальше — четыре лишних запроса и минута
+        // ожидания ради той же ошибки.
+        if (lastErrorCode in KEY_LEVEL_FAILURES) break
         continue
       }
     }
 
     Log.e(TAG, "✗ LLM turn: ВСЕ провайдеры упали. Last code=$lastErrorCode msg=${lastError?.message}")
-    emit(StreamEvent.Error("All providers failed. Last: ${lastError?.message}", code = lastErrorCode))
+    emit(StreamEvent.Error(userFacingLlmError(lastErrorCode, interrupted = false), code = lastErrorCode))
   }
 
   @Serializable
@@ -292,8 +305,8 @@ internal suspend fun consumeOpenAiSse(
   var finishReason: String? = null
   // Расход хода. Приезжает отдельным чанком в конце стрима, поэтому копится вне цикла.
   var usage: SseUsage? = null
-  // Reasoning-модели (deepseek-v4-flash, nemotron) стримят размышление в reasoning_content, а ответ
-  // в content. Копим размышление отдельно: если у хода content так и не пришёл (модель уложила всё в
+  // Reasoning-модели стримят размышление отдельным полем (OpenRouter, в том числе для Muse Spark, —
+  // delta.reasoning; прямые OpenAI-совместимые API — reasoning_content), а ответ — в content. Копим размышление отдельно: если у хода content так и не пришёл (модель уложила всё в
   // reasoning) и не было tool-call, отдаём размышление как ответ — иначе пользователь видит пустоту.
   var contentSeen = false
   val reasoning = StringBuilder()
@@ -325,7 +338,7 @@ internal suspend fun consumeOpenAiSse(
         emit(StreamEvent.TextDelta(it))
       }
     }
-    choice.delta?.reasoningContent?.let { reasoning.append(it) }
+    (choice.delta?.reasoningContent ?: choice.delta?.reasoning)?.let { reasoning.append(it) }
     // Tool-call приходит фрагментами по нескольким дельтам — копим по index.
     choice.delta?.toolCalls?.forEach { tc ->
       val idx = tc.index ?: 0
@@ -411,8 +424,11 @@ private data class SseChoice(
 private data class SseDelta(
   val role: String? = null,
   val content: String? = null,
-  // reasoning-модели кладут цепочку рассуждений сюда (snake_case: reasoning_content).
+  // Размышление reasoning-моделей: прямые OpenAI-совместимые API шлют reasoning_content, OpenRouter —
+  // reasoning. Читаем оба: без второго фолбэк «размышление как ответ» на OpenRouter не срабатывал
+  // никогда, и ход, уложившийся в одно размышление, жёг пять попыток по моделям цепочки.
   val reasoningContent: String? = null,
+  val reasoning: String? = null,
   val toolCalls: List<SseToolCall>? = null,
 )
 
@@ -431,3 +447,24 @@ private data class SseFunctionCall(
 )
 
 private class LlmHttpException(val status: Int, body: String) : Exception("HTTP $status: $body")
+
+/**
+ * Текст ошибки хода для человека: его показывают в чате и в пуше о неудачном фоновом ходе.
+ *
+ * Раньше туда уходило «All providers failed. Last: HTTP 401: {json…}» — английский и сырой JSON
+ * провайдера в русском приложении, по которому не понять, что делать. Подробности остаются в логе;
+ * здесь — что случилось и что поправить. [code] — HTTP-статус последней попытки или наш маркер
+ * (`blank_key`, `empty_response`).
+ */
+/** HTTP-статусы, при которых виноват ключ или счёт, а не модель (см. фолбэк в streamChat). */
+private val KEY_LEVEL_FAILURES = setOf("401", "402", "403")
+
+internal fun userFacingLlmError(code: String?, interrupted: Boolean): String = when {
+  code == "blank_key" -> "Не задан ключ OpenRouter — впиши его в Настройках."
+  code == "401" || code == "403" -> "Ключ OpenRouter не подошёл — проверь его в Настройках."
+  code == "402" -> "На счёте OpenRouter закончились средства."
+  code == "429" -> "Слишком много запросов к модели — попробуй через минуту."
+  interrupted -> "Ответ оборвался: связь с моделью прервалась. Нажми «Повторить»."
+  code == "empty_response" -> "Модель ответила пустотой. Попробуй ещё раз."
+  else -> "Модель не ответила: нет сети или сбой у провайдера. Попробуй ещё раз."
+}

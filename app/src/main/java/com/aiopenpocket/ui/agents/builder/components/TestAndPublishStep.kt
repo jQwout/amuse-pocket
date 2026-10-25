@@ -32,8 +32,10 @@ import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.AgentStatus
 import com.aiopenpocket.agent.core.agent.ValidationIssue
 import com.aiopenpocket.agent.core.policy.ExecutionMode
+import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.agent.loop.ToolTrace
 import com.aiopenpocket.agent.loop.TurnStatus
+import com.aiopenpocket.ui.chat.components.ToolApprovalBar
 import com.aiopenpocket.ui.chat.components.ToolTracePanel
 import com.aiopenpocket.ui.agents.builder.AgentBuilderValidator
 import com.aiopenpocket.ui.agents.builder.AgentDraft
@@ -56,12 +58,20 @@ fun TestAndPublishStep(
   errors: List<ValidationIssue>,
   isSaving: Boolean,
   testStatus: TurnStatus?,
+  /** Ответ тестового хода — `AgentBuilderTestViewModel.testReplyText` (не только стрим: см. там). */
   testStreamingText: String,
   testToolTrace: List<ToolTrace>,
   onSetExecutionMode: (ExecutionMode) -> Unit,
   onSendTestMessage: (String) -> Unit,
   onPublish: () -> Unit,
   onArchive: () -> Unit,
+  /** Только что успешно опубликовано — показываем подтверждение (см. `AgentBuilderUiState.justPublished`). */
+  justPublished: Boolean = false,
+  /** Хук «Требовать подтверждение» ждёт решения в тестовом ходе; null — ничего не ждёт. */
+  testPendingApproval: ToolApprovalRequest? = null,
+  onResolveTestApproval: (approved: Boolean) -> Unit = {},
+  /** «Открыть чат» в подтверждении публикации; null — кнопки нет. */
+  onOpenChat: (() -> Unit)? = null,
   modifier: Modifier = Modifier,
   /**
    * Отступы под плавающие стеклянные острова визарда (высоты меряются в AgentBuilderScreen).
@@ -138,6 +148,17 @@ fun TestAndPublishStep(
     Spacer(modifier = Modifier.height(16.dp))
     TestRunStatus(testStatus, testStreamingText)
 
+    // Тот же бар подтверждения, что в чате. Хук «Требовать подтверждение» ставит вызов на ожидание
+    // и в предпросмотре, а без бара здесь тестовый ход молча висел две минуты до таймаута.
+    testPendingApproval?.let { request ->
+      Spacer(modifier = Modifier.height(8.dp))
+      ToolApprovalBar(
+        request = request,
+        onApprove = { onResolveTestApproval(true) },
+        onDeny = { onResolveTestApproval(false) },
+      )
+    }
+
     // Trace прогона (спека 11.2): без него предпросмотр и живой тест выглядят для юзера одинаково,
     // хотя весь смысл предпросмотра — увидеть, за какие инструменты агент взялся и что ему вернули
     // (включая синтетические ответы Simulate вместо реального побочного эффекта).
@@ -152,6 +173,12 @@ fun TestAndPublishStep(
 
     Text(text = "Публикация", style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(8.dp))
+    // Подтверждение успеха: без него «Опубликовать» просто переставала крутиться, и было непонятно,
+    // ушёл ли агент в ростер и куда идти дальше.
+    if (justPublished && draft.status == AgentStatus.PUBLISHED) {
+      PublishedNotice(configVersion = draft.configVersion, onOpenChat = onOpenChat)
+      Spacer(modifier = Modifier.height(12.dp))
+    }
     // Не просто «есть ошибки», а какие именно и на каком шаге: иначе с последнего шага непонятно,
     // куда возвращаться, — а ошибка вполне может сидеть на первом.
     if (errors.isNotEmpty()) {
@@ -184,14 +211,38 @@ fun TestAndPublishStep(
 
     // Архивирование доступно и черновику: иначе брошенный черновик остаётся в секции «Черновики»
     // навсегда и убрать его оттуда нечем. Смысл действия один и тот же (строка выживает, из списков
-    // уходит) — меняется только формулировка.
+    // уходит) — поэтому и черновику кнопка обещает архив: прежнее «Удалить черновик» врало, строка
+    // в базе оставалась.
     if (draft.status != AgentStatus.ARCHIVED) {
       Spacer(modifier = Modifier.height(8.dp))
       TextButton(onClick = onArchive, modifier = Modifier.testTag("agent_builder_archive")) {
         Text(
-          text = if (draft.status == AgentStatus.PUBLISHED) "Архивировать агента" else "Удалить черновик",
+          text = if (draft.status == AgentStatus.PUBLISHED) "Архивировать агента" else "Архивировать черновик",
           color = MaterialTheme.colorScheme.error,
         )
+      }
+    }
+  }
+}
+
+/** Плашка «опубликовано» с версией и, если маршрут умеет, переходом в чат агента. */
+@Composable
+private fun PublishedNotice(configVersion: Long, onOpenChat: (() -> Unit)?) {
+  Column(
+    modifier = Modifier
+      .fillMaxWidth()
+      .glassCardSurface()
+      .padding(12.dp)
+      .testTag("agent_builder_published"),
+  ) {
+    Text(
+      text = "Агент опубликован (версия $configVersion) — он уже в «Мои агенты».",
+      style = MaterialTheme.typography.bodyMedium,
+    )
+    if (onOpenChat != null) {
+      Spacer(modifier = Modifier.height(8.dp))
+      Button(onClick = onOpenChat, modifier = Modifier.testTag("agent_builder_open_chat")) {
+        Text("Открыть чат")
       }
     }
   }
@@ -206,8 +257,9 @@ private fun stepTitle(step: BuilderStep): String = when (step) {
   BuilderStep.TEST -> "Проверка"
 }
 
+/** [replyText] — ответ хода: стрим или записанное в диалог сообщение (у ходов «План»/«Цель» только оно). */
 @Composable
-private fun TestRunStatus(status: TurnStatus?, streamingText: String) {
+private fun TestRunStatus(status: TurnStatus?, replyText: String) {
   when (status) {
     null -> Unit
     is TurnStatus.Running -> Row(verticalAlignment = Alignment.CenterVertically) {
@@ -218,7 +270,7 @@ private fun TestRunStatus(status: TurnStatus?, streamingText: String) {
 
     is TurnStatus.Completed -> Column(modifier = Modifier.fillMaxWidth().glassCardSurface().padding(12.dp)) {
       Text(
-        text = streamingText.ifBlank { "Пустой ответ." },
+        text = replyText.ifBlank { "Пустой ответ." },
         style = MaterialTheme.typography.bodyMedium,
       )
       status.error?.let {

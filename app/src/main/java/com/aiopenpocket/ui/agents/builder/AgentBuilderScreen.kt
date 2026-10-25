@@ -46,6 +46,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.policy.ExecutionMode
+import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.agent.loop.ToolTrace
 import com.aiopenpocket.agent.loop.TurnStatus
 import com.aiopenpocket.ui.agents.builder.components.CapabilitiesStep
@@ -91,6 +92,11 @@ fun AgentBuilderScreen(
   onSendTestMessage: (String) -> Unit,
   onPublish: () -> Unit,
   onArchive: () -> Unit,
+  /** Запрос подтверждения от хука в тестовом ходе — см. `AgentBuilderTestViewModel.testPendingApproval`. */
+  testPendingApproval: ToolApprovalRequest? = null,
+  onResolveTestApproval: (approved: Boolean) -> Unit = {},
+  /** «Открыть чат» после публикации; null — кнопки нет (маршрут не умеет переходить в чат). */
+  onOpenChat: (() -> Unit)? = null,
   modifier: Modifier = Modifier,
 ) {
   if (state.isLoading) {
@@ -145,6 +151,9 @@ fun AgentBuilderScreen(
           onSendTestMessage = onSendTestMessage,
           onPublish = onPublish,
           onArchive = onArchive,
+          testPendingApproval = testPendingApproval,
+          onResolveTestApproval = onResolveTestApproval,
+          onOpenChat = onOpenChat,
           contentPadding = PaddingValues(top = topPad, bottom = bottomPad),
         )
       }
@@ -243,6 +252,9 @@ private fun BuilderStepContent(
   onSendTestMessage: (String) -> Unit,
   onPublish: () -> Unit,
   onArchive: () -> Unit,
+  testPendingApproval: ToolApprovalRequest?,
+  onResolveTestApproval: (approved: Boolean) -> Unit,
+  onOpenChat: (() -> Unit)?,
   contentPadding: PaddingValues,
 ) {
   // Валидация «по кнопке»: инлайн-ошибки шага показываем только после того, как «Далее» упёрлось в
@@ -311,6 +323,10 @@ private fun BuilderStepContent(
       onSendTestMessage = onSendTestMessage,
       onPublish = onPublish,
       onArchive = onArchive,
+      justPublished = state.justPublished,
+      testPendingApproval = testPendingApproval,
+      onResolveTestApproval = onResolveTestApproval,
+      onOpenChat = onOpenChat,
       modifier = Modifier.fillMaxSize(),
       contentPadding = contentPadding,
     )

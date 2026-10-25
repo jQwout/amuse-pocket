@@ -28,6 +28,8 @@ import com.aiopenpocket.agent.core.plan.model.PlanStep
 import com.aiopenpocket.agent.core.plan.model.PlanVersion
 import com.aiopenpocket.agent.core.plan.model.VerifierType
 import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
+import com.aiopenpocket.agent.core.skill.Skill
+import com.aiopenpocket.agent.core.skill.SkillManifest
 import com.aiopenpocket.agent.core.skill.SkillRegistry
 import com.aiopenpocket.agent.core.skill.UserSkillRepository
 import com.aiopenpocket.data.database.AppDatabase
@@ -76,7 +78,7 @@ class PrePromptAssemblerTest {
       assets = AssetSource { null },
       memoryRepository = MemoryRepository(db.factDao(), db.episodeDao()),
       conversationRepository = ConversationRepository(db.conversationDao(), db.conversationTagDao(), db.messageDao()),
-      skillRegistry = SkillRegistry(emptySet(), UserSkillRepository(db.userSkillDao())),
+      skillRegistry = SkillRegistry(setOf(FakeSkill("budget"), FakeSkill("diary")), UserSkillRepository(db.userSkillDao())),
       userPreferencesRepository = UserPreferencesRepository(testDataStore(context)),
       agentResolver = DefaultAgentResolver(UserAgentRepository(db, db.userAgentDao(), AgentHookRepository(db.agentHookDao()))),
       planContextProvider = PlanContextProvider(planRepository),
@@ -165,7 +167,7 @@ class PrePromptAssemblerTest {
 
   // --- tool scoping (B2): a bound agent's empty tool set means "no tools", never "all tools" ----------
 
-  private fun userAgent(id: String, toolNames: Set<String>) = AgentDefinition(
+  private fun userAgent(id: String, toolNames: Set<String>, skillIds: Set<String> = emptySet()) = AgentDefinition(
     id = id,
     source = AgentSource.USER,
     name = "Свой агент",
@@ -173,7 +175,7 @@ class PrePromptAssemblerTest {
     iconKey = "sparkles",
     systemPrompt = "Ты — пользовательский агент.",
     toolNames = toolNames,
-    skillIds = emptySet(),
+    skillIds = skillIds,
     defaultMode = AgentMode.CHAT,
     allowedModes = setOf(AgentMode.CHAT),
     memoryPolicy = AgentMemoryPolicy(namespace = "agent:$id:", includeSharedProfile = false),
@@ -208,5 +210,50 @@ class PrePromptAssemblerTest {
     val result = assembler.assemble("c1", "привет")
 
     assertEquals(setOf("memory_tool"), result.toolNames)
+  }
+
+  // --- skill catalog: full only for a plain chat; a bound agent sees its own skills or none --------
+
+  private class FakeSkill(private val id: String) : Skill {
+    override val manifest = SkillManifest(id = id, description = "Навык $id", whenToUse = "по делу")
+    override suspend fun instructions() = "Инструкция $id"
+  }
+
+  @Test
+  fun `plain chat without an agent gets the full skill catalog`() = runTest {
+    db.conversationDao().insert(ConversationEntity(id = "c1", title = "T"))
+
+    val result = assembler.assemble("c1", "привет")
+
+    assertTrue(result.systemPrompt.contains("## Доступные навыки"))
+    assertTrue(result.systemPrompt.contains("- budget:"))
+    assertTrue(result.systemPrompt.contains("- diary:"))
+  }
+
+  @Test
+  fun `bound agent without load_skill gets no skill catalog at all`() = runTest {
+    val userAgents = UserAgentRepository(db, db.userAgentDao(), AgentHookRepository(db.agentHookDao()))
+    userAgents.saveDraft(userAgent("no-skill-tool-agent", setOf("memory_tool")))
+    userAgents.publish("no-skill-tool-agent")
+    db.conversationDao().insert(ConversationEntity(id = "c1", title = "T", agentId = "no-skill-tool-agent"))
+
+    val result = assembler.assemble("c1", "привет")
+
+    // Раньше здесь был ВЕСЬ каталог — и совет вызвать load_skill, которого у агента нет.
+    assertFalse(result.systemPrompt.contains("## Доступные навыки"))
+    assertFalse(result.systemPrompt.contains("- budget:"))
+  }
+
+  @Test
+  fun `bound agent with load_skill sees only its own skills`() = runTest {
+    val userAgents = UserAgentRepository(db, db.userAgentDao(), AgentHookRepository(db.agentHookDao()))
+    userAgents.saveDraft(userAgent("skilled-agent", setOf("load_skill"), skillIds = setOf("budget")))
+    userAgents.publish("skilled-agent")
+    db.conversationDao().insert(ConversationEntity(id = "c1", title = "T", agentId = "skilled-agent"))
+
+    val result = assembler.assemble("c1", "привет")
+
+    assertTrue(result.systemPrompt.contains("- budget:"))
+    assertFalse(result.systemPrompt.contains("- diary:"))
   }
 }

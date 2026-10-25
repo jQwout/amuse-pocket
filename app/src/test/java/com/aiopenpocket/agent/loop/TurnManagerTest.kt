@@ -381,6 +381,41 @@ class TurnManagerTest {
   }
 
   @Test
+  fun `PlanProgressed пишет ответ шага и его карточки до строки прогресса`() = runTest {
+    // Раньше в чат шла только строка прогресса: сам ответ шага («меню на неделю») не сохранялся нигде.
+    val output = com.aiopenpocket.agent.core.plan.execution.PlanStepOutput(
+      stepId = "menu",
+      title = "Составить меню",
+      status = com.aiopenpocket.agent.core.plan.model.StepStatus.COMPLETED,
+      text = "Понедельник: гречка",
+      cardSpecs = listOf("card-1", "card-2"),
+      toolTrace = emptyList(),
+    )
+    val result = com.aiopenpocket.agent.core.plan.execution.PlanRunResult(
+      planId = "plan-1",
+      outcome = com.aiopenpocket.agent.core.plan.model.PlanRunOutcome.PARTIAL,
+      executedStepIds = listOf("menu"),
+      blockedReason = "Продолжу следующим запуском.",
+      stepOutputs = listOf(output),
+    )
+    executor.script = { flowOf(AgentEvent.PlanProgressed(result)) }
+    val m = manager()
+
+    m.launchTurn("c1", "продолжай", AgentMode.GOAL, planId = "plan-1")
+    advanceUntilIdle()
+
+    val assistant = persistence.rows.filter { it.role == "assistant" }
+    assertEquals(3, assistant.size)
+    assertTrue(assistant[0].content.contains("Составить меню") && assistant[0].content.contains("Понедельник: гречка"))
+    assertEquals("card-1", assistant[0].cardSpec)
+    assertEquals("" to "card-2", assistant[1].content to assistant[1].cardSpec)
+    // Строка прогресса — по названию шага, без id.
+    assertEquals("Шаг «Составить меню» выполнен. Продолжу следующим запуском.", assistant[2].content)
+    val status = m.sessions.value.getValue("c1").status.value as TurnStatus.Completed
+    assertEquals(assistant[2].id, status.insertedMessageId)
+  }
+
+  @Test
   fun `PlanBlocked пишет причину как обычное сообщение, без ошибки и без canRetry`() = runTest {
     executor.script = { flowOf(AgentEvent.PlanBlocked("plan-1", "Уточни бюджет поездки")) }
     val m = manager()

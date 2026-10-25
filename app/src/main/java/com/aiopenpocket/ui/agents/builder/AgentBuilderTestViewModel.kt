@@ -6,6 +6,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.policy.ExecutionMode
+import com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator
+import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.loop.ToolTrace
 import com.aiopenpocket.agent.loop.TurnManager
@@ -19,12 +21,15 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -50,6 +55,7 @@ import kotlinx.coroutines.launch
 class AgentBuilderTestViewModel(
   private val conversationRepository: ConversationRepository,
   private val turnManager: TurnManager,
+  private val toolApprovalCoordinator: ToolApprovalCoordinator,
 ) : ViewModel() {
 
   private val _testConversationId = MutableStateFlow<String?>(null)
@@ -87,6 +93,53 @@ class AgentBuilderTestViewModel(
     .flatMapLatest { session -> session?.toolTrace ?: flowOf(emptyList()) }
     .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+  /**
+   * Последнее сообщение тестового диалога, если оно от ассистента. Нужно ходам «План»/«Цель»: их
+   * итог (`TurnManager.finishPlanMessage`) пишется сразу в историю сообщением, без стриминга, и
+   * [testStreamingText] у такого хода пуст — шаг «Проверка» показывал «Пустой ответ.» агенту,
+   * который на деле ответил. Роль проверяем, чтобы при пустом ответе обычного хода (последней
+   * будет реплика пользователя) не всплыл ответ прошлого хода.
+   */
+  @OptIn(ExperimentalCoroutinesApi::class)
+  private val lastAssistantMessage: Flow<String> = _testConversationId
+    .flatMapLatest { id ->
+      if (id == null) {
+        flowOf("")
+      } else {
+        conversationRepository.getMessagesWindow(id, limit = 1)
+          .map { window -> window.lastOrNull()?.takeIf { it.role == "assistant" }?.content.orEmpty() }
+      }
+    }
+
+  /**
+   * То, что шаг «Проверка» показывает как ответ агента: сообщение, которое ход записал в тестовый
+   * диалог (см. [lastAssistantMessage]), а пока его нет — стрим хода. Записанное — первым: у хода
+   * «План»/«Цель» стрим пуст или застревает на строке прогресса инструмента, а итоговый текст есть
+   * только в истории. Новый ход начинается с реплики пользователя, поэтому ответ прошлого хода сюда
+   * не протекает.
+   */
+  val testReplyText: StateFlow<String> = combine(testStreamingText, lastAssistantMessage) { streaming, saved ->
+    saved.ifBlank { streaming }
+  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+
+  /**
+   * Запрос подтверждения от хука «Требовать подтверждение» в ТЕСТОВОМ диалоге — null, пока ничего не
+   * ждёт. [ExecutionPolicy][com.aiopenpocket.agent.core.policy.ExecutionPolicy] ставит такой вызов на
+   * ожидание и в предпросмотре, а ответить на него раньше было негде: бар подтверждения жил только в
+   * чате, и тестовый ход молча висел две минуты до таймаута координатора. Фильтр по своему
+   * conversationId — как в `ChatViewModel`: чужой запрос сюда не попадёт.
+   */
+  val testPendingApproval: StateFlow<ToolApprovalRequest?> =
+    combine(_testConversationId, toolApprovalCoordinator.pending) { convId, pending ->
+      if (convId == null) null else pending.firstOrNull { it.conversationId == convId }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+  /** Ответ на [testPendingApproval]; no-op, если запрос уже снят (таймаут, ход закончился). */
+  fun resolveTestApproval(approved: Boolean) {
+    val request = testPendingApproval.value ?: return
+    toolApprovalCoordinator.resolve(request.runId, request.requestId, approved)
+  }
+
   private var attachedAgentId: String? = null
 
   /**
@@ -97,14 +150,21 @@ class AgentBuilderTestViewModel(
   fun attachAgent(agentId: String) {
     if (attachedAgentId == agentId) return
     attachedAgentId = agentId
+    // Смена агента в той же сессии: прежний тестовый диалог больше не нужен никому. Раньше он
+    // оставался висеть — [onCleared] убирал только последний, и каждый лишний id (например, новый
+    // черновик после поворота экрана) оставлял в списке чатов ещё один «Тест агента».
+    _testConversationId.value?.let(::discardConversation)
+    _testConversationId.value = null
     viewModelScope.launch {
-      _testConversationId.value = conversationRepository.createConversation(
+      val created = conversationRepository.createConversation(
         title = TEST_CONVERSATION_TITLE,
         agentId = agentId,
         // Помечаем служебным тегом: диалог привязан к agentId черновика, и без метки «Открыть чат»
         // у собранного агента мог переиспользовать именно его (findLatestConversationByAgent).
         tags = listOf(ConversationRepository.BUILDER_TEST_TAG),
       )
+      // Пока диалог создавался, могли успеть переключиться на другого агента — тогда этот уже сирота.
+      if (attachedAgentId == agentId) _testConversationId.value = created else discardConversation(created)
     }
   }
 
@@ -142,6 +202,11 @@ class AgentBuilderTestViewModel(
     super.onCleared()
     val convId = _testConversationId.value ?: return
     _testConversationId.value = null
+    discardConversation(convId)
+  }
+
+  /** Останавливает ход в [convId] и удаляет диалог — порядок и причины см. в [onCleared]. */
+  private fun discardConversation(convId: String) {
     cleanupScope.launch {
       runCatching {
         turnManager.cancelAndAwait(convId)

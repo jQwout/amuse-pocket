@@ -177,12 +177,16 @@ class OnboardingViewModel(
                 // тратится на обновление state уже уничтожаемой VM вместо нормального распространения.
                 throw e
             } catch (e: Exception) {
+                // Без модели настройку не держим: нет ключа (магазинная сборка его не вшивает), нет
+                // сети или провайдер упал — а ввести ключ можно только в Настройках, которые открываются
+                // ПОСЛЕ онбординга. Раньше здесь был тупик: ошибка и та же кнопка «Готово» навсегда.
+                // Рассказ о себе сохраняем как есть — разбор по полям ничего не добавляет к тому, что
+                // модель и так прочтёт в «о себе», а имя агент узнает в разговоре.
+                android.util.Log.w("OnboardingViewModel", "profile extraction failed, saving raw text: ${e.message}")
                 _state.update {
-                    it.copy(
-                        isExtracting = false,
-                        extractionError = e.message ?: "Не удалось получить ответ модели",
-                    )
+                    it.copy(isExtracting = false, extraInfo = it.extraInfo.ifBlank { current.aboutMeText.trim() })
                 }
+                completeOnboarding()
             }
         }
     }

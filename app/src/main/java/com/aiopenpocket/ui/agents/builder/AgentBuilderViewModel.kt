@@ -76,6 +76,15 @@ class AgentBuilderViewModel(
    */
   private val pendingEdits = MutableStateFlow<AgentDraft?>(null)
 
+  /**
+   * С какими аргументами уже отработал [start]. Маршрут зовёт его из `LaunchedEffect`, а тот
+   * перезапускается при каждом пересоздании композиции — поворот экрана, смена темы, — хотя сама
+   * ViewModel переживает их нетронутой. Без этой отметки поворот заводил новый пустой черновик с
+   * новым id (а редактирование отбрасывало на первый шаг), и под каждый новый id тестовый шаг
+   * создавал ещё один чат «Тест агента». Тот же приём, что `AgentDetailViewModel.select`.
+   */
+  private var startedWith: Pair<String?, AgentSourceContext>? = null
+
   init {
     viewModelScope.launch {
       pendingEdits.debounce(AUTOSAVE_DEBOUNCE_MS).filterNotNull().collect { draft -> persist(draft) }
@@ -91,8 +100,15 @@ class AgentBuilderViewModel(
    * not on every recomposition. [sourceContext] (Task 23) only matters for the null-[agentId]
    * branch — see [newDraft]; it is ignored (never overrides an existing agent's bookkeeping) when
    * [loadExisting] runs instead.
+   *
+   * Повторный вызов с теми же аргументами — no-op (см. [startedWith]): черновик и текущий шаг
+   * переживают поворот экрана. [newDraft]/[loadExisting] сами по себе не охраняются — явный вызов
+   * по-прежнему перезагружает.
    */
   fun start(agentId: String?, sourceContext: AgentSourceContext = AgentSourceContext.MANUAL) {
+    val key = agentId to sourceContext
+    if (startedWith == key) return
+    startedWith = key
     if (agentId == null) newDraft(sourceContext) else loadExisting(agentId)
   }
 
@@ -120,7 +136,7 @@ class AgentBuilderViewModel(
         val resolved = agentResolver.resolve(agentId)
         applyLoaded(resolved?.let { AgentDraft.fromDefinition(it, customSkillsOf(agentId)) } ?: AgentDraft.new(agentId))
       } catch (e: Exception) {
-        _state.update { it.copy(isLoading = false, saveError = e.message ?: "Load failed") }
+        _state.update { it.copy(isLoading = false, saveError = ERROR_LOAD) }
       }
     }
   }
@@ -143,7 +159,7 @@ class AgentBuilderViewModel(
       try {
         val source = agentResolver.resolve(sourceAgentId)
         if (source == null) {
-          _state.update { it.copy(isLoading = false, saveError = "Агент '$sourceAgentId' не найден") }
+          _state.update { it.copy(isLoading = false, saveError = ERROR_NOT_FOUND) }
           return@launch
         }
         val cloned = userAgentRepository.clonePreset(source)
@@ -155,7 +171,7 @@ class AgentBuilderViewModel(
         )
         applyLoaded(AgentDraft.fromDefinition(renamed, clonedSkills))
       } catch (e: Exception) {
-        _state.update { it.copy(isLoading = false, saveError = e.message ?: "Clone failed") }
+        _state.update { it.copy(isLoading = false, saveError = ERROR_CLONE) }
       }
     }
   }
@@ -166,6 +182,9 @@ class AgentBuilderViewModel(
   fun updateDraft(transform: (AgentDraft) -> AgentDraft) {
     val updated = transform(_state.value.draft)
     setDraftAndValidate(updated)
+    // Новая правка после публикации — уже неопубликованное изменение: плашка «Опубликовано» дальше
+    // врала бы, что на экране то же, что ушло в ростер.
+    _state.update { it.copy(justPublished = false) }
     pendingEdits.value = updated
   }
 
@@ -236,11 +255,14 @@ class AgentBuilderViewModel(
           it.copy(
             isSaving = false,
             saveError = null,
+            justPublished = true,
             draft = it.draft.copy(status = published.status, configVersion = published.configVersion),
           )
         }
       } catch (e: Exception) {
-        _state.update { it.copy(isSaving = false, saveError = e.message ?: "Publish failed") }
+        // Текст исключения не показываем: это `require`-сообщения репозитория на английском, с
+        // кодами и id. Локальная валидация выше уже отсеяла всё, что можно поправить на шагах.
+        _state.update { it.copy(isSaving = false, saveError = ERROR_PUBLISH) }
       }
     }
   }
@@ -256,7 +278,7 @@ class AgentBuilderViewModel(
           it.copy(isSaving = false, saveError = null, draft = it.draft.copy(status = AgentStatus.ARCHIVED))
         }
       } catch (e: Exception) {
-        _state.update { it.copy(isSaving = false, saveError = e.message ?: "Archive failed") }
+        _state.update { it.copy(isSaving = false, saveError = ERROR_ARCHIVE) }
       }
     }
   }
@@ -266,7 +288,9 @@ class AgentBuilderViewModel(
   private fun applyLoaded(draft: AgentDraft) {
     pendingEdits.value = null // discard any stale pending edit left over from whatever was loaded before
     setDraftAndValidate(draft)
-    _state.update { it.copy(isLoading = false, step = BuilderStep.IDENTITY, isSaving = false, saveError = null) }
+    _state.update {
+      it.copy(isLoading = false, step = BuilderStep.IDENTITY, isSaving = false, saveError = null, justPublished = false)
+    }
   }
 
   private fun setDraftAndValidate(draft: AgentDraft) {
@@ -288,7 +312,7 @@ class AgentBuilderViewModel(
     } catch (e: Exception) {
       // Brief: "a save error stays in state and must NOT drop the in-memory draft" - current.draft
       // (whatever the user has typed since this failed save started) is left completely untouched.
-      _state.update { it.copy(isSaving = false, saveError = e.message ?: "Save failed") }
+      _state.update { it.copy(isSaving = false, saveError = ERROR_SAVE) }
     }
   }
 
@@ -299,5 +323,14 @@ class AgentBuilderViewModel(
   companion object {
     const val AUTOSAVE_DEBOUNCE_MS = 500L
     private const val ID_SUFFIX_LENGTH = 10
+
+    // Тексты ошибок для пользователя — по-русски и без `e.message`: туда попадают английские
+    // `require`/Room-сообщения с кодами и id, которые на экране ничего не объясняют.
+    private const val ERROR_LOAD = "Не удалось загрузить агента. Попробуй открыть его ещё раз."
+    private const val ERROR_NOT_FOUND = "Агент не найден."
+    private const val ERROR_CLONE = "Не удалось создать копию агента."
+    private const val ERROR_PUBLISH = "Не удалось опубликовать агента. Попробуй ещё раз."
+    private const val ERROR_ARCHIVE = "Не удалось убрать агента в архив."
+    private const val ERROR_SAVE = "Не удалось сохранить черновик — правки пока только на экране."
   }
 }

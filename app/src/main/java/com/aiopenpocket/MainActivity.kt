@@ -280,6 +280,12 @@ class MainActivity : ComponentActivity() {
                                         agentId = null,
                                         sourceContext = sourceContext,
                                         onExit = { navController.popBackStack() },
+                                        // Опубликованного агента — сразу в его чат; конструктор закрываем,
+                                        // чтобы «Назад» из чата не возвращал в уже законченный мастер.
+                                        onOpenChat = { id ->
+                                            navController.popBackStack()
+                                            navController.navigate("chat/$id")
+                                        },
                                     )
                                 }
                                 composable("agent_builder/{agentId}") { backStackEntry ->
@@ -287,6 +293,10 @@ class MainActivity : ComponentActivity() {
                                     AgentBuilderRoute(
                                         agentId = agentId,
                                         onExit = { navController.popBackStack() },
+                                        onOpenChat = { id ->
+                                            navController.popBackStack()
+                                            navController.navigate("chat/$id")
+                                        },
                                     )
                                 }
                                 composable("roadmap") {

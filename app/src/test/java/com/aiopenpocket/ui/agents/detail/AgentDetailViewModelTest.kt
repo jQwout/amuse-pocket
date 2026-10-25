@@ -43,6 +43,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -88,6 +89,7 @@ class AgentDetailViewModelTest {
   private lateinit var heartbeatDao: HeartbeatDao
   private lateinit var agentFilesRepository: AgentFilesRepository
   private lateinit var planRepository: PlanRepository
+  private lateinit var userSkillRepository: UserSkillRepository
   private lateinit var vm: AgentDetailViewModel
   private var now = 10_000L
 
@@ -105,15 +107,17 @@ class AgentDetailViewModelTest {
     heartbeatDao = db.heartbeatDao()
     agentFilesRepository = AgentFilesRepository(RuntimeEnvironment.getApplication())
     planRepository = PlanRepository(db, db.planDao()) { now }
+    userSkillRepository = UserSkillRepository(db.userSkillDao())
     vm = AgentDetailViewModel(
       agentResolver = DefaultAgentResolver(userAgentRepository),
       userAgentRepository = userAgentRepository,
       toolRegistry = ToolRegistry(setOf(FakeTool("memory_tool", RiskClass.WRITE))),
-      skillRegistry = SkillRegistry(emptySet(), UserSkillRepository(db.userSkillDao())),
+      skillRegistry = SkillRegistry(emptySet(), userSkillRepository),
       agentHookRepository = agentHookRepository,
       heartbeatDao = heartbeatDao,
       agentFilesRepository = agentFilesRepository,
       planRepository = planRepository,
+      userSkillRepository = userSkillRepository,
     )
   }
 
@@ -274,6 +278,73 @@ class AgentDetailViewModelTest {
 
     assertEquals(AgentStatus.DRAFT, state.definition?.status)
     assertFalse(state.isEnabled)
+  }
+
+  /**
+   * «Включить» republish'ит агента: без его собственных навыков в `publish(skills = …)` валидатор
+   * видел id навыка ни встроенным, ни своим (`unknown_skill`) — включение падало, а успешное
+   * стёрло бы сами навыки, потому что publish заменяет их переданным набором целиком.
+   */
+  @Test
+  fun `toggleEnabled re-enables an agent with its own custom skill and keeps the skill`() = runTest(testDispatcher) {
+    val id = "skilled-agent"
+    val customSkill = UserSkillEntity(
+      id = "own-skill-1",
+      agentId = id,
+      name = "Свой навык",
+      description = "Навык этого агента",
+      whenToUse = "всегда",
+      instructionsMarkdown = "Делай Y.",
+      createdAt = 0L,
+      updatedAt = 0L,
+    )
+    userAgentRepository.saveDraft(
+      customUserAgent(id, toolNames = setOf("memory_tool"), skillIds = setOf("own-skill-1")),
+      skills = listOf(customSkill),
+    )
+    userAgentRepository.publish(id, skills = listOf(customSkill))
+    userAgentRepository.unpublish(id)
+    vm.select(id)
+    vm.state.first { it.definition?.status == AgentStatus.DRAFT }
+
+    vm.toggleEnabled()
+    val state = vm.state.first { it.definition?.status == AgentStatus.PUBLISHED || it.actionError != null }
+
+    assertEquals(null, state.actionError)
+    assertEquals(AgentStatus.PUBLISHED, state.definition?.status)
+    assertEquals(listOf("own-skill-1"), userSkillRepository.getForAgent(id).map { it.id })
+  }
+
+  /** «Дублировать» своего агента с навыком: копия получает свой экземпляр навыка, а не пустоту. */
+  @Test
+  fun `duplicate keeps the copied custom skills`() = runTest(testDispatcher) {
+    val id = "dup-source"
+    val customSkill = UserSkillEntity(
+      id = "dup-skill",
+      agentId = id,
+      name = "Навык",
+      description = "d",
+      whenToUse = "w",
+      instructionsMarkdown = "Тело навыка.",
+      createdAt = 0L,
+      updatedAt = 0L,
+    )
+    userAgentRepository.saveDraft(
+      customUserAgent(id, toolNames = setOf("memory_tool"), skillIds = setOf("dup-skill")),
+      skills = listOf(customSkill),
+    )
+    vm.select(id)
+    vm.state.first { it.definition != null }
+
+    var cloneId: String? = null
+    vm.duplicate { cloneId = it }
+    advanceUntilIdle()
+    val clone = requireNotNull(cloneId)
+
+    val clonedSkills = userSkillRepository.getForAgent(clone)
+    assertEquals(1, clonedSkills.size)
+    assertEquals("Тело навыка.", clonedSkills.single().instructionsMarkdown)
+    assertEquals(clonedSkills.map { it.id }.toSet(), userAgentRepository.get(clone)?.skillIds)
   }
 
   @Test

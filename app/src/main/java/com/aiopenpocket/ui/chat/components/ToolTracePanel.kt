@@ -30,14 +30,14 @@ fun ToolTracePanel(
   ) {
     Column(modifier = Modifier.padding(12.dp)) {
       Text(
-        text = "Tool Trace",
+        text = "Вызовы инструментов",
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSecondaryContainer,
       )
       traces.forEach { trace ->
         val resultText = when (trace.result) {
-          is ToolResult.Success -> "OK"
-          is ToolResult.Error -> "ERR"
+          is ToolResult.Success -> "ок"
+          is ToolResult.Error -> "ошибка"
         }
         Text(
           text = "[${trace.iteration}] ${trace.toolName} → $resultText",

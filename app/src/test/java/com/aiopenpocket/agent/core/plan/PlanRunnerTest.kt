@@ -413,7 +413,7 @@ class PlanRunnerTest {
     val result = runner.runNim(request(snapshot.plan.id))
 
     assertEquals(PlanRunOutcome.PARTIAL, result.outcome)
-    assertTrue(result.blockedReason!!.contains("paused", ignoreCase = true))
+    assertEquals(PlanRunner.PLAN_PAUSED_REASON, result.blockedReason)
     assertEquals(0, stepRunner.calledStepIds.size)
   }
 
@@ -480,7 +480,8 @@ class PlanRunnerTest {
     val result = runner.runNim(request(snapshot.plan.id, requestedStepId = "step-2"))
 
     assertEquals(PlanRunOutcome.PARTIAL, result.outcome)
-    assertTrue(result.blockedReason!!.contains("step-2"))
+    // Пользователю — название шага, а не его id.
+    assertEquals("Шаг «Title step-2» сейчас не готов к запуску.", result.blockedReason)
     assertEquals(0, stepRunner.calledStepIds.size)
   }
 
@@ -500,7 +501,7 @@ class PlanRunnerTest {
 
     val second = runner.runNim(request(snapshot.plan.id))
     assertEquals(PlanRunOutcome.PARTIAL, second.outcome)
-    assertTrue(second.blockedReason!!.contains("already executing"))
+    assertEquals(PlanRunner.ALREADY_RUNNING_REASON, second.blockedReason)
     assertTrue(second.executedStepIds.isEmpty())
 
     gate.complete(Unit)
@@ -545,10 +546,44 @@ class PlanRunnerTest {
     runCatching { runner.runNim(request(snapshot.plan.id)) }
 
     // Не освободив план, мы сделали бы его НАВСЕГДА невыполнимым: каждый следующий запуск получал бы
-    // «already executing» от держателя, которого уже нет.
+    // «уже выполняется» от держателя, которого уже нет.
     assertTrue("упавший ход не освободил план", runner.inFlightPlanIds.isEmpty())
     val second = runner.runNim(request(snapshot.plan.id))
-    assertFalse("план заклинило после падения", second.blockedReason.orEmpty().contains("already executing"))
+    assertFalse("план заклинило после падения", second.blockedReason == PlanRunner.ALREADY_RUNNING_REASON)
+  }
+
+  // --- ответ шага доезжает до вызывающего ---------------------------------------------------------
+
+  @Test
+  fun `the executed step's answer and render_card specs are carried in the result`() = runTest {
+    val snapshot = approvedSnapshot(steps = listOf(step()))
+    val cardTrace = ToolTrace(iteration = 1, toolName = "render_card", arguments = emptyMap(), result = ToolResult.Success("{\"card\":1}"))
+    stepRunner.script = { finishedResult(text = "Меню на неделю: …", trace = listOf(cardTrace)) }
+    val runner = planRunner()
+
+    val result = runner.runNim(request(snapshot.plan.id))
+
+    // Раньше результат нёс только id: текст шага (то самое меню) терялся, и в чат не попадало ничего.
+    val output = result.stepOutputs.single()
+    assertEquals("step-1", output.stepId)
+    assertEquals("Title step-1", output.title)
+    assertEquals(StepStatus.COMPLETED, output.status)
+    assertEquals("Меню на неделю: …", output.text)
+    assertEquals(listOf("{\"card\":1}"), output.cardSpecs)
+  }
+
+  @Test
+  fun `a blocked step's reason is Russian and names the step by title`() = runTest {
+    val snapshot = approvedSnapshot(steps = listOf(step()), criteria = listOf(userConfirmationCriterion()))
+    stepRunner.script = { finishedResult(text = "Готово, проверь.") }
+    val runner = planRunner()
+
+    val result = runner.runNim(request(snapshot.plan.id))
+
+    assertEquals(PlanRunOutcome.PARTIAL, result.outcome)
+    assertEquals("Шаг «Title step-1» ждёт твоего решения — загляни в карточку плана.", result.blockedReason)
+    // Ответ заблокированного шага тоже нужен пользователю: без него нечего подтверждать.
+    assertEquals("Готово, проверь.", result.stepOutputs.single().text)
   }
 
   /**

@@ -28,7 +28,9 @@ import com.aiopenpocket.agent.loop.AgentState
 import com.aiopenpocket.agent.loop.ReactLoopRunner
 import com.aiopenpocket.agent.loop.TurnContextHolder
 import com.aiopenpocket.agent.loop.TurnNotifier
+import com.aiopenpocket.agent.loop.persistPlanStepOutputs
 import com.aiopenpocket.di.AppScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -39,7 +41,7 @@ enum class FireOutcome { DONE, RETRY }
  * Логика срабатывания heartbeat'а — отдельно от [HeartbeatWorker], чтобы тестироваться без
  * WorkManager. push — статичный пуш; agent — headless-ход [ReactLoopRunner] с безопасным подмножеством
  * тулз. Пуш и deep-link в диалог переиспользуют [TurnNotifier] (та же инфраструктура, что у фоновых
- * ходов); «пульс» без задачи молчит на HEARTBEAT_OK.
+ * ходов); agent-ход (с задачей или «пульс» без неё) молчит, если агент ответил HEARTBEAT_OK.
  *
  * Agent-режим, привязанный к preset/custom агенту (Task 22, `user-agent-builder-848153`): бежит
  * только для уже РЕЗОЛВЛЕННОГО и `[com.aiopenpocket.agent.core.agent.AgentDefinition.enabled]`
@@ -120,6 +122,11 @@ class HeartbeatRunner(
       append(agent?.systemPrompt ?: "Ты — полезный ассистент AI Open Pocket.")
       append("\n\nСейчас ты работаешь В ФОНЕ по плановому heartbeat — юзер тебя не вызывал. ")
       append("Отвечай кратко и по делу: твой ответ уйдёт сообщением в чат и пушем.")
+      // Право промолчать — для ЛЮБОГО фонового хода, не только «пульса» без задачи: раньше с задачей
+      // агент обязан был что-то написать, и «реши сам, стоит ли беспокоить» не работало вовсе.
+      // Оговорка про напоминания — чтобы «напомни выпить воды» не съедалось как «нечего сообщить».
+      append("\nЕсли сообщать нечего — ответь ровно $HEARTBEAT_OK: тогда юзер ничего не получит. ")
+      append("Напоминание, о котором тебя просили, — это всегда «есть что сообщить».")
     }
     val task = hb.prompt ?: PULSE_PROMPT
     val messages = mutableListOf(
@@ -160,8 +167,8 @@ class HeartbeatRunner(
     }
 
     val text = result.text.trim()
-    // «Пульс» (без явной задачи): HEARTBEAT_OK = агенту нечего сказать — полная тишина.
-    if (hb.prompt == null && text.contains("HEARTBEAT_OK")) {
+    // HEARTBEAT_OK = агенту нечего сказать — полная тишина, с задачей или без (см. системный промпт).
+    if (text.contains(HEARTBEAT_OK)) {
       record(hb, ok = true, result = null)
       return FireOutcome.DONE
     }
@@ -216,6 +223,10 @@ class HeartbeatRunner(
         ),
         provider = selectedProvider(),
       )
+    } catch (e: CancellationException) {
+      // CancellationException — наследник IllegalStateException: без этой ветки остановка воркера
+      // проглатывалась бы ниже и записывалась как «состояние изменилось».
+      throw e
     } catch (e: IllegalStateException) {
       Log.w(TAG, "heartbeat ${hb.id} plan step '${target.stepId}' attempt=$attempt refused: ${e.message}")
       return skip(hb, PLAN_RUN_ERROR)
@@ -246,6 +257,20 @@ class HeartbeatRunner(
    * [turnNotifier] tells them a plan step needs attention rather than failing silently forever.
    */
   private suspend fun handlePlanRunResult(hb: HeartbeatEntity, target: PlanHeartbeatTarget, result: PlanRunResult): FireOutcome {
+    // Ответ шага — в чат плана при ЛЮБОМ исходе, до пуша (тап по пушу должен открыть уже готовый
+    // ответ). Раньше фоновый путь не писал в чат ничего: после «Одобрить» план выполнялся здесь,
+    // карточка показывала «все шаги выполнены», а сам результат (меню, подборка) не сохранялся нигде.
+    // Сбой записи (диалог удалили прямо во время шага) не должен сорвать record/пересинхронизацию
+    // ниже: без sync следующий шаг плана так и не встал бы в расписание.
+    try {
+      persistPlanStepOutputs(result.stepOutputs) { text, card ->
+        conversationRepository.addMessage(hb.conversationId, "assistant", text, cardSpec = card)
+      }
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      Log.w(TAG, "heartbeat ${hb.id} could not save plan step output: ${e.message}")
+    }
     when (result.outcome) {
       PlanRunOutcome.COMPLETED -> {
         turnNotifier.turnFinished(hb.conversationId, hb.title, "План выполнен.", failed = false)
@@ -265,7 +290,9 @@ class HeartbeatRunner(
         val after = planRepository.snapshot(target.planId)
         val stepBlocked = after?.stepStates?.find { it.stepId == target.stepId }?.status == StepStatus.BLOCKED
         if (stepBlocked) {
-          turnNotifier.turnFinished(hb.conversationId, hb.title, "Шаг плана требует внимания: ${result.blockedReason ?: hb.title}", failed = false)
+          // blockedReason уже полная русская фраза с названием шага («Шаг «…» ждёт твоего решения…»):
+          // префикс «Шаг плана требует внимания:» дублировал бы её.
+          turnNotifier.turnFinished(hb.conversationId, hb.title, result.blockedReason ?: "Шаг плана требует внимания.", failed = false)
         }
         record(hb, ok = true, result = result.blockedReason)
         if (after != null && after.plan.status == PlanStatus.ACTIVE) {
@@ -330,12 +357,16 @@ class HeartbeatRunner(
     const val MAX_ATTEMPTS = 3
     /**
      * Чтение + уведомления + storage_tool (per-agent изолирован в коде через TurnContextHolder — так
-     * же безопасен в фоне, как memory_tool). Исключены: email/файлы/alarm/сам heartbeat
-     * (самовоспроизводство)/render_card.
+     * же безопасен в фоне, как memory_tool) + srs_tool (локальная запись карточек в Room, как
+     * memory_tool; без него фоновые напоминания «Репетитора» не могли ни показать, ни отметить
+     * повторение). Исключены: email/файлы/alarm/сам heartbeat (самовоспроизводство)/render_card.
      */
     val SAFE_TOOL_NAMES = setOf(
-      "memory_tool", "database_query", "calendar", "step_counter", "notifications", "storage_tool",
+      "memory_tool", "database_query", "calendar", "step_counter", "notifications", "storage_tool", "srs_tool",
     )
+
+    /** Маркер «сообщать нечего»: такой ответ фонового agent-хода не пишется в чат и не пушится. */
+    const val HEARTBEAT_OK = "HEARTBEAT_OK"
     val PULSE_PROMPT = """
       Это плановый heartbeat. Посмотри доступные данные (память, базу) и реши: есть ли
       что-то полезное или срочное для юзера прямо сейчас? Если есть — коротко сообщи.

@@ -144,6 +144,49 @@ class AgentBuilderViewModelTest {
     assertEquals(state.draft.toolNames, stored?.toolNames)
   }
 
+  // --- start: повторный вызов (поворот экрана) ------------------------------------------------------
+
+  /**
+   * Маршрут зовёт start из LaunchedEffect, который перезапускается при повороте экрана, а ViewModel
+   * его переживает. Раньше повтор заводил новый пустой черновик с новым id на первом шаге — и под
+   * каждый id тестовый шаг создавал ещё один чат «Тест агента».
+   */
+  @Test
+  fun `a repeated start for a new draft keeps the same draft and step`() = runTest(testDispatcher) {
+    vm.start(null)
+    advanceUntilIdle()
+    val id = vm.state.value.draft.id
+    fillValidFields()
+    advanceUntilIdle()
+    assertTrue(vm.nextStep())
+
+    vm.start(null)
+    advanceUntilIdle()
+
+    assertEquals("тот же черновик, а не новый пустой", id, vm.state.value.draft.id)
+    assertEquals("и тот же шаг, а не возврат на первый", BuilderStep.INSTRUCTIONS, vm.state.value.step)
+    assertEquals("правки на месте", "Тестовый агент", vm.state.value.draft.name)
+  }
+
+  /** То же для маршрута редактирования: повторный loadExisting отбрасывал на первый шаг. */
+  @Test
+  fun `a repeated start on the edit route does not jump back to the first step`() = runTest(testDispatcher) {
+    vm.newDraft()
+    val id = vm.state.value.draft.id
+    fillValidFields()
+    advanceUntilIdle()
+
+    val editing = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository)
+    editing.start(id)
+    advanceUntilIdle()
+    assertTrue(editing.nextStep())
+
+    editing.start(id)
+    advanceUntilIdle()
+
+    assertEquals(BuilderStep.INSTRUCTIONS, editing.state.value.step)
+  }
+
   // --- validation per step --------------------------------------------------------------------------
 
   @Test
@@ -246,6 +289,22 @@ class AgentBuilderViewModelTest {
     val stored = userAgentRepository.get(id)
     assertEquals(AgentStatus.PUBLISHED, stored?.status)
     assertEquals(1L, stored?.configVersion)
+    assertTrue("успех публикации должен быть виден", vm.state.value.justPublished)
+  }
+
+  /** Плашка «Опубликовано» гаснет на первой же правке — дальше на экране уже неопубликованное. */
+  @Test
+  fun `an edit after publish clears the published confirmation`() = runTest(testDispatcher) {
+    vm.newDraft()
+    fillValidFields()
+    advanceUntilIdle()
+    vm.publish()
+    advanceUntilIdle()
+    assertTrue(vm.state.value.justPublished)
+
+    vm.updateDraft { it.copy(description = "Правка после публикации.") }
+
+    assertFalse(vm.state.value.justPublished)
   }
 
   @Test

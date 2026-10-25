@@ -22,6 +22,7 @@ import com.aiopenpocket.agent.core.plan.model.PlanStatus
 import com.aiopenpocket.agent.core.plan.model.StepStatus
 import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
 import com.aiopenpocket.agent.core.skill.SkillRegistry
+import com.aiopenpocket.agent.core.skill.UserSkillRepository
 import com.aiopenpocket.data.repository.AgentFile
 import com.aiopenpocket.data.repository.AgentFilesRepository
 import com.aiopenpocket.di.AppScope
@@ -157,6 +158,7 @@ class AgentDetailViewModel(
   private val heartbeatDao: HeartbeatDao,
   private val agentFilesRepository: AgentFilesRepository,
   private val planRepository: PlanRepository,
+  private val userSkillRepository: UserSkillRepository,
 ) : ViewModel() {
 
   private val agentIdFlow = MutableStateFlow<String?>(null)
@@ -235,7 +237,7 @@ class AgentDetailViewModel(
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
-        _state.update { it.copy(isLoading = false, actionError = e.message ?: "Не удалось загрузить агента") }
+        _state.update { it.copy(isLoading = false, actionError = "Не удалось загрузить агента.") }
       }
     }
   }
@@ -279,12 +281,20 @@ class AgentDetailViewModel(
     viewModelScope.launch {
       try {
         val cloned = userAgentRepository.clonePreset(definition)
-        val renamed = userAgentRepository.saveDraft(cloned.copy(name = "Копия: ${definition.name}"))
+        // Навыки копии передаём явно: saveDraft заменяет навыки агента ЦЕЛИКОМ переданным списком,
+        // и вызов без skills стирал только что скопированные clonePreset'ом — копия своего агента
+        // с навыком сразу вставала на unknown_skill (так же, как это уже сделано в
+        // AgentBuilderViewModel.cloneFrom).
+        val renamed = userAgentRepository.saveDraft(
+          definition = cloned.copy(name = "Копия: ${definition.name}"),
+          skills = userSkillRepository.getForAgent(cloned.id),
+          hooks = cloned.hooks,
+        )
         onReady(renamed.id)
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
-        _state.update { it.copy(actionError = e.message ?: "Не удалось создать копию") }
+        _state.update { it.copy(actionError = "Не удалось создать копию агента.") }
       }
     }
   }
@@ -293,9 +303,10 @@ class AgentDetailViewModel(
    * «Отключить/Включить»: PUBLISHED → DRAFT (пропадает из ростера
    * [com.aiopenpocket.agent.core.agent.AgentResolver.observeRoster], но остаётся резолвимым и
    * повторно публикуемым отсюда же) либо DRAFT/ARCHIVED → PUBLISHED. Republish передаёт ТЕКУЩИЕ хуки
-   * агента (`hooks` параметр [UserAgentRepository.publish] — тем же способом, каким уже пользуется
-   * `AgentBuilderViewModel.publish`, без `skills`), чтобы включение не стирало Task 8 хуки этого
-   * агента: [UserAgentRepository.publish] безусловно перезаписывает хуки набором, который ему передан.
+   * и собственные навыки агента: [UserAgentRepository.publish] безусловно перезаписывает и то, и
+   * другое переданным набором, а валидатор считает навык «своим», только если он есть в `skills`.
+   * Без навыков «Включить» у агента со своим навыком падало на `unknown_skill` (и молча: ошибку
+   * экран не показывал), а успешное включение стёрло бы сами навыки.
    */
   fun toggleEnabled() {
     val definition = _state.value.definition ?: return
@@ -308,13 +319,23 @@ class AgentDetailViewModel(
           // публикации на каждой правке). Выключенный агент виден в секции «Черновики».
           userAgentRepository.unpublish(definition.id)
         } else {
-          userAgentRepository.publish(definition.id, hooks = _state.value.hooks.map { it.hook })
+          userAgentRepository.publish(
+            id = definition.id,
+            skills = userSkillRepository.getForAgent(definition.id),
+            hooks = _state.value.hooks.map { it.hook },
+          )
         }
         reload()
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
-        _state.update { it.copy(isLoading = false, actionError = e.message ?: "Не удалось изменить статус агента") }
+        // Не e.message: это английский `require` репозитория с кодами валидатора.
+        val message = if (definition.status == AgentStatus.PUBLISHED) {
+          "Не удалось отключить агента."
+        } else {
+          "Не удалось включить агента — открой «Изменить» и проверь шаги."
+        }
+        _state.update { it.copy(isLoading = false, actionError = message) }
       }
     }
   }
@@ -330,7 +351,7 @@ class AgentDetailViewModel(
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
-        _state.update { it.copy(isLoading = false, actionError = e.message ?: "Не удалось архивировать агента") }
+        _state.update { it.copy(isLoading = false, actionError = "Не удалось архивировать агента.") }
       }
     }
   }

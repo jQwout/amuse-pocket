@@ -2,6 +2,7 @@ package com.aiopenpocket.ui.plan
 
 // @trace structured-plan-engine-907066
 
+import com.aiopenpocket.ui.theme.LocalThemeIsDark
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,7 +14,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import com.aiopenpocket.ui.theme.LimeSignal
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -53,16 +53,40 @@ fun planStatusLabel(status: PlanStatus): String = when (status) {
   PlanStatus.FAILED -> "Ошибка"
 }
 
-/** Accent color for a [PlanStatus] badge — mirrors the risk/enabled badge palette used elsewhere in the agent UI. */
+/**
+ * Accent color for a [PlanStatus] badge — mirrors the risk/enabled badge palette used elsewhere in the agent UI.
+ *
+ * Цвет идёт в ТЕКСТ (бейджи, строка статуса в карточке), поэтому «активный» — это
+ * `colorScheme.primary`, а не прибитый `LimeSignal`: лайм #C4E85C на светлой бумаге не читается,
+ * а primary светлой темы — оливковый, тёмной — тот же лайм. Остальные тона по той же причине
+ * темнее в светлой теме (см. [statusTone]). Отсюда и @Composable.
+ */
+@Composable
 fun planStatusColor(status: PlanStatus): Color = when (status) {
-  PlanStatus.DRAFT, PlanStatus.NEEDS_INFO, PlanStatus.NEEDS_REVISION -> Color(0xFF9E9E9E)
-  PlanStatus.AWAITING_APPROVAL -> Color(0xFF42A5F5)
-  PlanStatus.ACTIVE -> LimeSignal
-  PlanStatus.PAUSED -> Color(0xFFFFA726)
-  PlanStatus.COMPLETED -> Color(0xFF4CAF50)
-  PlanStatus.CANCELLED -> Color(0xFF9E9E9E)
-  PlanStatus.FAILED -> Color(0xFFE53935)
+  PlanStatus.DRAFT, PlanStatus.NEEDS_INFO, PlanStatus.NEEDS_REVISION -> statusTone(StatusGrey)
+  PlanStatus.AWAITING_APPROVAL -> statusTone(StatusBlue)
+  PlanStatus.ACTIVE -> MaterialTheme.colorScheme.primary
+  PlanStatus.PAUSED -> statusTone(StatusOrange)
+  PlanStatus.COMPLETED -> statusTone(StatusGreen)
+  PlanStatus.CANCELLED -> statusTone(StatusGrey)
+  PlanStatus.FAILED -> statusTone(StatusRed)
 }
+
+/** Пара тонов статуса: светлый — для тёмной темы, насыщенный тёмный — для светлой бумаги. */
+private class StatusPair(val onDark: Color, val onLight: Color)
+
+private val StatusGrey = StatusPair(Color(0xFF9E9E9E), Color(0xFF616161))
+private val StatusBlue = StatusPair(Color(0xFF42A5F5), Color(0xFF1565C0))
+private val StatusOrange = StatusPair(Color(0xFFFFA726), Color(0xFFE65100))
+private val StatusGreen = StatusPair(Color(0xFF4CAF50), Color(0xFF2E7D32))
+private val StatusRed = StatusPair(Color(0xFFE53935), Color(0xFFC62828))
+
+/**
+ * Тон статуса под тему: светлые #42A5F5 / #FFA726 / #9E9E9E на светлой бумаге дают контраст около
+ * 2:1 — текст статуса там просто не читался.
+ */
+@Composable
+private fun statusTone(pair: StatusPair): Color = if (LocalThemeIsDark.current) pair.onDark else pair.onLight
 
 /** Russian label for a per-step [StepStatus] — used by [PlanCard]'s progress branch and the plan detail timeline. */
 fun stepStatusLabel(status: StepStatus): String = when (status) {
@@ -76,13 +100,14 @@ fun stepStatusLabel(status: StepStatus): String = when (status) {
   StepStatus.SKIPPED -> "Пропущен"
 }
 
-/** Accent color for a [StepStatus] badge — mirrors [planStatusColor]'s palette conventions. */
+/** Accent color for a [StepStatus] badge — mirrors [planStatusColor]'s palette conventions (и её theme-aware primary). */
+@Composable
 fun stepStatusColor(status: StepStatus): Color = when (status) {
-  StepStatus.PENDING, StepStatus.READY -> Color(0xFF9E9E9E)
-  StepStatus.EXECUTING, StepStatus.VERIFYING -> LimeSignal
-  StepStatus.BLOCKED -> Color(0xFFFFA726)
-  StepStatus.COMPLETED, StepStatus.SKIPPED -> Color(0xFF4CAF50)
-  StepStatus.FAILED -> Color(0xFFE53935)
+  StepStatus.PENDING, StepStatus.READY -> statusTone(StatusGrey)
+  StepStatus.EXECUTING, StepStatus.VERIFYING -> MaterialTheme.colorScheme.primary
+  StepStatus.BLOCKED -> statusTone(StatusOrange)
+  StepStatus.COMPLETED, StepStatus.SKIPPED -> statusTone(StatusGreen)
+  StepStatus.FAILED -> statusTone(StatusRed)
 }
 
 /** Russian label for [PlanHorizon]. */
@@ -317,7 +342,7 @@ private fun ProgressView(
     if (awaitingConfirmation != null) {
       Spacer(Modifier.height(8.dp))
       Text(
-        text = "Шаг ждёт вашего подтверждения: ${awaitingConfirmation.title}",
+        text = "Шаг ждёт твоего подтверждения: ${awaitingConfirmation.title}",
         style = MaterialTheme.typography.bodySmall,
         color = stepStatusColor(StepStatus.BLOCKED),
         maxLines = 2,

@@ -1,6 +1,6 @@
 package com.aiopenpocket.agent.loop
 
-// @trace rezhimy-agenta-plan-i-goal-ee2361
+// @trace streaming-llm-chat-6595a1
 // @trace user-agent-builder-848153
 
 import com.aiopenpocket.agent.core.AgentLog
@@ -424,7 +424,7 @@ class ReactLoopRunner(
       PolicyDecision.Execute -> toolExecutor.execute(toolName, arguments)
       is PolicyDecision.Simulate -> ToolResult.Success(simulatedResultJson(toolName, arguments))
       is PolicyDecision.Deny -> ToolResult.Error(decision.reason, recoverable = false)
-      is PolicyDecision.AwaitApproval -> awaitApprovalAndExecute(decision.request, interactiveApproval, emit)
+      is PolicyDecision.AwaitApproval -> awaitApprovalAndExecute(decision.request, interactiveApproval, executionMode, emit)
     }
   }
 
@@ -435,10 +435,16 @@ class ReactLoopRunner(
    * timeout for nothing. Otherwise emits [AgentEvent.ToolApprovalRequired] (so the chat UI can show a
    * modal/bar) and suspends on the coordinator; its own timeout, or the app going to background,
    * both resolve to a deny — never a hang, never a silent execute.
+   *
+   * Одобрение снимает вопрос хука, но не отменяет предпросмотр: в [ExecutionMode.PREVIEW] всё, кроме
+   * чтения, и после «Разрешить» только имитируется — иначе проверка черновика агента в конструкторе
+   * с хуком «Требовать подтверждение» по-настоящему ставила бы будильники и писала файлы, хотя
+   * предпросмотр обещает обратное.
    */
   private suspend fun awaitApprovalAndExecute(
     request: ToolApprovalRequest,
     interactiveApproval: Boolean,
+    executionMode: ExecutionMode,
     emit: suspend (AgentEvent) -> Unit,
   ): ToolResult {
     if (!interactiveApproval) {
@@ -450,7 +456,11 @@ class ReactLoopRunner(
     emit(AgentEvent.ToolApprovalRequired(request))
     val approved = toolApprovalCoordinator.awaitApproval(request)
     return if (approved) {
-      toolExecutor.execute(request.toolName, request.arguments)
+      if (executionMode == ExecutionMode.PREVIEW && request.riskClass != RiskClass.READ) {
+        ToolResult.Success(simulatedResultJson(request.toolName, request.arguments))
+      } else {
+        toolExecutor.execute(request.toolName, request.arguments)
+      }
     } else {
       ToolResult.Error("Tool '${request.toolName}' was not approved.", recoverable = true)
     }

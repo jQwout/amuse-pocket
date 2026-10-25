@@ -7,12 +7,25 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.aiopenpocket.agent.core.memory.entity.ConversationEntity
+import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ConversationDao {
-  // Избранные — всегда в начале, дальше по свежести.
-  @Query("SELECT * FROM conversations ORDER BY isFavorite DESC, updatedAt DESC")
+  /**
+   * Все диалоги для списка чатов и графа памяти. Избранные — всегда в начале, дальше по свежести.
+   *
+   * Тестовые диалоги конструктора (`ConversationRepository.BUILDER_TEST_TAG`) исключены: это
+   * черновое пространство, а не чат, который пользователь заводил. Обычно его убирает сам
+   * конструктор при закрытии, но если не успел (процесс убит посреди теста), «Тест агента»
+   * оставался в списке навсегда.
+   */
+  @Query(
+    "SELECT * FROM conversations " +
+      "WHERE id NOT IN (SELECT conversationId FROM conversation_tags WHERE tag = '" +
+      ConversationRepository.BUILDER_TEST_TAG + "') " +
+      "ORDER BY isFavorite DESC, updatedAt DESC",
+  )
   fun getAll(): Flow<List<ConversationEntity>>
 
   @Query("SELECT * FROM conversations WHERE id = :id LIMIT 1")

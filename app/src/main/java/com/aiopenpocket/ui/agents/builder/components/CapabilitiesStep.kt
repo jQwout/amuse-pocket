@@ -41,6 +41,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.AgentValidator
 import com.aiopenpocket.agent.core.agent.ValidationIssue
+import com.aiopenpocket.agent.tools.LESSON_CARD_TEMPLATES
 import com.aiopenpocket.ui.agents.builder.AgentDraft
 import com.aiopenpocket.ui.agents.builder.CustomSkillDraft
 import com.aiopenpocket.ui.components.glass.glassCardSurface
@@ -179,14 +180,20 @@ fun CapabilitiesStep(
     Text(text = "Шаблоны карточек", style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(4.dp))
     Text(
-      text = "Какие карточки render_card может показывать этот агент.",
+      text = "Какие карточки агент может показывать в чате.",
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     Spacer(modifier = Modifier.height(8.dp))
     ErrorText(errors, "allowedWidgetTemplates")
+    // Шаблоны уроков Академии (квиз, пропуск, сопоставление…) рисует сам урок, в обход render_card, —
+    // обычному агенту они не нужны, и в выборе им не место. Уже отмеченный (например, у копии)
+    // оставляем видимым, иначе его нельзя было бы снять.
+    val offeredTemplates = AgentValidator.KNOWN_WIDGET_TEMPLATES
+      .filter { it !in LESSON_CARD_TEMPLATES || it in draft.allowedWidgetTemplates }
+      .sortedBy(::widgetTemplateLabel)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-      AgentValidator.KNOWN_WIDGET_TEMPLATES.sorted().forEach { template ->
+      offeredTemplates.forEach { template ->
         val selected = template in draft.allowedWidgetTemplates
         FilterChip(
           selected = selected,
@@ -195,7 +202,7 @@ fun CapabilitiesStep(
               d.copy(allowedWidgetTemplates = if (selected) d.allowedWidgetTemplates - template else d.allowedWidgetTemplates + template)
             }
           },
-          label = { Text(template) },
+          label = { Text(widgetTemplateLabel(template)) },
         )
       }
     }
@@ -261,6 +268,31 @@ private fun SkillChip(id: String, selected: Boolean, onClick: () -> Unit) {
     label = { Text(skillLabel(id)) },
     modifier = Modifier.testTag("agent_builder_skill_$id"),
   )
+}
+
+/** Русское имя шаблона карточки для чипа — сырые id (`chart_bar`, `notification_permission`) пользователю ничего не говорят. */
+private fun widgetTemplateLabel(template: String): String = when (template) {
+  "todo_list" -> "Список дел"
+  "weather_card" -> "Погода"
+  "timer" -> "Таймер"
+  "chart_bar" -> "Диаграмма"
+  "table" -> "Таблица"
+  "form" -> "Форма"
+  "choice" -> "Выбор варианта"
+  "switch" -> "Переключатель"
+  "notification_permission" -> "Разрешение на уведомления"
+  "reminder" -> "Напоминание"
+  "image" -> "Картинка"
+  "lesson_quiz" -> "Квиз урока"
+  "lesson_complete" -> "Итог урока"
+  "reveal" -> "Скрытый ответ"
+  "concept" -> "Понятие"
+  "example" -> "Пример"
+  "fill" -> "Заполни пропуск"
+  "sort" -> "Сортировка"
+  "match" -> "Сопоставление"
+  "scenario" -> "Сценарий"
+  else -> template
 }
 
 private fun skillLabel(id: String): String = when (id) {

@@ -37,9 +37,12 @@ interface PlanScheduleSync {
  * Constraints: "Approval — typed repository command. Не сохранять magic user message «Одобряю
  * план...»"; design spec section 8: "Одобрение не симулируется user-сообщением «Одобряю план,
  * выполни его»; это typed intent к PlanRepository"). No [TurnManager][com.aiopenpocket.agent.loop.TurnManager]
- * turn is started by any method here — per design spec section 9, approval "остаётся в Plan UI, но
- * не запускает исполнение автоматически"; GOAL separately picks up the approved version on its own
- * turn (Task 10).
+ * turn is started by any method here, НО одобрение исполнение запускает — вопреки букве design spec
+ * section 9 ("не запускает исполнение автоматически"): [approve] зовёт [PlanScheduleSync.sync], а
+ * `PlanScheduler` сразу ставит heartbeat на первый готовый шаг (шаг без расписания — «к запуску
+ * сейчас»). Шаги дальше идут в фоне через `HeartbeatRunner` (по шагу на срабатывание, с пересинхронизацией
+ * после каждого), их ответы пишутся в чат плана. GOAL-ход может продвинуть одобренный план и вручную
+ * (Task 10).
  *
  * Every method here either fully succeeds or throws with every row untouched — same convention as
  * [PlanRepository] itself (see its class kdoc) — because [approve]/[requestChanges] are guarded by
@@ -80,7 +83,8 @@ class PlanCommands(
    * [com.aiopenpocket.agent.core.plan.model.PlanStatus.ACTIVE]. Throws (via [PlanRepository.approve])
    * if [version] is not the plan's current pending version — approving a stale/superseded draft is
    * always rejected, never silently redirected to "the latest one instead". On success, arms
-   * [scheduler] for this plan (Task 11 — see [PlanScheduleSync] kdoc) and fires
+   * [scheduler] for this plan (Task 11 — see [PlanScheduleSync] kdoc) — то есть фактически запускает
+   * исполнение первого готового шага в фоне (см. kdoc класса) — and fires
    * [HookEvent.ON_PLAN_APPROVED] (Task 9) — see [firePlanApproved].
    */
   suspend fun approve(planId: String, version: Int) {
@@ -124,6 +128,10 @@ class PlanCommands(
    * itself does not create one; see [PlanRepository.requestRevision]'s kdoc). [version] must be the
    * plan's current pending version, checked here (not by [PlanRepository], which takes no version
    * for this operation) — same "no acting on a stale draft" guarantee as [approve].
+   *
+   * [feedback] здесь никуда не сохраняется (см. [PlanRepository.requestRevision]): новую версию
+   * заводит вызывающий — чат следом запускает PLAN-ход с этим отзывом как репликой пользователя
+   * (`ChatViewModel.requestPlanChanges`).
    */
   suspend fun requestChanges(planId: String, version: Int, feedback: String) {
     val snapshot = requireNotNull(repository.snapshot(planId)) { "Unknown plan id: $planId" }

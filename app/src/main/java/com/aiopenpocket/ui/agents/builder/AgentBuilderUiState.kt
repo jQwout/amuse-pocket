@@ -232,4 +232,10 @@ data class AgentBuilderUiState(
   val executionMode: ExecutionMode = ExecutionMode.PREVIEW,
   val isLoading: Boolean = true,
   val saveError: String? = null,
+  /**
+   * «Опубликовать» только что прошло успешно. Раньше успех ничем не отмечался: кнопка просто
+   * переставала крутиться, и было непонятно, ушёл ли агент в ростер и что делать дальше. Поднимает
+   * [AgentBuilderViewModel.publish], гасит любая следующая правка ([AgentBuilderViewModel.updateDraft]).
+   */
+  val justPublished: Boolean = false,
 )

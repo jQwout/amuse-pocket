@@ -1,6 +1,6 @@
 package com.aiopenpocket.agent.core.prompt
 
-// @trace rezhimy-agenta-plan-i-goal-ee2361
+// @trace streaming-llm-chat-6595a1
 // @trace user-agent-builder-848153
 // @trace structured-plan-engine-907066
 
@@ -201,8 +201,14 @@ class PrePromptAssembler @Inject constructor(
         // skillIds видит только их (иначе он мог бы load_skill() чужой навык вне своего скоупа) —
         // источник истины тот же AgentDefinition.skillIds, что и рантайм-гейт ReactLoopRunner
         // (isSkillAllowed), а не отдельное "id навыка == id агента" совпадение, как раньше.
-        val skillIds = agent?.toolNames?.takeIf { LOAD_SKILL_TOOL in it }?.let { agent.skillIds }
-        val skillCatalog = skillRegistry.catalog(skillIds)
+        // Агент БЕЗ load_skill каталога не получает вовсе: раньше null в этой ветке значил «все
+        // навыки» — промпт показывал чужие custom-навыки и велел звать тул, которого у агента нет.
+        // Полный каталог — только обычному чату без агента.
+        val skillCatalog = when {
+          agent == null -> skillRegistry.catalog(null)
+          LOAD_SKILL_TOOL in agent.toolNames -> skillRegistry.catalog(agent.skillIds)
+          else -> ""
+        }
         if (skillCatalog.isNotEmpty()) {
           appendLine("## Доступные навыки")
           appendLine(

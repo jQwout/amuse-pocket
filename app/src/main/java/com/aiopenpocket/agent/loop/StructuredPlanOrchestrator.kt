@@ -28,6 +28,7 @@ import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 
@@ -108,7 +109,7 @@ class StructuredPlanOrchestrator @Inject constructor(
     conversationId: String,
     userMessage: String,
     provider: LlmProvider,
-  ): Flow<AgentEvent> = agentTurnFlow(log, TAG, "Planning failed") {
+  ): Flow<AgentEvent> = agentTurnFlow(log, TAG, "Не получилось составить план.") {
     send(AgentEvent.StateChanged(AgentState.STREAMING))
     val agentId = conversationRepository.getConversation(conversationId)?.agentId
     val target = resolveDraftTarget(conversationId, agentId)
@@ -154,13 +155,19 @@ class StructuredPlanOrchestrator @Inject constructor(
       }
 
       is PlanProposalResult.Invalid -> {
-        log.w(TAG, "plan ${target.planId} invalid: ${result.issues.size} issue(s)")
+        // Замечания валидатора — английская диагностика с путями вида «step-2.expectedTools[x]»:
+        // в баннере они только пугают. Подробности — в лог, пользователю — одна понятная строка.
+        log.w(
+          TAG,
+          "plan ${target.planId} invalid: ${result.issues.size} issue(s): " +
+            result.issues.joinToString("; ") { "${it.code} ${it.path}: ${it.message}" },
+        )
         send(AgentEvent.StateChanged(AgentState.ERROR))
-        send(AgentEvent.Error("План не прошёл проверку: " + result.issues.joinToString("; ") { "${it.path}: ${it.message}" }))
+        send(AgentEvent.Error(INVALID_PLAN_MESSAGE))
       }
 
       is PlanProposalResult.Failed -> {
-        log.w(TAG, "plan ${target.planId} proposal failed: ${result.message}")
+        log.w(TAG, "plan ${target.planId} proposal failed: ${result.detail ?: result.message}")
         send(AgentEvent.StateChanged(AgentState.ERROR))
         send(AgentEvent.Error(result.message))
       }
@@ -174,7 +181,7 @@ class StructuredPlanOrchestrator @Inject constructor(
     provider: LlmProvider,
     budget: PlanRunBudget = PlanRunBudget(),
     executionMode: ExecutionMode = ExecutionMode.LIVE,
-  ): Flow<AgentEvent> = agentTurnFlow(log, TAG, "Goal execution failed") {
+  ): Flow<AgentEvent> = agentTurnFlow(log, TAG, "Не получилось выполнить шаг плана.") {
     send(AgentEvent.StateChanged(AgentState.STREAMING))
     val resolvedPlanId = planId ?: resolveExistingPlanId(conversationId)
 
@@ -188,16 +195,35 @@ class StructuredPlanOrchestrator @Inject constructor(
     }
 
     log.d(TAG, "▶ GOAL run conv=$conversationId plan=$resolvedPlanId")
-    val result: PlanRunResult = planRunner.run(
-      PlanRunRequest(
-        conversationId = conversationId,
-        planId = resolvedPlanId,
-        background = false,
-        budget = budget,
-        executionMode = executionMode,
-      ),
-      provider = provider,
-    )
+    val result: PlanRunResult = try {
+      planRunner.run(
+        PlanRunRequest(
+          conversationId = conversationId,
+          planId = resolvedPlanId,
+          background = false,
+          budget = budget,
+          executionMode = executionMode,
+        ),
+        provider = provider,
+      )
+    } catch (e: CancellationException) {
+      // CancellationException — наследник IllegalStateException: без этой ветки Stop/новый ход
+      // проглатывался бы ниже как «план изменился».
+      throw e
+    } catch (e: IllegalStateException) {
+      // Гонка с фоновым heartbeat'ом/правкой плана: PlanExecutor отказывает require/check'ом с
+      // английской диагностикой. Её — в лог, пользователю — русская строка (тот же разбор, что
+      // HeartbeatRunner делает для фонового запуска).
+      log.w(TAG, "GOAL run refused: ${e.message}")
+      send(AgentEvent.StateChanged(AgentState.ERROR))
+      send(AgentEvent.Error(GOAL_RUN_REFUSED_MESSAGE))
+      return@agentTurnFlow
+    } catch (e: IllegalArgumentException) {
+      log.w(TAG, "GOAL run refused: ${e.message}")
+      send(AgentEvent.StateChanged(AgentState.ERROR))
+      send(AgentEvent.Error(GOAL_RUN_REFUSED_MESSAGE))
+      return@agentTurnFlow
+    }
     send(AgentEvent.StateChanged(AgentState.FINISHED))
     log.d(TAG, "✓ GOAL run done outcome=${result.outcome} steps=${result.executedStepIds}")
 
@@ -270,6 +296,12 @@ class StructuredPlanOrchestrator @Inject constructor(
 
   companion object {
     private const val TAG = "StructuredPlan"
+
+    /** Что видит пользователь, когда план от модели не прошёл [com.aiopenpocket.agent.core.plan.validation.PlanValidator]. */
+    internal const val INVALID_PLAN_MESSAGE =
+      "Модель составила план с ошибками — попробуй ещё раз или уточни задачу."
+    private const val GOAL_RUN_REFUSED_MESSAGE =
+      "Не получилось выполнить шаг: план изменился во время запуска. Попробуй ещё раз."
     private val TERMINAL_PLAN_STATUSES = setOf(PlanStatus.COMPLETED, PlanStatus.CANCELLED, PlanStatus.FAILED)
   }
 }

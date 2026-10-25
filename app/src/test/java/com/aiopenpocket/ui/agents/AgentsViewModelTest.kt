@@ -215,6 +215,25 @@ class AgentsViewModelTest {
     assertEquals("budget", conversationRepository.getConversation(conversationId)?.agentId)
   }
 
+  /**
+   * Тестовый диалог конструктора, который не успели убрать (процесс убит посреди проверки), не должен
+   * висеть в списке чатов: это черновое пространство, а не чат пользователя.
+   */
+  @Test
+  fun `a leftover builder test conversation is not listed among conversations`() = runTest(testDispatcher) {
+    val testConversationId = conversationRepository.createConversation(
+      title = "Тест агента",
+      agentId = "budget",
+      tags = listOf(ConversationRepository.BUILDER_TEST_TAG),
+    )
+    val realConversationId = conversationRepository.createConversation(title = "Обычный чат")
+
+    val listed = conversationRepository.getAllConversations().first().map { it.id }
+
+    assertTrue("the builder's scratch chat must stay out of the list", testConversationId !in listed)
+    assertTrue(realConversationId in listed)
+  }
+
   @Test
   fun `openAgentChat reuses the existing conversation on a repeat call`() = runTest(testDispatcher) {
     var firstId: String? = null

@@ -162,7 +162,7 @@ internal fun AgentsEntryCard(onClick: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text = "Специалисты и координатор, который их распределяет",
+                    text = "Специалисты со своими инструментами и памятью",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
                 )

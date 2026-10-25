@@ -63,8 +63,12 @@ sealed interface PlanProposalResult {
    * `PlanValidator`'s own `blank_*` rules handle instead, see [PlanControlReducer]), an unrecognized
    * call name, or a `com.aiopenpocket.agent.core.llm.StreamEvent.Error` from the provider. The
    * caller's own retry/backoff policy (not this class) decides what happens next.
+   *
+   * [message] уходит пользователю в баннер ошибки как есть — поэтому по-русски и без внутренностей
+   * (имён control-тулзов, id агентов). Диагностика для логов — в [detail]; у ошибки провайдера её нет:
+   * его текст уже пользовательский (`userFacingLlmError`) и идёт в [message] напрямую.
    */
-  data class Failed(val message: String) : PlanProposalResult
+  data class Failed(val message: String, val detail: String? = null) : PlanProposalResult
 }
 
 /**
@@ -152,12 +156,16 @@ class PlanPlanner(
     }
 
     val agent = agentResolver.resolve(agentId)
-      ?: return PlanProposalResult.Failed("Planning requires a resolvable agent; '$agentId' did not resolve to one.")
+      ?: return PlanProposalResult.Failed(
+        "Планы составляют агенты, а этот чат ни к одному не привязан (или агента удалили).",
+        detail = "Planning requires a resolvable agent; '$agentId' did not resolve to one.",
+      )
 
     val template = templateRegistry.getForAgent(agentId)
     if (template != null && horizon !in template.supportedHorizons) {
       return PlanProposalResult.Failed(
-        "Horizon $horizon is not supported by agent '$agentId' (template '${template.id}' supports ${template.supportedHorizons}).",
+        "Этот агент не умеет составлять планы такого типа.",
+        detail = "Horizon $horizon is not supported by agent '$agentId' (template '${template.id}' supports ${template.supportedHorizons}).",
       )
     }
 
@@ -221,12 +229,14 @@ object PlanControlReducer {
   ): PlanProposalResult {
     if (calls.isEmpty()) {
       return PlanProposalResult.Failed(
-        "Planner turn ended without calling submit_plan, propose_plan_revision or request_plan_information.",
+        "Модель ответила текстом, а не планом — попробуй ещё раз или переформулируй задачу.",
+        detail = "Planner turn ended without calling submit_plan, propose_plan_revision or request_plan_information.",
       )
     }
     if (calls.size > 1) {
       return PlanProposalResult.Failed(
-        "Planner turn called ${calls.size} control tools at once (${calls.joinToString { it.name }}); exactly one is required.",
+        MALFORMED_PLAN_MESSAGE,
+        detail = "Planner turn called ${calls.size} control tools at once (${calls.joinToString { it.name }}); exactly one is required.",
       )
     }
 
@@ -242,12 +252,15 @@ object PlanControlReducer {
         PlanControlSchemas.SUBMIT_PLAN, PlanControlSchemas.PROPOSE_PLAN_REVISION ->
           buildProposal(call, explanation, planId, horizon, agent, template, existingVersion)
 
-        else -> PlanProposalResult.Failed("Unknown planner control call '${call.name}'.")
+        else -> PlanProposalResult.Failed(MALFORMED_PLAN_MESSAGE, detail = "Unknown planner control call '${call.name}'.")
       }
     } catch (e: PlanArgumentException) {
-      PlanProposalResult.Failed("Malformed ${call.name} arguments: ${e.message}")
+      PlanProposalResult.Failed(MALFORMED_PLAN_MESSAGE, detail = "Malformed ${call.name} arguments: ${e.message}")
     }
   }
+
+  /** Модель ответила не по контракту control-тулзов — для пользователя это одна и та же ситуация. */
+  private const val MALFORMED_PLAN_MESSAGE = "Модель прислала план не в том формате — попробуй ещё раз."
 
   private fun buildProposal(
     call: StreamEvent.ToolCall,
@@ -274,7 +287,10 @@ object PlanControlReducer {
     if (existingVersion != null) {
       val revisionCheck = PlanStateMachine.proposeRevision(existingVersion, candidate)
       if (revisionCheck is PlanVersionResult.Rejected) {
-        return PlanProposalResult.Failed(revisionCheck.reason)
+        return PlanProposalResult.Failed(
+          "Не получилось обновить план — попробуй ещё раз.",
+          detail = revisionCheck.reason,
+        )
       }
     }
 

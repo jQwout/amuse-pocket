@@ -30,10 +30,14 @@ sealed class ChatIntent {
    * шагам» больше нигде не пишется в историю — см. удалённый `TurnTexts.APPROVE_PLAN_MESSAGE`).
    * [version] — ровно та версия, которую пользователь видел в PlanApprovalBar/PlanCard:
    * `PlanCommands` отклоняет команду над устаревшей (уже не текущей pending) версией. Одобрение
-   * само по себе исполнение НЕ запускает (design spec §9) — это отдельное действие поверх GOAL.
+   * запускает исполнение в фоне: PlanScheduler ставит typed heartbeat на следующий шаг (без
+   * расписания — сразу), и ответ шага ложится в этот же чат.
    */
   data class ApprovePlan(val planId: String, val version: Int) : ChatIntent()
-  /** Task 5: запрос правок с комментарием для планировщика — план уходит в DRAFT, ждёт новый proposal. */
+  /**
+   * Запрос правок: план уходит в DRAFT, и сразу запускается ход PLAN с комментарием пользователя
+   * (или «Пересобери план с учётом правок») — иначе карточка исчезала, а новой версии никто не ждал.
+   */
   data class RequestPlanChanges(val planId: String, val version: Int, val feedback: String) : ChatIntent()
   /** Task 5: приостановить ACTIVE-план (и его typed heartbeat/schedule — см. PlanScheduleSync). */
   data class PausePlan(val planId: String) : ChatIntent()

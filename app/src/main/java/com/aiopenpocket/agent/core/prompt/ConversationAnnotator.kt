@@ -58,6 +58,11 @@ class ConversationAnnotator(
     // срабатывать при нечётном count (см. lastAnnotatedCount).
     val last = lastAnnotatedCount[conversationId]
     if (last != null && count - last < LlmContextConfig.ANNOTATE_EVERY_MESSAGES) return
+    // Чат урока не аннотируем совсем: его title — это id урока (по нему урок ищется при повторном
+    // входе и грузится prompts/roadmap/<title>.md). Вопрос посреди урока запускал обычный ход,
+    // аннотация переписывала title темой разговора — и урок при следующем открытии ломался.
+    // Резюме и теги уроку тоже не нужны (в список чатов он не попадает), а LLM-вызов сэкономим.
+    if (conversationRepository.getConversation(conversationId)?.isTutorial == true) return
 
     val messages = conversationRepository.getRecentAnnotatableMessages(
       conversationId,
