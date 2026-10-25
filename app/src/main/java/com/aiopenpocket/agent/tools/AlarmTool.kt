@@ -12,6 +12,7 @@ import com.aiopenpocket.agent.core.mcp.int
 import com.aiopenpocket.agent.core.mcp.missingArg
 import com.aiopenpocket.agent.core.mcp.string
 import com.aiopenpocket.agent.core.mcp.toolSchema
+import com.aiopenpocket.agent.loop.ForegroundState
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -21,6 +22,7 @@ import kotlinx.serialization.json.JsonElement
 @SingleIn(AppScope::class)
 class AlarmTool(
   private val context: Context,
+  private val foreground: ForegroundState,
 ) : Tool {
 
   override val riskClass = RiskClass.WRITE
@@ -51,7 +53,13 @@ class AlarmTool(
     val action = arguments.string("action") ?: return missingArg("action")
     return when (action) {
       "set_alarm" -> setAlarm(arguments)
-      "show_alarms" -> launch(Intent(AlarmClock.ACTION_SHOW_ALARMS), "Открыт список будильников.")
+      "show_alarms" -> launch(
+        intent = Intent(AlarmClock.ACTION_SHOW_ALARMS),
+        what = "список будильников",
+        opened = "Открыт список будильников.",
+        notificationTitle = "Будильники",
+        notificationText = "Нажми, чтобы открыть «Часы».",
+      )
       else -> ToolResult.Error("Unknown action: $action")
     }
   }
@@ -70,16 +78,36 @@ class AlarmTool(
       if (!message.isNullOrBlank()) putExtra(AlarmClock.EXTRA_MESSAGE, message)
     }
     val time = "%02d:%02d".format(hour, minute)
-    return launch(intent, "Будильник на $time открыт в приложении часов.")
+    return launch(
+      intent = intent,
+      what = "будильник на $time",
+      opened = "Будильник на $time открыт в приложении часов.",
+      notificationTitle = "Будильник на $time",
+      notificationText = "Нажми, чтобы поставить его в «Часах».",
+    )
   }
 
-  private fun launch(intent: Intent, successMessage: String): ToolResult {
-    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    return try {
-      context.startActivity(intent)
-      ToolResult.Success(successMessage)
-    } catch (e: Exception) {
-      ToolResult.Error("Не удалось открыть приложение часов: ${e.message}")
-    }
+  /**
+   * На экране — открывает «Часы» сразу. В фоне Android запуск не пропустит (см.
+   * [launchExternalActivity]), поэтому — уведомление, и модели прямо сказано, что будильник ещё НЕ
+   * стоит: раньше тул в этом случае рапортовал успех, а будильника не было.
+   */
+  private fun launch(
+    intent: Intent,
+    what: String,
+    opened: String,
+    notificationTitle: String,
+    notificationText: String,
+  ): ToolResult = when (val outcome = launchExternalActivity(context, foreground, intent, notificationTitle, notificationText)) {
+    LaunchOutcome.Opened -> ToolResult.Success(opened)
+    LaunchOutcome.Notified -> ToolResult.Success(
+      "Приложение свёрнуто, а Android не даёт открыть «Часы» из фона. Действие ($what) ЕЩЁ НЕ " +
+        "выполнено: пользователю отправлено уведомление, по тапу откроются «Часы». Так и скажи ему.",
+    )
+    LaunchOutcome.NotNotified -> ToolResult.Error(
+      "Приложение свёрнуто, а Android не даёт открыть «Часы» из фона; уведомление тоже не показать — " +
+        "нет разрешения. Действие ($what) НЕ выполнено: попроси пользователя открыть приложение и повторить.",
+    )
+    is LaunchOutcome.Failed -> ToolResult.Error("Не удалось открыть приложение часов: ${outcome.reason}")
   }
 }

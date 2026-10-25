@@ -27,6 +27,7 @@ import com.aiopenpocket.agent.core.plan.validation.PlanStepCommand
 import com.aiopenpocket.agent.core.plan.validation.StepTransitionResult
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.agent.core.prompt.AssetSource
+import com.aiopenpocket.agent.core.prompt.CurrentMoment
 import com.aiopenpocket.agent.loop.AgentEvent
 import com.aiopenpocket.agent.loop.AgentResult
 import com.aiopenpocket.agent.loop.AgentState
@@ -325,7 +326,9 @@ class PlanExecutor @Inject constructor(
     // beforeStep.addedInstructions: a BEFORE_PLAN_STEP ADD_INSTRUCTION hook, folded into THIS run's
     // prompt only (buildStepMessages does not persist it anywhere) — never touches the approved
     // PlanVersion/PlanStep.instruction itself.
-    val messages = buildStepMessages(systemBase, agent, fresh, step, budget, nextAttempt, beforeStep.addedInstructions)
+    val messages = buildStepMessages(
+      systemBase, agent, fresh, step, budget, nextAttempt, beforeStep.addedInstructions, nowMillis = clock(),
+    )
 
     // Bind this step's tool calls to the plan's OWN agent/conversation, exactly like AgentLoopOrchestrator/
     // ReflectionOrchestrator/HeartbeatRunner wrap their runs — otherwise memory/file/storage tools inside
@@ -623,6 +626,7 @@ class PlanExecutor @Inject constructor(
       budget: PlanRunBudget,
       attempt: Int,
       hookInstructions: List<String> = emptyList(),
+      nowMillis: Long = System.currentTimeMillis(),
     ): MutableList<ChatMessage> {
       val compactContext = CompactPlanContext(
         planId = snapshot.plan.id,
@@ -645,6 +649,10 @@ class PlanExecutor @Inject constructor(
 
       val systemContent = buildString {
         appendLine(systemBase)
+        appendLine()
+        // Шаг плана чаще всего и есть «напомни завтра», «запиши за сегодня»: без текущего момента
+        // ни heartbeat, ни дата в факте не считаются, а system_base отсылает к секции «Сейчас».
+        appendLine(CurrentMoment.section(nowMillis))
         appendLine()
         val role = agent?.systemPrompt?.trim()
         if (!role.isNullOrBlank()) {

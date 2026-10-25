@@ -195,4 +195,22 @@ class LessonChatControllerImageTest {
     assertEquals(1, calls.get())
     assertTrue(postedParams(id).getString("url").startsWith("file://"))
   }
+
+  /**
+   * Не картинка, но тот же путь «шаг → cardSpec»: принятые варианты fill-шага должны доехать до
+   * карточки, иначе ученик с верным синонимом снова застрянет. Пустые варианты отбрасываются ещё здесь.
+   */
+  @Test
+  fun `a fill step carries its accepted answers into the card`() = runBlocking {
+    val id = repo.createConversation(title = "Урок", isTutorial = true)
+    val step = LessonStep(type = "fill", template = "В запросе нет ___", answer = "конкретики", answers = listOf("деталей", " "))
+
+    controller().postStep(id, lessonOf(step), 0)
+
+    val params = postedParams(id)
+    assertEquals("конкретики", params.getString("answer"))
+    val answers = params.getJSONArray("answers")
+    assertEquals(1, answers.length())
+    assertEquals("деталей", answers.getString(0))
+  }
 }

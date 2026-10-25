@@ -53,8 +53,11 @@ private val PLAN = listOf(
     PlanStep("Собрать мысли в один список", "список из 3 пунктов"),
 )
 
-/** Статусы из урока («Готов», «Проверен», «Заблокирован») плюс «Ждёт» — пока не выполнен предыдущий шаг. */
-private enum class StepStatus(val label: String) { Waiting("Ждёт"), Ready("Готов"), Blocked("Заблокирован"), Verified("Проверен") }
+/**
+ * Статусы шага — теми же словами, что на настоящей карточке плана в чате (PlanCard): ученик потом
+ * увидит именно их. «Ожидает» — пока не выполнен предыдущий шаг.
+ */
+private enum class StepStatus(val label: String) { Waiting("Ожидает"), Ready("Готов к запуску"), Blocked("Заблокирован"), Verified("Завершён") }
 
 private val ProvenGreen = Color(0xFF2E7D32)
 
@@ -104,11 +107,13 @@ internal fun StepEvidenceScene() {
                         message = if (index == PLAN.lastIndex) {
                             "План выполнен — каждый шаг с доказательством. На слово не верим"
                         } else {
-                            "Шаг ${index + 1} проверен: критерий подтверждён. Открылся шаг ${index + 2}"
+                            "Шаг ${index + 1} завершён: критерий подтверждён. Открылся шаг ${index + 2}"
                         }
                     } else {
                         blocked = blocked or bit
                         rejected = true
+                        // Настоящий движок сначала даёт шагу ещё попытку и блокирует после второй (урок
+                        // это проговаривает); сцена сжимает обе попытки в одно нажатие.
                         message = "Шаг ${index + 1}: «готово» без доказательства — не засчитано, шаг заблокирован"
                     }
                 },
@@ -128,7 +133,7 @@ internal fun StepEvidenceScene() {
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Text(
-                text = "Проверено: $provenCount из ${PLAN.size}",
+                text = "Завершено: $provenCount из ${PLAN.size}",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = if (provenCount == PLAN.size) ProvenGreen else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -177,7 +182,8 @@ private fun StepCard(number: Int, step: PlanStep, status: StepStatus, attached: 
             }
             Text(step.title, style = MaterialTheme.typography.bodyMedium, color = SceneInk, modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
             // Фиксированная ширина: смена статуса не должна переносить заголовок шага.
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.width(96.dp).clip(RoundedCornerShape(50)).background(accent).padding(vertical = 4.dp)) {
+            // 112dp — под самую длинную подпись PlanCard («Готов к запуску») в одну строку.
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.width(112.dp).clip(RoundedCornerShape(50)).background(accent).padding(vertical = 4.dp)) {
                 Text(
                     text = status.label,
                     style = MaterialTheme.typography.labelSmall,

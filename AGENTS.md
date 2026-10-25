@@ -1,436 +1,267 @@
-# AI Open Pocket — Agent Guide
+# AI Open Pocket — Guide for AI Coding Agents
 
-> **Project type:** Android application (single-module)  
-> **Primary language:** Kotlin  
-> **UI framework:** Jetpack Compose + Material 3  
-> **Build system:** Gradle with Kotlin DSL  
+AI Open Pocket is an Android app that teaches how AI agents work from inside a working agent.
+The learner works through 31 short lessons in the chat. Each lesson has an interactive scene,
+and the course ends in a builder where the learner makes their own agent. The agent runs on
+Meta models (Muse Spark for text and video, Muse Image for pictures), reached through OpenRouter.
 
----
+- Single Gradle module `:app`, Kotlin + Jetpack Compose, one Activity (`MainActivity`, Navigation Compose).
+- Package `com.aiopenpocket`; directories match packages: `app/src/main/java/com/aiopenpocket/`
+  (tests under `app/src/test/java/com/aiopenpocket/`). Application ID: `com.aistudio.aiopenpocket.hzwpqy`.
+- `minSdk 24`, `targetSdk`/`compileSdk 36`, JVM target 21 (`app/build.gradle.kts`).
+- Paths in this guide are relative to `app/src/main/java/com/aiopenpocket/` (code) or
+  `app/src/main/` (`assets/…`), except those starting with `app/`, `tools/`, `gradle/` or `.github/`
+  and the root files named explicitly.
 
-## Project Overview
+## Product surface
 
-AI Open Pocket is an Android AI companion app: a pocket-sized, multi-agent client for large language models. It talks to an OpenAI-compatible chat-completions API through a ranked, fallback-aware provider chain (NVIDIA NIM primary, GROQ and GitHub Models as fallbacks), persists conversations/messages/facts/episodes in a local Room database, and renders interactive UI cards (todo lists, weather, timers, charts, tables, forms, lesson widgets, etc.) whenever the LLM explicitly calls a `render_card` tool.
+**Lessons in chat.** 31 JSON lessons live in `app/src/main/assets/lessons/*.json`.
+`agent/core/lesson/LessonChatController.kt` drives them as a strict contract: code decides the
+step order, and one step produces exactly one assistant message that carries a card. The LLM does
+not run the lesson flow. A side question asked during a lesson is a one-shot `TUTOR` turn (no
+tools, one iteration).
+- Step contract: `agent/core/lesson/Lesson.kt`. Step types are `text`, `language`, `persona`,
+  `profile`, `quiz`, `image`, `video`, `animation`, `reveal`, `concept`, `example`, `fill`, `sort`, `match`
+  and `scenario`. The fields are flat, with no polymorphic JSON.
+- Each lesson has exactly one `animation` step: an interactive Compose scene in
+  `ui/chat/components/Scene*.kt`, dispatched by `ui/chat/components/LessonAnimationScenes.kt`. Valid
+  scene ids are listed in `LESSON_ANIMATION_SCENES` (`agent/core/lesson/LessonAnimationScenes.kt`).
+- Images: Muse Image draws them ahead of time with `tools/lesson-images/pregenerate.py`. The files are
+  bundled in `assets/lessons/images/generated/` and referenced by the step's `asset` field. Steps
+  without an asset are drawn on the device by `LessonImageGenerator`. «Нарисуй под меня» (“Draw it
+  for me”) redraws a picture around the learner's profile; only the free-text "about me" field
+  leaves the phone (`LessonImagePersonalization`).
+- Video: `how_model_sees` has a `video` step. Muse Spark watches a bundled sample
+  (`assets/lessons/videos/`) or a clip the learner records (`LessonChatController.postVideoAnswer` →
+  `VideoUnderstandingClient`).
+- Learning path: `ui/roadmap/RoadmapScreen.kt`. `ROADMAP_LEVELS` has 30 levels, starting with the
+  onboarding lesson `l1_welcome`. Library: `ui/roadmap/LibraryViewModel.kt` (`LIBRARY_LESSON_IDS`).
+  The final lesson, `agent_blueprint`, ends with a button that opens the agent builder.
+- Desktop proofreading tool for lesson JSON: `./gradlew -p tools/lesson-viewer run`.
 
-Beyond a single chatbot, the app now ships:
-- A **roster of 6 domain mini-agents** (budget, languages, tasks, reminders, nutrition, diary), each scoped to its own tool/skill set.
-- A **skill system** for progressive-disclosure domain instructions (`SKILL.md` files loaded on demand via a `load_skill` tool).
-- An **"AI Academy" onboarding/roadmap**: a JSON-driven sequence of lessons that teach the user LLM concepts through structured, quizzed chat interactions.
-- **Voice input**: both a system-wide Android voice assistant integration and an in-chat microphone button.
-- **Background/scheduled tasks** via WorkManager, with a user-facing "scheduled tasks" screen.
+**Agent.** The app has a general chat agent and 6 preset mini-agents (`agent/core/agent/MiniAgent.kt`:
+budget, languages, tasks, reminders, nutrition, diary). It also has user-built agents
+(`ui/agents/builder/`), structured plans, reminders, a memory graph and a scheduled-tasks screen.
+Persona prompts are in `assets/personas/*.md` (7 personas), listed in `agent/core/persona/PersonaCatalog.kt`.
 
-The project was originally exported from Google AI Studio. The app UI is primarily in **Russian** (the user can switch languages in Settings). Code comments and documentation are nominally in **English**, but in practice many files mix in Russian explanatory comments/KDoc (e.g. `PrePromptAssembler.kt`, `ProviderFallbackChain.kt`) alongside English `// @trace <feature-id>` markers (see [Traceability](#traceability) below) — don't assume every comment you meet will be English.
+## Models and network
 
-**Application ID:** `com.aistudio.aiopenpocket.hzwpqy`  
-**Gradle namespace:** `com.aiopenpocket`  
-**Min SDK:** 24  
-**Target/Compile SDK:** 36  
-**JVM target:** 21  
+- **Meta only, through OpenRouter.** `LlmProvider` has a single value, `OPENROUTER`. It is kept as
+  a seam for a direct Meta Model API later.
+- **Catalog.** The model list comes live from OpenRouter (`OpenRouterCatalogService`, `GET /api/v1/models`)
+  and is cached in `filesDir` (`OpenRouterCatalogCache`). The seed `assets/config/models_openrouter.json`
+  covers first run and offline use and sets priority (`meta/muse-spark-1.3` first).
+  `ModelCatalog.kt` filters models: `isMetaModel` keeps the `meta/` prefix only (`meta-llama/` is
+  excluded), and `trainsOnUserData` rejects `-contributor` variants. Models without tool support are dropped.
+- **Fallback.** `ProviderFallbackChain.resolve` puts the model picked in Settings first and the rest
+  in priority order, with at most 5 attempts (`MAX_ATTEMPTS`). It falls back between Meta models only.
+  `OpenAiCompatClient` streams SSE over Ktor. It moves to the next model only if no answer content
+  has been emitted yet. On 401/402/403 (a problem with the key) it stops the chain.
+- **Other clients.** `ImageGenClient` calls Muse Image (`meta/muse-image`, `POST /api/v1/images`).
+  `VideoUnderstandingClient` calls Muse Spark with a base64 `video_url`. Neither one streams or
+  falls back. Token and cost usage per call goes to Room through `LlmUsageRecorder`; Settings shows
+  the weekly total.
+- **API key.** Set `OPENROUTER_API_KEY` in `.env` at the repo root (template: `.env.example`).
+  The Secrets Gradle Plugin copies `.env` keys into `BuildConfig`; `ignoreList` in
+  `app/build.gradle.kts` drops the leftover `NVIDIA_API_KEY` / `GEMINI_API_KEY` (add any new unused key
+  there too — the plugin matches with `containsMatchIn`, so anchor patterns with `^…$`). It is meant for debug builds: the `checkReleaseSecrets` task fails any
+  release build when `.env` holds a live key (`sk-or-v1-`, `sk-`, `nvapi-` or `AIza` prefix). A key
+  typed in Settings → «КЛЮЧ API» wins over the bundled one. Settings stores it with
+  `EncryptedSharedPreferences` (`data/repository/SettingsRepository.kt`).
 
-> **Package namespace gotcha.** Every Kotlin file's `package` declaration has already been migrated to `com.aiopenpocket.*` — verified: **zero** files anywhere under `app/src/main` declare `com.example.*`. But the **physical directory layout hasn't caught up**: most existing files (134 of them) still live on disk under `app/src/main/java/com/example/...` while declaring `package com.aiopenpocket....`. This compiles fine (Kotlin doesn't require path/package correspondence), but it means **you cannot infer a file's package from its directory path**, and any tooling that assumes they match will be confused. Newly-added code — the `voice/` feature, and *all* test sources — is already placed correctly under `com/aiopenpocket/...`, matching its declared package. Follow that convention for new files rather than adding more to `com/example/`.
+## Agent architecture (`agent/`)
 
----
+**Turns (`agent/loop/`).** `TurnManager` is an app-scoped singleton with one `TurnSession` per
+conversation, so a turn keeps running after the user leaves the chat screen. `TurnForegroundService`
+(a `shortService`, started through `AndroidTurnLifeSupport`) keeps the process alive during a turn.
+`di/TurnModule.kt` routes each turn by `AgentMode`:
+- `CHAT`, `TUTOR` → `AgentLoopOrchestrator`
+- `REFLECT` → `ReflectionOrchestrator` (draft → critique → revise)
+- `PLAN`, `GOAL` → `StructuredPlanOrchestrator`
 
-## Technology Stack
+All of them share `ReactLoopRunner`, the ReAct engine (`MAX_ITERATIONS = 10`). The same engine runs
+headless heartbeat turns.
 
-| Layer | Libraries |
-|-------|-----------|
-| **Language** | Kotlin 2.3.0 |
-| **UI** | Jetpack Compose (BOM 2026.05.00), Material 3, Activity Compose, Navigation Compose |
-| **Architecture** | MVVM, single-Activity, ReAct-style agent loop |
-| **DI** | Metro 1.1.1 (via Zac Sweers) — *not* Dagger/Hilt |
-| **Networking** | Ktor Client 2.3.11 (Android engine; version pinned inline in `build.gradle.kts`, not in the version catalog); Retrofit + OkHttp + Moshi also on classpath |
-| **Database** | Room 2.7.0 (KSP codegen); db `ai_open_pocket_db`, currently at schema version 7 (16 entities, including the Structured Plan Engine's 5 plan tables) |
-| **Serialization** | Kotlinx Serialization JSON 1.6.3 |
-| **Image loading** | Coil Compose 2.7.0 (+ Coil SVG) |
-| **Coroutines** | Kotlinx Coroutines 1.10.2 |
-| **Background work** | AndroidX WorkManager (scheduled/periodic notifications) |
-| **Secure storage** | AndroidX Security Crypto (`EncryptedSharedPreferences`, AES256_GCM) for API keys; AndroidX DataStore Preferences for UI/onboarding prefs |
-| **Markdown rendering** | mikepenz `multiplatform-markdown-renderer` (+ Material 3 flavor) |
-| **Screenshot testing** | Roborazzi 1.59.0 |
-| **Unit testing** | JUnit 4, Robolectric 4.16.1, Compose UI Test (JUnit4), Kotlinx Coroutines Test |
+**Tools (`agent/tools/`).** There are 14 tools, each registered with `@Provides @IntoSet` in
+`di/AgentToolsModule.kt`. `load_skill` is a 15th, registered in `di/SkillModule.kt`. Their user-facing
+Russian names are in `agent/core/mcp/CapabilityNames.kt`. A preset or user agent sees only its own
+`toolNames`. Risk is classified per call with `Tool.riskFor(arguments)` (`RiskClass`: READ / WRITE /
+DESTRUCTIVE / EXTERNAL):
 
-### Plugins (app-level)
-- `com.android.application` (AGP 8.9.1)
-- `org.jetbrains.kotlin.android`
-- `org.jetbrains.kotlin.plugin.compose`
-- `org.jetbrains.kotlin.plugin.serialization`
-- `com.google.devtools.ksp`
-- `io.github.takahirom.roborazzi`
-- `com.google.android.libraries.mapsplatform.secrets-gradle-plugin`
-- `dev.zacsweers.metro`
+| Tool | Notes | Risk |
+|---|---|---|
+| `memory_tool` | facts and episodes (Room), namespaced per agent | `remember_fact` WRITE, else READ |
+| `storage_tool` | per-agent key-value JSON store | `put` WRITE, `delete` DESTRUCTIVE, else READ |
+| `file_tool` | sandbox `filesDir/agent` (`filesDir/agents/{id}` for a bound agent) | `write_file` WRITE, else READ |
+| `external_files` | Storage Access Framework, user-granted URIs only | `write_file` DESTRUCTIVE (overwrites the user's document), else READ |
+| `database_query` | SELECT-only over an allowlist of tables | READ |
+| `render_card` | Driven UI card (`ui/chat/DrivenUiEngine.kt`), allowlisted per agent | READ |
+| `notifications` | immediate notification | WRITE |
+| `heartbeat` | push/agent reminders (see below) | `schedule` WRITE, `cancel` DESTRUCTIVE |
+| `work_manager` | scheduled notifications | `cancel_work` DESTRUCTIVE, else WRITE |
+| `calendar` | `CalendarContract` | list READ, create WRITE, delete DESTRUCTIVE |
+| `alarm` | system alarm-clock intents | WRITE |
+| `email` | opens a `mailto:` draft, never sends | EXTERNAL |
+| `srs_tool` | spaced-repetition vocabulary (`agent/core/srs/`) | `add_word`/`review` WRITE, else READ |
+| `step_counter` | step-sensor snapshot | READ |
+| `load_skill` | pulls a skill's full instructions on demand | READ |
 
----
+Tools cannot open runtime-permission dialogs. They check permissions through
+`agent/tools/PermissionUtils.kt`, and the user grants them beforehand in Settings → «ИНТЕГРАЦИИ».
 
-## Project Structure
+**Policy, approval, hooks (`agent/core/policy/`, `agent/core/hook/`).**
+`ExecutionPolicy.evaluate` decides once per call:
+1. A hook's `DENY` always wins, then a hook's `REQUIRE_APPROVAL`.
+2. Otherwise, in `LIVE` mode READ and WRITE calls run, and DESTRUCTIVE and EXTERNAL calls **always
+   wait for the user to approve them**. This holds in plain chat with no agent and no hooks; the
+   floor cannot be configured away.
+3. In `PREVIEW` mode (the builder's test run) only READ calls run. Everything else is simulated and
+   reported to the model as "not executed", even after approval.
 
-```
-app/src/main/java/com/example/          # physical directory; ALL files below declare `package com.aiopenpocket.*` (see gotcha above)
-├── AiOpenPocketApp.kt           # Application class; builds the Metro AppGraph
-├── MainActivity.kt              # Single Activity; NavHost, ACTION_ASSIST intent handling, notification permission
-├── agent/
-│   ├── core/
-│   │   ├── agent/                # MiniAgent.kt — roster data class + MiniAgentCatalog (6 domain agents)
-│   │   ├── identity/              # UserPreferencesRepository.kt — DataStore: onboarding, persona, language, roadmap progress, goal-mode iteration cap
-│   │   ├── lesson/                # Lesson.kt, LessonRepository.kt, LessonChatController.kt — AI Academy roadmap content
-│   │   ├── llm/                   # ChatMessage, LlmClient, LlmProvider, ModelCatalog(+Loader), OpenAiCompatClient, ProviderFallbackChain, StreamEvent, FunctionSchema, LlmContextConfig
-│   │   ├── mcp/                   # Tool, ToolExecutor, ToolRegistry, ToolResult, ToolSchemaBuilder — generic tool-calling framework
-│   │   ├── memory/                # entity/ dao/ model/ repository/ — Room-backed conversations, messages, tags, facts, episodes
-│   │   ├── notification/          # NotificationHelper.kt — shared notification-posting helper
-│   │   ├── persona/               # PersonaCatalog.kt — 7 swappable personas (stats/perks/quotes)
-│   │   ├── profile/               # ExtractUserProfileUseCase.kt — LLM-driven onboarding profile extraction
-│   │   ├── prompt/                # PrePromptAssembler, ContextWindowBuilder, ConversationAnnotator
-│   │   └── skill/                 # Skill.kt, SkillRegistry, AssetSkill, LoadSkillTool, skills/{Budget,Diary,Fitness,Languages}Skill.kt
-│   ├── loop/                      # AgentLoopOrchestrator (main entry, CHAT/PLAN/GOAL modes) + ReflectionOrchestrator (REFLECT), ReactLoopRunner (shared ReAct engine), agentTurnFlow (shared flow skeleton), AgentMode + resolveTurnExecutionPlan/resolveCompletedTurn + TurnCompletion (mode contract), TurnManager + TurnSession + StreamingTextBuffer (appScope background turns)
-│   ├── tools/                     # 12 concrete Tool implementations exposed to the LLM (see System Integrations below) + PermissionUtils, ToolDateFormat
-│   └── workers/                   # NotificationWorker.kt — WorkManager Worker for scheduled/periodic notifications
-├── data/
-│   ├── database/AppDatabase.kt    # Room DB (queen_chat_db, v9, fallbackToDestructiveMigration)
-│   └── repository/SettingsRepository.kt  # Encrypted API keys + selected provider/model (EncryptedSharedPreferences)
-├── di/                            # Metro graph: AppGraph, AppScope, AppViewModelFactory, DatabaseBindings, LlmModule, SkillModule, AgentToolsModule, UserPreferencesModule
-└── ui/
-    ├── agents/                    # Mini-agent roster screen
-    ├── chat/                      # ChatScreen/ChatViewModel/DrivenUiEngine/ChatIntent/ChatUiState + components/ (MicButton, ToolTracePanel)
-    ├── components/                # AcademyBottomNav, AcademyCollapsingScaffold, MarkdownText, StreamingBubble
-    ├── conversations/             # Past-conversations list
-    ├── home/                      # HomeScreen — actual post-onboarding entry point (chat is one destination among several)
-    ├── memory/                    # Force-directed memory graph visualization
-    ├── onboarding/                # First-run flow (language → persona → profile → intro) + components/
-    ├── roadmap/                   # AI Academy: RoadmapScreen, LibraryScreen, QuizScreen + components/
-    ├── scheduledworks/            # User-facing list of WorkManager scheduled tasks
-    ├── settings/                  # API keys, provider/model choice, persona, permissions, goal-mode iteration cap
-    └── theme/                     # Color.kt / Theme.kt (forced dark, no light palette) / Type.kt (Lora serif headings)
+`ToolApprovalCoordinator` suspends the turn while the chat shows the request. No answer within
+2 minutes counts as a denial. A background run (heartbeat, plan step) cannot show a prompt, so a
+call that needs approval is denied at once.
+`HookEngine` evaluates declarative per-agent rules (`AgentHook`, stored in Room) on turn, tool and
+plan events. The actions are `ADD_INSTRUCTION`, `REQUIRE_APPROVAL`, `ALLOW`, `DENY`, `LOG` and `STOP`.
+Hooks never run user code and never call the LLM. `DENY`, `REQUIRE_APPROVAL` and `STOP` keep firing
+even after the per-run cap of 50 hook firings is spent.
 
-app/src/main/java/com/aiopenpocket/    # NEW code lands here directly — directory matches declared package
-├── voice/
-│   ├── AssistInteractionService.kt / AssistSessionService.kt / AssistSession.kt / AssistRecognitionService.kt   # system-wide Android voice-assistant integration (VoiceInteractionService)
-│   └── input/
-│       ├── VoiceInputController.kt / VoiceInputState.kt   # in-chat SpeechRecognizer wrapper (drives MicButton)
-│       └── LocaleMapping.kt                                # app language code → BCP-47 locale for recognition
-├── agent/core/plan/             # Structured Plan Engine (see below): model/ validation/ persistence/ planner/
-│                                 # execution/ schedule/ template/ context/ — plus agent/core/agent/ (AgentDefinition,
-│                                 # AgentResolver, UserAgentRepository), agent/core/hook/ (HookEngine) and
-│                                 # agent/core/policy/ (ExecutionPolicy) from the user-agent-builder feature
-└── ui/plan/                      # PlanCard (chat), PlanListScreen/PlanDetailScreen + their ViewModels
+**Prompt.** `agent/core/prompt/PrePromptAssembler.kt` builds the system prompt in this order:
+1. `assets/prompts/system_base.md`, plus `tutorial.md` for tutorial chats
+2. «Сейчас» (current local time and time zone)
+3. language
+4. persona *or* the bound agent's role
+5. skill catalog
+6. active plan summary
+7. memory data, wrapped in an untrusted `<user_data>` fence (`UntrustedFence`)
+8. instructions
 
-app/src/main/assets/
-├── config/models.json             # Ranked LLM model catalog (source of truth for model selection — see below)
-├── lessons/*.json                 # 9 AI-Academy lesson scripts (typed steps: text/image/quiz/reveal/concept/example/fill/sort/match/scenario)
-├── personas/*.md                  # 7 personas (see Personas below)
-├── prompts/                       # system_base.md, tutorial.md, roadmap/{l1_welcome..l7_combo,plan_mode}.md
-└── skills/{budget,diary,fitness,languages}/SKILL.md
-```
+`ContextWindowBuilder` then adds a trimmed history window. Tools that return external content set
+`returnsUntrustedContent`, and their output is fenced before the model sees it.
 
----
+**Memory (`agent/core/memory/`).** All in Room: conversations, messages, tags, facts, episodes and
+heartbeats, with DAOs, entities and repositories (`ConversationRepository`, `MemoryRepository`).
+A bound agent keeps its facts under its own namespace (`agent:{id}:`, `AgentMemoryPolicy`).
+`ConversationAnnotator` derives titles, summaries and tags in the background.
 
-## Build & Run
+**Heartbeats.** `heartbeat` schedules a static push or a headless agent turn, one-time or periodic
+(at least 15 minutes, a WorkManager limit). The path is `HeartbeatWorker` →
+`agent/workers/HeartbeatRunner.kt`. An agent heartbeat gets the agent's tools intersected with
+`SAFE_TOOL_NAMES`. If the agent answers `HEARTBEAT_OK`, nothing is posted.
+`agent/core/plan/schedule/HeartbeatScheduler.kt` arms the WorkManager jobs. `HeartbeatTool` and
+`PlanScheduler` both use it.
 
-### Prerequisites
-- Android Studio (latest stable recommended)
-- JDK 21+ (Kotlin/Java compile target is 21; Android Gradle Plugin is 8.9.1)
+**Plan engine (`agent/core/plan/`) is frozen: fix bugs, don't add features.**
+- PLAN runs one LLM turn that sees only three internal control schemas (`submit_plan`,
+  `propose_plan_revision`, `request_plan_information`) and never a real tool. `PlanValidator`
+  checks the proposal, and it is stored as `AWAITING_APPROVAL`.
+- The user approves it through `PlanCommands.approve`.
+- GOAL executes the approved version step by step. A step may use only tools that are both the
+  agent's and listed in the step's `expectedTools`.
+- `PlanVerifier` completes a step only on persisted `PlanEvidence`.
+- Long-running plans advance through plan-step heartbeats.
+- `PlanRunner` first runs `PlanRecovery` on steps left mid-flight.
+- Domain safety templates: `assets/plan_templates/`. Planner, executor and verifier prompts:
+  `assets/prompts/plan/`.
 
-### Environment setup
-Create a `.env` file in the project root (see `.env.example`):
+**Agents, builder, skills.**
+- `AgentResolver` merges the read-only presets (`MiniAgentCatalog`) and user agents from Room
+  (`UserAgentRepository`) into immutable `AgentDefinition` snapshots.
+- The builder (`ui/agents/builder/`) is a six-step wizard: identity, instructions, capabilities,
+  loop, hooks, test & publish. Risky tools require consent. The test run defaults to `PREVIEW`.
+- Skills (`agent/core/skill/`) use progressive disclosure. The prompt lists only manifests, and
+  `load_skill` fetches the full text. Built-in skills are budget, diary, fitness and languages
+  (`assets/skills/{id}/SKILL.md`). User skills come from Room (`UserSkillRepository`). If ids
+  collide, the built-in skill wins.
 
-```
-GEMINI_API_KEY=MY_GEMINI_API_KEY
-NVIDIA_API_KEY=MY_NVIDIA_API_KEY
-```
+## Stack
 
-The **Secrets Gradle Plugin** reads `.env` and injects values into `BuildConfig`. `NVIDIA_API_KEY` is preferred; `GEMINI_API_KEY` is used as a fallback if the NVIDIA key is missing or still set to the placeholder. Per-provider keys can also be entered at runtime in Settings, where they're stored encrypted (see Security Considerations).
+| Area | Library (version from `gradle/libs.versions.toml` / `app/build.gradle.kts`) |
+|---|---|
+| Language / build | Kotlin 2.3.0, AGP 8.9.1, KSP, Gradle Kotlin DSL, version catalog |
+| UI | Jetpack Compose (BOM 2026.05.00), Material 3, Navigation Compose, glass components in `ui/components/glass/` |
+| DI | Metro 1.1.1 (`dev.zacsweers.metro`) + metrox-viewmodel — not Hilt/Dagger |
+| Network | Ktor client 2.3.11 (Android engine, SSE), kotlinx-serialization-json 1.6.3 |
+| Storage | Room 2.7.0, DataStore Preferences, EncryptedSharedPreferences (security-crypto) |
+| Background | WorkManager 2.10.0 |
+| Images / text | Coil 2.7.0 (+ SVG), mikepenz multiplatform-markdown-renderer 0.41.0 |
+| Tests | JUnit 4, Robolectric 4.16.1, Compose UI test, kotlinx-coroutines-test, Ktor MockEngine, work-testing, Roborazzi 1.59.0 |
 
-### Gradle commands
+Metro DI: the root graph is `di/AppGraph.kt` (`@DependencyGraph(AppScope::class)`). Modules are
+`@ContributesTo(AppScope::class) @BindingContainer` objects in `di/`. Singletons use
+`@Inject @SingleIn(AppScope::class)`. ViewModels use `@ContributesIntoMap` + `@ViewModelKey` and
+are obtained in Compose with `metroViewModel()`.
+
+## Build and test
+
+JDK 21 is required. Set `org.gradle.java.home` in your user-level `~/.gradle/gradle.properties`,
+never in the repo's own `gradle.properties`.
 
 ```bash
-# Build debug APK
-./gradlew :app:assembleDebug
-
-# Run unit tests (including Robolectric)
-./gradlew :app:testDebugUnitTest
-
-# Run instrumented tests (requires connected device/emulator)
-./gradlew :app:connectedAndroidTest
-
-# Run screenshot tests (Roborazzi)
-./gradlew :app:verifyRoborazziDebug
+./gradlew :app:assembleDebug                      # debug APK
+./gradlew :app:compileDebugKotlin                 # fastest correctness check
+./gradlew :app:testDebugUnitTest                  # ~1000 JVM tests (Robolectric included); slow
+./gradlew :app:testDebugUnitTest --tests '*ProviderFallbackChainTest'   # targeted run
+./gradlew :app:recordRoborazziDebug               # re-record screenshot baselines
+./gradlew :app:verifyRoborazziDebug               # compare against baselines
+./gradlew :app:connectedDebugAndroidTest          # device test (one sanity test only)
 ```
 
-### Signing
-- **Debug builds** use `debug.keystore` (decoded from `debug.keystore.base64` at the project root).  
-  The debug config is referenced explicitly in `build.gradle.kts` as `signingConfig = signingConfigs.getByName("debugConfig")`.  
-  For external builds you may need to remove this line if the keystore is missing.
-- **Release builds** expect environment variables: `KEYSTORE_PATH`, `STORE_PASSWORD`, `KEY_PASSWORD`, key alias `upload`.
+- Roborazzi baselines are committed in `app/src/test/screenshots/`; each test sets its own `filePath`.
+  CI (`.github/workflows/android.yml`) runs `assembleDebug`, then `testDebugUnitTest -Proborazzi.test.verify=true`.
+- `LessonAssetsValidationTest` lints every lesson JSON and its images and scenes. Lesson assets are
+  declared as test inputs, so editing a lesson re-runs it. `LessonImageStyleSyncTest` keeps the
+  `STYLE` string in `pregenerate.py` identical to `LESSON_IMAGE_STYLE` in Kotlin.
+- Signing: debug uses `debug.keystore` if it is present, otherwise AGP's default key. Release reads
+  `KEYSTORE_PATH`, `STORE_PASSWORD` and `KEY_PASSWORD`. R8 is off (`isMinifyEnabled = false`).
 
----
+## Traceability (traxer)
 
-## Architecture Details
+`traceability.yaml` is a hand-edited registry of features. Each entry has a frozen `id`, a
+`title`, and a `rationale` that explains **why** the feature exists. Code links to it with
+`// @trace <id>` markers (`.traceignore` excludes docs). The workflow is in `CLAUDE.md` and the
+`trace` skill. In short:
+- Run `traxer check` before committing.
+- For a new feature, run `traxer id`, add a registry entry and a `@trace` marker.
+- Add a `Trace: <id>` trailer to the commit.
+- Run `traxer bless <id>` only after confirming the rationale still holds, and only after
+  `git add`-ing new files.
 
-### Dependency Injection (Metro)
-The project uses **Metro** rather than Hilt/Dagger:
-- `@DependencyGraph(AppScope::class)` on `AppGraph` (which extends Metrox's `ViewModelGraph`), with a `@DependencyGraph.Factory` for constructing it from `Application`
-- `@ContributesTo(AppScope::class) @BindingContainer` object modules provide/bind dependencies — see `DatabaseBindings`, `LlmModule`, `SkillModule`, `AgentToolsModule`, `UserPreferencesModule`
-- `@Inject` constructors for ViewModels and singletons; `@SingleIn(AppScope::class)` for scoped singletons
-- `@ContributesBinding(AppScope::class)` for interface bindings (e.g. `AppViewModelFactory : MetroViewModelFactory()`)
-- Multibinding via `@Provides @IntoSet` — used for `Set<Tool>` (12 domain tools + `LoadSkillTool`, contributed from both `AgentToolsModule` and `SkillModule`) and `Set<Skill>` (4 domain skills, from `SkillModule`)
-- ViewModels are obtained in Compose via the Metrox `metroViewModel()` integration, backed by `AppViewModelFactory`'s provider/assisted-factory maps
+Never strip `@trace` markers while refactoring.
 
-### State Management
-- **ChatUiState** is a plain data class held in a `MutableStateFlow` inside `ChatViewModel`.
-- **ChatIntent** is a sealed interface representing user actions (send message, voice input, cancel, attach, change persona/mode, etc.).
-- The ViewModel converts intents into coroutine jobs; active LLM turns are cancellable.
+## Conventions
 
-### Data Flow (single chat turn)
-1. `ChatIntent.SendMessage` → `ChatViewModel`/`TurnManager` route the turn by `AgentMode`: CHAT/TUTOR go through `AgentLoopOrchestrator.execute(conversationId, message, provider, mode, ...)`; REFLECT goes to `ReflectionOrchestrator`; PLAN/GOAL go to `StructuredPlanOrchestrator` (see Structured Plan Engine below) instead of this pipeline.
-2. For the CHAT/TUTOR path, `PrePromptAssembler` builds the system prompt: base instructions + tutorial section + language directive + persona **or** mini-agent role + skill catalog (scoped to the mini-agent if bound) + a compact active-plan summary (`PlanContextProvider`, only if this conversation has an approved plan) + user-data section (profile facts, relevant memory facts, recent episodes — marked untrusted) + a trimmed `ContextWindowBuilder` history window.
-3. `ReactLoopRunner` runs the shared ReAct loop (reason → tool call → observe, up to `MAX_ITERATIONS = 10`), resolving tool calls through `ToolRegistry` (scoped to the mini-agent's `toolNames` when bound).
-4. `OpenAiCompatClient.streamChat` sends the request via `ProviderFallbackChain.resolve(...)` (see Model Catalog below) and streams SSE deltas back; on failure *before* any content was emitted, it falls through to the next provider/model.
-5. `ConversationRepository` persists messages to Room; `ConversationAnnotator` makes a background LLM call afterward to (re)derive the conversation's title/summary/tags.
+- **UI language is Russian**, addressing the user informally as «ты». Onboarding offers English, but
+  the option is disabled. Write new user-visible strings in Russian, in the same voice.
+- **Comments explain why**, not what. Most are in Russian; some KDoc is in English. Edit files with
+  Russian text using an editor or tool that preserves UTF-8, not ad-hoc `sed`/`perl` byte edits.
+- **Database, pre-release.** `AppDatabase` is schema version 11 with 18 entities. `DatabaseBindings`
+  uses `fallbackToDestructiveMigration(dropAllTables = true)`. Bump the version on schema changes and
+  write no `Migration` classes before the first release. Schemas are exported to `app/schemas/` and committed.
+- **Safety lives in code, not prompts.** Classify new tools with `riskFor` and gate them through
+  `ExecutionPolicy`. Mark tools that return external text with `returnsUntrustedContent`. Add new
+  tool names to `CapabilityNames` and `AgentValidator.KNOWN_TOOL_NAMES`.
+- **Theme:** light, dark or system (`data/repository/ThemeRepository.kt`). Use theme tokens
+  (`ui/theme/`), not hard-coded colors.
+- The system prompt is built only by `PrePromptAssembler`. Change prompt behavior there or in
+  `assets/prompts/`, never inline in a ViewModel.
 
-### Driven UI Engine
-`DrivenUiEngine.kt` renders native Compose cards from a `render_card` **tool call** (via `RenderCardTool`) — not raw JSON scanned out of chat text, as in the original AI-Studio-exported version. 19 templates are supported, split between general-purpose cards and AI-Academy lesson widgets:
-- General: `todo_list`, `weather_card`, `timer`, `chart_bar`, `table`, `form`, `choice`, `switch`, `notification_permission`, `image`
-- Lesson-flow: `lesson_quiz`, `lesson_complete`, `reveal`, `concept`, `example`, `fill`, `sort`, `match`, `scenario`
+## Key files
 
-### Personas
-`PersonaCatalog.kt` defines 7 personas, each with a display name, tone, 6 personality-stat dimensions (talkativeness, skepticism, criticism, proactivity, humor, empathy), perks, and example quotes; full instructions are still loaded from `assets/personas/{id}.md` at prompt-assembly time. The default is `sharp_partner` (business-like, proactive). Personas apply to plain chats; a mini-agent's own system prompt overrides the user's selected persona when the conversation is bound to one.
-
-### Mini-Agent Roster
-`MiniAgent` (`agent/core/agent/MiniAgent.kt`) is a data class (`id`, `name`, `description`, `iconKey`, `toolNames`, `systemPrompt`). `MiniAgentCatalog.all` defines 6 concrete domain agents, each scoped to its own tool subset: **budget**, **languages**, **tasks**, **reminders**, **nutrition**, **diary**. `AgentsScreen`/`AgentsViewModel` list them; tapping one finds-or-creates a conversation bound to that agent's `agentId`, which scopes both `ToolRegistry` (visible tools) and `SkillRegistry` (visible skills, via `load_skill`) for that conversation.
-
-### Skill System
-Skills are a progressive-disclosure layer on top of tools: `SkillRegistry` exposes lightweight `SkillManifest` metadata (id/description/whenToUse) in the system prompt for free; the model calls the `load_skill` tool (`LoadSkillTool`, registered like a normal `Tool`) to pull in the full `SKILL.md` instructions on demand. Four concrete skills extend `AssetSkill` and load from `assets/skills/{id}/SKILL.md`: **budget**, **diary**, **fitness**, **languages**. When a conversation is bound to a mini-agent, `load_skill` is restricted to that agent's own skill.
-
-### Model Catalog & Selection
-The working LLM is chosen from a ranked catalog, not hard-coded. The catalog lives at `app/src/main/assets/config/models.json`, loaded by `ModelCatalogLoader` (falls back to a single hardcoded `meta/llama-3.1-70b-instruct` entry if the asset is missing, unparseable, or empty).
-
-Current catalog (all NIM models, `base_url = https://integrate.api.nvidia.com/v1`):
-
-| priority | model | max_tokens | reasoning | notes |
-|---|---|---|---|---|
-| 1 | `deepseek-ai/deepseek-v4-flash` | 16000 | true | |
-| 2 | `minimaxai/minimax-m3` | 16000 | true | `temperature=1.0`, `top_p=0.95` |
-| 3 | `openai/gpt-oss-20b` | 16000 | false | |
-| 4 | `meta/llama-3.1-8b-instruct` | 16000 | false | |
-| 5 | `nvidia/nemotron-3-nano-30b-a3b` | 16000 | true | |
-| 6 | `mistralai/mistral-medium-3.5-128b` | 16000 | true | |
-| 7 | `mistralai/mistral-large-3-675b-instruct-2512` | 16000 | false | |
-
-**Runtime wiring.** `LlmModule.provideProviderFallbackChain` expands the catalog into NIM `ProviderConfig`s and pairs them with the GROQ (`api.groq.com`) and GITHUB (`models.inference.ai.azure.com`) fallbacks. `LlmProvider` is `AUTO | NIM | GROQ | GITHUB`. `ProviderFallbackChain.resolve(AUTO)` returns `[NIM..., GROQ, GITHUB]` in that order; if the user picked a specific NIM model in Settings, that model is moved to the front of the NIM chain (the rest, plus GROQ/GITHUB, still follow as fallback). `OpenAiCompatClient` iterates this list and moves to the next entry on a non-2xx/network/parse error — but **only if no content was emitted yet** for the current attempt; once streaming has started, a later failure surfaces as `StreamEvent.Error` instead of silently retrying. Each request uses that model's `max_tokens` from the catalog.
-
-To change which model the agent uses, edit `models.json` and re-rank by `priority` — no code change required.
-
-> Note: `OpenAiCompatClient.kt` (`agent/core/llm/`) is the sole chat-completion client. The old `NvidiaClient.kt` referenced by earlier versions of this doc has been fully deleted, with zero remaining references anywhere in the codebase.
-
-### Structured Plan Engine (PLAN/GOAL)
-`AgentMode.PLAN`/`AgentMode.GOAL` are no longer a prompt-only gate/loop over the ordinary ReAct turn —
-that mechanism (an extra system-prompt section from `assets/prompts/modes/{plan_planning,plan_executing,goal}.md`,
-a `[[NEED_INFO]]` text marker, a self-graded GOAL loop) has been fully removed. `com.aiopenpocket.di.TurnModule`'s
-`TurnExecutor` now dispatches both modes straight to `agent/loop/StructuredPlanOrchestrator`
-(`agent/core/plan/**`), bypassing `AgentLoopOrchestrator` entirely — the same way `AgentMode.REFLECT`
-already bypasses it for `ReflectionOrchestrator`. The old feature id `rezhimy-agenta-plan-i-goal-ee2361`
-still marks a few files that predate this replacement (`AgentMode.kt`, `ReactLoopRunner.kt`,
-`PrePromptAssembler.kt`, `AgentLoopOrchestrator.kt`, `TurnCompletion.kt`, `AssetSource.kt`) — kept as
-history, like `agent-inspector-6e41eb`; the live implementation is `structured-plan-engine-907066`.
-
-- **PLAN** (`StructuredPlanOrchestrator.propose` → `PlanPlanner`/`PlanPromptBuilder`) runs one LLM turn
-  with exactly three internal control schemas — `submit_plan`, `propose_plan_revision`,
-  `request_plan_information` (`agent/core/plan/planner/PlanControlSchemas.kt`). These are plain
-  `FunctionSchema`s handed directly to `LlmClient.streamChat`; they are never added to the global
-  `ToolRegistry` multibinding, so a PLAN turn is structurally incapable of calling a real device/app
-  tool. `PlanValidator` rejects a candidate whose steps aren't acyclic, whose `expectedTools` aren't a
-  subset of the agent's own `toolNames`, that exceeds step/criteria limits, or that drops a domain
-  template's required safety constraint. A validated proposal is persisted (`PlanRepository.saveProposal`)
-  as a new `PlanVersion` in `AWAITING_APPROVAL` and never auto-executed.
-- **Approval** is the typed `PlanCommands.approve(planId, version)` call, wired from a real
-  `ChatIntent.ApprovePlan` (`ChatViewModel` → `PlanCard`/`PlanDetailScreen`) — never a synthetic "Одобряю
-  план" chat message. Approving freezes that `PlanVersion` immutable; any later material change
-  (objective/constraints/criteria, step add/remove/reorder, `expectedTools`, `schedule`, `completionRule`
-  — classified by `PlanChangeClassifier`) always drafts a new, higher-numbered pending version and
-  returns the plan to `AWAITING_APPROVAL`, while the previously approved version keeps running.
-- **GOAL** (`StructuredPlanOrchestrator.executeGoal` → `PlanRunner` → `PlanExecutor`) executes only the
-  approved `PlanVersion`, one selected runnable/due step per call. A step's tool scope is
-  `agent.toolNames ∩ step.expectedTools ∩ ExecutionPolicy` (an empty `expectedTools` means the step must
-  not call any tool at all); `PlanRunBudget` replaces the old single `goalMaxIterations` with independent
-  LLM-iteration/tool-call/retry/deadline knobs (the Settings "лимит витков гоал-мода" value now maps onto
-  `PlanRunBudget.maxLlmIterationsPerStep`, see `ChatViewModel.goalRunBudget`).
-- **Verification** (`PlanVerifier`) gates completion on persisted `PlanEvidence`, never a bare "готово"
-  from the model. Deterministic checks (`DeterministicVerifierRegistry`: `TOOL_RESULT`, `MEMORY_FACT`,
-  `USER_CONFIRMATION`) take priority; `MODEL_ASSESSMENT` is the one LLM-judged, tool-less fallback and
-  cannot be routed a deterministic criterion. A `required` criterion blocks `PlanStatus.COMPLETED` until
-  it has matching evidence.
-- **Plan lifecycle hooks** (`ON_PLAN_CREATED`/`ON_PLAN_APPROVED`/`BEFORE_PLAN_STEP`/`AFTER_PLAN_STEP`/
-  `ON_PLAN_BLOCKED`/`ON_PLAN_COMPLETED`) reuse the same declarative `HookEngine` as the turn-level hooks.
-  Every plan event except `BEFORE_PLAN_STEP` is LOG-only; `BEFORE_PLAN_STEP` can additionally `DENY`/
-  `STOP`/`REQUIRE_APPROVAL` (always resolves to a blocked step, since a plan step run is headless/
-  background) or `ADD_INSTRUCTION` (folded into that one step's prompt only). No plan hook can call an
-  LLM/tool, add evidence, or mutate an approved version — it only ever returns a `HookDecision`; applying
-  it is the caller's (`PlanExecutor`/`PlanCommands`) job.
-- **`PROGRAM` plans** (long-running, vs. one-shot `SINGLE_RUN`) advance via a typed heartbeat, never a
-  foreground loop: `PlanScheduler` arms one `HeartbeatTargetType.PLAN_STEP` row per plan (`planId`/
-  `planVersion`/`stepId`), and `HeartbeatRunner.firePlanStep` re-checks the plan is still `ACTIVE` and the
-  heartbeat's `planVersion` still matches the current approved version before resuming — a stale
-  heartbeat (approval moved on since) is skipped, never runs the old step. Background runs always pass
-  `interactiveApproval = false`, so a hook's `REQUIRE_APPROVAL` blocks the step and notifies the user
-  instead of leaving a `WorkManager` job suspended on a screen that isn't there.
-- **Crash recovery** (`PlanRecovery`, run at app startup and inline at the start of every `PlanRunner.run`)
-  repairs a step left `EXECUTING`/`VERIFYING` by a process death. It never re-invokes an LLM/tool: a step
-  is marked `COMPLETED` only if `PlanEvidence` created at-or-after that attempt's `startedAt` already
-  proves it; otherwise it is marked `BLOCKED` for manual review — a side-effecting tool call is never
-  blindly replayed.
-- **Domain templates** (`assets/plan_templates/{budget,nutrition,languages}.json`, via
-  `PlanTemplateRegistry`) carry required safety constraints per agent (e.g. nutrition's "no diagnosis/
-  treatment, stop on alarming symptoms"; budget's "never invent amounts, never initiate a financial
-  transaction"), suggested steps/criteria (prompt guidance only), supported horizons and forbidden tool
-  names. Required constraints are merged into every proposal in code and re-checked by `PlanValidator` as
-  a backstop, not left to the model to faithfully restate.
-- **Persistence**: five Room tables (`agent_plans`, `plan_versions`, `plan_step_states`, `plan_evidence`,
-  `plan_events`) behind `PlanRepository`; `plan_versions.snapshotJson` holds the immutable per-version
-  content, progress/evidence/events are normalized and updated independently.
-- **Out of scope** (unchanged from the design spec): automatic PLAN activation, a parallel DAG executor,
-  multi-agent delegation, autonomous approval of material revisions, real financial transactions/medical
-  prescriptions, and a custom scheduler replacing WorkManager/heartbeat.
-
-### AI Academy (Onboarding Roadmap)
-A JSON-driven, linear lesson system separate from free chat. `Lesson.kt`/`LessonRepository.kt` load 9 scripts from `assets/lessons/*.json` (welcome, ReAct loop, chaining/routing, tokens & speed, privacy/reliability, arena & swarm, workflow & agent, how LLMs read text, plan mode); each lesson is a sequence of typed steps (`text`, `image`, `quiz`, `reveal`, `concept`, `example`, `fill`, `sort`, `match`, `scenario`) rendered as Driven UI cards and advanced one step per agent turn by `LessonChatController`. `RoadmapScreen` walks the 7 foundational lessons in order; `LibraryScreen` exposes the full catalog; `QuizScreen`/`QuizViewModel` handle end-of-lesson checks. Per-lesson system-prompt sections live in `assets/prompts/roadmap/l1_welcome.md` … `l7_combo.md`, plus a `plan_mode.md` variant.
-
-### Voice Input
-Two independent integrations, both under the (correctly-placed) `com.aiopenpocket.voice` package:
-- **System voice assistant** (`AssistInteractionService`, `AssistSessionService`, `AssistSession`, `AssistRecognitionService`) registers the app as an Android `VoiceInteractionService`/`VoiceInteractionSessionService` (manifest-declared, `BIND_VOICE_INTERACTION`-protected). Invoking the system assistant opens `MainActivity` with an `ACTION_OPEN_NEW_CHAT` intent rather than showing its own overlay UI.
-- **In-chat dictation** (`voice/input/VoiceInputController.kt`) wraps `android.speech.SpeechRecognizer` directly, exposing a `VoiceInputState` (Idle/Listening/Error) sealed interface and a transcript flow, driven by the `MicButton` composable in the chat input bar. `LocaleMapping.kt` maps the app's selected UI language to a BCP-47 recognition locale.
-
-### System Integrations & Permissions
-Eleven tools expose Android/system capabilities to the LLM (`app/src/main/java/com/example/agent/tools/`, all registered via `@Provides @IntoSet` in `di/AgentToolsModule.kt`; the `load_skill` meta-tool is registered separately in `di/SkillModule.kt`):
-
-| Tool (`name`) | Actions | Android API | Permission |
-|---|---|---|---|
-| `calendar` | `list_events`, `create_event`, `delete_event` | `CalendarContract` (Instances/Events) | `READ_CALENDAR`, `WRITE_CALENDAR` (runtime) |
-| `alarm` | `set_alarm`, `show_alarms` | `AlarmClock.ACTION_SET_ALARM` / `ACTION_SHOW_ALARMS` intents | `SET_ALARM` (normal, auto-granted) |
-| `email` | `compose` | `Intent.ACTION_SENDTO` (`mailto:`) | none — composer only, no reading |
-| `notifications` | post a notification (title/message) | `NotificationCompat` via shared `NotificationHelper` | `POST_NOTIFICATIONS` (runtime, Android 13+) |
-| `step_counter` | `snapshot` (cumulative count + timestamp) | `SensorManager.TYPE_STEP_COUNTER` | `ACTIVITY_RECOGNITION` (runtime, Android 10+) |
-| `work_manager` | `schedule_notification`, `schedule_periodic` (≥15 min), `cancel_work` | `WorkManager` + `NotificationWorker` | `POST_NOTIFICATIONS` for delivery |
-| `heartbeat` | `schedule` (push/agent, one-time/periodic ≥15 min), `cancel`, `list`; agent-mode wakes `ReactLoopRunner` headless with a safe read-only tool subset (`HEARTBEAT_OK` = stay silent) → assistant message into the source chat + push (reuses `TurnNotifier` deep-link) | Room `heartbeats` registry + `HeartbeatWorker` (CoroutineWorker) | `POST_NOTIFICATIONS` |
-| `database_query` | raw `sql` (SELECT/INSERT/UPDATE/DELETE) | Room/SQLite on `AppDatabase` | none — DDL blocked, multi-statement blocked, SELECT capped at 200 rows |
-| `external_files` | `read_file`, `write_file`, `list_dir` | Storage Access Framework via `ContentResolver` | none — scoped to user-granted `content://` URIs only |
-| `file_tool` | `read_file`, `write_file`, `list_dir`, `search_files` | `java.io.File`, sandboxed to `filesDir/agent` | none |
-| `memory_tool` | `remember_fact`, `search_memory`, `recall_episodes` | `MemoryRepository` (Room) | none |
-| `render_card` | render a Driven UI card | in-process (see Driven UI Engine) | none |
-
-**Permission model.** Tools run on a background dispatcher and cannot themselves launch the runtime-permission dialog. The user grants permissions ahead of time in **Settings → ИНТЕГРАЦИИ**, and each tool calls the shared `Context.requirePermission(permission, humanName): ToolResult.Error?` helper in `agent/tools/PermissionUtils.kt`, returning a recoverable Russian "нет разрешения" error when a permission is missing.
-
-Reading email (Gmail API/OAuth) is intentionally **not** implemented — `EmailTool` only opens a pre-filled draft. `READ_SMS` is restricted on the Play Store (requires default-SMS-handler status); this is fine for personal/sideload builds — a publishing constraint, not a development one.
-
----
-
-## Code Style Guidelines
-
-- **Kotlin code style:** `official` (set in `gradle.properties`).
-- **Indent:** 2 spaces (observed in the existing source).
-- **Trailing commas:** Generally used.
-- **Imports:** Use explicit imports; no wildcard imports.
-- **Compose conventions:**
-  - Use `Modifier.testTag("...")` on interactive elements for UI testing.
-  - Theming uses `MaterialTheme.colorScheme.*` and the custom palette in `Color.kt`.
-  - Theme is forced dark (`darkTheme = true`); there is no real light palette — `LightColorScheme` is aliased to `DarkColorScheme`.
-  - Headline/display typography uses a serif font (Lora); body/label use the system sans font.
-- **Language mixing:** UI strings are in **Russian** by default, with runtime language switching (en/es/de/fr/uk) via `UserPreferencesRepository.language`. Class names and log tags are English, but comments/KDoc are inconsistently mixed — some files carry Russian explanatory comments alongside English `@trace` markers (see Traceability below). Don't assume comments will be English.
-
----
-
-## Testing Strategy
-
-The project has light but real coverage, concentrated on the newer agent/LLM plumbing:
-
-1. **Unit tests** (`app/src/test/java`)
-   - Legacy template sanity checks — physically under `com/example/` but package-declared `com.aiopenpocket` (see namespace gotcha above): `ExampleUnitTest.kt`, `ExampleRobolectricTest.kt`, `GreetingScreenshotTest.kt` (Roborazzi; renders an inline `Text("Hello Robolectric")`, doesn't exercise real app UI).
-   - Real coverage, under `app/src/test/java/com/aiopenpocket/...` (directory matches package here):
-     - `agent/core/llm/OpenAiSseParserTest.kt` — SSE stream parsing
-     - `agent/core/llm/ProviderFallbackChainTest.kt` — AUTO ordering, NIM multi-model, user-model override
-     - `agent/core/mcp/ToolExecutorTest.kt` — tool dispatch/error handling
-     - `agent/core/prompt/ContextWindowBuilderTest.kt` — history head/tail/token trimming
-     - `agent/core/profile/ExtractUserProfileUseCaseTest.kt` — onboarding profile extraction
-     - `agent/loop/AgentModeTest.kt` — CHAT/PLAN/GOAL mode behavior
-     - `ui/chat/DrivenUiEngineTest.kt` — card parsing
-     - `agent/core/plan/*.kt` (~14 files) — Structured Plan Engine: state machine/validator/change
-       classifier, planner control-schema reduction, executor tool-scope intersection, deterministic +
-       MODEL_ASSESSMENT verification, plan lifecycle hooks, scheduler due/staleness logic, crash
-       recovery idempotency, domain-template contract checks
-     - `agent/loop/StructuredPlanOrchestratorTest.kt`, `agent/workers/HeartbeatRunnerTest.kt` (typed
-       plan-step heartbeat cases) — PLAN/GOAL turn dispatch and background plan-step resumption
-     - `ui/plan/*.kt` — PlanCard/PlanListViewModel/PlanDetailViewModel + a Roborazzi screenshot test
-
-2. **Instrumented tests** (`app/src/androidTest/java`)
-   - `ExampleInstrumentedTest.kt` — basic context/Activity sanity check only.
-
-### Running tests
-```bash
-# JVM unit tests (includes Robolectric)
-./gradlew :app:testDebugUnitTest
-
-# Screenshot record/verify
-./gradlew :app:recordRoborazziDebug
-./gradlew :app:verifyRoborazziDebug
-
-# Device tests
-./gradlew :app:connectedDebugAndroidTest
-```
-
-**Still untested:** `ChatViewModel` and the other ViewModels, `AgentLoopOrchestrator`/`ReactLoopRunner` themselves, the `agent/tools/*` implementations, and the repository layer (`ConversationRepository`/`MemoryRepository`/`SettingsRepository`). These would be the highest-value next additions — coverage has grown from "very low" but is still concentrated on the LLM/prompt plumbing rather than the orchestration or UI layers.
-
----
-
-## Security Considerations
-
-- **Bundled API keys** are injected via the Secrets Gradle Plugin from `.env` and become `BuildConfig` fields at compile time — not obfuscated in the APK; treat debug builds as containing plaintext secrets.
-- **User-entered API keys** (per provider) and the selected provider/model are stored in `SettingsRepository`, backed by **`EncryptedSharedPreferences`** (AES256_GCM, KeyStore-backed master key) — encrypted at rest, unlike the plain SharedPreferences used in earlier versions of this app.
-- **Conversations, messages, facts, and episodes** live in the local Room database (`ai_open_pocket_db`, currently schema v7; `fallbackToDestructiveMigration()` is enabled, so schema bumps during development drop and recreate the DB). There is no more "session cookie" concept or `user_cookies` table — that, along with the old `ChatRepository`/`ChatDao`, has been fully removed.
-- **Structured Plan Engine** (see Architecture Details above) is planning's main safety surface: the
-  PLAN phase is handed only three internal control schemas and never a real tool schema, so it cannot
-  execute a device/app action regardless of what the model outputs; GOAL's per-step tool scope is
-  intersected against both the bound agent's own `toolNames` and `ExecutionPolicy` before any call
-  reaches `ToolExecutor`; a `required` completion criterion cannot be satisfied by the model simply
-  asserting success, only by a persisted `PlanEvidence` row; and a background (heartbeat-driven) run
-  never blocks on a UI approval prompt — a hook that would require one instead blocks the step and
-  notifies the user.
-- **Onboarding/UI preferences** (persona, language, roadmap progress, goal-mode iteration cap) live in an unencrypted AndroidX DataStore (`UserPreferencesRepository`) — not sensitive data.
-- **`database_query` tool** gives the LLM raw SQL access to the app's own Room database (SELECT/INSERT/UPDATE/DELETE only — DDL, multi-statement queries, and result sets beyond 200 rows are blocked). It's scoped to the app's own DB, not system databases, but it's still an LLM-controlled SQL execution path worth keeping in mind when reasoning about prompt-injection risk from tool results or untrusted memory content. It carries no table allowlist/blocklist, so an agent holding it (builder: `advancedOnly`, `RiskClass.DESTRUCTIVE`, consent-gated) can also `UPDATE`/`INSERT` the Structured Plan Engine's own tables (`agent_plans`/`plan_versions`/`plan_step_states`/`plan_evidence`/`plan_events`) directly — bypassing `PlanStateMachine`'s approval/immutability/evidence gates entirely. Not reachable via any of the 6 presets (none carry `database_query`), only via a custom agent the user has explicitly granted it to; see the Task 16 audit report for detail.
-- **Debug keystore** is committed to the repo as `debug.keystore.base64`. Do **not** use this for release builds.
-- **Network security:** the app calls one of three chat-completions endpoints depending on the resolved provider — `integrate.api.nvidia.com` (NIM), `api.groq.com` (GROQ), `models.inference.ai.azure.com` (GitHub Models). No certificate pinning is implemented.
-- **Voice services** (`AssistInteractionService`, `AssistSessionService`) are exported but protected by the `BIND_VOICE_INTERACTION` system permission; `RECORD_AUDIO` is a runtime permission gating both system voice assist and in-chat dictation.
-- **ProGuard/R8:** `isMinifyEnabled = false` in both build types currently. No code shrinking or obfuscation is applied.
-
----
-
-## Traceability
-
-`traceability.yaml` at the repo root is a manually-curated, frozen-ID feature registry (title, rationale, `TZ.md` section reference). The `traxer` CLI (`traxer scan` / `check` / `doctor` / `context`) diffs it against `// @trace <feature-id>` markers scattered through the source to detect drift between documented features and code — that's a narrower, code-level version of the same staleness problem this document itself had. Use the `trace` skill when adding or finishing a feature to keep `traceability.yaml` and `@trace` markers in sync; don't strip `@trace` comments when refactoring a marked file.
-
----
-
-## Key Files for Agents
-
-| File | Purpose |
-|------|---------|
-| `app/build.gradle.kts` | Module build config, dependencies, signing, secrets plugin setup |
-| `gradle/libs.versions.toml` | Version catalog for most dependencies (Ktor is pinned inline in `build.gradle.kts`, not here) |
-| `.env` / `.env.example` | Bundled API key secrets (not committed) |
-| `app/src/main/java/com/example/ui/chat/ChatViewModel.kt` | Chat state, intent handling; delegates each turn to `AgentLoopOrchestrator` |
-| `app/src/main/java/com/example/agent/loop/AgentLoopOrchestrator.kt` | Main per-turn entry point (CHAT/PLAN/GOAL modes) |
-| `app/src/main/java/com/example/agent/loop/ReactLoopRunner.kt` | Shared ReAct loop engine used by every orchestrator |
-| `app/src/main/java/com/example/agent/core/llm/OpenAiCompatClient.kt` | HTTP/SSE client for chat completions, provider fallback |
-| `app/src/main/java/com/example/agent/core/agent/MiniAgent.kt` | Mini-agent roster data model + catalog |
-| `app/src/main/java/com/example/agent/core/mcp/ToolRegistry.kt` | Tool lookup/schema resolution for the LLM |
-| `app/src/main/java/com/example/di/AppGraph.kt` | Metro DI root graph |
-| `app/src/main/java/com/example/ui/chat/DrivenUiEngine.kt` | JSON-to-Compose card renderer (19 templates) |
-| `traceability.yaml` | Feature registry consumed by the `traxer` CLI |
-| `debug.keystore.base64` | Base64-encoded debug keystore |
-
----
-
-## Notes for AI Agents
-
-- Do **not** assume Hilt/Dagger conventions. This project uses **Metro** (`dev.zacsweers.metro`). Use `@Inject`, `@DependencyGraph`, `@ContributesTo`, `@BindingContainer`, `@ContributesBinding`, and `@Provides @IntoSet` accordingly.
-- **Package vs. directory mismatch:** every file's `package` statement already says `com.aiopenpocket.*`, but most files still physically live under `app/src/main/java/com/example/...`. Don't assume directory path encodes package — search by class/package name instead of by path. Place *new* files under `com/aiopenpocket/...` (matching their declared package), the way the `voice/` feature and every test file already do; don't add further to `com/example/`.
-- The UI defaults to Russian but is multi-language (`UserPreferencesRepository.language`; en/es/de/fr/uk supported via `LocaleMapping`/`languageLabel`). If adding new user-visible strings, Russian is still the primary/expected language unless you're explicitly localizing.
-- The app forces a dark theme (`Theme.kt` hardcodes `darkTheme = true`; there is no real light palette). Avoid adding light-theme-specific colors unless explicitly requested.
-- The system prompt is **not** built inline in `ChatViewModel` anymore — it's assembled by `PrePromptAssembler` from `assets/prompts/system_base.md` plus mode/persona/skill/memory sections. When changing prompt behavior, look there first, and preserve the JSON/tool-call contract that `DrivenUiEngine` and `ToolRegistry` expect.
-- When adding or finishing a feature, update `traceability.yaml` and any `@trace` markers on touched files (see Traceability above).
+| Path | Purpose |
+|---|---|
+| `app/build.gradle.kts`, `gradle/libs.versions.toml` | Build, dependencies, secrets filter, release key guard |
+| `di/AppGraph.kt`, `di/TurnModule.kt` | DI root; turn dispatch by mode |
+| `agent/loop/TurnManager.kt`, `agent/loop/ReactLoopRunner.kt` | App-scoped turns; shared ReAct loop and policy gate |
+| `agent/core/llm/OpenAiCompatClient.kt` | SSE chat client with model fallback |
+| `agent/core/llm/ModelCatalog.kt`, `agent/core/llm/ProviderFallbackChain.kt` | Meta-only catalog, fallback order |
+| `agent/core/policy/ExecutionPolicy.kt` | LIVE/PREVIEW, approval floor for DESTRUCTIVE/EXTERNAL |
+| `agent/core/prompt/PrePromptAssembler.kt`, `assets/prompts/system_base.md` | System prompt |
+| `di/AgentToolsModule.kt`, `agent/core/mcp/CapabilityNames.kt` | Tool registration, human names |
+| `agent/core/lesson/LessonChatController.kt`, `agent/core/lesson/Lesson.kt` | Lesson driver, step contract |
+| `ui/chat/ChatViewModel.kt`, `ui/chat/DrivenUiEngine.kt` | Chat state, card rendering |
+| `ui/roadmap/RoadmapScreen.kt`, `ui/roadmap/LibraryViewModel.kt` | Learning path, library |
+| `agent/core/agent/MiniAgent.kt`, `agent/core/agent/AgentResolver.kt` | Presets, agent resolution |
+| `data/database/AppDatabase.kt`, `di/DatabaseBindings.kt` | Room schema and builder |
+| `tools/lesson-images/pregenerate.py` | Pre-generates lesson images with Muse Image |
+| `traceability.yaml`, `.env.example` (repo root) | traxer feature registry; API key template |

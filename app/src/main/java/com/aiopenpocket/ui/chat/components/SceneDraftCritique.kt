@@ -129,7 +129,7 @@ internal fun DraftCritiqueScene() {
             text = when (phase) {
                 0 -> "Это первый проход. Нажми «Критика» — агент перечитает свой черновик"
                 1 -> "Критика нашла три слабых места — и пока ничего не переписала"
-                else -> "Итог лучше черновика, но это три вызова модели вместо одного. Для важного письма — окупается"
+                else -> "Итог лучше черновика, но это минимум три вызова модели вместо одного. Для важного письма — окупается"
             },
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (phase == 2) FontWeight.SemiBold else FontWeight.Normal,

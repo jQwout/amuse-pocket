@@ -81,7 +81,8 @@ class ExtractUserProfileUseCase(
       provider = selectedProvider(),
     ).collect { event ->
       when (event) {
-        is StreamEvent.TextDelta -> buffer.append(event.content)
+        // Размышление модели — не профиль: черновой JSON в нём разобрался бы как готовый ответ.
+        is StreamEvent.TextDelta -> if (!event.reasoning) buffer.append(event.content)
         is StreamEvent.Error -> errorMessage = event.message
         else -> Unit
       }

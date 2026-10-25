@@ -127,10 +127,59 @@ class OpenAiSseParserTest {
 
     val events = parse(sse)
 
-    // Без фолбэка тут был бы пустой ответ; теперь отдаём накопленное размышление как текст.
-    val text = events.filterIsInstance<StreamEvent.TextDelta>().joinToString("") { it.content }
-    assertEquals("Думаю над ответом.", text)
+    // Без фолбэка тут был бы пустой ответ; теперь отдаём накопленное размышление — с пометкой, что
+    // это мысли, а не ответ, и с флагом reasoning для тех, кто ждёт JSON.
+    val deltas = events.filterIsInstance<StreamEvent.TextDelta>()
+    assertEquals(REASONING_ONLY_PREFIX + "Думаю над ответом.", deltas.joinToString("") { it.content })
+    assertTrue("размышление обязано быть помечено", deltas.all { it.reasoning })
     assertEquals("stop", (events.last() as StreamEvent.Finish).reason)
+  }
+
+  // --- finish_reason "length": ответ обрезан по max_tokens ----------------------------------------
+
+  @Test
+  fun `length with only reasoning is an error, not a fake answer`() = runTest {
+    val sse = """
+      data: {"choices":[{"delta":{"reasoning":"Пользователь хочет, чтобы я"}}]}
+      data: {"choices":[{"delta":{},"finish_reason":"length"}]}
+      data: [DONE]
+    """.trimIndent()
+
+    val events = parse(sse)
+
+    val error = events.single() as StreamEvent.Error
+    assertEquals(CODE_LENGTH_EMPTY, error.code)
+    assertTrue(events.none { it is StreamEvent.TextDelta })
+  }
+
+  @Test
+  fun `length with a half-written tool call does not execute it`() = runTest {
+    val sse = """
+      data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"alarm","arguments":"{\"action\":\"set_al"}}]}}]}
+      data: {"choices":[{"delta":{},"finish_reason":"length"}]}
+      data: [DONE]
+    """.trimIndent()
+
+    val events = parse(sse)
+
+    assertTrue("недописанный вызов ушёл на исполнение", events.none { it is StreamEvent.ToolCall })
+    assertEquals(CODE_LENGTH_TOOL_CALL, (events.last() as StreamEvent.Error).code)
+  }
+
+  @Test
+  fun `length on a complete text answer keeps it and marks it as cut`() = runTest {
+    val sse = """
+      data: {"choices":[{"delta":{"content":"Длинный ответ"}}]}
+      data: {"choices":[{"delta":{},"finish_reason":"length"}]}
+      data: [DONE]
+    """.trimIndent()
+
+    val events = parse(sse)
+
+    val text = events.filterIsInstance<StreamEvent.TextDelta>().joinToString("") { it.content }
+    assertEquals("Длинный ответ$TRUNCATED_ANSWER_SUFFIX", text)
+    assertTrue(events.none { it is StreamEvent.Error })
+    assertEquals("length", (events.last() as StreamEvent.Finish).reason)
   }
 
   @Test

@@ -107,9 +107,13 @@ class AgentLoopOrchestrator(
       log.d(TAG, "✓ turn done iters=${result.iterations} textLen=${result.text.length}")
       send(AgentEvent.StateChanged(AgentState.FINISHED))
       send(AgentEvent.Completed(result))
+      // After each reply, refresh the chat's title/summary/tags from the raw log (no-op if too short).
+      // Вне хода, а не здесь же после Completed: второй LLM-вызов держал бы ход (и его защиту) живым,
+      // а прежний runCatching глотал отмену — см. ConversationAnnotator.annotateInBackground.
+      conversationAnnotator.annotateInBackground(conversationId) {
+        log.w(TAG, "annotate failed for $conversationId: ${it.message}")
+      }
     }
-    // After each reply, refresh the chat's title/summary/tags from the raw log (no-op if too short).
-    runCatching { conversationAnnotator.annotate(conversationId) }
   }
 
   companion object {

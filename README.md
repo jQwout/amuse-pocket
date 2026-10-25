@@ -23,7 +23,7 @@ Prerequisites: [Android Studio](https://developer.android.com/studio), an OpenRo
 1. Open the project in Android Studio.
 2. Create `.env` in the project root (see `.env.example`) and set `OPENROUTER_API_KEY` to your key.
    The key is baked into **debug** builds only; a release build refuses a live key.
-   You can also enter the key later in the app: Settings → API KEYS.
+   You can also enter the key later in the app: Settings → КЛЮЧ API (Ключ OpenRouter).
 3. Run the `app` configuration on an emulator or a device (Android 7.0+).
 
 ## Stack

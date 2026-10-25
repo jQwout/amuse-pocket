@@ -7,12 +7,13 @@ import com.aiopenpocket.agent.core.mcp.RiskClass
 import kotlinx.serialization.json.JsonElement
 
 /**
- * Whether a turn is allowed to touch real device/app state. [LIVE] is the default and matches every
- * behavior that existed before Task 9 — tools execute for real, gated only by [HookDecision]. [PREVIEW]
- * is for a builder test-run (Task 20): non-[RiskClass.READ] tools never execute, they report back what
- * *would* have happened (see [PolicyDecision.Simulate]) so a user can try out a draft agent without any
- * side effects. There is deliberately no third "ask every time" mode — that per-call behavior is what
- * [HookActionType.REQUIRE_APPROVAL][com.aiopenpocket.agent.core.hook.HookActionType] hooks express.
+ * Whether a turn is allowed to touch real device/app state. [LIVE] is the default: tools execute for
+ * real, gated by [HookDecision] and by the un-configurable approval floor for
+ * [RiskClass.DESTRUCTIVE]/[RiskClass.EXTERNAL] (see [ExecutionPolicy.evaluate]). [PREVIEW] is for a
+ * builder test-run (Task 20): non-[RiskClass.READ] tools never execute, they report back what *would*
+ * have happened (see [PolicyDecision.Simulate]) so a user can try out a draft agent without any side
+ * effects. There is deliberately no third "ask every time" mode — asking for READ/WRITE calls too is
+ * what [HookActionType.REQUIRE_APPROVAL][com.aiopenpocket.agent.core.hook.HookActionType] hooks express.
  */
 enum class ExecutionMode { LIVE, PREVIEW }
 
@@ -68,13 +69,23 @@ sealed interface PolicyDecision {
  * field on `AgentDefinition` today — the only per-agent rule that exists is its hooks, and those are
  * already folded into [hookDecision] by the time this runs. So the brief's "LIVE + risky → agent rule,
  * never weaker than the global safety floor" resolves to: a hook may DENY or REQUIRE_APPROVAL a call
- * (checked first, below — that floor can never be relaxed by mode or risk), and absent either, LIVE's
- * un-configurable floor is simply Execute, identical to every pre-Task-9 call. If a richer per-agent
- * policy is ever added, it plugs in here without changing this function's contract.
+ * (checked first, below — that can never be relaxed by mode or risk), and absent either, LIVE's
+ * un-configurable floor applies. If a richer per-agent policy is ever added, it plugs in here without
+ * changing this function's contract.
+ *
+ * Пол LIVE (решение владельца перед демо): [RiskClass.DESTRUCTIVE] и [RiskClass.EXTERNAL] ВСЕГДА ждут
+ * «Разрешить» от человека, даже у агента без единого хука и в обычном чате без агента. Раньше пол был
+ * просто Execute — удалить событие календаря или переписать документ пользователя модель могла сама,
+ * и единственной защитой был хук, который никто не обязан настраивать. Необратимое и уходящее за
+ * пределы приложения не должно зависеть от того, вспомнил ли автор агента про хук. Фоновый ход
+ * (`interactiveApproval = false`) ответить не может, поэтому там тот же AwaitApproval превращается в
+ * немедленный отказ — это делает [com.aiopenpocket.agent.loop.ReactLoopRunner], не эта функция.
+ * [RiskClass.READ]/[RiskClass.WRITE] выполняются как раньше, пока хук не попросит иного.
  *
  * Hook DENY/REQUIRE_APPROVAL are checked BEFORE the mode/risk table and win unconditionally, in both
  * LIVE and PREVIEW — a hook that blocks a tool must actually block it during a preview run too, not get
- * silently downgraded to a Simulate that looks like a harmless no-op for a different reason.
+ * silently downgraded to a Simulate that looks like a harmless no-op for a different reason. PREVIEW
+ * itself has no approval floor: nothing non-READ runs for real there, so there is nothing to approve.
  */
 object ExecutionPolicy {
 
@@ -91,20 +102,22 @@ object ExecutionPolicy {
     if (hookDecision.denied) {
       return PolicyDecision.Deny("Tool '$toolName' was denied by an agent hook.")
     }
-    if (hookDecision.approvalRequired) {
-      return PolicyDecision.AwaitApproval(
-        ToolApprovalRequest(
-          requestId = requestId,
-          runId = runId,
-          conversationId = conversationId,
-          toolName = toolName,
-          riskClass = risk,
-          arguments = arguments,
-        ),
-      )
-    }
+    val awaitApproval = PolicyDecision.AwaitApproval(
+      ToolApprovalRequest(
+        requestId = requestId,
+        runId = runId,
+        conversationId = conversationId,
+        toolName = toolName,
+        riskClass = risk,
+        arguments = arguments,
+      ),
+    )
+    if (hookDecision.approvalRequired) return awaitApproval
     return when (mode) {
-      ExecutionMode.LIVE -> PolicyDecision.Execute
+      ExecutionMode.LIVE -> when (risk) {
+        RiskClass.READ, RiskClass.WRITE -> PolicyDecision.Execute
+        RiskClass.DESTRUCTIVE, RiskClass.EXTERNAL -> awaitApproval
+      }
       ExecutionMode.PREVIEW -> when (risk) {
         RiskClass.READ -> PolicyDecision.Execute
         RiskClass.WRITE, RiskClass.DESTRUCTIVE, RiskClass.EXTERNAL ->

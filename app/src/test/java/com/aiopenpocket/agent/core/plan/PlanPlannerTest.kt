@@ -188,6 +188,24 @@ class PlanPlannerTest {
   // --- schema isolation (Task 4 Step 6) ----------------------------------------------------------
 
   @Test
+  fun `planner prompt carries the current moment`() {
+    // Без «Сейчас» планировщик не может поставить шагу расписание «завтра в 9» или понять «к пятнице».
+    val now = java.util.Calendar.getInstance().apply { set(2026, java.util.Calendar.OCTOBER, 25, 9, 41, 0) }.timeInMillis
+
+    val prompt = PlanPromptBuilder(AssetSource { null }, clock = { now }).build(
+      agent = agent(),
+      horizon = PlanHorizon.PROGRAM,
+      template = null,
+      existingVersion = null,
+      relevantContext = null,
+      userMessage = "напоминай пить воду",
+    )
+
+    assertTrue(prompt.contains("## Сейчас"))
+    assertTrue("нет времени: $prompt", prompt.contains("09:41"))
+  }
+
+  @Test
   fun `planner control schema names equal PlanValidator's frozen control tool name set`() {
     assertEquals(PlanValidator.PLANNER_CONTROL_TOOL_NAMES, PlanControlSchemas.NAMES)
   }

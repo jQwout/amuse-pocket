@@ -21,7 +21,8 @@ import com.aiopenpocket.agent.core.mcp.RiskClass
  * they know which arguments the model will eventually pass, so this catalog reports the actual WORST
  * case any documented action of that tool can reach, not the possibly-understated class-wide default.
  * `work_manager` is the other such case (ceiling declared [RiskClass.WRITE], `cancel_work` actually
- * [RiskClass.DESTRUCTIVE]). Every other entry's [riskClass] matches its tool's own declared ceiling.
+ * [RiskClass.DESTRUCTIVE]). Every other entry's [riskClass] matches its tool's own declared ceiling
+ * (`storage_tool` and `external_files` declare DESTRUCTIVE since their delete/overwrite actions do).
  */
 data class ToolCatalogEntry(
   val name: String,
@@ -64,14 +65,16 @@ object ToolCatalog {
     ),
     ToolCatalogEntry(
       name = "storage_tool",
-      riskClass = RiskClass.WRITE,
+      // DESTRUCTIVE — худший случай: delete стирает данные агента (25 окт 2026 переклассифицирован в
+      // самом туле); каждое удаление в чате спрашивает разрешения, в фоне запрещено.
+      riskClass = RiskClass.DESTRUCTIVE,
       permission = null,
       // Part B of the database_query security hardening (user-agent-builder-848153, 2026-07-15): the
       // structured write path database_query's Part A restriction pushes agents toward. Isolated
       // per-agent IN CODE (agentId comes only from TurnContextHolder, never a tool argument) — safe as
       // a default (non-advanced) tool for exactly the same reason memory_tool already is one.
-      consequence = "Сохраняет и читает собственные данные агента (заметки, счётчики) в изолированном " +
-        "хранилище — другие агенты его не видят.",
+      consequence = "Сохраняет, читает и удаляет собственные данные агента (заметки, счётчики) в " +
+        "изолированном хранилище — другие агенты его не видят. Удаление каждый раз спросит твоё разрешение.",
     ),
     ToolCatalogEntry(
       name = "file_tool",
@@ -86,7 +89,8 @@ object ToolCatalog {
     // app's own private storage through file://, which is exactly what the gate now refuses.
     ToolCatalogEntry(
       name = "external_files",
-      riskClass = RiskClass.WRITE,
+      // DESTRUCTIVE: write_file перезаписывает документ пользователя целиком (режим "wt").
+      riskClass = RiskClass.DESTRUCTIVE,
       permission = null,
       consequence = "Читает и пишет файлы вне песочницы — только те, доступ к которым пользователь " +
         "уже выдал системе. Выбора папки в приложении пока нет, поэтому тул сейчас всегда отвечает " +

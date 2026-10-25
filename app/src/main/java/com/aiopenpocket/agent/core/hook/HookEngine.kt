@@ -83,7 +83,10 @@ data class HookContext(
  * - a matching [HookActionType.DENY] always wins over [HookActionType.ALLOW], regardless of order;
  * - [executedSoFar]/[maxExecutionsPerRun] cap how many hooks can fire across a WHOLE run (many
  *   [evaluate] calls share one running total, threaded through by the caller) — once spent, further
- *   matching hooks are silently skipped rather than applied;
+ *   matching LOG/ADD_INSTRUCTION/ALLOW hooks are skipped rather than applied. The guard actions
+ *   ([BUDGET_EXEMPT_ACTIONS]: DENY/REQUIRE_APPROVAL/STOP) are exempt and still fire: the cap exists to
+ *   bound journal writes and prompt growth, and it must never fail OPEN — a long run must not quietly
+ *   outlive the very rule that forbids a tool;
  * - a hook whose condition/action JSON fails to parse fails CLOSED (treated as "doesn't match" or
  *   "fired with no payload", see [matched]) instead of throwing — this is what makes `ON_ERROR`
  *   non-recursive: there is no code path here that reacts to a processing failure by evaluating
@@ -91,13 +94,21 @@ data class HookContext(
  */
 object HookEngine {
 
-  /** Upper bound on how many hooks may actually fire across one [com.aiopenpocket.agent.loop.ReactLoopRunner.run] call. */
+  /** Upper bound on how many hooks may actually fire across one [com.aiopenpocket.agent.loop.ReactLoopRunner.run] call (guard actions excepted, see [BUDGET_EXEMPT_ACTIONS]). */
   const val MAX_EXECUTIONS_PER_RUN = 50
+
+  /**
+   * Guard actions that keep firing after [MAX_EXECUTIONS_PER_RUN] is spent. Each one only ever
+   * narrows what the run may do (forbid a tool, ask a human, halt), so applying it past the cap can
+   * cost a journal row at most — skipping it would silently widen what the agent is allowed to do.
+   */
+  val BUDGET_EXEMPT_ACTIONS: Set<HookActionType> =
+    setOf(HookActionType.DENY, HookActionType.REQUIRE_APPROVAL, HookActionType.STOP)
 
   /**
    * One [AgentHook] that actually fired for a single [evaluate]/[matched] call — enabled, its
    * [AgentHook.event] matched, its [AgentHook.actionType] valid for that event, its condition
-   * matched, and still within budget. [detail] is the parsed instruction/log text for
+   * matched, and still within budget (or a [BUDGET_EXEMPT_ACTIONS] guard). [detail] is the parsed instruction/log text for
    * [HookActionType.ADD_INSTRUCTION]/[HookActionType.LOG] (empty for payload-less actions);
    * [error] is set instead when [AgentHook.actionJson] failed to parse (the hook still "fired" —
    * matched and consumed budget — just with no usable payload).
@@ -164,7 +175,11 @@ object HookEngine {
     val firings = mutableListOf<Firing>()
     var executed = executedSoFar
     for (candidate in candidates) {
-      if (executed >= maxExecutionsPerRun) break
+      // Бюджет исчерпан — пропускаем (а не break) только «мягкие» действия: DENY/REQUIRE_APPROVAL/STOP
+      // ниже по приоритету должны сработать и на 51-м срабатывании. Раньше здесь стоял break, и
+      // после 50 срабатываний (их легко набрать LOG-хуком на каждый тул) запрет агента просто
+      // переставал действовать — ограничитель расхода превращался в способ обойти правило.
+      if (executed >= maxExecutionsPerRun && candidate.actionType !in BUDGET_EXEMPT_ACTIONS) continue
       val isMatch = runCatching { conditionMatches(candidate.conditionType, candidate.conditionJson, context) }
         .getOrDefault(false) // malformed conditionJson fails closed: never matches, never throws.
       if (!isMatch) continue

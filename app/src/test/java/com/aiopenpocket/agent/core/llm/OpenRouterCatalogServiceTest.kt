@@ -73,22 +73,37 @@ class OpenRouterCatalogServiceTest {
   @Test
   fun `models without tools support never reach the catalog`() = runTest {
     val catalog = service(
-      model("vendor/with-tools"),
-      model("vendor/no-tools", params = listOf("temperature")),
+      model("meta/t-with-tools"),
+      model("meta/t-no-tools", params = listOf("temperature")),
     ).refresh()
 
-    assertEquals(listOf("vendor/with-tools"), catalog?.models?.map { it.name })
+    assertEquals(listOf("meta/t-with-tools"), catalog?.models?.map { it.name })
+  }
+
+  /**
+   * Приложение работает только на моделях Meta. meta-llama/ — не Meta как провайдер: Llama на OpenRouter
+   * обслуживают сторонние хостеры, и запрос ушёл бы им.
+   */
+  @Test
+  fun `only meta models reach the catalog`() = runTest {
+    val catalog = service(
+      model("meta/t-muse"),
+      model("openai/gpt-x"),
+      model("meta-llama/llama-4"),
+    ).refresh()
+
+    assertEquals(listOf("meta/t-muse"), catalog?.models?.map { it.name })
   }
 
   /** Модель, не принимающая текст (например, чисто image-to-image), в чате бесполезна. */
   @Test
   fun `models that cannot take text are dropped`() = runTest {
     val catalog = service(
-      model("vendor/text"),
-      model("vendor/image-only", modalities = listOf("image")),
+      model("meta/t-text"),
+      model("meta/t-image-only", modalities = listOf("image")),
     ).refresh()
 
-    assertEquals(listOf("vendor/text"), catalog?.models?.map { it.name })
+    assertEquals(listOf("meta/t-text"), catalog?.models?.map { it.name })
   }
 
   /** Contributor-версия приходит в том же списке, с tools и текстом — отличает её только суффикс. */
@@ -107,33 +122,33 @@ class OpenRouterCatalogServiceTest {
   fun `seeded models come first, the rest by creation date descending`() = runTest {
     val seeded = loader.loadOpenRouterSeed().models.first().name
     val catalog = service(
-      model("vendor/old", created = 100),
-      model("vendor/new", created = 300),
+      model("meta/t-old", created = 100),
+      model("meta/t-new", created = 300),
       model(seeded, created = 1),
     ).refresh()
 
-    assertEquals(listOf(seeded, "vendor/new", "vendor/old"), catalog?.models?.map { it.name })
+    assertEquals(listOf(seeded, "meta/t-new", "meta/t-old"), catalog?.models?.map { it.name })
     assertEquals(listOf(1, 2, 3), catalog?.models?.map { it.priority })
   }
 
   @Test
   fun `max tokens is capped, but a lower provider limit wins`() = runTest {
     val catalog = service(
-      model("vendor/huge", maxCompletionTokens = 100_000),
-      model("vendor/small", maxCompletionTokens = 4_000),
-      model("vendor/unknown"),
+      model("meta/t-huge", maxCompletionTokens = 100_000),
+      model("meta/t-small", maxCompletionTokens = 4_000),
+      model("meta/t-unknown"),
     ).refresh()
 
     val byName = catalog!!.models.associate { it.name to it.maxTokens }
-    assertEquals(16_000, byName["vendor/huge"])
-    assertEquals(4_000, byName["vendor/small"])
-    assertEquals(16_000, byName["vendor/unknown"])
+    assertEquals(16_000, byName["meta/t-huge"])
+    assertEquals(4_000, byName["meta/t-small"])
+    assertEquals(16_000, byName["meta/t-unknown"])
   }
 
   @Test
   fun `reasoning and input modalities are carried over`() = runTest {
     val catalog = service(
-      model("vendor/thinker", params = listOf("tools", "reasoning"), modalities = listOf("text", "image")),
+      model("meta/t-thinker", params = listOf("tools", "reasoning"), modalities = listOf("text", "image")),
     ).refresh()
 
     val entry = catalog!!.models.single()
@@ -149,22 +164,22 @@ class OpenRouterCatalogServiceTest {
   @Test
   fun `duplicate and blank ids are dropped`() = runTest {
     val catalog = service(
-      model("vendor/dup", created = 300),
-      model("vendor/dup", created = 100),
+      model("meta/t-dup", created = 300),
+      model("meta/t-dup", created = 100),
       model(""),
     ).refresh()
 
-    assertEquals(listOf("vendor/dup"), catalog?.models?.map { it.name })
+    assertEquals(listOf("meta/t-dup"), catalog?.models?.map { it.name })
   }
 
   /** Тело ошибки OpenRouter (`{"error":{...}}`) разбирается в пустой список — рабочий кеш должен уцелеть. */
   @Test
   fun `an HTTP error never touches the cache`() = runTest {
-    service(model("vendor/cached")).refresh(now = 1_000L)
+    service(model("meta/t-cached")).refresh(now = 1_000L)
 
     val rateLimited = OpenRouterCatalogService(cache, loader, MockEngine { respondError(HttpStatusCode.TooManyRequests) })
     assertNull(rateLimited.refresh(now = 2_000L))
-    assertEquals(listOf("vendor/cached"), loader.loadOpenRouter().models.map { it.name })
+    assertEquals(listOf("meta/t-cached"), loader.loadOpenRouter().models.map { it.name })
   }
 
   /**
@@ -183,51 +198,51 @@ class OpenRouterCatalogServiceTest {
 
   @Test
   fun `a successful refresh is cached and picked up by the loader`() = runTest {
-    service(model("vendor/fresh")).refresh(now = 1_000L)
+    service(model("meta/t-fresh")).refresh(now = 1_000L)
 
     assertEquals(1_000L, cache.read()?.fetchedAt)
-    assertEquals(listOf("vendor/fresh"), loader.loadOpenRouter().models.map { it.name })
+    assertEquals(listOf("meta/t-fresh"), loader.loadOpenRouter().models.map { it.name })
     assertEquals(ModelCatalog.OPENROUTER_BASE_URL, loader.loadOpenRouter().baseUrl)
   }
 
   @Test
   fun `network failure leaves the previous catalog alone`() = runTest {
-    service(model("vendor/cached")).refresh(now = 1_000L)
+    service(model("meta/t-cached")).refresh(now = 1_000L)
 
     val failing = OpenRouterCatalogService(cache, loader, MockEngine { respondError(HttpStatusCode.BadGateway) })
     assertNull(failing.refresh(now = 2_000L))
-    assertEquals(listOf("vendor/cached"), loader.loadOpenRouter().models.map { it.name })
+    assertEquals(listOf("meta/t-cached"), loader.loadOpenRouter().models.map { it.name })
   }
 
   /** Ответ разобрался, но ни одной пригодной модели: перезаписать рабочий кеш пустотой нельзя. */
   @Test
   fun `an all-filtered response does not wipe the cache`() = runTest {
-    service(model("vendor/cached")).refresh(now = 1_000L)
+    service(model("meta/t-cached")).refresh(now = 1_000L)
 
-    assertNull(service(model("vendor/no-tools", params = listOf("temperature"))).refresh(now = 2_000L))
-    assertEquals(listOf("vendor/cached"), loader.loadOpenRouter().models.map { it.name })
+    assertNull(service(model("meta/t-no-tools", params = listOf("temperature"))).refresh(now = 2_000L))
+    assertEquals(listOf("meta/t-cached"), loader.loadOpenRouter().models.map { it.name })
   }
 
   @Test
   fun `fresh cache is served without touching the network`() = runTest {
-    service(model("vendor/cached")).refresh(now = 1_000L)
+    service(model("meta/t-cached")).refresh(now = 1_000L)
 
     val calls = mutableListOf<String>()
-    val snapshot = service(model("vendor/newer"), calls = calls).refreshIfStale(now = 1_000L + 60_000L)
+    val snapshot = service(model("meta/t-newer"), calls = calls).refreshIfStale(now = 1_000L + 60_000L)
 
     assertEquals(emptyList<String>(), calls)
-    assertEquals(listOf("vendor/cached"), snapshot.catalog.models.map { it.name })
+    assertEquals(listOf("meta/t-cached"), snapshot.catalog.models.map { it.name })
     assertTrue("кеш — это реальный список провайдера", snapshot.authoritative)
   }
 
   @Test
   fun `a stale cache is refreshed`() = runTest {
-    service(model("vendor/cached")).refresh(now = 1_000L)
+    service(model("meta/t-cached")).refresh(now = 1_000L)
 
     val dayAndABit = 1_000L + 25 * 60 * 60 * 1000L
-    val snapshot = service(model("vendor/newer")).refreshIfStale(now = dayAndABit)
+    val snapshot = service(model("meta/t-newer")).refreshIfStale(now = dayAndABit)
 
-    assertEquals(listOf("vendor/newer"), snapshot.catalog.models.map { it.name })
+    assertEquals(listOf("meta/t-newer"), snapshot.catalog.models.map { it.name })
     assertTrue(snapshot.authoritative)
   }
 

@@ -4,6 +4,7 @@ package com.aiopenpocket.agent.loop
 // @trace user-agent-builder-848153
 // @trace structured-plan-engine-907066
 
+import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.agent.core.AgentLog
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
@@ -11,7 +12,9 @@ import com.aiopenpocket.agent.core.policy.ExecutionMode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,6 +28,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Ходы агента, отвязанные от жизненного цикла экрана: appScope-синглтон держит по TurnSession на
@@ -61,6 +65,24 @@ class TurnManager(
   private val mutex = Mutex()
 
   private val sessionsFlow = MutableStateFlow<Map<String, TurnSession>>(emptyMap())
+
+  /**
+   * Отменённые, но ещё не доработавшие ходы по диалогам. Сериализацию ходов держал только
+   * `session.job`, а Stop/закрытие ошибки убирают сессию целиком: следующий ход заводил новую
+   * сессию без job и стартовал, не дождавшись остановки прошлого, — тот мог ещё дописывать ответ
+   * или результат инструмента в тот же диалог. Теперь каждый отменённый ход лежит здесь до своего
+   * фактического завершения, и новый ход диалога ждёт их всех (см. [startTurn]).
+   *
+   * Обычный `synchronized`, а не [mutex]: снимается из `invokeOnCompletion`, где suspend нельзя.
+   */
+  private val dyingJobs = HashMap<String, MutableSet<Job>>()
+
+  /**
+   * `systemPromptExtra` последнего хода по диалогам — для [retry]. Отдельной мапой, а не полем
+   * [TurnSession] (там остальной ретрай-контекст), только чтобы не трогать файл сессии в этом
+   * проходе; перезаписывается каждым ходом, поэтому устаревшее значение к ретраю не доезжает.
+   */
+  private val lastSystemPromptExtra = ConcurrentHashMap<String, String>()
 
   init {
     // Единственный подписчик: только менеджер владеет job-ами ходов и может их отменить.
@@ -105,7 +127,7 @@ class TurnManager(
     scope.launch {
       mutex.withLock {
         val session = sessionsFlow.value[conversationId] ?: return@withLock
-        session.job?.cancel()
+        session.job?.let { retire(conversationId, it) }
         sessionsFlow.update { it - conversationId }
       }
     }
@@ -122,9 +144,9 @@ class TurnManager(
     val job = mutex.withLock {
       val session = sessionsFlow.value[conversationId] ?: return@withLock null
       sessionsFlow.update { it - conversationId }
-      session.job
+      session.job?.also { retire(conversationId, it) }
     }
-    job?.cancelAndJoin()
+    job?.join()
   }
 
   /**
@@ -143,7 +165,11 @@ class TurnManager(
       val text = session.lastUserText ?: return@launch
       startTurn(
         conversationId, text, session.lastMode, session.lastPlanId, session.lastBudget,
-        persistUserMessage = false, executionMode = session.lastExecutionMode,
+        persistUserMessage = false,
+        // Контекст хода повторяется вместе с ним: вопрос посреди урока без текста текущего шага
+        // превращался при «Повторить» в вопрос без контекста — модель отвечала не про тот шаг.
+        systemPromptExtra = lastSystemPromptExtra[conversationId],
+        executionMode = session.lastExecutionMode,
       )
     }
   }
@@ -176,7 +202,7 @@ class TurnManager(
         val status = session.status.value
         val hasError = status is TurnStatus.Failed || (status is TurnStatus.Completed && status.error != null)
         if (hasError) {
-          session.job?.cancel()
+          session.job?.let { retire(conversationId, it) }
           sessionsFlow.update { it - conversationId }
         }
       }
@@ -244,11 +270,13 @@ class TurnManager(
       // Гасим прошлый ход СРАЗУ под мьютексом, а join ждём уже внутри нового job. Иначе, если новый
       // job отменят (Stop/clearError) раньше, чем он дойдёт до cancelAndJoin, прошлый ход остался бы
       // недоотменённым и продолжил бы писать ответ в «остановленный» диалог.
-      val previous = session.job
-      previous?.cancel()
+      session.job?.let { retire(conversationId, it) }
+      // Ждём ВСЕ недоработавшие ходы диалога, а не только job этой сессии: сессию мог снести Stop
+      // (тогда job здесь null), а прошлый ход мог сам быть отменён, пока ждал предыдущего.
+      val previous = dyingJobsOf(conversationId)
       session.job = scope.launch {
         try {
-          previous?.join()
+          previous.joinAll()
           runTurn(session, userText, mode, planId, budget, persistUserMessage, systemPromptExtra, executionMode)
         } finally {
           // finally, а не хвост runTurn: отмена (Stop, новый ход) обязана отпустить защиту тоже,
@@ -258,6 +286,26 @@ class TurnManager(
       }
     }
   }
+
+  /**
+   * Отменяет [job] и держит его в [dyingJobs] диалога, пока он фактически не завершится, — чтобы
+   * следующий ход этого диалога дождался его, даже если сессию уже убрали.
+   */
+  private fun retire(conversationId: String, job: Job) {
+    job.cancel()
+    synchronized(dyingJobs) { dyingJobs.getOrPut(conversationId) { HashSet() }.add(job) }
+    // Для уже завершённого job обработчик вызывается сразу — запись тут же и снимается.
+    job.invokeOnCompletion {
+      synchronized(dyingJobs) {
+        val jobs = dyingJobs[conversationId] ?: return@synchronized
+        jobs.remove(job)
+        if (jobs.isEmpty()) dyingJobs.remove(conversationId)
+      }
+    }
+  }
+
+  private fun dyingJobsOf(conversationId: String): List<Job> =
+    synchronized(dyingJobs) { dyingJobs[conversationId]?.toList().orEmpty() }
 
   /**
    * Система отобрала защиту (таймаут shortService). Гейт на видимости — ключевой: foreground-процесс
@@ -302,6 +350,11 @@ class TurnManager(
     session.lastPlanId = planId
     session.lastBudget = budget
     session.lastExecutionMode = executionMode
+    if (systemPromptExtra != null) {
+      lastSystemPromptExtra[convId] = systemPromptExtra
+    } else {
+      lastSystemPromptExtra.remove(convId)
+    }
     try {
       if (persistUserMessage) {
         // Новый ход — новая попытка: ретрай-контекст валиден только после успешного addMessage.
@@ -405,10 +458,18 @@ class TurnManager(
         // Уточняем прогресс именем инструмента (EXECUTING_TOOL мгновением раньше показал общий текст).
         is AgentEvent.ToolStarted -> session.streamingTextFlow.value = TurnTexts.toolProgress(event.name, event.args)
 
-        // Ходу не нужны: бар approval'а ChatViewModel берёт из ToolApprovalCoordinator.pending
-        // (фильтруя по своему conversationId), а не из потока событий хода. Ветка явная, а не else:
-        // новое событие цикла обязано уронить компиляцию здесь, а не потеряться молча.
-        is AgentEvent.ToolApprovalRequired -> Unit
+        // Бар approval'а ChatViewModel берёт из ToolApprovalCoordinator.pending (фильтруя по своему
+        // conversationId), а не из потока событий хода. Здесь — только пуш, если приложение свёрнуто:
+        // иначе запрос на удаление/отправку молча истёк бы отказом. Ветка явная, а не else: новое
+        // событие цикла обязано уронить компиляцию здесь, а не потеряться молча.
+        is AgentEvent.ToolApprovalRequired -> if (!foreground.isInForeground()) {
+          val title = runCatching { persistence.conversationTitle(session.conversationId) }.getOrNull()
+          notifier.approvalNeeded(
+            session.conversationId,
+            title,
+            CapabilityNames.call(event.request.toolName, event.request.arguments),
+          )
+        }
       }
     }
   }

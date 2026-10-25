@@ -22,6 +22,7 @@ import com.aiopenpocket.agent.workers.NotificationWorker
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.JsonElement
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -56,7 +57,7 @@ class WorkManagerTool(
     integer("interval_minutes", "Интервал в минутах (для schedule_periodic, минимум 15)")
     string("title", "Заголовок уведомления")
     string("message", "Текст уведомления")
-    string("work_id", "ID задачи для отмены (cancel_work)")
+    string("work_id", "Work ID, который вернул этот же тул при планировании (cancel_work); чужие задачи и напоминания он не отменяет")
   }
 
   override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult {
@@ -90,6 +91,18 @@ class WorkManagerTool(
 
       "cancel_work" -> {
         val workId = arguments.string("work_id") ?: return missingArg("work_id")
+        // Отменяем только СВОИ задачи. cancelUniqueWork принимает любое уникальное имя, и раньше
+        // модель могла снести так чужую работу — напоминание `heartbeat_<id>` в обход HeartbeatTool
+        // (строка в Room осталась бы «scheduled», а пуш не пришёл бы никогда), шаг плана или
+        // служебный воркер. Свою задачу тул узнаёт по тегу `id:<work_id>`, который ставит при создании.
+        val infos = workManager.getWorkInfosForUniqueWorkFlow(workId).first()
+        val ownTag = "$TAG_ID_PREFIX$workId"
+        if (infos.isEmpty() || infos.any { ownTag !in it.tags }) {
+          return ToolResult.Error(
+            "No task with ID '$workId' was scheduled by work_manager. It can only cancel its own tasks " +
+              "(the 'Work ID' it returned); reminders are cancelled via the heartbeat tool.",
+          )
+        }
         workManager.cancelUniqueWork(workId)
         ToolResult.Success("Cancelled work: $workId")
       }

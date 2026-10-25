@@ -52,4 +52,19 @@ class TurnCompletionTest {
     val out = resolveCompletedTurn(result(""))
     assertEquals(TurnTexts.BLANK_REPLY_ERROR, out.blankError)
   }
+
+  @Test
+  fun `лимит шагов виден пользователю после преамбул`() {
+    val out = resolveCompletedTurn(result("Сейчас посмотрю заметки").copy(hitIterationLimit = true, iterations = 10))
+    assertEquals("Сейчас посмотрю заметки\n\n${TurnTexts.ITERATION_LIMIT_NOTE}", out.responseText)
+    assertNull(out.blankError)
+  }
+
+  @Test
+  fun `лимит шагов без текста — не «пустой ответ», а пометка о лимите`() {
+    // Раньше: последний виток — только tool_call, преамбул нет, и пользователь видел «пустой ответ».
+    val out = resolveCompletedTurn(result("").copy(hitIterationLimit = true, iterations = 10))
+    assertEquals(TurnTexts.ITERATION_LIMIT_NOTE, out.responseText)
+    assertNull(out.blankError)
+  }
 }

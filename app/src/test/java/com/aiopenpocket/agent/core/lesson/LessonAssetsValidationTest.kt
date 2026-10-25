@@ -156,9 +156,15 @@ class LessonAssetsValidationTest {
             "example" -> if (step.parts.isEmpty() || step.parts.all { it.text.isBlank() }) err("пустые parts")
 
             "fill" -> {
-              // FillCardView: a == b && a.isNotEmpty() — пустой answer нерешаем, а кнопки «Дальше» у fill нет.
+              // FillCard.accepts: пустой ввод не засчитывается никогда — пустой answer нерешаем без
+              // подсказки, а после двух промахов карточка показала бы пустое «Правильно: «»».
               if (step.answer.isBlank()) err("пустой answer — шаг нерешаем, урок зависнет")
               if (!step.template.contains("___")) err("в template нет '___' — непонятно, что вписывать")
+              // Пустую строку в answers рендер отбросит молча — значит, автор думал, что вариант
+              // засчитывается, а он нет. Лучше упасть здесь.
+              step.answers.forEachIndexed { ai, alt ->
+                if (alt.isBlank()) err("answers[$ai]: пустая строка — такой вариант не засчитается")
+              }
             }
 
             "sort" -> {
@@ -254,7 +260,7 @@ class LessonAssetsValidationTest {
 
   /**
    * `LessonChatController.postCompletion` reads `lesson.steps.lastOrNull()?.primaryAction` to decide
-   * whether the completion card gets the "Собрать этого агента" CTA (see DrivenUiEngineTest for the
+   * whether the completion card gets the «Открыть конструктор» CTA (see DrivenUiEngineTest for the
    * card-parsing side). Here we lint the SOURCE of that data: the capstone asset itself.
    */
   @Test

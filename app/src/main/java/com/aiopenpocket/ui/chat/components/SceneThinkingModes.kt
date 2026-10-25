@@ -116,7 +116,8 @@ internal fun ThinkingModesScene() {
     val measurer = rememberTextMeasurer()
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Спроси Muse Spark — и выбери, сколько ему думать", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        // Режимы — переключатель приложения Meta AI; через API, как в этом приложении, Muse Spark думает всегда.
+        Text("Режимы Muse Spark в Meta AI: выбери, сколько думать", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             ASKS.forEachIndexed { index, item ->
                 FilterChip(selected = askIndex == index, enabled = !running, onClick = { askIndex = index; shown = -1 }, label = { Text(item.chip) })

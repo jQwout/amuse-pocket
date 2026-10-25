@@ -154,27 +154,73 @@ class HookEngineTest {
   // --- per-run execution limit --------------------------------------------------------------
 
   @Test
-  fun `per-run execution limit caps how many hooks fire in one call`() {
+  fun `per-run execution limit caps how many soft hooks fire in one call`() {
     val hooks = listOf(
       hook(id = "h1", event = HookEvent.BEFORE_TOOL, actionType = HookActionType.LOG, priority = 0, actionJson = """{"text":"one"}"""),
       hook(id = "h2", event = HookEvent.BEFORE_TOOL, actionType = HookActionType.LOG, priority = 1, actionJson = """{"text":"two"}"""),
-      // 3rd hook, lowest priority (fires last if budget allowed it) - DENY makes the cap's effect observable.
-      hook(id = "h3", event = HookEvent.BEFORE_TOOL, actionType = HookActionType.DENY, priority = 2),
+      // 3rd hook, lowest priority (fires last if budget allowed it) - a LOG makes the cap's effect observable.
+      hook(id = "h3", event = HookEvent.BEFORE_TOOL, actionType = HookActionType.LOG, priority = 2, actionJson = """{"text":"three"}"""),
     )
 
     val decision = HookEngine.evaluate(hooks, HookEvent.BEFORE_TOOL, HookContext(toolName = "sms"), executedSoFar = 0, maxExecutionsPerRun = 2)
 
-    assertEquals(2, decision.logs.size)
-    assertFalse("3rd hook (DENY) must not fire once the per-run budget is spent", decision.denied)
+    assertEquals("3rd LOG hook must not fire once the per-run budget is spent", 2, decision.logs.size)
   }
 
   @Test
-  fun `a budget already spent by earlier events in the run means nothing fires now`() {
-    val hooks = listOf(hook(id = "h1", event = HookEvent.BEFORE_TOOL, actionType = HookActionType.DENY))
+  fun `a budget already spent by earlier events in the run means no soft hook fires now`() {
+    val hooks = listOf(
+      hook(id = "h1", event = HookEvent.BEFORE_TOOL, actionType = HookActionType.LOG, actionJson = """{"text":"x"}"""),
+      hook(id = "h2", event = HookEvent.BEFORE_TURN, actionType = HookActionType.ADD_INSTRUCTION, actionJson = """{"text":"y"}"""),
+    )
 
-    val decision = HookEngine.evaluate(hooks, HookEvent.BEFORE_TOOL, HookContext(toolName = "sms"), executedSoFar = 50, maxExecutionsPerRun = 50)
+    assertEquals(
+      HookDecision(),
+      HookEngine.evaluate(hooks, HookEvent.BEFORE_TOOL, HookContext(toolName = "sms"), executedSoFar = 50, maxExecutionsPerRun = 50),
+    )
+    assertEquals(HookDecision(), HookEngine.evaluate(hooks, HookEvent.BEFORE_TURN, HookContext(), executedSoFar = 50, maxExecutionsPerRun = 50))
+  }
 
-    assertEquals(HookDecision(), decision)
+  @Test
+  fun `an exhausted budget never fails open - DENY, REQUIRE_APPROVAL and STOP still apply`() {
+    // Регрессия: раньше matched() делал break на исчерпанном бюджете, и после 50 срабатываний (их
+    // легко набрать LOG-хуком на каждый вызов) запрет агента на тул просто переставал действовать.
+    val deny = listOf(hook(id = "d", event = HookEvent.BEFORE_TOOL, actionType = HookActionType.DENY))
+    val approval = listOf(hook(id = "r", event = HookEvent.BEFORE_TOOL, actionType = HookActionType.REQUIRE_APPROVAL))
+    val stop = listOf(hook(id = "s", event = HookEvent.BEFORE_TOOL, actionType = HookActionType.STOP))
+    val spent = HookContext(toolName = "sms")
+
+    assertTrue(HookEngine.evaluate(deny, HookEvent.BEFORE_TOOL, spent, executedSoFar = 50, maxExecutionsPerRun = 50).denied)
+    assertTrue(HookEngine.evaluate(approval, HookEvent.BEFORE_TOOL, spent, executedSoFar = 50, maxExecutionsPerRun = 50).approvalRequired)
+    assertTrue(HookEngine.evaluate(stop, HookEvent.BEFORE_TOOL, spent, executedSoFar = 50, maxExecutionsPerRun = 50).stopped)
+  }
+
+  @Test
+  fun `a guard hook ranked after budget-eating LOG hooks still fires in the same call`() {
+    val hooks = listOf(
+      hook(id = "h1", event = HookEvent.BEFORE_TOOL, actionType = HookActionType.LOG, priority = 0, actionJson = """{"text":"one"}"""),
+      hook(id = "h2", event = HookEvent.BEFORE_TOOL, actionType = HookActionType.LOG, priority = 1, actionJson = """{"text":"two"}"""),
+      hook(id = "h3", event = HookEvent.BEFORE_TOOL, actionType = HookActionType.DENY, priority = 2),
+    )
+
+    val decision = HookEngine.evaluate(hooks, HookEvent.BEFORE_TOOL, HookContext(toolName = "sms"), executedSoFar = 0, maxExecutionsPerRun = 1)
+
+    assertTrue("DENY ranked last must not be crowded out by LOG hooks spending the budget", decision.denied)
+    assertEquals("only one LOG fits the budget; the DENY is journaled on top of it", 2, decision.logs.size)
+  }
+
+  @Test
+  fun `a condition mismatch still applies to an exempt guard - an over-budget DENY for another tool does not fire`() {
+    val hooks = listOf(
+      hook(
+        id = "d", event = HookEvent.BEFORE_TOOL, actionType = HookActionType.DENY,
+        conditionType = "tool_name_in", conditionJson = """{"names":["sms"]}""",
+      ),
+    )
+
+    val decision = HookEngine.evaluate(hooks, HookEvent.BEFORE_TOOL, HookContext(toolName = "email"), executedSoFar = 50, maxExecutionsPerRun = 50)
+
+    assertFalse(decision.denied)
   }
 
   // --- ON_ERROR non-recursion ----------------------------------------------------------------

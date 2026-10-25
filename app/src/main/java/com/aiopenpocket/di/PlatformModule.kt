@@ -4,6 +4,7 @@ package com.aiopenpocket.di
 
 import android.app.Application
 import android.util.Log
+import com.aiopenpocket.BuildConfig
 import com.aiopenpocket.agent.core.AgentLog
 import com.aiopenpocket.agent.core.prompt.AssetSource
 import dev.zacsweers.metro.BindingContainer
@@ -16,11 +17,17 @@ import dev.zacsweers.metro.SingleIn
 @BindingContainer
 object PlatformModule {
 
+  /**
+   * `d` пишет только в debug-сборке. Отладочные строки цикла несут данные пользователя — превью
+   * аргументов и результатов тулов (текст заметок, события календаря), начало его сообщения, — а
+   * logcat release-сборки читают adb, баг-репорты и логгеры производителей. `w`/`e` остаются во всех
+   * сборках: это сбои, без них поддержке не за что зацепиться.
+   */
   @Provides
   @SingleIn(AppScope::class)
   fun provideAgentLog(): AgentLog = object : AgentLog {
     override fun d(tag: String, message: String) {
-      Log.d(tag, message)
+      if (BuildConfig.DEBUG) Log.d(tag, message)
     }
 
     override fun w(tag: String, message: String) {

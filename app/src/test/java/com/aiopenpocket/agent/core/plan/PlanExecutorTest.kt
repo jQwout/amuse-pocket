@@ -459,6 +459,24 @@ class PlanExecutorTest {
     assertTrue(withHook[0].content.orEmpty().contains("EPHEMERAL_HOOK_TEXT"))
   }
 
+  @Test
+  fun `buildStepMessages tells the step executor the current moment`() {
+    // Шаг плана — часто «напомни завтра»: без «Сейчас» ни heartbeat, ни дата не считаются.
+    val s = step(id = "step-1")
+    val v = version(steps = listOf(s))
+    val p = plan().copy(approvedVersion = 1, status = PlanStatus.ACTIVE)
+    val snapshot = PlanSnapshot(plan = p, version = v, stepStates = emptyList(), evidence = emptyList())
+    val now = java.util.Calendar.getInstance().apply { set(2026, java.util.Calendar.OCTOBER, 25, 9, 41, 0) }.timeInMillis
+
+    val system = PlanExecutor.buildStepMessages(
+      "BASE_PROMPT", agent(), snapshot, s, PlanRunBudget(), attempt = 1, nowMillis = now,
+    )[0].content.orEmpty()
+
+    assertTrue(system.contains("## Сейчас"))
+    assertTrue("нет времени: $system", system.contains("09:41"))
+    assertTrue("нет даты: $system", system.contains("25 октября 2026"))
+  }
+
   // --- execute: preconditions refused (throw, no repository row mutated) -----------------------------
 
   @Test

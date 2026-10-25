@@ -77,17 +77,16 @@ internal fun MessageBubble(
         message.cardSpec?.takeIf { it.isNotBlank() }?.let { DrivenUiEngine.parseJsonString(it) }
     }
     val hasCard = card != null
-    // Карточки рисуем интерактивными виджетами только там, где они осмысленны:
-    //  • уроки/туториал — карточка и есть содержимое шага;
-    //  • свои сообщения — например вложенное фото (по просьбе оставляем карточкой);
-    //  • функциональные контролы (переключатель/запрос уведомлений/reminder) — текстом бессмысленны:
-    //    reminder вообще живая карточка, статичный markdown её не отразит.
-    // Ответы агента в обычном чате показываем простым текстом (markdown) — легче и без подлагиваний.
-    val interactive = hasCard && (interactiveCards || isUser ||
-            card is DrivenUiCard.SwitchCard || card is DrivenUiCard.NotificationPermissionCard ||
-            card is DrivenUiCard.ReminderCard)
+    // Карточки рисуем интерактивными виджетами:
+    //  • уроки/туториал — любая карточка (там она и есть содержимое шага);
+    //  • свои сообщения — например вложенное фото;
+    //  • общие шаблоны render_card (таблица, график, список дел, форма, картинка, reminder…) — В ЛЮБОМ
+    //    чате: системный промпт и скиллы бюджета/фитнеса/языков просят агента рисовать графики и таблицы,
+    //    а раньше вне урока такой ответ сводился к тексту и карточка пропадала вовсе.
+    // Карточки уроков (quiz/reveal/fill…) вне урока остаются markdown'ом: без урока им некуда засчитать ответ.
+    val interactive = hasCard && (interactiveCards || isUser || card.isGeneralWidget())
 
-    // Просто текст без карточки: если у ответа есть текст — показываем только его, не приклеивая
+    // Не-интерактивная карточка: если у ответа есть текст — показываем только его, не приклеивая
     // markdown-представление карточки. Карточку-«пустышку» без текста показываем как её markdown,
     // чтобы пузырь не оказался пустым.
     val displayText = remember(card, interactive, message.content) {
@@ -207,6 +206,27 @@ internal fun MessageBubble(
             },
         )
     }
+}
+
+/**
+ * Общие шаблоны render_card (не уроки): у каждого есть свой виджет, и смысл карточки — в нём, а не в
+ * тексте. [DrivenUiCard.ErrorCard] сюда не входит: битый спек рядом с нормальным ответом только шумит.
+ * Погода и переключатель модели больше не предлагаются, но старые сообщения с ними рисуются как прежде.
+ */
+private fun DrivenUiCard?.isGeneralWidget(): Boolean = when (this) {
+    is DrivenUiCard.TodoList,
+    is DrivenUiCard.WeatherCard,
+    is DrivenUiCard.TimerCard,
+    is DrivenUiCard.TableCard,
+    is DrivenUiCard.ChartBarCard,
+    is DrivenUiCard.FormCard,
+    is DrivenUiCard.ChoiceCard,
+    is DrivenUiCard.SwitchCard,
+    is DrivenUiCard.NotificationPermissionCard,
+    is DrivenUiCard.ReminderCard,
+    is DrivenUiCard.ImageCard,
+    -> true
+    else -> false
 }
 
 // internal: см. MessageBubble — нужен превью-каркасу.

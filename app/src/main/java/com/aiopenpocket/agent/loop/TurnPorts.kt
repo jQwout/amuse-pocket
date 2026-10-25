@@ -49,6 +49,14 @@ fun interface ForegroundState {
 /** Показ уведомления «ход завершился, пока приложение в фоне». */
 fun interface TurnNotifier {
   fun turnFinished(conversationId: String, conversationTitle: String?, preview: String, failed: Boolean)
+
+  /**
+   * Агенту нужно разрешение, а приложение свёрнуто. Удаление и отправка наружу всегда ждут «Разрешить»,
+   * и без пуша запрос молча истёк бы отказом через две минуты. По умолчанию — тот же пуш хода,
+   * ведущий в чат: там и висит полоса подтверждения.
+   */
+  fun approvalNeeded(conversationId: String, conversationTitle: String?, action: String) =
+    turnFinished(conversationId, conversationTitle, "Агенту нужно разрешение: $action. Открой чат, чтобы ответить.", false)
 }
 
 /**

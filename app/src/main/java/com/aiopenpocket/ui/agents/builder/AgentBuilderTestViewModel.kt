@@ -4,6 +4,7 @@ package com.aiopenpocket.ui.agents.builder
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aiopenpocket.agent.core.memory.repository.ConversationHeartbeatCleanup
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator
@@ -56,6 +57,7 @@ class AgentBuilderTestViewModel(
   private val conversationRepository: ConversationRepository,
   private val turnManager: TurnManager,
   private val toolApprovalCoordinator: ToolApprovalCoordinator,
+  private val conversationHeartbeatCleanup: ConversationHeartbeatCleanup,
 ) : ViewModel() {
 
   private val _testConversationId = MutableStateFlow<String?>(null)
@@ -197,6 +199,11 @@ class AgentBuilderTestViewModel(
    *
    * Fire-and-forget beyond that is fine: the delete is a single local Room write, and if the process
    * dies mid-way the leftover row is exactly the old behavior, not a corruption.
+   *
+   * Напоминания тестового диалога снимаются ДО удаления: в LIVE-проверке агент мог поставить
+   * heartbeat (или план — свой), а у `heartbeats` нет FK на диалог, каскад их не трогает. Осиротевший
+   * heartbeat продолжал бы будить LLM, падать на записи в несуществующий чат и слать пуш со ссылкой
+   * в никуда — та же уборка, что при удалении чата из списка ([ConversationHeartbeatCleanup]).
    */
   override fun onCleared() {
     super.onCleared()
@@ -210,6 +217,7 @@ class AgentBuilderTestViewModel(
     cleanupScope.launch {
       runCatching {
         turnManager.cancelAndAwait(convId)
+        conversationHeartbeatCleanup.cancelForConversation(convId)
         conversationRepository.deleteConversation(convId)
       }
     }

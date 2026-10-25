@@ -16,6 +16,18 @@ class HeartbeatCardFormatTest {
     kind = kind, fireAt = fireAt, intervalMinutes = intervalMinutes, status = status,
   )
 
+  private val utc = java.util.TimeZone.getTimeZone("UTC")
+
+  /** Сработавшее или просроченное разовое напоминание показывает время, а не «через 0 мин». */
+  @Test
+  fun `due or finished one-time shows the fire time`() {
+    val fireAt = 14 * 3_600_000L + 30 * 60_000L // 01.01.1970 14:30 UTC
+    assertEquals("на 14:30", formatSchedule(hb(fireAt = fireAt, status = "fired"), fireAt + 60_000L, utc))
+    assertEquals("на 14:30", formatSchedule(hb(fireAt = fireAt), fireAt + 5_000L, utc))
+    assertEquals("на 14:30", formatSchedule(hb(fireAt = fireAt, status = "cancelled"), fireAt - 600_000L, utc))
+    assertEquals("на 01.01 14:30", formatSchedule(hb(fireAt = fireAt, status = "fired"), fireAt + 86_400_000L, utc))
+  }
+
   @Test
   fun `one-time future formats as relative minutes`() {
     val now = 1_000_000L
@@ -26,6 +38,19 @@ class HeartbeatCardFormatTest {
   fun `one-time under 2 hours formats as hours and minutes`() {
     val now = 0L
     assertEquals("через 1 ч 30 мин", formatSchedule(hb(fireAt = 90 * 60_000L), now))
+  }
+
+  /** Карточка рисуется спустя миллисекунды после постановки — свежее «через 2 минуты» не должно стать «через 1 мин». */
+  @Test
+  fun `fresh reminder rounds up to the requested minutes`() {
+    val now = 1_000_000L
+    assertEquals("через 2 мин", formatSchedule(hb(fireAt = now + 2 * 60_000L - 50L), now))
+    assertEquals("через 1 мин", formatSchedule(hb(fireAt = now + 1_000L), now))
+  }
+
+  @Test
+  fun `whole hours drop the zero minutes`() {
+    assertEquals("через 2 ч", formatSchedule(hb(fireAt = 120 * 60_000L), 0L))
   }
 
   @Test

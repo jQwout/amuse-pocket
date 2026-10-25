@@ -19,11 +19,17 @@ interface EpisodeDao {
   )
   suspend fun getRecentForConversation(conversationId: String, limit: Int): List<EpisodeEntity>
 
-  @Query("SELECT * FROM episodes WHERE timestamp > :since ORDER BY timestamp DESC")
-  suspend fun getSince(since: Long): List<EpisodeEntity>
-
-  @Query("SELECT * FROM episodes WHERE timestamp >= :since AND timestamp < :until ORDER BY timestamp DESC")
-  suspend fun getBetween(since: Long, until: Long): List<EpisodeEntity>
+  /** Окно [since, until) одного диалога — источник `recall_episodes` (см. MemoryRepository). */
+  @Query(
+    "SELECT * FROM episodes WHERE conversationId = :conversationId " +
+      "AND timestamp >= :since AND timestamp < :until ORDER BY timestamp DESC LIMIT :limit",
+  )
+  suspend fun getForConversationBetween(
+    conversationId: String,
+    since: Long,
+    until: Long,
+    limit: Int,
+  ): List<EpisodeEntity>
 
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insert(episode: EpisodeEntity)

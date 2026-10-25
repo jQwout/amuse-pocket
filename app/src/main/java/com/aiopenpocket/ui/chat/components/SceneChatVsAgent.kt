@@ -55,7 +55,9 @@ private val AGENT_LINKS = listOf(
     AgentLink("Результат", "в телефоне"),
 )
 
-private const val REMINDER_REQUEST = "Напомни завтра в 9 позвонить маме"
+// Именно «будильник»: на «напомни» приложение ставит уведомление-напоминание, а не будильник, и сцена
+// с панелью «Будильники» учила бы не тому, что ученик потом увидит в чате.
+private const val REMINDER_REQUEST = "Поставь будильник на завтра, 9:00 — позвонить маме"
 
 // Ход сцены: ничего → модель думает → инструмент работает → готово.
 private const val STEP_IDLE = 0
@@ -120,7 +122,7 @@ internal fun ChatVsAgentScene() {
                 text = when {
                     !done -> "Ответ появится здесь"
                     agent -> "Готово: будильник на 9:00 — «Позвонить маме»"
-                    else -> "Хорошо! Не забудь завтра в 9 позвонить маме 🙂"
+                    else -> "Хорошо! Поставь будильник на 9:00 и не забудь позвонить маме 🙂"
                 },
                 color = SceneInk.copy(alpha = if (done) 1f else 0.45f),
                 style = MaterialTheme.typography.bodyMedium,

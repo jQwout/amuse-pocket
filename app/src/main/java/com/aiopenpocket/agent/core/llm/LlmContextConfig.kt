@@ -19,8 +19,25 @@ object LlmContextConfig {
   const val RELEVANT_FACTS_LIMIT = 5
   const val EPISODES_LIMIT = 5
 
+  /**
+   * Потолок секции фактов в системном промпте (символы). Маленькая память показывается целиком
+   * (см. MemoryRepository.factsForPrompt), и без потолка один длинный факт — запись дневника,
+   * вставленный текст — ехал бы в каждый ход.
+   */
+  const val PROMPT_FACTS_MAX_CHARS = 3_000
+
+  /** Потолок одной строки факта в промпте: остальное доступно через search_memory. */
+  const val PROMPT_FACT_LINE_MAX_CHARS = 300
+
   /** Rough token budget for verbatim dialog (system + tools are extra). */
   const val HISTORY_TOKEN_BUDGET = 48_000
+
+  /**
+   * Сколько последних реплик защищено от обрезки по бюджету дольше всего — дольше, чем начало
+   * диалога: без них модель не видит, на что отвечает. Самая последняя (текущий вопрос) не
+   * выбрасывается никогда — см. ContextWindowBuilder.trimVerbatimToTokenBudget.
+   */
+  const val PROTECTED_RECENT_MESSAGES = 6
 
   /** Middle section smaller than this stays verbatim (merged into head/tail). */
   const val MIN_MIDDLE_MESSAGES_FOR_SUMMARY = 4

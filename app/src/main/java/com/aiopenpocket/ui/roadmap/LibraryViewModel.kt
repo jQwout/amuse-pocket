@@ -34,12 +34,15 @@ data class LibraryLesson(
  * Каталог уроков-концепций (порядок — педагогический). `l1_welcome` — это онбординг, в библиотеке его нет.
  * Каждый id должен соответствовать `assets/lessons/{id}.json` — это сверяет LessonAssetsValidationTest
  * (потому и internal, а не private).
+ *
+ * Порядок повторяет ROADMAP_LEVELS: уроки ссылаются на «урок про память», «урок про инструменты», и
+ * в библиотеке читатель идёт сверху вниз так же, как по пути. Единственное отличие — «RAG», которого
+ * на пути нет: он стоит сразу за контекст-инжинирингом, потому что RAG — это тоже наполнение окна.
  */
 internal val LIBRARY_LESSON_IDS = listOf(
   "what_is_agent",
   "how_llm_reads",
   "how_to_ask",
-  "context_engineering",
   "tokens_and_speed",
   "how_model_sees",
   "meta_models",
@@ -51,20 +54,21 @@ internal val LIBRARY_LESSON_IDS = listOf(
   "open_weights_and_api",
   "hallucinations",
   "workflow_and_agent",
+  "chaining_and_routing",
   "react_loop",
   "agent_tools",
-  "tool_approval_and_limits",
   "agent_skills",
+  "context_engineering",
   "rag",
+  "tool_approval_and_limits",
+  "hooks_and_lifecycle",
+  "build_your_agent",
   "plan_mode",
   "goal_mode",
   "structured_plans",
   "reflection",
   "heartbeat_and_cron",
-  "chaining_and_routing",
   "arena_and_swarm",
-  "hooks_and_lifecycle",
-  "build_your_agent",
   "agent_blueprint",
 )
 

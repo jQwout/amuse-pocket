@@ -31,13 +31,18 @@ class ExternalFilesTool(
   // Files chosen via SAF originate outside the app boundary.
   override val returnsUntrustedContent = true
 
-  // Per-call risk (Task 9): same read/write split as file_tool - only write_file mutates the
-  // target document. riskClass stays the WRITE ceiling for callers without per-call arguments (e.g.
-  // episodic-memory logging in ReactLoopRunner); riskFor is what the policy gate actually uses.
-  override val riskClass = RiskClass.WRITE
+  // Per-call risk (Task 9): only write_file mutates the target document. riskClass is the ceiling for
+  // callers without per-call arguments (e.g. episodic-memory logging in ReactLoopRunner); riskFor is
+  // what the policy gate actually uses.
+  //
+  // write_file — DESTRUCTIVE, а не WRITE, как у file_tool: file_tool пишет в песочницу самого агента,
+  // а здесь документ ПОЛЬЗОВАТЕЛЯ, и режим "wt" (см. writeFile) сначала обнуляет его целиком. Прежнего
+  // содержимого после вызова нет нигде — это необратимая перезапись чужих данных, значит, по полу
+  // ExecutionPolicy она ждёт «Разрешить» в чате и запрещена в фоне.
+  override val riskClass = RiskClass.DESTRUCTIVE
 
   override fun riskFor(arguments: Map<String, JsonElement>): RiskClass = when (arguments.string("action")) {
-    "write_file" -> RiskClass.WRITE
+    "write_file" -> RiskClass.DESTRUCTIVE
     else -> RiskClass.READ
   }
 

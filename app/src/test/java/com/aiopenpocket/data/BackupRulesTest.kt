@@ -2,6 +2,7 @@ package com.aiopenpocket.data
 
 // @trace app-settings-beb470
 
+import com.aiopenpocket.agent.tools.sandboxRoot
 import com.aiopenpocket.data.repository.SettingsRepository
 import com.aiopenpocket.di.DatabaseBindings
 import java.io.File
@@ -62,6 +63,25 @@ class BackupRulesTest {
       "${DatabaseBindings.DATABASE_NAME} не исключена в backup_rules",
       legacyRules.contains("""path="${DatabaseBindings.DATABASE_NAME}""""),
     )
+  }
+
+  /**
+   * Песочницы file_tool и картинки уроков («Нарисуй под меня» рисуется по «о себе») — такие же
+   * личные данные, как база. Имена папок агента берём из [sandboxRoot], чтобы переименование не
+   * выключило исключение молча; `lesson_images` — приватная константа генератора, поэтому литералом.
+   */
+  @Test
+  fun `agent files and lesson images are excluded from cloud backup on every API`() {
+    val sandboxDirs = listOf(
+      sandboxRoot(File("files"), agentId = null).name,
+      sandboxRoot(File("files"), agentId = "any").parentFile!!.name,
+    )
+    val cloudSection = modernRules.substringAfter("<cloud-backup>").substringBefore("</cloud-backup>")
+    for (dir in sandboxDirs + "lesson_images") {
+      val rule = """<exclude domain="file" path="$dir"/>"""
+      assertTrue("$dir не исключена из облачного бэкапа (API 31+)", cloudSection.contains(rule))
+      assertTrue("$dir не исключена в backup_rules (API < 31)", legacyRules.contains(rule))
+    }
   }
 
   @Test

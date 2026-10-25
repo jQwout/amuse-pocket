@@ -81,6 +81,12 @@ android {
 secrets {
   propertiesFileName = ".env"
   defaultPropertiesFileName = ".env.example"
+  // В BuildConfig не едут ключи, которые приложение не читает: плагин по умолчанию кладёт туда каждую
+  // строку .env, и отладочный APK, отданный кому-то, уносил бы давно не нужные ключи (NVIDIA, Gemini
+  // времён AI Studio). Явный список, а не «всё, кроме OpenRouter» через lookahead: плагин сверяет
+  // шаблон containsMatchIn, и такой шаблон на деле выкидывал и сам OPENROUTER_API_KEY.
+  ignoreList.add("^NVIDIA_API_KEY$")
+  ignoreList.add("^GEMINI_API_KEY$")
 }
 
 // Начала живых ключей провайдеров: sk-or-v1- и sk- (OpenRouter/OpenAI), nvapi- (NVIDIA NIM), AIza
@@ -154,7 +160,6 @@ tasks.withType<Test>().configureEach {
 // This makes it easy to add them back in the future if needed.
 dependencies {
   implementation(platform(libs.androidx.compose.bom))
-  implementation(platform(libs.firebase.bom))
   // implementation(libs.accompanist.permissions)
   implementation(libs.androidx.activity.compose)
   // implementation(libs.androidx.camera.camera2)
@@ -179,15 +184,9 @@ dependencies {
   implementation(libs.androidx.room.runtime)
   implementation(libs.coil.compose)
   implementation(libs.coil.svg)
-  implementation(libs.converter.moshi)
-  // implementation(libs.firebase.ai)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
-  implementation(libs.logging.interceptor)
-  implementation(libs.moshi.kotlin)
-  implementation(libs.okhttp)
   // implementation(libs.play.services.location)
-  implementation(libs.retrofit)
   implementation(libs.metrox.viewmodel)
   implementation(libs.metrox.viewmodel.compose)
   implementation(libs.androidx.security.crypto)
@@ -222,5 +221,4 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
   ksp(libs.androidx.room.compiler)
-  ksp(libs.moshi.kotlin.codegen)
 }

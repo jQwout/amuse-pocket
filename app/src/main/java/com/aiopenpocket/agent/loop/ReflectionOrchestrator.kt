@@ -3,17 +3,25 @@ package com.aiopenpocket.agent.loop
 // @trace rezhim-refleksii-fca3c4
 // @trace user-agent-builder-848153
 
+import com.aiopenpocket.agent.core.prompt.REFLECTION_FINAL_HEADING
 import com.aiopenpocket.agent.core.AgentLog
 import com.aiopenpocket.agent.core.llm.ChatMessage
+import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.StreamEvent
+import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
+import com.aiopenpocket.agent.core.mcp.ToolResult
+import com.aiopenpocket.agent.core.mcp.string
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.agent.core.prompt.ConversationAnnotator
 import com.aiopenpocket.agent.core.prompt.PrePromptAssembler
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
@@ -24,7 +32,9 @@ import com.aiopenpocket.di.AppScope
  *
  *  1. **Draft** — the shared ReAct loop produces a first-pass answer (agent-scoped tool set, same as [AgentLoopOrchestrator]).
  *  2. **Critique** — one tool-less LLM call reads the draft and names concrete weaknesses.
- *  3. **Revise** — the shared ReAct loop rewrites the answer, addressing the critique.
+ *  3. **Revise** — the shared ReAct loop rewrites the answer, addressing the critique. It only gets
+ *     tools that can do nothing but read (plus `render_card`) and is told which actions the draft
+ *     already performed — see [reviseTools] for why.
  *
  * Everything streams as plain [AgentEvent.TextDelta] so the existing chat UI shows the whole
  * draft → critique → final process live, and the accumulated transcript is returned as
@@ -102,15 +112,18 @@ class ReflectionOrchestrator(
     tap(AgentEvent.TextDelta("\n\n🔍 **Критика**\n"))
     val critique = runCritic(userMessage, draft.text, provider) { tap(it) }
 
-    // 3. REVISE — снова общий цикл (тот же scoped-набор тулов, чтобы при необходимости закрыть
-    // ответ карточкой в пределах allowlist агента), переписываем с учётом критики.
-    tap(AgentEvent.TextDelta("\n\n---\n\n✨ **Итог**\n"))
+    // 3. REVISE — снова общий цикл, но только с тулами чтения и карточкой (см. reviseTools): черновик
+    // свои действия уже выполнил по-настоящему, правка переписывает ТЕКСТ, а не повторяет дела.
+    tap(AgentEvent.TextDelta(FINAL_HEADING))
     val reviseMessages = mutableListOf(ChatMessage(role = "system", content = context.systemPrompt))
     reviseMessages += context.history.map { it.toChatMessage() }
-    reviseMessages += ChatMessage(role = "user", content = buildReviseInstruction(draft.text, critique))
+    reviseMessages += ChatMessage(
+      role = "user",
+      content = buildReviseInstruction(draft.text, critique, draft.toolTrace, executionMode),
+    )
     val revised = withContext(turnContextHolder.contextElement(conversationId, context.agent)) {
       reactLoopRunner.run(
-        conversationId, reviseMessages, tools, provider,
+        conversationId, reviseMessages, reviseTools(tools), provider,
         agent = context.agent, executionMode = executionMode, emit = { tap(it) },
       )
     }
@@ -141,8 +154,11 @@ class ReflectionOrchestrator(
         ),
       ),
     )
-    // Как и обычный чат-ход: обновляем заголовок/резюме/теги диалога из лога (no-op, если коротко).
-    runCatching { conversationAnnotator.annotate(conversationId) }
+    // Как и обычный чат-ход: заголовок/резюме/теги — отдельно от хода (см. annotateInBackground), иначе
+    // лишний вызов модели держал бы ход и foreground-сервис, а runCatching глотал бы отмену.
+    conversationAnnotator.annotateInBackground(conversationId) {
+      log.w(TAG, "annotate failed for $conversationId: ${it.message}")
+    }
   }
 
   /** Critique phase: a single tool-less call that returns concrete weaknesses; streamed and returned. */
@@ -179,24 +195,97 @@ class ReflectionOrchestrator(
     return critique.toString()
   }
 
-  private fun buildReviseInstruction(draft: String, critique: String): String = buildString {
+  /**
+   * The revise phase's tool set: [scoped] narrowed to `render_card` plus tools that can do nothing
+   * but read. Раньше правка получала тот же набор, что и черновик, а инструкция велела «вызвать
+   * нужный инструмент заново» — и черновик, уже создавший событие или поставивший напоминание по-
+   * настоящему (LIVE), повторял это второй раз. Правка переписывает текст; всё, что меняет мир,
+   * черновик уже сделал.
+   *
+   * «Только читает» проверяется по КАЖДОМУ действию из `action`-enum схемы через
+   * [com.aiopenpocket.agent.core.mcp.Tool.riskFor], а не по потолку `riskClass`: у части тулов
+   * (memory_tool, heartbeat) потолок занижен до READ при пишущих действиях, и он один пропустил бы
+   * `remember_fact`/`cancel`. Тул со смешанными действиями (calendar: list + delete) в правку не
+   * попадает целиком — схема не умеет показать модели половину enum'а. Тул с параметром `action`
+   * без enum'а не классифицировать честно — его тоже не даём. Рантайм-гейт ReactLoopRunner
+   * (allowedToolNames) отклонит любой вызов вне этого списка, даже если модель его «вспомнит».
+   */
+  private fun reviseTools(scoped: List<FunctionSchema>): List<FunctionSchema> = scoped.filter { schema ->
+    val name = schema.function.name
+    val tool = registry.get(name) ?: return@filter false
+    if (name == RENDER_CARD_TOOL) return@filter true
+    val actionParam = (schema.function.parameters["properties"] as? JsonObject)?.get("action") as? JsonObject
+    if (actionParam == null) {
+      tool.riskClass == RiskClass.READ && tool.riskFor(emptyMap()) == RiskClass.READ
+    } else {
+      val actions = (actionParam["enum"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.content }.orEmpty()
+      actions.isNotEmpty() && actions.all { tool.riskFor(mapOf("action" to JsonPrimitive(it))) == RiskClass.READ }
+    }
+  }
+
+  private fun buildReviseInstruction(
+    draft: String,
+    critique: String,
+    draftTrace: List<ToolTrace>,
+    executionMode: ExecutionMode,
+  ): String = buildString {
     appendLine("Твой черновик ответа:")
     appendLine(draft)
     appendLine()
     appendLine("Критика черновика:")
     appendLine(critique)
     appendLine()
+    // Карточки черновика — не «действия»: они выбрасываются и строятся заново (см. ниже).
+    val draftActions = draftTrace.filterNot { it.toolName == RENDER_CARD_TOOL }
+    if (draftActions.isNotEmpty()) {
+      appendLine(
+        if (executionMode == ExecutionMode.PREVIEW) {
+          "Вызовы инструментов в черновике (это предпросмотр: всё, кроме чтения, только имитировалось):"
+        } else {
+          "Черновик УЖЕ выполнил эти вызовы инструментов — они сделаны, повторять их нельзя:"
+        },
+      )
+      draftActions.forEach { appendLine(describeDraftCall(it)) }
+      appendLine(
+        "Опиши их итог в ответе честно, как в списке: что получилось, что нет. Сейчас тебе доступны " +
+          "только чтение и карточки — повторить или исправить действие отсюда не выйдет; если что-то " +
+          "не получилось, так и скажи и предложи пользователю попросить ещё раз.",
+      )
+      appendLine()
+    }
     appendLine(
       "Перепиши ответ, устранив замечания критики. Дай пользователю только финальный ответ на " +
         "его языке — без пересказа критики и без слова «черновик». Если для ответа нужна " +
-        "визуализация (карточка, таблица, график) — вызови нужный инструмент заново: карточки из " +
-        "черновика в финальный ответ не переносятся.",
+        "визуализация (карточка, таблица, график) — построй её заново: карточки из черновика в " +
+        "финальный ответ не переносятся.",
     )
+  }
+
+  /** «- calendar.create_event — успешно» / «- email.compose — ошибка: …» — одна строка на вызов черновика. */
+  private fun describeDraftCall(trace: ToolTrace): String {
+    val action = trace.arguments.string("action")
+    val label = if (action != null) "${trace.toolName}.$action" else trace.toolName
+    val outcome = when (val result = trace.result) {
+      is ToolResult.Success -> "успешно"
+      is ToolResult.Error -> "ошибка: ${result.message.replace(Regex("\\s+"), " ").take(MAX_ERROR_CHARS)}"
+    }
+    return "- $label — $outcome"
   }
 
   companion object {
     private const val TAG = "Reflection"
     private const val REFLECTION_FAILED = "Рефлексия не получилась — попробуй ещё раз."
+
+    /** Хватает на суть ошибки инструмента; длинный стек в промпте правки только мешал бы. */
+    private const val MAX_ERROR_CHARS = 160
+
+    /**
+     * Заголовок финальной части в сохранённом транскрипте REFLECT. Сообщение хранится целиком
+     * (черновик + критика + итог) — именно это пользователь смотрит в чате после хода. Тому, кто
+     * собирает историю для СЛЕДУЮЩИХ ходов, достаточно `text.substringAfterLast(FINAL_HEADING)`:
+     * черновик и критика модели в контексте не нужны и только раздувают его.
+     */
+    const val FINAL_HEADING = REFLECTION_FINAL_HEADING
 
     private const val CRITIC_SYSTEM =
       "Ты — строгий критик-редактор. Тебе дают запрос пользователя и черновик ответа на него. " +

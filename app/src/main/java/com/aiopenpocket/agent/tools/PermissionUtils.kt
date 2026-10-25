@@ -21,7 +21,7 @@ internal fun Context.requirePermission(permission: String, humanName: String): T
     null
   } else {
     ToolResult.Error(
-      "Нет разрешения на $humanName. Выдайте его в Настройках → Интеграции.",
+      "Нет разрешения на $humanName. Выдай его в Настройках → Интеграции.",
       recoverable = false,
     )
   }

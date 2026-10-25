@@ -46,16 +46,18 @@ private data class ReactBeat(val phase: Int, val text: String, val round: Int)
 private val PHASES = listOf("Думаю", "Действую", "Наблюдаю")
 private const val ANSWER = 3
 
-// Тот же пример, что в тексте урока: погода там, где живёт Макс.
+// Тот же пример, что в тексте урока: напомнить за час до встречи с Максом. Раньше тут были «заметки» и
+// «погода» — таких инструментов в приложении нет, и ученик не мог повторить пример в чате. Календарь и
+// напоминания есть у любого чата, так что пример воспроизводится как есть.
 private val BEATS = listOf(
-    ReactBeat(0, "Не знаю город Макса — гляну в заметках", 1),
-    ReactBeat(1, "Инструмент «заметки»: открыл заметку про Макса", 1),
-    ReactBeat(2, "Город — Барселона", 1),
-    ReactBeat(0, "Теперь нужна погода в Барселоне", 2),
-    ReactBeat(1, "Инструмент «погода»: Барселона", 2),
-    ReactBeat(2, "+24, ясно", 2),
+    ReactBeat(0, "Не знаю, когда встреча, — гляну в календарь", 1),
+    ReactBeat(1, "Инструмент «Календарь»: показать события", 1),
+    ReactBeat(2, "Встреча с Максом — завтра в 15:00", 1),
+    ReactBeat(0, "Значит, напомнить надо завтра в 14:00", 2),
+    ReactBeat(1, "Инструмент «Напоминания»: на 14:00", 2),
+    ReactBeat(2, "Напоминание запланировано", 2),
     ReactBeat(0, "Данных хватает — можно отвечать", 3),
-    ReactBeat(ANSWER, "У Макса в Барселоне +24 и ясно", 3),
+    ReactBeat(ANSWER, "Напомню завтра в 14:00 — за час до встречи с Максом", 3),
 )
 
 // Фазы по кругу: «Думаю» сверху, «Действую» справа снизу, «Наблюдаю» слева снизу.
@@ -63,7 +65,7 @@ private val ANGLES = listOf(-90f, 30f, 150f)
 
 /**
  * «Цикл ReAct»: пользователь сам ведёт агента по кругу кнопкой. Точка бежит от фазы к фазе, текущая
- * фаза подсвечена, под кругом — что агент делает прямо сейчас. Три круга — и ответ.
+ * фаза подсвечена, под кругом — что агент делает прямо сейчас. Три витка — и ответ.
  */
 @Composable
 internal fun ReactLoopScene() {
@@ -80,7 +82,7 @@ internal fun ReactLoopScene() {
     val onPrimary = MaterialTheme.colorScheme.onPrimary
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Задача: «какая погода там, где живёт мой друг Макс?»", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text("Задача: «напомни за час до встречи с Максом»", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Canvas(modifier = Modifier.fillMaxWidth().height(210.dp)) {
             val center = Offset(size.width / 2, size.height / 2 + 8.dp.toPx())
             val radius = min(size.width, size.height) / 2 - 30.dp.toPx()
@@ -125,7 +127,8 @@ internal fun ReactLoopScene() {
             }
 
             val roundText = measurer.measure(
-                if (beat == null) "старт" else "круг ${beat.round}",
+                // «виток» — слово урока для одного круга цикла (им же меряют лимиты).
+                if (beat == null) "старт" else "виток ${beat.round}",
                 TextStyle(fontSize = 13.sp, color = SceneInk.copy(alpha = 0.6f)),
             )
             drawText(roundText, topLeft = Offset(center.x - roundText.size.width / 2, center.y - roundText.size.height / 2))

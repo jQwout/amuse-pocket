@@ -4,6 +4,7 @@ package com.aiopenpocket.agent.loop
 // @trace structured-plan-engine-907066
 
 import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import kotlinx.coroutines.CancellationException
@@ -20,6 +21,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -43,6 +45,7 @@ class TurnManagerTest {
       val planId: String?,
       val budget: PlanRunBudget = PlanRunBudget(),
       val executionMode: ExecutionMode = ExecutionMode.LIVE,
+      val systemPromptExtra: String? = null,
     )
 
     /** Провайдеры, с которыми менеджер звал исполнителя, — по одному на ход. */
@@ -64,7 +67,7 @@ class TurnManagerTest {
       systemPromptExtra: String?,
       executionMode: ExecutionMode,
     ): Flow<AgentEvent> {
-      val call = Call(conversationId, userMessage, mode, planId, budget, executionMode)
+      val call = Call(conversationId, userMessage, mode, planId, budget, executionMode, systemPromptExtra)
       calls += call
       providers += provider
       return script(call).onCompletion { if (it is CancellationException) cancelledCollections++ }
@@ -262,9 +265,12 @@ class TurnManagerTest {
     advanceUntilIdle()
 
     // Регрессия: раньше в этот момент оставалась преамбула (а на следующем витке гасла в пустоту —
-    // «ответ пишется, потом затирается»). Теперь на месте пузыря — прогресс с именем инструмента.
+    // «ответ пишется, потом затирается»). Теперь на месте пузыря — прогресс с именем инструмента
+    // (человеческим, из CapabilityNames, а не сырым id).
     val shown = m.sessions.value.getValue("c1").streamingText.value
-    assertTrue("ожидали прогресс инструмента, а пузырь показывал: '$shown'", shown.contains("search_files"))
+    assertTrue("ожидали прогресс инструмента, а пузырь показывал: '$shown'", shown.startsWith("Использую инструмент"))
+    assertTrue("ожидали имя инструмента, а пузырь показывал: '$shown'", shown.contains(CapabilityNames.call("search_files", emptyMap())))
+    assertFalse("преамбула не должна оставаться: '$shown'", shown.contains("Сейчас посмотрю"))
   }
 
   @Test
@@ -366,6 +372,63 @@ class TurnManagerTest {
 
     assertEquals(2, executor.calls.size)
     assertTrue(executor.calls.all { it.mode == AgentMode.GOAL && it.planId == "plan-42" && it.budget == budget })
+  }
+
+  @Test
+  fun `retry повторяет и systemPromptExtra — вопрос урока не теряет контекст шага`() = runTest {
+    executor.script = { flowOf(AgentEvent.Error("сеть упала")) }
+    val m = manager()
+
+    m.launchTurn("c1", "а почему так?", AgentMode.TUTOR, systemPromptExtra = "Текущий шаг урока: токены")
+    advanceUntilIdle()
+    m.retry("c1")
+    advanceUntilIdle()
+
+    assertEquals(2, executor.calls.size)
+    assertEquals("Текущий шаг урока: токены", executor.calls[1].systemPromptExtra)
+  }
+
+  @Test
+  fun `после Stop следующий ход ждёт, пока остановленный доработает`() = runTest {
+    // Остановленный ход дописывает что-то уже после отмены (NonCancellable-хвост записи). Раньше
+    // Stop убирал сессию вместе с job, и новый ход стартовал сразу — параллельно с этим хвостом.
+    // Хвост держим воротами, а не delay: ходы живут в backgroundScope, а advanceUntilIdle не двигает
+    // виртуальное время ради фоновых задач — delay в хвосте не истёк бы никогда.
+    val order = mutableListOf<String>()
+    val tailGate = kotlinx.coroutines.CompletableDeferred<Unit>()
+    executor.script = { call ->
+      if (call.message == "первый") {
+        flow {
+          emit(AgentEvent.TextDelta("..."))
+          try {
+            awaitCancellation()
+          } finally {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+              tailGate.await()
+              order += "первый дописал"
+            }
+          }
+        }
+      } else {
+        order += "второй стартовал"
+        flowOf(AgentEvent.Completed(finished("второй ответ")))
+      }
+    }
+    val m = manager()
+
+    m.launchTurn("c1", "первый", AgentMode.CHAT)
+    advanceUntilIdle()
+    m.cancel("c1")
+    m.launchTurn("c1", "второй", AgentMode.CHAT)
+    advanceUntilIdle()
+
+    assertEquals("второй ход не стартует, пока первый дописывает", emptyList<String>(), order)
+
+    tailGate.complete(Unit)
+    advanceUntilIdle()
+
+    assertEquals(listOf("первый дописал", "второй стартовал"), order)
+    assertEquals("второй ответ", persistence.rows.last().content)
   }
 
   // --- Task 10 (structured-plan-engine-907066): PlanProposed/PlanProgressed/PlanBlocked ----------

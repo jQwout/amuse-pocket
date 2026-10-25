@@ -10,10 +10,14 @@
      восстановленный файл нечем расшифровать и приложение падает при первом чтении API-ключа;
    - ai_open_pocket_db: вся переписка и память агента открытым текстом — не для облака Google.
      (Здесь, в отличие от API 31+, отдельного канала device-transfer нет, так что исключение общее.)
+   - agent/, agents/, lesson_images/: файлы агента и картинки «под меня» — та же приватность, что и база.
 -->
 <full-backup-content>
     <exclude domain="sharedpref" path="secure_settings.xml"/>
     <exclude domain="database" path="ai_open_pocket_db"/>
     <exclude domain="database" path="ai_open_pocket_db-wal"/>
     <exclude domain="database" path="ai_open_pocket_db-shm"/>
+    <exclude domain="file" path="agent"/>
+    <exclude domain="file" path="agents"/>
+    <exclude domain="file" path="lesson_images"/>
 </full-backup-content>

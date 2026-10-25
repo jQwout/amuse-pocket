@@ -23,6 +23,7 @@ import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.StreamEvent
+import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolExecutor
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
@@ -105,7 +106,7 @@ class HeartbeatRunnerTest {
    * background run (Task 22's toolNames ∩ SAFE_TOOL_NAMES intersection, or an approval-required hook
    * denied by `interactiveApproval = false`) never actually executes, rather than inferring it from
    * indirect side effects. */
-  private class CountingTool(override val name: String) : Tool {
+  private class CountingTool(override val name: String, override val riskClass: RiskClass = RiskClass.READ) : Tool {
     var callCount = 0
       private set
     override val description = "Test tool '$name'."
@@ -567,6 +568,42 @@ class HeartbeatRunnerTest {
     // interactiveApproval=false (Task 9) must turn the hook's REQUIRE_APPROVAL into an immediate
     // deny — no screen exists in the background to ever approve it — so the tool never actually runs.
     assertEquals(0, guardedTool.callCount)
+  }
+
+  @Test
+  fun `background run denies a DESTRUCTIVE call even with no hooks, while WRITE still runs`() = runTest {
+    // Пол ExecutionPolicy: DESTRUCTIVE/EXTERNAL всегда ждут «Разрешить», а в фоне спросить некого.
+    // calendar и storage_tool в SAFE_TOOL_NAMES ради чтения/записи — их удаление здесь не выполняется.
+    val calendar = CountingTool("calendar", RiskClass.DESTRUCTIVE)
+    val notifications = CountingTool("notifications", RiskClass.WRITE)
+    val registry = ToolRegistry(setOf(calendar, notifications))
+    db.heartbeatDao().insert(hb(mode = "agent", prompt = "удали встречу и напомни"))
+    val events = listOf(
+      StreamEvent.ToolCall(id = "1", name = "calendar", arguments = emptyMap()),
+      StreamEvent.ToolCall(id = "2", name = "notifications", arguments = emptyMap()),
+      StreamEvent.Finish("stop"),
+    )
+    val (runner, _) = runnerWithRegistry(events, registry)
+
+    assertEquals(FireOutcome.DONE, runner.handleFire("hb1", attempt = 0))
+
+    assertEquals("an irreversible call must never run where nobody can approve it", 0, calendar.callCount)
+    assertTrue("WRITE is below the floor and still runs in the background", notifications.callCount >= 1)
+  }
+
+  @Test
+  fun `background agent prompt carries the current time, like chat does`() = runTest {
+    db.heartbeatDao().insert(hb(mode = "agent", prompt = "напомни в 19:00 про звонок"))
+    val doubles = runnerWithRegistry(
+      listOf(StreamEvent.TextDelta("ок"), StreamEvent.Finish("stop")),
+      ToolRegistry(emptySet()),
+    )
+
+    doubles.runner.handleFire("hb1", attempt = 0)
+
+    val system = doubles.llm.calls.single().first().content!!
+    assertTrue("без «Сейчас» фоновый ход не пересчитает «в 19:00» во время", system.contains("## Сейчас"))
+    assertTrue(system.contains(java.util.Calendar.getInstance().get(java.util.Calendar.YEAR).toString()))
   }
 
   // --- Task 11: typed plan-step heartbeats --------------------------------------------------------
