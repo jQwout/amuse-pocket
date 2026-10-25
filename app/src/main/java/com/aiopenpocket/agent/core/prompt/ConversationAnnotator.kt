@@ -9,6 +9,11 @@ import com.aiopenpocket.agent.core.llm.SelectedLlmProvider
 import com.aiopenpocket.agent.core.llm.StreamEvent
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.profile.stripToJsonObject
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -46,6 +51,37 @@ class ConversationAnnotator(
    * карта пуста, поэтому первый ход диалога аннотируется повторно — приемлемо и самокорректируется.
    */
   private val lastAnnotatedCount = ConcurrentHashMap<String, Int>()
+
+  /** Скоуп процесса (класс — синглтон AppScope): фоновая аннотация переживает экран и сам ход. */
+  private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+  /** Диалоги, для которых фоновая аннотация уже в полёте — см. [annotateInBackground]. */
+  private val inFlight: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+  /**
+   * [annotate] отдельной корутиной, ВНЕ хода. Раньше оркестраторы звали её внутри потока хода,
+   * после Completed: ответ уже в чате, а ход (и его foreground-защита с уведомлением) жил ещё один
+   * вызов модели, и `runCatching` вокруг глотал отмену — Stop в этот момент не останавливал поток.
+   * Здесь Stop и новый ход аннотацию не касаются; сбой — в [onFailure], отмена не глотается.
+   *
+   * Не больше одной аннотации на диалог одновременно: два быстрых хода подряд иначе прошли бы гейт
+   * частоты оба (якорь [lastAnnotatedCount] сдвигается только после ответа модели) и заплатили бы
+   * дважды.
+   */
+  fun annotateInBackground(conversationId: String, onFailure: (Throwable) -> Unit = {}) {
+    if (!inFlight.add(conversationId)) return
+    backgroundScope.launch {
+      try {
+        annotate(conversationId)
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        onFailure(e)
+      } finally {
+        inFlight.remove(conversationId)
+      }
+    }
+  }
 
   /** Regenerate title/summary/tags for [conversationId] from its current messages. */
   suspend fun annotate(conversationId: String) {
@@ -105,7 +141,8 @@ class ConversationAnnotator(
     var streamError: String? = null
     llmClient.streamChat(chat, tools = emptyList(), provider = selectedProvider()).collect { event ->
       when (event) {
-        is StreamEvent.TextDelta -> builder.append(event.content)
+        // Размышление вместо ответа — не ответ: черновик JSON из него разобрался бы как заголовок.
+        is StreamEvent.TextDelta -> if (!event.reasoning) builder.append(event.content)
         is StreamEvent.Error -> streamError = event.message
         else -> Unit
       }

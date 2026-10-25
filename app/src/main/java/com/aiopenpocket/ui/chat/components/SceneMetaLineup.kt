@@ -54,7 +54,7 @@ private class LineupModel(val name: String, val io: String, val inApp: Boolean, 
 
 private val LINEUP = listOf(
     LineupModel(
-        "Muse Spark", "текст, фото, голос → текст + вызовы инструментов", true,
+        "Muse Spark", "текст, фото, видео → текст + вызовы инструментов", true,
         "Muse Spark — мозг агентов этого приложения: понимает запрос и сам вызывает инструменты",
     ),
     LineupModel(

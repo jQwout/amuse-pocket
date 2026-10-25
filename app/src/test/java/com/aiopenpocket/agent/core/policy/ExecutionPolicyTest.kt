@@ -12,7 +12,8 @@ import org.junit.Test
 /**
  * [ExecutionPolicy] is a pure function — no Robolectric, no I/O, no coroutines needed. Covers
  * exactly the table task-9-brief.md Step 1 pins down: PREVIEW+READ/WRITE/DESTRUCTIVE/EXTERNAL,
- * LIVE+READ/risky, and hook DENY/REQUIRE_APPROVAL winning unconditionally over mode/risk.
+ * LIVE+READ/WRITE (execute) and LIVE+DESTRUCTIVE/EXTERNAL (approval floor), and hook
+ * DENY/REQUIRE_APPROVAL winning unconditionally over mode/risk.
  */
 class ExecutionPolicyTest {
 
@@ -64,8 +65,8 @@ class ExecutionPolicyTest {
     assertTrue(decision.reason.contains("DESTRUCTIVE"))
   }
 
-  // --- LIVE + risk (the "agent rule, never weaker than the floor" row: absent a hook, LIVE's
-  // un-configurable floor is simply Execute - identical to every pre-Task-9 call) -----------------
+  // --- LIVE + risk (the "agent rule, never weaker than the floor" row: absent a hook, READ/WRITE
+  // execute as before, while DESTRUCTIVE/EXTERNAL always wait for a human - the owner's floor) -------
 
   @Test
   fun `LIVE plus READ executes`() {
@@ -78,13 +79,23 @@ class ExecutionPolicyTest {
   }
 
   @Test
-  fun `LIVE plus DESTRUCTIVE executes when no hook says otherwise`() {
-    assertEquals(PolicyDecision.Execute, evaluate(ExecutionMode.LIVE, RiskClass.DESTRUCTIVE))
+  fun `LIVE plus DESTRUCTIVE awaits approval even without any hook`() {
+    val decision = evaluate(ExecutionMode.LIVE, RiskClass.DESTRUCTIVE, toolName = "calendar")
+    assertTrue("an irreversible call must never run on the model's word alone", decision is PolicyDecision.AwaitApproval)
+    assertEquals(RiskClass.DESTRUCTIVE, (decision as PolicyDecision.AwaitApproval).request.riskClass)
+    assertEquals("calendar", decision.request.toolName)
   }
 
   @Test
-  fun `LIVE plus EXTERNAL executes when no hook says otherwise`() {
-    assertEquals(PolicyDecision.Execute, evaluate(ExecutionMode.LIVE, RiskClass.EXTERNAL))
+  fun `LIVE plus EXTERNAL awaits approval even without any hook`() {
+    assertTrue(evaluate(ExecutionMode.LIVE, RiskClass.EXTERNAL) is PolicyDecision.AwaitApproval)
+  }
+
+  @Test
+  fun `hook DENY still wins over the LIVE approval floor`() {
+    // The floor only ADDS a question; a hook that forbids the call must not be turned into "ask the user".
+    assertTrue(evaluate(ExecutionMode.LIVE, RiskClass.DESTRUCTIVE, HookDecision(denied = true)) is PolicyDecision.Deny)
+    assertTrue(evaluate(ExecutionMode.LIVE, RiskClass.EXTERNAL, HookDecision(denied = true)) is PolicyDecision.Deny)
   }
 
   // --- hook DENY wins unconditionally -----------------------------------------------------------

@@ -25,7 +25,7 @@ enum class BuilderStep { IDENTITY, INSTRUCTIONS, CAPABILITIES, LOOP, HOOKS, TEST
  * publish needs it). [MANUAL] is every pre-existing entry point (FAB "create agent", "duplicate"
  * via [AgentBuilderViewModel.cloneFrom], the edit route) and stays the default so none of them
  * change behavior. [ACADEMY_CAPSTONE] is set ONLY by the AI Academy capstone lesson's completion
- * CTA ("Собрать этого агента" on `agent_blueprint`'s `lesson_complete` card) — see
+ * CTA ("Открыть конструктор" on `agent_blueprint`'s `lesson_complete` card) — see
  * `com.aiopenpocket.ui.chat.ChatScreen`'s `onOpenAgentBuilder` wiring. Even then the opened
  * [AgentDraft] is exactly as blank as [AgentDraft.new] always produces: this task deliberately does
  * NOT feed the student's free-form lesson chat through an LLM to prefill any field.

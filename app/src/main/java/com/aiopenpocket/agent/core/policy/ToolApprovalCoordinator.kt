@@ -24,14 +24,16 @@ import java.util.concurrent.ConcurrentHashMap
  * functions callable from anywhere (a ViewModel intent handler, a future lifecycle callback) without
  * needing a `CoroutineScope` of their own.
  *
- * "Approval without an answer = deny" (never a hang, never an exception) is enforced two ways:
- *  - [awaitApproval]'s own [timeoutMs] — the turn asked, nobody answered, move on;
- *  - [denyAllPending] — for a caller like an app-backgrounded signal that needs to resolve every
- *    currently-open request at once, not just one run's.
- * A cancelled ENCLOSING run (TurnManager `cancel()`) doesn't go through either path: cancelling the
- * coroutine that is suspended inside [awaitApproval] throws [kotlinx.coroutines.CancellationException]
- * through it as normal structured-concurrency teardown — the `finally` below still runs and removes the
- * bookkeeping, it just doesn't force a `false` value into a deferred nobody will read.
+ * "Approval without an answer = deny" (never a hang, never an exception) is enforced by
+ * [awaitApproval]'s own [timeoutMs] — the turn asked, nobody answered, move on. A cancelled ENCLOSING
+ * run (TurnManager `cancel()`, «Стоп») needs nothing extra: cancelling the coroutine that is suspended
+ * inside [awaitApproval] throws [kotlinx.coroutines.CancellationException] through it as normal
+ * structured-concurrency teardown — the `finally` below still runs and removes the bookkeeping, it just
+ * doesn't force a `false` value into a deferred nobody will read.
+ *
+ * [denyAllPending]/[cancelRun] — готовые рычаги «отклонить всё сразу», но в продакшене их сейчас
+ * никто не зовёт (только тесты): сигнала «приложение ушло в фон» нет, а уход в фон и не должен
+ * отклонять запрос — ход продолжает жить, и пользователь может вернуться и ответить до таймаута.
  */
 @SingleIn(AppScope::class)
 @Inject
@@ -77,12 +79,12 @@ class ToolApprovalCoordinator() {
     return completed
   }
 
-  /** Every request for [runId] resolves to deny — used when that run is cancelled/torn down so none of its approvals are left dangling for a screen that will never come back to them. */
+  /** Every request for [runId] resolves to deny — for a caller that tears a run down without cancelling its coroutine (no production caller today, see class doc). */
   fun cancelRun(runId: String) {
     byRequestId.values.filter { it.request.runId == runId }.forEach { it.deferred.complete(false) }
   }
 
-  /** Every currently pending request, from any run, resolves to deny — e.g. the app going to background with no one left to answer. */
+  /** Every currently pending request, from any run, resolves to deny (no production caller today, see class doc). */
   fun denyAllPending() {
     byRequestId.values.toList().forEach { it.deferred.complete(false) }
   }

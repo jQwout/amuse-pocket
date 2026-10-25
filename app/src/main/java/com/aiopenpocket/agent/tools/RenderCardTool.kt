@@ -22,9 +22,18 @@ import kotlinx.serialization.json.JsonElement
  * bound agent was actually given.
  */
 val GENERAL_CARD_TEMPLATES = setOf(
-  "todo_list", "weather_card", "timer", "chart_bar", "table", "form", "choice", "switch",
+  "todo_list", "timer", "chart_bar", "table", "form", "choice",
   "notification_permission", "reminder", "image",
 )
+
+/**
+ * Шаблоны, которые модели больше НЕ предлагаются: у `switch` нет ни одного действия (обработчик в
+ * ChatScreen пустой — тумблер ничего не переключал), у `weather_card` нет источника погоды (модель
+ * выдумывала прогноз). Парсеры в DrivenUiEngine остаются, чтобы старые сообщения рисовались. В
+ * [AgentValidator.KNOWN_WIDGET_TEMPLATES][com.aiopenpocket.agent.core.agent.AgentValidator.KNOWN_WIDGET_TEMPLATES]
+ * они пока остаются, чтобы уже сохранённый агент с ними в allowlist не перестал публиковаться.
+ */
+val RETIRED_CARD_TEMPLATES = setOf("switch", "weather_card")
 
 /**
  * Templates the AI Academy lesson flow renders
@@ -49,7 +58,6 @@ class RenderCardTool(
   override val name = "render_card"
   override val description =
     "Отображает интерактивную карточку в чате. Доступные шаблоны: ${CARD_TEMPLATES.joinToString(", ")}. " +
-    "switch — переключатель вкл/выкл для настроек приложения, params: {label, description, action, initial}. " +
     "notification_permission — карточка запроса разрешения на уведомления, params необязательны: {title, description, button_label}. " +
     "reminder — живая карточка напоминания/heartbeat, params: {heartbeat_id} (id из ответа тула heartbeat)."
   override val schema = toolSchema(name, description) {

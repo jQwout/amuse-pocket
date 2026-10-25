@@ -33,15 +33,37 @@ class MemoryRepository(
   /**
    * [query]-matched facts confined to [namespace] (an agent's `agent:{id}:` key prefix) — the
    * per-agent counterpart of [searchFacts]. Used by [com.aiopenpocket.agent.tools.MemoryTools]'s
-   * `search_memory` for a bound agent and by `PrePromptAssembler`'s relevant-facts section, so
-   * neither ever sees another agent's (or the global chat's) facts — enforced here at the
-   * DAO/WHERE-clause level, not by trusting the caller (model) to only ask for its own namespace.
+   * `search_memory` for a bound agent (the prompt's own memory section goes through
+   * [factsForPrompt], same namespace scoping), so it never sees another agent's (or the global
+   * chat's) facts — enforced here at the DAO/WHERE-clause level, not by trusting the caller (model)
+   * to only ask for its own namespace.
    */
   suspend fun searchFactsInNamespace(namespace: String, query: String): List<Fact> =
     rankByQuery(getFactsByKeyPrefix(namespace), query)
 
   /** Every fact stored under an agent's namespace — same shape as a prefix search, named for callers that want "this agent's whole memory" rather than a query match. */
   suspend fun getFactsByNamespace(namespace: String): List<Fact> = getFactsByKeyPrefix(namespace)
+
+  /**
+   * Факты для секции памяти системного промпта: под [namespace] агента, а без агента — общая память
+   * пользователя (без рабочих заметок агентов `agent:…`: расходы бюджета или записи дневника в
+   * каждом ходе обычного чата — шум; по запросу их всё равно найдёт `search_memory`).
+   *
+   * Пока фактов немного (≤ [SMALL_MEMORY_FACTS]), отдаём ВСЕ, свежие первыми, — без поиска по
+   * словам. Пословный поиск по-русски слаб даже со стеммингом: факт пишет модель, часто с
+   * английским ключом («family.sister = Аня»), и вопрос «как зовут мою сестру» не совпадает с ним
+   * ни одним словом. На маленькой памяти дешевле показать всё (длину режет вызывающий), чем угадывать.
+   * Дальше — ранжированный поиск, не больше [limit] штук.
+   */
+  suspend fun factsForPrompt(namespace: String?, message: String, limit: Int): List<Fact> {
+    val pool = if (namespace != null) {
+      getFactsByKeyPrefix(namespace)
+    } else {
+      factDao.getAll().map { it.toDomain() }.filterNot { it.key.startsWith(AGENT_NAMESPACE_ROOT) }
+    }
+    if (pool.size <= SMALL_MEMORY_FACTS) return pool.sortedByDescending { it.updatedAt }
+    return rankByQuery(pool, message).take(limit)
+  }
 
   /** Escapes LIKE metacharacters (`\`, `%`, `_`) so user-supplied text can't smuggle in wildcards. */
   private fun escapeLike(raw: String): String = raw
@@ -50,20 +72,37 @@ class MemoryRepository(
     .replace("_", "\\_")
 
   /**
-   * Слова [query] длиннее [MIN_TOKEN_LENGTH], без повторов и не более [MAX_TOKENS] штук.
+   * Основы слов [query]: в нижнем регистре, без стоп-слов и слов короче [MIN_TOKEN_LENGTH], без
+   * повторов и не более [MAX_TOKENS] штук.
    *
    * Именно отсутствие этого шага и ломало «релевантные факты»: `PrePromptAssembler` передаёт сюда
    * ЦЕЛОЕ сообщение пользователя, а прежний запрос подставлял его в `LIKE '%…%'` целиком — совпасть
    * могла только фраза, целиком являющаяся подстрокой факта, то есть практически никогда.
    *
    * Короткие слова отбрасываются намеренно: «я», «в», «и», «на» совпадают почти с любым фактом и
-   * превратили бы поиск в «отдай всю память».
+   * превратили бы поиск в «отдай всю память». Стоп-слова — по той же причине и ещё по одной: «как»,
+   * «мою», «что» проходили фильтр длины и съедали потолок [MAX_TOKENS], вытесняя значимые слова.
+   * Основа ([stem]) — потому что русский падежный: «сестру» в вопросе и «сестра» в факте как
+   * подстроки не совпадают, а их общее начало «сест» — совпадает.
    */
   internal fun tokenize(query: String): List<String> =
     query.split(NON_WORD_REGEX)
-      .filter { it.length >= MIN_TOKEN_LENGTH }
-      .distinctBy { it.lowercase() }
+      .map { it.lowercase() }
+      .filter { it.length >= MIN_TOKEN_LENGTH && it !in STOP_WORDS }
+      .map { stem(it) }
+      .distinct()
       .take(MAX_TOKENS)
+
+  /**
+   * Грубая основа: слово без двух последних букв (обычно там окончание), но не короче
+   * [MIN_STEM_LENGTH] — иначе «дом»/«домик» превращались бы в однобуквенный мусор, совпадающий со
+   * всем подряд. Числа не режем: «2026» без «26» — уже другое число. Настоящий стеммер был бы
+   * точнее, но на памяти из сотен строк ошибка «лишний факт в выдаче» дешевле зависимости.
+   */
+  private fun stem(word: String): String {
+    if (word.length <= MIN_STEM_LENGTH || word.all { it.isDigit() }) return word
+    return word.take(maxOf(MIN_STEM_LENGTH, word.length - 2))
+  }
 
   /**
    * [facts], оставленные только совпавшие с [query], в порядке убывания числа совпавших слов (при
@@ -151,11 +190,18 @@ class MemoryRepository(
   suspend fun getRecentEpisodesForConversation(conversationId: String, limit: Int): List<Episode> =
     episodeDao.getRecentForConversation(conversationId, limit).map { it.toDomain() }
 
-  suspend fun getEpisodesSince(since: Long): List<Episode> =
-    episodeDao.getSince(since).map { it.toDomain() }
-
-  suspend fun getEpisodesBetween(since: Long, until: Long): List<Episode> =
-    episodeDao.getBetween(since, until).map { it.toDomain() }
+  /**
+   * Эпизоды ОДНОГО диалога в окне [since, until), свежие первыми, не больше [limit]. Прежние
+   * `getEpisodesSince/Between` читали журнал всех диалогов и всех агентов без потолка — так
+   * `recall_episodes` в чате одного агента приносил вызовы инструментов чужих чатов, целиком.
+   */
+  suspend fun getEpisodesForConversationBetween(
+    conversationId: String,
+    since: Long,
+    until: Long,
+    limit: Int,
+  ): List<Episode> =
+    episodeDao.getForConversationBetween(conversationId, since, until, limit).map { it.toDomain() }
 
   suspend fun saveEpisode(
     type: String,
@@ -205,7 +251,34 @@ class MemoryRepository(
     /** Короче — шум («я», «в», «на»), совпадающий почти с любым фактом. */
     const val MIN_TOKEN_LENGTH = 3
 
+    /** Короче основу не режем — см. [stem]. */
+    const val MIN_STEM_LENGTH = 4
+
     /** Потолок на длинное сообщение: больше слов запрос точнее уже не делают. */
     const val MAX_TOKENS = 8
+
+    /** До стольких фактов память показывается в промпте целиком — см. [factsForPrompt]. */
+    const val SMALL_MEMORY_FACTS = 40
+
+    /** Корень пространств имён агентов (`agent:{id}:`, см. AgentMemoryPolicy). */
+    const val AGENT_NAMESPACE_ROOT = "agent:"
+
+    /**
+     * Служебные слова вопроса: проходят фильтр длины, но о содержании факта не говорят ничего.
+     * Только местоимения, вопросительные слова, частицы и глаголы-обращения («скажи», «напомни») —
+     * существительные сюда не попадают, даже частые: «имя» или «город» как раз и ищутся.
+     */
+    val STOP_WORDS = setOf(
+      "как", "что", "это", "эта", "этот", "эти", "тот", "так", "там", "тут", "где", "кто", "чем",
+      "чего", "кого", "кому", "когда", "какой", "какая", "какое", "какие", "каком", "какую", "каких",
+      "сколько", "почему", "зачем", "или", "для", "при", "над", "под", "без", "про", "через", "после",
+      "все", "всё", "вот", "уже", "ещё", "еще", "был", "была", "было", "были", "есть", "будет", "нет",
+      "мой", "моя", "мою", "моё", "мое", "мои", "моих", "моей", "моего", "мне", "меня", "мной",
+      "твой", "твоя", "твою", "твои", "тебя", "тебе", "его", "её", "нее", "неё", "них", "она", "они",
+      "оно", "нам", "нас", "наш", "наша", "вам", "вас", "ваш", "себя", "свой", "свою", "свои",
+      "если", "чтобы", "тоже", "также", "можно", "нужно", "надо", "очень", "пожалуйста", "привет",
+      "скажи", "напомни", "расскажи", "подскажи", "помнишь", "знаешь", "покажи", "найди",
+      "the", "and", "what", "who", "how", "where", "when", "you", "your", "are",
+    )
   }
 }

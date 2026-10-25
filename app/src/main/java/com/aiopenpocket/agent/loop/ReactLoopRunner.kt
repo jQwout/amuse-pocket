@@ -57,7 +57,10 @@ import java.util.UUID
  * Task 9 adds one more gate between a tool_call and [ToolExecutor]: [ExecutionPolicy] combines the
  * BEFORE_TOOL [HookDecision] above with the turn's [ExecutionMode] and the tool's per-call
  * [RiskClass] ([com.aiopenpocket.agent.core.mcp.Tool.riskFor]) into one [PolicyDecision] — Execute,
- * Simulate (PREVIEW mode), Deny, or AwaitApproval (suspends on [ToolApprovalCoordinator]).
+ * Simulate (PREVIEW mode), Deny, or AwaitApproval (suspends on [ToolApprovalCoordinator]). In LIVE
+ * every DESTRUCTIVE/EXTERNAL call lands on AwaitApproval even with no hooks at all (the owner's
+ * floor, see [ExecutionPolicy.evaluate]) — so plain chat can raise the approval bar too, and a
+ * background run (`interactiveApproval = false`) denies such calls outright.
  *
  * Task 7 (Structured Plan Engine) adds one more, orthogonal per-run budget: `maxToolCalls` caps real
  * tool-dispatch attempts across the whole run, independent of [maxIterations] — see that parameter's
@@ -318,7 +321,7 @@ class ReactLoopRunner(
         emit(AgentEvent.ToolCompleted(tc.name, result, iteration, tc.arguments))
 
         // Эпизодическая память — побочный эффект «по возможности»: сбой записи (БД занята/полна) не
-        // должен ронять уже успешный ход. runCatching, как и для annotate() в AgentLoopOrchestrator.
+        // должен ронять уже успешный ход.
         runCatching {
           memoryRepository.saveEpisode(
             type = "tool_call",
@@ -429,12 +432,18 @@ class ReactLoopRunner(
   }
 
   /**
-   * A hook required approval for [request]. A non-interactive run ([interactiveApproval] false — a
-   * background heartbeat, no screen could ever answer) denies immediately without ever registering
-   * with [toolApprovalCoordinator] — no point publishing a request nobody will see and paying its
-   * timeout for nothing. Otherwise emits [AgentEvent.ToolApprovalRequired] (so the chat UI can show a
-   * modal/bar) and suspends on the coordinator; its own timeout, or the app going to background,
-   * both resolve to a deny — never a hang, never a silent execute.
+   * A hook — or the LIVE floor for DESTRUCTIVE/EXTERNAL calls — required approval for [request]. A
+   * non-interactive run ([interactiveApproval] false — a background heartbeat or plan step, no screen
+   * could ever answer) denies immediately without ever registering with [toolApprovalCoordinator] —
+   * no point publishing a request nobody will see and paying its timeout for nothing. Otherwise emits
+   * [AgentEvent.ToolApprovalRequired] (so the chat UI can show a modal/bar) and suspends on the
+   * coordinator; the coordinator's own two-minute timeout resolves to a deny, and «Стоп» cancels this
+   * coroutine (the coordinator's `finally` cleans up) — never a hang, never a silent execute.
+   *
+   * Уход приложения в фон запрос НЕ отклоняет: ход продолжает жить в TurnManager, и вернувшийся за
+   * минуту пользователь ещё может нажать «Разрешить». Отдельного сигнала «ушли в фон», который звал
+   * бы [ToolApprovalCoordinator.denyAllPending], в приложении нет (ForegroundState — только опрос для
+   * пуша) — раньше этот KDoc обещал обратное.
    *
    * Одобрение снимает вопрос хука, но не отменяет предпросмотр: в [ExecutionMode.PREVIEW] всё, кроме
    * чтения, и после «Разрешить» только имитируется — иначе проверка черновика агента в конструкторе
@@ -449,7 +458,8 @@ class ReactLoopRunner(
   ): ToolResult {
     if (!interactiveApproval) {
       return ToolResult.Error(
-        "Tool '${request.toolName}' requires approval, which isn't available in a background run.",
+        "Tool '${request.toolName}' requires the user's approval, which isn't available in a background run. " +
+          "Do not retry; tell the user to do it from the chat.",
         recoverable = false,
       )
     }
@@ -462,7 +472,14 @@ class ReactLoopRunner(
         toolExecutor.execute(request.toolName, request.arguments)
       }
     } else {
-      ToolResult.Error("Tool '${request.toolName}' was not approved.", recoverable = true)
+      // Bare «was not approved» read to the model like a missing Android permission: after «Отклонить»
+      // it told the user to enable mail in Settings. Spell out that this was the user's choice.
+      ToolResult.Error(
+        "The user did not approve '${request.toolName}' in the chat (declined it or did not answer in time). " +
+          "This is the user's decision, not a missing permission or setting: do not suggest enabling anything " +
+          "and do not call it again this turn. Say briefly that it was not done; offer to do it if they ask again.",
+        recoverable = true,
+      )
     }
   }
 
@@ -496,7 +513,10 @@ class ReactLoopRunner(
     )
   }
 
-  /** One-line, length-capped preview of args/results for the loop log (no newlines, no flooding). */
+  /**
+   * One-line, length-capped preview of args/results for the loop log (no newlines, no flooding).
+   * Carries user data, so it only ever goes to [AgentLog.d] — which PlatformModule drops outside debug builds.
+   */
   private fun preview(s: String): String =
     s.replace(Regex("\\s+"), " ").trim().let { if (it.length > 140) it.take(140) + "…" else it }
 

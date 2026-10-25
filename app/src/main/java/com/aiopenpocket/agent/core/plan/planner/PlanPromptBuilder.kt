@@ -12,6 +12,7 @@ import com.aiopenpocket.agent.core.plan.template.PlanStepTemplate
 import com.aiopenpocket.agent.core.plan.template.PlanTemplate
 import com.aiopenpocket.agent.core.prompt.UntrustedFence
 import com.aiopenpocket.agent.core.prompt.AssetSource
+import com.aiopenpocket.agent.core.prompt.CurrentMoment
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -26,6 +27,7 @@ import dev.zacsweers.metro.SingleIn
  * 1. Immutable `system_base.md` — same shared file every other turn (CHAT/GOAL/REFLECT) uses.
  * 2. `planner.md` — this file's own contract: control-call names, when to use each, plan-quality
  *    rules mirroring `com.aiopenpocket.agent.core.plan.validation.PlanValidator`'s actual checks.
+ *    Then «Сейчас» ([CurrentMoment], the same section the chat prompt carries) — trusted, app-made.
  * 3. Agent role ([AgentDefinition.systemPrompt]).
  * 4. Plan horizon (SINGLE_RUN vs PROGRAM), explained in prose since `submit_plan`/
  *    `propose_plan_revision` never ask the model to choose it (see [PlanPlanner]'s kdoc).
@@ -46,10 +48,19 @@ import dev.zacsweers.metro.SingleIn
  * upstream and continue passing the result in here — either way [build]'s signature stays the seam.
  */
 @SingleIn(AppScope::class)
-@Inject
-class PlanPromptBuilder(
+class PlanPromptBuilder @Inject constructor(
   private val assets: AssetSource,
 ) {
+
+  /**
+   * Источник «сейчас» — тот же приём, что у [com.aiopenpocket.agent.core.prompt.PrePromptAssembler]:
+   * вторичный конструктор для тестов вместо голого `() -> Long` в DI-графе.
+   */
+  private var clock: () -> Long = System::currentTimeMillis
+
+  constructor(assets: AssetSource, clock: () -> Long) : this(assets) {
+    this.clock = clock
+  }
 
   fun build(
     agent: AgentDefinition,
@@ -62,6 +73,11 @@ class PlanPromptBuilder(
     appendLine(assets.load(SYSTEM_BASE_ASSET) ?: DEFAULT_SYSTEM_BASE)
     appendLine()
     appendLine(assets.load(PLANNER_CONTRACT_ASSET) ?: DEFAULT_PLANNER_CONTRACT)
+    appendLine()
+
+    // Без текущего момента планировщик не может ни поставить шагу schedule «завтра в 9», ни понять
+    // «к пятнице» — а system_base велит считать время от секции «Сейчас», которой тут не было.
+    appendLine(CurrentMoment.section(clock()))
     appendLine()
 
     appendLine("## Роль агента")

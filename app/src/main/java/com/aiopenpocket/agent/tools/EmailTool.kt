@@ -11,6 +11,7 @@ import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.mcp.missingArg
 import com.aiopenpocket.agent.core.mcp.string
 import com.aiopenpocket.agent.core.mcp.toolSchema
+import com.aiopenpocket.agent.loop.ForegroundState
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -20,6 +21,7 @@ import kotlinx.serialization.json.JsonElement
 @SingleIn(AppScope::class)
 class EmailTool(
   private val context: Context,
+  private val foreground: ForegroundState,
 ) : Tool {
 
   // Composer only — opens a draft the user sends manually — but it leaves the trust boundary.
@@ -48,14 +50,24 @@ class EmailTool(
       if (!to.isNullOrBlank()) putExtra(Intent.EXTRA_EMAIL, arrayOf(to))
       if (!subject.isNullOrBlank()) putExtra(Intent.EXTRA_SUBJECT, subject)
       if (!body.isNullOrBlank()) putExtra(Intent.EXTRA_TEXT, body)
-      addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
 
-    return try {
-      context.startActivity(intent)
-      ToolResult.Success("Черновик письма открыт в почтовом приложении. Отправьте его кнопкой «Отправить».")
-    } catch (e: Exception) {
-      ToolResult.Error("Не найдено почтовое приложение: ${e.message}")
+    // В фоне Android не даст открыть почту (см. launchExternalActivity) — тогда черновик ждёт тапа по
+    // уведомлению, и модели это сказано прямо: раньше тул рапортовал «открыт», а не открывалось ничего.
+    val notificationText = subject?.takeIf { it.isNotBlank() }?.let { "«$it» — нажми, чтобы открыть в почте." }
+      ?: "Нажми, чтобы открыть его в почте."
+    return when (val outcome = launchExternalActivity(context, foreground, intent, "Черновик письма готов", notificationText)) {
+      LaunchOutcome.Opened ->
+        ToolResult.Success("Черновик письма открыт в почтовом приложении. Отправьте его кнопкой «Отправить».")
+      LaunchOutcome.Notified -> ToolResult.Success(
+        "Приложение свёрнуто, а Android не даёт открыть почту из фона. Черновик ЕЩЁ НЕ открыт: " +
+          "пользователю отправлено уведомление, по тапу откроется почта с этим письмом. Так и скажи ему.",
+      )
+      LaunchOutcome.NotNotified -> ToolResult.Error(
+        "Приложение свёрнуто, а Android не даёт открыть почту из фона; уведомление тоже не показать — " +
+          "нет разрешения. Черновик НЕ открыт: попроси пользователя открыть приложение и повторить.",
+      )
+      is LaunchOutcome.Failed -> ToolResult.Error("Не найдено почтовое приложение: ${outcome.reason}")
     }
   }
 }

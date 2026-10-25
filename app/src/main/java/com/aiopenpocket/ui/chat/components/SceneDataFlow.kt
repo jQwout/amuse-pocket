@@ -92,7 +92,8 @@ internal fun DataFlowScene() {
                 Row {
                     Text("Телефон", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, modifier = Modifier.width(half))
                     Spacer(Modifier.width(gap))
-                    Text("Провайдер модели", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = primary, modifier = Modifier.width(half))
+                    // Запрос видят двое: посредник (OpenRouter) и сама Meta — урок называет обоих.
+                    Text("OpenRouter и Meta", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = primary, modifier = Modifier.width(half))
                 }
                 Box(Modifier.fillMaxWidth().height(((CHIP_HEIGHT + CHIP_GAP) * ITEMS.size + 10).dp)) {
                     Row(Modifier.fillMaxHeight()) {
@@ -207,7 +208,7 @@ private fun NetworkFailure() {
                 text = when {
                     mode < 0 -> "Выбери поломку — посмотрим, что сделает приложение."
                     done == 0 -> "Пробуем…"
-                    mode == 0 -> "Ответ пришёл от следующей модели того же провайдера. К чужому провайдеру запрос не ушёл."
+                    mode == 0 -> "Ответ пришёл от запасной модели Muse. К другой компании запрос не ушёл."
                     else -> "Без сети запасные модели не помогут: честная ошибка и «Повторить» — ход пойдёт с нуля."
                 },
                 style = MaterialTheme.typography.bodyMedium,

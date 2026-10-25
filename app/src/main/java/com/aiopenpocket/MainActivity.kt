@@ -1,15 +1,11 @@
 package com.aiopenpocket
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -65,10 +61,6 @@ private val NAV_FADE = tween<Float>(NAV_ANIM_MS, easing = FastOutSlowInEasing)
 
 class MainActivity : ComponentActivity() {
 
-    private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { }
-
     // Увеличивается каждый раз, когда приложение открыто как голосовой помощник —
     // сигнал для UI открыть новый чат.
     private val openNewChatRequest = MutableStateFlow(0)
@@ -79,21 +71,18 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        if (isOpenNewChatIntent(intent)) {
-            openNewChatRequest.value += 1
-        }
-        handleOpenConversationIntent(intent)
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            when {
-                ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED -> {}
-                shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) -> {
-                    requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
-                else -> {
-                    requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
-            }
+        // Интент запуска разбираем только при «чистом» старте. После поворота, смены системной темы
+        // или восстановления процесса getIntent() — всё тот же исходный интент, а стек навигации уже
+        // восстановлен: повторный разбор добавлял поверх лишние home и пустой chat/new (после вызова
+        // ассистента) или второй раз открывал чат из уведомления. Запуск из «Недавних» повторяет
+        // старый интент так же — его тоже пропускаем.
+        // Разрешение на уведомления здесь больше не спрашиваем: системный диалог до онбординга, без
+        // объяснения зачем, — лёгкий повод нажать «Запретить». Его просят по делу: карточка
+        // notification_permission, которую агент показывает, когда heartbeat упирается в отказ.
+        if (savedInstanceState == null &&
+            (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) == 0
+        ) {
+            handleLaunchIntent(intent)
         }
 
         enableEdgeToEdge()
@@ -157,7 +146,9 @@ class MainActivity : ComponentActivity() {
                             LaunchedEffect(openConversationId, onboardingCompleted) {
                                 val convId = openConversationId
                                 if (convId != null && onboardingCompleted == true) {
-                                    navController.navigate("chat/$convId") { launchSingleTop = true }
+                                    // Id уже проверен (UUID) в handleLaunchIntent; encode — на случай,
+                                    // если формат id когда-нибудь расширят: «/» в маршруте роняла навигацию.
+                                    navController.navigate("chat/${Uri.encode(convId)}") { launchSingleTop = true }
                                     openConversationRequest.value = null
                                 }
                             }
@@ -394,21 +385,24 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (isOpenNewChatIntent(intent)) {
-            openNewChatRequest.value += 1
-        }
-        handleOpenConversationIntent(intent)
+        handleLaunchIntent(intent)
     }
 
-    private fun isOpenNewChatIntent(intent: Intent?): Boolean =
-        intent?.action == ACTION_OPEN_NEW_CHAT || intent?.action == Intent.ACTION_ASSIST
-
-    private fun handleOpenConversationIntent(intent: Intent?) {
-        if (intent?.action == ACTION_OPEN_CONVERSATION) {
-            intent.getStringExtra(EXTRA_CONVERSATION_ID)
-                ?.takeIf { it.isNotBlank() }
-                ?.let { openConversationRequest.value = it }
+    /**
+     * Превращает интент запуска в разовый сигнал UI и «съедает» его: действие и id диалога
+     * стираются, чтобы тот же объект интента уже ничего не значил, если его прочтут ещё раз.
+     */
+    private fun handleLaunchIntent(intent: Intent?) {
+        if (intent == null) return
+        when (intent.action) {
+            ACTION_OPEN_NEW_CHAT, Intent.ACTION_ASSIST -> openNewChatRequest.value += 1
+            ACTION_OPEN_CONVERSATION ->
+                validConversationIdOrNull(intent.getStringExtra(EXTRA_CONVERSATION_ID))
+                    ?.let { openConversationRequest.value = it }
+            else -> return
         }
+        intent.action = null
+        intent.removeExtra(EXTRA_CONVERSATION_ID)
     }
 
     companion object {
@@ -418,5 +412,16 @@ class MainActivity : ComponentActivity() {
         /** Тап по уведомлению «агент ответил» — открыть конкретный диалог. */
         const val ACTION_OPEN_CONVERSATION = "com.aiopenpocket.action.OPEN_CONVERSATION"
         const val EXTRA_CONVERSATION_ID = "conversation_id"
+
+        private val CONVERSATION_ID_REGEX =
+            Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+
+        /**
+         * Активити экспортирована (лаунчер/ассистент), так что интент с ACTION_OPEN_CONVERSATION может
+         * прислать любое приложение. Id диалогов у нас — только UUID (ConversationRepository), всё
+         * прочее отбрасываем: id с «/» раньше бросал исключение прямо в LaunchedEffect навигации.
+         */
+        internal fun validConversationIdOrNull(raw: String?): String? =
+            raw?.trim()?.takeIf { CONVERSATION_ID_REGEX.matches(it) }
     }
 }

@@ -10,11 +10,15 @@ import com.aiopenpocket.agent.core.mcp.missingArg
 import com.aiopenpocket.agent.core.mcp.string
 import com.aiopenpocket.agent.core.mcp.toolSchema
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
+import com.aiopenpocket.agent.core.prompt.EpisodeFormat
 import com.aiopenpocket.agent.loop.TurnContextHolder
 import kotlinx.serialization.json.JsonElement
 import dev.zacsweers.metro.Inject
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.SingleIn
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Inject
 @SingleIn(AppScope::class)
@@ -48,7 +52,7 @@ class MemoryTools(
     string("value", "Значение факта (для remember_fact)")
     string("category", "Категория факта: profile, preference (для remember_fact)")
     string("query", "Запрос для поиска фактов (для search_memory)")
-    string("range", "Диапазон для эпизодов: today, yesterday, last_week (для recall_episodes)")
+    string("range", "Диапазон для эпизодов (действий в этом чате): today, yesterday, last_week (для recall_episodes)")
   }
 
   override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult {
@@ -109,22 +113,41 @@ class MemoryTools(
     }
   }
 
+  /**
+   * Журнал вызовов инструментов ТЕКУЩЕГО диалога за окно [range]. Раньше — журнал всех диалогов и
+   * всех агентов целиком и без потолка: агент бюджета видел чтения файлов из чужих чатов, а один
+   * прочитанный файл (до 40 тыс. символов) приезжал в ответ дословно. Теперь — свой диалог (агент в
+   * своём чате видит свою историю, обычный чат — свою), не больше [EPISODES_MAX] событий, каждое
+   * обрезано так же, как в «Недавних действиях» системного промпта ([EpisodeFormat]).
+   */
   private suspend fun recallEpisodes(args: Map<String, JsonElement>): ToolResult {
     val range = args.string("range")
+    // Без диалога (вызов вне хода) не отдаём ничего, а не «всё подряд»: скоуп обязан быть закрытым.
+    val conversationId = turnContextHolder.conversationId
+      ?: return ToolResult.Success("No episodes found for range '${range ?: "default"}'")
     val dayMillis = 24L * 60 * 60 * 1000
+    val now = System.currentTimeMillis()
     val startOfToday = startOfTodayMillis()
-    val episodes = when (range) {
-      "today" -> memoryRepository.getEpisodesSince(startOfToday)
+    val (since, until) = when (range) {
+      "today" -> startOfToday to Long.MAX_VALUE
       // Вчера — это календарное окно [начало вчера, начало сегодня), а не последние 24 часа.
-      "yesterday" -> memoryRepository.getEpisodesBetween(startOfToday - dayMillis, startOfToday)
-      "last_week" -> memoryRepository.getEpisodesSince(System.currentTimeMillis() - 7 * dayMillis)
-      else -> memoryRepository.getEpisodesSince(System.currentTimeMillis() - dayMillis)
+      "yesterday" -> (startOfToday - dayMillis) to startOfToday
+      "last_week" -> (now - 7 * dayMillis) to Long.MAX_VALUE
+      else -> (now - dayMillis) to Long.MAX_VALUE
     }
+    val episodes = memoryRepository.getEpisodesForConversationBetween(conversationId, since, until, EPISODES_MAX)
     return if (episodes.isEmpty()) {
       ToolResult.Success("No episodes found for range '${range ?: "default"}'")
     } else {
-      ToolResult.Success(episodes.joinToString("\n") { "- [${it.type}] ${it.outcome}" })
+      val timeFormat = SimpleDateFormat("dd.MM HH:mm", Locale.ROOT)
+      ToolResult.Success(
+        episodes.joinToString("\n") { "- ${timeFormat.format(Date(it.timestamp))} ${EpisodeFormat.line(it)}" },
+      )
     }
   }
 
+  private companion object {
+    /** Потолок событий в одном ответе `recall_episodes`: дальше — уже не память, а лог. */
+    const val EPISODES_MAX = 20
+  }
 }

@@ -125,4 +125,70 @@ class FactRecallTest {
 
     assertEquals(listOf("agent:budget:limit"), found.map { it.key })
   }
+
+  // --- 3. Русский: стоп-слова и падежи -----------------------------------------------------------
+
+  @Test
+  fun `question words do not eat the token cap, inflected words are stemmed`() {
+    // «как», «мою» раньше проходили фильтр длины и занимали места в потолке из восьми слов.
+    assertEquals(listOf("зову", "сест"), repository.tokenize("Как зовут мою сестру?"))
+  }
+
+  @Test
+  fun `a different case of the same word still matches`() = runTest {
+    repository.saveFact("user.relative", "сестра Аня", "profile")
+
+    // «сестру» в вопросе и «сестра» в факте как подстроки не совпадают — совпадает основа «сест».
+    val found = repository.searchFacts("как зовут мою сестру")
+
+    assertEquals(listOf("user.relative"), found.map { it.key })
+  }
+
+  @Test
+  fun `numbers are not cut by stemming`() {
+    assertEquals(listOf("2026"), repository.tokenize("2026"))
+  }
+
+  // --- 4. Промпт: маленькая память целиком ---------------------------------------------------------
+
+  @Test
+  fun `small memory goes into the prompt whole, even when no word matches`() = runTest {
+    // Английский ключ, русский вопрос: пословно не совпадает ничего, а факт нужен.
+    repository.saveFact("family.sister", "Аня", "general")
+
+    val facts = repository.factsForPrompt(namespace = null, message = "как зовут мою сестру", limit = 5)
+
+    assertEquals(listOf("family.sister"), facts.map { it.key })
+  }
+
+  @Test
+  fun `plain chat prompt memory leaves out agents' working notes`() = runTest {
+    repository.saveFact("user.city", "Казань", "profile")
+    repository.saveFact("agent:budget:expense:1", "кофе 300", "general")
+
+    val facts = repository.factsForPrompt(namespace = null, message = "привет", limit = 5)
+
+    assertEquals(listOf("user.city"), facts.map { it.key })
+  }
+
+  @Test
+  fun `large memory falls back to ranked search with a limit`() = runTest {
+    repeat(45) { repository.saveFact("note.$it", "заметка номер $it", "general") }
+    repository.saveFact("user.city", "Казань", "profile")
+
+    val facts = repository.factsForPrompt(namespace = null, message = "я живу в Казани", limit = 5)
+
+    assertEquals(listOf("user.city"), facts.map { it.key })
+  }
+
+  @Test
+  fun `bound agent prompt memory is its own namespace only`() = runTest {
+    repository.saveFact("agent:budget:limit", "30000", "general")
+    repository.saveFact("agent:other:limit", "чужой", "general")
+    repository.saveFact("user.city", "Казань", "profile")
+
+    val facts = repository.factsForPrompt(namespace = "agent:budget:", message = "привет", limit = 5)
+
+    assertEquals(listOf("agent:budget:limit"), facts.map { it.key })
+  }
 }

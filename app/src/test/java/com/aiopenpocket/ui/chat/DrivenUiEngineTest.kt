@@ -96,14 +96,14 @@ class DrivenUiEngineTest {
     // Mirrors exactly what LessonChatController.postCompletion emits for the agent_blueprint capstone.
     val spec = """
       {"template":"lesson_complete","params":{"title":"Урок «Капстоун» пройден!","subtitle":"Отличная работа.","button_label":"Готово",
-        "primary_action":{"type":"open_agent_builder","label":"Собрать этого агента"}}}
+        "primary_action":{"type":"open_agent_builder","label":"Открыть конструктор"}}}
     """.trimIndent()
 
     val card = DrivenUiEngine.parseJsonString(spec)
     assertTrue(card is DrivenUiCard.LessonCompleteCard)
     card as DrivenUiCard.LessonCompleteCard
     assertEquals("open_agent_builder", card.primaryAction?.type)
-    assertEquals("Собрать этого агента", card.primaryAction?.label)
+    assertEquals("Открыть конструктор", card.primaryAction?.label)
   }
 
   @Test
@@ -128,7 +128,7 @@ class DrivenUiEngineTest {
 
   @Test
   fun `lesson_complete primary_action missing type is rejected`() {
-    val spec = """{"template":"lesson_complete","params":{"primary_action":{"label":"Собрать этого агента"}}}"""
+    val spec = """{"template":"lesson_complete","params":{"primary_action":{"label":"Открыть конструктор"}}}"""
 
     val card = DrivenUiEngine.parseJsonString(spec)
     assertTrue(card is DrivenUiCard.ErrorCard)

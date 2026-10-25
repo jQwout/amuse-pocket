@@ -16,6 +16,11 @@
       поэтому cloud-backup её не забирает. А device-transfer (прямой перенос на новое устройство,
       который инициирует сам пользователь) — сохраняет: данные не уходят на чужие серверы, и переезд
       не стоит пользователю всей переписки.
+
+   3. Файлы агента — та же ПРИВАТНОСТЬ, что и база, и правило то же (облако — нет, перенос — да):
+      - agent/ и agents/ — песочницы file_tool (plain chat и личные папки агентов): заметки, дневник,
+        выгрузки, всё, что агент записал о пользователе;
+      - lesson_images/ — картинки уроков, в том числе «Нарисуй под меня», нарисованные по «о себе».
 -->
 <data-extraction-rules>
     <cloud-backup>
@@ -23,6 +28,9 @@
         <exclude domain="database" path="ai_open_pocket_db"/>
         <exclude domain="database" path="ai_open_pocket_db-wal"/>
         <exclude domain="database" path="ai_open_pocket_db-shm"/>
+        <exclude domain="file" path="agent"/>
+        <exclude domain="file" path="agents"/>
+        <exclude domain="file" path="lesson_images"/>
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="secure_settings.xml"/>

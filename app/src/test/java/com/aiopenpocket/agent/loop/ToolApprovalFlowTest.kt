@@ -80,7 +80,7 @@ class ToolApprovalFlowTest {
   }
 
   /** Fake with a real (empty-args) schema, and a flag proving whether execute() actually ran. */
-  private class FakeTool(override val name: String) : Tool {
+  private class FakeTool(override val name: String, override val riskClass: RiskClass = RiskClass.READ) : Tool {
     override val description = "fake tool $name"
     override val schema = toolSchema(name, description) {}
     var executed = false
@@ -179,7 +179,7 @@ class ToolApprovalFlowTest {
     // assuming a specific interleaving.
     val pending = coordinator.pending.first { it.isNotEmpty() }.single()
     assertEquals("fake_tool", pending.toolName)
-    assertEquals(RiskClass.READ, pending.riskClass) // FakeTool never overrides riskClass/riskFor
+    assertEquals(RiskClass.READ, pending.riskClass) // FakeTool's default risk: here only the HOOK asks, not the floor
 
     assertTrue(coordinator.resolve(pending.runId, pending.requestId, approved = true))
     resultDeferred.await()
@@ -236,6 +236,73 @@ class ToolApprovalFlowTest {
 
     assertFalse("no screen could ever answer, so the tool must never run", tool.executed)
     assertTrue("a non-interactive run must never publish a request nobody will see", coordinator.pending.value.isEmpty())
+  }
+
+  // --- the LIVE floor: DESTRUCTIVE/EXTERNAL ask even with no agent and no hooks -----------------
+
+  @Test
+  fun `plain chat with no hooks still asks before a DESTRUCTIVE call, and approving runs it`() = runTest(UnconfinedTestDispatcher()) {
+    val tool = FakeTool("calendar", RiskClass.DESTRUCTIVE)
+    val toolRegistry = ToolRegistry(setOf(tool))
+    val coordinator = ToolApprovalCoordinator()
+    val runner = runner(ScriptedLlm(toolCallThenStop("calendar")), toolRegistry, coordinator)
+
+    // Реальные часы по той же причине, что и в тестах выше: виртуальное время runTest мгновенно
+    // «дождалось» бы двухминутного таймаута approval-а.
+    val resultDeferred = async(Dispatchers.Default) {
+      runner.run(
+        conversationId = "c1",
+        messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
+        tools = toolRegistry.getAllSchemas(),
+        provider = LlmProvider.OPENROUTER,
+        agent = null, // обычный чат: ни агента, ни хуков — пол обязан сработать сам
+      ) { }
+    }
+
+    val pending = coordinator.pending.first { it.isNotEmpty() }.single()
+    assertEquals(RiskClass.DESTRUCTIVE, pending.riskClass)
+    assertFalse("nothing may run before the human answers", tool.executed)
+
+    assertTrue(coordinator.resolve(pending.runId, pending.requestId, approved = true))
+    resultDeferred.await()
+    assertTrue(tool.executed)
+  }
+
+  @Test
+  fun `background run with no hooks denies an EXTERNAL call outright`() = runTest {
+    val tool = FakeTool("email", RiskClass.EXTERNAL)
+    val toolRegistry = ToolRegistry(setOf(tool))
+    val coordinator = ToolApprovalCoordinator()
+    val runner = runner(ScriptedLlm(toolCallThenStop("email")), toolRegistry, coordinator)
+
+    val result = runner.run(
+      conversationId = "c1",
+      messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
+      tools = toolRegistry.getAllSchemas(),
+      provider = LlmProvider.OPENROUTER,
+      interactiveApproval = false,
+    ) { }
+
+    assertFalse(tool.executed)
+    assertTrue(coordinator.pending.value.isEmpty())
+    assertTrue(result.toolTrace.single { it.toolName == "email" }.result is ToolResult.Error)
+  }
+
+  @Test
+  fun `a WRITE call below the floor runs without asking`() = runTest {
+    val tool = FakeTool("notes", RiskClass.WRITE)
+    val toolRegistry = ToolRegistry(setOf(tool))
+    val coordinator = ToolApprovalCoordinator()
+    val runner = runner(ScriptedLlm(toolCallThenStop("notes")), toolRegistry, coordinator)
+
+    runner.run(
+      conversationId = "c1",
+      messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
+      tools = toolRegistry.getAllSchemas(),
+      provider = LlmProvider.OPENROUTER,
+    ) { }
+
+    assertTrue(tool.executed)
   }
 
   // --- coordinator contract directly (no Room/hooks/loop involved) ------------------------------

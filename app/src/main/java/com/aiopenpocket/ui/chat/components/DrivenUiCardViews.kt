@@ -1096,21 +1096,32 @@ fun ExampleCardView(card: DrivenUiCard.ExampleCard) {
     }
 }
 
-/** "fill": заполни пропуск. Правильный ввод продвигает урок (как пройденный квиз). */
+/** Сколько промахов fill-шага терпим, прежде чем показать ответ и пустить дальше. */
+private const val FILL_MISSES_BEFORE_REVEAL = 2
+
+/**
+ * "fill": заполни пропуск. Правильный ввод продвигает урок (как пройденный квиз).
+ *
+ * После [FILL_MISSES_BEFORE_REVEAL] промахов карточка показывает ответ и кнопку «Дальше»: у fill нет
+ * своей «Дальше», и раньше ученик, не угадавший точное слово, застревал в уроке навсегда. Подсмотренный
+ * ответ продвигает урок так же, как решённый, — смысл шага в том, чтобы прочитать правильное слово,
+ * а не в экзамене.
+ */
 @Composable
 fun FillCardView(card: DrivenUiCard.FillCard, onSolved: () -> Unit) {
     // rememberSaveable: решённость (и черновик) переживают рециклинг/поворот. Иначе карточка
     // сбрасывалась в нерешённую, и повторное решение ЕЩЁ РАЗ дёргало onSolved — курсор урока
     // прыгал на лишний шаг. onSolved зовётся только на переходе solved=false→true, поэтому
-    // восстановленное solved=true повторного продвижения не даёт.
+    // восстановленное solved=true повторного продвижения не даёт. Счётчик промахов тоже saveable:
+    // иначе поворот экрана снова прятал бы уже показанный ответ.
     var input by rememberSaveable(card) { mutableStateOf("") }
     var solved by rememberSaveable(card) { mutableStateOf(false) }
+    var revealed by rememberSaveable(card) { mutableStateOf(false) }
+    var misses by rememberSaveable(card) { mutableIntStateOf(0) }
     var wrong by remember(card) { mutableStateOf(false) }
 
     fun check() {
-        val a = if (card.caseSensitive) input.trim() else input.trim().lowercase(Locale.getDefault())
-        val b = if (card.caseSensitive) card.answer.trim() else card.answer.trim().lowercase(Locale.getDefault())
-        if (a == b && a.isNotEmpty()) { solved = true; wrong = false; onSolved() } else { wrong = true }
+        if (card.accepts(input)) { solved = true; wrong = false; onSolved() } else { wrong = true; misses++ }
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1121,7 +1132,12 @@ fun FillCardView(card: DrivenUiCard.FillCard, onSolved: () -> Unit) {
         )
         if (solved) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Default.Check, null, tint = CardSuccessGreen)
+                // Подсмотренный ответ — без зелёной галочки: честно, что его не угадали, а прочитали.
+                if (revealed) {
+                    Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.outline)
+                } else {
+                    Icon(Icons.Default.Check, null, tint = CardSuccessGreen)
+                }
                 Text(card.answer, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
             }
         } else {
@@ -1133,11 +1149,26 @@ fun FillCardView(card: DrivenUiCard.FillCard, onSolved: () -> Unit) {
                 placeholder = { Text("Впиши пропущенное слово") },
                 modifier = Modifier.fillMaxWidth(),
             )
-            if (wrong) {
+            if (misses >= FILL_MISSES_BEFORE_REVEAL) {
+                Text(
+                    "Правильно: «${card.answer}»",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else if (wrong) {
                 Text("Не то — попробуй ещё", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
             Button(onClick = { check() }, enabled = input.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
                 Text("Проверить")
+            }
+            if (misses >= FILL_MISSES_BEFORE_REVEAL) {
+                OutlinedButton(
+                    onClick = { revealed = true; solved = true; wrong = false; onSolved() },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Дальше")
+                }
             }
         }
     }

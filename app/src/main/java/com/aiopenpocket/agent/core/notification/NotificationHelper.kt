@@ -11,6 +11,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.aiopenpocket.R
 
 private const val CHANNEL_ID = "ai_agent_channel"
 
@@ -38,13 +39,16 @@ fun showAgentNotification(
     context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
   if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    // Имя канала видит пользователь в системных настройках уведомлений — по-русски. Тот же
+    // CHANNEL_ID: повторный createNotificationChannel просто переименует уже созданный канал.
     notificationManager.createNotificationChannel(
-      NotificationChannel(CHANNEL_ID, "AI Agent Notifications", NotificationManager.IMPORTANCE_DEFAULT),
+      NotificationChannel(CHANNEL_ID, "Напоминания и ответы агента", NotificationManager.IMPORTANCE_DEFAULT),
     )
   }
 
   val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-    .setSmallIcon(android.R.drawable.ic_dialog_info)
+    // Своя монохромная иконка вместо системной «i»: в шторке сразу видно, от кого уведомление.
+    .setSmallIcon(R.drawable.ic_stat_agent)
     .setContentTitle(title)
     .setContentText(message)
     .setPriority(NotificationCompat.PRIORITY_DEFAULT)

@@ -19,6 +19,7 @@ import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.StreamEvent
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
+import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolExecutor
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
@@ -77,14 +78,33 @@ class ReflectionOrchestratorTest {
     var calls = 0
       private set
 
+    /** Снимок сообщений и имён тулов на каждый вызов — чтобы проверить, что увидела фаза правки. */
+    val seenMessages = mutableListOf<List<ChatMessage>>()
+    val seenToolNames = mutableListOf<List<String>>()
+
     override fun streamChat(
       messages: List<ChatMessage>,
       tools: List<FunctionSchema>,
       provider: LlmProvider,
     ): Flow<StreamEvent> {
+      seenMessages += messages.toList()
+      seenToolNames += tools.map { it.function.name }
       val events = perCall.getOrElse(calls) { listOf(StreamEvent.Finish("stop")) }
       calls++
       return flowOf(*events.toTypedArray())
+    }
+  }
+
+  /** Пишущий тул со счётчиком: доказывает, сколько раз действие выполнилось ПО-НАСТОЯЩЕМУ. */
+  private class CountingWriteTool(override val name: String) : Tool {
+    override val description = "write tool $name"
+    override val schema = toolSchema(name, description) {}
+    override val riskClass = RiskClass.WRITE
+    var executions = 0
+      private set
+    override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult {
+      executions++
+      return ToolResult.Success("saved")
     }
   }
 
@@ -291,6 +311,36 @@ class ReflectionOrchestratorTest {
     assertEquals("general", saved?.category)
     // Без namespace ключ вообще не создаётся — не осталось «утечки» в глобальное пространство.
     assertNull(db.factDao().getByKey("note"))
+  }
+
+  @Test
+  fun `правка не повторяет действия черновика - получает только тулы чтения и список уже сделанного`() = runTest {
+    // Черновик в LIVE реально выполняет пишущий тул; раньше правка получала тот же набор тулов и
+    // инструкцию «вызови нужный инструмент заново» — и действие выполнялось второй раз.
+    val writeTool = CountingWriteTool("notes")
+    val toolRegistry = ToolRegistry(setOf(writeTool, FakeTool("lookup")))
+    val llm = ScriptedLlm(
+      listOf(
+        listOf(StreamEvent.ToolCall("call-1", "notes", emptyMap()), StreamEvent.Finish("tool_calls")),
+        textThenStop("черновой ответ"),
+        textThenStop("критика"),
+        // Правка «по старой привычке» зовёт тот же пишущий тул ещё раз.
+        listOf(StreamEvent.ToolCall("call-2", "notes", emptyMap()), StreamEvent.Finish("tool_calls")),
+        textThenStop("Итоговый ответ"),
+      ),
+    )
+
+    val events = orchestrator(llm, toolRegistry).executeNim("c1", "запиши заметку").toList()
+
+    assertEquals("пишущее действие черновика не должно выполниться второй раз", 1, writeTool.executions)
+    val reviseCall = events.filterIsInstance<AgentEvent.ToolCompleted>().last { it.name == "notes" }
+    assertEquals("Tool 'notes' is not available in this context.", (reviseCall.result as? ToolResult.Error)?.message)
+
+    // Вызов №3 (0-based) — первый виток правки: пишущего тула в его схемах нет, тул чтения есть.
+    assertEquals(listOf("lookup"), llm.seenToolNames[3])
+    val reviseInstruction = llm.seenMessages[3].last { it.role == "user" }.content.orEmpty()
+    assertTrue("правке сказано, что черновик уже сделал", reviseInstruction.contains("- notes — успешно"))
+    assertTrue(events.filterIsInstance<AgentEvent.Completed>().isNotEmpty())
   }
 
   /**

@@ -10,6 +10,7 @@ import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
 import com.aiopenpocket.agent.core.plan.schedule.WorkManagerHeartbeatScheduler
 import com.aiopenpocket.agent.core.srs.SrsRepository
+import com.aiopenpocket.agent.core.storage.AgentStorageRepository
 import com.aiopenpocket.agent.loop.TurnContextHolder
 import com.aiopenpocket.data.database.AppDatabase
 import kotlinx.serialization.json.JsonElement
@@ -25,7 +26,8 @@ import org.robolectric.annotation.Config
 /**
  * Table-driven coverage for [com.aiopenpocket.agent.core.mcp.Tool.riskFor] (Task 9) on every
  * mixed-action tool the design brief names: file_tool, external_files, memory_tool, calendar,
- * database_query, heartbeat, work_manager. Each maps a DIFFERENT [RiskClass] per action/statement —
+ * database_query, heartbeat, work_manager (plus srs_tool and storage_tool, added later). Each maps a
+ * DIFFERENT [RiskClass] per action/statement —
  * this is exactly what `com.aiopenpocket.agent.core.policy.ExecutionPolicy` gates PREVIEW-mode
  * simulation and approval on, so a wrong mapping here is a real safety-classification bug, not
  * cosmetics. database_query is the one exception since Part A's SELECT-only hardening
@@ -51,6 +53,7 @@ class ToolRiskForTest {
   private lateinit var heartbeatTool: HeartbeatTool
   private lateinit var workManagerTool: WorkManagerTool
   private lateinit var srsTool: SrsTool
+  private lateinit var storageTool: StorageTool
 
   @Before
   fun setUp() {
@@ -69,6 +72,7 @@ class ToolRiskForTest {
     heartbeatTool = HeartbeatTool(context, db.heartbeatDao(), holder, WorkManagerHeartbeatScheduler(context))
     workManagerTool = WorkManagerTool(context)
     srsTool = SrsTool(SrsRepository(db.srsWordDao()))
+    storageTool = StorageTool(AgentStorageRepository(db.agentStorageDao()), holder)
   }
 
   @After
@@ -99,7 +103,8 @@ class ToolRiskForTest {
     assertEquals(RiskClass.WRITE, fileTools.riskFor(args("action" to "write_file")))
   }
 
-  // --- external_files: same read/write split as file_tool -------------------------------------
+  // --- external_files: reads are READ, but write_file truncates the USER's document ("wt") — unlike
+  // file_tool's own sandbox, that overwrite is irreversible, so it is DESTRUCTIVE ------------------
 
   @Test
   fun `external_files read_file is READ`() {
@@ -112,8 +117,31 @@ class ToolRiskForTest {
   }
 
   @Test
-  fun `external_files write_file is WRITE`() {
-    assertEquals(RiskClass.WRITE, externalFilesTool.riskFor(args("action" to "write_file")))
+  fun `external_files write_file is DESTRUCTIVE`() {
+    assertEquals(RiskClass.DESTRUCTIVE, externalFilesTool.riskFor(args("action" to "write_file")))
+  }
+
+  @Test
+  fun `external_files ceiling is DESTRUCTIVE`() {
+    assertEquals(RiskClass.DESTRUCTIVE, externalFilesTool.riskClass)
+  }
+
+  // --- storage_tool: get/list=READ, put=WRITE, delete=DESTRUCTIVE (no undo) ---------------------
+
+  @Test
+  fun `storage_tool get and list are READ`() {
+    assertEquals(RiskClass.READ, storageTool.riskFor(args("action" to "get")))
+    assertEquals(RiskClass.READ, storageTool.riskFor(args("action" to "list")))
+  }
+
+  @Test
+  fun `storage_tool put is WRITE`() {
+    assertEquals(RiskClass.WRITE, storageTool.riskFor(args("action" to "put")))
+  }
+
+  @Test
+  fun `storage_tool delete is DESTRUCTIVE`() {
+    assertEquals(RiskClass.DESTRUCTIVE, storageTool.riskFor(args("action" to "delete")))
   }
 
   // --- memory_tool: search_memory/recall_episodes=READ, remember_fact=WRITE -------------------

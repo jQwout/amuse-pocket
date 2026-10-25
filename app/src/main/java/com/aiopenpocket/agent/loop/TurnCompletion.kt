@@ -40,6 +40,14 @@ object TurnTexts {
   const val TURN_FAILED = "Что-то пошло не так — попробуй ещё раз."
 
   /**
+   * Хвост ответа, когда цикл упёрся в лимит шагов, а модель так и не дала итог. Без него в чат
+   * уходили преамбулы витков («сейчас посмотрю…») как будто это ответ, а при пустых преамбулах —
+   * «пустой ответ». Подсказка «попроси продолжить» — потому что продолжение и правда работает:
+   * результаты инструментов уже в эпизодической памяти диалога.
+   */
+  const val ITERATION_LIMIT_NOTE = "_Остановился на лимите шагов — попроси продолжить._"
+
+  /**
    * Task 10 (structured-plan-engine-907066): PLAN turn persisted a proposal —
    * [com.aiopenpocket.ui.chat.ChatViewModel]'s own reactive subscription to
    * `PlanRepository.observeByConversation` is what actually raises the approval bar
@@ -153,11 +161,20 @@ fun resolveCompletedTurn(result: AgentResult): CompletedTurn {
     .filter { it.toolName == RENDER_CARD_TOOL }
     .mapNotNull { (it.result as? ToolResult.Success)?.data }
 
-  val blankReply = result.text.isBlank() && cardSpecs.isEmpty()
+  // Лимит витков — видимый исход, а не тишина: раньше hitIterationLimit здесь не читался вовсе.
+  // stoppedByToolBudget — бюджет шага плана, в CHAT/REFLECT/TUTOR его нет; на всякий случай не
+  // выдаём его за лимит шагов чата.
+  val responseText = if (result.hitIterationLimit && !result.stoppedByToolBudget) {
+    listOf(result.text.trim(), TurnTexts.ITERATION_LIMIT_NOTE).filter { it.isNotEmpty() }.joinToString("\n\n")
+  } else {
+    result.text
+  }
+
+  val blankReply = responseText.isBlank() && cardSpecs.isEmpty()
   val blankError = if (blankReply) TurnTexts.BLANK_REPLY_ERROR else null
 
   return CompletedTurn(
-    responseText = result.text,
+    responseText = responseText,
     cardSpecs = cardSpecs,
     blankError = blankError,
   )

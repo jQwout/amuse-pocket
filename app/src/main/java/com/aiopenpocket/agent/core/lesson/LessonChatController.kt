@@ -245,11 +245,15 @@ class LessonChatController(
     return JSONObject().put("template", "example").put("params", params).toString()
   }
 
-  /** "fill": предложение с пропуском `___`, ответ проверяется по [LessonStep.answer]. */
+  /**
+   * "fill": предложение с пропуском `___`, ответ проверяется по [LessonStep.answer] и принятым
+   * вариантам [LessonStep.answers] (пустые строки отбрасываем — они засчитали бы любой ввод).
+   */
   private fun buildFillCardSpec(step: LessonStep): String {
     val params = JSONObject()
       .put("template", step.template)
       .put("answer", step.answer)
+      .put("answers", JSONArray(step.answers.filter { it.isNotBlank() }))
       .put("case_sensitive", step.caseSensitive)
     return JSONObject().put("template", "fill").put("params", params).toString()
   }

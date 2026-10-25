@@ -98,6 +98,48 @@ class OpenAiCompatClientFallbackTest {
   }
 
   @Test
+  fun `HTTP 400 stops the chain with a request-specific message, not a network one`() = runTest {
+    val calls = mutableListOf<String>()
+    val engine = MockEngine { request ->
+      val body = (request.body as TextContent).text
+      calls += listOf("rejecting-model", "never-called").first { body.contains("\"model\":\"$it\"") }
+      respond(
+        content = """{"error":{"message":"context length exceeded"}}""",
+        status = HttpStatusCode.BadRequest,
+        headers = headersOf(HttpHeaders.ContentType, "application/json"),
+      )
+    }
+    val client = clientOf(models = listOf("rejecting-model", "never-called"), engine = engine)
+
+    val events = client.streamChat(emptyList(), emptyList(), LlmProvider.OPENROUTER).toList()
+
+    // Отказ в самом запросе получит и следующая модель — гонять цепочку незачем.
+    assertEquals(listOf("rejecting-model"), calls)
+    val error = events.single() as StreamEvent.Error
+    assertEquals("400", error.code)
+    assertTrue("400 — не «нет сети»: ${error.message}", !error.message.contains("нет сети"))
+  }
+
+  @Test
+  fun `a reply cut by max_tokens with no content is an error and does not walk the chain`() = runTest {
+    val lengthSse = """
+      data: {"choices":[{"delta":{"reasoning":"Думаю…"}}]}
+      data: {"choices":[{"delta":{},"finish_reason":"length"}]}
+      data: [DONE]
+    """.trimIndent()
+    val calls = mutableListOf<String>()
+    val client = clientOf(
+      models = listOf("thinker", "never-called"),
+      engine = engineFor(mapOf("thinker" to lengthSse, "never-called" to textSse), calls),
+    )
+
+    val events = client.streamChat(emptyList(), emptyList(), LlmProvider.OPENROUTER).toList()
+
+    assertEquals(listOf("thinker"), calls)
+    assertEquals(CODE_LENGTH_EMPTY, (events.single() as StreamEvent.Error).code)
+  }
+
+  @Test
   fun `all models empty surfaces an error instead of silent emptiness`() = runTest {
     val calls = mutableListOf<String>()
     val client = clientOf(

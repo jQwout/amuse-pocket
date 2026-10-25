@@ -24,6 +24,7 @@ import com.aiopenpocket.agent.core.plan.model.StepStatus
 import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
 import com.aiopenpocket.agent.core.plan.schedule.PlanHeartbeatTarget
 import com.aiopenpocket.agent.core.plan.schedule.planTarget
+import com.aiopenpocket.agent.core.prompt.CurrentMoment
 import com.aiopenpocket.agent.loop.AgentState
 import com.aiopenpocket.agent.loop.ReactLoopRunner
 import com.aiopenpocket.agent.loop.TurnContextHolder
@@ -127,6 +128,11 @@ class HeartbeatRunner(
       // Оговорка про напоминания — чтобы «напомни выпить воды» не съедалось как «нечего сообщить».
       append("\nЕсли сообщать нечего — ответь ровно $HEARTBEAT_OK: тогда юзер ничего не получит. ")
       append("Напоминание, о котором тебя просили, — это всегда «есть что сообщить».")
+      // Та же секция «Сейчас», что у чата (PrePromptAssembler) и плана: без неё фоновый ход не знает,
+      // который час, — ни «в 19:00» в задаче, ни «сегодня/через час» не пересчитать во время
+      // (calendar.start в Unix-мс, задержки), и «что важно прямо сейчас» в пульсе решается вслепую.
+      append("\n\n")
+      append(CurrentMoment.section(System.currentTimeMillis()))
     }
     val task = hb.prompt ?: PULSE_PROMPT
     val messages = mutableListOf(
@@ -360,6 +366,12 @@ class HeartbeatRunner(
      * же безопасен в фоне, как memory_tool) + srs_tool (локальная запись карточек в Room, как
      * memory_tool; без него фоновые напоминания «Репетитора» не могли ни показать, ни отметить
      * повторение). Исключены: email/файлы/alarm/сам heartbeat (самовоспроизводство)/render_card.
+     *
+     * В фоне из этих тулов реально работают только действия READ и WRITE. calendar.delete_event и
+     * storage_tool.delete — DESTRUCTIVE: по полу [com.aiopenpocket.agent.core.policy.ExecutionPolicy]
+     * им нужно «Разрешить» от человека, а фоновый ход (`interactiveApproval = false`) спросить некого —
+     * ReactLoopRunner отказывает сразу, ничего не удаляя. Тулы в наборе оставлены ради их чтения и
+     * записи (список событий, создание события, заметки агента), не ради удаления.
      */
     val SAFE_TOOL_NAMES = setOf(
       "memory_tool", "database_query", "calendar", "step_counter", "notifications", "storage_tool", "srs_tool",

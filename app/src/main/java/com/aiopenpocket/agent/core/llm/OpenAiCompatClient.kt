@@ -127,7 +127,10 @@ class OpenAiCompatClient(
           val status = response.status.value
           if (status !in 200..299) {
             val bodyText = response.body<String>()
-            Log.w(TAG, "$attempt $tag ✗ HTTP $status: ${bodyText.replace("\n", " ").take(800)}")
+            // Отказ в самом запросе (400/413) разбирают по телу ответа — там причина («слишком
+            // длинный контекст», «модель не принимает картинки»), поэтому его пишем целиком.
+            val logLimit = if (status.toString() in REQUEST_LEVEL_FAILURES) 4_000 else 800
+            Log.w(TAG, "$attempt $tag ✗ HTTP $status: ${bodyText.replace("\n", " ").take(logLimit)}")
             // Бросаем, чтобы catch ниже перешёл к следующему провайдеру AUTO-цепочки.
             throw LlmHttpException(status, bodyText)
           }
@@ -137,6 +140,9 @@ class OpenAiCompatClient(
           var textChars = 0
           var toolCalls = 0
           var finishReason = "?"
+          // Ошибку, которую нашёл сам разбор стрима (ответ обрезан по max_tokens — см. consumeOpenAiSse),
+          // придерживаем до конца попытки, как и Finish: она терминальная для хода.
+          var streamError: StreamEvent.Error? = null
           val channel = response.body<ByteReadChannel>()
           val sseUsage = consumeOpenAiSse(
             channel = channel,
@@ -158,15 +164,18 @@ class OpenAiCompatClient(
               // Finish придерживаем до конца попытки: он терминальный, а пустая попытка уходит в
               // фолбэк — потребитель не должен увидеть конец хода раньше ответа следующей модели.
               is StreamEvent.Finish -> finishReason = event.reason
-              is StreamEvent.Error -> emit(event)
+              is StreamEvent.Error -> streamError = event
             }
           }
           val ms = System.currentTimeMillis() - callStart
-          emptyAttempt = textChars == 0 && toolCalls == 0
+          // Ошибка разбора — не «пустая попытка»: модель ответила, но обрезанно, и следующая модель
+          // цепочки упрётся в тот же max_tokens. Ход кончается ошибкой с «Повторить», без фолбэка.
+          emptyAttempt = textChars == 0 && toolCalls == 0 && streamError == null
           Log.i(
             TAG,
             "$attempt $tag ✓ done in ${ms}ms textChars=$textChars toolCalls=$toolCalls finish=$finishReason" +
-              if (emptyAttempt) "  ⚠ EMPTY RESPONSE" else "",
+              (if (emptyAttempt) "  ⚠ EMPTY RESPONSE" else "") +
+              (streamError?.let { "  ✗ ${it.code}" } ?: ""),
           )
           // Пишем расход и для ПУСТОЙ попытки тоже: промпт у неё улетел целиком и оплачен, а
           // ответа не было. Пропускать такие значило бы прятать самую дорогую разновидность
@@ -187,12 +196,13 @@ class OpenAiCompatClient(
           // finish_reason "error" — OpenRouter так закрывает стрим, когда модель упала посреди ответа.
           // Часть текста уже у пользователя, и обычный Finish сохранил бы обрывок как готовый ответ;
           // ошибка даёт «Повторить» (фолбэк здесь нельзя — см. emittedAnswer ниже).
-          if (!emptyAttempt) {
-            if (finishReason == "error") {
+          val parseError = streamError
+          when {
+            parseError != null -> emit(parseError)
+            emptyAttempt -> Unit
+            finishReason == "error" ->
               emit(StreamEvent.Error(userFacingLlmError(null, interrupted = true), code = "finish_error"))
-            } else {
-              emit(StreamEvent.Finish(finishReason))
-            }
+            else -> emit(StreamEvent.Finish(finishReason))
           }
         }
         if (emptyAttempt) {
@@ -227,6 +237,10 @@ class OpenAiCompatClient(
         // провайдера получит тот же ответ. Перебирать цепочку дальше — четыре лишних запроса и минута
         // ожидания ради той же ошибки.
         if (lastErrorCode in KEY_LEVEL_FAILURES) break
+        // 400/413 — отказ в самом ЗАПРОСЕ (слишком длинный контекст, неподдерживаемое вложение,
+        // кривое тело): его получит и следующая модель. Раньше цепочка проходила все пять моделей и
+        // заканчивалась «нет сети» — и неправдой, и минутой ожидания.
+        if (lastErrorCode in REQUEST_LEVEL_FAILURES) break
         continue
       }
     }
@@ -350,21 +364,48 @@ internal suspend fun consumeOpenAiSse(
     choice.finishReason?.let { finishReason = it }
   }
 
-  // Фолбэк: модель выдала только reasoning_content (без content и без tool-call) — отдаём его как ответ,
-  // чтобы ход не закончился немым экраном. На обычных ходах с content этот блок не срабатывает.
-  if (!contentSeen && toolAccumulators.isEmpty() && reasoning.isNotBlank()) {
-    emit(StreamEvent.TextDelta(reasoning.toString().trim()))
+  // finish_reason "length" — модель упёрлась в max_tokens. У reasoning-моделей это чаще всего значит,
+  // что бюджет съело размышление, а ответ так и не начался. Раньше такой ответ считался готовым:
+  // обрывок уходил в чат как полноценный, а недописанный tool-call исполнялся с `{}` вместо аргументов.
+  val truncated = finishReason == FINISH_LENGTH
+  // Аргументы разбираем ДО эмита: при обрезке последний вызов может оказаться недописанным, и тогда
+  // нельзя отдавать ни его, ни соседние — ход должен закончиться ошибкой, а не половиной действий.
+  val assembledCalls = toolAccumulators.values.map { acc ->
+    acc to parseToolArgumentsOrNull(acc.arguments.toString(), json, onParseError)
+  }
+  if (truncated && assembledCalls.any { (acc, args) -> args == null || acc.name.isBlank() }) {
+    emit(StreamEvent.Error(userFacingLlmError(CODE_LENGTH_TOOL_CALL, interrupted = false), code = CODE_LENGTH_TOOL_CALL))
+    return usage
+  }
+  if (truncated && !contentSeen && assembledCalls.isEmpty()) {
+    // Размышление здесь НЕ отдаём ответом: оно оборвано на полуслове так же, как ответ.
+    emit(StreamEvent.Error(userFacingLlmError(CODE_LENGTH_EMPTY, interrupted = false), code = CODE_LENGTH_EMPTY))
+    return usage
   }
 
-  // Эмитим каждый собранный tool-call один раз, с полными аргументами.
-  for (acc in toolAccumulators.values) {
+  // Фолбэк: модель выдала только reasoning_content (без content и без tool-call) — отдаём его, чтобы
+  // ход не закончился немым экраном, но с пометкой: без неё размышление вслух («пользователь хочет…»)
+  // читалось как странный ответ. Флаг reasoning — для тех, кто ждёт JSON (см. StreamEvent.TextDelta).
+  if (!contentSeen && assembledCalls.isEmpty() && reasoning.isNotBlank()) {
+    emit(StreamEvent.TextDelta(REASONING_ONLY_PREFIX + reasoning.toString().trim(), reasoning = true))
+  }
+
+  // Эмитим каждый собранный tool-call один раз, с полными аргументами. Нечитаемые аргументы без
+  // обрезки (модель ошиблась в JSON) — пустая карта, как и раньше: тул ответит «нет аргумента», и
+  // модель поправится на следующем витке.
+  for ((acc, args) in assembledCalls) {
     emit(
       StreamEvent.ToolCall(
         id = acc.id ?: acc.index.toString(),
         name = acc.name,
-        arguments = parseToolArguments(acc.arguments.toString(), json, onParseError),
+        arguments = args ?: emptyMap(),
       ),
     )
+  }
+  // Текстовый ответ, обрезанный по длине, — не ошибка: сказано почти всё, и переспрашивать заново
+  // дороже. Но пользователь должен видеть, что конец потерян, а не думать, что модель так и закончила.
+  if (truncated && contentSeen && assembledCalls.isEmpty()) {
+    emit(StreamEvent.TextDelta(TRUNCATED_ANSWER_SUFFIX))
   }
   // Некоторые провайдеры закрывают поток без finish_reason — считаем это "stop",
   // иначе агент-цикл крутится до MAX_ITERATIONS и теряет готовый ответ.
@@ -372,22 +413,36 @@ internal suspend fun consumeOpenAiSse(
   return usage
 }
 
+private const val FINISH_LENGTH = "length"
+
+/** Маркеры обрезки по max_tokens — коды [StreamEvent.Error], по ним же [userFacingLlmError] выбирает текст. */
+internal const val CODE_LENGTH_EMPTY = "length_empty"
+internal const val CODE_LENGTH_TOOL_CALL = "length_tool_call"
+
+/** Пометка над размышлением, отданным вместо ответа: читается как мысли модели, а не её ответ. */
+internal const val REASONING_ONLY_PREFIX = "💭 *Ответа нет — вот ход мыслей модели:*\n\n"
+
+/** Хвост ответа, обрезанного по длине. */
+internal const val TRUNCATED_ANSWER_SUFFIX = "…\n\n*(ответ обрезан)*"
+
 private class ToolCallAccumulator(val index: Int) {
   var id: String? = null
   var name: String = ""
   val arguments = StringBuilder()
 }
 
-private fun parseToolArguments(
+/** Аргументы tool-call'а; null — JSON не разобрался (недописан или битый), решает вызывающий. */
+private fun parseToolArgumentsOrNull(
   args: String,
   json: Json,
   onError: (Throwable) -> Unit = {},
-): Map<String, JsonElement> =
+): Map<String, JsonElement>? =
   try {
+    // Пустая строка тоже null: при обрезке по длине это вызов, оборванный сразу после имени.
     json.decodeFromString<JsonObject>(args).toMap()
   } catch (e: Exception) {
     onError(e)
-    emptyMap()
+    null
   }
 
 @Serializable
@@ -459,11 +514,21 @@ private class LlmHttpException(val status: Int, body: String) : Exception("HTTP 
 /** HTTP-статусы, при которых виноват ключ или счёт, а не модель (см. фолбэк в streamChat). */
 private val KEY_LEVEL_FAILURES = setOf("401", "402", "403")
 
+/** HTTP-статусы, при которых провайдер отверг сам запрос: другая модель цепочки отвергнет его так же. */
+private val REQUEST_LEVEL_FAILURES = setOf("400", "413")
+
 internal fun userFacingLlmError(code: String?, interrupted: Boolean): String = when {
   code == "blank_key" -> "Не задан ключ OpenRouter — впиши его в Настройках."
   code == "401" || code == "403" -> "Ключ OpenRouter не подошёл — проверь его в Настройках."
   code == "402" -> "На счёте OpenRouter закончились средства."
   code == "429" -> "Слишком много запросов к модели — попробуй через минуту."
+  code in REQUEST_LEVEL_FAILURES ->
+    "Модель отклонила запрос: возможно, переписка слишком длинная или вложение ей не подходит. " +
+      "Попробуй короче или начни новый чат."
+  code == CODE_LENGTH_EMPTY ->
+    "Модель слишком долго размышляла и не успела ответить. Нажми «Повторить»."
+  code == CODE_LENGTH_TOOL_CALL ->
+    "Ответ модели оборвался посреди действия — ничего не выполнено. Нажми «Повторить»."
   interrupted -> "Ответ оборвался: связь с моделью прервалась. Нажми «Повторить»."
   code == "empty_response" -> "Модель ответила пустотой. Попробуй ещё раз."
   else -> "Модель не ответила: нет сети или сбой у провайдера. Попробуй ещё раз."

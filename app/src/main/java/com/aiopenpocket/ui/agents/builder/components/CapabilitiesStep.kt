@@ -2,6 +2,7 @@ package com.aiopenpocket.ui.agents.builder.components
 
 // @trace user-agent-builder-848153
 
+import com.aiopenpocket.agent.tools.RETIRED_CARD_TEMPLATES
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -190,8 +191,10 @@ fun CapabilitiesStep(
     // Шаблоны уроков Академии (квиз, пропуск, сопоставление…) рисует сам урок, в обход render_card, —
     // обычному агенту они не нужны, и в выборе им не место. Уже отмеченный (например, у копии)
     // оставляем видимым, иначе его нельзя было бы снять.
+    // Снятые с вооружения («Погода», «Переключатель») render_card больше не принимает — предлагать их
+    // значило бы дать выбор, который в чате обернётся ошибкой.
     val offeredTemplates = AgentValidator.KNOWN_WIDGET_TEMPLATES
-      .filter { it !in LESSON_CARD_TEMPLATES || it in draft.allowedWidgetTemplates }
+      .filter { (it !in LESSON_CARD_TEMPLATES && it !in RETIRED_CARD_TEMPLATES) || it in draft.allowedWidgetTemplates }
       .sortedBy(::widgetTemplateLabel)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
       offeredTemplates.forEach { template ->

@@ -91,6 +91,13 @@ data class LessonStep(
   /** "fill" step: sentence with a `___` blank; [answer] is checked against the input. */
   val template: String = "",
   val caseSensitive: Boolean = false,
+  /**
+   * "fill" step: другие ответы, которые тоже засчитываются (без учёта регистра и пробелов по краям,
+   * как и [answer]). Пропуск по-русски заполняют по-разному — «конкретики», «деталей», «конкретика», —
+   * и раньше верный по смыслу ответ не проходил точное сравнение: у fill нет кнопки «Дальше», урок
+   * вставал. [answer] остаётся каноническим: его показывают после решения и после двух промахов.
+   */
+  val answers: List<String> = emptyList(),
   /** "sort" / "match" step: instruction shown above the interactive items. */
   val instruction: String = "",
   /** "sort" step: items to reorder. */

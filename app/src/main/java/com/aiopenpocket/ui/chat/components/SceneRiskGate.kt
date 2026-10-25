@@ -37,23 +37,28 @@ import androidx.compose.ui.unit.dp
 /** Один вызов: инструмент, действие, класс риска (индекс в [RISKS]) и что вышло при «Разрешить»/«Отклонить». */
 private class GateCall(val tool: String, val action: String, val risk: Int, val allowed: String, val denied: String)
 
-// Четыре класса из урока. У агента в сцене правило-хук «спрашивай перед всем, кроме чтения»,
-// поэтому всё, что не «только чтение», ждёт твоего «ок».
+// Четыре класса из урока. Сцена играет правило приложения по умолчанию, без хуков: чтение и запись
+// идут молча, а «покидает устройство» и «может удалить необратимо» ждут твоего «ок».
 private val RISKS = listOf("только чтение", "изменяет данные", "покидает устройство", "может удалить необратимо")
 
-// «Напоминания» встречаются дважды: тот же инструмент, но риск у вызовов разный.
+/** С этого класса ([RISKS]) вызов ждёт «ок» — так же, как по умолчанию в чате приложения. */
+private const val ASK_FROM_RISK = 2
+
+// «Напоминания» встречаются дважды: тот же инструмент, но риск у вызовов разный. Инструменты и
+// действия — настоящие (в приложении нет «заметок», а почта лишь открывает черновик).
 private val CALLS = listOf(
-    GateCall("заметки", "прочитать «Покупки»", 0, "", ""),
+    GateCall("календарь", "показать события", 0, "", ""),
     GateCall("напоминания", "показать список", 0, "", ""),
-    GateCall("будильник", "поставить на 7:00", 1, "будильник поставлен", "будильник не тронут"),
-    GateCall("почта", "письмо Ане", 2, "письмо ушло", "письмо не отправлено"),
-    GateCall("напоминания", "отменить все", 3, "напоминания отменены", "напоминания целы"),
+    GateCall("будильник", "поставить на 7:00", 1, "", ""),
+    GateCall("почта", "черновик письма Ане", 2, "черновик открыт", "черновик не открыт"),
+    GateCall("напоминания", "отменить напоминание", 3, "напоминание отменено", "напоминание цело"),
 )
 
 /**
  * «Полоса подтверждения»: вызовы агента приходят по одному и сами раскладываются по дорожкам —
- * читающие проходят молча, остальные замирают и ждут твоего «Разрешить» или «Отклонить». Видно,
- * что риск считают по каждому вызову: «напоминания» молча показывают список, но «отменить все» спросит.
+ * чтение и запись проходят молча, отправка наружу и удаление замирают и ждут твоего «Разрешить» или
+ * «Отклонить». Видно, что риск считают по каждому вызову: «напоминания» молча показывают список, но
+ * «отменить напоминание» спросит.
  */
 @Composable
 internal fun RiskGateScene() {
@@ -62,13 +67,13 @@ internal fun RiskGateScene() {
     var deniedMask by rememberSaveable { mutableIntStateOf(0) }
     val current = CALLS.getOrNull(arrived - 1)
     val currentBit = 1 shl (arrived - 1).coerceAtLeast(0)
-    val pending = current != null && current.risk > 0 && ((allowedMask or deniedMask) and currentBit) == 0
+    val pending = current != null && current.risk >= ASK_FROM_RISK && ((allowedMask or deniedMask) and currentBit) == 0
     val finished = arrived == CALLS.size && !pending
     val primary = MaterialTheme.colorScheme.primary
     val error = MaterialTheme.colorScheme.error
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Агент делает вызовы по одному. Куда попадёт каждый?", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text("Агент делает вызовы по одному. Какой спросит твоё «ок»?", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(200.dp)) {
             listOf("Молча", "Спросит твоё «ок»").forEachIndexed { lane, title ->
                 Column(
@@ -82,10 +87,10 @@ internal fun RiskGateScene() {
                 ) {
                     Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp))
                     CALLS.forEachIndexed { index, call ->
-                        if (index < arrived && (call.risk > 0) == (lane == 1)) {
+                        if (index < arrived && (call.risk >= ASK_FROM_RISK) == (lane == 1)) {
                             val bit = 1 shl index
                             val mark = when {
-                                call.risk == 0 -> "✓"
+                                call.risk < ASK_FROM_RISK -> "✓"
                                 (allowedMask and bit) != 0 -> "✓"
                                 (deniedMask and bit) != 0 -> "✕"
                                 else -> "…"
@@ -105,9 +110,10 @@ internal fun RiskGateScene() {
         ) {
             Text(
                 text = when {
-                    current == null -> "Жми «Следующий вызов». У агента правило: спрашивать перед всем, кроме чтения."
-                    finished -> "«Напоминания»: список — молча, «отменить все» — с твоим «ок». Риск считают по каждому вызову."
+                    current == null -> "Жми «Следующий вызов». Правило по умолчанию: читать и записывать — молча, отправлять и удалять — только с твоим «ок»."
+                    finished -> "«Напоминания»: список — молча, «отменить» — с твоим «ок». Риск считают по каждому вызову."
                     current.risk == 0 -> "${current.tool}: ${current.action} — «${RISKS[0]}», нечего испортить. Выполнено молча."
+                    current.risk < ASK_FROM_RISK -> "${current.tool}: ${current.action} — «${RISKS[current.risk]}». Запись на устройстве идёт без вопроса."
                     pending -> "${current.tool}: ${current.action} — «${RISKS[current.risk]}». Ход замер и ждёт тебя."
                     (allowedMask and currentBit) != 0 -> "Разрешено — ${current.allowed}."
                     else -> "Запрещено — ${current.denied}. Без «ок» агент действие не трогает."

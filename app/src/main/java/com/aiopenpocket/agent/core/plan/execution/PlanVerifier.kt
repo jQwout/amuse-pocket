@@ -268,7 +268,8 @@ class PlanVerifier @Inject constructor(
     var streamError: String? = null
     llmClient.streamChat(messages, emptyList(), provider).collect { event ->
       when (event) {
-        is StreamEvent.TextDelta -> text.append(event.content)
+        // Размышление модели — не вердикт: в нём бывает черновой JSON, который разобрался бы как ответ.
+        is StreamEvent.TextDelta -> if (!event.reasoning) text.append(event.content)
         is StreamEvent.Error -> streamError = event.message
         else -> Unit
       }

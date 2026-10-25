@@ -64,11 +64,18 @@ class StorageTool(
     string("key_prefix", "Необязательный префикс ключа для фильтрации (для list)")
   }
 
-  // Per-call risk (Task 9 convention, mirrors MemoryTools/FileTools): put/delete mutate this agent's
-  // storage, get/list only read it. An unrecognized/missing action fails closed to READ - execute()
-  // rejects it before anything runs either way.
+  // Per-call risk (Task 9 convention, mirrors MemoryTools/FileTools): put mutates this agent's storage,
+  // get/list only read it. An unrecognized/missing action fails closed to READ - execute() rejects it
+  // before anything runs either way.
+  //
+  // delete — DESTRUCTIVE: запись исчезает без корзины и без версии, вернуть её нечем. put тоже может
+  // перезаписать значение по тому же ключу, но это основной путь записи агента в СОБСТВЕННЫЙ блокнот —
+  // спрашивать разрешение на каждое «сохрани» значило бы сломать сам смысл хранилища, поэтому WRITE.
+  override val riskClass = RiskClass.DESTRUCTIVE
+
   override fun riskFor(arguments: Map<String, JsonElement>): RiskClass = when (arguments.string("action")) {
-    "put", "delete" -> RiskClass.WRITE
+    "put" -> RiskClass.WRITE
+    "delete" -> RiskClass.DESTRUCTIVE
     else -> RiskClass.READ
   }
 

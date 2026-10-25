@@ -47,7 +47,34 @@ sealed class DrivenUiCard {
     data class RevealCard(val question: String, val answer: String) : DrivenUiCard()
     data class ConceptCard(val term: String, val definition: String, val example: String) : DrivenUiCard()
     data class ExampleCard(val label: String, val parts: List<ExamplePart>) : DrivenUiCard()
-    data class FillCard(val template: String, val answer: String, val caseSensitive: Boolean) : DrivenUiCard()
+    /**
+     * Шаг "fill": [answer] — канонический ответ (его показывают после решения), [answers] — другие
+     * засчитываемые варианты. Проверку держим здесь, а не в композабле: это чистая логика, и её
+     * гоняет обычный JUnit.
+     */
+    data class FillCard(
+        val template: String,
+        val answer: String,
+        val caseSensitive: Boolean,
+        val answers: List<String> = emptyList(),
+    ) : DrivenUiCard() {
+        /**
+         * Засчитан ли ввод. Края и повторные пробелы не считаются; без [caseSensitive] не важны ни
+         * регистр, ни «ё»/«е» — на телефонной клавиатуре «ё» почти никто не набирает, и верный по
+         * смыслу ответ не должен вставать стеной. Пустой ввод не засчитывается никогда, даже если
+         * в ответах случайно оказалась пустая строка.
+         */
+        fun accepts(input: String): Boolean {
+            val given = normalizeFill(input)
+            if (given.isEmpty()) return false
+            return (listOf(answer) + answers).any { normalizeFill(it) == given }
+        }
+
+        private fun normalizeFill(raw: String): String {
+            val collapsed = raw.trim().replace(Regex("\\s+"), " ")
+            return if (caseSensitive) collapsed else collapsed.lowercase(java.util.Locale.ROOT).replace('ё', 'е')
+        }
+    }
     data class SortCard(val instruction: String, val items: List<String>, val correct: List<Int>, val explain: String) : DrivenUiCard()
     data class MatchCard(val instruction: String, val pairs: List<MatchPair>) : DrivenUiCard()
     data class ScenarioCard(val situation: String, val question: String, val options: List<String>, val answerIndex: Int, val explain: String) : DrivenUiCard()
@@ -171,7 +198,7 @@ object DrivenUiEngine {
                         primaryAction = actionJson?.let {
                             LessonPrimaryAction(
                                 type = actionType,
-                                label = it.optString("label", "Собрать этого агента"),
+                                label = it.optString("label", "Открыть конструктор"),
                             )
                         },
                     )
@@ -232,6 +259,8 @@ object DrivenUiEngine {
                 template = p.optString("template", ""),
                 answer = p.optString("answer", ""),
                 caseSensitive = p.optBoolean("case_sensitive", false),
+                // Необязательный список: старые карточки и карточки от модели без него парсятся как раньше.
+                answers = p.array("answers").toStringList().filter { it.isNotBlank() },
             )
             "sort" -> DrivenUiCard.SortCard(
                 instruction = p.optString("instruction", ""),

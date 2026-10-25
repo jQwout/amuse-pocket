@@ -175,6 +175,37 @@ class MemoryToolsNamespaceTest {
     assertEquals(listOf("mine-secret"), scoped.map { it.value })
   }
 
+  // --- recall_episodes: только свой диалог, с потолком ----------------------------------------------
+
+  private fun toolCallPayload(name: String, action: String) =
+    """{"id":"1","name":"$name","risk":"READ","arguments":{"action":"$action"}}"""
+
+  @Test
+  fun `recall_episodes returns only the current conversation's episodes`() = runTest {
+    memoryRepository.saveEpisode("tool_call", toolCallPayload("file_tool", "read"), "свой результат", conversationId = "conv-mine")
+    memoryRepository.saveEpisode("tool_call", toolCallPayload("file_tool", "read"), "чужой результат", conversationId = "conv-other")
+    holder.set("conv-mine", null)
+
+    val result = tool.execute(args("action" to "recall_episodes", "range" to "today")).toString()
+
+    assertTrue(result.contains("свой результат"))
+    assertTrue("[file_tool read] — метка действия, а не голый tool_call", result.contains("[file_tool read]"))
+    assertFalse("эпизод чужого диалога утёк в recall_episodes", result.contains("чужой результат"))
+  }
+
+  @Test
+  fun `recall_episodes caps both the number of episodes and each outcome`() = runTest {
+    repeat(30) {
+      memoryRepository.saveEpisode("tool_call", toolCallPayload("storage", "get"), "Ж".repeat(5_000), conversationId = "conv1")
+    }
+    holder.set("conv1", null)
+
+    val result = tool.execute(args("action" to "recall_episodes", "range" to "today")).toString()
+
+    assertTrue("слишком много событий: ${result.lines().size}", result.lines().size <= 20)
+    assertTrue("результат не обрезан: ${result.length} символов", result.length < 20 * 400)
+  }
+
   @Test
   fun `getFactsByNamespace returns only that agent's facts`() = runTest {
     memoryRepository.saveFact("agent:mine:a", "1", "general")

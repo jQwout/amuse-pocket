@@ -108,10 +108,27 @@ class RenderCardPolicyTest {
   }
 
   @Test
-  fun `general and lesson templates together match AgentValidator's known widget templates exactly`() {
+  fun `general, lesson and retired templates together match AgentValidator's known widget templates exactly`() {
     // Two hand-maintained copies of "every template that exists" now live in the codebase
     // (AgentValidator.KNOWN_WIDGET_TEMPLATES and this split) - pin them together so a future new
-    // template added to only one of them fails loudly instead of silently drifting.
-    assertEquals(AgentValidator.KNOWN_WIDGET_TEMPLATES, GENERAL_CARD_TEMPLATES + LESSON_CARD_TEMPLATES)
+    // template added to only one of them fails loudly instead of silently drifting. Retired templates
+    // stay "known" to the validator so an already-saved agent listing them can still be published.
+    assertEquals(
+      AgentValidator.KNOWN_WIDGET_TEMPLATES,
+      GENERAL_CARD_TEMPLATES + LESSON_CARD_TEMPLATES + RETIRED_CARD_TEMPLATES,
+    )
+  }
+
+  /** switch (пустой обработчик) и weather_card (нет источника погоды) модели больше не предлагаются. */
+  @Test
+  fun `retired templates are not offered and a bound agent cannot render them`() = runTest {
+    assertTrue(RETIRED_CARD_TEMPLATES.intersect(GENERAL_CARD_TEMPLATES + LESSON_CARD_TEMPLATES).isEmpty())
+    assertFalse(tool.description.contains("switch"))
+    assertFalse(tool.description.contains("weather_card"))
+
+    holder.set("conv1", agent("builder-bot", GENERAL_CARD_TEMPLATES + RETIRED_CARD_TEMPLATES))
+    for (template in RETIRED_CARD_TEMPLATES) {
+      assertTrue("$template must be refused", tool.execute(args(template)) is ToolResult.Error)
+    }
   }
 }

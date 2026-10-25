@@ -56,6 +56,12 @@ interface HeartbeatScheduler {
  * when set, is an ABSOLUTE epoch millis target — the initial WorkManager delay is derived from it relative
  * to "now" at schedule-time (never negative — [maxOf] floors a slightly-late call to zero delay rather than
  * a negative one, which `setInitialDelay` would reject).
+ *
+ * Задержка — в МИЛЛИСЕКУНДАХ, не в минутах: раньше `(fireAt - now) / 60_000` после вставки в Room
+ * округлялось вниз, и «через 2 минуты» срабатывало через минуту. Шагу плана это било вдвойне: ранний
+ * запуск видел «ещё не пора» (`PlanRunner.isDue`), пересинхронизация ставила задержку 0 — и воркер
+ * крутился вхолостую до самого срока. WorkManager раньше заданной задержки не запускает, так что
+ * миллисекунды убирают ранний запуск целиком.
  */
 @Inject
 @SingleIn(AppScope::class)
@@ -73,16 +79,16 @@ class WorkManagerHeartbeatScheduler(private val context: Context) : HeartbeatSch
       // Без initial delay WorkManager запускает первый прогон периодики почти сразу — see the
       // identical original comment this replaces in HeartbeatTool.schedule. entity.fireAt (if set)
       // names the first occurrence explicitly; otherwise the first fire is one full interval away.
-      val firstRunDelay = entity.fireAt?.let { maxOf(0L, (it - now) / 60_000L) } ?: interval
+      val firstRunDelayMs = entity.fireAt?.let { maxOf(0L, it - now) } ?: TimeUnit.MINUTES.toMillis(interval)
       val request = PeriodicWorkRequestBuilder<HeartbeatWorker>(interval, TimeUnit.MINUTES)
-        .setInitialDelay(firstRunDelay, TimeUnit.MINUTES)
+        .setInitialDelay(firstRunDelayMs, TimeUnit.MILLISECONDS)
         .setInputData(input)
         .build()
       workManager.enqueueUniquePeriodicWork(workName, ExistingPeriodicWorkPolicy.UPDATE, request)
     } else {
-      val delayMinutes = entity.fireAt?.let { maxOf(0L, (it - now) / 60_000L) } ?: 0L
+      val delayMs = entity.fireAt?.let { maxOf(0L, it - now) } ?: 0L
       val request = OneTimeWorkRequestBuilder<HeartbeatWorker>()
-        .setInitialDelay(delayMinutes, TimeUnit.MINUTES)
+        .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
         .setInputData(input)
         .build()
       workManager.enqueueUniqueWork(workName, ExistingWorkPolicy.REPLACE, request)

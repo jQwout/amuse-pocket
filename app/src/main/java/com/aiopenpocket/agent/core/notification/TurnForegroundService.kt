@@ -16,6 +16,7 @@ import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.aiopenpocket.MainActivity
+import com.aiopenpocket.R
 
 /**
  * Держит процесс живым, пока идёт ход агента (спека
@@ -85,7 +86,7 @@ class TurnForegroundService : Service() {
       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
     return NotificationCompat.Builder(this, CHANNEL_ID)
-      .setSmallIcon(android.R.drawable.ic_dialog_info)
+      .setSmallIcon(R.drawable.ic_stat_agent)
       .setContentTitle("Агент отвечает…")
       .setContentText("Ответ придёт, даже если свернуть приложение.")
       .setPriority(NotificationCompat.PRIORITY_LOW)

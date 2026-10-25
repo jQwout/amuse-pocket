@@ -244,6 +244,48 @@ class PrePromptAssemblerTest {
     assertFalse(result.systemPrompt.contains("- budget:"))
   }
 
+  // --- memory section: bounded, no raw tool output ---------------------------------------------------
+
+  @Test
+  fun `a recent tool episode is shown as an action label plus a short outcome, not the raw output`() = runTest {
+    db.conversationDao().insert(ConversationEntity(id = "c1", title = "T"))
+    val memory = MemoryRepository(db.factDao(), db.episodeDao())
+    // Прочитанный файл на 40 тыс. символов раньше ехал целиком в каждый следующий системный промпт.
+    memory.saveEpisode(
+      type = "tool_call",
+      payload = """{"id":"1","name":"file_tool","risk":"READ","arguments":{"action":"read","path":"a.txt"}}""",
+      outcome = "Б".repeat(40_000),
+      conversationId = "c1",
+    )
+
+    val prompt = assembler.assemble("c1", "привет").systemPrompt
+
+    assertTrue("нет метки действия:\n${prompt.takeLast(2_000)}", prompt.contains("[file_tool read]"))
+    assertFalse("сырой вывод инструмента попал в промпт целиком", prompt.contains("Б".repeat(EpisodeFormat.OUTCOME_MAX_CHARS + 1)))
+  }
+
+  @Test
+  fun `small memory reaches the prompt even when no word of the message matches`() = runTest {
+    db.conversationDao().insert(ConversationEntity(id = "c1", title = "T"))
+    MemoryRepository(db.factDao(), db.episodeDao()).saveFact("family.sister", "Аня", "general")
+
+    val prompt = assembler.assemble("c1", "как зовут мою сестру").systemPrompt
+
+    assertTrue("факт о сестре не попал в промпт", prompt.contains("family.sister: Аня"))
+  }
+
+  @Test
+  fun `the memory facts section is capped by characters`() = runTest {
+    db.conversationDao().insert(ConversationEntity(id = "c1", title = "T"))
+    val memory = MemoryRepository(db.factDao(), db.episodeDao())
+    repeat(30) { memory.saveFact("note.$it", "В".repeat(1_000), "general") }
+
+    val prompt = assembler.assemble("c1", "привет").systemPrompt
+
+    val factChars = prompt.lines().filter { it.startsWith("- note.") }.sumOf { it.length }
+    assertTrue("секция фактов без потолка: $factChars символов", factChars <= 3_000)
+  }
+
   @Test
   fun `bound agent with load_skill sees only its own skills`() = runTest {
     val userAgents = UserAgentRepository(db, db.userAgentDao(), AgentHookRepository(db.agentHookDao()))

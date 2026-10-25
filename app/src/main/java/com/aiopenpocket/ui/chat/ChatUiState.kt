@@ -67,11 +67,11 @@ data class ChatUiState(
   val voiceError: String? = null,
 
   /**
-   * A `BEFORE_TOOL` hook required approval for a tool call in THIS conversation's active run (Task 9)
-   * — null whenever nothing is waiting. [ChatViewModel] derives this from
-   * `ToolApprovalCoordinator.pending`, filtered to this screen's own conversation id, so a pending
-   * approval in a different chat never leaks in here. The tool-approval modal/bar itself (tool name,
-   * risk, arguments, approve/deny buttons) is not wired into ChatScreen yet — see the TODO left there.
+   * A tool call in THIS conversation's active run is waiting for the user's approval (a risky
+   * DESTRUCTIVE/EXTERNAL call, or a `BEFORE_TOOL` hook that asked for it, Task 9) — null whenever
+   * nothing is waiting. [ChatViewModel] derives this from `ToolApprovalCoordinator.pending`, filtered
+   * to this screen's own conversation id, so a pending approval in a different chat never leaks in
+   * here. ChatScreen shows it as `ToolApprovalBar` («Агенту нужно разрешение» → «Разрешить»/«Отклонить»).
    */
   val pendingToolApproval: ToolApprovalRequest? = null,
 

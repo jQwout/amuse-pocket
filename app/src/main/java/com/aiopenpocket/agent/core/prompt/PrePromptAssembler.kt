@@ -7,6 +7,7 @@ package com.aiopenpocket.agent.core.prompt
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
+import com.aiopenpocket.agent.core.memory.model.Fact
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
 import com.aiopenpocket.agent.core.plan.context.PlanContextProvider
@@ -66,7 +67,7 @@ class PrePromptAssembler @Inject constructor(
       // Язык общения, выбранный на онбординге (по умолчанию русский).
       val languageDeferred = async { userPreferencesRepository.getLanguage() }
       val profileFactsDeferred = async { memoryRepository.getFactsByCategory("profile") }
-      // Релевантные факты (searchFacts) НЕ запускаем здесь параллельно с остальными: они зависят от
+      // Факты памяти (factsForPrompt) НЕ запускаем здесь параллельно с остальными: они зависят от
       // agent (Task 5 — свой namespace для bound-агента), а agent резолвится только НИЖЕ, после
       // conversationDeferred. Считаем их последовательно рядом с agentState (см. ниже) — та же
       // сделка, что и агент resolve сам по себе (уже не в этой параллельной пачке).
@@ -111,16 +112,15 @@ class PrePromptAssembler @Inject constructor(
       // sandbox root — Task 6) can reuse it instead of re-resolving mid-turn.
       val agent = agentResolver.resolve(conversation?.agentId)
 
-      // Релевантные факты по тексту сообщения — под namespace агента (Task 5), если он есть, а не
-      // глобально: скоуп применяется В ЗАПРОСЕ (searchFactsInNamespace), а не постфильтром ПОСЛЕ
-      // .take(N) — иначе в топ-N могли бы попасть чужие/глобальные факты и вытеснить действительно
-      // релевантные для ЭТОГО агента ещё до того, как их вообще посмотрели. Без агента (обычный
-      // чат) — ровно старое глобальное поведение.
-      val facts = if (agent != null) {
-        memoryRepository.searchFactsInNamespace(agent.memoryPolicy.namespace, currentMessage)
-      } else {
-        memoryRepository.searchFacts(currentMessage)
-      }.take(LlmContextConfig.RELEVANT_FACTS_LIMIT)
+      // Факты памяти — под namespace агента (Task 5), если он есть: скоуп применяется В ЗАПРОСЕ, а
+      // не постфильтром ПОСЛЕ .take(N) — иначе в топ-N могли бы попасть чужие/глобальные факты и
+      // вытеснить действительно релевантные для ЭТОГО агента. Маленькая память приходит целиком,
+      // большая — ранжированным поиском по сообщению (см. MemoryRepository.factsForPrompt).
+      val facts = memoryRepository.factsForPrompt(
+        namespace = agent?.memoryPolicy?.namespace,
+        message = currentMessage,
+        limit = LlmContextConfig.RELEVANT_FACTS_LIMIT,
+      )
 
       val window = ContextWindowBuilder.buildFromParts(
         head = windowParts.head,
@@ -152,7 +152,11 @@ class PrePromptAssembler @Inject constructor(
       } else {
         emptyList()
       }
-      val relevantFacts = facts.filterNot { it.key in agentStateKeys }
+      // Профиль уже показан своей секцией — второй раз тот же факт в «памяти» только тратит окно.
+      val shownProfileKeys = profileToShow.mapTo(HashSet()) { it.key }
+      val relevantFactLines = factLinesWithinBudget(
+        facts.filterNot { it.key in agentStateKeys || it.key in shownProfileKeys },
+      )
       val systemPrompt = buildString {
         appendLine(systemBase)
         appendLine()
@@ -169,12 +173,7 @@ class PrePromptAssembler @Inject constructor(
         // время), alarm — hour/minute (абсолютное). Не зная, который час, вычесть «19:00 минус
         // сейчас» нельзя в принципе, так что будильник оставался ЕДИНСТВЕННЫМ технически вызываемым
         // инструментом. Формулировками в промпте это не лечится — лечится только самим временем.
-        appendLine("## Сейчас")
-        appendLine(formatNow())
-        appendLine(
-          "Считай «через сколько» от этого момента — не угадывай и не спрашивай у пользователя, " +
-            "который час.",
-        )
+        appendLine(CurrentMoment.section(clock()))
         appendLine()
         appendLine("## Язык")
         appendLine(
@@ -230,7 +229,7 @@ class PrePromptAssembler @Inject constructor(
 
         // --- Недоверенная зона: всё, что производно от пользователя. Это ДАННЫЕ, не команды. ---
         val hasUserData =
-          profileToShow.isNotEmpty() || agentState.isNotEmpty() || relevantFacts.isNotEmpty() ||
+          profileToShow.isNotEmpty() || agentState.isNotEmpty() || relevantFactLines.isNotEmpty() ||
             episodes.isNotEmpty() || window.hasMiddleGap
         if (hasUserData) {
           appendLine("## Данные из памяти")
@@ -256,13 +255,15 @@ class PrePromptAssembler @Inject constructor(
             appendLine("Состояние агента (цель и прогресс):")
             agentState.forEach { appendUntrusted("- ${it.key}: ${it.value}") }
           }
-          if (relevantFacts.isNotEmpty()) {
-            appendLine("Релевантные факты:")
-            relevantFacts.forEach { appendUntrusted("- ${it.key}: ${it.value}") }
+          if (relevantFactLines.isNotEmpty()) {
+            appendLine("Факты из памяти:")
+            relevantFactLines.forEach { appendUntrusted(it) }
           }
           if (episodes.isNotEmpty()) {
-            appendLine("Недавние события:")
-            episodes.forEach { appendUntrusted("- [${it.type}] ${it.outcome}") }
+            // Только «что сделано» и начало результата (EpisodeFormat): полный вывод инструмента
+            // (файл, ответ хранилища) здесь ехал бы в каждый следующий ход этого диалога.
+            appendLine("Недавние действия в этом чате:")
+            episodes.forEach { appendUntrusted("- ${EpisodeFormat.line(it)}") }
           }
           if (window.hasMiddleGap) {
             // conversation.summary — это резюме ConversationAnnotator по ПОСЛЕДНИМ сообщениям
@@ -299,27 +300,27 @@ class PrePromptAssembler @Inject constructor(
   private fun loadAsset(path: String): String? = assets.load(path)
 
   /**
-   * «Пятница, 25 июля 2026, 14:37 (Europe/Moscow, UTC+3)».
-   *
-   * День недели и год здесь не для красоты: без дня недели модель не разберёт «в пятницу», без года
-   * и месяца — «через 3 дня» на стыке месяцев, без пояса — любую абсолютную договорённость. Локаль
-   * жёстко русская, как и весь остальной промпт.
+   * Строки фактов под общий потолок символов: каждая — не длиннее
+   * [LlmContextConfig.PROMPT_FACT_LINE_MAX_CHARS], все вместе — не больше
+   * [LlmContextConfig.PROMPT_FACTS_MAX_CHARS]. Маленькая память идёт в промпт целиком, и без потолка
+   * одна вставленная простыня текста ехала бы в каждый ход. Факты приходят свежими/релевантными
+   * первыми — обрезается хвост списка, а не самое нужное.
    */
-  private fun formatNow(): String {
-    val now = java.util.Date(clock())
-    val zone = java.util.TimeZone.getDefault()
-    val stamp = java.text.SimpleDateFormat("EEEE, d MMMM yyyy, HH:mm", java.util.Locale("ru"))
-      .apply { timeZone = zone }
-      .format(now)
-    val offsetMinutes = zone.getOffset(now.time) / 60_000
-    val sign = if (offsetMinutes < 0) "-" else "+"
-    val absMinutes = kotlin.math.abs(offsetMinutes)
-    val offset = if (absMinutes % 60 == 0) {
-      "$sign${absMinutes / 60}"
-    } else {
-      "$sign${absMinutes / 60}:${(absMinutes % 60).toString().padStart(2, '0')}"
+  private fun factLinesWithinBudget(facts: List<Fact>): List<String> {
+    val lines = mutableListOf<String>()
+    var used = 0
+    for (fact in facts) {
+      val full = "- ${fact.key}: ${fact.value}".replace('\n', ' ')
+      val line = if (full.length <= LlmContextConfig.PROMPT_FACT_LINE_MAX_CHARS) {
+        full
+      } else {
+        full.take(LlmContextConfig.PROMPT_FACT_LINE_MAX_CHARS).trimEnd() + "…"
+      }
+      if (used + line.length > LlmContextConfig.PROMPT_FACTS_MAX_CHARS) break
+      lines += line
+      used += line.length
     }
-    return "${stamp.replaceFirstChar { it.uppercase() }} (${zone.id}, UTC$offset)."
+    return lines
   }
 
   /** Человекочитаемая метка языка для системной секции (код языка из онбординга → название). */
@@ -359,8 +360,8 @@ class PrePromptAssembler @Inject constructor(
     private val DEFAULT_SYSTEM_BASE = """
 Ты — локальный AI-агент на Android-устройстве пользователя.
 Если задача подразумевает визуальный результат — используй render_card.
-Если нужен контекст из прошлого — используй search_memory или recall_episodes.
-Если пользователь сообщает факт о себе — используй remember_fact.
+Если нужен контекст из прошлого — вызови memory_tool с action=search_memory или action=recall_episodes.
+Если пользователь сообщает факт о себе — вызови memory_tool с action=remember_fact.
 Файлы — только в песочнице. Уведомления и фоновые задачи пока недоступны.
 Отвечай кратко. Подробности — только по запросу.
 Никогда не показывай внутренние ID, пути, токены.
