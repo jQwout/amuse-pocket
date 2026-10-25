@@ -36,7 +36,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.aiopenpocket.ui.roadmap.LESSON_QUIZZES
 import com.aiopenpocket.ui.roadmap.QuizQuestion
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import kotlin.random.Random
@@ -62,7 +61,7 @@ private fun QuizQuestion.shuffleSeed(): Int =
 /**
  * Renders the lesson quiz: a list of multiple-choice questions, each revealing
  * correct/incorrect feedback once answered. Non-blocking — purely a self-check.
- * Hosted by both the standalone QuizScreen and the onboarding quiz step.
+ * Hosted by the lesson quiz card in chat (DrivenUiCardViews).
  */
 @Composable
 fun QuizContent(
@@ -223,6 +222,15 @@ fun QuizContent(
 @Composable
 private fun QuizContentPreview() {
   MyApplicationTheme {
-    QuizContent(questions = LESSON_QUIZZES["l1_welcome"].orEmpty())
+    QuizContent(
+      questions = listOf(
+        QuizQuestion(
+          question = "Как общаться с ассистентом?",
+          options = listOf("Обычными словами, как в переписке", "Только командами со слешем"),
+          correctIndex = 0,
+          explanation = "Пиши как человеку — агент сам поймёт, какой инструмент нужен.",
+        ),
+      ),
+    )
   }
 }

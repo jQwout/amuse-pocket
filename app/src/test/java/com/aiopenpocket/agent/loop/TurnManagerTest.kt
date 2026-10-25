@@ -299,6 +299,32 @@ class TurnManagerTest {
   }
 
   @Test
+  fun `Error упавшего GOAL-шага пишет его ответ в чат и остаётся ошибкой с canRetry`() = runTest {
+    // Раньше FAILED на foreground-пути нёс только текст ошибки: ответ шага (фон его сохраняет) терялся.
+    val output = com.aiopenpocket.agent.core.plan.execution.PlanStepOutput(
+      stepId = "menu",
+      title = "Составить меню",
+      status = com.aiopenpocket.agent.core.plan.model.StepStatus.FAILED,
+      text = "Понедельник: гречка",
+      cardSpecs = emptyList(),
+      toolTrace = listOf(ToolTrace(1, "memory_tool", emptyMap(), com.aiopenpocket.agent.core.mcp.ToolResult.Success("ok"))),
+    )
+    executor.script = { flowOf(AgentEvent.Error("Шаг «Составить меню» завершился ошибкой.", planStepOutputs = listOf(output))) }
+    val m = manager()
+
+    m.launchTurn("c1", "продолжай", AgentMode.GOAL, planId = "plan-1")
+    advanceUntilIdle()
+
+    val assistant = persistence.rows.single { it.role == "assistant" }
+    assertTrue(assistant.content.contains("Составить меню") && assistant.content.contains("Понедельник: гречка"))
+    val session = m.sessions.value.getValue("c1")
+    val status = session.status.value as TurnStatus.Failed
+    assertEquals("Шаг «Составить меню» завершился ошибкой.", status.message)
+    assertTrue(status.canRetry)
+    assertEquals(listOf("memory_tool"), session.toolTrace.value.map { it.toolName })
+  }
+
+  @Test
   fun `retry перезапускает ход без повторного addMessage`() = runTest {
     var failFirst = true
     executor.script = {

@@ -60,6 +60,7 @@ import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.hook.AgentHookRunEntity
 import com.aiopenpocket.agent.core.hook.HookActionType
 import com.aiopenpocket.agent.core.hook.HookEvent
+import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.plan.model.PlanStatus
@@ -359,9 +360,10 @@ private fun ToolRow(row: AgentDetailToolRow, modifier: Modifier = Modifier) {
       tint = MaterialTheme.colorScheme.primary,
       modifier = Modifier.size(16.dp),
     )
+    // Имя тула — то же, что в конструкторе и в чипах «Умеет»; сырой id остаётся только в testTag.
     Text(
-      text = row.name,
-      style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+      text = CapabilityNames.tool(row.name),
+      style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurface,
       modifier = Modifier.weight(1f),
     )
@@ -476,8 +478,8 @@ private fun SkillRow(row: AgentDetailSkillRow, modifier: Modifier = Modifier) {
     ) {
       Column(modifier = Modifier.weight(1f).padding(end = 10.dp)) {
         Text(
-          text = row.id,
-          style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+          text = row.title,
+          style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
@@ -807,6 +809,7 @@ internal fun samplePreviewState(): AgentDetailState {
     skills = listOf(
       AgentDetailSkillRow(
         id = "budget",
+        title = "Бюджет",
         description = "Подробная методика учёта расходов по категориям.",
         whenToUse = "когда нужен разбор трат или предупреждение о перерасходе",
         available = true,

@@ -20,6 +20,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -130,6 +131,23 @@ class HeartbeatToolTest {
     val result = tool.execute(args("action" to "cancel", "heartbeat_id" to id))
     assertTrue(result is ToolResult.Success)
     assertEquals("cancelled", db.heartbeatDao().getById(id)?.status)
+  }
+
+  /** Агент не видит и не отменяет напоминания другого агента: у каждого из ростера свои. */
+  @Test
+  fun `an agent cannot cancel or list another agent's heartbeat`() = runTest {
+    holder.set("conv1", testAgent("tasks"))
+    tool.execute(
+      args("action" to "schedule", "mode" to "push", "title" to "Чужое напоминание",
+        "message" to "y", "delay_minutes" to "10"),
+    )
+    val id = db.heartbeatDao().listActive().single().id
+    holder.set("conv1", testAgent("reminders"))
+
+    assertTrue(tool.execute(args("action" to "cancel", "heartbeat_id" to id)) is ToolResult.Error)
+    assertEquals("scheduled", db.heartbeatDao().getById(id)?.status)
+    val listed = tool.execute(args("action" to "list")) as ToolResult.Success
+    assertFalse(listed.data.contains("Чужое напоминание"))
   }
 
   @Test

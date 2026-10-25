@@ -107,7 +107,7 @@ fun ConversationsListScreen(
         contentAlignment = Alignment.Center,
       ) {
         Text(
-          "Нет чатов. Нажмите + чтобы создать.",
+          "Чатов пока нет. Нажми «+», чтобы начать.",
           style = MaterialTheme.typography.bodyLarge,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

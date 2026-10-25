@@ -317,7 +317,8 @@ class TurnManager(
       throw e
     } catch (e: Exception) {
       log.e(TAG, "Agent turn error", e)
-      finishFailed(session, e.message ?: "Unknown error")
+      // Текст исключения (запись в Room, сбой сборки промпта) человеку ничего не скажет и бывает по-английски.
+      finishFailed(session, TurnTexts.TURN_FAILED)
     }
   }
 
@@ -353,7 +354,18 @@ class TurnManager(
 
         is AgentEvent.Completed -> handleCompleted(session, event.result)
 
-        is AgentEvent.Error -> finishFailed(session, event.message)
+        is AgentEvent.Error -> {
+          // GOAL с упавшим шагом: сначала то, что шаги успели сказать (фоновый heartbeat пишет это
+          // и при FAILED), потом ошибка — баннер и «Повторить» остаются как у любой ошибки. Трейс —
+          // в панель инструментов, как у удачного запуска. У прочих ошибок список пуст.
+          if (event.planStepOutputs.isNotEmpty()) {
+            persistPlanStepOutputs(event.planStepOutputs) { text, card ->
+              persistence.addAssistantMessage(session.conversationId, text, card)
+            }
+            session.toolTraceFlow.value = event.planStepOutputs.flatMap { it.toolTrace }
+          }
+          finishFailed(session, event.message)
+        }
 
         is AgentEvent.StateChanged -> when (event.state) {
           // Новый виток ReAct копит текст заново — чистим ТОЛЬКО буфер. Видимый пузырь НЕ гасим:
@@ -391,7 +403,7 @@ class TurnManager(
         is AgentEvent.PlanBlocked -> finishPlanMessage(session, event.reason)
 
         // Уточняем прогресс именем инструмента (EXECUTING_TOOL мгновением раньше показал общий текст).
-        is AgentEvent.ToolStarted -> session.streamingTextFlow.value = TurnTexts.toolProgress(event.name)
+        is AgentEvent.ToolStarted -> session.streamingTextFlow.value = TurnTexts.toolProgress(event.name, event.args)
 
         // Ходу не нужны: бар approval'а ChatViewModel берёт из ToolApprovalCoordinator.pending
         // (фильтруя по своему conversationId), а не из потока событий хода. Ветка явная, а не else:

@@ -66,7 +66,18 @@ class EncryptedSettingsRepository(
       masterKey,
       EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
       EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-    )
+    ).also { prefs ->
+      // NVIDIA NIM выпилен 25 окт 2026: его ключ и выбор провайдера больше никто не читает, но на
+      // обновлённом устройстве они так и лежали бы — живой ключ, о котором пользователь уже не знает.
+      if (prefs.contains(OBSOLETE_NVIDIA_KEY) || prefs.contains(OBSOLETE_PROVIDER)) {
+        prefs.edit().remove(OBSOLETE_NVIDIA_KEY).remove(OBSOLETE_PROVIDER).apply()
+      }
+    }
+  }
+
+  private companion object {
+    const val OBSOLETE_NVIDIA_KEY = "api_key_NVIDIA"
+    const val OBSOLETE_PROVIDER = "selected_provider"
   }
 
   override fun getApiKey(provider: String): String =

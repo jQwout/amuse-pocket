@@ -13,9 +13,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.loop.ToolTrace
 import com.aiopenpocket.ui.theme.MyApplicationTheme
+import kotlinx.serialization.json.JsonPrimitive
 
 @Composable
 fun ToolTracePanel(
@@ -39,8 +41,10 @@ fun ToolTracePanel(
           is ToolResult.Success -> "ок"
           is ToolResult.Error -> "ошибка"
         }
+        // В trace.toolName лежит имя тула (memory_tool), действие — в аргументе action; на экран идёт
+        // общее человеческое имя вызова, как в баре подтверждения («Память: найти факты»).
         Text(
-          text = "[${trace.iteration}] ${trace.toolName} → $resultText",
+          text = "[${trace.iteration}] ${CapabilityNames.call(trace.toolName, trace.arguments)} → $resultText",
           style = MaterialTheme.typography.bodySmall,
           modifier = Modifier.padding(top = 4.dp),
         )
@@ -55,8 +59,9 @@ private fun ToolTracePanelPreview() {
   MyApplicationTheme {
     ToolTracePanel(
       traces = listOf(
-        ToolTrace(1, "search_memory", emptyMap(), ToolResult.Success("3 matches")),
-        ToolTrace(2, "write_file", emptyMap(), ToolResult.Error("permission denied")),
+        // Реальная форма вызова: имя тула + action в аргументах (не «search_memory» как имя функции).
+        ToolTrace(1, "memory_tool", mapOf("action" to JsonPrimitive("search_memory")), ToolResult.Success("3 matches")),
+        ToolTrace(2, "file_tool", mapOf("action" to JsonPrimitive("write_file")), ToolResult.Error("permission denied")),
       ),
     )
   }

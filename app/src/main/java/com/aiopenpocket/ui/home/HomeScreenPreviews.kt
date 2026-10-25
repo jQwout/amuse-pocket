@@ -168,7 +168,7 @@ internal fun HomePreviewScaffold(
                         Spacer(modifier = Modifier.height(12.dp))
                     }
                     if (recentChats.isEmpty()) {
-                        item { EmptyHint(text = "Здесь появятся ваши недавние чаты.") }
+                        item { EmptyHint(text = "Здесь появятся твои недавние чаты.") }
                     } else {
                         items(recentChats, key = { it.id }) { chat ->
                             RecentChatCard(chat = chat, onClick = {})

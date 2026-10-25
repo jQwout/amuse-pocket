@@ -157,15 +157,31 @@ class HeartbeatTool(
     )
   }
 
+  /**
+   * Отмена — только своего: агент из ростера или конструктора не трогает чужие напоминания, а шаги
+   * плана (planId) ведёт план-движок — их отменяют в карточке плана, иначе план ждал бы шага,
+   * которого больше нет. Обычный чат (агента нет) — это сам пользователь, ему доступны все его
+   * напоминания, кроме плановых.
+   */
   private suspend fun cancel(args: Map<String, JsonElement>): ToolResult {
     val id = args.string("heartbeat_id") ?: return missingArg("heartbeat_id")
+    val hb = heartbeatDao.getById(id) ?: return ToolResult.Error("Напоминания $id нет.", recoverable = true)
+    if (hb.planId != null) {
+      return ToolResult.Error("Это шаг плана — его отменяют в карточке плана.", recoverable = false)
+    }
+    val agentId = turnContextHolder.agentId
+    if (agentId != null && hb.agentId != agentId) {
+      return ToolResult.Error("Это напоминание другого агента.", recoverable = false)
+    }
     heartbeatScheduler.cancel(id)
     heartbeatDao.setStatus(id, "cancelled")
     return ToolResult.Success("Отменено: $id")
   }
 
   private suspend fun list(): ToolResult {
+    val agentId = turnContextHolder.agentId
     val active = heartbeatDao.listActive()
+      .filter { it.planId == null && (agentId == null || it.agentId == agentId) }
     if (active.isEmpty()) return ToolResult.Success("Активных напоминаний нет.")
     val lines = active.joinToString("\n") { hb ->
       val schedule = hb.intervalMinutes?.let { "каждые $it мин" } ?: "одноразово"

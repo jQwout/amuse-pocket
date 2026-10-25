@@ -14,8 +14,8 @@
       "git": "197306c"
     },
     "ai-academy-onboarding-5d51bb": {
-      "hash": "4c086bd0ca43",
-      "git": "197306c"
+      "hash": "cb43b5a40dcb",
+      "git": "7130f89"
     },
     "app-settings-beb470": {
       "hash": "1d4cac5a4014",
@@ -46,24 +46,24 @@
       "git": "197306c"
     },
     "heartbeat-napominalki-agenta-5f0442": {
-      "hash": "7f12aab035c0",
-      "git": "197306c"
+      "hash": "ebeed78da76c",
+      "git": "7130f89"
     },
     "kartinki-urokov-cherez-muse-image-fd6f8c": {
       "hash": "decf0758e981",
       "git": "ff190fd"
     },
     "mcp-tools-f77d9b": {
-      "hash": "32d670f44db9",
-      "git": "197306c"
+      "hash": "5c85dfdb1b28",
+      "git": "7130f89"
     },
     "multi-agent-orchestration-27b8e3": {
       "hash": "b5098bba5d04",
       "git": "259a650"
     },
     "multi-chat-conversations-b3c93b": {
-      "hash": "ec0b294904e2",
-      "git": "197306c"
+      "hash": "b93dbfcdcbe9",
+      "git": "7130f89"
     },
     "protsedurnye-animatsii-v-urokah-68b2bf": {
       "hash": "ee3608aa10d4",
@@ -78,24 +78,24 @@
       "git": "197306c"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "e6df3d1fabf8",
-      "git": "197306c"
+      "hash": "d28e8ac63465",
+      "git": "7130f89"
     },
     "structured-plan-engine-907066": {
-      "hash": "b33b5b260baa",
-      "git": "197306c"
+      "hash": "71ea2d1e9399",
+      "git": "7130f89"
     },
     "swappable-persona-e5e65e": {
-      "hash": "04658767fa08",
-      "git": "3ed3e7f"
+      "hash": "d88b28b13d05",
+      "git": "7130f89"
     },
     "uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2": {
-      "hash": "b57b84f859ba",
-      "git": "4910b95"
+      "hash": "3f9cd656ea10",
+      "git": "7130f89"
     },
     "user-agent-builder-848153": {
-      "hash": "fd8648a2bca6",
-      "git": "197306c"
+      "hash": "2272f98b252a",
+      "git": "7130f89"
     },
     "video-na-vhod-v-uroke-muse-spark-08ccdb": {
       "hash": "10da17134264",
@@ -106,8 +106,8 @@
       "git": "197306c"
     },
     "vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53": {
-      "hash": "c5366f3a7762",
-      "git": "197306c"
+      "hash": "1c1e5c1bccf6",
+      "git": "7130f89"
     },
     "yazykovoy-agent-repetitor-s-intervalnymi-povtoreniyami-4a9360": {
       "hash": "8ff6359d9027",

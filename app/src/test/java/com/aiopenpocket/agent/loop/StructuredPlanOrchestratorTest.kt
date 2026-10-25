@@ -245,9 +245,10 @@ class StructuredPlanOrchestratorTest {
   private fun orchestrator(
     agents: Map<String, AgentDefinition> = mapOf("agent-1" to agentDefinition()),
     templates: Map<String, PlanTemplate> = emptyMap(),
+    llmClient: LlmClient = llm,
   ): StructuredPlanOrchestrator {
     val agentResolver = FakeAgentResolver(agents)
-    val planner = PlanPlanner(llm, agentResolver, FakeTemplateRegistry(templates), PlanPromptBuilder(NoAssets))
+    val planner = PlanPlanner(llmClient, agentResolver, FakeTemplateRegistry(templates), PlanPromptBuilder(NoAssets))
     val planRunner = PlanRunner(repository, executor(), agentResolver) { now }
     return StructuredPlanOrchestrator(planner, planRunner, repository, conversationRepository, FakeTemplateRegistry(templates), hookRepository, recordingSync, NoopLog) { now }
   }
@@ -419,6 +420,37 @@ class StructuredPlanOrchestratorTest {
 
     assertTrue(events.any { it is AgentEvent.Error })
     assertTrue(events.none { it is AgentEvent.PlanProgressed })
+  }
+
+  @Test
+  fun `a FAILED GOAL run carries the failed step's output on the Error event`() = runTest {
+    val convId = conversationRepository.createConversation(title = "Test", agentId = "agent-1")
+    val org = orchestrator()
+    org.proposeNim(convId, "распланируй").toList()
+    val planId = repository.observeByConversation(convId).first().single().plan.id
+    repository.approve(planId, 1)
+    stepRunner.script = { AgentResult(text = "успел ответить", toolTrace = emptyList(), state = AgentState.ERROR, iterations = 1, errorMessage = "boom") }
+
+    val events = org.executeGoal(convId, planId = null, userMessage = "продолжай", provider = LlmProvider.OPENROUTER).toList()
+
+    // Иначе TurnManager нечего записать в чат: ответ шага терялся на foreground-пути.
+    val error = events.filterIsInstance<AgentEvent.Error>().single()
+    assertEquals(listOf("успел ответить"), error.planStepOutputs.map { it.text })
+    assertEquals(listOf("Title s1"), error.planStepOutputs.map { it.title })
+  }
+
+  @Test
+  fun `an engine exception on the PLAN path reaches the banner in Russian, not as its English message`() = runTest {
+    val convId = conversationRepository.createConversation(title = "Test", agentId = "agent-1")
+    val throwingLlm = object : LlmClient {
+      override fun streamChat(messages: List<ChatMessage>, tools: List<FunctionSchema>, provider: LlmProvider): Flow<StreamEvent> =
+        throw IllegalStateException("Plan 'p-1' is in status ACTIVE; cannot save a proposal.")
+    }
+
+    val events = orchestrator(llmClient = throwingLlm).proposeNim(convId, "распланируй").toList()
+
+    val error = events.filterIsInstance<AgentEvent.Error>().single()
+    assertEquals(StructuredPlanOrchestrator.PROPOSE_FAILED_MESSAGE, error.message)
   }
 
   /**

@@ -5,7 +5,10 @@ package com.aiopenpocket.ui.plan
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.plan.execution.PlanCommands
+import com.aiopenpocket.agent.core.plan.model.EvidenceSource
+import com.aiopenpocket.agent.core.plan.model.PlanCriterion
 import com.aiopenpocket.agent.core.plan.model.PlanEvent
+import com.aiopenpocket.agent.core.plan.model.PlanEvidence
 import com.aiopenpocket.agent.core.plan.model.PlanHorizon
 import com.aiopenpocket.agent.core.plan.model.PlanSnapshot
 import com.aiopenpocket.agent.core.plan.model.PlanStatus
@@ -38,7 +41,7 @@ data class PlanStepRow(
   val attempts: Int,
   /** Only meaningful for a [PlanHorizon.PROGRAM] step with a schedule — see `PlanCard.kt`'s own `nextDueAtFor`. */
   val nextDueAt: Long?,
-  /** Most recent [com.aiopenpocket.agent.core.plan.model.PlanEvidence.summary] whose `stepId` is THIS step's [id], if any. */
+  /** Most recent evidence whose `stepId` is THIS step's [id], if any — в пользовательском виде, см. [displayEvidenceSummary]. */
   val lastEvidenceSummary: String?,
 )
 
@@ -148,7 +151,15 @@ class PlanDetailViewModel(
     block(id)
   }
 
-  /** Mirrors `ChatViewModel.runPlanCommand`: clears any stale [PlanDetailState.actionError] up front so a retried action doesn't leave a previous failure's message stuck on screen after it succeeds. */
+  /**
+   * Mirrors `ChatViewModel.runPlanCommand`: clears any stale [PlanDetailState.actionError] up front so a retried action doesn't leave a previous failure's message stuck on screen after it succeeds.
+   *
+   * В баннер — русская строка, не `e.message`: команды падают require/check'ами PlanRepository/
+   * PlanStateMachine с английской диагностикой и id плана («Cannot apply Pause to plan '…' from status
+   * COMPLETED…»). На деле
+   * это почти всегда гонка — план успел сменить статус (фоновый шаг его завершил), пока экран рисовал
+   * кнопку. Подробности — в лог.
+   */
   private fun runCommand(action: suspend () -> Unit) {
     viewModelScope.launch {
       _state.update { it.copy(actionError = null) }
@@ -157,9 +168,32 @@ class PlanDetailViewModel(
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
-        _state.update { it.copy(actionError = e.message ?: "Не удалось выполнить действие с планом") }
+        android.util.Log.w(TAG, "plan command failed", e)
+        _state.update { it.copy(actionError = ACTION_FAILED_MESSAGE) }
       }
     }
+  }
+
+  companion object {
+    private const val TAG = "PlanDetailViewModel"
+    internal const val ACTION_FAILED_MESSAGE = "Не получилось — состояние плана только что изменилось. Попробуй ещё раз."
+  }
+}
+
+/**
+ * Что показать в «Последний результат» шага. Сводки [EvidenceSource.TOOL_RESULT]/[EvidenceSource.MEMORY_FACT]
+ * собирает код верификатора: в них сырое имя инструмента или ключ памяти и обрывок JSON-ответа. Там
+ * они к месту — исполнитель следующей попытки видит их в промпте как «существующие подтверждения»
+ * (`PlanExecutor.buildStepMessages`), — но пользователю это id и служебный JSON. Ему — какой критерий
+ * этим подтверждён, по его описанию. Сводки модели и подтверждения пользователя — уже человеческий
+ * текст, их как есть; как есть и сводку без известного критерия (лучше она, чем ничего).
+ */
+internal fun displayEvidenceSummary(evidence: PlanEvidence, criteriaById: Map<String, PlanCriterion>): String {
+  val criterion = evidence.criterionId?.let(criteriaById::get)
+  return when (evidence.source) {
+    EvidenceSource.TOOL_RESULT, EvidenceSource.MEMORY_FACT ->
+      criterion?.let { "подтверждён критерий «${it.description}»" } ?: evidence.summary
+    EvidenceSource.USER_CONFIRMATION, EvidenceSource.MODEL_ASSESSMENT -> evidence.summary
   }
 }
 
@@ -169,6 +203,7 @@ private fun PlanDetailState.applySnapshot(snapshot: PlanSnapshot?): PlanDetailSt
 
   val stepStateByStepId = snapshot.stepStates.associateBy { it.stepId }
   val evidenceByStepId = snapshot.evidence.filter { it.stepId != null }.groupBy { it.stepId }
+  val criteriaById = snapshot.version.criteria.associateBy { it.id }
   val steps = snapshot.version.steps.map { step ->
     val stepState = stepStateByStepId[step.id]
     val lastEvidence = evidenceByStepId[step.id]?.maxByOrNull { it.createdAt }
@@ -180,7 +215,7 @@ private fun PlanDetailState.applySnapshot(snapshot: PlanSnapshot?): PlanDetailSt
       status = stepState?.status ?: StepStatus.PENDING,
       attempts = stepState?.attempts ?: 0,
       nextDueAt = stepState?.nextDueAt,
-      lastEvidenceSummary = lastEvidence?.summary,
+      lastEvidenceSummary = lastEvidence?.let { displayEvidenceSummary(it, criteriaById) },
     )
   }
   val criteria = snapshot.version.criteria.map { criterion ->

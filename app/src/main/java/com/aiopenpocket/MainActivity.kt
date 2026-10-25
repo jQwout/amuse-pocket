@@ -45,7 +45,6 @@ import com.aiopenpocket.ui.onboarding.OnboardingScreen
 import com.aiopenpocket.ui.plan.PlanDetailRoute
 import com.aiopenpocket.ui.plan.PlanListRoute
 import com.aiopenpocket.ui.roadmap.LibraryScreen
-import com.aiopenpocket.ui.roadmap.QuizScreen
 import com.aiopenpocket.ui.roadmap.RoadmapScreen
 import com.aiopenpocket.ui.scheduledworks.ScheduledWorksScreen
 import com.aiopenpocket.ui.settings.SettingsScreen
@@ -370,9 +369,6 @@ class MainActivity : ComponentActivity() {
                                     ChatScreen(
                                         conversationId = if (conversationId == "new") "" else conversationId,
                                         onNavigateBack = { navController.popBackStack() },
-                                        onOpenQuiz = { levelId ->
-                                            navController.navigate("quiz/$levelId")
-                                        },
                                         onOpenAgentDetail = { agentId ->
                                             navController.navigate("agent/$agentId")
                                         },
@@ -381,20 +377,6 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onOpenPlanDetail = { planId ->
                                             navController.navigate("plan/$planId")
-                                        },
-                                    )
-                                }
-                                composable("quiz/{levelId}") { backStackEntry ->
-                                    val levelId = backStackEntry.arguments?.getString("levelId") ?: ""
-                                    QuizScreen(
-                                        levelId = levelId,
-                                        onFinished = {
-                                            // Назад к карте: снимаем чат и экран-квиз со стека.
-                                            // Если карты нет в стеке (туториал открыли из списка чатов) — идём на неё.
-                                            val popped = navController.popBackStack("roadmap", inclusive = false)
-                                            if (!popped) {
-                                                navController.navigate("roadmap") { launchSingleTop = true }
-                                            }
                                         },
                                     )
                                 }

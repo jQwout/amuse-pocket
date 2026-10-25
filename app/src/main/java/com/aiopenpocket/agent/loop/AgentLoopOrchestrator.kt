@@ -6,6 +6,7 @@ import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.plan.execution.PlanRunResult
+import com.aiopenpocket.agent.core.plan.execution.PlanStepOutput
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.agent.core.prompt.ConversationAnnotator
@@ -54,7 +55,7 @@ class AgentLoopOrchestrator(
     mode: AgentMode = AgentMode.CHAT,
     systemPromptExtra: String? = null,
     executionMode: ExecutionMode = ExecutionMode.LIVE,
-  ): Flow<AgentEvent> = agentTurnFlow(log, TAG, "Unknown error") {
+  ): Flow<AgentEvent> = agentTurnFlow(log, TAG, TurnTexts.TURN_FAILED) {
     // Error-контракт (in-band Error, rethrow отмены, buffer+IO) — в agentTurnFlow.
     // Контракт режима (CHAT/TUTOR) — чистое решение, покрыто AgentModeTest.
     val turn = resolveTurnExecutionPlan(mode, ReactLoopRunner.MAX_ITERATIONS)
@@ -101,7 +102,7 @@ class AgentLoopOrchestrator(
     if (result.state == AgentState.ERROR) {
       log.w(TAG, "✗ turn error: ${result.errorMessage}")
       send(AgentEvent.StateChanged(AgentState.ERROR))
-      send(AgentEvent.Error(result.errorMessage ?: "Unknown error"))
+      send(AgentEvent.Error(result.errorMessage ?: TurnTexts.TURN_FAILED))
     } else {
       log.d(TAG, "✓ turn done iters=${result.iterations} textLen=${result.text.length}")
       send(AgentEvent.StateChanged(AgentState.FINISHED))
@@ -177,7 +178,20 @@ sealed class AgentEvent {
   ) : AgentEvent()
   data class StateChanged(val state: AgentState) : AgentEvent()
   data class Completed(val result: AgentResult) : AgentEvent()
-  data class Error(val message: String) : AgentEvent()
+
+  /**
+   * Ход упал: [message] — для пользователя (баннер ошибки с «Повторить»).
+   *
+   * [planStepOutputs] — только у GOAL-хода, где шаг плана завершился ошибкой
+   * ([com.aiopenpocket.agent.core.plan.model.PlanRunOutcome.FAILED]): что шаги этого запуска успели
+   * сказать, включая сам упавший шаг (например, шаг всё сделал, а сломалась проверка). `TurnManager`
+   * пишет их в чат ДО ошибки — раньше на foreground-пути ответ шага терялся, хотя фоновый heartbeat
+   * его сохраняет. У остальных ошибок список пуст.
+   */
+  data class Error(
+    val message: String,
+    val planStepOutputs: List<PlanStepOutput> = emptyList(),
+  ) : AgentEvent()
   /**
    * A `BEFORE_TOOL` hook required approval for this call (Task 9): [request] is what the chat UI
    * needs to show a modal/bar and what [com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator]
