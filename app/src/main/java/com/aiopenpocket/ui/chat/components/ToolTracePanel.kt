@@ -37,8 +37,8 @@ fun ToolTracePanel(
         color = MaterialTheme.colorScheme.onSecondaryContainer,
       )
       traces.forEach { trace ->
-        val resultText = when (trace.result) {
-          is ToolResult.Success -> "ок"
+        val resultText = when (val result = trace.result) {
+          is ToolResult.Success -> if (result.simulated) "имитация" else "ок"
           is ToolResult.Error -> "ошибка"
         }
         // В trace.toolName лежит имя тула (memory_tool), действие — в аргументе action; на экран идёт

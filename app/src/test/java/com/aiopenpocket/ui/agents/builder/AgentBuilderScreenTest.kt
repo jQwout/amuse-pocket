@@ -236,6 +236,39 @@ class AgentBuilderScreenTest {
     composeTestRule.onNodeWithTag("agent_builder_publish").assertIsEnabled()
   }
 
+  /** Сразу после публикации публиковать нечего: «Опубликовать изменения» под «Агент опубликован» не нужна. */
+  @Test
+  fun publish_button_is_hidden_right_after_publishing() {
+    val draft = validDraft().copy(status = AgentStatus.PUBLISHED)
+    val state = AgentBuilderUiState(
+      draft = draft,
+      step = BuilderStep.TEST,
+      canPublish = true,
+      isLoading = false,
+      justPublished = true,
+    )
+    render(state = state)
+
+    composeTestRule.onNodeWithText("Агент опубликован", substring = true).assertExists()
+    composeTestRule.onNodeWithTag("agent_builder_publish").assertDoesNotExist()
+  }
+
+  /** Пробный прогон ничего не выполняет по-настоящему — трасса не должна выдавать имитацию за «ок». */
+  @Test
+  fun simulated_call_reads_as_imitation_in_the_test_trace() {
+    val state = AgentBuilderUiState(draft = validDraft(), step = BuilderStep.TEST, isLoading = false)
+    val trace = ToolTrace(
+      iteration = 1,
+      toolName = "heartbeat",
+      arguments = emptyMap(),
+      result = ToolResult.Success("{\"status\":\"preview_only\"}", simulated = true),
+    )
+    render(state = state, toolTrace = listOf(trace))
+
+    composeTestRule.onNodeWithText("→ имитация", substring = true).assertExists()
+    composeTestRule.onNodeWithText("→ ок", substring = true).assertDoesNotExist()
+  }
+
   // --- Risk consent gate (CAPABILITIES) -------------------------------------------------------------
 
   @Test
