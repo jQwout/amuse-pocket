@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 
 @Composable
@@ -62,7 +63,7 @@ fun StreamingBubble(
               strokeWidth = 2.dp,
             )
             Text(
-              text = "Думаю…",
+              text = tr("Думаю…", "Thinking…"),
               style = MaterialTheme.typography.bodyMedium,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
               modifier = Modifier.padding(start = 8.dp),

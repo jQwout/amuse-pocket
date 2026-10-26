@@ -46,6 +46,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.memory.model.Conversation
 import com.aiopenpocket.agent.loop.TurnStatus
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
 import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.components.glass.rememberGlassState
@@ -95,7 +96,7 @@ fun ConversationsListScreen(
           }
         }
       }) {
-        Icon(Icons.Default.Add, contentDescription = "Новый чат")
+        Icon(Icons.Default.Add, contentDescription = tr("Новый чат", "New chat"))
       }
     },
   ) { padding ->

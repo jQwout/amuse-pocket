@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.AgentValidator
 import com.aiopenpocket.agent.core.agent.ValidationIssue
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.agents.builder.AgentDraft
 import com.aiopenpocket.ui.agents.iconFor
 
@@ -59,16 +60,19 @@ fun IdentityStep(
       .padding(contentPadding)
       .padding(horizontal = 20.dp, vertical = 16.dp),
   ) {
-    Text(text = "Кто твой агент?", style = MaterialTheme.typography.headlineSmall)
+    Text(text = tr("Кто твой агент?", "Who is your agent?"), style = MaterialTheme.typography.headlineSmall)
     Text(
-      text = "Имя, короткое описание и иконка — то, что пользователь увидит в списке агентов.",
+      text = tr(
+        "Имя, короткое описание и иконка — то, что пользователь увидит в списке агентов.",
+        "Name, short description and icon — what people will see in the agent list.",
+      ),
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
       modifier = Modifier.padding(top = 6.dp, bottom = 20.dp),
     )
 
     Text(
-      text = "id: ${draft.id.ifBlank { "— генерируется автоматически" }}",
+      text = "id: ${draft.id.ifBlank { tr("— генерируется автоматически", "— generated automatically") }}",
       style = MaterialTheme.typography.labelSmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
       modifier = Modifier.padding(bottom = 16.dp),
@@ -77,7 +81,7 @@ fun IdentityStep(
     LabeledField(
       value = draft.name,
       onValueChange = { text -> onUpdateDraft { it.copy(name = text.take(AgentValidator.MAX_AGENT_NAME_CHARS)) } },
-      label = "Имя агента",
+      label = tr("Имя агента", "Agent name"),
       maxChars = AgentValidator.MAX_AGENT_NAME_CHARS,
       isError = errors.any { it.field == "name" },
     )
@@ -88,7 +92,7 @@ fun IdentityStep(
     LabeledField(
       value = draft.description,
       onValueChange = { text -> onUpdateDraft { it.copy(description = text.take(AgentValidator.MAX_DESCRIPTION_CHARS)) } },
-      label = "Короткое описание",
+      label = tr("Короткое описание", "Short description"),
       maxChars = AgentValidator.MAX_DESCRIPTION_CHARS,
       isError = errors.any { it.field == "description" },
       minLines = 2,
@@ -98,7 +102,7 @@ fun IdentityStep(
 
     Spacer(modifier = Modifier.height(20.dp))
 
-    Text(text = "Иконка", style = MaterialTheme.typography.titleMedium)
+    Text(text = tr("Иконка", "Icon"), style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(8.dp))
     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
       items(ICON_KEYS) { key ->

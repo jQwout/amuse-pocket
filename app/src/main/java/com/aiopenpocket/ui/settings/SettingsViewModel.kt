@@ -203,6 +203,14 @@ class SettingsViewModel(
     _state.update { it.copy(chatFontScale = value, saved = false) }
   }
 
+  /**
+   * Язык тоже применяется сразу: запись в настройки зеркалится в AppLanguage, и интерфейс
+   * перерисовывается на месте; ответы агента переходят на этот язык со следующего хода.
+   */
+  fun updateLanguage(code: String) {
+    viewModelScope.launch { userPreferencesRepository.setLanguage(code) }
+  }
+
   /** Тему применяем сразу (реактивно через ThemeRepository), а не по кнопке «Сохранить». */
   fun updateThemeMode(value: ThemeMode) {
     themeRepository.setMode(value)

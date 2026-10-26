@@ -20,6 +20,7 @@ import kotlinx.serialization.json.Json
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.i18n.tr
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -124,9 +125,11 @@ class ConversationAnnotator(
       appendLine()
       appendLine("Верни СТРОГО JSON-объект без markdown и пояснений вида:")
       appendLine("""{"title": "...", "summary": "...", "tags": ["...", "..."]}""")
-      appendLine("- title: короткий заголовок темы, до 6 слов, на русском.")
-      appendLine("- summary: суть диалога (ключевые факты, решения, открытые задачи), до 500 слов, на русском.")
-      appendLine("- tags: 2–5 коротких тегов в нижнем регистре (одно-два слова), на русском.")
+      // Язык — язык интерфейса: заголовок показывается в списке чатов рядом с переведёнными подписями.
+      val lang = tr("на русском", "in English")
+      appendLine("- title: короткий заголовок темы, до 6 слов, $lang.")
+      appendLine("- summary: суть диалога (ключевые факты, решения, открытые задачи), до 500 слов, $lang.")
+      appendLine("- tags: 2–5 коротких тегов в нижнем регистре (одно-два слова), $lang.")
     }
 
     val chat = listOf(

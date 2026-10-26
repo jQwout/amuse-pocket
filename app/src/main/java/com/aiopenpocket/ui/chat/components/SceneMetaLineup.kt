@@ -47,38 +47,77 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 import kotlin.math.roundToInt
 
-/** Модель линейки: что берёт на вход и что отдаёт, работает ли в этом приложении и что сказать, когда задача приехала. */
-private class LineupModel(val name: String, val io: String, val inApp: Boolean, val note: String)
+/**
+ * Модель линейки: что берёт на вход и что отдаёт, работает ли в этом приложении и что сказать, когда задача приехала.
+ * Тексты — парами ru/en, язык выбирается геттером в момент показа: список инициализируется один раз.
+ */
+private class LineupModel(
+    private val nameRu: String,
+    private val nameEn: String,
+    private val ioRu: String,
+    private val ioEn: String,
+    val inApp: Boolean,
+    private val noteRu: String,
+    private val noteEn: String,
+) {
+    val name: String get() = tr(nameRu, nameEn)
+    val io: String get() = tr(ioRu, ioEn)
+    val note: String get() = tr(noteRu, noteEn)
+}
 
 private val LINEUP = listOf(
     LineupModel(
-        "Muse Spark", "текст, фото, видео → текст + вызовы инструментов", true,
+        "Muse Spark", "Muse Spark",
+        "текст, фото, видео → текст + вызовы инструментов", "text, photos, video → text + tool calls",
+        true,
         "Muse Spark — мозг агентов этого приложения: понимает запрос и сам вызывает инструменты",
+        "Muse Spark is the brain of this app's agents: it understands the request and calls tools on its own",
     ),
     LineupModel(
-        "Muse Image", "текст, картинки → новая картинка", true,
+        "Muse Image", "Muse Image",
+        "текст, картинки → новая картинка", "text, images → a new image",
+        true,
         "Muse Image нарисовала картинки к большинству уроков и перерисует их «под тебя» по кнопке",
+        "Muse Image drew the pictures for most lessons and will redraw them “for you” at the tap of a button",
     ),
     LineupModel(
-        "SAM 3.1", "фото или видео + короткая фраза → маски объектов", false,
+        "SAM 3.1", "SAM 3.1",
+        "фото или видео + короткая фраза → маски объектов", "photo or video + a short phrase → object masks",
+        false,
         "SAM 3.1 находит кота по фразе, обводит маской по пикселям и ведёт его по кадрам",
+        "SAM 3.1 finds the cat from a phrase, outlines it with a pixel-precise mask and tracks it across frames",
     ),
-    LineupModel("Muse Voice Transcribe", "голос → текст", false, "Muse Voice Transcribe делает одно дело: превращает голосовое в текст"),
     LineupModel(
-        "Llama — открытые веса", "скачал веса → модель работает на твоём железе", false,
+        "Muse Voice Transcribe", "Muse Voice Transcribe",
+        "голос → текст", "voice → text",
+        false,
+        "Muse Voice Transcribe делает одно дело: превращает голосовое в текст",
+        "Muse Voice Transcribe does one thing: turns a voice message into text",
+    ),
+    LineupModel(
+        "Llama — открытые веса", "Llama — open weights",
+        "скачал веса → модель работает на твоём железе", "download the weights → the model runs on your hardware",
+        false,
         "Llama — открытые веса: их скачивают и запускают у себя, без чужого облака",
+        "Llama is open weights: you download them and run them yourself, no one else's cloud",
     ),
 )
 
-/** Задача и номер модели, которая её берёт. Порядок нарочно не совпадает с моделями — задаче есть куда ехать. */
+/** Задача и номер модели, которая её берёт. Текст — парой ru/en, выбирается в момент показа. */
+private class LineupJob(private val textRu: String, private val textEn: String, val model: Int) {
+    val text: String get() = tr(textRu, textEn)
+}
+
+/** Порядок нарочно не совпадает с моделями — задаче есть куда ехать. */
 private val JOBS = listOf(
-    "обвести кота на видео" to 2,
-    "ответить и вызвать инструмент" to 0,
-    "запустить модель на своём сервере" to 4,
-    "нарисовать иллюстрацию к уроку" to 1,
-    "расшифровать голосовое" to 3,
+    LineupJob("обвести кота на видео", "outline a cat in a video", 2),
+    LineupJob("ответить и вызвать инструмент", "answer and call a tool", 0),
+    LineupJob("запустить модель на своём сервере", "run a model on your own server", 4),
+    LineupJob("нарисовать иллюстрацию к уроку", "draw a lesson illustration", 1),
+    LineupJob("расшифровать голосовое", "transcribe a voice message", 3),
 )
 
 /** Где на экране лежат карточки — чтобы задача летела от своей кнопки к своей модели. Не состояние: только для расчёта полёта. */
@@ -107,14 +146,14 @@ internal fun MetaLineupScene() {
         lit = -1
         travel.snapTo(0f)
         travel.animateTo(1f, tween(700, easing = FastOutSlowInEasing))
-        lit = JOBS[f.job].second
+        lit = JOBS[f.job].model
         done = done or (1 shl f.job)
         flight = null
     }
     val send = { job: Int ->
         val root = anchors.root
         val src = anchors.jobs[job]
-        val dst = anchors.models[JOBS[job].second]
+        val dst = anchors.models[JOBS[job].model]
         if (flight == null && root != null && src != null && dst != null && root.isAttached && src.isAttached && dst.isAttached) {
             val from = root.localPositionOf(src, Offset.Zero) + Offset(src.size.width / 2f, src.size.height / 2f)
             val to = root.localPositionOf(dst, Offset.Zero) + Offset(dst.size.width * 0.7f, dst.size.height / 2f)
@@ -126,12 +165,16 @@ internal fun MetaLineupScene() {
 
     Box(modifier = Modifier.fillMaxWidth().onGloballyPositioned { anchors.root = it }) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Кому из моделей Meta отдать задачу? Нажми на задачу", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                tr("Кому из моделей Meta отдать задачу? Нажми на задачу", "Which Meta model gets the job? Tap a task"),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
             JOBS.indices.chunked(2).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     row.forEach { job ->
                         JobBox(
-                            text = JOBS[job].first,
+                            text = JOBS[job].text,
                             done = done and (1 shl job) != 0,
                             away = flight?.job == job,
                             onClick = { send(job) },
@@ -151,16 +194,23 @@ internal fun MetaLineupScene() {
             }
             Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = if (lit >= 0) LINEUP[lit].note else "Нажми на задачу — она уедет к модели, которая с ней справится",
+                    text = if (lit >= 0) {
+                        LINEUP[lit].note
+                    } else {
+                        tr("Нажми на задачу — она уедет к модели, которая с ней справится", "Tap a task — it will travel to the model that can handle it")
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     minLines = 3,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = { done = 0; lit = -1 }, enabled = done != 0 && flight == null) { Text("Сначала") }
+                TextButton(onClick = { done = 0; lit = -1 }, enabled = done != 0 && flight == null) { Text(tr("Сначала", "Start over")) }
             }
             AnimatedVisibility(visible = allDone, enter = fadeIn()) {
                 Text(
-                    "У Meta не одна модель на всё, а команда специалистов — приложение берёт ту, что под задачу",
+                    tr(
+                        "У Meta не одна модель на всё, а команда специалистов — приложение берёт ту, что под задачу",
+                        "Meta doesn't have one model for everything but a team of specialists — the app picks the right one for the task",
+                    ),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = primary,
@@ -182,7 +232,7 @@ internal fun MetaLineupScene() {
                     .padding(horizontal = 8.dp),
             ) {
                 Text(
-                    JOBS[f.job].first,
+                    JOBS[f.job].text,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onPrimary,
                     textAlign = TextAlign.Center,
@@ -229,7 +279,7 @@ private fun ModelCard(model: LineupModel, lit: Boolean, color: Color, modifier: 
             Text(model.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = SceneInk, maxLines = 1, modifier = Modifier.weight(1f))
             if (model.inApp) {
                 Text(
-                    "в этом приложении",
+                    tr("в этом приложении", "in this app"),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(primary).padding(horizontal = 6.dp, vertical = 2.dp),

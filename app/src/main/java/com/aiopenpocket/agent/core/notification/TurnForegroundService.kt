@@ -17,6 +17,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.aiopenpocket.MainActivity
 import com.aiopenpocket.R
+import com.aiopenpocket.i18n.tr
 
 /**
  * Держит процесс живым, пока идёт ход агента (спека
@@ -73,7 +74,7 @@ class TurnForegroundService : Service() {
       notificationManager.createNotificationChannel(
         // IMPORTANCE_LOW: без звука и вибрации. Отдельный канал от ai_agent_channel, чтобы юзер мог
         // приглушить «агент отвечает…», не глуша при этом напоминалки.
-        NotificationChannel(CHANNEL_ID, "Ход агента", NotificationManager.IMPORTANCE_LOW),
+        NotificationChannel(CHANNEL_ID, tr("Ход агента", "Agent turn"), NotificationManager.IMPORTANCE_LOW),
       )
     }
     val intent = Intent(this, MainActivity::class.java).apply {
@@ -87,8 +88,8 @@ class TurnForegroundService : Service() {
     )
     return NotificationCompat.Builder(this, CHANNEL_ID)
       .setSmallIcon(R.drawable.ic_stat_agent)
-      .setContentTitle("Агент отвечает…")
-      .setContentText("Ответ придёт, даже если свернуть приложение.")
+      .setContentTitle(tr("Агент отвечает…", "The agent is replying…"))
+      .setContentText(tr("Ответ придёт, даже если свернуть приложение.", "The reply will arrive even if you leave the app."))
       .setPriority(NotificationCompat.PRIORITY_LOW)
       .setOngoing(true)
       .setContentIntent(contentIntent)

@@ -50,6 +50,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.glass.GlassState
 import com.aiopenpocket.ui.components.glass.GlassSurface
 import com.aiopenpocket.ui.components.glass.auroraBackground
@@ -170,7 +171,7 @@ internal fun OnboardingContent(
                 .onSizeChanged { topIslandHeightPx = it.height },
         ) {
             OnboardingTopIsland(
-                title = if (editMode) "Настройки урока 1" else "Настройка",
+                title = if (editMode) tr("Настройки урока 1", "Lesson 1 settings") else tr("Настройка", "Setup"),
                 progress = progress,
                 glassState = glassState,
                 onClose = if (editMode) onClose else null,
@@ -218,7 +219,7 @@ private fun OnboardingTopIsland(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (onClose != null) {
                     IconButton(onClick = onClose) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Закрыть")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = tr("Закрыть", "Close"))
                     }
                     Spacer(Modifier.width(4.dp))
                 }
@@ -272,7 +273,7 @@ private fun OnboardingBottomIsland(
                     TextButton(
                         onClick = { onIntent(OnboardingIntent.PreviousStep) },
                         modifier = Modifier.testTag("onboarding_back"),
-                    ) { Text("Назад") }
+                    ) { Text(tr("Назад", "Back")) }
                 }
                 Box(modifier = Modifier.weight(1f))
                 AnimatedVisibility(

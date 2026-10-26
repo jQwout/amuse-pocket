@@ -26,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.glass.GlassState
 import com.aiopenpocket.ui.components.glass.GlassSurface
 import com.aiopenpocket.ui.components.glass.rememberGlassState
@@ -71,19 +72,19 @@ fun AcademyBottomNav(
         ) {
             AcademyNavItem(
                 icon = Icons.AutoMirrored.Filled.Chat,
-                label = "Чат",
+                label = tr("Чат", "Chat"),
                 selected = selectedTab == AcademyTab.Chat,
                 onClick = { onTabSelected(AcademyTab.Chat) },
             )
             AcademyNavItem(
                 icon = Icons.Default.Timeline,
-                label = "Путь",
+                label = tr("Путь", "Path"),
                 selected = selectedTab == AcademyTab.Path,
                 onClick = { onTabSelected(AcademyTab.Path) },
             )
             AcademyNavItem(
                 icon = Icons.Default.Build,
-                label = "Тулы",
+                label = tr("Тулы", "Tools"),
                 selected = selectedTab == AcademyTab.Tools,
                 onClick = { onTabSelected(AcademyTab.Tools) },
             )

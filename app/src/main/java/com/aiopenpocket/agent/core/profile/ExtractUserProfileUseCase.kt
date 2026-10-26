@@ -7,6 +7,7 @@ import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.SelectedLlmProvider
 import com.aiopenpocket.agent.core.llm.StreamEvent
 import com.aiopenpocket.agent.core.memory.model.UserProfile
+import com.aiopenpocket.i18n.tr
 import dev.zacsweers.metro.Inject
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
@@ -74,7 +75,7 @@ class ExtractUserProfileUseCase(
     var errorMessage: String? = null
     llmClient.streamChat(
       messages = listOf(
-        ChatMessage(role = "system", content = EXTRACTION_SYSTEM_PROMPT),
+        ChatMessage(role = "system", content = extractionSystemPrompt()),
         ChatMessage(role = "user", content = userText),
       ),
       tools = emptyList(),
@@ -150,9 +151,13 @@ private fun firstBalancedObject(s: String): String? {
   return null
 }
 
+// Значения профиля — на языке интерфейса: их видит человек (профиль, препромпт), а не только модель.
+private fun extractionSystemPrompt(): String =
+  EXTRACTION_SYSTEM_PROMPT.replace("%LANG%", tr("на русском", "на английском (in English)"))
+
 private val EXTRACTION_SYSTEM_PROMPT = """
   Ты извлекаешь данные профиля пользователя из его свободного рассказа о себе.
-  Верни СТРОГО один JSON-объект на русском, без пояснений и без markdown-обёрток.
+  Верни СТРОГО один JSON-объект %LANG%, без пояснений и без markdown-обёрток.
 
   Поля (все строки; пустая строка, если пользователь не упомянул):
   - name: имя

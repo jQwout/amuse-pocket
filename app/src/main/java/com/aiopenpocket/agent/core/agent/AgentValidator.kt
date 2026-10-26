@@ -3,11 +3,12 @@ package com.aiopenpocket.agent.core.agent
 // @trace user-agent-builder-848153
 
 import com.aiopenpocket.agent.core.hook.HookEngine
+import com.aiopenpocket.i18n.tr
 
 /**
  * One rule violation found by [AgentValidator.validate]. [code] is a stable, machine-checkable
- * identifier (assert on it, branch a builder UI on it); [message] is a human-readable (Russian,
- * matching the app's UI language) explanation; [field] optionally names the offending
+ * identifier (assert on it, branch a builder UI on it); [message] is a human-readable explanation
+ * in the UI language current at validation time (Russian by default, English via `i18n.tr`); [field] optionally names the offending
  * [AgentDefinition] property — for set-valued fields, the specific bad entry — so a future form
  * can attach the error inline instead of only showing a flat list.
  */
@@ -92,24 +93,38 @@ object AgentValidator {
   fun validate(definition: AgentDefinition, ownedCustomSkillIds: Set<String> = emptySet()): List<ValidationIssue> {
     val issues = mutableListOf<ValidationIssue>()
 
+    // Тексты [ValidationIssue.message] — на языке интерфейса в момент проверки ([tr]); визард
+    // перепроверяет черновик на каждой правке, так что строки не застывают. [ValidationIssue.code]
+    // от языка не зависит — на нём и ветвятся тесты/UI.
     if (!ID_REGEX.matches(definition.id)) {
       issues += ValidationIssue(
         code = "invalid_id_format",
-        message = "id должен соответствовать формату ${ID_REGEX.pattern} (3-64 символа)",
+        message = tr(
+          "id должен соответствовать формату ${ID_REGEX.pattern} (3-64 символа)",
+          "id must match the format ${ID_REGEX.pattern} (3-64 characters)",
+        ),
         field = "id",
       )
     }
 
     if (definition.name.isBlank()) {
-      issues += ValidationIssue("blank_name", "Имя агента не может быть пустым", "name")
+      issues += ValidationIssue("blank_name", tr("Имя агента не может быть пустым", "Agent name can't be empty"), "name")
     } else if (definition.name.length > MAX_AGENT_NAME_CHARS) {
-      issues += ValidationIssue("name_too_long", "Имя длиннее $MAX_AGENT_NAME_CHARS символов", "name")
+      issues += ValidationIssue(
+        "name_too_long",
+        tr("Имя длиннее $MAX_AGENT_NAME_CHARS символов", "Name is longer than $MAX_AGENT_NAME_CHARS characters"),
+        "name",
+      )
     }
 
     if (definition.description.isBlank()) {
-      issues += ValidationIssue("blank_description", "Описание не может быть пустым", "description")
+      issues += ValidationIssue("blank_description", tr("Описание не может быть пустым", "Description can't be empty"), "description")
     } else if (definition.description.length > MAX_DESCRIPTION_CHARS) {
-      issues += ValidationIssue("description_too_long", "Описание длиннее $MAX_DESCRIPTION_CHARS символов", "description")
+      issues += ValidationIssue(
+        "description_too_long",
+        tr("Описание длиннее $MAX_DESCRIPTION_CHARS символов", "Description is longer than $MAX_DESCRIPTION_CHARS characters"),
+        "description",
+      )
     }
 
     // Иконка НЕ обязательна: пустой iconKey — законное состояние, `iconFor` отдаёт дефолтный значок.
@@ -117,43 +132,66 @@ object AgentValidator {
     // поля: собрать рабочего агента без выбора картинки было нельзя.
 
     if (definition.systemPrompt.isBlank()) {
-      issues += ValidationIssue("blank_system_prompt", "Системный промпт не может быть пустым", "systemPrompt")
+      issues += ValidationIssue(
+        "blank_system_prompt",
+        tr("Системный промпт не может быть пустым", "System prompt can't be empty"),
+        "systemPrompt",
+      )
     } else if (definition.systemPrompt.length > MAX_SYSTEM_PROMPT_CHARS) {
-      issues += ValidationIssue("system_prompt_too_long", "Промпт длиннее $MAX_SYSTEM_PROMPT_CHARS символов", "systemPrompt")
+      issues += ValidationIssue(
+        "system_prompt_too_long",
+        tr("Промпт длиннее $MAX_SYSTEM_PROMPT_CHARS символов", "Prompt is longer than $MAX_SYSTEM_PROMPT_CHARS characters"),
+        "systemPrompt",
+      )
     }
 
     // Only a USER-sourced agent can "collide" with a preset id — a preset's own adapted
     // definition legitimately reuses its own catalog id (that is not identity theft of itself).
     if (definition.source == AgentSource.USER && MiniAgentCatalog.get(definition.id) != null) {
-      issues += ValidationIssue("preset_id_collision", "id '${definition.id}' уже занят пресетом", "id")
+      issues += ValidationIssue(
+        "preset_id_collision",
+        tr("id '${definition.id}' уже занят пресетом", "id '${definition.id}' is already taken by a template"),
+        "id",
+      )
     }
 
     if (definition.defaultMode !in definition.allowedModes) {
-      issues += ValidationIssue("default_mode_not_allowed", "defaultMode должен входить в allowedModes", "defaultMode")
+      issues += ValidationIssue(
+        "default_mode_not_allowed",
+        tr("defaultMode должен входить в allowedModes", "The default mode must be one of the allowed modes"),
+        "defaultMode",
+      )
     }
 
     val expectedNamespace = "agent:${definition.id}:"
     if (definition.memoryPolicy.namespace != expectedNamespace) {
       issues += ValidationIssue(
         code = "invalid_memory_namespace",
-        message = "memoryPolicy.namespace должен быть '$expectedNamespace'",
+        message = tr(
+          "memoryPolicy.namespace должен быть '$expectedNamespace'",
+          "memoryPolicy.namespace must be '$expectedNamespace'",
+        ),
         field = "memoryPolicy.namespace",
       )
     }
 
     for (tool in definition.toolNames) {
       if (tool !in KNOWN_TOOL_NAMES) {
-        issues += ValidationIssue("unknown_tool", "Неизвестный инструмент '$tool'", "toolNames")
+        issues += ValidationIssue("unknown_tool", tr("Неизвестный инструмент '$tool'", "Unknown tool '$tool'"), "toolNames")
       }
     }
     for (skill in definition.skillIds) {
       if (skill !in KNOWN_SKILL_IDS && skill !in ownedCustomSkillIds) {
-        issues += ValidationIssue("unknown_skill", "Неизвестный навык '$skill'", "skillIds")
+        issues += ValidationIssue("unknown_skill", tr("Неизвестный навык '$skill'", "Unknown skill '$skill'"), "skillIds")
       }
     }
     for (widget in definition.allowedWidgetTemplates) {
       if (widget !in KNOWN_WIDGET_TEMPLATES) {
-        issues += ValidationIssue("unknown_widget_template", "Неизвестный шаблон карточки '$widget'", "allowedWidgetTemplates")
+        issues += ValidationIssue(
+          "unknown_widget_template",
+          tr("Неизвестный шаблон карточки '$widget'", "Unknown card template '$widget'"),
+          "allowedWidgetTemplates",
+        )
       }
     }
 
@@ -164,7 +202,10 @@ object AgentValidator {
       if (hook.actionType !in HookEngine.actionsAllowedFor(hook.event)) {
         issues += ValidationIssue(
           code = "invalid_hook_action_for_event",
-          message = "Действие ${hook.actionType} недопустимо для события ${hook.event} (hook '${hook.id}')",
+          message = tr(
+            "Действие ${hook.actionType} недопустимо для события ${hook.event} (hook '${hook.id}')",
+            "Action ${hook.actionType} isn't allowed for event ${hook.event} (hook '${hook.id}')",
+          ),
           field = "hooks",
         )
       }

@@ -65,6 +65,7 @@ import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.plan.model.PlanStatus
 import com.aiopenpocket.data.repository.AgentFile
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.agents.builder.components.hookActionLabel
 import com.aiopenpocket.ui.agents.builder.components.hookConditionSummary
 import com.aiopenpocket.ui.agents.builder.components.hookEventLabel
@@ -92,20 +93,20 @@ internal fun ActionsRow(
     verticalArrangement = Arrangement.spacedBy(10.dp),
   ) {
     if (state.canDuplicate) {
-      ActionChip(label = "Дублировать", onClick = onDuplicate, modifier = Modifier.testTag("agent_detail_action_duplicate"))
+      ActionChip(label = tr("Дублировать", "Duplicate"), onClick = onDuplicate, modifier = Modifier.testTag("agent_detail_action_duplicate"))
     }
     if (state.canEdit) {
-      ActionChip(label = "Изменить", onClick = onEdit, modifier = Modifier.testTag("agent_detail_action_edit"))
+      ActionChip(label = tr("Изменить", "Edit"), onClick = onEdit, modifier = Modifier.testTag("agent_detail_action_edit"))
     }
     if (state.canToggleEnabled) {
       ActionChip(
-        label = if (state.isEnabled) "Отключить" else "Включить",
+        label = if (state.isEnabled) tr("Отключить", "Disable") else tr("Включить", "Enable"),
         onClick = onToggleEnabled,
         modifier = Modifier.testTag("agent_detail_action_toggle_enabled"),
       )
     }
     if (state.canArchive) {
-      ActionChip(label = "Архивировать", onClick = onArchive, modifier = Modifier.testTag("agent_detail_action_archive"))
+      ActionChip(label = tr("Архивировать", "Archive"), onClick = onArchive, modifier = Modifier.testTag("agent_detail_action_archive"))
     }
   }
 }
@@ -143,7 +144,10 @@ internal fun InvalidCapabilitiesBanner(modifier: Modifier = Modifier) {
       )
       Spacer(modifier = Modifier.width(10.dp))
       Text(
-        text = "Некоторые возможности агента недоступны в этой версии приложения",
+        text = tr(
+          "Некоторые возможности агента недоступны в этой версии приложения",
+          "Some of this agent's capabilities aren't available in this version of the app",
+        ),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
       )
@@ -162,12 +166,12 @@ internal fun StatTiles(
 ) {
   Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-      StatTile(label = "Инструменты", value = state.tools.size.toString(), modifier = Modifier.weight(1f))
-      StatTile(label = "Навыки", value = state.skills.size.toString(), modifier = Modifier.weight(1f))
+      StatTile(label = tr("Инструменты", "Tools"), value = state.tools.size.toString(), modifier = Modifier.weight(1f))
+      StatTile(label = tr("Навыки", "Skills"), value = state.skills.size.toString(), modifier = Modifier.weight(1f))
     }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-      StatTile(label = "Напоминания", value = state.activeHeartbeats.size.toString(), modifier = Modifier.weight(1f))
-      StatTile(label = "Хуки", value = state.hooks.size.toString(), modifier = Modifier.weight(1f))
+      StatTile(label = tr("Напоминания", "Reminders"), value = state.activeHeartbeats.size.toString(), modifier = Modifier.weight(1f))
+      StatTile(label = tr("Хуки", "Hooks"), value = state.hooks.size.toString(), modifier = Modifier.weight(1f))
     }
   }
 }
@@ -198,7 +202,7 @@ internal fun PromptSection(agent: AgentDefinition, modifier: Modifier = Modifier
   var expanded by rememberSaveable(agent.id) { mutableStateOf(true) }
 
   Column(modifier = modifier.fillMaxWidth().testTag("agent_detail_prompt")) {
-    AgentSectionHeader(icon = Icons.AutoMirrored.Filled.InsertDriveFile, label = "Препромпт")
+    AgentSectionHeader(icon = Icons.AutoMirrored.Filled.InsertDriveFile, label = tr("Препромпт", "System prompt"))
     Spacer(modifier = Modifier.height(8.dp))
     // Тап по карточке разворачивает/сворачивает (шеврон в стиле макета), а не отдельная кнопка.
     // Поведение и дефолт (длинный препромпт развёрнут — бриф Task 21) сохранены; testTag переехал
@@ -224,7 +228,7 @@ internal fun PromptSection(agent: AgentDefinition, modifier: Modifier = Modifier
         if (isLong) {
           Icon(
             imageVector = if (expanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = if (expanded) "Свернуть" else "Развернуть",
+            contentDescription = if (expanded) tr("Свернуть", "Collapse") else tr("Развернуть", "Expand"),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 8.dp),
           )
@@ -243,25 +247,25 @@ internal fun PlansSection(
 ) {
   Column(modifier = modifier.fillMaxWidth().testTag("agent_detail_plans")) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-      SectionLabel("Планы")
+      SectionLabel(tr("Планы", "Plans"))
       Spacer(modifier = Modifier.weight(1f))
       if (state.plans.isNotEmpty()) {
         TextButton(onClick = onOpenPlanList, modifier = Modifier.testTag("agent_detail_plans_see_all")) {
-          Text(text = "Все планы", style = MaterialTheme.typography.labelMedium)
+          Text(text = tr("Все планы", "All plans"), style = MaterialTheme.typography.labelMedium)
         }
       }
     }
     Spacer(modifier = Modifier.height(8.dp))
     if (state.plans.isEmpty()) {
       // Честная пустая карточка — у пресетов и у ещё не запустивших план USER-агентов планов просто нет.
-      EmptyStateCard("у агента нет планов")
+      EmptyStateCard(tr("у агента нет планов", "this agent has no plans"))
     } else {
       // Обычный Row (как StatTiles выше), не FlowRow: три ФИКСИРОВАННЫЕ плитки, перенос не нужен —
       // RowScope.weight здесь однозначно доступен, в отличие от FlowRowScope.
       Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        PlanCountTile(label = "Активные", count = state.activePlansCount, modifier = Modifier.weight(1f).testTag("agent_detail_plans_active_count"))
-        PlanCountTile(label = "На паузе", count = state.pausedPlansCount, modifier = Modifier.weight(1f).testTag("agent_detail_plans_paused_count"))
-        PlanCountTile(label = "Завершённые", count = state.completedPlansCount, modifier = Modifier.weight(1f).testTag("agent_detail_plans_completed_count"))
+        PlanCountTile(label = tr("Активные", "Active"), count = state.activePlansCount, modifier = Modifier.weight(1f).testTag("agent_detail_plans_active_count"))
+        PlanCountTile(label = tr("На паузе", "Paused"), count = state.pausedPlansCount, modifier = Modifier.weight(1f).testTag("agent_detail_plans_paused_count"))
+        PlanCountTile(label = tr("Завершённые", "Finished"), count = state.completedPlansCount, modifier = Modifier.weight(1f).testTag("agent_detail_plans_completed_count"))
       }
       Spacer(modifier = Modifier.height(8.dp))
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -306,7 +310,7 @@ private fun PlanRow(row: AgentDetailPlanRow, onClick: () -> Unit, modifier: Modi
           overflow = TextOverflow.Ellipsis,
         )
         Text(
-          text = "${row.stepsCompleted}/${row.stepsTotal} шагов",
+          text = tr("${row.stepsCompleted}/${row.stepsTotal} шагов", "${row.stepsCompleted}/${row.stepsTotal} steps"),
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
         )
@@ -321,12 +325,12 @@ internal fun ToolsSection(tools: List<AgentDetailToolRow>, modifier: Modifier = 
   Column(modifier = modifier.fillMaxWidth()) {
     AgentSectionHeader(
       icon = Icons.Default.Bolt,
-      label = "Инструменты",
+      label = tr("Инструменты", "Tools"),
       trailing = tools.size.takeIf { it > 0 }?.toString(),
     )
     Spacer(modifier = Modifier.height(8.dp))
     if (tools.isEmpty()) {
-      EmptyStateCard("у агента нет инструментов")
+      EmptyStateCard(tr("у агента нет инструментов", "this agent has no tools"))
     } else {
       // Единый контейнер (в макете тулы лежат в одной карточке); строки разделены тонкой линией.
       GlassCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
@@ -399,16 +403,16 @@ private fun UnavailablePill(modifier: Modifier = Modifier) {
       .background(color.copy(alpha = 0.15f))
       .padding(horizontal = 8.dp, vertical = 3.dp),
   ) {
-    Text(text = "НЕДОСТУПЕН", style = MaterialTheme.typography.labelSmall, color = color)
+    Text(text = tr("НЕДОСТУПЕН", "UNAVAILABLE"), style = MaterialTheme.typography.labelSmall, color = color)
   }
 }
 
 /** Короткая uppercase-метка риска для пилюли (полная — riskClassLabel, её показывает билдер). */
 private fun shortRiskLabel(risk: RiskClass): String = when (risk) {
-  RiskClass.READ -> "ЧТЕНИЕ"
-  RiskClass.WRITE -> "ЗАПИСЬ"
-  RiskClass.DESTRUCTIVE -> "ОПАСНО"
-  RiskClass.EXTERNAL -> "НАРУЖУ"
+  RiskClass.READ -> tr("ЧТЕНИЕ", "READ")
+  RiskClass.WRITE -> tr("ЗАПИСЬ", "WRITE")
+  RiskClass.DESTRUCTIVE -> tr("ОПАСНО", "DESTRUCTIVE")
+  RiskClass.EXTERNAL -> tr("НАРУЖУ", "EXTERNAL")
 }
 
 /**
@@ -452,10 +456,10 @@ private fun AgentSectionHeader(
 @Composable
 internal fun SkillsSection(skills: List<AgentDetailSkillRow>, modifier: Modifier = Modifier) {
   Column(modifier = modifier.fillMaxWidth()) {
-    SectionLabel("Навыки")
+    SectionLabel(tr("Навыки", "Skills"))
     Spacer(modifier = Modifier.height(8.dp))
     if (skills.isEmpty()) {
-      EmptyStateCard("у агента нет навыков")
+      EmptyStateCard(tr("у агента нет навыков", "this agent has no skills"))
     } else {
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         skills.forEach { row -> SkillRow(row) }
@@ -489,7 +493,7 @@ private fun SkillRow(row: AgentDetailSkillRow, modifier: Modifier = Modifier) {
         )
         if (row.whenToUse.isNotBlank()) {
           Text(
-            text = "Когда: ${row.whenToUse}",
+            text = tr("Когда: ${row.whenToUse}", "When: ${row.whenToUse}"),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
           )
@@ -507,12 +511,12 @@ internal fun HeartbeatSection(heartbeats: List<HeartbeatEntity>, modifier: Modif
       icon = Icons.Default.GraphicEq,
       // «Напоминания», а не «Heartbeat»: так этот тул называется и в конструкторе («Фоновые
       // напоминания»), и в пустом состоянии ниже.
-      label = "Напоминания",
-      trailing = heartbeats.size.takeIf { it > 0 }?.let { "активных: $it" },
+      label = tr("Напоминания", "Reminders"),
+      trailing = heartbeats.size.takeIf { it > 0 }?.let { tr("активных: $it", "active: $it") },
     )
     Spacer(modifier = Modifier.height(8.dp))
     if (heartbeats.isEmpty()) {
-      EmptyStateCard("нет активных напоминаний")
+      EmptyStateCard(tr("нет активных напоминаний", "no active reminders"))
     } else {
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         heartbeats.forEach { hb -> HeartbeatRow(hb) }
@@ -561,17 +565,17 @@ private fun HeartbeatRow(hb: HeartbeatEntity, modifier: Modifier = Modifier) {
 
 /** «каждые N мин» для периодических, «разово» для one_time — факт периодичности, без обратного отсчёта. */
 private fun formatInterval(hb: HeartbeatEntity): String =
-  hb.intervalMinutes?.let { "каждые $it мин" } ?: "разово"
+  hb.intervalMinutes?.let { tr("каждые $it мин", "every $it min") } ?: tr("разово", "one-time")
 
 @Composable
 internal fun HooksSection(hooks: List<AgentDetailHookRow>, modifier: Modifier = Modifier) {
   var expanded by rememberSaveable { mutableStateOf(false) }
   Column(modifier = modifier.fillMaxWidth()) {
-    AgentSectionHeader(icon = Icons.Default.Bolt, label = "Хуки")
+    AgentSectionHeader(icon = Icons.Default.Bolt, label = tr("Хуки", "Hooks"))
     Spacer(modifier = Modifier.height(8.dp))
     if (hooks.isEmpty()) {
       // Честная пустая карточка — у пресетов и у ещё не настроенных USER-агентов хуков просто нет.
-      EmptyStateCard("у агента нет настроенных хуков")
+      EmptyStateCard(tr("у агента нет настроенных хуков", "this agent has no hooks set up"))
     } else {
       val enabled = hooks.count { it.hook.enabled }
       // Сводная карточка как в макете (Обзор); тап разворачивает детали read-only. Полноценный
@@ -588,19 +592,19 @@ internal fun HooksSection(hooks: List<AgentDetailHookRow>, modifier: Modifier = 
           Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
               Text(
-                text = "Действия на события",
+                text = tr("Действия на события", "Actions on events"),
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.onSurface,
               )
               Text(
-                text = "$enabled из ${hooks.size} включены",
+                text = tr("$enabled из ${hooks.size} включены", "$enabled of ${hooks.size} enabled"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
               )
             }
             Icon(
               imageVector = if (expanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
-              contentDescription = if (expanded) "Свернуть" else "Развернуть",
+              contentDescription = if (expanded) tr("Свернуть", "Collapse") else tr("Развернуть", "Expand"),
               tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
           }
@@ -634,7 +638,7 @@ private fun HookRow(row: AgentDetailHookRow, modifier: Modifier = Modifier) {
             color = MaterialTheme.colorScheme.onSurface,
           )
           Text(
-            text = "Условие: ${hookConditionSummary(row.hook)}",
+            text = tr("Условие: ", "Condition: ") + hookConditionSummary(row.hook),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
           )
@@ -644,7 +648,7 @@ private fun HookRow(row: AgentDetailHookRow, modifier: Modifier = Modifier) {
       if (row.recentRuns.isNotEmpty()) {
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-          text = "Последние срабатывания",
+          text = tr("Последние срабатывания", "Recent runs"),
           style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
         )
@@ -666,7 +670,7 @@ private fun HookRunLine(run: AgentHookRunEntity, modifier: Modifier = Modifier) 
     append(formatRelativeDate(run.timestamp))
     append(" — ")
     append(action?.let(::hookActionLabel) ?: run.status)
-    if (run.errorMessage != null) append(": настройки хука не прочитались")
+    if (run.errorMessage != null) append(tr(": настройки хука не прочитались", ": couldn't read the hook settings"))
   }
   Text(
     text = text,
@@ -678,7 +682,7 @@ private fun HookRunLine(run: AgentHookRunEntity, modifier: Modifier = Modifier) 
 
 @Composable
 private fun HookEnabledBadge(enabled: Boolean, modifier: Modifier = Modifier) {
-  val label = if (enabled) "включён" else "выключен"
+  val label = if (enabled) tr("включён", "on") else tr("выключен", "off")
   val color = if (enabled) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
   Box(
     modifier = modifier
@@ -693,17 +697,17 @@ private fun HookEnabledBadge(enabled: Boolean, modifier: Modifier = Modifier) {
 @Composable
 internal fun FilesSection(files: List<AgentFile>, modifier: Modifier = Modifier) {
   Column(modifier = modifier.fillMaxWidth()) {
-    SectionLabel("Файлы")
+    SectionLabel(tr("Файлы", "Files"))
     Spacer(modifier = Modifier.height(8.dp))
     Text(
       // Без внутреннего пути «filesDir/agents/<id>»: пользователю он ничего не говорит.
-      text = "Личная папка агента — другие агенты её не видят.",
+      text = tr("Личная папка агента — другие агенты её не видят.", "The agent's private folder — other agents can't see it."),
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
     )
     Spacer(modifier = Modifier.height(8.dp))
     if (files.isEmpty()) {
-      EmptyStateCard("файлов нет")
+      EmptyStateCard(tr("файлов нет", "no files"))
     } else {
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         files.forEach { file -> FileRow(file) }

@@ -1,8 +1,10 @@
 package com.aiopenpocket.agent.core.lesson
 
 // @trace uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2
+// @trace english-ui-on-the-demo-path-223241
 
 import com.aiopenpocket.agent.core.llm.VideoUnderstandingClient
+import com.aiopenpocket.i18n.AppLanguage
 import com.aiopenpocket.ui.roadmap.LIBRARY_LESSON_IDS
 import com.aiopenpocket.ui.roadmap.ROADMAP_LEVELS
 import kotlinx.serialization.json.Json
@@ -35,13 +37,30 @@ class LessonAssetsValidationTest {
     .firstOrNull { it.isDirectory }
     ?: error("Не нашёл src/main/assets; рабочая директория: ${File(".").absolutePath}")
 
-  private val lessonFiles: List<File> = File(assetsDir, "lessons")
+  private val lessonsDir = File(assetsDir, "lessons")
+
+  /** Русские уроки — оригиналы: каждый урок есть по-русски, на них ссылаются каталоги. */
+  private val lessonFiles: List<File> = lessonsDir
     .listFiles { f -> f.extension == "json" }
     ?.sortedBy { it.name }
     .orEmpty()
 
+  /**
+   * Английские копии (assets/lessons/en, их первыми читает LessonRepository при английском
+   * интерфейсе). Линтуются теми же правилами, что и русские, и ещё сверяются с оригиналом.
+   */
+  private val enLessonFiles: List<File> = File(lessonsDir, AppLanguage.EN)
+    .listFiles { f -> f.extension == "json" }
+    ?.sortedBy { it.name }
+    .orEmpty()
+
+  private val allLessonFiles: List<File> = lessonFiles + enLessonFiles
+
+  /** Имя файла в сообщениях: `meta_models.json` или `en/meta_models.json` — чтобы копии не путались с оригиналами. */
+  private fun label(file: File): String = file.relativeTo(lessonsDir).invariantSeparatorsPath
+
   /** Уроки, которые распарсились; ошибки парса проверяет отдельный тест. */
-  private fun parsedLessons(): List<Pair<File, Lesson>> = lessonFiles.mapNotNull { file ->
+  private fun parsedLessons(files: List<File> = allLessonFiles): List<Pair<File, Lesson>> = files.mapNotNull { file ->
     runCatching { file to json.decodeFromString(Lesson.serializer(), file.readText()) }.getOrNull()
   }
 
@@ -52,10 +71,10 @@ class LessonAssetsValidationTest {
 
   @Test
   fun `every lesson parses with the runtime serializer`() {
-    val errors = lessonFiles.mapNotNull { file ->
+    val errors = allLessonFiles.mapNotNull { file ->
       runCatching { json.decodeFromString(Lesson.serializer(), file.readText()) }
         .exceptionOrNull()
-        ?.let { "${file.name}: ${it.message?.lineSequence()?.firstOrNull()}" }
+        ?.let { "${label(file)}: ${it.message?.lineSequence()?.firstOrNull()}" }
     }
     assertTrue(
       "Уроки не парсятся (в приложении они МОЛЧА исчезнут):\n${errors.joinToString("\n")}",
@@ -67,14 +86,15 @@ class LessonAssetsValidationTest {
   fun `lesson ids match file names and every lesson has a quiz`() {
     val errors = buildList {
       parsedLessons().forEach { (file, lesson) ->
+        val name = label(file)
         val expected = file.nameWithoutExtension
-        if (lesson.id != expected) add("${file.name}: id='${lesson.id}' не совпадает с именем файла")
-        if (lesson.title.isBlank()) add("${file.name}: пустой title")
-        if (lesson.steps.isEmpty()) add("${file.name}: нет шагов")
+        if (lesson.id != expected) add("$name: id='${lesson.id}' не совпадает с именем файла")
+        if (lesson.title.isBlank()) add("$name: пустой title")
+        if (lesson.steps.isEmpty()) add("$name: нет шагов")
         if (lesson.steps.none { it.type == "quiz" && it.questions.isNotEmpty() }) {
-          add("${file.name}: нет квиза с вопросами — концепция урока требует закрепление в конце")
+          add("$name: нет квиза с вопросами — концепция урока требует закрепление в конце")
         }
-        if (lesson.firstRun && expected != "l1_welcome") add("${file.name}: firstRun=true не в l1_welcome")
+        if (lesson.firstRun && expected != "l1_welcome") add("$name: firstRun=true не в l1_welcome")
       }
     }
     assertTrue(errors.joinToString("\n"), errors.isEmpty())
@@ -99,7 +119,7 @@ class LessonAssetsValidationTest {
     val errors = buildList {
       parsedLessons().forEach { (file, lesson) ->
         lesson.steps.forEachIndexed { i, step ->
-          fun err(msg: String) = add("${file.name} шаг $i (${step.type}): $msg")
+          fun err(msg: String) = add("${label(file)} шаг $i (${step.type}): $msg")
           when (step.type) {
             "text" -> if (step.text.isBlank()) err("пустой text — пустой пузырь в чате")
 
@@ -223,9 +243,9 @@ class LessonAssetsValidationTest {
       lesson.steps.forEachIndexed { i, step ->
         when (step.type) {
           "quiz" -> step.questions.forEachIndexed { qi, q ->
-            add(Triple("${file.name} шаг $i вопрос $qi", q.options, q.correct))
+            add(Triple("${label(file)} шаг $i вопрос $qi", q.options, q.correct))
           }
-          "scenario" -> add(Triple("${file.name} шаг $i (scenario)", step.options, step.scenarioCorrectIndex()))
+          "scenario" -> add(Triple("${label(file)} шаг $i (scenario)", step.options, step.scenarioCorrectIndex()))
         }
       }
     }
@@ -265,12 +285,15 @@ class LessonAssetsValidationTest {
    */
   @Test
   fun `capstone lesson's final step carries a valid primary_action`() {
-    val (file, lesson) = parsedLessons().firstOrNull { (f, _) -> f.nameWithoutExtension == "agent_blueprint" }
-      ?: error("agent_blueprint.json не найден среди распарсенных уроков")
-    val action = lesson.steps.lastOrNull()?.primaryAction
-    assertTrue("${file.name}: финальный шаг капстоуна должен нести primaryAction", action != null)
-    assertEquals("open_agent_builder", action?.type)
-    assertTrue("${file.name}: primaryAction.label пуст", action?.label?.isNotBlank() == true)
+    // Все языковые копии капстоуна: английская без CTA потеряла бы мост в конструктор.
+    val capstones = parsedLessons().filter { (f, _) -> f.nameWithoutExtension == "agent_blueprint" }
+    assertTrue("agent_blueprint.json не найден среди распарсенных уроков", capstones.isNotEmpty())
+    capstones.forEach { (file, lesson) ->
+      val action = lesson.steps.lastOrNull()?.primaryAction
+      assertTrue("${label(file)}: финальный шаг капстоуна должен нести primaryAction", action != null)
+      assertEquals("${label(file)}: primaryAction.type", "open_agent_builder", action?.type)
+      assertTrue("${label(file)}: primaryAction.label пуст", action?.label?.isNotBlank() == true)
+    }
   }
 
   /**
@@ -286,10 +309,85 @@ class LessonAssetsValidationTest {
         lesson.steps.forEachIndexed { i, step ->
           val action = step.primaryAction ?: return@forEachIndexed
           if (action.type != "open_agent_builder") {
-            add("${file.name} шаг $i: неизвестный primaryAction.type='${action.type}' — DrivenUiEngine отвергнет карточку целиком")
+            add("${label(file)} шаг $i: неизвестный primaryAction.type='${action.type}' — DrivenUiEngine отвергнет карточку целиком")
           }
           if (lesson.id != "agent_blueprint" || i != lesson.steps.lastIndex) {
-            add("${file.name} шаг $i: primaryAction задан вне финального шага капстоуна — CTA должен остаться только там")
+            add("${label(file)} шаг $i: primaryAction задан вне финального шага капстоуна — CTA должен остаться только там")
+          }
+        }
+      }
+    }
+    assertTrue(errors.joinToString("\n"), errors.isEmpty())
+  }
+
+  // --- Английские копии уроков (assets/lessons/en) ---
+
+  /**
+   * Перевод меняет только текст. Шаги, их типы, сцены, ассеты и ключи ответов у копии те же, что у
+   * русского оригинала: иначе английский урок тихо разъедется с русским (другой правильный вариант,
+   * пропавшая картинка, лишний шаг), а курсор урока — номер шага — перестанет значить одно и то же
+   * при смене языка посреди урока. imagePrompt тоже общий: по нему ищется уже нарисованная картинка.
+   * videoPrompt переводить можно — он уходит модели, а не в разметку.
+   */
+  @Test
+  fun `english lessons mirror their russian originals`() {
+    val originals = parsedLessons(lessonFiles).associate { (f, lesson) -> f.nameWithoutExtension to lesson }
+    val errors = buildList {
+      parsedLessons(enLessonFiles).forEach { (file, en) ->
+        val name = label(file)
+        val ru = originals[file.nameWithoutExtension]
+        if (ru == null) {
+          add("$name: нет русского оригинала assets/lessons/${file.name} — копию никто не откроет")
+          return@forEach
+        }
+        if (en.iconKey != ru.iconKey) add("$name: iconKey='${en.iconKey}', в оригинале '${ru.iconKey}'")
+        if (en.firstRun != ru.firstRun) add("$name: firstRun=${en.firstRun}, в оригинале ${ru.firstRun}")
+        if (en.steps.size != ru.steps.size) {
+          add("$name: шагов ${en.steps.size}, в оригинале ${ru.steps.size}")
+          return@forEach
+        }
+        en.steps.zip(ru.steps).forEachIndexed { i, (e, r) ->
+          fun err(msg: String) = add("$name шаг $i (${r.type}): $msg")
+          if (e.type != r.type) {
+            err("тип '${e.type}', в оригинале '${r.type}'")
+            return@forEachIndexed
+          }
+          val shared = listOf(
+            Triple("scene", e.scene, r.scene),
+            Triple("asset", e.asset, r.asset),
+            Triple("imageKey", e.imageKey, r.imageKey),
+            Triple("url", e.url, r.url),
+            Triple("imagePrompt", e.imagePrompt, r.imagePrompt),
+            Triple("sampleVideo", e.sampleVideo, r.sampleVideo),
+            Triple("samplePreview", e.samplePreview, r.samplePreview),
+          )
+          shared.forEach { (field, mine, original) ->
+            if (mine != original) err("$field='$mine', в оригинале '$original'")
+          }
+          if (e.caseSensitive != r.caseSensitive) err("caseSensitive=${e.caseSensitive}, в оригинале ${r.caseSensitive}")
+          if (e.primaryAction?.type != r.primaryAction?.type) {
+            err("primaryAction.type='${e.primaryAction?.type}', в оригинале '${r.primaryAction?.type}'")
+          }
+          when (e.type) {
+            "quiz" -> {
+              if (e.questions.size != r.questions.size) err("вопросов ${e.questions.size}, в оригинале ${r.questions.size}")
+              e.questions.zip(r.questions).forEachIndexed { qi, (eq, rq) ->
+                if (eq.options.size != rq.options.size) err("вопрос $qi: вариантов ${eq.options.size}, в оригинале ${rq.options.size}")
+                if (eq.correct != rq.correct) err("вопрос $qi: correct=${eq.correct}, в оригинале ${rq.correct}")
+              }
+            }
+            "scenario" -> {
+              if (e.options.size != r.options.size) err("вариантов ${e.options.size}, в оригинале ${r.options.size}")
+              if (e.scenarioCorrectIndex() != r.scenarioCorrectIndex()) {
+                err("correct=${e.scenarioCorrectIndex()}, в оригинале ${r.scenarioCorrectIndex()}")
+              }
+            }
+            "sort" -> {
+              if (e.items.size != r.items.size) err("элементов ${e.items.size}, в оригинале ${r.items.size}")
+              if (e.correct != r.correct) err("correct=${e.correct}, в оригинале ${r.correct}")
+            }
+            "match" -> if (e.pairs.size != r.pairs.size) err("пар ${e.pairs.size}, в оригинале ${r.pairs.size}")
+            "example" -> if (e.parts.size != r.parts.size) err("частей ${e.parts.size}, в оригинале ${r.parts.size}")
           }
         }
       }

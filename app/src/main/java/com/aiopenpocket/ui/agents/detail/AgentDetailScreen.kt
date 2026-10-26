@@ -44,6 +44,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.AgentDefinition
+import com.aiopenpocket.agent.core.agent.displayName
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.agents.iconFor
 import com.aiopenpocket.ui.components.glass.auroraBackground
 
@@ -83,7 +85,7 @@ fun AgentDetailScreen(
           CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
         } else {
           Text(
-            text = "Агент не найден",
+            text = tr("Агент не найден", "Agent not found"),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
           )
@@ -121,7 +123,7 @@ fun AgentDetailScreen(
             ) {
               Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
               Spacer(modifier = Modifier.width(8.dp))
-              Text("Открыть чат")
+              Text(tr("Открыть чат", "Open chat"))
             }
             Spacer(modifier = Modifier.height(12.dp))
             ActionsRow(
@@ -188,7 +190,7 @@ private fun AgentDetailModalHeader(
     Spacer(modifier = Modifier.width(12.dp))
     Column(modifier = Modifier.weight(1f)) {
       Text(
-        text = agent.name,
+        text = agent.displayName,
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.onSurface,
@@ -205,7 +207,7 @@ private fun AgentDetailModalHeader(
           // зафиксировало правки (шапка со «status · vN» уехала вместе со старым полноэкранным
           // вариантом). Сырой id агента (`budget`, uuid) здесь больше не показываем: пользователю он
           // ничего не говорит, имя агента стоит строкой выше.
-          text = "версия ${agent.configVersion}",
+          text = tr("версия ${agent.configVersion}", "version ${agent.configVersion}"),
           style = MaterialTheme.typography.labelMedium,
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
           maxLines = 1,
@@ -217,7 +219,7 @@ private fun AgentDetailModalHeader(
       onClick = onClose,
       modifier = Modifier.clip(CircleShape).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
     ) {
-      Icon(imageVector = Icons.Default.Close, contentDescription = "Закрыть", tint = MaterialTheme.colorScheme.onSurface)
+      Icon(imageVector = Icons.Default.Close, contentDescription = tr("Закрыть", "Close"), tint = MaterialTheme.colorScheme.onSurface)
     }
   }
 }
@@ -229,7 +231,7 @@ private fun AgentDetailTabs(
   onSelect: (Int) -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  val tabs = listOf("Обзор", "Файлы")
+  val tabs = listOf(tr("Обзор", "Overview"), tr("Файлы", "Files"))
   Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
     tabs.forEachIndexed { i, label ->
       val isSel = i == selected

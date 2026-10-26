@@ -27,6 +27,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.aiopenpocket.i18n.AppLanguage
 import com.aiopenpocket.ui.components.glass.StatusBarScrim
 import com.aiopenpocket.ui.chat.ChatScreen
 import com.aiopenpocket.ui.conversations.ConversationsListScreen
@@ -47,6 +48,7 @@ import com.aiopenpocket.ui.settings.SettingsScreen
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import dev.zacsweers.metrox.viewmodel.LocalMetroViewModelFactory
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.onEach
 
 /**
  * Длительность перехода между экранами. 260мс — сознательный компромисс: короче читается как
@@ -98,8 +100,13 @@ class MainActivity : ComponentActivity() {
                     val userPreferencesRepository = remember { appGraph.userPreferencesRepository }
                     val onboardingCompleted by userPreferencesRepository.onboardingCompleted
                         .collectAsState(initial = null)
+                    // onEach до состояния: AppLanguage.code меняется раньше, чем language станет не
+                    // null, — первый кадр после заглушки уже рисуется на нужном языке, без мигания.
+                    val language by remember {
+                        userPreferencesRepository.language.onEach { AppLanguage.code = it }
+                    }.collectAsState(initial = null)
 
-                    when (onboardingCompleted) {
+                    when (if (language == null) null else onboardingCompleted) {
                         null -> {
                             Box(
                                 modifier = Modifier.fillMaxSize(),

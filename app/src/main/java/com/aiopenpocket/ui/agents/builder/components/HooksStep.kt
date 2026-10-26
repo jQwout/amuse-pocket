@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.ValidationIssue
 import com.aiopenpocket.agent.core.hook.AgentHook
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.agents.builder.AgentDraft
 import com.aiopenpocket.ui.components.glass.glassCardSurface
 
@@ -63,10 +64,14 @@ fun HooksStep(
       .padding(contentPadding)
       .padding(horizontal = 20.dp, vertical = 16.dp),
   ) {
-    Text(text = "Хуки", style = MaterialTheme.typography.headlineSmall)
+    Text(text = tr("Хуки", "Hooks"), style = MaterialTheme.typography.headlineSmall)
     Text(
-      text = "Правила на события хода: добавить инструкцию, потребовать подтверждение, " +
-        "запретить действие, записать в лог или остановить ход.",
+      text = tr(
+        "Правила на события хода: добавить инструкцию, потребовать подтверждение, " +
+          "запретить действие, записать в лог или остановить ход.",
+        "Rules for turn events: add an instruction, require approval, " +
+          "deny an action, write to the log or stop the turn.",
+      ),
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
       modifier = Modifier.padding(top = 6.dp, bottom = 16.dp),
@@ -75,7 +80,7 @@ fun HooksStep(
 
     if (draft.hooks.isEmpty()) {
       Text(
-        text = "Хуков пока нет.",
+        text = tr("Хуков пока нет.", "No hooks yet."),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
@@ -105,7 +110,7 @@ fun HooksStep(
         showEditor = true
       },
       modifier = Modifier.testTag("agent_builder_hook_add"),
-    ) { Text("Добавить хук") }
+    ) { Text(tr("Добавить хук", "Add hook")) }
   }
 
   if (showEditor) {
@@ -146,7 +151,10 @@ private fun HookRow(hook: AgentHook, onClick: () -> Unit, onToggleEnabled: (Bool
         style = MaterialTheme.typography.titleSmall,
       )
       Text(
-        text = "Условие: ${hookConditionSummary(hook)} · приоритет ${hook.priority}",
+        text = tr(
+          "Условие: ${hookConditionSummary(hook)} · приоритет ${hook.priority}",
+          "Condition: ${hookConditionSummary(hook)} · priority ${hook.priority}",
+        ),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
@@ -154,7 +162,7 @@ private fun HookRow(hook: AgentHook, onClick: () -> Unit, onToggleEnabled: (Bool
     Switch(checked = hook.enabled, onCheckedChange = onToggleEnabled)
     Spacer(modifier = Modifier.width(4.dp))
     IconButton(onClick = onDelete) {
-      Icon(imageVector = Icons.Default.Delete, contentDescription = "Удалить хук")
+      Icon(imageVector = Icons.Default.Delete, contentDescription = tr("Удалить хук", "Delete hook"))
     }
   }
 }

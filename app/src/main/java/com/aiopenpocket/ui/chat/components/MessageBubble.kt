@@ -40,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.model.Message
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.chat.DrivenUiCard
 import com.aiopenpocket.ui.chat.DrivenUiEngine
 import com.aiopenpocket.ui.chat.ResponseStats
@@ -180,7 +181,7 @@ internal fun MessageBubble(
                         IconButton(onClick = { showDeleteConfirm = true }, modifier = Modifier.size(32.dp)) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
-                                contentDescription = "Удалить",
+                                contentDescription = tr("Удалить", "Delete"),
                                 tint = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(18.dp),
                             )
@@ -194,15 +195,15 @@ internal fun MessageBubble(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Удалить сообщение?") },
-            text = { Text("Это действие нельзя отменить.") },
+            title = { Text(tr("Удалить сообщение?", "Delete this message?")) },
+            text = { Text(tr("Это действие нельзя отменить.", "This can't be undone.")) },
             confirmButton = {
                 TextButton(onClick = { showDeleteConfirm = false; showActions = false; onDelete() }) {
-                    Text("Удалить", color = MaterialTheme.colorScheme.error)
+                    Text(tr("Удалить", "Delete"), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("Отмена") }
+                TextButton(onClick = { showDeleteConfirm = false }) { Text(tr("Отмена", "Cancel")) }
             },
         )
     }

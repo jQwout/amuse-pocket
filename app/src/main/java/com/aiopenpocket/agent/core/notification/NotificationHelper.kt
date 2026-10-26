@@ -12,6 +12,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.aiopenpocket.R
+import com.aiopenpocket.i18n.tr
 
 private const val CHANNEL_ID = "ai_agent_channel"
 
@@ -42,7 +43,7 @@ fun showAgentNotification(
     // Имя канала видит пользователь в системных настройках уведомлений — по-русски. Тот же
     // CHANNEL_ID: повторный createNotificationChannel просто переименует уже созданный канал.
     notificationManager.createNotificationChannel(
-      NotificationChannel(CHANNEL_ID, "Напоминания и ответы агента", NotificationManager.IMPORTANCE_DEFAULT),
+      NotificationChannel(CHANNEL_ID, tr("Напоминания и ответы агента", "Reminders and agent replies"), NotificationManager.IMPORTANCE_DEFAULT),
     )
   }
 

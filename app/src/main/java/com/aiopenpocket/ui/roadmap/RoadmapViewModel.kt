@@ -8,6 +8,7 @@ import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.lesson.LessonRepository
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.i18n.tr
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
@@ -59,7 +60,10 @@ class RoadmapViewModel(
             conversationRepository.addMessage(
               newId,
               "assistant",
-              "Привет! Это урок «${level.title}». ${level.description} Напиши «готов», и начнём.",
+              tr(
+                "Привет! Это урок «${level.title}». ${level.description} Напиши «готов», и начнём.",
+                "Hi! This is the lesson “${level.title}”. ${level.description} Type “ready” and we'll begin.",
+              ),
             )
           }
         }

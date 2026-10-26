@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.WorkManager
 import com.aiopenpocket.agent.core.agent.AgentResolver
+import com.aiopenpocket.agent.core.agent.displayName
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.lesson.LessonChatController
 import com.aiopenpocket.agent.core.lesson.LessonRepository
@@ -28,6 +29,7 @@ import com.aiopenpocket.agent.loop.TurnManager
 import com.aiopenpocket.agent.loop.TurnStatus
 import com.aiopenpocket.agent.tools.HeartbeatTool
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.chat.components.bundledAssetPath
 import com.aiopenpocket.voice.input.VoiceInputController
 import com.aiopenpocket.voice.input.VoiceInputState
@@ -293,7 +295,7 @@ class ChatViewModel(
                     agent = agent,
                     // У урока заголовок диалога — его id (по нему урок и находится), а в шапке нужно
                     // человеческое название: иначе там висело бы «tokens_and_speed».
-                    title = agent?.name ?: lesson?.title?.takeIf { it.isNotBlank() } ?: title,
+                    title = agent?.displayName ?: lesson?.title?.takeIf { it.isNotBlank() } ?: title,
                     lessonMode = lesson != null,
                     lesson = lesson,
                     // Режим по умолчанию из конфига агента. До этого поле конструктора не читал вообще
@@ -488,7 +490,7 @@ class ChatViewModel(
                 android.util.Log.e("ChatViewModel", "plan command failed", e)
                 // e.message здесь — проверки движка вроде «Cannot apply Pause to plan …» по-английски;
                 // человеку нужна одна понятная строка, подробности — в логе.
-                _state.update { it.copy(error = "Не удалось выполнить действие с планом — попробуй ещё раз.") }
+                _state.update { it.copy(error = tr("Не удалось выполнить действие с планом — попробуй ещё раз.", "Couldn't complete the plan action — try again.")) }
             }
         }
     }
@@ -568,16 +570,16 @@ class ChatViewModel(
                     aboutMeFrom(memoryRepository.getFactsByCategory("profile")) to userPreferencesRepository.getLanguage()
                 }
                 when {
-                    aboutMe.isBlank() -> "Чтобы нарисовать под тебя, расскажи о себе в профиле."
+                    aboutMe.isBlank() -> tr("Чтобы нарисовать под тебя, расскажи о себе в профиле.", "To draw it for you, tell me about yourself in your profile.")
                     !lessonChatController.postPersonalizedImage(convId, imagePrompt, caption, aboutMe, language) ->
-                        "Не получилось нарисовать. Проверь ключ OpenRouter и сеть и попробуй ещё раз."
+                        tr("Не получилось нарисовать. Проверь ключ OpenRouter и сеть и попробуй ещё раз.", "Couldn't draw it. Check your OpenRouter key and network, then try again.")
                     else -> null
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
                 android.util.Log.e("ChatViewModel", "personalize lesson image failed", e)
-                "Не получилось нарисовать. Попробуй ещё раз."
+                tr("Не получилось нарисовать. Попробуй ещё раз.", "Couldn't draw it. Try again.")
             } finally {
                 _state.update { it.copy(personalizingImagePrompts = it.personalizingImagePrompts - imagePrompt) }
             }
@@ -603,16 +605,16 @@ class ChatViewModel(
                 val language = withContext(Dispatchers.IO) { userPreferencesRepository.getLanguage() }
                 val clip = withContext(Dispatchers.IO) { readLessonVideo(video) }
                 when {
-                    clip == null -> "Видео слишком большое или не открылось — сними покороче, до 10 секунд."
+                    clip == null -> tr("Видео слишком большое или не открылось — сними покороче, до 10 секунд.", "The video is too large or didn't open — record a shorter one, up to 10 seconds.")
                     !lessonChatController.postVideoAnswer(convId, videoPrompt, clip.first, clip.second, language) ->
-                        "Не получилось разобрать видео. Проверь ключ OpenRouter и сеть и попробуй ещё раз."
+                        tr("Не получилось разобрать видео. Проверь ключ OpenRouter и сеть и попробуй ещё раз.", "Couldn't analyze the video. Check your OpenRouter key and network, then try again.")
                     else -> null
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
                 android.util.Log.e("ChatViewModel", "lesson video failed", e)
-                "Не получилось разобрать видео. Попробуй ещё раз."
+                tr("Не получилось разобрать видео. Попробуй ещё раз.", "Couldn't analyze the video. Try again.")
             } finally {
                 withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) { deleteOwnCapture(video) }
                 _state.update { it.copy(analyzingVideoPrompts = it.analyzingVideoPrompts - videoPrompt) }
@@ -865,11 +867,11 @@ private fun appendTranscript(current: String, transcript: String): String {
 }
 
 private fun VoiceInputState.ErrorReason.toUserMessage(): String = when (this) {
-    VoiceInputState.ErrorReason.Unavailable -> "Распознавание речи недоступно на устройстве"
-    VoiceInputState.ErrorReason.NoMatch -> "Не удалось распознать речь"
-    VoiceInputState.ErrorReason.Network -> "Нет сети для распознавания речи"
-    VoiceInputState.ErrorReason.Audio -> "Ошибка микрофона"
-    VoiceInputState.ErrorReason.Permission -> "Нет разрешения на доступ к микрофону"
-    VoiceInputState.ErrorReason.Busy -> "Распознаватель занят, попробуй ещё раз"
-    VoiceInputState.ErrorReason.Other -> "Не удалось распознать речь"
+    VoiceInputState.ErrorReason.Unavailable -> tr("Распознавание речи недоступно на устройстве", "Speech recognition isn't available on this device")
+    VoiceInputState.ErrorReason.NoMatch -> tr("Не удалось распознать речь", "Couldn't recognize speech")
+    VoiceInputState.ErrorReason.Network -> tr("Нет сети для распознавания речи", "No network for speech recognition")
+    VoiceInputState.ErrorReason.Audio -> tr("Ошибка микрофона", "Microphone error")
+    VoiceInputState.ErrorReason.Permission -> tr("Нет разрешения на доступ к микрофону", "No permission to use the microphone")
+    VoiceInputState.ErrorReason.Busy -> tr("Распознаватель занят, попробуй ещё раз", "The recognizer is busy, try again")
+    VoiceInputState.ErrorReason.Other -> tr("Не удалось распознать речь", "Couldn't recognize speech")
 }

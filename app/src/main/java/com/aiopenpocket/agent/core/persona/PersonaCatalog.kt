@@ -2,14 +2,20 @@ package com.aiopenpocket.agent.core.persona
 
 // @trace swappable-persona-e5e65e
 
+import com.aiopenpocket.i18n.tr
+
 data class PersonaInfo(
   val id: String,
-  val displayName: String,
+  val displayNameRu: String,
   val tone: String,
   val stats: PersonaStats,
   val perks: List<String>,
   val quotes: List<PersonaQuote>,
-)
+  val displayNameEn: String = displayNameRu,
+) {
+  /** Имя на языке интерфейса; описание, перки и цитаты пока только по-русски. */
+  val displayName: String get() = tr(displayNameRu, displayNameEn)
+}
 
 data class PersonaStats(
   val talkativeness: Int,
@@ -29,7 +35,8 @@ object PersonaCatalog {
   val all: List<PersonaInfo> = listOf(
     PersonaInfo(
       id = "silent_butler",
-      displayName = "Тихий дворецкий",
+      displayNameRu = "Тихий дворецкий",
+      displayNameEn = "Quiet butler",
       tone = "сухой, минимальный",
       stats = PersonaStats(
         talkativeness = 10,
@@ -48,7 +55,8 @@ object PersonaCatalog {
     ),
     PersonaInfo(
       id = "attentive_secretary",
-      displayName = "Внимательный секретарь",
+      displayNameRu = "Внимательный секретарь",
+      displayNameEn = "Attentive secretary",
       tone = "вежливый, уточняющий",
       stats = PersonaStats(
         talkativeness = 55,
@@ -67,7 +75,8 @@ object PersonaCatalog {
     ),
     PersonaInfo(
       id = "sharp_partner",
-      displayName = "Резкий напарник",
+      displayNameRu = "Резкий напарник",
+      displayNameEn = "Sharp partner",
       tone = "деловой, проактивный",
       stats = PersonaStats(
         talkativeness = 45,
@@ -86,7 +95,8 @@ object PersonaCatalog {
     ),
     PersonaInfo(
       id = "egalitarian_partner",
-      displayName = "Партнёр-эгалитарист",
+      displayNameRu = "Партнёр-эгалитарист",
+      displayNameEn = "Equal partner",
       tone = "ровный, уважительный",
       stats = PersonaStats(
         talkativeness = 50,
@@ -105,7 +115,8 @@ object PersonaCatalog {
     ),
     PersonaInfo(
       id = "friendly_companion",
-      displayName = "Дружелюбный компаньон",
+      displayNameRu = "Дружелюбный компаньон",
+      displayNameEn = "Friendly companion",
       tone = "тёплый, по-человечески",
       stats = PersonaStats(
         talkativeness = 80,
@@ -124,7 +135,8 @@ object PersonaCatalog {
     ),
     PersonaInfo(
       id = "ironic_assistant",
-      displayName = "Ироничный ассистент",
+      displayNameRu = "Ироничный ассистент",
+      displayNameEn = "Ironic assistant",
       tone = "сухой юмор",
       stats = PersonaStats(
         talkativeness = 50,
@@ -143,7 +155,8 @@ object PersonaCatalog {
     ),
     PersonaInfo(
       id = "strict_coach",
-      displayName = "Строгий коуч",
+      displayNameRu = "Строгий коуч",
+      displayNameEn = "Strict coach",
       tone = "прямой, без сахара",
       stats = PersonaStats(
         talkativeness = 40,

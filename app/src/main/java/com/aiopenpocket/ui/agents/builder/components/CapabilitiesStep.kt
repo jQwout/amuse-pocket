@@ -44,6 +44,7 @@ import com.aiopenpocket.agent.core.agent.AgentValidator
 import com.aiopenpocket.agent.core.agent.ValidationIssue
 import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.agent.tools.LESSON_CARD_TEMPLATES
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.agents.builder.AgentDraft
 import com.aiopenpocket.ui.agents.builder.CustomSkillDraft
 import com.aiopenpocket.ui.components.glass.glassCardSurface
@@ -89,16 +90,16 @@ fun CapabilitiesStep(
       .padding(contentPadding)
       .padding(horizontal = 20.dp, vertical = 16.dp),
   ) {
-    Text(text = "Возможности", style = MaterialTheme.typography.headlineSmall)
+    Text(text = tr("Возможности", "Capabilities"), style = MaterialTheme.typography.headlineSmall)
     Text(
-      text = "Инструменты и навыки, которыми будет пользоваться агент.",
+      text = tr("Инструменты и навыки, которыми будет пользоваться агент.", "Tools and skills the agent will use."),
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
       modifier = Modifier.padding(top = 6.dp, bottom = 16.dp),
     )
     ErrorText(errors, "toolNames")
 
-    Text(text = "Инструменты", style = MaterialTheme.typography.titleMedium)
+    Text(text = tr("Инструменты", "Tools"), style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(8.dp))
     ToolCatalog.default.forEach { tool ->
       ToolRow(
@@ -111,13 +112,16 @@ fun CapabilitiesStep(
 
     Spacer(modifier = Modifier.height(8.dp))
     ExpanderHeader(
-      title = "Расширенные инструменты",
+      title = tr("Расширенные инструменты", "Advanced tools"),
       expanded = advancedExpanded,
       onClick = { advancedExpanded = !advancedExpanded },
     )
     if (advancedExpanded) {
       Text(
-        text = "Эти инструменты особенно чувствительны — включай, только если точно понимаешь, зачем.",
+        text = tr(
+          "Эти инструменты особенно чувствительны — включай, только если точно понимаешь, зачем.",
+          "These tools are especially sensitive — turn them on only if you know exactly why.",
+        ),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.error,
         modifier = Modifier.padding(vertical = 8.dp),
@@ -133,7 +137,7 @@ fun CapabilitiesStep(
     }
 
     Spacer(modifier = Modifier.height(20.dp))
-    Text(text = "Навыки", style = MaterialTheme.typography.titleMedium)
+    Text(text = tr("Навыки", "Skills"), style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(8.dp))
     ErrorText(errors, "skillIds")
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -179,10 +183,10 @@ fun CapabilitiesStep(
     )
 
     Spacer(modifier = Modifier.height(20.dp))
-    Text(text = "Шаблоны карточек", style = MaterialTheme.typography.titleMedium)
+    Text(text = tr("Шаблоны карточек", "Card templates"), style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(4.dp))
     Text(
-      text = "Какие карточки агент может показывать в чате.",
+      text = tr("Какие карточки агент может показывать в чате.", "Which cards the agent can show in the chat."),
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -255,7 +259,7 @@ private fun ToolRow(tool: ToolCatalogEntry, selected: Boolean, onToggle: (Boolea
       )
       tool.permission?.let { permission ->
         Text(
-          text = "Разрешение Android: $permission",
+          text = tr("Разрешение Android: $permission", "Android permission: $permission"),
           style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -275,28 +279,28 @@ private fun SkillChip(id: String, selected: Boolean, onClick: () -> Unit) {
   )
 }
 
-/** Русское имя шаблона карточки для чипа — сырые id (`chart_bar`, `notification_permission`) пользователю ничего не говорят. */
+/** Человеческое имя шаблона карточки для чипа (на языке интерфейса) — сырые id (`chart_bar`, `notification_permission`) пользователю ничего не говорят. */
 private fun widgetTemplateLabel(template: String): String = when (template) {
-  "todo_list" -> "Список дел"
-  "weather_card" -> "Погода"
-  "timer" -> "Таймер"
-  "chart_bar" -> "Диаграмма"
-  "table" -> "Таблица"
-  "form" -> "Форма"
-  "choice" -> "Выбор варианта"
-  "switch" -> "Переключатель"
-  "notification_permission" -> "Разрешение на уведомления"
-  "reminder" -> "Напоминание"
-  "image" -> "Картинка"
-  "lesson_quiz" -> "Квиз урока"
-  "lesson_complete" -> "Итог урока"
-  "reveal" -> "Скрытый ответ"
-  "concept" -> "Понятие"
-  "example" -> "Пример"
-  "fill" -> "Заполни пропуск"
-  "sort" -> "Сортировка"
-  "match" -> "Сопоставление"
-  "scenario" -> "Сценарий"
+  "todo_list" -> tr("Список дел", "To-do list")
+  "weather_card" -> tr("Погода", "Weather")
+  "timer" -> tr("Таймер", "Timer")
+  "chart_bar" -> tr("Диаграмма", "Chart")
+  "table" -> tr("Таблица", "Table")
+  "form" -> tr("Форма", "Form")
+  "choice" -> tr("Выбор варианта", "Choice")
+  "switch" -> tr("Переключатель", "Toggle")
+  "notification_permission" -> tr("Разрешение на уведомления", "Notification permission")
+  "reminder" -> tr("Напоминание", "Reminder")
+  "image" -> tr("Картинка", "Image")
+  "lesson_quiz" -> tr("Квиз урока", "Lesson quiz")
+  "lesson_complete" -> tr("Итог урока", "Lesson summary")
+  "reveal" -> tr("Скрытый ответ", "Hidden answer")
+  "concept" -> tr("Понятие", "Concept")
+  "example" -> tr("Пример", "Example")
+  "fill" -> tr("Заполни пропуск", "Fill in the blank")
+  "sort" -> tr("Сортировка", "Sorting")
+  "match" -> tr("Сопоставление", "Matching")
+  "scenario" -> tr("Сценарий", "Scenario")
   else -> template
 }
 
@@ -313,7 +317,7 @@ private fun ExpanderHeader(title: String, expanded: Boolean, onClick: () -> Unit
     IconButton(onClick = onClick) {
       Icon(
         imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-        contentDescription = if (expanded) "Свернуть" else "Развернуть",
+        contentDescription = if (expanded) tr("Свернуть", "Collapse") else tr("Развернуть", "Expand"),
       )
     }
   }
@@ -328,22 +332,30 @@ private fun MemorySection(
   onToggleSharedProfile: (Boolean) -> Unit,
 ) {
   Column {
-    Text(text = "Память", style = MaterialTheme.typography.titleMedium)
+    Text(text = tr("Память", "Memory"), style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(4.dp))
+    val namespace = "agent:${agentId.ifBlank { "…" }}:"
     Text(
       // Изоляция — не обещание в промпте, а код (MemoryTools/FileTools режут по префиксу), поэтому
       // показываем пользователю реальный namespace, а не общую фразу «память изолирована».
-      text = "Свои факты агент пишет и читает только в своём пространстве " +
-        "«agent:${agentId.ifBlank { "…" }}:» — другие агенты его не видят.",
+      text = tr(
+        "Свои факты агент пишет и читает только в своём пространстве " +
+          "«$namespace» — другие агенты его не видят.",
+        "The agent writes and reads its own facts only in its own space " +
+          "“$namespace” — other agents can't see it.",
+      ),
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     Spacer(modifier = Modifier.height(12.dp))
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
       Column(modifier = Modifier.weight(1f)) {
-        Text(text = "Общий профиль пользователя", style = MaterialTheme.typography.bodyMedium)
+        Text(text = tr("Общий профиль пользователя", "Shared user profile"), style = MaterialTheme.typography.bodyMedium)
         Text(
-          text = "Агент дополнительно ЧИТАЕТ общие факты о тебе. Писать в них он не может.",
+          text = tr(
+            "Агент дополнительно ЧИТАЕТ общие факты о тебе. Писать в них он не может.",
+            "The agent can also READ shared facts about you. It can't write to them.",
+          ),
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -360,7 +372,7 @@ private fun MemorySection(
     if (stateKeyPrefixes.isNotEmpty()) {
       Spacer(modifier = Modifier.height(12.dp))
       Text(
-        text = "Состояние в промпте: ${stateKeyPrefixes.sorted().joinToString(", ")}",
+        text = tr("Состояние в промпте: ", "State in the prompt: ") + stateKeyPrefixes.sorted().joinToString(", "),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.testTag("agent_builder_state_prefixes"),
@@ -374,7 +386,7 @@ private fun MemorySection(
 private fun OwnSkillsList(skills: List<CustomSkillDraft>, onDelete: (String) -> Unit) {
   if (skills.isEmpty()) return
   Column {
-    Text(text = "Свои навыки агента", style = MaterialTheme.typography.titleSmall)
+    Text(text = tr("Свои навыки агента", "Agent's own skills"), style = MaterialTheme.typography.titleSmall)
     Spacer(modifier = Modifier.height(6.dp))
     skills.forEach { skill ->
       Row(
@@ -394,7 +406,7 @@ private fun OwnSkillsList(skills: List<CustomSkillDraft>, onDelete: (String) -> 
           )
         }
         IconButton(onClick = { onDelete(skill.id) }) {
-          Icon(imageVector = Icons.Default.Delete, contentDescription = "Удалить навык")
+          Icon(imageVector = Icons.Default.Delete, contentDescription = tr("Удалить навык", "Delete skill"))
         }
       }
       Spacer(modifier = Modifier.height(6.dp))
@@ -417,20 +429,24 @@ private fun CustomSkillEditor(existingIds: Set<String>, onCreate: (CustomSkillDr
   var instructions by remember { mutableStateOf("") }
 
   Column {
-    ExpanderHeader(title = "Свой навык", expanded = expanded, onClick = { expanded = !expanded })
+    ExpanderHeader(title = tr("Свой навык", "Custom skill"), expanded = expanded, onClick = { expanded = !expanded })
     if (expanded) {
-      GlassField(value = id, onValueChange = { id = it.trim().take(64) }, label = "id (латиницей, напр. running-plan)")
+      GlassField(
+        value = id,
+        onValueChange = { id = it.trim().take(64) },
+        label = tr("id (латиницей, напр. running-plan)", "id (Latin letters, e.g. running-plan)"),
+      )
       Spacer(modifier = Modifier.height(8.dp))
-      GlassField(value = name, onValueChange = { name = it }, label = "Название")
+      GlassField(value = name, onValueChange = { name = it }, label = tr("Название", "Name"))
       Spacer(modifier = Modifier.height(8.dp))
-      GlassField(value = description, onValueChange = { description = it }, label = "Описание")
+      GlassField(value = description, onValueChange = { description = it }, label = tr("Описание", "Description"))
       Spacer(modifier = Modifier.height(8.dp))
-      GlassField(value = whenToUse, onValueChange = { whenToUse = it }, label = "Когда использовать")
+      GlassField(value = whenToUse, onValueChange = { whenToUse = it }, label = tr("Когда использовать", "When to use"))
       Spacer(modifier = Modifier.height(8.dp))
       GlassField(
         value = instructions,
         onValueChange = { instructions = it.take(AgentValidator.MAX_CUSTOM_SKILL_CHARS) },
-        label = "Инструкция",
+        label = tr("Инструкция", "Instructions"),
         minLines = 4,
         maxLines = 8,
       )
@@ -458,7 +474,7 @@ private fun CustomSkillEditor(existingIds: Set<String>, onCreate: (CustomSkillDr
         },
         enabled = canCreate,
         modifier = Modifier.testTag("agent_builder_add_skill"),
-      ) { Text("Добавить навык") }
+      ) { Text(tr("Добавить навык", "Add skill")) }
     }
   }
 }

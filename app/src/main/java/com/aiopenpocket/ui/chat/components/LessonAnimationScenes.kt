@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.chat.DrivenUiCard
 import java.util.Locale
 import kotlin.math.exp
@@ -94,7 +95,10 @@ internal fun LessonAnimationCardView(card: DrivenUiCard.LessonAnimationCard) {
             "thinking_modes" -> ThinkingModesScene()
             "image_reasoning" -> ImageReasoningScene()
             // Сюда попадает только урок новее приложения: проверка уроков не пустит неизвестную сцену в сборку.
-            else -> Text("Эта анимация появится в следующей версии приложения.", style = MaterialTheme.typography.bodyMedium)
+            else -> Text(
+                tr("Эта анимация появится в следующей версии приложения.", "This animation will arrive in the next version of the app."),
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
         if (card.caption.isNotBlank()) {
             Text(

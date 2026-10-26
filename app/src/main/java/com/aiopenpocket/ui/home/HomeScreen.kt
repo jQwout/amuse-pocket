@@ -47,6 +47,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.memory.model.Conversation
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.AcademyBottomNav
 import com.aiopenpocket.ui.components.AcademyTab
 import com.aiopenpocket.ui.components.glass.GlassCard
@@ -124,7 +125,7 @@ fun HomeScreen(
                         IconButton(onClick = onNavigateToConversations) {
                             Icon(
                                 imageVector = Icons.Default.History,
-                                contentDescription = "История чатов",
+                                contentDescription = tr("История чатов", "Chat history"),
                                 tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                             )
                         }
@@ -139,7 +140,7 @@ fun HomeScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Person,
-                                contentDescription = "Профиль",
+                                contentDescription = tr("Профиль", "Profile"),
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(22.dp),
                             )
@@ -189,14 +190,14 @@ fun HomeScreen(
 
                 item {
                     SectionHeader(
-                        title = "НЕДАВНИЕ ЧАТЫ",
-                        actionLabel = "Все",
+                        title = tr("НЕДАВНИЕ ЧАТЫ", "RECENT CHATS"),
+                        actionLabel = tr("Все", "All"),
                         onAction = onNavigateToConversations,
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                 }
                 if (recentChats.isEmpty()) {
-                    item { EmptyHint(text = "Здесь появятся твои недавние чаты.") }
+                    item { EmptyHint(text = tr("Здесь появятся твои недавние чаты.", "Your recent chats will appear here.")) }
                 } else {
                     items(recentChats, key = { it.id }) { chat ->
                         RecentChatCard(chat = chat, onClick = { onOpenChat(chat.id) })
@@ -207,8 +208,8 @@ fun HomeScreen(
                 item {
                     Spacer(modifier = Modifier.height(20.dp))
                     SectionHeader(
-                        title = "ПРОДОЛЖИТЬ ОБУЧЕНИЕ",
-                        actionLabel = "Все курсы",
+                        title = tr("ПРОДОЛЖИТЬ ОБУЧЕНИЕ", "CONTINUE LEARNING"),
+                        actionLabel = tr("Все курсы", "All courses"),
                         onAction = onNavigateToLibrary,
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -216,8 +217,8 @@ fun HomeScreen(
                 item {
                     CourseCard(
                         category = "AGENT PATH",
-                        title = "Путь агента",
-                        description = "Освой оркестрацию AI через пошаговую программу обучения.",
+                        title = tr("Путь агента", "Agent path"),
+                        description = tr("Освой оркестрацию AI через пошаговую программу обучения.", "Master AI orchestration through a step-by-step course."),
                         progress = overallProgress,
                         onClick = onNavigateToRoadmap,
                     )
@@ -226,7 +227,10 @@ fun HomeScreen(
                     item {
                         Spacer(modifier = Modifier.height(12.dp))
                         CourseCard(
-                            category = "СЛЕДУЮЩИЙ УРОК · ${currentLevelIndex + 1} ИЗ ${ROADMAP_LEVELS.size}",
+                            category = tr(
+                            "СЛЕДУЮЩИЙ УРОК · ${currentLevelIndex + 1} ИЗ ${ROADMAP_LEVELS.size}",
+                            "NEXT LESSON · ${currentLevelIndex + 1} OF ${ROADMAP_LEVELS.size}",
+                        ),
                             title = currentLevel.title,
                             description = currentLevel.description,
                             progress = overallProgress,

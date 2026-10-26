@@ -63,6 +63,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.roadmap.components.QuizContent
 import com.aiopenpocket.ui.roadmap.components.stableShuffledIndices
 import java.util.Locale
@@ -207,7 +208,7 @@ fun RenderDrivenUiCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Error,
-                        contentDescription = "Ошибка",
+                        contentDescription = tr("Ошибка", "Error"),
                         tint = MaterialTheme.colorScheme.error
                     )
                     Text(
@@ -260,7 +261,7 @@ fun TodoListCardView(card: DrivenUiCard.TodoList) {
 
         if (itemsState.isEmpty()) {
             Text(
-                text = "Нет задач",
+                text = tr("Нет задач", "No tasks"),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.outline
             )
@@ -300,7 +301,7 @@ fun WeatherCardView(card: DrivenUiCard.WeatherCard) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         CardTitleRow(
             icon = Icons.Default.WbSunny,
-            title = "Прогноз для: ${card.city}",
+            title = tr("Прогноз для: ${card.city}", "Forecast for: ${card.city}"),
             iconTint = Color(0xFFF9D976),
         )
         CardDivider()
@@ -421,7 +422,7 @@ fun TimerCardView(card: DrivenUiCard.TimerCard) {
                     contentDescription = null
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(if (isRunning) "Пауза" else "Старт")
+                Text(if (isRunning) tr("Пауза", "Pause") else tr("Старт", "Start"))
             }
 
             TextButton(
@@ -430,9 +431,9 @@ fun TimerCardView(card: DrivenUiCard.TimerCard) {
                     timeLeft = card.durationSec
                 }
             ) {
-                Icon(imageVector = Icons.Default.Refresh, contentDescription = "Сброс")
+                Icon(imageVector = Icons.Default.Refresh, contentDescription = tr("Сброс", "Reset"))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Сброс")
+                Text(tr("Сброс", "Reset"))
             }
         }
     }
@@ -584,7 +585,7 @@ fun FormCardView(
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
-            text = "Форма ввода данных",
+            text = tr("Форма ввода данных", "Data entry form"),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold
         )
@@ -692,7 +693,7 @@ fun LessonQuizCardView(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            text = "Закрепим пройденное",
+            text = tr("Закрепим пройденное", "Let's review"),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -801,7 +802,7 @@ fun ReminderCardView(
         .collectAsState(initial = null)
     val current = hb ?: run {
         Text(
-            text = "Напоминание не найдено",
+            text = tr("Напоминание не найдено", "Reminder not found"),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.outline,
         )
@@ -837,7 +838,7 @@ fun ReminderCardView(
             TextButton(onClick = { onCancel(card.heartbeatId) }) {
                 Icon(Icons.Default.Close, contentDescription = null)
                 Spacer(Modifier.width(4.dp))
-                Text("Отменить")
+                Text(tr("Отменить", "Cancel"))
             }
         }
     }
@@ -901,7 +902,7 @@ fun NotificationPermissionCardView(card: DrivenUiCard.NotificationPermissionCard
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Check, contentDescription = null, tint = Color(0xFF4CAF50))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("Уведомления включены", style = MaterialTheme.typography.bodyMedium)
+                Text(tr("Уведомления включены", "Notifications are on"), style = MaterialTheme.typography.bodyMedium)
             }
         } else {
             Button(
@@ -954,7 +955,7 @@ fun ImageCardView(
             ) {
                 Icon(Icons.Default.BrokenImage, contentDescription = null, tint = MaterialTheme.colorScheme.outline)
                 Text(
-                    text = "Нет изображения",
+                    text = tr("Нет изображения", "No image"),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.outline,
                 )
@@ -996,11 +997,11 @@ fun ImageCardView(
                 if (personalizing) {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(8.dp))
-                    Text("Рисую под тебя…")
+                    Text(tr("Рисую под тебя…", "Drawing it for you…"))
                 } else {
                     Icon(Icons.Default.Brush, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Нарисуй под меня")
+                    Text(tr("Нарисуй под меня", "Draw it for me"))
                 }
             }
         }
@@ -1030,7 +1031,7 @@ fun RevealCardView(card: DrivenUiCard.RevealCard) {
             Button(onClick = { revealed = true }) {
                 Icon(Icons.Default.Visibility, null)
                 Spacer(Modifier.width(8.dp))
-                Text("Показать ответ")
+                Text(tr("Показать ответ", "Show answer"))
             }
         }
     }
@@ -1045,7 +1046,7 @@ fun ConceptCardView(card: DrivenUiCard.ConceptCard) {
         Text(text = card.definition, style = MaterialTheme.typography.bodyMedium)
         if (card.example.isNotBlank()) {
             Text(
-                text = "Пример: ${card.example}",
+                text = tr("Пример: ${card.example}", "Example: ${card.example}"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.outline,
             )
@@ -1146,28 +1147,28 @@ fun FillCardView(card: DrivenUiCard.FillCard, onSolved: () -> Unit) {
                 onValueChange = { input = it; wrong = false },
                 singleLine = true,
                 isError = wrong,
-                placeholder = { Text("Впиши пропущенное слово") },
+                placeholder = { Text(tr("Впиши пропущенное слово", "Type the missing word")) },
                 modifier = Modifier.fillMaxWidth(),
             )
             if (misses >= FILL_MISSES_BEFORE_REVEAL) {
                 Text(
-                    "Правильно: «${card.answer}»",
+                    tr("Правильно: «${card.answer}»", "Correct answer: “${card.answer}”"),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else if (wrong) {
-                Text("Не то — попробуй ещё", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                Text(tr("Не то — попробуй ещё", "Not quite — try again"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
             Button(onClick = { check() }, enabled = input.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
-                Text("Проверить")
+                Text(tr("Проверить", "Check"))
             }
             if (misses >= FILL_MISSES_BEFORE_REVEAL) {
                 OutlinedButton(
                     onClick = { revealed = true; solved = true; wrong = false; onSolved() },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Дальше")
+                    Text(tr("Дальше", "Next"))
                 }
             }
         }
@@ -1220,10 +1221,10 @@ fun SortCardView(card: DrivenUiCard.SortCard, onSolved: () -> Unit) {
                 if (!solved) {
                     IconButton(onClick = {
                         if (i > 0) { val t = order[i - 1]; order[i - 1] = order[i]; order[i] = t; wrong = false }
-                    }, enabled = i > 0) { Icon(Icons.Default.KeyboardArrowUp, "Вверх") }
+                    }, enabled = i > 0) { Icon(Icons.Default.KeyboardArrowUp, tr("Вверх", "Move up")) }
                     IconButton(onClick = {
                         if (i < order.size - 1) { val t = order[i + 1]; order[i + 1] = order[i]; order[i] = t; wrong = false }
-                    }, enabled = i < order.size - 1) { Icon(Icons.Default.KeyboardArrowDown, "Вниз") }
+                    }, enabled = i < order.size - 1) { Icon(Icons.Default.KeyboardArrowDown, tr("Вниз", "Move down")) }
                 }
             }
         }
@@ -1233,7 +1234,7 @@ fun SortCardView(card: DrivenUiCard.SortCard, onSolved: () -> Unit) {
             }
         } else {
             if (wrong) {
-                Text("Пока не тот порядок — переставь и проверь снова", style = MaterialTheme.typography.bodySmall,
+                Text(tr("Пока не тот порядок — переставь и проверь снова", "Not the right order yet — rearrange and check again"), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error)
             }
             Button(
@@ -1243,7 +1244,7 @@ fun SortCardView(card: DrivenUiCard.SortCard, onSolved: () -> Unit) {
                     if (order.map { card.items[it] } == target) { solved = true; wrong = false; onSolved() } else wrong = true
                 },
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("Проверить") }
+            ) { Text(tr("Проверить", "Check")) }
         }
     }
 }
@@ -1307,7 +1308,7 @@ fun MatchCardView(card: DrivenUiCard.MatchCard, onSolved: () -> Unit) {
             ) {
                 Text(term, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 Text(
-                    text = assignedDef ?: "выбери →",
+                    text = assignedDef ?: tr("выбери →", "pick →"),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (assignedDef != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
                     modifier = Modifier.weight(1.2f),
@@ -1315,7 +1316,7 @@ fun MatchCardView(card: DrivenUiCard.MatchCard, onSolved: () -> Unit) {
             }
         }
         CardDivider()
-        Text("Определения:", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+        Text(tr("Определения:", "Definitions:"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
         // Определения-кнопки: тап назначает выбранному термину
         displayDefOrder.forEach { di ->
             val used = assign.containsValue(di)
@@ -1345,10 +1346,10 @@ fun MatchCardView(card: DrivenUiCard.MatchCard, onSolved: () -> Unit) {
             }
         }
         if (solved) {
-            Text("✓ Верно!", style = MaterialTheme.typography.bodySmall, color = correctGreen)
+            Text(tr("✓ Верно!", "✓ Correct!"), style = MaterialTheme.typography.bodySmall, color = correctGreen)
         } else {
             if (wrong) {
-                Text("Не всё совпало — поправь пары", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                Text(tr("Не всё совпало — поправь пары", "Not all pairs match — fix them"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
             Button(
                 onClick = {
@@ -1356,7 +1357,7 @@ fun MatchCardView(card: DrivenUiCard.MatchCard, onSolved: () -> Unit) {
                 },
                 enabled = assign.size == terms.size,
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("Проверить") }
+            ) { Text(tr("Проверить", "Check")) }
         }
     }
 }

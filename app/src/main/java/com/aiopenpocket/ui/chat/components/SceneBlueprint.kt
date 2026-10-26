@@ -38,66 +38,137 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** Идея агента: что написать в карточке и что ломается без инструментов и без памяти именно у этой задачи. */
+/**
+ * Идея агента: что написать в карточке и что ломается без инструментов и без памяти именно у этой задачи.
+ * Тексты — парами ru/en, язык выбирается геттером в момент показа: список инициализируется один раз.
+ */
 private class BlueprintIdea(
-    val chip: String,
-    val title: String,
-    val goal: String,
-    val tools: String,
-    val memory: String,
-    val noTools: String,
-    val noMemory: String,
-)
+    private val chipRu: String,
+    private val chipEn: String,
+    private val titleRu: String,
+    private val titleEn: String,
+    private val goalRu: String,
+    private val goalEn: String,
+    private val toolsRu: String,
+    private val toolsEn: String,
+    private val memoryRu: String,
+    private val memoryEn: String,
+    private val noToolsRu: String,
+    private val noToolsEn: String,
+    private val noMemoryRu: String,
+    private val noMemoryEn: String,
+) {
+    val chip: String get() = tr(chipRu, chipEn)
+    val title: String get() = tr(titleRu, titleEn)
+    val goal: String get() = tr(goalRu, goalEn)
+    val tools: String get() = tr(toolsRu, toolsEn)
+    val memory: String get() = tr(memoryRu, memoryEn)
+    val noTools: String get() = tr(noToolsRu, noToolsEn)
+    val noMemory: String get() = tr(noMemoryRu, noMemoryEn)
+}
 
 private val IDEAS = listOf(
     BlueprintIdea(
-        "Бюджет", "следить за бюджетом", "Учёт трат и лимиты", "база, уведомления", "категории, лимиты",
-        "нужны база трат и напоминания о лимитах, а инструментов нет",
-        "без памяти не помнит лимиты и прошлые траты",
+        chipRu = "Бюджет", chipEn = "Budget",
+        titleRu = "следить за бюджетом", titleEn = "track a budget",
+        goalRu = "Учёт трат и лимиты", goalEn = "Track spending and limits",
+        toolsRu = "база, уведомления", toolsEn = "database, notifications",
+        memoryRu = "категории, лимиты", memoryEn = "categories, limits",
+        noToolsRu = "нужны база трат и напоминания о лимитах, а инструментов нет",
+        noToolsEn = "needs a spending database and limit reminders, but has no tools",
+        noMemoryRu = "без памяти не помнит лимиты и прошлые траты",
+        noMemoryEn = "without memory it forgets the limits and past spending",
     ),
     BlueprintIdea(
-        "Слова", "учить слова", "10 новых слов в день", "карточки, уведомления", "что уже выучено",
-        "нужны напоминания повторить слова, а инструментов нет",
-        "без памяти не знает, какие слова ты уже выучил",
+        chipRu = "Слова", chipEn = "Words",
+        titleRu = "учить слова", titleEn = "learn new words",
+        goalRu = "10 новых слов в день", goalEn = "10 new words a day",
+        toolsRu = "карточки, уведомления", toolsEn = "flashcards, notifications",
+        memoryRu = "что уже выучено", memoryEn = "what's already learned",
+        noToolsRu = "нужны напоминания повторить слова, а инструментов нет",
+        noToolsEn = "needs reminders to review words, but has no tools",
+        noMemoryRu = "без памяти не знает, какие слова ты уже выучил",
+        noMemoryEn = "without memory it doesn't know which words you've learned",
     ),
     BlueprintIdea(
-        "Тренировки", "планировать тренировки", "План на неделю", "календарь, уведомления", "прогресс, самочувствие",
-        "нужны календарь и напоминания, а инструментов нет",
-        "программа на месяцы, а без памяти — каждую неделю с нуля",
+        chipRu = "Тренировки", chipEn = "Workouts",
+        titleRu = "планировать тренировки", titleEn = "plan workouts",
+        goalRu = "План на неделю", goalEn = "A weekly plan",
+        toolsRu = "календарь, уведомления", toolsEn = "calendar, notifications",
+        memoryRu = "прогресс, самочувствие", memoryEn = "progress, how you feel",
+        noToolsRu = "нужны календарь и напоминания, а инструментов нет",
+        noToolsEn = "needs a calendar and reminders, but has no tools",
+        noMemoryRu = "программа на месяцы, а без памяти — каждую неделю с нуля",
+        noMemoryEn = "a months-long program, but without memory it starts from scratch every week",
     ),
 )
 
-/** Пять вопросов каркаса из урока. Первый вариант цели у каждой идеи свой — подставляется в коде. */
-private class BlueprintQuestion(val title: String, val ask: String, val options: List<String>)
+/**
+ * Пять вопросов каркаса из урока. Первый вариант цели у каждой идеи свой — подставляется в коде.
+ * Тексты — парами ru/en (варианты — двумя списками одной длины), язык выбирается в момент показа.
+ */
+private class BlueprintQuestion(
+    private val titleRu: String,
+    private val titleEn: String,
+    private val askRu: String,
+    private val askEn: String,
+    private val optionsRu: List<String>,
+    private val optionsEn: List<String>,
+) {
+    val title: String get() = tr(titleRu, titleEn)
+    val ask: String get() = tr(askRu, askEn)
+    val options: List<String> get() = optionsRu.zip(optionsEn) { ru, en -> tr(ru, en) }
+}
 
 private val QUESTIONS = listOf(
-    BlueprintQuestion("Цель", "что делает агент и как понять, что получилось?", listOf("", "Помогать во всём")),
-    BlueprintQuestion("Инструменты", "до чего агенту нужно дотянуться?", listOf("Никаких", "Пара нужных", "Всё подряд")),
-    BlueprintQuestion("Паттерн", "рельсы, водитель или их комбинация?", listOf("Воркфлоу", "ReAct-агент", "Рой агентов")),
-    BlueprintQuestion("Память", "что помнить между сессиями?", listOf("Без памяти", "Только нужное", "Хранить всё")),
-    BlueprintQuestion("Проверка", "как узнать, что после правки стало лучше?", listOf("На глазок", "10 типовых задач")),
+    BlueprintQuestion(
+        "Цель", "Goal",
+        "что делает агент и как понять, что получилось?", "what does the agent do, and how do you know it worked?",
+        listOf("", "Помогать во всём"), listOf("", "Help with everything"),
+    ),
+    BlueprintQuestion(
+        "Инструменты", "Tools",
+        "до чего агенту нужно дотянуться?", "what does the agent need to reach?",
+        listOf("Никаких", "Пара нужных", "Всё подряд"), listOf("None", "A couple of key ones", "Everything"),
+    ),
+    BlueprintQuestion(
+        "Паттерн", "Pattern",
+        "рельсы, водитель или их комбинация?", "rails, a driver or a mix of both?",
+        listOf("Воркфлоу", "ReAct-агент", "Рой агентов"), listOf("Workflow", "ReAct agent", "Agent swarm"),
+    ),
+    BlueprintQuestion(
+        "Память", "Memory",
+        "что помнить между сессиями?", "what to remember between sessions?",
+        listOf("Без памяти", "Только нужное", "Хранить всё"), listOf("No memory", "Only what's needed", "Keep everything"),
+    ),
+    BlueprintQuestion(
+        "Проверка", "Testing",
+        "как узнать, что после правки стало лучше?", "how do you know a change made things better?",
+        listOf("На глазок", "10 типовых задач"), listOf("Eyeball it", "10 typical tasks"),
+    ),
 )
 
 private fun specValue(q: Int, a: Int, idea: BlueprintIdea): String = when (q) {
-    0 -> if (a == 0) idea.goal else "помогать во всём"
-    1 -> listOf("нет", idea.tools, "всё подряд, вперемешку")[a]
-    2 -> listOf("воркфлоу", "агент с циклом ReAct", "рой агентов")[a]
-    3 -> listOf("ничего", idea.memory, "всё подряд")[a]
-    else -> listOf("на глазок", "10 типовых задач")[a]
+    0 -> if (a == 0) idea.goal else tr("помогать во всём", "help with everything")
+    1 -> listOf(tr("нет", "none"), idea.tools, tr("всё подряд, вперемешку", "everything, all mixed together"))[a]
+    2 -> listOf(tr("воркфлоу", "workflow"), tr("агент с циклом ReAct", "agent with a ReAct loop"), tr("рой агентов", "agent swarm"))[a]
+    3 -> listOf(tr("ничего", "nothing"), idea.memory, tr("всё подряд", "everything"))[a]
+    else -> listOf(tr("на глазок", "by eye"), tr("10 типовых задач", "10 typical tasks"))[a]
 }
 
 /** Несостыковка ответа с задачей — или null, если ответ годится. */
 private fun flagFor(q: Int, a: Int, idea: BlueprintIdea): String? = when {
-    q == 0 && a == 1 -> "размытая цель — остальным решениям не на что опереться"
+    q == 0 && a == 1 -> tr("размытая цель — остальным решениям не на что опереться", "vague goal — the other decisions have nothing to stand on")
     q == 1 && a == 0 -> idea.noTools
-    q == 1 && a == 2 -> "гора инструментов вперемешку — модель путает, что вызвать"
-    q == 2 && a == 2 -> "рой ради одной задачи — дорого и сложно, хватит попроще"
+    q == 1 && a == 2 -> tr("гора инструментов вперемешку — модель путает, что вызвать", "a jumbled pile of tools — the model mixes up what to call")
+    q == 2 && a == 2 -> tr("рой ради одной задачи — дорого и сложно, хватит попроще", "a swarm for one task — costly and complex, something simpler will do")
     q == 3 && a == 0 -> idea.noMemory
-    q == 3 && a == 2 -> "всё из контекста улетает провайдеру — храни только нужное"
-    q == 4 && a == 0 -> "без набора задач не узнаешь, помогла ли правка"
+    q == 3 && a == 2 -> tr("всё из контекста улетает провайдеру — храни только нужное", "everything in the context goes to the provider — keep only what's needed")
+    q == 4 && a == 0 -> tr("без набора задач не узнаешь, помогла ли правка", "without a task set you won't know if a change helped")
     else -> null
 }
 
@@ -122,7 +193,7 @@ internal fun BlueprintScene() {
     val primary = MaterialTheme.colorScheme.primary
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.animateContentSize()) {
-        Text("Собери агента, который будет…", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(tr("Собери агента, который будет…", "Build an agent that will…"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             IDEAS.forEachIndexed { index, item ->
                 FilterChip(selected = ideaIndex == index, onClick = { ideaIndex = index }, label = { Text(item.chip) })
@@ -136,7 +207,7 @@ internal fun BlueprintScene() {
                 .padding(8.dp),
         ) {
             Text(
-                "Агент: ${idea.title}",
+                tr("Агент: ${idea.title}", "Agent: ${idea.title}"),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = SceneInk,
@@ -157,7 +228,7 @@ internal fun BlueprintScene() {
         }
         val question = QUESTIONS[current]
         Text(
-            "Вопрос ${current + 1} из ${QUESTIONS.size} — ${question.ask}",
+            tr("Вопрос ${current + 1} из ${QUESTIONS.size} — ${question.ask}", "Question ${current + 1} of ${QUESTIONS.size} — ${question.ask}"),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
             minLines = 2,
@@ -186,9 +257,18 @@ internal fun BlueprintScene() {
         Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = when {
-                    answered < QUESTIONS.size -> "Отвечено $answered из ${QUESTIONS.size} — карточка заполняется"
-                    flags.isNotEmpty() -> "Несостыковок: ${flags.size}. Нажми на строку карточки и поправь"
-                    else -> "Пять ответов — и идея стала агентом, которого можно собрать"
+                    answered < QUESTIONS.size -> tr(
+                        "Отвечено $answered из ${QUESTIONS.size} — карточка заполняется",
+                        "Answered $answered of ${QUESTIONS.size} — the card is filling in",
+                    )
+                    flags.isNotEmpty() -> tr(
+                        "Несостыковок: ${flags.size}. Нажми на строку карточки и поправь",
+                        "Mismatches: ${flags.size}. Tap a row of the card to fix it",
+                    )
+                    else -> tr(
+                        "Пять ответов — и идея стала агентом, которого можно собрать",
+                        "Five answers — and the idea has become an agent you can build",
+                    )
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
@@ -201,7 +281,7 @@ internal fun BlueprintScene() {
                 modifier = Modifier.weight(1f),
             )
             TextButton(onClick = { answers = List(QUESTIONS.size) { -1 }; current = 0 }, enabled = answered > 0) {
-                Text("Сначала")
+                Text(tr("Сначала", "Start over"))
             }
         }
     }

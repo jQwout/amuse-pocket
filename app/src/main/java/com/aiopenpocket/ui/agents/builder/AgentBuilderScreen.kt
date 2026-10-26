@@ -49,6 +49,7 @@ import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.agent.loop.ToolTrace
 import com.aiopenpocket.agent.loop.TurnStatus
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.agents.builder.components.CapabilitiesStep
 import com.aiopenpocket.ui.agents.builder.components.HooksStep
 import com.aiopenpocket.ui.agents.builder.components.IdentityStep
@@ -215,11 +216,11 @@ private fun BuilderTopIsland(
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
       Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onExit) {
-          Icon(imageVector = Icons.Default.Close, contentDescription = "Закрыть")
+          Icon(imageVector = Icons.Default.Close, contentDescription = tr("Закрыть", "Close"))
         }
         Spacer(Modifier.width(4.dp))
         Text(
-          text = "Конструктор агента",
+          text = tr("Конструктор агента", "Agent builder"),
           style = MaterialTheme.typography.titleMedium,
           color = MaterialTheme.colorScheme.onSurface,
         )
@@ -364,7 +365,7 @@ private fun BuilderBottomBar(
         TextButton(
           onClick = onBack,
           modifier = Modifier.testTag("agent_builder_back"),
-        ) { Text("Назад") }
+        ) { Text(tr("Назад", "Back")) }
         Box(modifier = Modifier.weight(1f))
         if (showNext) {
           // «Далее» ВСЕГДА нажимаема: она и есть триггер валидации. Раньше кнопка гасла на
@@ -374,7 +375,7 @@ private fun BuilderBottomBar(
           Button(
             onClick = onNext,
             modifier = Modifier.testTag("agent_builder_next"),
-          ) { Text("Далее") }
+          ) { Text(tr("Далее", "Next")) }
         }
       }
     }
