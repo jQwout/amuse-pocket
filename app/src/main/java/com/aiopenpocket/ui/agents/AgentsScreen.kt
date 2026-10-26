@@ -47,8 +47,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
+import com.aiopenpocket.agent.core.agent.displayDescription
+import com.aiopenpocket.agent.core.agent.displayName
 import com.aiopenpocket.agent.core.agent.toDefinition
 import com.aiopenpocket.agent.core.mcp.CapabilityNames
+import com.aiopenpocket.i18n.AppLanguage
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
 import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.components.glass.rememberGlassState
@@ -75,13 +79,13 @@ fun AgentsScreen(
   val glassState = rememberGlassState()
 
   AcademyCollapsingScaffold(
-    title = "Агенты",
+    title = tr("Агенты", "Agents"),
     glassState = glassState,
     navigationIcon = {
       IconButton(onClick = onNavigateBack) {
         Icon(
           imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-          contentDescription = "Назад",
+          contentDescription = tr("Назад", "Back"),
         )
       }
     },
@@ -89,7 +93,7 @@ fun AgentsScreen(
       ExtendedFloatingActionButton(
         onClick = onCreateAgent,
         icon = { Icon(imageVector = Icons.Default.Add, contentDescription = null) },
-        text = { Text("Создать агента") },
+        text = { Text(tr("Создать агента", "Create agent")) },
         containerColor = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary,
       )
@@ -110,7 +114,7 @@ fun AgentsScreen(
       item {
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-          text = "Агенты-специалисты со своими инструментами. Открой нужного — и опиши задачу.",
+          text = rosterIntro(),
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
         )
@@ -119,7 +123,7 @@ fun AgentsScreen(
 
       if (roster.presets.isNotEmpty()) {
         item {
-          RosterSectionLabel("Шаблоны")
+          RosterSectionLabel(tr("Шаблоны", "Templates"))
           Spacer(modifier = Modifier.height(10.dp))
         }
         items(roster.presets, key = { it.id }) { agent ->
@@ -131,7 +135,7 @@ fun AgentsScreen(
       if (roster.userAgents.isNotEmpty()) {
         item {
           Spacer(modifier = Modifier.height(8.dp))
-          RosterSectionLabel("Мои агенты")
+          RosterSectionLabel(tr("Мои агенты", "My agents"))
           Spacer(modifier = Modifier.height(10.dp))
         }
         items(roster.userAgents, key = { it.id }) { agent ->
@@ -146,10 +150,10 @@ fun AgentsScreen(
       if (roster.drafts.isNotEmpty()) {
         item {
           Spacer(modifier = Modifier.height(8.dp))
-          RosterSectionLabel("Черновики")
+          RosterSectionLabel(tr("Черновики", "Drafts"))
           Spacer(modifier = Modifier.height(4.dp))
           Text(
-            text = "Недособранные агенты — продолжи и опубликуй.",
+            text = tr("Недособранные агенты — продолжи и опубликуй.", "Unfinished agents — pick one up and publish it."),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
           )
@@ -163,6 +167,12 @@ fun AgentsScreen(
     }
   }
 }
+
+/** Подзаголовок ростера — общий для экрана и его превью. */
+private fun rosterIntro(): String = tr(
+  "Агенты-специалисты со своими инструментами. Открой нужного — и опиши задачу.",
+  "Specialist agents, each with its own tools. Open one and describe your task.",
+)
 
 @Composable
 private fun RosterSectionLabel(text: String) {
@@ -203,20 +213,21 @@ private fun AgentCard(agent: AgentDefinition, onClick: () -> Unit, isDraft: Bool
         Column(modifier = Modifier.weight(1f)) {
           Text(
             // Черновик часто ещё безымянный: пустое имя дало бы карточку-призрак без единой подписи.
-            text = agent.name.ifBlank { "Без имени" },
+            // displayName: у пресета есть английское имя, свой агент — как его назвал автор.
+            text = agent.displayName.ifBlank { tr("Без имени", "Untitled") },
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
           )
           Spacer(modifier = Modifier.height(2.dp))
           Text(
-            text = agent.description.ifBlank { if (isDraft) "Черновик без описания" else "" },
+            text = agent.displayDescription.ifBlank { if (isDraft) tr("Черновик без описания", "Draft, no description yet") else "" },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
           )
         }
         if (isDraft) {
           Text(
-            text = "Черновик",
+            text = tr("Черновик", "Draft"),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.tertiary,
           )
@@ -226,11 +237,13 @@ private fun AgentCard(agent: AgentDefinition, onClick: () -> Unit, isDraft: Bool
       // «Под капотом»: что у агента в распоряжении — инструменты и навыки (его скоуп). Делает
       // карточку информативной: видно, на что агент способен, ещё до открытия чата. Пустой список —
       // без заголовка: голое «Умеет» над пустотой выглядит как поломка.
-      val labels = remember(agent.toolNames) { capabilityLabels(agent.toolNames) }
+      // Язык — тоже ключ: подписи берутся из CapabilityNames на текущем языке, и без него remember
+      // держал бы чипы на языке первого кадра после переключения в настройках.
+      val labels = remember(agent.toolNames, AppLanguage.code) { capabilityLabels(agent.toolNames) }
       if (labels.isNotEmpty()) {
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-          text = "Умеет",
+          text = tr("Умеет", "Can use"),
           style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
         )
@@ -295,13 +308,13 @@ internal fun AgentsPreviewScaffold(
   MyApplicationTheme(mode = ThemeMode.DARK) {
     val glassState = rememberGlassState()
     AcademyCollapsingScaffold(
-      title = "Агенты",
+      title = tr("Агенты", "Agents"),
       glassState = glassState,
       navigationIcon = {
         IconButton(onClick = {}) {
           Icon(
             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-            contentDescription = "Назад",
+            contentDescription = tr("Назад", "Back"),
           )
         }
       },
@@ -309,7 +322,7 @@ internal fun AgentsPreviewScaffold(
         ExtendedFloatingActionButton(
           onClick = {},
           icon = { Icon(imageVector = Icons.Default.Add, contentDescription = null) },
-          text = { Text("Создать агента") },
+          text = { Text(tr("Создать агента", "Create agent")) },
           containerColor = MaterialTheme.colorScheme.primary,
           contentColor = MaterialTheme.colorScheme.onPrimary,
         )
@@ -328,7 +341,7 @@ internal fun AgentsPreviewScaffold(
         item {
           Spacer(modifier = Modifier.height(4.dp))
           Text(
-            text = "Агенты-специалисты со своими инструментами. Открой нужного — и опиши задачу.",
+            text = rosterIntro(),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
           )
@@ -337,7 +350,7 @@ internal fun AgentsPreviewScaffold(
 
         if (presets.isNotEmpty()) {
           item {
-            RosterSectionLabel("Шаблоны")
+            RosterSectionLabel(tr("Шаблоны", "Templates"))
             Spacer(modifier = Modifier.height(10.dp))
           }
           items(presets, key = { it.id }) { agent ->
@@ -349,7 +362,7 @@ internal fun AgentsPreviewScaffold(
         if (userAgents.isNotEmpty()) {
           item {
             Spacer(modifier = Modifier.height(8.dp))
-            RosterSectionLabel("Мои агенты")
+            RosterSectionLabel(tr("Мои агенты", "My agents"))
             Spacer(modifier = Modifier.height(10.dp))
           }
           items(userAgents, key = { it.id }) { agent ->

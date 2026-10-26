@@ -14,6 +14,7 @@ import com.aiopenpocket.agent.loop.ToolTrace
 import com.aiopenpocket.agent.loop.TurnManager
 import com.aiopenpocket.agent.loop.TurnStatus
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.i18n.tr
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
@@ -159,7 +160,7 @@ class AgentBuilderTestViewModel(
     _testConversationId.value = null
     viewModelScope.launch {
       val created = conversationRepository.createConversation(
-        title = TEST_CONVERSATION_TITLE,
+        title = tr(TEST_CONVERSATION_TITLE, TEST_CONVERSATION_TITLE_EN),
         agentId = agentId,
         // Помечаем служебным тегом: диалог привязан к agentId черновика, и без метки «Открыть чат»
         // у собранного агента мог переиспользовать именно его (findLatestConversationByAgent).
@@ -225,6 +226,7 @@ class AgentBuilderTestViewModel(
 
   companion object {
     private const val TEST_CONVERSATION_TITLE = "Тест агента"
+    private const val TEST_CONVERSATION_TITLE_EN = "Agent test"
 
     /**
      * Один общий скоуп на все экземпляры вместо нового на каждое [onCleared]: уборка обязана

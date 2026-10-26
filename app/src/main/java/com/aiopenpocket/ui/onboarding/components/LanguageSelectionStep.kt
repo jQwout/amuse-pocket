@@ -23,15 +23,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.theme.GlassTokens
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.ui.theme.ThemeMode
 
 /**
- * One selectable language. Only [enabled] languages can be picked: the UI and all lessons exist in
- * Russian only. English is shown as «Скоро» because it is the next one (lessons translated by Muse
- * Spark); enabling it before the UI is translated would give English replies in a Russian app.
+ * One selectable language. Only [enabled] languages can be picked. English is enabled: the demo path
+ * (home, agents, builder, chat, Meta lessons) is translated, the rest of the app follows; the choice
+ * switches the interface right away (see [com.aiopenpocket.i18n.AppLanguage]).
  */
 private data class LanguageOption(
   val code: String,
@@ -42,7 +43,7 @@ private data class LanguageOption(
 
 private val LANGUAGES = listOf(
   LanguageOption("ru", "🇷🇺", "Русский", enabled = true),
-  LanguageOption("en", "🇬🇧", "English", enabled = false),
+  LanguageOption("en", "🇬🇧", "English", enabled = true),
 )
 
 @Composable
@@ -57,11 +58,11 @@ fun LanguageSelectionStep(
       .padding(24.dp),
   ) {
     Text(
-      text = "Выбери язык",
+      text = tr("Выбери язык", "Choose your language"),
       style = MaterialTheme.typography.headlineSmall,
     )
     Text(
-      text = "Choose your language",
+      text = tr("Choose your language", "Выбери язык"),
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
       modifier = Modifier.padding(top = 4.dp, bottom = 20.dp),
@@ -111,7 +112,7 @@ fun LanguageSelectionStep(
             )
             if (!lang.enabled) {
               Text(
-                text = "Скоро",
+                text = tr("Скоро", "Soon"),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
               )
@@ -120,7 +121,7 @@ fun LanguageSelectionStep(
           when {
             isSelected -> Icon(
               Icons.Default.Check,
-              contentDescription = "Выбрано",
+              contentDescription = tr("Выбрано", "Selected"),
               tint = MaterialTheme.colorScheme.primary,
             )
             !lang.enabled -> Icon(

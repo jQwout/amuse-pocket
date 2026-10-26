@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.roadmap.QuizQuestion
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import kotlin.random.Random
@@ -102,7 +103,7 @@ fun QuizContent(
     questions.forEachIndexed { qIndex, question ->
       val selected = answers[qIndex]
       Text(
-        text = "Вопрос ${qIndex + 1} из ${questions.size}",
+        text = tr("Вопрос ${qIndex + 1} из ${questions.size}", "Question ${qIndex + 1} of ${questions.size}"),
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
       )
@@ -205,14 +206,18 @@ fun QuizContent(
         verticalAlignment = Alignment.CenterVertically,
       ) {
         Text(
-          text = if (keyed > 0) "Верно: $correctCount из $keyed" else "Квиз пройден",
+          text = if (keyed > 0) {
+            tr("Верно: $correctCount из $keyed", "Correct: $correctCount of $keyed")
+          } else {
+            tr("Квиз пройден", "Quiz complete")
+          },
           style = MaterialTheme.typography.titleSmall,
           fontWeight = FontWeight.Bold,
           color = if (keyed > 0 && correctCount == keyed) CorrectGreen
           else MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.weight(1f),
         )
-        TextButton(onClick = { answers.clear() }) { Text("Пройти ещё раз") }
+        TextButton(onClick = { answers.clear() }) { Text(tr("Пройти ещё раз", "Try again")) }
       }
     }
   }

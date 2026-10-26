@@ -9,21 +9,26 @@ import com.aiopenpocket.agent.core.plan.execution.PlanRunResult
 import com.aiopenpocket.agent.core.plan.execution.PlanStepOutput
 import com.aiopenpocket.agent.core.plan.model.PlanRunOutcome
 import com.aiopenpocket.agent.core.plan.model.StepStatus
+import com.aiopenpocket.i18n.tr
 import kotlinx.serialization.json.JsonElement
 
 /**
- * Все пользовательские тексты слоя ходов — единственное место (задел под i18n: UI-слой сможет
- * подменить их ресурсами, не трогая логику). Логика на них только ССЫЛАЕТСЯ, не порождает свои.
+ * Все пользовательские тексты слоя ходов — единственное место. Логика на них только ССЫЛАЕТСЯ, не
+ * порождает свои. Тексты — геттеры с [tr], а не const: язык интерфейса меняется на лету.
  */
 object TurnTexts {
-  const val BLANK_REPLY_ERROR = "Модель вернула пустой ответ — попробуй ещё раз."
+  val BLANK_REPLY_ERROR: String
+    get() = tr("Модель вернула пустой ответ — попробуй ещё раз.", "The model returned an empty reply — try again.")
 
   /** Превью пуша, когда ход завершился без текста (card-only ответ). */
-  const val TURN_DONE_FALLBACK = "Готово"
+  val TURN_DONE_FALLBACK: String get() = tr("Готово", "Done")
 
   /** Ход не уложился в окно фоновой защиты (shortService, ~3 мин) при свёрнутом приложении. */
-  const val PROTECTION_EXPIRED =
-    "Ход не уложился в три минуты фоновой работы и был остановлен системой. Нажми «Повторить»."
+  val PROTECTION_EXPIRED: String
+    get() = tr(
+      "Ход не уложился в три минуты фоновой работы и был остановлен системой. Нажми «Повторить».",
+      "The turn didn't finish within three minutes of background work and the system stopped it. Tap “Retry”.",
+    )
 
   /**
    * Прогресс в пузыре стрима, пока агент работает инструментом между витками ReAct. Без него
@@ -31,13 +36,13 @@ object TurnTexts {
    * «ответ пишется, потом затирается». [TOOL_PROGRESS] — общий (до того как известно имя),
    * [toolProgress] — с именем инструмента.
    */
-  const val TOOL_PROGRESS = "Использую инструмент…"
+  val TOOL_PROGRESS: String get() = tr("Использую инструмент…", "Using a tool…")
 
   fun toolProgress(toolName: String, arguments: Map<String, JsonElement> = emptyMap()): String =
-    "Использую инструмент: ${CapabilityNames.call(toolName, arguments)}…"
+    tr("Использую инструмент: ", "Using a tool: ") + "${CapabilityNames.call(toolName, arguments)}…"
 
   /** Ход упал не по вине модели (запись в базу, неожиданное исключение): подробности — в лог. */
-  const val TURN_FAILED = "Что-то пошло не так — попробуй ещё раз."
+  val TURN_FAILED: String get() = tr("Что-то пошло не так — попробуй ещё раз.", "Something went wrong — try again.")
 
   /**
    * Хвост ответа, когда цикл упёрся в лимит шагов, а модель так и не дала итог. Без него в чат
@@ -45,7 +50,8 @@ object TurnTexts {
    * «пустой ответ». Подсказка «попроси продолжить» — потому что продолжение и правда работает:
    * результаты инструментов уже в эпизодической памяти диалога.
    */
-  const val ITERATION_LIMIT_NOTE = "_Остановился на лимите шагов — попроси продолжить._"
+  val ITERATION_LIMIT_NOTE: String
+    get() = tr("_Остановился на лимите шагов — попроси продолжить._", "_Stopped at the step limit — ask me to continue._")
 
   /**
    * Task 10 (structured-plan-engine-907066): PLAN turn persisted a proposal —
@@ -55,7 +61,10 @@ object TurnTexts {
    */
   // Карточка плана стоит НАД полем ввода, то есть под этим сообщением — отсюда «ниже».
   fun planProposedMessage(planId: String, version: Int): String =
-    "📋 План предложен (версия $version). Проверь его в карточке ниже и одобри, чтобы начать выполнение."
+    tr(
+      "📋 План предложен (версия $version). Проверь его в карточке ниже и одобри, чтобы начать выполнение.",
+      "📋 Plan proposed (version $version). Review it in the card below and approve it to start.",
+    )
 
   /**
    * Task 10: GOAL turn's [PlanRunResult] rendered as a plain assistant message — one branch per [PlanRunOutcome].
@@ -63,26 +72,27 @@ object TurnTexts {
    * «Выполнено шагов: collect_limits». Сам ответ шага — отдельным сообщением ([planStepOutputMessage]).
    */
   fun planProgressMessage(result: PlanRunResult): String = when (result.outcome) {
-    PlanRunOutcome.COMPLETED -> "✅ План выполнен: все шаги завершены."
+    PlanRunOutcome.COMPLETED -> tr("✅ План выполнен: все шаги завершены.", "✅ Plan complete: all steps are done.")
     PlanRunOutcome.PARTIAL -> {
       val done = completedStepsLine(result)
       if (done == null) {
-        result.blockedReason ?: "Пока нет шагов, готовых к выполнению."
+        result.blockedReason ?: tr("Пока нет шагов, готовых к выполнению.", "No steps are ready to run yet.")
       } else {
-        "$done ${result.blockedReason ?: "Продолжи, когда будешь готов."}"
+        "$done ${result.blockedReason ?: tr("Продолжи, когда будешь готов.", "Continue when you're ready.")}"
       }
     }
-    PlanRunOutcome.FAILED -> result.blockedReason ?: "Выполнение шага плана завершилось ошибкой."
-    PlanRunOutcome.CANCELLED -> "Выполнение плана отменено."
+    PlanRunOutcome.FAILED -> result.blockedReason ?: tr("Выполнение шага плана завершилось ошибкой.", "A plan step failed.")
+    PlanRunOutcome.CANCELLED -> tr("Выполнение плана отменено.", "Plan cancelled.")
   }
 
   /** «Шаг «X» выполнен.» по шагам, которые в этом запуске дошли до COMPLETED; null — таких нет. */
   private fun completedStepsLine(result: PlanRunResult): String? {
-    val titles = result.stepOutputs.filter { it.status == StepStatus.COMPLETED }.map { "«${it.title}»" }
+    val titles = result.stepOutputs.filter { it.status == StepStatus.COMPLETED }
+      .map { tr("«${it.title}»", "“${it.title}”") }
     return when (titles.size) {
       0 -> null
-      1 -> "Шаг ${titles.single()} выполнен."
-      else -> "Выполнены шаги: ${titles.joinToString()}."
+      1 -> tr("Шаг ${titles.single()} выполнен.", "Step ${titles.single()} is done.")
+      else -> tr("Выполнены шаги: ${titles.joinToString()}.", "Steps done: ${titles.joinToString()}.")
     }
   }
 
@@ -93,7 +103,7 @@ object TurnTexts {
    */
   fun planStepOutputMessage(output: PlanStepOutput): String {
     val text = output.text.trim()
-    return if (text.isEmpty()) "" else "**Шаг «${output.title}»**\n\n$text"
+    return if (text.isEmpty()) "" else tr("**Шаг «${output.title}»**", "**Step “${output.title}”**") + "\n\n$text"
   }
 }
 

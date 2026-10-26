@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.mcp.RiskClass
+import com.aiopenpocket.i18n.tr
 
 /**
  * Consent gate for the CAPABILITIES step (Task 20 plan Step 4): shown the first time a tool whose
@@ -28,7 +29,7 @@ fun RiskConsentDialog(
 ) {
   AlertDialog(
     onDismissRequest = onDismiss,
-    title = { Text("Включить «${tool.label}»?") },
+    title = { Text(tr("Включить «${tool.label}»?", "Turn on “${tool.label}”?")) },
     text = {
       Column {
         Text(
@@ -43,7 +44,7 @@ fun RiskConsentDialog(
         )
         tool.permission?.let { permission ->
           Text(
-            text = "Разрешение Android: $permission",
+            text = tr("Разрешение Android: $permission", "Android permission: $permission"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp),
@@ -52,10 +53,10 @@ fun RiskConsentDialog(
       }
     },
     confirmButton = {
-      TextButton(onClick = onConfirm) { Text("Включить") }
+      TextButton(onClick = onConfirm) { Text(tr("Включить", "Turn on")) }
     },
     dismissButton = {
-      TextButton(onClick = onDismiss) { Text("Отмена") }
+      TextButton(onClick = onDismiss) { Text(tr("Отмена", "Cancel")) }
     },
   )
 }

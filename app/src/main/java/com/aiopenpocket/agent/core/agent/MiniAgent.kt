@@ -3,6 +3,7 @@ package com.aiopenpocket.agent.core.agent
 // @trace multi-agent-orchestration-27b8e3
 
 import com.aiopenpocket.agent.loop.AgentMode
+import com.aiopenpocket.i18n.tr
 
 /**
  * A specialist "mini-agent" — the ai-open-pocket take on openQwoutt's mini-apps, reframed as agents.
@@ -11,6 +12,11 @@ import com.aiopenpocket.agent.loop.AgentMode
  *
  * Agents whose domain matches a skill-pack include `load_skill` in [toolNames] and are told (in their
  * [systemPrompt]) to call `load_skill(id)` first to pull the detailed procedure into context.
+ *
+ * [name]/[description] stay Russian — they are the agent's canonical identity, copied verbatim into
+ * [AgentDefinition] (and cached there by `AgentResolver`). The English twins [nameEn]/[descriptionEn]
+ * exist only for display: screens read [displayName]/[displayDescription] (or the
+ * [AgentDefinition.displayName] extension), which pick the language at call time.
  */
 data class MiniAgent(
   val id: String,
@@ -21,7 +27,32 @@ data class MiniAgent(
   val systemPrompt: String,
   /** Key prefixes whose facts get injected into the prompt as this agent's persistent state. */
   val stateKeyPrefixes: List<String> = emptyList(),
-)
+  /** English display name — see the class KDoc. */
+  val nameEn: String = name,
+  /** English display description — see the class KDoc. */
+  val descriptionEn: String = description,
+) {
+  /** [name] on the UI language — chosen at call time, never cached. */
+  val displayName: String get() = tr(name, nameEn)
+
+  /** [description] on the UI language — chosen at call time, never cached. */
+  val displayDescription: String get() = tr(description, descriptionEn)
+}
+
+/**
+ * Agent name on the UI language. A preset has an English twin in [MiniAgentCatalog] (its
+ * [AgentDefinition.name] is always the Russian original); a user agent shows exactly what its author
+ * typed. Read it while rendering — the result is not meant to be stored.
+ */
+val AgentDefinition.displayName: String
+  get() = presetTwin()?.displayName ?: name
+
+/** Agent description on the UI language — same rules as [displayName]. */
+val AgentDefinition.displayDescription: String
+  get() = presetTwin()?.displayDescription ?: description
+
+private fun AgentDefinition.presetTwin(): MiniAgent? =
+  if (source == AgentSource.PRESET) MiniAgentCatalog.get(id) else null
 
 object MiniAgentCatalog {
 
@@ -35,6 +66,8 @@ object MiniAgentCatalog {
       id = "budget",
       name = "Бюджет",
       description = "Учёт и аналитика расходов.",
+      nameEn = "Budget",
+      descriptionEn = "Expense tracking and analytics.",
       iconKey = "wallet",
       toolNames = setOf("memory_tool", "email", "heartbeat", RENDER, LOAD_SKILL),
       systemPrompt = """
@@ -55,6 +88,8 @@ object MiniAgentCatalog {
       id = "languages",
       name = "Репетитор",
       description = "Иностранные языки: слова, грамматика, разговорная практика.",
+      nameEn = "Tutor",
+      descriptionEn = "Foreign languages: vocabulary, grammar, conversation practice.",
       iconKey = "translate",
       toolNames = setOf("memory_tool", "srs_tool", "alarm", "heartbeat", LOAD_SKILL, RENDER),
       stateKeyPrefixes = listOf("lang:", "goal:languages", "grammar:"),
@@ -85,6 +120,8 @@ object MiniAgentCatalog {
       id = "tasks",
       name = "Таск-лист",
       description = "Список задач и дел.",
+      nameEn = "Task list",
+      descriptionEn = "Tasks and to-dos.",
       iconKey = "checklist",
       toolNames = setOf("memory_tool", "heartbeat", RENDER),
       systemPrompt = """
@@ -102,6 +139,8 @@ object MiniAgentCatalog {
       id = "reminders",
       name = "Напоминалки",
       description = "Напоминания, будильники, календарь.",
+      nameEn = "Reminders",
+      descriptionEn = "Reminders, alarms, calendar.",
       iconKey = "alarm",
       toolNames = setOf("alarm", "heartbeat", "calendar", RENDER),
       systemPrompt = """
@@ -119,6 +158,8 @@ object MiniAgentCatalog {
       id = "nutrition",
       name = "Нутрициолог",
       description = "Рецепты, питание, интервальное голодание.",
+      nameEn = "Nutritionist",
+      descriptionEn = "Recipes, nutrition, intermittent fasting.",
       iconKey = "restaurant",
       toolNames = setOf("alarm", "memory_tool", "heartbeat", RENDER),
       systemPrompt = """
@@ -137,6 +178,8 @@ object MiniAgentCatalog {
       id = "diary",
       name = "Дневник",
       description = "Заметки и личный дневник.",
+      nameEn = "Diary",
+      descriptionEn = "Notes and a personal diary.",
       iconKey = "book",
       toolNames = setOf("file_tool", "memory_tool", "heartbeat", RENDER, LOAD_SKILL),
       systemPrompt = """

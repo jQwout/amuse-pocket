@@ -2,6 +2,8 @@ package com.aiopenpocket.ui.onboarding
 
 // @trace ai-academy-onboarding-5d51bb
 
+import com.aiopenpocket.i18n.tr
+
 /**
  * Шаги мастера первичной настройки — ровно три: выбрать язык, объяснить, кто я такой, попросить
  * рассказать о себе.
@@ -53,8 +55,8 @@ data class OnboardingUiState(
   }
 
   val primaryButtonLabel: String = when (currentStep) {
-    OnboardingStep.LANGUAGE, OnboardingStep.INTRO -> "Далее"
+    OnboardingStep.LANGUAGE, OnboardingStep.INTRO -> tr("Далее", "Next")
     // PROFILE теперь последний шаг: эта кнопка и завершает настройку.
-    OnboardingStep.PROFILE -> "Готово"
+    OnboardingStep.PROFILE -> tr("Готово", "Done")
   }
 }

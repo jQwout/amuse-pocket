@@ -53,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 @Composable
@@ -81,7 +82,7 @@ fun LibraryScreen(
           IconButton(onClick = onNavigateBack) {
             Icon(
               imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-              contentDescription = "Назад",
+              contentDescription = tr("Назад", "Back"),
               tint = MaterialTheme.colorScheme.onSurface,
             )
           }
@@ -96,13 +97,16 @@ fun LibraryScreen(
       item {
         Spacer(modifier = Modifier.height(24.dp))
         Text(
-          text = "Библиотека",
+          text = tr("Библиотека", "Library"),
           style = MaterialTheme.typography.headlineLarge,
           color = MaterialTheme.colorScheme.onSurface,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-          text = "Короткие уроки-концепции. Открой любой — он пройдёт прямо в чате, шаг за шагом.",
+          text = tr(
+            "Короткие уроки-концепции. Открой любой — он пройдёт прямо в чате, шаг за шагом.",
+            "Short concept lessons. Open any of them — it runs right in the chat, step by step.",
+          ),
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
         )
@@ -158,13 +162,13 @@ private fun LibraryCard(
         .padding(horizontal = 14.dp),
     ) {
       Text(
-        text = lesson.title,
+        text = lesson.displayTitle(),
         style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.onSurface,
       )
       Spacer(modifier = Modifier.height(4.dp))
       Text(
-        text = lesson.description,
+        text = lesson.displayDescription(),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
       )
@@ -172,12 +176,38 @@ private fun LibraryCard(
     if (completed) {
       Icon(
         imageVector = Icons.Default.Check,
-        contentDescription = "Пройдено",
+        contentDescription = tr("Пройдено", "Completed"),
         tint = MaterialTheme.colorScheme.primary,
         modifier = Modifier.size(20.dp),
       )
     }
   }
+}
+
+/**
+ * Английские тексты карточек уроков, которых нет на пути (остальные берутся из [ROADMAP_LEVELS]).
+ * Только данные: язык выбирается в [displayTitle]/[displayDescription] в момент показа.
+ */
+private val LIBRARY_ONLY_EN: Map<String, Pair<String, String>> = mapOf(
+  "rag" to Pair(
+    "RAG: answers from your own data",
+    "Why the model doesn't know your files, and how finding the right pieces before it answers fixes that.",
+  ),
+)
+
+/**
+ * Заголовок карточки на языке интерфейса. По-русски — из JSON урока, как и раньше. По-английски
+ * переведены пока не все уроки, поэтому английский берём из каталога пути — он есть для каждого урока.
+ */
+private fun LibraryLesson.displayTitle(): String {
+  val en = ROADMAP_LEVELS.find { it.id == id }?.titleEn ?: LIBRARY_ONLY_EN[id]?.first ?: return title
+  return tr(title, en)
+}
+
+/** Описание карточки на языке интерфейса — по тому же правилу, что [displayTitle]. */
+private fun LibraryLesson.displayDescription(): String {
+  val en = ROADMAP_LEVELS.find { it.id == id }?.descriptionEn ?: LIBRARY_ONLY_EN[id]?.second ?: return description
+  return tr(description, en)
 }
 
 private fun lessonIcon(key: String): ImageVector = when (key) {

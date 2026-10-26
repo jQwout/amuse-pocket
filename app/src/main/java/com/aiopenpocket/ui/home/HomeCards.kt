@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.memory.model.Conversation
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.util.formatRelativeDate
 
@@ -63,14 +64,14 @@ internal fun HomeHero() {
         }
         Spacer(modifier = Modifier.height(20.dp))
         Text(
-            text = "Чем помочь сегодня?",
+            text = tr("Чем помочь сегодня?", "How can I help today?"),
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Задай вопрос или продолжи обучение",
+            text = tr("Задай вопрос или продолжи обучение", "Ask a question or keep learning"),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
             textAlign = TextAlign.Center,
@@ -108,12 +109,12 @@ internal fun NewChatCard(onClick: () -> Unit) {
                   .padding(horizontal = 14.dp),
             ) {
                 Text(
-                    text = "Новый чат",
+                    text = tr("Новый чат", "New chat"),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text = "Спросить AI Academy что угодно",
+                    text = tr("Спросить AI Academy что угодно", "Ask AI Academy anything"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
                 )
@@ -157,12 +158,12 @@ internal fun AgentsEntryCard(onClick: () -> Unit) {
                   .padding(horizontal = 14.dp),
             ) {
                 Text(
-                    text = "Агенты",
+                    text = tr("Агенты", "Agents"),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text = "Специалисты со своими инструментами и памятью",
+                    text = tr("Специалисты со своими инструментами и памятью", "Specialists with their own tools and memory"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
                 )
@@ -307,7 +308,7 @@ internal fun CourseCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
-                    text = "Прогресс",
+                    text = tr("Прогресс", "Progress"),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 )

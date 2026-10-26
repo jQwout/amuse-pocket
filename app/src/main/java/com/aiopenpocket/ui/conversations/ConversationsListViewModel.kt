@@ -9,6 +9,7 @@ import com.aiopenpocket.agent.core.memory.repository.ConversationHeartbeatCleanu
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.loop.TurnManager
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.i18n.tr
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
@@ -64,7 +65,7 @@ class ConversationsListViewModel(
       // его и не написал ничего, иначе каждый повторный тап плодил бы новый пустой «Новый чат».
       conversationRepository.findReusableNewChat()?.let { return it.id }
       val personaId = userPreferencesRepository.getDefaultPersonaId()
-      return conversationRepository.createConversation("Новый чат", personaId)
+      return conversationRepository.createConversation(tr("Новый чат", "New chat"), personaId)
     } finally {
       creatingConversation = false
     }

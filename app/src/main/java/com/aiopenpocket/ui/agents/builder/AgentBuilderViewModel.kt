@@ -8,10 +8,13 @@ import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.agent.AgentStatus
 import com.aiopenpocket.agent.core.agent.UserAgentRepository
+import com.aiopenpocket.agent.core.agent.displayDescription
+import com.aiopenpocket.agent.core.agent.displayName
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.agent.core.skill.SkillRegistry
 import com.aiopenpocket.agent.core.skill.UserSkillRepository
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.i18n.tr
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
@@ -164,8 +167,13 @@ class AgentBuilderViewModel(
         }
         val cloned = userAgentRepository.clonePreset(source)
         val clonedSkills = customSkillsOf(cloned.id)
+        // Имя и описание копии — на языке интерфейса: у пресета есть английские (displayName),
+        // у своего агента они совпадают с исходными. В базу ложатся как обычный текст автора.
         val renamed = userAgentRepository.saveDraft(
-          definition = cloned.copy(name = "Копия: ${source.name}"),
+          definition = cloned.copy(
+            name = tr("Копия: ${source.displayName}", "Copy: ${source.displayName}"),
+            description = source.displayDescription,
+          ),
           skills = clonedSkills.map { it.toEntity(cloned.id) },
           hooks = cloned.hooks,
         )
@@ -324,13 +332,20 @@ class AgentBuilderViewModel(
     const val AUTOSAVE_DEBOUNCE_MS = 500L
     private const val ID_SUFFIX_LENGTH = 10
 
-    // Тексты ошибок для пользователя — по-русски и без `e.message`: туда попадают английские
-    // `require`/Room-сообщения с кодами и id, которые на экране ничего не объясняют.
-    private const val ERROR_LOAD = "Не удалось загрузить агента. Попробуй открыть его ещё раз."
-    private const val ERROR_NOT_FOUND = "Агент не найден."
-    private const val ERROR_CLONE = "Не удалось создать копию агента."
-    private const val ERROR_PUBLISH = "Не удалось опубликовать агента. Попробуй ещё раз."
-    private const val ERROR_ARCHIVE = "Не удалось убрать агента в архив."
-    private const val ERROR_SAVE = "Не удалось сохранить черновик — правки пока только на экране."
+    // Тексты ошибок для пользователя — на языке интерфейса и без `e.message`: туда попадают
+    // английские `require`/Room-сообщения с кодами и id, которые на экране ничего не объясняют.
+    // Геттеры, а не const: язык выбирается в момент ошибки, а не при загрузке класса.
+    private val ERROR_LOAD: String
+      get() = tr("Не удалось загрузить агента. Попробуй открыть его ещё раз.", "Couldn't load the agent. Try opening it again.")
+    private val ERROR_NOT_FOUND: String get() = tr("Агент не найден.", "Agent not found.")
+    private val ERROR_CLONE: String get() = tr("Не удалось создать копию агента.", "Couldn't duplicate the agent.")
+    private val ERROR_PUBLISH: String
+      get() = tr("Не удалось опубликовать агента. Попробуй ещё раз.", "Couldn't publish the agent. Try again.")
+    private val ERROR_ARCHIVE: String get() = tr("Не удалось убрать агента в архив.", "Couldn't archive the agent.")
+    private val ERROR_SAVE: String
+      get() = tr(
+        "Не удалось сохранить черновик — правки пока только на экране.",
+        "Couldn't save the draft — your changes are only on screen for now.",
+      )
   }
 }

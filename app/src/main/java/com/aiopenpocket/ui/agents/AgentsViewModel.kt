@@ -8,9 +8,12 @@ import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.agent.AgentSource
+import com.aiopenpocket.agent.core.agent.displayDescription
+import com.aiopenpocket.agent.core.agent.displayName
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.i18n.tr
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
@@ -83,12 +86,19 @@ class AgentsViewModel(
           return@launch
         }
         val personaId = userPreferencesRepository.getDefaultPersonaId()
+        // Заголовок и приветствие пишутся в базу один раз — на языке интерфейса в момент создания
+        // чата (у пресета есть английское имя/описание, свой агент — как его назвал автор).
+        val name = agent.displayName
+        val description = agent.displayDescription
         val id = conversationRepository.createConversation(
-          title = agent.name,
+          title = name,
           personaId = personaId,
           agentId = agent.id,
         )
-        val greeting = "Это агент «${agent.name}». ${agent.description} Чем помочь?"
+        val greeting = tr(
+          "Это агент «$name». $description Чем помочь?",
+          "This is the “$name” agent. $description How can I help?",
+        )
         conversationRepository.addMessage(id, "assistant", greeting)
         onReady(id)
       } finally {

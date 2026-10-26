@@ -9,6 +9,8 @@ import com.aiopenpocket.agent.core.memory.model.UserProfile
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
 import com.aiopenpocket.agent.core.profile.ExtractUserProfileUseCase
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.i18n.AppLanguage
+import com.aiopenpocket.i18n.tr
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
@@ -30,7 +32,10 @@ class OnboardingViewModel(
     private val extractUserProfile: ExtractUserProfileUseCase,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(OnboardingUiState())
+    // Стартовый выбор — текущий язык, а не «ru» по умолчанию: язык пишется в настройки сразу при
+    // выборе, и после перезапуска посреди мастера экран уже английский — а «Готово» записывало
+    // обратно русский из состояния по умолчанию.
+    private val _state = MutableStateFlow(OnboardingUiState(selectedLanguage = AppLanguage.code))
     val state: StateFlow<OnboardingUiState> = _state.asStateFlow()
 
     private var introJob: Job? = null
@@ -43,6 +48,8 @@ class OnboardingViewModel(
             OnboardingIntent.PreviousStep -> goToPreviousStep()
             is OnboardingIntent.SelectLanguage -> {
                 _state.update { it.copy(selectedLanguage = intent.code) }
+                // Сразу, а не в конце мастера: остальные шаги онбординга уже должны быть на этом языке.
+                viewModelScope.launch { userPreferencesRepository.setLanguage(intent.code) }
             }
 
             // Мастер персону больше не спрашивает (см. OnboardingStep), но интент жив: его шлёт
@@ -214,7 +221,7 @@ class OnboardingViewModel(
                 _state.update {
                     it.copy(
                         isSaving = false,
-                        error = e.message ?: "Не удалось сохранить данные",
+                        error = e.message ?: tr("Не удалось сохранить данные", "Couldn't save your data"),
                     )
                 }
             }

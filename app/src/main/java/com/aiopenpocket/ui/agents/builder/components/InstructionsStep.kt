@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.AgentValidator
 import com.aiopenpocket.agent.core.agent.ValidationIssue
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.agents.builder.AgentDraft
 
 /**
@@ -30,10 +31,14 @@ fun InstructionsStep(
       .fillMaxSize()
       .padding(horizontal = 20.dp, vertical = 16.dp),
   ) {
-    Text(text = "Инструкции", style = MaterialTheme.typography.headlineSmall)
+    Text(text = tr("Инструкции", "Instructions"), style = MaterialTheme.typography.headlineSmall)
     Text(
-      text = "Опиши личность и правила поведения агента — это его системный промпт. " +
-        "Пиши от первого лица агента, конкретно: что он делает, а что — нет.",
+      text = tr(
+        "Опиши личность и правила поведения агента — это его системный промпт. " +
+          "Пиши от первого лица агента, конкретно: что он делает, а что — нет.",
+        "Describe the agent's personality and rules of behavior — this is its system prompt. " +
+          "Address the agent directly and be specific: what it does and what it doesn't.",
+      ),
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
       modifier = Modifier.padding(top = 6.dp, bottom = 16.dp),
@@ -44,7 +49,10 @@ fun InstructionsStep(
       onValueChange = { text ->
         onUpdateDraft { it.copy(systemPrompt = text.take(AgentValidator.MAX_SYSTEM_PROMPT_CHARS)) }
       },
-      placeholder = "Например: Ты — заботливый ассистент по бегу. Планируешь тренировки, следишь за самочувствием...",
+      placeholder = tr(
+        "Например: Ты — заботливый ассистент по бегу. Планируешь тренировки, следишь за самочувствием...",
+        "For example: You are a caring running coach. You plan workouts and keep an eye on how I feel...",
+      ),
       isError = errors.any { it.field == "systemPrompt" },
       minLines = 8,
       maxLines = 14,

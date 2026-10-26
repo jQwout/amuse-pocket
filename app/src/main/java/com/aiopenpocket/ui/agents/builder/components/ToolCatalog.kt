@@ -5,6 +5,7 @@ package com.aiopenpocket.ui.agents.builder.components
 import com.aiopenpocket.agent.core.agent.AgentValidator
 import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.agent.core.mcp.RiskClass
+import com.aiopenpocket.i18n.tr
 
 /**
  * One [AgentValidator.KNOWN_TOOL_NAMES] entry, described for the CAPABILITIES step's risk rail: a
@@ -28,10 +29,19 @@ data class ToolCatalogEntry(
   val name: String,
   val riskClass: RiskClass,
   val permission: String?,
-  val consequence: String,
+  /** [consequence] по-русски. Обе версии хранятся рядом, язык выбирается при показе. */
+  val consequenceRu: String,
+  /** [consequence] по-английски. */
+  val consequenceEn: String,
   /** Hidden from [ToolCatalog.default] — only offered via the CAPABILITIES step's "Advanced tools" expander. */
   val advancedOnly: Boolean = false,
 ) {
+  /**
+   * Что тул делает с данными пользователя — на языке интерфейса. Геттер, а не поле: [ToolCatalog]
+   * собирается один раз на процесс, и текст, выбранный при инициализации, застыл бы на том языке.
+   */
+  val consequence: String get() = tr(consequenceRu, consequenceEn)
+
   /**
    * Имя тула — из общего [CapabilityNames], а не своё: конструктор, чипы «Умеет», экран агента и бар
    * подтверждения обязаны звать один и тот же тул одинаково (раньше тут был отдельный словарь).
@@ -61,7 +71,8 @@ object ToolCatalog {
       name = "memory_tool",
       riskClass = RiskClass.WRITE,
       permission = null,
-      consequence = "Может сохранять факты о тебе в долговременную память агента.",
+      consequenceRu = "Может сохранять факты о тебе в долговременную память агента.",
+      consequenceEn = "Can save facts about you to the agent's long-term memory.",
     ),
     ToolCatalogEntry(
       name = "storage_tool",
@@ -73,14 +84,17 @@ object ToolCatalog {
       // structured write path database_query's Part A restriction pushes agents toward. Isolated
       // per-agent IN CODE (agentId comes only from TurnContextHolder, never a tool argument) — safe as
       // a default (non-advanced) tool for exactly the same reason memory_tool already is one.
-      consequence = "Сохраняет, читает и удаляет собственные данные агента (заметки, счётчики) в " +
+      consequenceRu = "Сохраняет, читает и удаляет собственные данные агента (заметки, счётчики) в " +
         "изолированном хранилище — другие агенты его не видят. Удаление каждый раз спросит твоё разрешение.",
+      consequenceEn = "Saves, reads and deletes the agent's own data (notes, counters) in isolated " +
+        "storage — other agents can't see it. Every deletion asks for your permission.",
     ),
     ToolCatalogEntry(
       name = "file_tool",
       riskClass = RiskClass.WRITE,
       permission = null,
-      consequence = "Создаёт, читает и изменяет файлы агента в его собственной песочнице.",
+      consequenceRu = "Создаёт, читает и изменяет файлы агента в его собственной песочнице.",
+      consequenceEn = "Creates, reads and edits the agent's files in its own sandbox.",
     ),
     // advancedOnly, and the consequence says plainly that nothing works yet: the tool only accepts
     // content:// URIs the user has already granted (see ExternalFilesTool.rejectionReason), and this
@@ -92,70 +106,83 @@ object ToolCatalog {
       // DESTRUCTIVE: write_file перезаписывает документ пользователя целиком (режим "wt").
       riskClass = RiskClass.DESTRUCTIVE,
       permission = null,
-      consequence = "Читает и пишет файлы вне песочницы — только те, доступ к которым пользователь " +
+      consequenceRu = "Читает и пишет файлы вне песочницы — только те, доступ к которым пользователь " +
         "уже выдал системе. Выбора папки в приложении пока нет, поэтому тул сейчас всегда отвечает " +
         "отказом: для файлов агента используй «Файлы агента».",
+      consequenceEn = "Reads and writes files outside the sandbox — only ones you've already granted " +
+        "access to in the system. The app has no folder picker yet, so this tool always refuses for " +
+        "now: for the agent's own files use “Agent files”.",
       advancedOnly = true,
     ),
     ToolCatalogEntry(
       name = "render_card",
       riskClass = RiskClass.READ,
       permission = null,
-      consequence = "Показывает интерактивные карточки в чате.",
+      consequenceRu = "Показывает интерактивные карточки в чате.",
+      consequenceEn = "Shows interactive cards in the chat.",
     ),
     ToolCatalogEntry(
       name = "notifications",
       riskClass = RiskClass.WRITE,
       permission = "POST_NOTIFICATIONS",
-      consequence = "Показывает системные push-уведомления.",
+      consequenceRu = "Показывает системные push-уведомления.",
+      consequenceEn = "Shows system push notifications.",
     ),
     ToolCatalogEntry(
       name = "heartbeat",
       riskClass = RiskClass.DESTRUCTIVE,
       permission = null,
-      consequence = "Планирует фоновые пробуждения агента и может безвозвратно отменять уже запланированные.",
+      consequenceRu = "Планирует фоновые пробуждения агента и может безвозвратно отменять уже запланированные.",
+      consequenceEn = "Schedules background wake-ups for the agent and can permanently cancel ones already scheduled.",
     ),
     ToolCatalogEntry(
       name = "work_manager",
       riskClass = RiskClass.DESTRUCTIVE,
       permission = null,
-      consequence = "Планирует фоновые задачи и может безвозвратно отменять уже запланированные.",
+      consequenceRu = "Планирует фоновые задачи и может безвозвратно отменять уже запланированные.",
+      consequenceEn = "Schedules background tasks and can permanently cancel ones already scheduled.",
     ),
     ToolCatalogEntry(
       name = "calendar",
       riskClass = RiskClass.DESTRUCTIVE,
       permission = "READ_CALENDAR, WRITE_CALENDAR",
-      consequence = "Создаёт, изменяет и безвозвратно удаляет события в календаре устройства.",
+      consequenceRu = "Создаёт, изменяет и безвозвратно удаляет события в календаре устройства.",
+      consequenceEn = "Creates, edits and permanently deletes events in the device calendar.",
     ),
     ToolCatalogEntry(
       name = "alarm",
       riskClass = RiskClass.WRITE,
       permission = "SET_ALARM",
-      consequence = "Ставит будильники на устройстве.",
+      consequenceRu = "Ставит будильники на устройстве.",
+      consequenceEn = "Sets alarms on the device.",
     ),
     ToolCatalogEntry(
       name = "email",
       riskClass = RiskClass.EXTERNAL,
       permission = null,
-      consequence = "Готовит черновик письма в почтовом приложении (без автоотправки) — данные покидают устройство.",
+      consequenceRu = "Готовит черновик письма в почтовом приложении (без автоотправки) — данные покидают устройство.",
+      consequenceEn = "Prepares an email draft in your mail app (never sends it on its own) — data leaves the device.",
     ),
     ToolCatalogEntry(
       name = "srs_tool",
       riskClass = RiskClass.WRITE,
       permission = null,
-      consequence = "Сохраняет слова и планирует их повторение — записывает данные на устройстве.",
+      consequenceRu = "Сохраняет слова и планирует их повторение — записывает данные на устройстве.",
+      consequenceEn = "Saves words and schedules their review — writes data on the device.",
     ),
     ToolCatalogEntry(
       name = "step_counter",
       riskClass = RiskClass.READ,
       permission = "ACTIVITY_RECOGNITION",
-      consequence = "Читает счётчик шагов с датчика устройства.",
+      consequenceRu = "Читает счётчик шагов с датчика устройства.",
+      consequenceEn = "Reads the step count from the device sensor.",
     ),
     ToolCatalogEntry(
       name = "load_skill",
       riskClass = RiskClass.READ,
       permission = null,
-      consequence = "Подгружает подробную инструкцию навыка в контекст агента.",
+      consequenceRu = "Подгружает подробную инструкцию навыка в контекст агента.",
+      consequenceEn = "Loads a skill's detailed instructions into the agent's context.",
     ),
     ToolCatalogEntry(
       name = "database_query",
@@ -168,8 +195,10 @@ object ToolCatalog {
       // reports the worst case a tool COULD reach, and an over-cautious label here costs nothing,
       // whereas a future write path re-added to the tool without this catalog entry being revisited
       // would otherwise silently under-warn.
-      consequence = "Выполняет только SELECT-запросы (чтение) к локальной базе приложения, по " +
+      consequenceRu = "Выполняет только SELECT-запросы (чтение) к локальной базе приложения, по " +
         "фиксированному списку таблиц — системные таблицы агентов недоступны. Запись не поддерживается.",
+      consequenceEn = "Runs read-only SELECT queries against the app's local database, on a fixed list " +
+        "of tables — the agents' system tables are off-limits. Writing isn't supported.",
       advancedOnly = true,
     ),
   )
@@ -183,10 +212,10 @@ object ToolCatalog {
   fun get(name: String): ToolCatalogEntry? = entries.find { it.name == name }
 }
 
-/** Short Russian label for [RiskClass] — shown on every tool row's risk badge. */
+/** Short label for [RiskClass] on the UI language — shown on every tool row's risk badge and the chat approval bar. */
 fun riskClassLabel(risk: RiskClass): String = when (risk) {
-  RiskClass.READ -> "Только чтение"
-  RiskClass.WRITE -> "Изменяет данные"
-  RiskClass.DESTRUCTIVE -> "Может удалить необратимо"
-  RiskClass.EXTERNAL -> "Покидает устройство"
+  RiskClass.READ -> tr("Только чтение", "Read only")
+  RiskClass.WRITE -> tr("Изменяет данные", "Changes data")
+  RiskClass.DESTRUCTIVE -> tr("Может удалить необратимо", "Can delete permanently")
+  RiskClass.EXTERNAL -> tr("Покидает устройство", "Leaves the device")
 }

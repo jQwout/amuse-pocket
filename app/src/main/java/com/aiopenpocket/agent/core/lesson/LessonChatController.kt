@@ -10,6 +10,7 @@ import android.net.Uri
 import com.aiopenpocket.agent.core.llm.VideoUnderstandingClient
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.i18n.tr
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.withTimeoutOrNull
@@ -87,7 +88,15 @@ class LessonChatController(
     val params = JSONObject()
       .put("asset", "")
       .put("url", Uri.fromFile(file).toString())
-      .put("caption", if (caption.isBlank()) "Нарисовано под тебя" else "$caption — нарисовано под тебя")
+      // Подпись запекается в сообщение на языке момента публикации — как и сам текст шагов урока.
+      .put(
+        "caption",
+        if (caption.isBlank()) {
+          tr("Нарисовано под тебя", "Drawn for you")
+        } else {
+          tr("$caption — нарисовано под тебя", "$caption — drawn for you")
+        },
+      )
     val spec = JSONObject().put("template", "image").put("params", params).toString()
     conversationRepository.addMessage(conversationId, "assistant", "", cardSpec = spec)
     return true
@@ -140,10 +149,12 @@ class LessonChatController(
    * задаёт → params не меняются, и completion-поведение остаётся прежним byte-for-byte.
    */
   suspend fun postCompletion(conversationId: String, lesson: Lesson) {
+    // Тексты карточки запекаются в сообщение на языке момента публикации (как и шаги урока):
+    // lesson.title уже на этом языке — LessonRepository отдаёт английскую копию урока, если она есть.
     val params = JSONObject()
-      .put("title", "Урок «${lesson.title}» пройден!")
-      .put("subtitle", "Отличная работа.")
-      .put("button_label", "Готово")
+      .put("title", tr("Урок «${lesson.title}» пройден!", "Lesson “${lesson.title}” complete!"))
+      .put("subtitle", tr("Отличная работа.", "Great job."))
+      .put("button_label", tr("Готово", "Done"))
     lesson.steps.lastOrNull()?.primaryAction?.let { action ->
       params.put(
         "primary_action",

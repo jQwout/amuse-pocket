@@ -35,6 +35,7 @@ import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.agent.loop.ToolTrace
 import com.aiopenpocket.agent.loop.TurnStatus
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.chat.components.ToolApprovalBar
 import com.aiopenpocket.ui.chat.components.ToolTracePanel
 import com.aiopenpocket.ui.agents.builder.AgentBuilderValidator
@@ -89,38 +90,48 @@ fun TestAndPublishStep(
       .padding(contentPadding)
       .padding(horizontal = 20.dp, vertical = 16.dp),
   ) {
-    Text(text = "Проверка и публикация", style = MaterialTheme.typography.headlineSmall)
+    Text(text = tr("Проверка и публикация", "Test and publish"), style = MaterialTheme.typography.headlineSmall)
     Text(
-      text = "Отправь тестовое сообщение, посмотри, как отвечает агент, и опубликуй его.",
+      text = tr(
+        "Отправь тестовое сообщение, посмотри, как отвечает агент, и опубликуй его.",
+        "Send a test message, see how the agent replies, then publish it.",
+      ),
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
       modifier = Modifier.padding(top = 6.dp, bottom = 16.dp),
     )
 
-    Text(text = "Режим проверки", style = MaterialTheme.typography.titleMedium)
+    Text(text = tr("Режим проверки", "Test mode"), style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(8.dp))
     Row {
       FilterChip(
         selected = executionMode == ExecutionMode.PREVIEW,
         onClick = { onSetExecutionMode(ExecutionMode.PREVIEW) },
-        label = { Text("Предпросмотр") },
+        label = { Text(tr("Предпросмотр", "Preview")) },
         modifier = Modifier.testTag("agent_builder_preview"),
       )
       Spacer(modifier = Modifier.width(8.dp))
       FilterChip(
         selected = executionMode == ExecutionMode.LIVE,
         onClick = { onSetExecutionMode(ExecutionMode.LIVE) },
-        label = { Text("Живой тест") },
+        label = { Text(tr("Живой тест", "Live test")) },
         modifier = Modifier.testTag("agent_builder_live_test"),
       )
     }
     Spacer(modifier = Modifier.height(4.dp))
     Text(
       text = if (executionMode == ExecutionMode.LIVE) {
-        "Живой тест выполняет реальные действия (календарь, файлы, письма и т.д.) по-настоящему."
+        tr(
+          "Живой тест выполняет реальные действия (календарь, файлы, письма и т.д.) по-настоящему.",
+          "A live test really performs actions (calendar, files, email and so on).",
+        )
       } else {
-        "В предпросмотре инструменты с побочными эффектами не выполняются по-настоящему — " +
-          "агент получает синтетический результат."
+        tr(
+          "В предпросмотре инструменты с побочными эффектами не выполняются по-настоящему — " +
+            "агент получает синтетический результат.",
+          "In preview, tools with side effects don't actually run — " +
+            "the agent gets a simulated result.",
+        )
       },
       style = MaterialTheme.typography.bodySmall,
       color = if (executionMode == ExecutionMode.LIVE) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -131,7 +142,7 @@ fun TestAndPublishStep(
       BuilderTextField(
         value = testInput,
         onValueChange = { testInput = it },
-        label = "Тестовое сообщение",
+        label = tr("Тестовое сообщение", "Test message"),
         modifier = Modifier.weight(1f),
       )
       Spacer(modifier = Modifier.width(8.dp))
@@ -142,7 +153,7 @@ fun TestAndPublishStep(
             testInput = ""
           }
         },
-      ) { Text("Отправить") }
+      ) { Text(tr("Отправить", "Send")) }
     }
 
     Spacer(modifier = Modifier.height(16.dp))
@@ -171,7 +182,7 @@ fun TestAndPublishStep(
     HorizontalDivider()
     Spacer(modifier = Modifier.height(16.dp))
 
-    Text(text = "Публикация", style = MaterialTheme.typography.titleMedium)
+    Text(text = tr("Публикация", "Publishing"), style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(8.dp))
     // Подтверждение успеха: без него «Опубликовать» просто переставала крутиться, и было непонятно,
     // ушёл ли агент в ростер и куда идти дальше.
@@ -185,7 +196,7 @@ fun TestAndPublishStep(
     if (errors.isNotEmpty()) {
       Column(modifier = Modifier.padding(bottom = 8.dp)) {
         Text(
-          text = "Нельзя опубликовать, пока не исправлено:",
+          text = tr("Нельзя опубликовать, пока не исправлено:", "Can't publish until these are fixed:"),
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.error,
         )
@@ -210,7 +221,13 @@ fun TestAndPublishStep(
         if (isSaving) {
           CircularProgressIndicator(modifier = Modifier.size(16.dp).padding(end = 8.dp), strokeWidth = 2.dp)
         }
-        Text(if (draft.status == AgentStatus.PUBLISHED) "Опубликовать изменения" else "Опубликовать")
+        Text(
+          if (draft.status == AgentStatus.PUBLISHED) {
+            tr("Опубликовать изменения", "Publish changes")
+          } else {
+            tr("Опубликовать", "Publish")
+          },
+        )
       }
     }
 
@@ -222,7 +239,11 @@ fun TestAndPublishStep(
       Spacer(modifier = Modifier.height(8.dp))
       TextButton(onClick = onArchive, modifier = Modifier.testTag("agent_builder_archive")) {
         Text(
-          text = if (draft.status == AgentStatus.PUBLISHED) "Архивировать агента" else "Архивировать черновик",
+          text = if (draft.status == AgentStatus.PUBLISHED) {
+            tr("Архивировать агента", "Archive agent")
+          } else {
+            tr("Архивировать черновик", "Archive draft")
+          },
           color = MaterialTheme.colorScheme.error,
         )
       }
@@ -241,25 +262,28 @@ private fun PublishedNotice(configVersion: Long, onOpenChat: (() -> Unit)?) {
       .testTag("agent_builder_published"),
   ) {
     Text(
-      text = "Агент опубликован (версия $configVersion) — он уже в «Мои агенты».",
+      text = tr(
+        "Агент опубликован (версия $configVersion) — он уже в «Мои агенты».",
+        "Agent published (version $configVersion) — it's already in “My agents”.",
+      ),
       style = MaterialTheme.typography.bodyMedium,
     )
     if (onOpenChat != null) {
       Spacer(modifier = Modifier.height(8.dp))
       Button(onClick = onOpenChat, modifier = Modifier.testTag("agent_builder_open_chat")) {
-        Text("Открыть чат")
+        Text(tr("Открыть чат", "Open chat"))
       }
     }
   }
 }
 
 private fun stepTitle(step: BuilderStep): String = when (step) {
-  BuilderStep.IDENTITY -> "Основа"
-  BuilderStep.INSTRUCTIONS -> "Инструкции"
-  BuilderStep.CAPABILITIES -> "Возможности"
-  BuilderStep.LOOP -> "Режимы"
-  BuilderStep.HOOKS -> "Хуки"
-  BuilderStep.TEST -> "Проверка"
+  BuilderStep.IDENTITY -> tr("Основа", "Basics")
+  BuilderStep.INSTRUCTIONS -> tr("Инструкции", "Instructions")
+  BuilderStep.CAPABILITIES -> tr("Возможности", "Capabilities")
+  BuilderStep.LOOP -> tr("Режимы", "Modes")
+  BuilderStep.HOOKS -> tr("Хуки", "Hooks")
+  BuilderStep.TEST -> tr("Проверка", "Test")
 }
 
 /** [replyText] — ответ хода: стрим или записанное в диалог сообщение (у ходов «План»/«Цель» только оно). */
@@ -270,12 +294,12 @@ private fun TestRunStatus(status: TurnStatus?, replyText: String) {
     is TurnStatus.Running -> Row(verticalAlignment = Alignment.CenterVertically) {
       CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
       Spacer(modifier = Modifier.width(8.dp))
-      Text(text = "Агент отвечает…", style = MaterialTheme.typography.bodyMedium)
+      Text(text = tr("Агент отвечает…", "Agent is replying…"), style = MaterialTheme.typography.bodyMedium)
     }
 
     is TurnStatus.Completed -> Column(modifier = Modifier.fillMaxWidth().glassCardSurface().padding(12.dp)) {
       Text(
-        text = replyText.ifBlank { "Пустой ответ." },
+        text = replyText.ifBlank { tr("Пустой ответ.", "Empty reply.") },
         style = MaterialTheme.typography.bodyMedium,
       )
       status.error?.let {

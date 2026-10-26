@@ -1,0 +1,28 @@
+{
+  "id": "meta_models",
+  "title": "Meta's models: who's who",
+  "description": "Meta doesn't have just one model but a team of specialists: Muse Spark, Muse Image, SAM, Llama. Who does what, and which of them power this app.",
+  "iconKey": "hub",
+  "steps": [
+    {"type": "text", "text": "You've already seen Muse Spark watch a video. But Meta doesn't have just one model — it has a whole lineup, and each one has its own job. Let's sort out who's who, and which of them work in this app."},
+    {"type": "image", "asset": "lessons/images/generated/meta_models-775aa3d6e4.webp", "imagePrompt": "A friendly team of five different robots standing in a row like specialists in a workshop: one holds a speech bubble, one holds a paintbrush, one holds a magnifying glass over a cat outline, one wears headphones, one carries a small server box.", "caption": "Meta's lineup is a team of specialists, not one model for everything"},
+    {"type": "concept", "term": "Muse Spark", "definition": "A language model from Meta Superintelligence Labs; the first version came out in April 2026. It understands text, photos, video and files, answers in text and can call tools. Its weights are closed — the model runs through an API.", "example": "In this app, Muse Spark is the agent's brain: it holds the conversation, sets reminders and answers questions in the lessons."},
+    {"type": "text", "text": "Around it are the specialists. Muse Image draws pictures from a description. SAM 3.1 finds objects in photos and videos from a short phrase and outlines them with a precise mask. Muse Voice Transcribe turns speech into text. And Llama is Meta's open-weights family: you can download it and run it on your own server."},
+    {"type": "animation", "scene": "meta_lineup", "caption": "The models tagged “in this app” are answering you right now"},
+    {"type": "match", "instruction": "Match each model to its job:", "pairs": [
+      {"term": "Muse Spark", "def": "Conversation, reasoning and tool calls"},
+      {"term": "Muse Image", "def": "A picture from a text description"},
+      {"term": "SAM 3.1", "def": "Find and outline an object in a photo or video"},
+      {"term": "Muse Voice Transcribe", "def": "A voice message turned into text"}
+    ]},
+    {"type": "text", "text": "Why not one model for everything? A specialist does its job better and cheaper. A good app picks the model for the task — just like an agent picks a tool."},
+    {"type": "scenario", "situation": "You're building an app for farmers: in drone photos, it has to find and outline every cow in the field.", "q": "Which Meta model should handle this part?", "options": ["Muse Image — it knows pictures better than anyone", "SAM 3.1 — it finds objects from a phrase and outlines them", "Muse Spark — it sees the photo and will count the cows itself"], "correct": 1, "explain": "Finding and outlining objects from the phrase “cow” is exactly SAM's job. Muse Image draws new pictures; it doesn't label existing ones. And Muse Spark can describe the photo in words, but it won't give you precise masks."},
+    {"type": "text", "text": "Two of them work in this app. Muse Spark is the agent's brain and the teacher in the lessons, including the video breakdown. Muse Image drew the illustrations for most lessons and redraws them “for you” at the tap of a button. Both come through OpenRouter — a service that gives you models from different companies with a single key."},
+    {"type": "text", "text": "In short. Meta has a lineup of models, not just one. Muse Spark: conversation, reasoning, tools, photos and video. Muse Image: pictures. SAM 3.1: find and outline objects in photos and video. Muse Voice Transcribe: voice to text. Llama: open weights you can run yourself. The app picks the model for the task."},
+    {"type": "quiz", "questions": [
+      {"q": "Which Meta model is the agent's brain in this app?", "options": ["Muse Spark", "Muse Image", "SAM 3.1"], "correct": 0, "explain": "Muse Spark holds the conversation and calls tools — that's exactly the job of an agent's brain."},
+      {"q": "What does SAM 3.1 do?", "options": ["Draws a picture from text", "Turns voice into text", "Finds and outlines objects"], "correct": 2, "explain": "SAM finds objects in photos and videos from a short phrase and outlines them with a mask."},
+      {"q": "How is Llama different from Muse Spark?", "options": ["Llama is Muse Spark's old name", "Llama has open weights", "Llama is only available via API"], "correct": 1, "explain": "You can download Llama's weights and run them yourself. Muse Spark runs through an API, and its weights are closed."}
+    ]}
+  ]
+}

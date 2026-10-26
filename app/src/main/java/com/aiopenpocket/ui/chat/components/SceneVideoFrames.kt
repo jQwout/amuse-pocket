@@ -41,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aiopenpocket.i18n.tr
 import kotlin.math.PI
 import kotlin.math.sin
 
@@ -82,19 +83,26 @@ internal fun VideoFramesScene() {
     val primary = MaterialTheme.colorScheme.primary
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Ролик на 4 секунды: на миг поднимают чашку (показано медленнее)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(
+            tr("Ролик на 4 секунды: на миг поднимают чашку (показано медленнее)", "A 4-second clip: a cup is lifted for a moment (shown slowed down)"),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
         CupFrame(time = time, modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f))
         Timeline(time = time, frames = frames, primary = primary, modifier = Modifier.fillMaxWidth().height(64.dp))
         Text(
-            "Чёрточки — моменты, когда модель берёт кадр. Всё, что случилось между ними, для неё не существует.",
+            tr(
+                "Чёрточки — моменты, когда модель берёт кадр. Всё, что случилось между ними, для неё не существует.",
+                "Each tick is a moment when the model grabs a frame. Whatever happens between them doesn't exist for it.",
+            ),
             style = MaterialTheme.typography.bodyMedium,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FPS_OPTIONS.forEach { option ->
-                FilterChip(selected = fps == option, onClick = { fps = option }, label = { Text("$option в сек") })
+                FilterChip(selected = fps == option, onClick = { fps = option }, label = { Text(tr("$option в сек", "$option per sec")) })
             }
         }
-        Text("Что увидела модель:", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+        Text(tr("Что увидела модель:", "What the model saw:"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             frames.forEach { frameTime ->
                 CupFrame(
@@ -105,15 +113,24 @@ internal fun VideoFramesScene() {
             }
         }
         Text(
-            text = "Кадров: ${frames.size} · токенов ≈ ${frames.size * TOKENS_PER_FRAME}",
+            text = tr(
+                "Кадров: ${frames.size} · токенов ≈ ${frames.size * TOKENS_PER_FRAME}",
+                "Frames: ${frames.size} · tokens ≈ ${frames.size * TOKENS_PER_FRAME}",
+            ),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
             text = if (caught) {
-                "Одна чёрточка попала в подъём — модель его увидит, но токенов в ${fps} раза больше"
+                tr(
+                    "Одна чёрточка попала в подъём — модель его увидит, но токенов в ${fps} раза больше",
+                    "One tick landed on the lift — the model will see it, but it costs ${fps}× the tokens",
+                )
             } else {
-                "Ни одна чёрточка не попала в подъём — для модели чашку никто не поднимал"
+                tr(
+                    "Ни одна чёрточка не попала в подъём — для модели чашку никто не поднимал",
+                    "No tick landed on the lift — as far as the model knows, nobody lifted the cup",
+                )
             },
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
@@ -139,7 +156,7 @@ private fun Timeline(time: Float, frames: List<Float>, primary: Color, modifier:
             size = Size(x(LIFT_END) - x(LIFT_START), 18.dp.toPx()),
             cornerRadius = CornerRadius(4.dp.toPx()),
         )
-        val bandLabel = measurer.measure("чашку подняли", TextStyle(fontSize = 11.sp, color = LiftBand, fontWeight = FontWeight.SemiBold))
+        val bandLabel = measurer.measure(tr("чашку подняли", "cup lifted"), TextStyle(fontSize = 11.sp, color = LiftBand, fontWeight = FontWeight.SemiBold))
         drawText(bandLabel, topLeft = Offset(x((LIFT_START + LIFT_END) / 2) - bandLabel.size.width / 2, 0f))
 
         drawLine(SceneInk.copy(alpha = 0.35f), Offset(left, lineY), Offset(right, lineY), strokeWidth = 2.dp.toPx())
@@ -157,7 +174,7 @@ private fun Timeline(time: Float, frames: List<Float>, primary: Color, modifier:
 
         // Секунды под шкалой.
         (0..CLIP_SECONDS.toInt()).forEach { s ->
-            val label = measurer.measure("${s}с", TextStyle(fontSize = 10.sp, color = SceneInk.copy(alpha = 0.55f)))
+            val label = measurer.measure(tr("${s}с", "${s}s"), TextStyle(fontSize = 10.sp, color = SceneInk.copy(alpha = 0.55f)))
             drawText(label, topLeft = Offset(x(s.toFloat()) - label.size.width / 2, lineY + 15.dp.toPx()))
         }
 

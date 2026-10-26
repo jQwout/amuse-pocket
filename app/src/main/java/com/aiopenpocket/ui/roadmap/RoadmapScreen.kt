@@ -1,6 +1,7 @@
 package com.aiopenpocket.ui.roadmap
 
 // @trace ai-academy-onboarding-5d51bb
+// @trace english-ui-on-the-demo-path-223241
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -66,6 +67,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.AcademyBottomNav
 import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
 import com.aiopenpocket.ui.components.glass.glassCardSurface
@@ -73,14 +75,23 @@ import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.components.AcademyTab
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
+/**
+ * Уровень пути. Тексты хранятся парой ru/en, а [title]/[description] выбирают язык геттером в момент
+ * показа: [ROADMAP_LEVELS] инициализируется один раз, и `tr` в инициализаторе заморозил бы язык.
+ */
 data class RoadmapLevel(
   val id: String,
-  val title: String,
-  val description: String,
+  val titleRu: String,
+  val descriptionRu: String,
   val icon: ImageVector,
+  val titleEn: String,
+  val descriptionEn: String,
   /** Markdown theory kept as reference for the in-chat lesson script. Not rendered directly. */
   val theory: String = "",
-)
+) {
+  val title: String get() = tr(titleRu, titleEn)
+  val description: String get() = tr(descriptionRu, descriptionEn)
+}
 
 // Единый путь обучения = онбординг + все уроки-концепции (порядок педагогический, совпадает с
 // каталогом библиотеки). l1_welcome — онбординг (открывается своим экраном), остальные — JSON-уроки
@@ -91,6 +102,8 @@ val ROADMAP_LEVELS = listOf(
     "Знакомство и настройка",
     "Настрой ассистента под себя: язык, персона, профиль — и первое касание того, как устроен чат.",
     Icons.Default.WavingHand,
+    titleEn = "Welcome and setup",
+    descriptionEn = "Tune the assistant to you: language, persona, profile — and a first look at how the chat works.",
   ),
   // Стоит ПЕРВЫМ уроком пути: до него курс нигде не объяснял, что вообще за программа отвечает
   // пользователю. «Как ИИ читает твой запрос» сразу начинает с промпта, а слова «модель» и
@@ -100,24 +113,32 @@ val ROADMAP_LEVELS = listOf(
     "Что такое ИИ и кто такой агент",
     "Что за программа отвечает тебе на самом деле, чем агент отличается от чата и из каких частей он собран.",
     Icons.Default.SmartToy,
+    titleEn = "What AI is and what an agent is",
+    descriptionEn = "What kind of program is really answering you, how an agent differs from a chat, and what parts it's made of.",
   ),
   RoadmapLevel(
     "how_llm_reads",
     "Как ИИ читает твой запрос",
     "Промпт, препромпт и путь запроса внутри модели.",
     Icons.Default.Psychology,
+    titleEn = "How AI reads your request",
+    descriptionEn = "The prompt, the pre-prompt and the path a request takes inside the model.",
   ),
   RoadmapLevel(
     "how_to_ask",
     "Как просить",
     "Почему точный запрос даёт точный ответ и как формулировать, чтобы получить нужное.",
     Icons.Default.EditNote,
+    titleEn = "How to ask",
+    descriptionEn = "Why a precise request gets a precise answer, and how to phrase things to get what you need.",
   ),
   RoadmapLevel(
     "tokens_and_speed",
     "Токены и скорость",
     "Что такое токен, входные и выходные токены и отчего один ответ быстрый, а другой долгий и дорогой.",
     Icons.Default.Bolt,
+    titleEn = "Tokens and speed",
+    descriptionEn = "What a token is, input vs. output tokens, and why one answer is fast while another is slow and expensive.",
   ),
   // Сразу за токенами: видео — это те же токены, только из кадров, и урок опирается на «больше
   // токенов — дольше и дороже». Здесь же пользователь впервые отдаёт модели свои данные не словами.
@@ -126,6 +147,8 @@ val ROADMAP_LEVELS = listOf(
     "Как модель видит",
     "Фото и видео тоже становятся токенами. Покажи модели короткий ролик — и посмотри, что она увидит.",
     Icons.Default.Videocam,
+    titleEn = "How a model sees",
+    descriptionEn = "Photos and video become tokens too. Show the model a short clip — and see what it notices.",
   ),
   // Модели Meta — сразу за видео: ученик только что видел, как Muse Spark смотрит ролик, и естественно
   // спросить «а кто она и кто ещё есть». Режимы рассуждения — следом: урок сам вводит думающие модели
@@ -136,12 +159,16 @@ val ROADMAP_LEVELS = listOf(
     "Модели Meta: кто есть кто",
     "У Meta не одна модель, а команда специалистов: Muse Spark, Muse Image, SAM, Llama. Кто за что отвечает и кто работает в этом приложении.",
     Icons.Default.Hub,
+    titleEn = "Meta's models: who's who",
+    descriptionEn = "Meta doesn't have just one model but a team of specialists: Muse Spark, Muse Image, SAM, Llama. Who does what, and which of them power this app.",
   ),
   RoadmapLevel(
     "muse_spark_modes",
     "Muse Spark: быстро или вдумчиво",
     "Думающие модели и режимы Muse Spark: зачем модели думать дольше, когда это того стоит и как она работает здесь.",
     Icons.Default.Speed,
+    titleEn = "Muse Spark: fast or thoughtful",
+    descriptionEn = "Thinking models and Muse Spark's modes: why a model would think longer, when it's worth it, and how it works here.",
   ),
   // В первой половине пути, а не в середине: урок сам вводит контекстное окно (блок переехал сюда из
   // «Токенов») и сразу выводит из него «окно ограничено, середина длинного чата выпадает, значит важное
@@ -152,12 +179,16 @@ val ROADMAP_LEVELS = listOf(
     "Память и контекст",
     "Контекстное окно, почему модель теряет нить длинного чата и как агент помнит тебя тремя видами памяти и профилем.",
     Icons.Default.Memory,
+    titleEn = "Memory and context",
+    descriptionEn = "The context window, why a model loses the thread of a long chat, and how an agent remembers you with three kinds of memory and a profile.",
   ),
   RoadmapLevel(
     "temperature_and_randomness",
     "Почему ответы разные",
     "Что такое температура и почему один и тот же запрос даёт разные ответы.",
     Icons.Default.Thermostat,
+    titleEn = "Why answers vary",
+    descriptionEn = "What temperature is and why the same request gets different answers.",
   ),
   // За температурой: «один промпт — новая картинка» — та же случайность, только в рисовании.
   RoadmapLevel(
@@ -165,12 +196,16 @@ val ROADMAP_LEVELS = listOf(
     "Как рисует Muse Image",
     "Модель Meta для картинок сначала планирует, потом рисует и проверяет. И почему один промпт каждый раз даёт новую картинку.",
     Icons.Default.Palette,
+    titleEn = "How Muse Image draws",
+    descriptionEn = "Meta's image model plans first, then draws and checks its work. And why the same prompt gives you a new picture every time.",
   ),
   RoadmapLevel(
     "privacy_and_reliability",
     "Приватность и надёжность",
     "Что уходит в облако, что остаётся у тебя, и что делать при сбоях.",
     Icons.Default.Shield,
+    titleEn = "Privacy and reliability",
+    descriptionEn = "What goes to the cloud, what stays with you, and what to do when something fails.",
   ),
   // За приватностью: «что уходит провайдеру» доводится до «а можно ли не отдавать вовсе».
   RoadmapLevel(
@@ -178,18 +213,24 @@ val ROADMAP_LEVELS = listOf(
     "Открытые веса и API",
     "Где на самом деле живёт модель: на твоём сервере или у вендора. От этого зависит, кто видит твои данные и кто делает работу.",
     Icons.Default.Storage,
+    titleEn = "Open weights and APIs",
+    descriptionEn = "Where a model really lives: on your server or with the vendor. That decides who sees your data and who does the work.",
   ),
   RoadmapLevel(
     "hallucinations",
     "Когда модель ошибается",
     "Почему модель уверенно выдумывает и как ловить такие ответы.",
     Icons.Default.TrackChanges,
+    titleEn = "When the model gets it wrong",
+    descriptionEn = "Why a model confidently makes things up, and how to catch those answers.",
   ),
   RoadmapLevel(
     "workflow_and_agent",
     "Воркфлоу и агент",
     "Два способа выстроить многошаговую задачу: заранее заданный воркфлоу и самостоятельный агент — когда брать какой.",
     Icons.Default.AccountTree,
+    titleEn = "Workflows and agents",
+    descriptionEn = "Two ways to set up a multi-step task: a predefined workflow or an autonomous agent — and when to use which.",
   ),
   // Сразу за «Воркфлоу и агент»: цепочка и роутинг — типовые кирпичи воркфлоу, урок продолжает его с
   // полуслова («у воркфлоу есть типовые кирпичи»). Раньше он стоял в конце пути, через десяток уроков.
@@ -198,18 +239,24 @@ val ROADMAP_LEVELS = listOf(
     "Паттерны: цепочка и роутинг",
     "Два базовых паттерна воркфлоу: промпт-чейнинг и роутинг задачи.",
     Icons.AutoMirrored.Filled.AltRoute,
+    titleEn = "Patterns: chaining and routing",
+    descriptionEn = "Two basic workflow patterns: prompt chaining and task routing.",
   ),
   RoadmapLevel(
     "react_loop",
     "Цикл агента: ReAct",
     "Как агент работает внутри: рассуждай → действуй → наблюдай, и так по кругу — на живом примере.",
     Icons.Default.Loop,
+    titleEn = "The agent loop: ReAct",
+    descriptionEn = "How an agent works inside: reason → act → observe, round and round — on a live example.",
   ),
   RoadmapLevel(
     "agent_tools",
     "Инструменты агента",
     "Чем агент действует: как модель вызывает инструменты и получает результат обратно.",
     Icons.Default.Build,
+    titleEn = "Agent tools",
+    descriptionEn = "How an agent takes action: how the model calls tools and gets the results back.",
   ),
   // Навыки — до контекст-инжиниринга: тот собирает препромпт из «уже знакомых» слоёв, и каталог
   // навыков среди них. Раньше порядок был обратным, и урок ссылался на ещё не пройденное.
@@ -218,6 +265,8 @@ val ROADMAP_LEVELS = listOf(
     "Навыки агента",
     "Как агент подгружает умения по требованию, не раздувая контекст — три уровня раскрытия.",
     Icons.Default.Extension,
+    titleEn = "Agent skills",
+    descriptionEn = "How an agent loads skills on demand without bloating the context — three levels of disclosure.",
   ),
   // Идёт ПОСЛЕ памяти и навыков: урок опирается на контекстное окно («место в окне ограничено»,
   // «середина длинного диалога выпадает»), на релевантные факты из памяти и на каталог навыков.
@@ -227,6 +276,8 @@ val ROADMAP_LEVELS = listOf(
     "Контекст-инжиниринг",
     "Как перед каждым ответом собирается препромпт: слои, отбор, бюджет и защита от подмены.",
     Icons.Default.Layers,
+    titleEn = "Context engineering",
+    descriptionEn = "How the pre-prompt is assembled before every answer: layers, selection, budget and protection against tampering.",
   ),
   // «RAG» убран с ПУТИ и оставлен только в библиотеке (LIBRARY_LESSON_IDS): урок сам трижды
   // честно говорит, что в приложении этой техники ещё нет, и его «практика» — упражнение на
@@ -239,6 +290,8 @@ val ROADMAP_LEVELS = listOf(
     "Подтверждение инструментов",
     "Какие действия агент делает сам, а какие только с твоего «ок»: классы риска, оценка по каждому вызову, правило по умолчанию и хуки.",
     Icons.Default.Shield,
+    titleEn = "Tool approval",
+    descriptionEn = "Which actions an agent takes on its own and which only with your “OK”: risk classes, per-call assessment, the default rule and hooks.",
   ),
   // Хуки и конструктор — ДО режимов: практика план-мода, гоал-мода и планов идёт на своём агенте из
   // конструктора (у обычного чата «Плана» и «Цели» нет), а у конструктора есть шаг «Хуки».
@@ -247,30 +300,40 @@ val ROADMAP_LEVELS = listOf(
     "Хуки и жизненный цикл",
     "Правила «на событие хода — сделай» без кода: события, действия и приоритет запрета.",
     Icons.Default.Bolt,
+    titleEn = "Hooks and lifecycle",
+    descriptionEn = "No-code rules of the form “when this happens in a turn, do that”: events, actions and why a block always wins.",
   ),
   RoadmapLevel(
     "build_your_agent",
     "Собери своего агента",
     "Как все части курса складываются в собственного агента через конструктор из шести шагов.",
     Icons.Default.Build,
+    titleEn = "Build your own agent",
+    descriptionEn = "How all the parts of the course come together into your own agent in a six-step builder.",
   ),
   RoadmapLevel(
     "plan_mode",
     "План-мод",
     "Агент сначала строит план и ждёт твоего «ок» — «подумать» отдельно от «сделать».",
     Icons.Default.Checklist,
+    titleEn = "Plan mode",
+    descriptionEn = "The agent builds a plan first and waits for your “OK” — “thinking” kept separate from “doing.”",
   ),
   RoadmapLevel(
     "goal_mode",
     "Гоал-мод",
     "Задаёшь цель и критерии — агент сам идёт к ней по шагам, а каждый шаг закрывается доказательством.",
     Icons.Default.Flag,
+    titleEn = "Goal mode",
+    descriptionEn = "You set a goal and criteria — the agent works toward it step by step, and each step is closed with evidence.",
   ),
   RoadmapLevel(
     "structured_plans",
     "Структурированные планы",
     "Большая задача как список проверяемых шагов: одобрение плана, статусы и правило «сделал — докажи».",
     Icons.Default.Checklist,
+    titleEn = "Structured plans",
+    descriptionEn = "A big task as a list of verifiable steps: plan approval, statuses and the “done it? prove it” rule.",
   ),
   // Рефлексия — такой же режим агента, как план-мод и гоал-мод, и он в приложении РЕАЛЬНО есть
   // (чип над полем ввода). Поэтому её место здесь, среди режимов, а не только в библиотеке.
@@ -279,12 +342,16 @@ val ROADMAP_LEVELS = listOf(
     "Рефлексия",
     "Агент сначала пишет черновик, потом критикует его и переписывает — цикл ради качества.",
     Icons.Default.AutoAwesome,
+    titleEn = "Reflection",
+    descriptionEn = "The agent writes a draft first, then critiques and rewrites it — a loop for the sake of quality.",
   ),
   RoadmapLevel(
     "heartbeat_and_cron",
     "Heartbeat и cron",
     "Как агент живёт без твоих сообщений: расписания, фоновые пробуждения и право молчать.",
     Icons.Default.Alarm,
+    titleEn = "Heartbeat and cron",
+    descriptionEn = "How an agent lives without your messages: schedules, background wake-ups and the right to stay quiet.",
   ),
   // Арена — последней перед капстоуном: тот опирается на «модель-судью, как на арене» и подводит
   // итог «от токенов до роя агентов».
@@ -293,12 +360,16 @@ val ROADMAP_LEVELS = listOf(
     "Арена и рой агентов",
     "Несколько прогонов или агентов сразу: сравнить лучший ответ и поделить задачу.",
     Icons.Default.Groups,
+    titleEn = "Arena and agent swarms",
+    descriptionEn = "Several runs or agents at once: compare them for the best answer and split up the task.",
   ),
   RoadmapLevel(
     "agent_blueprint",
     "Капстоун: спроектируй агента",
     "Финал курса: чеклист из пяти вопросов — цель, инструменты, паттерн, память, проверка.",
     Icons.Default.Architecture,
+    titleEn = "Capstone: design an agent",
+    descriptionEn = "The course finale: a five-question checklist — goal, tools, pattern, memory, testing.",
   ),
 )
 
@@ -318,7 +389,7 @@ fun RoadmapScreen(
 
   val glassState = rememberGlassState()
   AcademyCollapsingScaffold(
-    title = "Путь агента",
+    title = tr("Путь агента", "Agent path"),
     glassState = glassState,
     bottomBar = {
       AcademyBottomNav(
@@ -348,7 +419,10 @@ fun RoadmapScreen(
       item {
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-          text = "Освой искусство оркестрации AI через пошаговую программу обучения.",
+          text = tr(
+            "Освой искусство оркестрации AI через пошаговую программу обучения.",
+            "Master the art of AI orchestration through a step-by-step learning program.",
+          ),
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
         )
@@ -487,7 +561,7 @@ private fun TimelineNode(
       ) {
         Icon(
           imageVector = Icons.Default.Check,
-          contentDescription = "Пройдено",
+          contentDescription = tr("Пройдено", "Completed"),
           tint = MaterialTheme.colorScheme.primary,
           modifier = Modifier.size(18.dp),
         )
@@ -502,7 +576,7 @@ private fun TimelineNode(
       ) {
         Icon(
           imageVector = Icons.Default.Lock,
-          contentDescription = "Заблокировано",
+          contentDescription = tr("Заблокировано", "Locked"),
           tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
           modifier = Modifier.size(16.dp),
         )
@@ -541,7 +615,7 @@ private fun PathLevelCard(
       )
       if (status == LevelStatus.CURRENT) {
         Text(
-          text = "АКТИВНО",
+          text = tr("АКТИВНО", "ACTIVE"),
           style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.primary,
           modifier = Modifier
@@ -552,7 +626,7 @@ private fun PathLevelCard(
       }
       if (status == LevelStatus.COMPLETED) {
         Text(
-          text = "ПРОЙДЕНО",
+          text = tr("ПРОЙДЕНО", "DONE"),
           style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
           modifier = Modifier
@@ -580,19 +654,22 @@ private fun ProTipCard(progressFraction: Float) {
       .padding(16.dp),
   ) {
     Text(
-      text = "СОВЕТ",
+      text = tr("СОВЕТ", "TIP"),
       style = MaterialTheme.typography.labelSmall,
       color = MaterialTheme.colorScheme.primary,
     )
     Spacer(modifier = Modifier.height(8.dp))
     Text(
-      text = "Будь последователен",
+      text = tr("Будь последователен", "Stay consistent"),
       style = MaterialTheme.typography.titleMedium,
       color = MaterialTheme.colorScheme.onSurface,
     )
     Spacer(modifier = Modifier.height(6.dp))
     Text(
-      text = "Пользователи, проходящие хотя бы один урок в день, на 75% чаще достигают «Мастерства агента».",
+      text = tr(
+        "Пользователи, проходящие хотя бы один урок в день, на 75% чаще достигают «Мастерства агента».",
+        "People who take at least one lesson a day are 75% more likely to reach “Agent Mastery.”",
+      ),
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
     )

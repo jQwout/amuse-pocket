@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.StreamingBubble
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 
@@ -28,13 +29,13 @@ fun IntroStreamingStep(
       .padding(horizontal = 8.dp, vertical = 16.dp),
   ) {
     Text(
-      text = "Знакомство",
+      text = tr("Знакомство", "Hello"),
       style = MaterialTheme.typography.headlineSmall,
       modifier = Modifier.padding(horizontal = 16.dp),
     )
     Spacer(modifier = Modifier.height(8.dp))
     Text(
-      text = "Агент",
+      text = tr("Агент", "Agent"),
       style = MaterialTheme.typography.labelMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
       modifier = Modifier.padding(horizontal = 16.dp),

@@ -139,6 +139,7 @@ import com.aiopenpocket.agent.core.memory.model.Message
 import com.aiopenpocket.agent.core.plan.model.PlanSnapshot
 import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.agent.loop.AgentMode
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.agents.builder.AgentSourceContext
 import com.aiopenpocket.ui.agents.builder.components.riskClassLabel
 import com.aiopenpocket.ui.agents.builder.components.riskColor
@@ -605,7 +606,7 @@ fun ChatScreen(
                                         }
                                         Spacer(Modifier.width(10.dp))
                                         Text(
-                                            text = state.title ?: "Чат",
+                                            text = state.title ?: tr("Чат", "Chat"),
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold,
                                             maxLines = 1,
@@ -615,7 +616,7 @@ fun ChatScreen(
                                 },
                                 navigationIcon = {
                                     IconButton(onClick = onNavigateBack) {
-                                        Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Назад")
+                                        Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = tr("Назад", "Back"))
                                     }
                                 },
                                 actions = {
@@ -623,7 +624,7 @@ fun ChatScreen(
                                     IconButton(onClick = { searchActive = true; viewModel.setSearchActive(true) }) {
                                         Icon(
                                             Icons.Default.Search,
-                                            contentDescription = "Поиск по чату",
+                                            contentDescription = tr("Поиск по чату", "Search chat"),
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     }
@@ -633,7 +634,7 @@ fun ChatScreen(
                                         IconButton(onClick = { viewModel.handleIntent(ChatIntent.ToggleToolTrace) }) {
                                             Icon(
                                                 Icons.Default.Build,
-                                                contentDescription = if (state.showToolTrace) "Скрыть инструменты" else "Показать инструменты",
+                                                contentDescription = if (state.showToolTrace) tr("Скрыть инструменты", "Hide tools") else tr("Показать инструменты", "Show tools"),
                                                 tint = if (state.showToolTrace) MaterialTheme.colorScheme.primary
                                                 else MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
@@ -644,7 +645,7 @@ fun ChatScreen(
                                         IconButton(onClick = { onOpenAgentDetail(state.agentId!!) }) {
                                             Icon(
                                                 Icons.Default.MoreVert,
-                                                contentDescription = "Открыть настройки агента",
+                                                contentDescription = tr("Открыть настройки агента", "Open agent settings"),
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
                                         }
@@ -708,7 +709,7 @@ fun ChatScreen(
                                     modifier = Modifier.size(18.dp),
                                 )
                                 Spacer(Modifier.size(4.dp))
-                                Text("Повторить")
+                                Text(tr("Повторить", "Retry"))
                             }
                         }
                     }
@@ -841,19 +842,19 @@ fun ChatScreen(
                                     isLoading = state.isLoading,
                                     glassState = glassState,
                                     placeholder = when (state.agentMode) {
-                                        AgentMode.PLAN -> "Опиши задачу — агент составит план…"
+                                        AgentMode.PLAN -> tr("Опиши задачу — агент составит план…", "Describe the task — the agent will draft a plan…")
                                         // Текст GOAL берёт, только пока у диалога нет плана (тогда это
                                         // задача для планировщика). Есть план — исполняется его шаг, а
                                         // реплика игнорируется (StructuredPlanOrchestrator.executeGoal),
                                         // поэтому «сформулируй цель» здесь обманывало.
                                         AgentMode.GOAL -> when {
-                                            state.pendingPlanApproval != null -> "Сначала одобри план в карточке выше…"
-                                            state.activePlanId != null -> "Напиши «дальше» — агент сделает следующий шаг плана…"
-                                            else -> "Напиши цель — сначала придёт план…"
+                                            state.pendingPlanApproval != null -> tr("Сначала одобри план в карточке выше…", "Approve the plan in the card above first…")
+                                            state.activePlanId != null -> tr("Напиши «дальше» — агент сделает следующий шаг плана…", "Type “next” — the agent will do the next plan step…")
+                                            else -> tr("Напиши цель — сначала придёт план…", "Write a goal — a plan comes first…")
                                         }
-                                        AgentMode.REFLECT -> "Спроси — агент даст черновик, критику и итог…"
+                                        AgentMode.REFLECT -> tr("Спроси — агент даст черновик, критику и итог…", "Ask — the agent drafts, critiques and finalizes…")
                                         // TUTOR не выбирается пользователем (только разовый вопрос в уроке) — как обычный чат.
-                                        AgentMode.CHAT, AgentMode.TUTOR -> "Сообщение..."
+                                        AgentMode.CHAT, AgentMode.TUTOR -> tr("Сообщение...", "Message...")
                                     },
                                     onExpand = { composerExpanded = true },
                                     voiceState = state.voiceState,
@@ -892,7 +893,7 @@ fun ChatScreen(
                     if (needsManualAdvance) {
                         val isLastStep = state.lessonStepIndex >= (state.lesson?.steps?.size ?: 0)
                         LessonControlBar(
-                            label = if (isLastStep) "Завершить урок" else "Дальше →",
+                            label = if (isLastStep) tr("Завершить урок", "Finish lesson") else tr("Дальше →", "Next →"),
                             onClick = { viewModel.handleIntent(ChatIntent.AdvanceLesson) },
                         )
                     }
@@ -932,7 +933,7 @@ fun ChatScreen(
                 ) {
                     Icon(
                         Icons.Default.KeyboardArrowDown,
-                        contentDescription = if (hasUnseenNew) "Вниз — есть новое сообщение" else "Вниз",
+                        contentDescription = if (hasUnseenNew) tr("Вниз — есть новое сообщение", "Scroll down — new message") else tr("Вниз", "Scroll down"),
                         tint = if (hasUnseenNew) {
                             MaterialTheme.colorScheme.onPrimary
                         } else {

@@ -1,0 +1,22 @@
+{
+  "id": "how_model_sees",
+  "title": "How a model sees",
+  "description": "Models understand more than text: photos and video become tokens too. Show the model a short clip — and see what it notices.",
+  "iconKey": "videocam",
+  "steps": [
+    {"type": "text", "text": "So far we've talked to the model in words. But modern models understand pictures and video too. Meta's Muse Spark, for example, watches a short clip the same way it reads text."},
+    {"type": "concept", "term": "Multimodality", "definition": "The model understands more than one kind of data: text, images, sound, video. Inside, all of it turns into tokens — the model's common language.", "example": "You send a photo of a receipt — and the model reads the total just as it would in text."},
+    {"type": "text", "text": "A model doesn't watch video “like a movie.” The clip is split into frames, the frames into small image patches, and all of that becomes tokens. That's why a long video means lots of tokens: slower and more expensive than a short one."},
+    {"type": "animation", "scene": "video_frames", "caption": "Pick a frame rate and see what the model manages to catch. Tokens per frame are just an example: every model has its own price"},
+    {"type": "video", "instruction": "Let's try it for real. Tap “Show an example” — I'll send the model six seconds of someone's desk and show you what it saw. Or film your own: 5–10 seconds of a desk, a shelf or the view from a window.", "sampleVideo": "lessons/videos/sample_desk.mp4", "samplePreview": "lessons/videos/sample_desk.webp", "videoPrompt": "You are a friendly teacher in a lesson about how AI models see. The learner sent a short video: a clip of their own surroundings or a sample clip of a desk. 1) List the main things you see, roughly in the order they appear. 2) Name one detail you are not sure about and say why: blur, angle, lighting or speed. 3) In two sentences, explain how you got this from the video: you look at separate frames, so fast or tiny things can slip between them. Keep it warm and short, under 120 words."},
+    {"type": "text", "text": "Look at the answer: the model named the objects but was unsure about something. That's expected. It sees separate frames, not continuous motion, so anything fast, tiny or dark easily slips past."},
+    {"type": "reveal", "question": "Why might the model miss that you lifted a cup for a split second?", "answer": "It doesn't watch continuous video — it looks at separate frames. If the movement fit between two frames, for the model it never happened."},
+    {"type": "text", "text": "Now about privacy. The video goes to the model provider in full — with everything in the frame. So keep documents, screens with passwords and people who haven't agreed out of the shot. A clip filmed here is deleted by the app right after the analysis."},
+    {"type": "text", "text": "In short. A model understands more than text: pictures and video turn into tokens too. Video is frames, and anything fast or small can easily slip between them. A longer clip means more tokens — slower and more expensive. And everything in the frame goes to the provider."},
+    { "type": "quiz", "questions": [
+      {"q": "What does the model turn a video into before it “watches” it?", "options": ["An audio track and subtitles", "Frames, and the frames into tokens", "A description written by a person"], "correct": 1, "explain": "The clip is split into frames, and the frames become tokens — like words in a text."},
+      {"q": "Why does a long video cost more than a short one?", "options": ["More frames mean more tokens", "The provider charges by the minute", "Video is always ten times pricier"], "correct": 0, "explain": "Every frame is tokens, and tokens are what you pay for."},
+      {"q": "What should you check before sending a video to a model?", "options": ["That the clip was shot in 4K", "That the video is over a minute long", "That nothing private is in the frame"], "correct": 2, "explain": "The video goes to the provider in full — with everything in the frame."}
+    ] }
+  ]
+}

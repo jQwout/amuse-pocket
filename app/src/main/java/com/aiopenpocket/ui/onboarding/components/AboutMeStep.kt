@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.theme.GlassTokens
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 
@@ -63,22 +64,26 @@ fun AboutMeStep(
       .padding(horizontal = 20.dp, vertical = 16.dp),
   ) {
     Text(
-      text = "Расскажи о себе",
+      text = tr("Расскажи о себе", "Tell me about yourself"),
       style = MaterialTheme.typography.headlineSmall,
       // Явный цвет, а не ambient LocalContentColor: без него заголовок наследует near-black
       // вне корневого Surface (в т.ч. в скриншот-тесте) и тонет.
       color = MaterialTheme.colorScheme.onBackground,
     )
     Text(
-      text = "Один свободный ответ — я разберу его и заполню профиль. " +
-        "Имя, как обращаться, возраст, чем живёшь — что хочешь сказать.",
+      text = tr(
+        "Один свободный ответ — я разберу его и заполню профиль. " +
+          "Имя, как обращаться, возраст, чем живёшь — что хочешь сказать.",
+        "One free-form answer — I'll read it and fill in your profile. " +
+          "Your name, how to address you, age, what you're into — whatever you want to share.",
+      ),
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
       modifier = Modifier.padding(top = 6.dp, bottom = 20.dp),
     )
 
     PersonaAskBubble(
-      personaName = persona?.displayName ?: "Ассистент",
+      personaName = persona?.displayName ?: tr("Ассистент", "Assistant"),
       line = askLine,
     )
 
@@ -100,7 +105,14 @@ fun AboutMeStep(
         // при извлечении профиля. Обрезаем, а не отбрасываем целиком: иначе вставка текста длиннее
         // лимита молча не давала бы вообще никакого эффекта.
         onValueChange = { onTextChange(it.take(ABOUT_ME_MAX_LENGTH)) },
-        placeholder = { Text("Например: Я Саша, мне 27, разработчик, увлекаюсь альпинизмом. Обращайся на ты.") },
+        placeholder = {
+          Text(
+            tr(
+              "Например: Я Саша, мне 27, разработчик, увлекаюсь альпинизмом. Обращайся на ты.",
+              "For example: I'm Sasha, 27, a developer, into climbing. Keep it casual.",
+            ),
+          )
+        },
         modifier = Modifier
           .fillMaxWidth()
           .testTag("about_me_input"),
@@ -126,7 +138,7 @@ fun AboutMeStep(
         CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
         Spacer(modifier = Modifier.size(10.dp))
         Text(
-          text = "Разбираю твой ответ…",
+          text = tr("Разбираю твой ответ…", "Reading your answer…"),
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -179,20 +191,29 @@ private fun PersonaAskBubble(personaName: String, line: String) {
 }
 
 private fun personaAsk(personaId: String): String = when (personaId) {
-  "silent_butler" -> "Слушаю."
+  "silent_butler" -> tr("Слушаю.", "Listening.")
   "attentive_secretary" ->
-    "Расскажи о себе — это поможет мне быть точнее. Имя, как к тебе обращаться, возраст, чем занимаешься?"
+    tr(
+      "Расскажи о себе — это поможет мне быть точнее. Имя, как к тебе обращаться, возраст, чем занимаешься?",
+      "Tell me about yourself — it helps me be more precise. Your name, how to address you, age, what you do?",
+    )
   "sharp_partner" ->
-    "Окей. Кто ты — имя, как обращаться, возраст, чем занят? Без воды."
+    tr("Окей. Кто ты — имя, как обращаться, возраст, чем занят? Без воды.", "Okay. Who are you — name, how to address you, age, what you do? Keep it short.")
   "egalitarian_partner" ->
-    "Прежде чем начнём — расскажи о себе так, как тебе комфортно. Что мне знать о тебе?"
+    tr(
+      "Прежде чем начнём — расскажи о себе так, как тебе комфортно. Что мне знать о тебе?",
+      "Before we start — tell me about yourself however feels comfortable. What should I know about you?",
+    )
   "friendly_companion" ->
-    "Расскажи мне о себе 🙂 Как зовут, как к тебе обращаться, чем живёшь — что хочется."
+    tr(
+      "Расскажи мне о себе 🙂 Как зовут, как к тебе обращаться, чем живёшь — что хочется.",
+      "Tell me about yourself 🙂 Your name, how to address you, what you're into — whatever you like.",
+    )
   "ironic_assistant" ->
-    "Анкета без анкеты. Имя, обращение, возраст, увлечения — в свободной форме."
+    tr("Анкета без анкеты. Имя, обращение, возраст, увлечения — в свободной форме.", "A form without the form. Name, how to address you, age, hobbies — in your own words.")
   "strict_coach" ->
-    "Имя. Возраст. Чем занимаешься. Поехали."
-  else -> "Расскажи о себе — имя, как обращаться, возраст и чем живёшь."
+    tr("Имя. Возраст. Чем занимаешься. Поехали.", "Name. Age. What you do. Go.")
+  else -> tr("Расскажи о себе — имя, как обращаться, возраст и чем живёшь.", "Tell me about yourself — your name, how to address you, age and what you're into.")
 }
 
 @Preview(showBackground = true, backgroundColor = 0xFF1C1B1F)

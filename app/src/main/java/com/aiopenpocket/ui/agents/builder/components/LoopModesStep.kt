@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.ValidationIssue
 import com.aiopenpocket.agent.loop.AgentMode
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.agents.builder.AgentDraft
 
 /**
@@ -52,15 +53,18 @@ fun LoopModesStep(
       .padding(contentPadding)
       .padding(horizontal = 20.dp, vertical = 16.dp),
   ) {
-    Text(text = "Режимы работы", style = MaterialTheme.typography.headlineSmall)
+    Text(text = tr("Режимы работы", "Modes"), style = MaterialTheme.typography.headlineSmall)
     Text(
-      text = "В каких режимах агент может отвечать, и какой запускается по умолчанию.",
+      text = tr(
+        "В каких режимах агент может отвечать, и какой запускается по умолчанию.",
+        "Which modes the agent can answer in, and which one starts by default.",
+      ),
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
       modifier = Modifier.padding(top = 6.dp, bottom = 20.dp),
     )
 
-    Text(text = "Разрешённые режимы", style = MaterialTheme.typography.titleMedium)
+    Text(text = tr("Разрешённые режимы", "Allowed modes"), style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(8.dp))
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
       SELECTABLE_MODES.forEach { mode ->
@@ -83,7 +87,7 @@ fun LoopModesStep(
     // что и показываем ниже.
 
     Spacer(modifier = Modifier.height(20.dp))
-    Text(text = "Режим по умолчанию", style = MaterialTheme.typography.titleMedium)
+    Text(text = tr("Режим по умолчанию", "Default mode"), style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(8.dp))
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
       SELECTABLE_MODES.forEach { mode ->
@@ -102,7 +106,10 @@ fun LoopModesStep(
 
     Spacer(modifier = Modifier.height(20.dp))
     Text(
-      text = "Режим по умолчанию — тот, в котором открывается новый чат с этим агентом.",
+      text = tr(
+        "Режим по умолчанию — тот, в котором открывается новый чат с этим агентом.",
+        "The default mode is the one a new chat with this agent opens in.",
+      ),
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -110,9 +117,9 @@ fun LoopModesStep(
 }
 
 private fun modeLabel(mode: AgentMode): String = when (mode) {
-  AgentMode.CHAT -> "Чат"
-  AgentMode.PLAN -> "План"
-  AgentMode.GOAL -> "Цель"
-  AgentMode.REFLECT -> "Рефлексия"
-  AgentMode.TUTOR -> "Репетитор"
+  AgentMode.CHAT -> tr("Чат", "Chat")
+  AgentMode.PLAN -> tr("План", "Plan")
+  AgentMode.GOAL -> tr("Цель", "Goal")
+  AgentMode.REFLECT -> tr("Рефлексия", "Reflect")
+  AgentMode.TUTOR -> tr("Репетитор", "Tutor")
 }

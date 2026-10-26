@@ -7,6 +7,7 @@ import coil.ImageLoaderFactory
 import coil.decode.SvgDecoder
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.di.AppGraph
+import com.aiopenpocket.i18n.AppLanguage
 import dev.zacsweers.metro.createGraphFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +23,17 @@ class AiOpenPocketApp : Application(), ImageLoaderFactory {
         super.onCreate()
         appGraph = createGraphFactory<AppGraph.Factory>().create(this)
         refreshOpenRouterCatalog()
+        mirrorInterfaceLanguage()
+    }
+
+    /**
+     * Язык интерфейса на весь процесс (см. [AppLanguage]). Нужен и без активности: процесс, поднятый
+     * WorkManager'ом ради напоминания, пишет уведомление и подписи инструментов на выбранном языке.
+     */
+    private fun mirrorInterfaceLanguage() {
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            appGraph.userPreferencesRepository.language.collect { AppLanguage.code = it }
+        }
     }
 
     /**

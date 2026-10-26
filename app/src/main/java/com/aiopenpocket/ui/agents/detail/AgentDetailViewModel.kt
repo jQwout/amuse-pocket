@@ -10,6 +10,8 @@ import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.agent.AgentSource
 import com.aiopenpocket.agent.core.agent.AgentStatus
 import com.aiopenpocket.agent.core.agent.UserAgentRepository
+import com.aiopenpocket.agent.core.agent.displayDescription
+import com.aiopenpocket.agent.core.agent.displayName
 import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.hook.AgentHookRepository
 import com.aiopenpocket.agent.core.hook.AgentHookRunEntity
@@ -27,6 +29,7 @@ import com.aiopenpocket.agent.core.skill.UserSkillRepository
 import com.aiopenpocket.data.repository.AgentFile
 import com.aiopenpocket.data.repository.AgentFilesRepository
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.i18n.tr
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
@@ -250,7 +253,7 @@ class AgentDetailViewModel(
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
-        _state.update { it.copy(isLoading = false, actionError = "Не удалось загрузить агента.") }
+        _state.update { it.copy(isLoading = false, actionError = tr("Не удалось загрузить агента.", "Couldn't load the agent.")) }
       }
     }
   }
@@ -263,7 +266,7 @@ class AgentDetailViewModel(
     } else {
       AgentDetailToolRow(
         name = name,
-        description = "Инструмент недоступен в этой версии приложения",
+        description = tr("Инструмент недоступен в этой версии приложения", "This tool isn't available in this version of the app"),
         riskClass = null,
         available = false,
       )
@@ -280,7 +283,13 @@ class AgentDetailViewModel(
     return if (skill != null) {
       AgentDetailSkillRow(id = id, title = title, description = skill.manifest.description, whenToUse = skill.manifest.whenToUse, available = true)
     } else {
-      AgentDetailSkillRow(id = id, title = title, description = "Навык недоступен в этой версии приложения", whenToUse = "", available = false)
+      AgentDetailSkillRow(
+        id = id,
+        title = title,
+        description = tr("Навык недоступен в этой версии приложения", "This skill isn't available in this version of the app"),
+        whenToUse = "",
+        available = false,
+      )
     }
   }
 
@@ -302,8 +311,13 @@ class AgentDetailViewModel(
         // и вызов без skills стирал только что скопированные clonePreset'ом — копия своего агента
         // с навыком сразу вставала на unknown_skill (так же, как это уже сделано в
         // AgentBuilderViewModel.cloneFrom).
+        // Имя/описание копии — на языке интерфейса (у пресета есть английские); как и в
+        // AgentBuilderViewModel.cloneFrom, по-русски результат тот же, что раньше.
         val renamed = userAgentRepository.saveDraft(
-          definition = cloned.copy(name = "Копия: ${definition.name}"),
+          definition = cloned.copy(
+            name = tr("Копия: ${definition.displayName}", "Copy: ${definition.displayName}"),
+            description = definition.displayDescription,
+          ),
           skills = userSkillRepository.getForAgent(cloned.id),
           hooks = cloned.hooks,
         )
@@ -311,7 +325,7 @@ class AgentDetailViewModel(
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
-        _state.update { it.copy(actionError = "Не удалось создать копию агента.") }
+        _state.update { it.copy(actionError = tr("Не удалось создать копию агента.", "Couldn't duplicate the agent.")) }
       }
     }
   }
@@ -348,9 +362,12 @@ class AgentDetailViewModel(
       } catch (e: Exception) {
         // Не e.message: это английский `require` репозитория с кодами валидатора.
         val message = if (definition.status == AgentStatus.PUBLISHED) {
-          "Не удалось отключить агента."
+          tr("Не удалось отключить агента.", "Couldn't disable the agent.")
         } else {
-          "Не удалось включить агента — открой «Изменить» и проверь шаги."
+          tr(
+            "Не удалось включить агента — открой «Изменить» и проверь шаги.",
+            "Couldn't enable the agent — open “Edit” and check the steps.",
+          )
         }
         _state.update { it.copy(isLoading = false, actionError = message) }
       }
@@ -368,7 +385,7 @@ class AgentDetailViewModel(
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
-        _state.update { it.copy(isLoading = false, actionError = "Не удалось архивировать агента.") }
+        _state.update { it.copy(isLoading = false, actionError = tr("Не удалось архивировать агента.", "Couldn't archive the agent.")) }
       }
     }
   }

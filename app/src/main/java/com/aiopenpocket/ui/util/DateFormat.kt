@@ -4,6 +4,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import com.aiopenpocket.i18n.tr
 
 // ThreadLocal: SimpleDateFormat не потокобезопасен, а formatDateTime — публичная util (может
 // вызываться не только с Main). Общий mutable-инстанс при конкурентном format() давал искажённые
@@ -25,12 +26,12 @@ fun formatRelativeDate(timestamp: Long): String {
   val yesterday = (now.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -1) }
 
   return when {
-    sameDay(now, then) -> "Сегодня, $time"
-    sameDay(yesterday, then) -> "Вчера, $time"
+    sameDay(now, then) -> tr("Сегодня, $time", "Today, $time")
+    sameDay(yesterday, then) -> tr("Вчера, $time", "Yesterday, $time")
     else -> {
       val days = ((now.timeInMillis - timestamp) / (1000L * 60 * 60 * 24)).toInt()
       if (days in 2..6) {
-        "$days ${pluralDays(days)} назад"
+        tr("$days ${pluralDays(days)} назад", "$days days ago")
       } else {
         SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date(timestamp))
       }

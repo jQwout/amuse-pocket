@@ -69,6 +69,7 @@ import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.agent.loop.AgentMode
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.agents.builder.components.riskClassLabel
 import com.aiopenpocket.ui.agents.builder.components.riskColor
 import com.aiopenpocket.ui.components.glass.GlassCard
@@ -100,7 +101,7 @@ internal fun ChatSearchBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onClose) {
-                Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Закрыть поиск")
+                Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = tr("Закрыть поиск", "Close search"))
             }
             BasicTextField(
                 value = query,
@@ -114,7 +115,7 @@ internal fun ChatSearchBar(
                 decorationBox = { inner ->
                     if (query.isEmpty()) {
                         Text(
-                            "Поиск по сообщениям…",
+                            tr("Поиск по сообщениям…", "Search messages…"),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodyMedium,
                         )
@@ -129,10 +130,10 @@ internal fun ChatSearchBar(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 IconButton(onClick = onPrev, enabled = matchCount > 0) {
-                    Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Предыдущее")
+                    Icon(Icons.Default.KeyboardArrowUp, contentDescription = tr("Предыдущее", "Previous"))
                 }
                 IconButton(onClick = onNext, enabled = matchCount > 0) {
-                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Следующее")
+                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = tr("Следующее", "Next"))
                 }
             }
         }
@@ -180,10 +181,10 @@ internal fun ModeSelector(
 }
 
 private fun modeLabel(mode: AgentMode): String = when (mode) {
-    AgentMode.CHAT -> "Чат"
-    AgentMode.PLAN -> "План"
-    AgentMode.GOAL -> "Цель"
-    AgentMode.REFLECT -> "Рефлексия"
+    AgentMode.CHAT -> tr("Чат", "Chat")
+    AgentMode.PLAN -> tr("План", "Plan")
+    AgentMode.GOAL -> tr("Цель", "Goal")
+    AgentMode.REFLECT -> tr("Рефлексия", "Reflect")
     else -> mode.name // TUTOR is lesson-internal and never offered in this selector.
 }
 
@@ -227,7 +228,7 @@ internal fun ToolApprovalBar(
         Column(modifier = Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Агенту нужно разрешение",
+                    text = tr("Агенту нужно разрешение", "The agent needs your permission"),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f),
@@ -271,10 +272,10 @@ internal fun ToolApprovalBar(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 OutlinedButton(onClick = onDeny, modifier = Modifier.weight(1f)) {
-                    Text("Отклонить")
+                    Text(tr("Отклонить", "Decline"))
                 }
                 Button(onClick = onApprove, modifier = Modifier.weight(1f)) {
-                    Text("Разрешить")
+                    Text(tr("Разрешить", "Allow"))
                 }
             }
         }
@@ -336,7 +337,7 @@ internal fun VoiceRecordingBar(
         ) {
             Icon(
                 Icons.Default.Delete,
-                contentDescription = "Отменить запись",
+                contentDescription = tr("Отменить запись", "Cancel recording"),
                 tint = MaterialTheme.colorScheme.error,
             )
         }
@@ -358,7 +359,7 @@ internal fun VoiceRecordingBar(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = "Слушаю",
+                    text = tr("Слушаю", "Listening"),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.error,
                 )
@@ -373,7 +374,7 @@ internal fun VoiceRecordingBar(
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                text = partial?.takeIf { it.isNotBlank() } ?: "Говорите — текст появится здесь",
+                text = partial?.takeIf { it.isNotBlank() } ?: tr("Говорите — текст появится здесь", "Speak — the text will appear here"),
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (partial.isNullOrBlank()) {
                     MaterialTheme.colorScheme.onSurfaceVariant
@@ -395,7 +396,7 @@ internal fun VoiceRecordingBar(
         ) {
             Icon(
                 Icons.AutoMirrored.Default.Send,
-                contentDescription = "Готово",
+                contentDescription = tr("Готово", "Done"),
                 tint = MaterialTheme.colorScheme.onPrimary,
             )
         }
@@ -483,7 +484,7 @@ internal fun LessonAskBar(
         ) {
             Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
-            Text("Спросить у ИИ")
+            Text(tr("Спросить у ИИ", "Ask the AI"))
         }
     } else {
         // Развернули поле — сразу поднимаем клавиатуру и ставим курсор (иначе нужен второй тап).
@@ -495,12 +496,12 @@ internal fun LessonAskBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = { expanded = false; text = "" }) {
-                Icon(Icons.Default.Close, contentDescription = "Закрыть")
+                Icon(Icons.Default.Close, contentDescription = tr("Закрыть", "Close"))
             }
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },
-                placeholder = { Text("Спроси про урок…") },
+                placeholder = { Text(tr("Спроси про урок…", "Ask about the lesson…")) },
                 singleLine = true,
                 enabled = enabled,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
@@ -510,7 +511,7 @@ internal fun LessonAskBar(
                     .focusRequester(focusRequester),
             )
             IconButton(onClick = { submit() }, enabled = enabled && text.isNotBlank()) {
-                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Отправить вопрос")
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = tr("Отправить вопрос", "Send question"))
             }
         }
     }

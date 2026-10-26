@@ -7,6 +7,7 @@ package com.aiopenpocket.agent.loop
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
 import com.aiopenpocket.agent.core.policy.ExecutionMode
+import com.aiopenpocket.i18n.tr
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -56,7 +57,7 @@ fun interface TurnNotifier {
    * ведущий в чат: там и висит полоса подтверждения.
    */
   fun approvalNeeded(conversationId: String, conversationTitle: String?, action: String) =
-    turnFinished(conversationId, conversationTitle, "Агенту нужно разрешение: $action. Открой чат, чтобы ответить.", false)
+    turnFinished(conversationId, conversationTitle, tr("Агенту нужно разрешение: $action. Открой чат, чтобы ответить.", "The agent needs your permission: $action. Open the chat to answer."), false)
 }
 
 /**

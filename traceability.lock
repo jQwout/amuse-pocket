@@ -6,16 +6,16 @@
       "git": "661d682"
     },
     "agent-memory-05e545": {
-      "hash": "251356d7b7cd",
-      "git": "5f337e4"
+      "hash": "5fff106e7a92",
+      "git": "ec20311"
     },
     "agent-skills-7189cc": {
       "hash": "9bd9a03721eb",
       "git": "197306c"
     },
     "ai-academy-onboarding-5d51bb": {
-      "hash": "f538cd1523bb",
-      "git": "5f337e4"
+      "hash": "cee4ce874bda",
+      "git": "ec20311"
     },
     "app-settings-beb470": {
       "hash": "f26428328a2e",
@@ -34,40 +34,44 @@
       "git": "98161c0"
     },
     "driven-ui-cards-0418d0": {
-      "hash": "90c83b315fa2",
-      "git": "5f337e4"
+      "hash": "b849c2cf5f90",
+      "git": "ec20311"
+    },
+    "english-ui-on-the-demo-path-223241": {
+      "hash": "b15a019fb542",
+      "git": "ec20311"
     },
     "fonovye-hody-agenta-dde42d": {
-      "hash": "cfd5a677158b",
-      "git": "5f337e4"
+      "hash": "e4fbcf59dc21",
+      "git": "ec20311"
     },
     "glass-design-system-21a3fe": {
-      "hash": "a376a459e6b7",
-      "git": "5f337e4"
+      "hash": "80258094b1f4",
+      "git": "ec20311"
     },
     "heartbeat-napominalki-agenta-5f0442": {
-      "hash": "9e8539abe31b",
-      "git": "5f337e4"
+      "hash": "fb2f7230da1a",
+      "git": "ec20311"
     },
     "kartinki-urokov-cherez-muse-image-fd6f8c": {
       "hash": "decf0758e981",
       "git": "ff190fd"
     },
     "mcp-tools-f77d9b": {
-      "hash": "2e84619db37f",
-      "git": "5497b3d"
+      "hash": "e6456621916f",
+      "git": "ec20311"
     },
     "multi-agent-orchestration-27b8e3": {
-      "hash": "b5098bba5d04",
-      "git": "259a650"
+      "hash": "4b7a254d3917",
+      "git": "ec20311"
     },
     "multi-chat-conversations-b3c93b": {
-      "hash": "487ac7137fa9",
-      "git": "5f337e4"
+      "hash": "2ec4fb202088",
+      "git": "ec20311"
     },
     "protsedurnye-animatsii-v-urokah-68b2bf": {
-      "hash": "af286d5f865d",
-      "git": "5f337e4"
+      "hash": "003cf0e2629b",
+      "git": "ec20311"
     },
     "rezhim-refleksii-fca3c4": {
       "hash": "8f249e15f12c",
@@ -78,40 +82,40 @@
       "git": "197306c"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "cbbc3b6429c4",
-      "git": "5f337e4"
+      "hash": "98f57d59a893",
+      "git": "ec20311"
     },
     "structured-plan-engine-907066": {
-      "hash": "41746bd53f0d",
-      "git": "5497b3d"
+      "hash": "9e11f9859211",
+      "git": "ec20311"
     },
     "swappable-persona-e5e65e": {
-      "hash": "d88b28b13d05",
-      "git": "7130f89"
+      "hash": "c781e1db0fc0",
+      "git": "ec20311"
     },
     "uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2": {
-      "hash": "2926db3d313c",
-      "git": "5f337e4"
+      "hash": "891e8a6d218b",
+      "git": "ec20311"
     },
     "user-agent-builder-848153": {
-      "hash": "1dd31611343d",
-      "git": "5497b3d"
+      "hash": "e7d17d9f0e14",
+      "git": "ec20311"
     },
     "video-na-vhod-v-uroke-muse-spark-08ccdb": {
-      "hash": "10da17134264",
-      "git": "ff190fd"
+      "hash": "4eee5ce70ae0",
+      "git": "ec20311"
     },
     "voice-input-1a0dfd": {
       "hash": "3ef7f56d2b20",
       "git": "197306c"
     },
     "vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53": {
-      "hash": "adc0b7d0434b",
-      "git": "5f337e4"
+      "hash": "71d50e1f717d",
+      "git": "ec20311"
     },
     "yazykovoy-agent-repetitor-s-intervalnymi-povtoreniyami-4a9360": {
-      "hash": "8ff6359d9027",
-      "git": "259a650"
+      "hash": "74722c84ed79",
+      "git": "ec20311"
     }
   }
 }

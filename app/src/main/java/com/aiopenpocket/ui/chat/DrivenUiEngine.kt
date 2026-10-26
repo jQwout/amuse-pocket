@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.roadmap.QuizQuestion
 import org.json.JSONArray
 import org.json.JSONObject
@@ -112,7 +113,7 @@ object DrivenUiEngine {
 
         when (template) {
             "todo_list" -> DrivenUiCard.TodoList(
-                title = p.optString("title", "Список дел"),
+                title = p.optString("title", tr("Список дел", "To-do list")),
                 items = p.array("items").mapObjects {
                     TodoItem(
                         text = it.optString("item_text", ""),
@@ -121,18 +122,18 @@ object DrivenUiEngine {
                 },
             )
             "weather_card" -> DrivenUiCard.WeatherCard(
-                city = p.optString("city", "Погода"),
+                city = p.optString("city", tr("Погода", "Weather")),
                 days = p.array("days").mapObjects {
                     WeatherDay(
                         dayName = it.optString("day", ""),
                         temp = it.optString("temp", ""),
-                        text = it.optString("text", "Ясно"),
+                        text = it.optString("text", tr("Ясно", "Clear")),
                         icon = it.optString("icon", "clear"),
                     )
                 },
             )
             "timer" -> DrivenUiCard.TimerCard(
-                label = p.optString("label", "Таймер"),
+                label = p.optString("label", tr("Таймер", "Timer")),
                 durationSec = p.optInt("duration_sec", 60),
             )
             "table" -> {
@@ -147,7 +148,7 @@ object DrivenUiEngine {
             "chart_bar" -> {
                 val valuesJson = p.array("values")
                 DrivenUiCard.ChartBarCard(
-                    title = p.optString("title", "График"),
+                    title = p.optString("title", tr("График", "Chart")),
                     labels = p.array("labels").toStringList(),
                     values = List(valuesJson.length()) {
                         valuesJson.optDouble(it, 0.0).toFloat()
@@ -158,12 +159,12 @@ object DrivenUiEngine {
                 fields = p.array("fields").mapObjects {
                     FormField(
                         name = it.optString("name", "field"),
-                        label = it.optString("label", "Поле"),
+                        label = it.optString("label", tr("Поле", "Field")),
                         placeholder = it.optString("placeholder", ""),
                         type = it.optString("type", "text"),
                     )
                 },
-                submitLabel = p.optString("submit_label", "Отправить"),
+                submitLabel = p.optString("submit_label", tr("Отправить", "Submit")),
             )
             "choice" -> DrivenUiCard.ChoiceCard(
                 question = p.optString("question", ""),
@@ -189,35 +190,43 @@ object DrivenUiEngine {
                 if (actionJson != null && actionType !in KNOWN_LESSON_PRIMARY_ACTION_TYPES) {
                     // Неизвестный тип отвергаем целиком (как "reminder" без heartbeat_id ниже), а не
                     // молча игнорируем — битый/устаревший CTA не должен тихо пропадать из виду.
-                    DrivenUiCard.ErrorCard("lesson_complete: неизвестный тип primary_action: '$actionType'")
+                    DrivenUiCard.ErrorCard(
+                        tr(
+                            "lesson_complete: неизвестный тип primary_action: '$actionType'",
+                            "lesson_complete: unknown primary_action type: '$actionType'",
+                        ),
+                    )
                 } else {
                     DrivenUiCard.LessonCompleteCard(
-                        title = p.optString("title", "Урок пройден!"),
+                        title = p.optString("title", tr("Урок пройден!", "Lesson complete!")),
                         subtitle = p.optString("subtitle", ""),
-                        buttonLabel = p.optString("button_label", "Продолжить"),
+                        buttonLabel = p.optString("button_label", tr("Продолжить", "Continue")),
                         primaryAction = actionJson?.let {
                             LessonPrimaryAction(
                                 type = actionType,
-                                label = it.optString("label", "Открыть конструктор"),
+                                label = it.optString("label", tr("Открыть конструктор", "Open the builder")),
                             )
                         },
                     )
                 }
             }
             "switch" -> DrivenUiCard.SwitchCard(
-                label = p.optString("label", "Переключатель"),
+                label = p.optString("label", tr("Переключатель", "Switch")),
                 description = p.optString("description", ""),
                 action = p.optString("action", ""),
                 initialOn = p.optBoolean("initial", false),
             )
             "notification_permission" -> DrivenUiCard.NotificationPermissionCard(
-                title = p.optString("title", "Уведомления"),
-                description = p.optString("description", "Разреши уведомления, чтобы получать напоминания."),
-                buttonLabel = p.optString("button_label", "Разрешить уведомления"),
+                title = p.optString("title", tr("Уведомления", "Notifications")),
+                description = p.optString(
+                    "description",
+                    tr("Разреши уведомления, чтобы получать напоминания.", "Allow notifications to get reminders."),
+                ),
+                buttonLabel = p.optString("button_label", tr("Разрешить уведомления", "Allow notifications")),
             )
             "reminder" -> {
                 val id = p.optString("heartbeat_id", "")
-                if (id.isBlank()) DrivenUiCard.ErrorCard("reminder: нет heartbeat_id")
+                if (id.isBlank()) DrivenUiCard.ErrorCard(tr("reminder: нет heartbeat_id", "reminder: missing heartbeat_id"))
                 else DrivenUiCard.ReminderCard(id)
             }
             "image" -> DrivenUiCard.ImageCard(
@@ -281,10 +290,10 @@ object DrivenUiEngine {
                 answerIndex = p.optInt("correct", -1),
                 explain = p.optString("explain", ""),
             )
-            else -> DrivenUiCard.ErrorCard("Неизвестный шаблон: $template")
+            else -> DrivenUiCard.ErrorCard(tr("Неизвестный шаблон: $template", "Unknown template: $template"))
         }
     } catch (e: Exception) {
-        DrivenUiCard.ErrorCard("Ошибка парсинга шаблона: ${e.localizedMessage}")
+        DrivenUiCard.ErrorCard(tr("Ошибка парсинга шаблона: ${e.localizedMessage}", "Template parse error: ${e.localizedMessage}"))
     }
 }
 
@@ -296,21 +305,21 @@ fun DrivenUiCard.toMarkdown(): String = when (this) {
     is DrivenUiCard.TodoList -> buildString {
         appendLine("**$title**")
         if (items.isEmpty()) {
-            appendLine("_Нет задач_")
+            appendLine(tr("_Нет задач_", "_No tasks_"))
         } else {
             items.forEach { appendLine("- [${if (it.done) "x" else " "}] ${it.text}") }
         }
     }.trim()
 
     is DrivenUiCard.WeatherCard -> buildString {
-        appendLine("**Погода: $city**")
+        appendLine(tr("**Погода: $city**", "**Weather: $city**"))
         appendLine()
-        appendLine("| День | Темп | Описание |")
+        appendLine(tr("| День | Темп | Описание |", "| Day | Temp | Conditions |"))
         appendLine("| --- | --- | --- |")
         days.forEach { appendLine("| ${it.dayName} | ${it.temp} | ${it.text} |") }
     }.trim()
 
-    is DrivenUiCard.TimerCard -> "**$label** — таймер на $durationSec сек."
+    is DrivenUiCard.TimerCard -> tr("**$label** — таймер на $durationSec сек.", "**$label** — timer for $durationSec sec.")
 
     is DrivenUiCard.TableCard -> buildString {
         if (headers.isNotEmpty()) {
@@ -333,7 +342,7 @@ fun DrivenUiCard.toMarkdown(): String = when (this) {
     }.trim()
 
     is DrivenUiCard.FormCard -> buildString {
-        appendLine("**Форма**")
+        appendLine(tr("**Форма**", "**Form**"))
         fields.forEach {
             val ph = if (it.placeholder.isNotBlank()) " — _${it.placeholder}_" else ""
             appendLine("- ${it.label}$ph")
@@ -348,7 +357,7 @@ fun DrivenUiCard.toMarkdown(): String = when (this) {
     }.trim()
 
     is DrivenUiCard.LessonQuizCard -> buildString {
-        appendLine("**Проверка**")
+        appendLine(tr("**Проверка**", "**Quiz**"))
         questions.forEachIndexed { i, q ->
             appendLine("${i + 1}. ${q.question}")
             q.options.forEach { appendLine("   - $it") }
@@ -362,7 +371,7 @@ fun DrivenUiCard.toMarkdown(): String = when (this) {
     }.trim()
 
     is DrivenUiCard.SwitchCard -> buildString {
-        appendLine("**$label** _[${if (initialOn) "вкл" else "выкл"}]_")
+        appendLine("**$label** _[${if (initialOn) tr("вкл", "on") else tr("выкл", "off")}]_")
         if (description.isNotBlank()) appendLine(description)
     }.trim()
 
@@ -373,17 +382,17 @@ fun DrivenUiCard.toMarkdown(): String = when (this) {
     }.trim()
 
     // Живая карточка: в markdown-режиме (виджеты отключены) статус БД не подтянуть — только заглушка.
-    is DrivenUiCard.ReminderCard -> "⏰ _Напоминание (id=$heartbeatId)_"
+    is DrivenUiCard.ReminderCard -> tr("⏰ _Напоминание (id=$heartbeatId)_", "⏰ _Reminder (id=$heartbeatId)_")
 
     is DrivenUiCard.ImageCard -> buildString {
         val src = asset.ifBlank { url }
-        appendLine("🖼️ ${caption.ifBlank { "Изображение" }}")
+        appendLine("🖼️ ${caption.ifBlank { tr("Изображение", "Image") }}")
         if (src.isNotBlank()) appendLine("_($src)_")
     }.trim()
 
-    is DrivenUiCard.LessonVideoCard -> "🎥 ${instruction.ifBlank { "Сними короткое видео" }}"
+    is DrivenUiCard.LessonVideoCard -> "🎥 ${instruction.ifBlank { tr("Сними короткое видео", "Film a short video") }}"
 
-    is DrivenUiCard.LessonAnimationCard -> "🎬 ${caption.ifBlank { "Анимация урока" }}"
+    is DrivenUiCard.LessonAnimationCard -> "🎬 ${caption.ifBlank { tr("Анимация урока", "Lesson animation") }}"
 
     is DrivenUiCard.RevealCard -> buildString {
         appendLine("**$question**")
@@ -392,7 +401,7 @@ fun DrivenUiCard.toMarkdown(): String = when (this) {
 
     is DrivenUiCard.ConceptCard -> buildString {
         appendLine("**$term** — $definition")
-        if (example.isNotBlank()) appendLine("_Пример: ${example}_")
+        if (example.isNotBlank()) appendLine(tr("_Пример: ${example}_", "_Example: ${example}_"))
     }.trim()
 
     is DrivenUiCard.ExampleCard -> buildString {
@@ -403,7 +412,7 @@ fun DrivenUiCard.toMarkdown(): String = when (this) {
         }
     }.trim()
 
-    is DrivenUiCard.FillCard -> "**Заполни пропуск:** ${template.replace("___", "_____")}"
+    is DrivenUiCard.FillCard -> tr("**Заполни пропуск:** ", "**Fill in the blank:** ") + template.replace("___", "_____")
 
     is DrivenUiCard.SortCard -> buildString {
         if (instruction.isNotBlank()) appendLine("**$instruction**")

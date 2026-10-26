@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.chat.DrivenUiCard
 import java.io.File
 
@@ -96,7 +97,7 @@ internal fun LessonVideoCardView(
         if (card.samplePreview.isNotBlank()) {
             AsyncImage(
                 model = ImageRequest.Builder(context).data(ANDROID_ASSET_PREFIX + card.samplePreview).build(),
-                contentDescription = "Ролик-пример",
+                contentDescription = tr("Ролик-пример", "Sample clip"),
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -108,7 +109,7 @@ internal fun LessonVideoCardView(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                 Spacer(Modifier.width(10.dp))
-                Text("Смотрю видео…", style = MaterialTheme.typography.bodyMedium)
+                Text(tr("Смотрю видео…", "Watching the video…"), style = MaterialTheme.typography.bodyMedium)
             }
         } else if (card.sampleVideo.isNotBlank()) {
             // Главное действие — один тап по готовому ролику: съёмка на телефоне — это камера,
@@ -119,27 +120,27 @@ internal fun LessonVideoCardView(
             ) {
                 Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Показать на примере")
+                Text(tr("Показать на примере", "Show an example"))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(onClick = launchCamera, modifier = Modifier.weight(1f)) { Text("Снять своё") }
-                OutlinedButton(onClick = launchGallery, modifier = Modifier.weight(1f)) { Text("Из галереи") }
+                OutlinedButton(onClick = launchCamera, modifier = Modifier.weight(1f)) { Text(tr("Снять своё", "Film my own")) }
+                OutlinedButton(onClick = launchGallery, modifier = Modifier.weight(1f)) { Text(tr("Из галереи", "From gallery")) }
             }
         } else {
             Button(onClick = launchCamera, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.Videocam, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Снять видео")
+                Text(tr("Снять видео", "Record a video"))
             }
             OutlinedButton(onClick = launchGallery, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.VideoLibrary, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Выбрать из галереи")
+                Text(tr("Выбрать из галереи", "Choose from gallery"))
             }
         }
         if (cameraMissing && !analyzing) {
             Text(
-                text = "Не нашёл приложение камеры — выбери видео из галереи.",
+                text = tr("Не нашёл приложение камеры — выбери видео из галереи.", "Couldn't find a camera app — pick a video from your gallery."),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
             )

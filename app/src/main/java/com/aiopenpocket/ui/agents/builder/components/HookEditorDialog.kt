@@ -38,6 +38,7 @@ import com.aiopenpocket.agent.core.hook.HookEngine
 import com.aiopenpocket.agent.core.hook.HookEvent
 import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.agent.loop.AgentMode
+import com.aiopenpocket.i18n.tr
 import java.util.UUID
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
@@ -108,10 +109,10 @@ fun HookEditorDialog(
 
   AlertDialog(
     onDismissRequest = onDismiss,
-    title = { Text(if (existing == null) "Новый хук" else "Хук") },
+    title = { Text(if (existing == null) tr("Новый хук", "New hook") else tr("Хук", "Hook")) },
     text = {
       Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-        Text(text = "Когда", style = MaterialTheme.typography.labelLarge)
+        Text(text = tr("Когда", "When"), style = MaterialTheme.typography.labelLarge)
         Spacer(modifier = Modifier.height(4.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
           selectableEvents.forEach { candidate ->
@@ -124,7 +125,7 @@ fun HookEditorDialog(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-        Text(text = "Действие", style = MaterialTheme.typography.labelLarge)
+        Text(text = tr("Действие", "Action"), style = MaterialTheme.typography.labelLarge)
         Spacer(modifier = Modifier.height(4.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
           allowedActions.forEach { candidate ->
@@ -138,16 +139,22 @@ fun HookEditorDialog(
 
         if (supportsToolCondition) {
           Spacer(modifier = Modifier.height(16.dp))
-          Text(text = "Условие", style = MaterialTheme.typography.labelLarge)
+          Text(text = tr("Условие", "Condition"), style = MaterialTheme.typography.labelLarge)
           Text(
-            text = "Пусто — сработает для любого инструмента агента. Иначе — только для выбранных:",
+            text = tr(
+              "Пусто — сработает для любого инструмента агента. Иначе — только для выбранных:",
+              "Leave empty to fire for any of the agent's tools. Otherwise, only for the selected ones:",
+            ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
           Spacer(modifier = Modifier.height(4.dp))
           if (agentToolNames.isEmpty()) {
             Text(
-              text = "У агента пока нет ни одного инструмента — сработает для любого.",
+              text = tr(
+                "У агента пока нет ни одного инструмента — сработает для любого.",
+                "The agent has no tools yet — the hook will fire for any tool.",
+              ),
               style = MaterialTheme.typography.bodySmall,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -170,7 +177,11 @@ fun HookEditorDialog(
           BuilderTextField(
             value = payloadText,
             onValueChange = { payloadText = it },
-            label = if (effectiveActionType == HookActionType.ADD_INSTRUCTION) "Текст инструкции" else "Текст в лог",
+            label = if (effectiveActionType == HookActionType.ADD_INSTRUCTION) {
+              tr("Текст инструкции", "Instruction text")
+            } else {
+              tr("Текст в лог", "Log text")
+            },
             minLines = 2,
             maxLines = 4,
           )
@@ -178,18 +189,18 @@ fun HookEditorDialog(
 
         Spacer(modifier = Modifier.height(16.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-          Text(text = "Приоритет", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+          Text(text = tr("Приоритет", "Priority"), style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
           IconButton(onClick = { priority -= 1 }) {
-            Icon(imageVector = Icons.Default.Remove, contentDescription = "Ниже приоритет")
+            Icon(imageVector = Icons.Default.Remove, contentDescription = tr("Ниже приоритет", "Lower priority"))
           }
           Text(text = "$priority", style = MaterialTheme.typography.titleMedium)
           IconButton(onClick = { priority += 1 }) {
-            Icon(imageVector = Icons.Default.Add, contentDescription = "Выше приоритет")
+            Icon(imageVector = Icons.Default.Add, contentDescription = tr("Выше приоритет", "Higher priority"))
           }
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-          Text(text = "Включён", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+          Text(text = tr("Включён", "Enabled"), style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
           Switch(checked = enabled, onCheckedChange = { enabled = it })
         }
       }
@@ -219,10 +230,10 @@ fun HookEditorDialog(
             ),
           )
         },
-      ) { Text("Сохранить") }
+      ) { Text(tr("Сохранить", "Save")) }
     },
     dismissButton = {
-      TextButton(onClick = onDismiss) { Text("Отмена") }
+      TextButton(onClick = onDismiss) { Text(tr("Отмена", "Cancel")) }
     },
   )
 }
@@ -245,9 +256,13 @@ private fun parsePayloadText(hook: AgentHook): String =
 internal fun hookConditionSummary(hook: AgentHook): String =
   if (hook.conditionType == "tool_name_in") {
     val names = parseScopedToolNames(hook)
-    if (names.isEmpty()) "любой инструмент" else "инструменты: ${names.map(CapabilityNames::tool).sorted().joinToString(", ")}"
+    if (names.isEmpty()) {
+      tr("любой инструмент", "any tool")
+    } else {
+      tr("инструменты: ", "tools: ") + names.map(CapabilityNames::tool).sorted().joinToString(", ")
+    }
   } else {
-    "всегда"
+    tr("всегда", "always")
   }
 
 /**
@@ -262,25 +277,25 @@ internal fun hookConditionSummary(hook: AgentHook): String =
  * silently dropped.
  */
 internal fun hookEventLabel(event: HookEvent): String = when (event) {
-  HookEvent.BEFORE_TURN -> "Перед ходом"
-  HookEvent.AFTER_TURN -> "После хода"
-  HookEvent.BEFORE_TOOL -> "Перед инструментом"
-  HookEvent.AFTER_TOOL -> "После инструмента"
-  HookEvent.ON_ERROR -> "При ошибке"
-  HookEvent.ON_COMPLETE -> "По завершении"
-  HookEvent.ON_PLAN_CREATED -> "План создан"
-  HookEvent.ON_PLAN_APPROVED -> "План одобрен"
-  HookEvent.BEFORE_PLAN_STEP -> "Перед шагом плана"
-  HookEvent.AFTER_PLAN_STEP -> "После шага плана"
-  HookEvent.ON_PLAN_BLOCKED -> "План заблокирован"
-  HookEvent.ON_PLAN_COMPLETED -> "План завершён"
+  HookEvent.BEFORE_TURN -> tr("Перед ходом", "Before turn")
+  HookEvent.AFTER_TURN -> tr("После хода", "After turn")
+  HookEvent.BEFORE_TOOL -> tr("Перед инструментом", "Before tool")
+  HookEvent.AFTER_TOOL -> tr("После инструмента", "After tool")
+  HookEvent.ON_ERROR -> tr("При ошибке", "On error")
+  HookEvent.ON_COMPLETE -> tr("По завершении", "On completion")
+  HookEvent.ON_PLAN_CREATED -> tr("План создан", "Plan created")
+  HookEvent.ON_PLAN_APPROVED -> tr("План одобрен", "Plan approved")
+  HookEvent.BEFORE_PLAN_STEP -> tr("Перед шагом плана", "Before plan step")
+  HookEvent.AFTER_PLAN_STEP -> tr("После шага плана", "After plan step")
+  HookEvent.ON_PLAN_BLOCKED -> tr("План заблокирован", "Plan blocked")
+  HookEvent.ON_PLAN_COMPLETED -> tr("План завершён", "Plan completed")
 }
 
 internal fun hookActionLabel(action: HookActionType): String = when (action) {
-  HookActionType.ADD_INSTRUCTION -> "Добавить инструкцию"
-  HookActionType.REQUIRE_APPROVAL -> "Требовать подтверждение"
-  HookActionType.ALLOW -> "Разрешить"
-  HookActionType.DENY -> "Запретить"
-  HookActionType.LOG -> "Записать в лог"
-  HookActionType.STOP -> "Остановить"
+  HookActionType.ADD_INSTRUCTION -> tr("Добавить инструкцию", "Add instruction")
+  HookActionType.REQUIRE_APPROVAL -> tr("Требовать подтверждение", "Require approval")
+  HookActionType.ALLOW -> tr("Разрешить", "Allow")
+  HookActionType.DENY -> tr("Запретить", "Deny")
+  HookActionType.LOG -> tr("Записать в лог", "Write to log")
+  HookActionType.STOP -> tr("Остановить", "Stop")
 }

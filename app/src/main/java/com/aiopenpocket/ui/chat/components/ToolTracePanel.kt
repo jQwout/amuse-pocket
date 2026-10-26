@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.loop.ToolTrace
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import kotlinx.serialization.json.JsonPrimitive
 
@@ -32,14 +33,14 @@ fun ToolTracePanel(
   ) {
     Column(modifier = Modifier.padding(12.dp)) {
       Text(
-        text = "Вызовы инструментов",
+        text = tr("Вызовы инструментов", "Tool calls"),
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSecondaryContainer,
       )
       traces.forEach { trace ->
         val resultText = when (val result = trace.result) {
-          is ToolResult.Success -> if (result.simulated) "имитация" else "ок"
-          is ToolResult.Error -> "ошибка"
+          is ToolResult.Success -> if (result.simulated) tr("имитация", "simulated") else tr("ок", "ok")
+          is ToolResult.Error -> tr("ошибка", "error")
         }
         // В trace.toolName лежит имя тула (memory_tool), действие — в аргументе action; на экран идёт
         // общее человеческое имя вызова, как в баре подтверждения («Память: найти факты»).

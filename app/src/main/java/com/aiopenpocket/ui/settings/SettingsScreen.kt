@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Loop
 import androidx.compose.material.icons.filled.Insights
@@ -92,6 +93,8 @@ import com.aiopenpocket.agent.core.llm.bundledOpenRouterKey
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
 import com.aiopenpocket.ui.onboarding.components.PersonaCard
 import com.aiopenpocket.ui.components.AcademyBottomNav
+import com.aiopenpocket.i18n.AppLanguage
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
 import com.aiopenpocket.ui.components.MarkdownText
 import com.aiopenpocket.ui.components.glass.glassCardSurface
@@ -135,6 +138,10 @@ fun SettingsScreen(
     )
   }
   val themeByLabel = remember { themeLabels.entries.associate { (mode, label) -> label to mode } }
+  var showLanguageSheet by remember { mutableStateOf(false) }
+  val languageSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+  // Названия языков — каждое на своём языке, чтобы выбор находился при любом текущем.
+  val languageLabels = remember { linkedMapOf(AppLanguage.RU to "Русский", AppLanguage.EN to "English") }
 
   // Аврора-фон + стекло, как на вкладке «Чат» — навбар/каркас становятся прозрачными (см. glassState).
   val glassState = rememberGlassState()
@@ -322,6 +329,23 @@ fun SettingsScreen(
       Spacer(modifier = Modifier.height(28.dp))
 
       SettingsSectionHeader(
+        icon = Icons.Default.Language,
+        title = tr("ЯЗЫК", "LANGUAGE"),
+        modifier = Modifier.padding(horizontal = 20.dp),
+      )
+      Spacer(modifier = Modifier.height(12.dp))
+      SelectorCard(
+        label = tr("ИНТЕРФЕЙС И ОТВЕТЫ", "INTERFACE AND REPLIES"),
+        selected = languageLabels[AppLanguage.code] ?: AppLanguage.code,
+        icon = Icons.Default.Language,
+        onClick = { showLanguageSheet = true },
+        modifier = Modifier.padding(horizontal = 20.dp),
+        testTag = "settings_language_selector",
+      )
+
+      Spacer(modifier = Modifier.height(28.dp))
+
+      SettingsSectionHeader(
         icon = Icons.Default.Psychology,
         title = "ПЕРСОНА",
         modifier = Modifier.padding(horizontal = 20.dp),
@@ -436,6 +460,24 @@ fun SettingsScreen(
         showModelSheet = false
       },
       onDismiss = { showModelSheet = false },
+    )
+  }
+
+  if (showLanguageSheet) {
+    SelectorSheet(
+      title = tr("Язык", "Language"),
+      subtitle = tr(
+        "Интерфейс и ответы агента. Английский пока есть не на всех экранах.",
+        "Interface and agent replies. Not every screen is translated yet.",
+      ),
+      options = languageLabels.values.toList(),
+      selected = languageLabels[AppLanguage.code] ?: AppLanguage.code,
+      sheetState = languageSheetState,
+      onSelect = { label ->
+        languageLabels.entries.firstOrNull { it.value == label }?.key?.let(viewModel::updateLanguage)
+        showLanguageSheet = false
+      },
+      onDismiss = { showLanguageSheet = false },
     )
   }
 
