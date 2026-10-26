@@ -425,7 +425,7 @@ class ReactLoopRunner(
     )
     return when (decision) {
       PolicyDecision.Execute -> toolExecutor.execute(toolName, arguments)
-      is PolicyDecision.Simulate -> ToolResult.Success(simulatedResultJson(toolName, arguments))
+      is PolicyDecision.Simulate -> ToolResult.Success(simulatedResultJson(toolName, arguments), simulated = true)
       is PolicyDecision.Deny -> ToolResult.Error(decision.reason, recoverable = false)
       is PolicyDecision.AwaitApproval -> awaitApprovalAndExecute(decision.request, interactiveApproval, executionMode, emit)
     }
@@ -467,7 +467,7 @@ class ReactLoopRunner(
     val approved = toolApprovalCoordinator.awaitApproval(request)
     return if (approved) {
       if (executionMode == ExecutionMode.PREVIEW && request.riskClass != RiskClass.READ) {
-        ToolResult.Success(simulatedResultJson(request.toolName, request.arguments))
+        ToolResult.Success(simulatedResultJson(request.toolName, request.arguments), simulated = true)
       } else {
         toolExecutor.execute(request.toolName, request.arguments)
       }

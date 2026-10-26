@@ -38,6 +38,7 @@ import com.aiopenpocket.agent.core.skill.UserSkillEntity
 import com.aiopenpocket.agent.core.skill.UserSkillRepository
 import com.aiopenpocket.data.database.AppDatabase
 import com.aiopenpocket.data.repository.AgentFilesRepository
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.asExecutor
@@ -338,10 +339,11 @@ class AgentDetailViewModelTest {
     vm.select(id)
     vm.state.first { it.definition != null }
 
-    var cloneId: String? = null
-    vm.duplicate { cloneId = it }
-    advanceUntilIdle()
-    val clone = requireNotNull(cloneId)
+    // Ждём сам колбэк, а не advanceUntilIdle: Room пишет на своих потоках, их планировщик теста не
+    // видит, и на медленной CI-машине копия ещё не была готова (локально успевала).
+    val cloned = CompletableDeferred<String>()
+    vm.duplicate { cloned.complete(it) }
+    val clone = cloned.await()
 
     val clonedSkills = userSkillRepository.getForAgent(clone)
     assertEquals(1, clonedSkills.size)

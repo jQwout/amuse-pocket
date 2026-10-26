@@ -185,9 +185,24 @@ class FileTools(
   }
 
   private fun resolveSafePath(root: File, path: String): File {
-    val normalized = path.trimStart('/', '\\')
-    val file = File(root, normalized)
+    // Backslash is not a separator on Android (Linux): there "..\agent-b" is just a folder name, while on
+    // a Windows JVM it climbs up. One rule for both: such paths are refused, the separator is '/'.
+    if ('\\' in path) throw SecurityException("Path traversal detected: $path")
     val rootCanonical = root.canonicalPath
+    // An absolute path into the app's own data names a real place on the device: our sandbox is taken
+    // as is, anything else there (another agent's sandbox, the shared one) is refused. Without this,
+    // Linux silently re-rooted it under our sandbox as nested folders. Short "/notes.txt" never points
+    // into app data and still counts from the sandbox root.
+    val appData = application.filesDir.parentFile?.canonicalPath
+    if (path.startsWith('/') && appData != null) {
+      val absolute = canonicalOrNull(File(path)) ?: throw SecurityException("Path traversal detected: $path")
+      if (absolute.isInside(appData)) {
+        if (absolute.isInside(rootCanonical)) return File(absolute)
+        throw SecurityException("Path traversal detected: $path")
+      }
+    }
+    val normalized = path.trimStart('/')
+    val file = File(root, normalized)
     val fileCanonical = try {
       file.canonicalPath
     } catch (e: IOException) {
@@ -196,11 +211,21 @@ class FileTools(
       // inside the sandbox either - fail closed instead of letting the IOException escape the tool.
       throw SecurityException("Path traversal detected: $path")
     }
-    if (!fileCanonical.startsWith(rootCanonical + File.separator) && fileCanonical != rootCanonical) {
+    if (!fileCanonical.isInside(rootCanonical)) {
       throw SecurityException("Path traversal detected: $path")
     }
     return file
   }
+
+  private fun canonicalOrNull(file: File): String? =
+    try {
+      file.canonicalPath
+    } catch (e: IOException) {
+      null
+    }
+
+  private fun String.isInside(dirCanonical: String): Boolean =
+    this == dirCanonical || startsWith(dirCanonical + File.separator)
 
   companion object {
     /**

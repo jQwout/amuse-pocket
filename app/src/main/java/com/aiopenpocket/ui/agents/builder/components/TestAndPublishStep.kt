@@ -175,7 +175,8 @@ fun TestAndPublishStep(
     Spacer(modifier = Modifier.height(8.dp))
     // Подтверждение успеха: без него «Опубликовать» просто переставала крутиться, и было непонятно,
     // ушёл ли агент в ростер и куда идти дальше.
-    if (justPublished && draft.status == AgentStatus.PUBLISHED) {
+    val publishedUnchanged = justPublished && draft.status == AgentStatus.PUBLISHED
+    if (publishedUnchanged) {
       PublishedNotice(configVersion = draft.configVersion, onOpenChat = onOpenChat)
       Spacer(modifier = Modifier.height(12.dp))
     }
@@ -198,15 +199,19 @@ fun TestAndPublishStep(
         }
       }
     }
-    Button(
-      onClick = onPublish,
-      enabled = canPublish && !isSaving,
-      modifier = Modifier.testTag("agent_builder_publish"),
-    ) {
-      if (isSaving) {
-        CircularProgressIndicator(modifier = Modifier.size(16.dp).padding(end = 8.dp), strokeWidth = 2.dp)
+    // Сразу после публикации публиковать нечего: «Опубликовать изменения» под «Агент опубликован»
+    // выглядела как недоделка. Любая правка гасит justPublished — и кнопка возвращается.
+    if (!publishedUnchanged) {
+      Button(
+        onClick = onPublish,
+        enabled = canPublish && !isSaving,
+        modifier = Modifier.testTag("agent_builder_publish"),
+      ) {
+        if (isSaving) {
+          CircularProgressIndicator(modifier = Modifier.size(16.dp).padding(end = 8.dp), strokeWidth = 2.dp)
+        }
+        Text(if (draft.status == AgentStatus.PUBLISHED) "Опубликовать изменения" else "Опубликовать")
       }
-      Text(if (draft.status == AgentStatus.PUBLISHED) "Опубликовать изменения" else "Опубликовать")
     }
 
     // Архивирование доступно и черновику: иначе брошенный черновик остаётся в секции «Черновики»

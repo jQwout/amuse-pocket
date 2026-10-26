@@ -194,6 +194,33 @@ class FileToolsSandboxTest {
     assertFalse(bTarget.exists())
   }
 
+  /**
+   * Абсолютный путь в СВОЙ sandbox пишет ровно в этот файл, а не пересаживается внутрь вложенными
+   * папками. Только на Linux (как на Android): на Windows-JVM абсолютный путь несёт '\' и отклоняется.
+   */
+  @Test
+  fun `an absolute path into the agent's own sandbox writes exactly there`() = runTest {
+    org.junit.Assume.assumeTrue(File.separatorChar == '/')
+    holder.set("conv-a", agent("agent-a"))
+    val own = File(File(File(application.filesDir, "agents"), "agent-a"), "notes.txt")
+
+    val result = tool.execute(writeFile(own.absolutePath, "mine"))
+
+    assertTrue("expected Success, got $result", result is ToolResult.Success)
+    assertEquals("mine", own.readText())
+  }
+
+  /** Короткий «/notes.txt» — привычка моделей — по-прежнему считается от корня sandbox. */
+  @Test
+  fun `a short leading-slash path still counts from the sandbox root`() = runTest {
+    holder.set("conv-a", agent("agent-a"))
+
+    val result = tool.execute(writeFile("/notes.txt", "mine"))
+
+    assertTrue("expected Success, got $result", result is ToolResult.Success)
+    assertEquals("mine", File(File(File(application.filesDir, "agents"), "agent-a"), "notes.txt").readText())
+  }
+
   @Test
   fun `agent A cannot write into agent B's directory via mixed backslash slash separators`() = runTest {
     seedAgentFile("agent-b", "existing.txt", "b-data")
