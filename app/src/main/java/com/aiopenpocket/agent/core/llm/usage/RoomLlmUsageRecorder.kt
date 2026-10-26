@@ -11,17 +11,17 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 
 /**
- * Учёт расхода в Room, с привязкой к ходу.
+ * Spend accounting in Room, tied to the turn.
  *
- * Диалог и агент берутся из [TurnContextHolder], а не из аргументов: [LlmCallUsage] приходит из
- * `OpenAiCompatClient`, который про ходы ничего не знает и знать не должен — он видит запрос и
- * ответ. Держатель контекста уже прокинут через coroutine-context ровно для таких случаев (так же
- * его читают тулы), и он честно отдаёт `null` там, где хода нет.
+ * The conversation and the agent come from [TurnContextHolder], not from arguments: [LlmCallUsage]
+ * comes from `OpenAiCompatClient`, which knows nothing about turns and should not — it sees a request
+ * and an answer. The context holder is already carried through the coroutine context for exactly such
+ * cases (tools read it the same way), and it honestly returns `null` where there is no turn.
  *
- * **Ошибка записи не выходит наружу.** Учёт — побочная задача рядом с ответом пользователю: упавший
- * insert (диск полон, база пересоздаётся после разрушительной миграции) не должен обрывать стрим на
- * полуслове. Поэтому runCatching и запись в лог — молчать совсем тоже нельзя, иначе пропажа
- * статистики останется незамеченной.
+ * **A write error does not escape.** Accounting is a side task next to the answer to the user: a
+ * failed insert (disk full, the DB being recreated after a destructive migration) must not cut the
+ * stream off mid-word. Hence runCatching and a log line — staying completely silent is not an option
+ * either, or lost statistics would go unnoticed.
  */
 @SingleIn(AppScope::class)
 @Inject

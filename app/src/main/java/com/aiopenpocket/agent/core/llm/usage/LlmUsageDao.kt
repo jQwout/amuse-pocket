@@ -7,11 +7,11 @@ import androidx.room.Insert
 import androidx.room.Query
 
 /**
- * Доступ к таблице учёта. Пишет только `RoomLlmUsageRecorder`, читают сводки.
+ * Access to the accounting table. Only `RoomLlmUsageRecorder` writes; summaries read.
  *
- * Суммы считает SQLite, а не Kotlin: строк на активном пользователе накапливаются тысячи в неделю,
- * и тянуть их все в память ради одного числа — ровно тот случай, когда «просто посчитаем в коде»
- * превращается в загрузку всей таблицы на экран настроек.
+ * Sums are computed by SQLite, not Kotlin: an active user accumulates thousands of rows a week, and
+ * pulling them all into memory for one number is exactly the case where "let's just count it in code"
+ * turns into loading the whole table for the settings screen.
  */
 @Dao
 interface LlmUsageDao {
@@ -20,8 +20,8 @@ interface LlmUsageDao {
   suspend fun insert(entity: LlmUsageEntity)
 
   /**
-   * IFNULL вокруг SUM обязателен: на пустом периоде SUM возвращает NULL, и Room уронил бы это на
-   * не-nullable Long. У costUsd наоборот — NULL сохраняем, он значит «цену никто не называл».
+   * IFNULL around SUM is required: on an empty period SUM returns NULL, and Room would fail on it for a
+   * non-nullable Long. For costUsd it is the opposite — NULL is kept, it means "nobody named a price".
    */
   @Query(
     """
@@ -51,7 +51,7 @@ interface LlmUsageDao {
   )
   suspend fun totalsByModelSince(since: Long): List<LlmUsageByModel>
 
-  /** Расход вызовов ВНЕ хода (аннотатор, профиль, фон) — то, чего пользователь не видит и не просил. */
+  /** Spend of calls OUTSIDE a turn (annotator, profile, background) — what the user neither sees nor asked for. */
   @Query(
     """
     SELECT COUNT(*) AS calls,

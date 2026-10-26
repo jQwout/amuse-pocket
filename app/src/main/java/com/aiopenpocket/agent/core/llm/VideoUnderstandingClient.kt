@@ -23,23 +23,23 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
 
 /**
- * Разбор короткого видео моделью Muse Spark — сейчас маршрутом OpenRouter
- * (`POST /api/v1/chat/completions`, модель `meta/muse-spark-1.3`, часть контента `video_url`).
+ * Muse Spark watching a short video — currently over the OpenRouter route
+ * (`POST /api/v1/chat/completions`, model `meta/muse-spark-1.3`, a `video_url` content part).
  *
- * Отдельный клиент, а не вложения в [OpenAiCompatClient]: агентский луп, тулы и история целиком
- * построены на текстовых сообщениях, а уроку нужен один вопрос и один ответ про один ролик. Тащить
- * видео в общий луп значило бы перестроить ChatMessage, сериализацию истории и все оркестраторы
- * ради одного шага урока.
+ * A separate client rather than attachments in [OpenAiCompatClient]: the agent loop, the tools and the
+ * history are built entirely on text messages, while a lesson needs one question and one answer about
+ * one clip. Bringing video into the shared loop would mean rebuilding ChatMessage, history
+ * serialization and every orchestrator for the sake of one lesson step.
  *
- * Видео уходит data URL в base64: OpenRouter передаёт провайдеру ссылку, только если тот её
- * поддерживает, а локальный файл с телефона ссылкой не бывает. Без стрима: ответ короткий, а
- * пользователь видит на карточке «Смотрю видео…».
+ * The video goes as a base64 data URL: OpenRouter passes a link on to the provider only if it supports
+ * one, and a local file on a phone is never a link. No stream: the answer is short, and the user sees
+ * "Watching the video…" on the card.
  *
- * НЕ бросает (кроме отмены): любая неудача — `null` и строка в логе.
+ * Does NOT throw (except on cancellation): any failure is `null` and a line in the log.
  */
 class VideoUnderstandingClient(
   engine: HttpClientEngine,
-  /** Ключ читается на каждый запрос; пустой — «не отправлять» (см. LlmModule). */
+  /** The key is read on every request; an empty one means "do not send" (see LlmModule). */
   private val apiKey: () -> String,
   private val usageRecorder: LlmUsageRecorder,
   private val endpoint: String = OPENROUTER_CHAT_URL,
@@ -50,9 +50,9 @@ class VideoUnderstandingClient(
   private val json = Json {
     ignoreUnknownKeys = true
     isLenient = true
-    // usage={include:true} — значение по умолчанию, без encodeDefaults оно молча не уйдёт и цены не будет.
+    // usage={include:true} is a default value; without encodeDefaults it would silently not be sent and there would be no price.
     encodeDefaults = true
-    // А пустые поля частей (text у видео, video_url у текста) не шлём вовсе.
+    // And empty fields of the parts (text on the video part, video_url on the text part) are not sent at all.
     explicitNulls = false
     namingStrategy = JsonNamingStrategy.SnakeCase
   }
@@ -60,12 +60,12 @@ class VideoUnderstandingClient(
   private val httpClient = HttpClient(engine) {
     install(HttpTimeout) {
       connectTimeoutMillis = CONNECT_TIMEOUT_MS
-      // Видео + рассуждение перед ответом: дольше обычного хода, но не бесконечно.
+      // Video + reasoning before the answer: longer than a normal turn, but not endless.
       requestTimeoutMillis = REQUEST_TIMEOUT_MS
     }
   }
 
-  /** Ответ модели на [instruction] про [video] или `null`: нет ключа, сеть, отказ, пустой ответ. */
+  /** The model's answer to [instruction] about [video], or `null`: no key, network, a refusal, an empty answer. */
   suspend fun describe(instruction: String, video: ByteArray, mimeType: String): String? {
     val key = apiKey()
     if (key.isBlank()) {
@@ -121,7 +121,7 @@ class VideoUnderstandingClient(
         promptTokens = usage?.promptTokens ?: 0,
         completionTokens = usage?.completionTokens ?: 0,
         costUsd = usage?.cost,
-        // Провайдер не назвал расход — нули в токенах это не замер.
+        // The provider did not name the spend — zeros in the tokens are not a measurement.
         estimated = usage == null,
         hadTools = false,
       ),
@@ -133,7 +133,7 @@ class VideoUnderstandingClient(
     val model: String,
     val messages: List<Message>,
     val maxTokens: Int,
-    // Цену в долларах OpenRouter называет только по просьбе — как в OpenAiCompatClient.
+    // OpenRouter names the price in dollars only when asked — as in OpenAiCompatClient.
     val usage: UsageRequest = UsageRequest(),
   )
 
@@ -144,7 +144,7 @@ class VideoUnderstandingClient(
   private data class Part(
     val type: String,
     val text: String? = null,
-    // Имя поля в API — video_url, как и у image_url в OpenAI-формате.
+    // The API field name is video_url, like image_url in the OpenAI format.
     @SerialName("video_url") val videoUrl: VideoUrl? = null,
   )
 
@@ -178,8 +178,8 @@ class VideoUnderstandingClient(
     const val OPENROUTER_CHAT_URL = "${ModelCatalog.OPENROUTER_BASE_URL}/chat/completions"
     const val MUSE_SPARK_MODEL = "meta/muse-spark-1.3"
     /**
-     * Потолок ролика. Десять секунд в низком качестве — пара мегабайт; всё, что больше, — либо
-     * длинное видео (дорого и долго), либо 4K, которое модели не нужно. В base64 объём растёт ещё на треть.
+     * The clip ceiling. Ten seconds in low quality is a couple of megabytes; anything larger is either
+     * a long video (expensive and slow) or 4K, which the model does not need. Base64 adds another third.
      */
     const val MAX_VIDEO_BYTES = 20 * 1024 * 1024
     private const val MAX_TOKENS = 1500

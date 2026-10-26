@@ -6,14 +6,14 @@ import kotlinx.coroutines.flow.Flow
 
 interface LlmClient {
   /**
-   * Провайдер — ОБЯЗАТЕЛЬНЫЙ параметр, без значения по умолчанию.
+   * The provider is a REQUIRED parameter, with no default value.
    *
-   * Раньше здесь стоял `= LlmProvider.NIM`, и два вызова его просто не передавали: аннотатор
-   * диалогов (уходит после каждой реплики, тело — дословный кусок переписки) и извлечение профиля
-   * из рассказа о себе. Оба молча уезжали к NVIDIA даже после того, как пользователь осознанно
-   * переключился на другого вендора, и не падали при этом: NIM-ключ вшит в сборку. Дефолт
-   * превращает «забыл прокинуть провайдера» в тихую отправку данных не тому адресату; без него
-   * это ошибка компиляции.
+   * It used to be `= LlmProvider.NIM`, and two calls simply did not pass it: the conversation annotator
+   * (it runs after every message, and its body is a verbatim piece of the conversation) and profile
+   * extraction from the "about me" text. Both silently went to NVIDIA even after the user had
+   * deliberately switched to another vendor, and did not fail: the NIM key was baked into the build. A
+   * default turns "forgot to pass the provider" into quietly sending data to the wrong recipient;
+   * without it that is a compile error.
    */
   fun streamChat(
     messages: List<ChatMessage>,

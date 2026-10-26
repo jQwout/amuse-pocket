@@ -3,16 +3,16 @@ package com.aiopenpocket.agent.core.llm
 // @trace vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53
 
 /**
- * Цена вызова прямого Meta Model API в USD по прайсу Meta, или `null` для модели, которой в прайсе
- * нет.
+ * Price of a direct Meta Model API call in USD by Meta's price list, or `null` for a model that is not
+ * on the list.
  *
- * Считаем сами, потому что Meta, в отличие от OpenRouter, присылает в usage только токены. Ключ Meta
- * вводит сам пользователь, и тратятся его кредиты — карточка расхода без денег на этом маршруте
- * была бы как раз там, где деньги важнее всего.
+ * We compute it ourselves because Meta, unlike OpenRouter, sends only tokens in usage. The Meta key is
+ * entered by the user, and their credits are being spent — a spend card without money on this route
+ * would be missing it exactly where money matters most.
  *
- * Кешированная часть промпта (`prompt_tokens_details.cached_tokens`) идёт по своей цене. Отдельной
- * цены у размышления в прайсе нет: по схеме usage `reasoning_tokens` — разбивка внутри
- * `completion_tokens`, так что они уже посчитаны как выход.
+ * The cached part of the prompt (`prompt_tokens_details.cached_tokens`) has its own price. Thinking has
+ * no separate price on the list: by the usage schema `reasoning_tokens` is a breakdown inside
+ * `completion_tokens`, so they are already counted as output.
  */
 internal fun metaListPriceUsd(model: String, usage: SseUsage): Double? {
   val price = META_PRICES[model] ?: return null
@@ -24,8 +24,8 @@ internal fun metaListPriceUsd(model: String, usage: SseUsage): Double? {
 private class MetaPrice(val input: Double, val cachedInput: Double, val output: Double)
 
 /**
- * USD за 1M токенов, стандартный режим — dev.meta.ai/docs/pricing-rate-limits, сверено 26 окт 2026.
- * Contributor-версий тут нет: приложение их не берёт (см. [trainsOnUserData]).
+ * USD per 1M tokens, standard mode — dev.meta.ai/docs/pricing-rate-limits, checked Oct 26, 2026.
+ * There are no contributor versions here: the app does not use them (see [trainsOnUserData]).
  */
 private val META_PRICES = mapOf(
   "muse-spark-1.3" to MetaPrice(input = 1.25, cachedInput = 0.15, output = 4.25),

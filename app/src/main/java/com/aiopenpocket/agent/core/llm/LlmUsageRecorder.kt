@@ -3,46 +3,48 @@ package com.aiopenpocket.agent.core.llm
 // @trace streaming-llm-chat-6595a1
 
 /**
- * Расход одного ЗАВЕРШЁННОГО вызова модели — того, что провайдер уже посчитал и закрыл.
+ * The spend of one FINISHED model call — what the provider has already counted and closed.
  *
- * Запись на вызов, а не на ход пользователя, и это принципиально: один ход агента — это до
- * `ReactLoopRunner.MAX_ITERATIONS` вызовов подряд, каждый со своим контекстом, плюс невидимые
- * пользователю вызовы (аннотатор диалога, извлечение профиля, планировщик, верификатор шага,
- * heartbeat в фоне). Свести их здесь в одну строку значило бы потерять ровно то, ради чего учёт и
- * заводился: понять, сколько стоит тул-хэви ход против простого и сколько съедает фон.
+ * A record per call, not per user turn, and that matters: one agent turn is up to
+ * `ReactLoopRunner.MAX_ITERATIONS` calls in a row, each with its own context, plus calls the user does
+ * not see (the conversation annotator, profile extraction, the planner, the step verifier, a background
+ * heartbeat). Merging them into one row here would lose exactly what the accounting was started for:
+ * seeing what a tool-heavy turn costs against a simple one, and how much the background eats.
  */
 data class LlmCallUsage(
   val provider: LlmProvider,
   val model: String,
   val promptTokens: Int,
   val completionTokens: Int,
-  /** Цена в USD, если её назвал провайдер (OpenRouter). `null` — считать по прайсу отдельно. */
+  /** Price in USD, if the provider named it (OpenRouter). `null` — price it separately from the price list. */
   val costUsd: Double?,
   /**
-   * Токены не пришли от провайдера, а оценены по длине текста (`LlmContextConfig.estimateTokens`).
+   * The tokens did not come from the provider but were estimated from the text length
+   * (`LlmContextConfig.estimateTokens`).
    *
-   * Хранится, а не забывается, потому что смешивать замер с оценкой в одной колонке — значит
-   * получить сводку, про которую нельзя сказать, насколько ей верить. По этому флагу видно, какую
-   * долю расхода мы знаем точно, а какую угадали.
+   * Stored rather than forgotten, because mixing measurement with estimate in one column gives a
+   * summary nobody can say how far to trust. This flag shows which share of the spend we know exactly
+   * and which we guessed.
    */
   val estimated: Boolean,
-  /** Запрос нёс схемы инструментов: тул-вызовы — главный множитель размера промпта. */
+  /** The request carried tool schemas: tool calls are the main multiplier of the prompt size. */
   val hadTools: Boolean,
 )
 
 /**
- * Куда уходит учёт расхода.
+ * Where spend accounting goes.
  *
- * Интерфейс, а не прямая запись в Room из клиента: [OpenAiCompatClient] не должен знать про базу
- * (его тесты гоняют транспорт через MockEngine и никакой БД не поднимают), а сама запись — вопрос
- * хранения, который на сервере будет решаться иначе. Реализация обязана быть НЕБРОСАЮЩЕЙ: учёт не
- * может уронить ход, ответ пользователю важнее строки в статистике.
+ * An interface rather than writing to Room directly from the client: [OpenAiCompatClient] must not know
+ * about the database (its tests run the transport through MockEngine and bring up no DB), and the
+ * write itself is a storage question that will be solved differently on a server. The implementation
+ * MUST NOT THROW: accounting cannot bring down a turn, the answer to the user matters more than a row
+ * of statistics.
  */
 interface LlmUsageRecorder {
   suspend fun record(usage: LlmCallUsage)
 }
 
-/** Ничего не пишет: тесты и любые пути без БД. */
+/** Writes nothing: tests and any paths without a DB. */
 object NoOpLlmUsageRecorder : LlmUsageRecorder {
   override suspend fun record(usage: LlmCallUsage) = Unit
 }
