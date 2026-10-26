@@ -35,7 +35,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
@@ -106,8 +105,6 @@ internal fun MessageBubble(
         MaterialTheme.colorScheme.surfaceVariant
     }
     val alignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart
-    // A system message is not a bubble: drawn without the clip and the background fill.
-    val isSystem = message.role == "system"
 
     Box(
         modifier = Modifier
@@ -117,14 +114,14 @@ internal fun MessageBubble(
     ) {
         Column(
             modifier = Modifier
-                // A system message has no bubble: the clip and the background fill are not applied.
+                // Only the user's message is a bubble (clip + fill); assistant and system messages sit
+                // straight on the background.
                 .then(
                     if (isUser) {
-                        Modifier .clip(RoundedCornerShape(16.dp))
+                        Modifier.clip(RoundedCornerShape(16.dp))
                             .background(backgroundColor)
                     } else {
                         Modifier
-
                     },
                 )
                 // Highlighting the current search match — an accent frame around the bubble.

@@ -10,9 +10,6 @@ import com.aiopenpocket.agent.core.memory.entity.EpisodeEntity
 
 @Dao
 interface EpisodeDao {
-  @Query("SELECT * FROM episodes ORDER BY timestamp DESC LIMIT :limit")
-  suspend fun getRecent(limit: Int): List<EpisodeEntity>
-
   @Query(
     "SELECT * FROM episodes WHERE conversationId = :conversationId " +
       "ORDER BY timestamp DESC LIMIT :limit",
@@ -33,7 +30,4 @@ interface EpisodeDao {
 
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insert(episode: EpisodeEntity)
-
-  @Query("DELETE FROM episodes WHERE id = :id")
-  suspend fun delete(id: String)
 }

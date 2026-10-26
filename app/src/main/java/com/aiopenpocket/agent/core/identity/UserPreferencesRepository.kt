@@ -52,11 +52,6 @@ class UserPreferencesRepository(
       prefs[KEY_DEFAULT_PERSONA_ID] ?: DEFAULT_PERSONA_ID
     }
 
-  val hasSeenTutorial: Flow<Boolean> =
-    dataStore.data.map { prefs ->
-      prefs[KEY_HAS_SEEN_TUTORIAL] ?: false
-    }
-
   val roadmapProgress: Flow<Set<String>> =
     dataStore.data.map { prefs ->
       prefs[KEY_ROADMAP_PROGRESS]?.split(",")?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
@@ -114,25 +109,9 @@ class UserPreferencesRepository(
     }
   }
 
-  suspend fun getHasSeenTutorial(): Boolean =
-    dataStore.data
-      .map { prefs -> prefs[KEY_HAS_SEEN_TUTORIAL] ?: false }
-      .first()
-
-  suspend fun getRoadmapProgress(): Set<String> =
-    dataStore.data
-      .map { prefs -> prefs[KEY_ROADMAP_PROGRESS]?.split(",")?.filter { it.isNotBlank() }?.toSet() ?: emptySet() }
-      .first()
-
   suspend fun setDefaultPersonaId(personaId: String) {
     dataStore.edit { prefs ->
       prefs[KEY_DEFAULT_PERSONA_ID] = personaId
-    }
-  }
-
-  suspend fun setHasSeenTutorial(seen: Boolean) {
-    dataStore.edit { prefs ->
-      prefs[KEY_HAS_SEEN_TUTORIAL] = seen
     }
   }
 
@@ -144,12 +123,6 @@ class UserPreferencesRepository(
       // Onboarding = lesson 1: mark it as done so lesson 2 opens on the map.
       val progress = prefs[KEY_ROADMAP_PROGRESS]?.split(",")?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
       prefs[KEY_ROADMAP_PROGRESS] = (progress + ONBOARDING_LEVEL_ID).joinToString(",")
-    }
-  }
-
-  suspend fun completeTutorial() {
-    dataStore.edit { prefs ->
-      prefs[KEY_HAS_SEEN_TUTORIAL] = true
     }
   }
 
@@ -168,7 +141,6 @@ class UserPreferencesRepository(
 
     private val KEY_ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
     private val KEY_DEFAULT_PERSONA_ID = stringPreferencesKey("default_persona_id")
-    private val KEY_HAS_SEEN_TUTORIAL = booleanPreferencesKey("has_seen_tutorial")
     private val KEY_ROADMAP_PROGRESS = stringPreferencesKey("roadmap_progress")
     private val KEY_LANGUAGE = stringPreferencesKey("language")
     private val KEY_GOAL_MODE_MAX_ITERATIONS = intPreferencesKey("goal_mode_max_iterations")

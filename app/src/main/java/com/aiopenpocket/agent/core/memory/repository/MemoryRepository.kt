@@ -182,13 +182,6 @@ class MemoryRepository(
     upsertFact("user.extra_info", profile.extraInfo.trim(), "profile")
   }
 
-  suspend fun deleteFact(id: String) {
-    factDao.delete(id)
-  }
-
-  suspend fun getRecentEpisodes(limit: Int = 10): List<Episode> =
-    episodeDao.getRecent(limit).map { it.toDomain() }
-
   suspend fun getRecentEpisodesForConversation(conversationId: String, limit: Int): List<Episode> =
     episodeDao.getRecentForConversation(conversationId, limit).map { it.toDomain() }
 
@@ -224,9 +217,6 @@ class MemoryRepository(
     return id
   }
 
-  suspend fun deleteEpisode(id: String) {
-    episodeDao.delete(id)
-  }
 
   private fun FactEntity.toDomain() = Fact(
     id = id,
