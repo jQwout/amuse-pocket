@@ -15,15 +15,15 @@ import androidx.compose.ui.unit.dp
 import com.aiopenpocket.ui.theme.GlassTokens
 
 /**
- * Единое поле ввода визарда конструктора агента. Раньше каждый шаг рисовал свой
- * `OutlinedTextField(...).glassCardSurface()` — glassCardSurface добавляет СВОЙ фон и рамку, а
- * OutlinedTextField поверх — ещё одну (в error-состоянии салмон, другого радиуса): двойная
- * несовпадающая рамка, а на свежем черновике все обязательные поля пусты → все поля разом красные.
+ * The single input field of the agent builder wizard. Every step used to draw its own
+ * `OutlinedTextField(...).glassCardSurface()` — glassCardSurface adds ITS OWN background and border, and
+ * the OutlinedTextField on top adds another (salmon in the error state, with a different radius): a
+ * double mismatched border, and on a fresh draft all required fields are empty → all fields red at once.
  *
- * Здесь один filled [TextField] по тому же паттерну, что уже работает в Настройках: стеклянная
- * заливка [GlassTokens.LightTint], индикаторы прозрачные (никакой рамки/подчёркивания), явные
- * СВЕТЛЫЕ цвета текста/лейбла. Ошибка обозначается мягкой заливкой контейнера и цветом лейбла плюс
- * текстом ошибки под полем (см. `ErrorText`), а не резкой рамкой.
+ * Here it is one filled [TextField] following the pattern that already works in Settings: the glass
+ * fill [GlassTokens.LightTint], transparent indicators (no border/underline), explicitly LIGHT text/label
+ * colors. An error is shown by a soft container fill and the label color plus the error text under the
+ * field (see `ErrorText`), not by a harsh border.
  */
 @Composable
 fun BuilderTextField(
@@ -49,7 +49,7 @@ fun BuilderTextField(
     colors = TextFieldDefaults.colors(
       focusedContainerColor = GlassTokens.LightTint,
       unfocusedContainerColor = GlassTokens.LightTint,
-      // Ошибка — мягкая красная заливка, а не резкая рамка: сигнал есть, «сломанного» вида нет.
+      // An error is a soft red fill, not a harsh border: the signal is there, the "broken" look is not.
       errorContainerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.08f),
       focusedIndicatorColor = Color.Transparent,
       unfocusedIndicatorColor = Color.Transparent,

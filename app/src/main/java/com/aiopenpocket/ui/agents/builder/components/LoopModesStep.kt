@@ -40,10 +40,10 @@ fun LoopModesStep(
   onUpdateDraft: ((AgentDraft) -> AgentDraft) -> Unit,
   modifier: Modifier = Modifier,
   /**
-   * Отступы под плавающие стеклянные острова визарда (высоты меряются в AgentBuilderScreen).
-   * Применяются ПОСЛЕ verticalScroll — тогда контент прокручивается ПОД стеклом и его есть
-   * чему размывать. Инсет вьюпорта снаружи (через [modifier]) дал бы обратное: полотно под
-   * острова не заезжает и блюр сэмплит одну аврору.
+   * Paddings for the wizard's floating glass islands (their heights are measured in AgentBuilderScreen).
+   * Applied AFTER verticalScroll — then the content scrolls UNDER the glass and there is something for
+   * it to blur. A viewport inset from outside (through [modifier]) would do the opposite: the canvas does
+   * not slide under the islands and the blur samples only the aurora.
    */
   contentPadding: PaddingValues = PaddingValues(),
 ) {
@@ -74,7 +74,7 @@ fun LoopModesStep(
           onClick = {
             onUpdateDraft { d ->
               val updated = if (selected) d.allowedModes - mode else d.allowedModes + mode
-              // Никогда не оставляем allowedModes пустым — иначе нечего выбрать в качестве default.
+              // allowedModes is never left empty — otherwise there would be nothing to pick as the default.
               if (updated.isEmpty()) d else d.copy(allowedModes = updated)
             }
           },
@@ -82,9 +82,8 @@ fun LoopModesStep(
         )
       }
     }
-    // Нет ErrorText("allowedModes") здесь: AgentValidator не производит issue с таким field —
-    // единственное правило про режимы (default_mode_not_allowed) размечено как "defaultMode",
-    // что и показываем ниже.
+    // No ErrorText("allowedModes") here: AgentValidator produces no issue with that field — the only rule
+    // about modes (default_mode_not_allowed) is tagged "defaultMode", which is what is shown below.
 
     Spacer(modifier = Modifier.height(20.dp))
     Text(text = tr("Режим по умолчанию", "Default mode"), style = MaterialTheme.typography.titleMedium)
@@ -94,8 +93,8 @@ fun LoopModesStep(
         FilterChip(
           selected = draft.defaultMode == mode,
           onClick = {
-            // Выбор default всегда держит его входящим в allowedModes — иначе тут же ловим
-            // AgentValidator.default_mode_not_allowed на ровном месте.
+            // Choosing the default always keeps it inside allowedModes — otherwise we would hit
+            // AgentValidator.default_mode_not_allowed out of nowhere.
             onUpdateDraft { it.copy(defaultMode = mode, allowedModes = it.allowedModes + mode) }
           },
           label = { Text(modeLabel(mode)) },

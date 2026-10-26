@@ -59,26 +59,26 @@ fun TestAndPublishStep(
   errors: List<ValidationIssue>,
   isSaving: Boolean,
   testStatus: TurnStatus?,
-  /** Ответ тестового хода — `AgentBuilderTestViewModel.testReplyText` (не только стрим: см. там). */
+  /** The test turn's answer — `AgentBuilderTestViewModel.testReplyText` (not only the stream: see there). */
   testStreamingText: String,
   testToolTrace: List<ToolTrace>,
   onSetExecutionMode: (ExecutionMode) -> Unit,
   onSendTestMessage: (String) -> Unit,
   onPublish: () -> Unit,
   onArchive: () -> Unit,
-  /** Только что успешно опубликовано — показываем подтверждение (см. `AgentBuilderUiState.justPublished`). */
+  /** Just published successfully — the confirmation is shown (see `AgentBuilderUiState.justPublished`). */
   justPublished: Boolean = false,
-  /** Хук «Требовать подтверждение» ждёт решения в тестовом ходе; null — ничего не ждёт. */
+  /** A "Require confirmation" hook is waiting for a decision in the test turn; null — nothing is waiting. */
   testPendingApproval: ToolApprovalRequest? = null,
   onResolveTestApproval: (approved: Boolean) -> Unit = {},
-  /** «Открыть чат» в подтверждении публикации; null — кнопки нет. */
+  /** "Open chat" in the publish confirmation; null — no button. */
   onOpenChat: (() -> Unit)? = null,
   modifier: Modifier = Modifier,
   /**
-   * Отступы под плавающие стеклянные острова визарда (высоты меряются в AgentBuilderScreen).
-   * Применяются ПОСЛЕ verticalScroll — тогда контент прокручивается ПОД стеклом и его есть
-   * чему размывать. Инсет вьюпорта снаружи (через [modifier]) дал бы обратное: полотно под
-   * острова не заезжает и блюр сэмплит одну аврору.
+   * Paddings for the wizard's floating glass islands (their heights are measured in AgentBuilderScreen).
+   * Applied AFTER verticalScroll — then the content scrolls UNDER the glass and there is something for
+   * it to blur. A viewport inset from outside (through [modifier]) would do the opposite: the canvas does
+   * not slide under the islands and the blur samples only the aurora.
    */
   contentPadding: PaddingValues = PaddingValues(),
 ) {
@@ -159,8 +159,8 @@ fun TestAndPublishStep(
     Spacer(modifier = Modifier.height(16.dp))
     TestRunStatus(testStatus, testStreamingText)
 
-    // Тот же бар подтверждения, что в чате. Хук «Требовать подтверждение» ставит вызов на ожидание
-    // и в предпросмотре, а без бара здесь тестовый ход молча висел две минуты до таймаута.
+    // The same confirmation bar as in the chat. A "Require confirmation" hook puts a call on hold in
+    // preview too, and without the bar here the test turn silently hung for two minutes until the timeout.
     testPendingApproval?.let { request ->
       Spacer(modifier = Modifier.height(8.dp))
       ToolApprovalBar(
@@ -170,9 +170,9 @@ fun TestAndPublishStep(
       )
     }
 
-    // Trace прогона (спека 11.2): без него предпросмотр и живой тест выглядят для юзера одинаково,
-    // хотя весь смысл предпросмотра — увидеть, за какие инструменты агент взялся и что ему вернули
-    // (включая синтетические ответы Simulate вместо реального побочного эффекта).
+    // The run's trace (spec 11.2): without it a preview and a live test look the same to the user, although
+    // the whole point of a preview is to see which tools the agent reached for and what it got back
+    // (including the synthetic Simulate answers instead of a real side effect).
     if (testToolTrace.isNotEmpty()) {
       Spacer(modifier = Modifier.height(12.dp))
       ToolTracePanel(traces = testToolTrace, modifier = Modifier.testTag("agent_builder_tool_trace"))
@@ -184,15 +184,15 @@ fun TestAndPublishStep(
 
     Text(text = tr("Публикация", "Publishing"), style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(8.dp))
-    // Подтверждение успеха: без него «Опубликовать» просто переставала крутиться, и было непонятно,
-    // ушёл ли агент в ростер и куда идти дальше.
+    // A success confirmation: without it "Publish" simply stopped spinning, and it was unclear whether the
+    // agent had gone to the roster and where to go next.
     val publishedUnchanged = justPublished && draft.status == AgentStatus.PUBLISHED
     if (publishedUnchanged) {
       PublishedNotice(configVersion = draft.configVersion, onOpenChat = onOpenChat)
       Spacer(modifier = Modifier.height(12.dp))
     }
-    // Не просто «есть ошибки», а какие именно и на каком шаге: иначе с последнего шага непонятно,
-    // куда возвращаться, — а ошибка вполне может сидеть на первом.
+    // Not just "there are errors", but which ones and on which step: otherwise from the last step it is
+    // unclear where to go back to — and the error may well be on the first one.
     if (errors.isNotEmpty()) {
       Column(modifier = Modifier.padding(bottom = 8.dp)) {
         Text(
@@ -210,8 +210,8 @@ fun TestAndPublishStep(
         }
       }
     }
-    // Сразу после публикации публиковать нечего: «Опубликовать изменения» под «Агент опубликован»
-    // выглядела как недоделка. Любая правка гасит justPublished — и кнопка возвращается.
+    // Right after publishing there is nothing to publish: "Publish changes" under "Agent published" looked
+    // unfinished. Any edit clears justPublished — and the button comes back.
     if (!publishedUnchanged) {
       Button(
         onClick = onPublish,
@@ -231,10 +231,10 @@ fun TestAndPublishStep(
       }
     }
 
-    // Архивирование доступно и черновику: иначе брошенный черновик остаётся в секции «Черновики»
-    // навсегда и убрать его оттуда нечем. Смысл действия один и тот же (строка выживает, из списков
-    // уходит) — поэтому и черновику кнопка обещает архив: прежнее «Удалить черновик» врало, строка
-    // в базе оставалась.
+    // Archiving is available for a draft too: otherwise an abandoned draft stays in the "Drafts" section
+    // forever with nothing to remove it. The meaning of the action is the same (the row survives, it
+    // leaves the lists) — so for a draft the button promises an archive too: the old "Delete draft" lied,
+    // the row stayed in the database.
     if (draft.status != AgentStatus.ARCHIVED) {
       Spacer(modifier = Modifier.height(8.dp))
       TextButton(onClick = onArchive, modifier = Modifier.testTag("agent_builder_archive")) {
@@ -251,7 +251,7 @@ fun TestAndPublishStep(
   }
 }
 
-/** Плашка «опубликовано» с версией и, если маршрут умеет, переходом в чат агента. */
+/** The "published" badge with the version and, if the route can, a way into the agent's chat. */
 @Composable
 private fun PublishedNotice(configVersion: Long, onOpenChat: (() -> Unit)?) {
   Column(
@@ -286,7 +286,7 @@ private fun stepTitle(step: BuilderStep): String = when (step) {
   BuilderStep.TEST -> tr("Проверка", "Test")
 }
 
-/** [replyText] — ответ хода: стрим или записанное в диалог сообщение (у ходов «План»/«Цель» только оно). */
+/** [replyText] — the turn's answer: the stream or the message written to the conversation (for "Plan"/"Goal" turns only the latter). */
 @Composable
 private fun TestRunStatus(status: TurnStatus?, replyText: String) {
   when (status) {

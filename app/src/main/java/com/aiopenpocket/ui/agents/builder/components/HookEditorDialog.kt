@@ -84,8 +84,8 @@ fun HookEditorDialog(
   onSave: (AgentHook) -> Unit,
   onDismiss: () -> Unit,
 ) {
-  // Плановые события агенту без PLAN/GOAL предлагать нечего — они у него не наступят никогда, и
-  // хук на них выглядел бы как настроенное, но молча мёртвое правило (design spec 12.2).
+  // There are no plan events to offer an agent without PLAN/GOAL — they will never happen for it, and a
+  // hook on them would look like a configured but silently dead rule (design spec 12.2).
   val plansEnabled = AgentMode.PLAN in allowedModes || AgentMode.GOAL in allowedModes
   val selectableEvents = HookEvent.entries.filter { plansEnabled || it !in PLAN_EVENTS || it == existing?.event }
 
@@ -160,7 +160,7 @@ fun HookEditorDialog(
             )
           } else {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-              // В условие пишется сырое имя тула (его сверяет HookEngine), а на чипе — человеческое.
+              // The condition gets the raw tool name (HookEngine matches it), the chip shows the human one.
               agentToolNames.sortedBy(CapabilityNames::tool).forEach { name ->
                 FilterChip(
                   selected = name in scopedToTools,

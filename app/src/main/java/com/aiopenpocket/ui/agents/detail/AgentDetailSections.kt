@@ -2,10 +2,10 @@ package com.aiopenpocket.ui.agents.detail
 
 // @trace user-agent-builder-848153
 //
-// Секции экрана инспектора агента (шапка, действия, плитки, промпт, планы, тулы, навыки,
-// heartbeat, хуки, файлы) с их строками/бейджами. Вынесены из AgentDetailScreen.kt — экран
-// лишь собирает их в скролл; каждая секция stateless и берёт данные параметром. Тот же пакет,
-// поэтому без кросс-импортов: у секций, что зовёт экран, видимость private -> internal.
+// Sections of the agent inspector screen (header, actions, tiles, prompt, plans, tools, skills,
+// heartbeat, hooks, files) with their rows/badges. Moved out of AgentDetailScreen.kt — the screen only
+// assembles them into a scroll; every section is stateless and takes its data as a parameter. Same
+// package, so no cross-imports: the sections the screen calls changed visibility from private to internal.
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -156,8 +156,8 @@ internal fun InvalidCapabilitiesBanner(modifier: Modifier = Modifier) {
 }
 
 /**
- * Сводка-счётчики. Плитки НЕ кликабельны: раньше у каждой был пустой onClick — ripple обещал
- * переход, а тап ничего не делал. Сами секции и так идут ниже по порядку.
+ * Summary counters. The tiles are NOT clickable: each used to have an empty onClick — the ripple
+ * promised navigation, while the tap did nothing. The sections themselves follow below in order anyway.
  */
 @Composable
 internal fun StatTiles(
@@ -180,7 +180,7 @@ internal fun StatTiles(
 private fun StatTile(label: String, value: String, modifier: Modifier = Modifier) {
   GlassCard(modifier = modifier, shape = RoundedCornerShape(16.dp)) {
     Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
-      // Как в макете: метка uppercase серым сверху, крупное значение снизу.
+      // As in the mockup: an uppercase gray label on top, a large value below.
       Text(
         text = label.uppercase(),
         style = MaterialTheme.typography.labelSmall,
@@ -192,7 +192,7 @@ private fun StatTile(label: String, value: String, modifier: Modifier = Modifier
   }
 }
 
-/** Lines beyond which the препромпт defaults to a collapsible «Развернуть/Свернуть» toggle (default expanded). */
+/** Lines beyond which the preprompt defaults to a collapsible "Expand/Collapse" toggle (default expanded). */
 private const val PROMPT_COLLAPSE_LINES = 40
 
 @Composable
@@ -204,9 +204,9 @@ internal fun PromptSection(agent: AgentDefinition, modifier: Modifier = Modifier
   Column(modifier = modifier.fillMaxWidth().testTag("agent_detail_prompt")) {
     AgentSectionHeader(icon = Icons.AutoMirrored.Filled.InsertDriveFile, label = tr("Препромпт", "System prompt"))
     Spacer(modifier = Modifier.height(8.dp))
-    // Тап по карточке разворачивает/сворачивает (шеврон в стиле макета), а не отдельная кнопка.
-    // Поведение и дефолт (длинный препромпт развёрнут — бриф Task 21) сохранены; testTag переехал
-    // с кнопки на карточку, поэтому существующий collapsed-скриншот-тест кликает по ней же.
+    // A tap on the card expands/collapses it (a chevron in the mockup's style), not a separate button.
+    // The behavior and the default (a long preprompt is expanded — the Task 21 brief) are kept; the
+    // testTag moved from the button to the card, so the existing collapsed screenshot test clicks it.
     val cardModifier = if (isLong) {
       Modifier.fillMaxWidth().clickable { expanded = !expanded }.testTag("agent_detail_prompt_toggle")
     } else {
@@ -257,11 +257,11 @@ internal fun PlansSection(
     }
     Spacer(modifier = Modifier.height(8.dp))
     if (state.plans.isEmpty()) {
-      // Честная пустая карточка — у пресетов и у ещё не запустивших план USER-агентов планов просто нет.
+      // An honest empty card — presets and USER agents that have not run a plan yet simply have no plans.
       EmptyStateCard(tr("у агента нет планов", "this agent has no plans"))
     } else {
-      // Обычный Row (как StatTiles выше), не FlowRow: три ФИКСИРОВАННЫЕ плитки, перенос не нужен —
-      // RowScope.weight здесь однозначно доступен, в отличие от FlowRowScope.
+      // A plain Row (like StatTiles above), not a FlowRow: three FIXED tiles, no wrapping needed —
+      // RowScope.weight is unambiguously available here, unlike FlowRowScope.
       Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         PlanCountTile(label = tr("Активные", "Active"), count = state.activePlansCount, modifier = Modifier.weight(1f).testTag("agent_detail_plans_active_count"))
         PlanCountTile(label = tr("На паузе", "Paused"), count = state.pausedPlansCount, modifier = Modifier.weight(1f).testTag("agent_detail_plans_paused_count"))
@@ -332,7 +332,7 @@ internal fun ToolsSection(tools: List<AgentDetailToolRow>, modifier: Modifier = 
     if (tools.isEmpty()) {
       EmptyStateCard(tr("у агента нет инструментов", "this agent has no tools"))
     } else {
-      // Единый контейнер (в макете тулы лежат в одной карточке); строки разделены тонкой линией.
+      // One container (in the mockup the tools sit in a single card); rows are separated by a thin line.
       GlassCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
         tools.forEachIndexed { i, row ->
           if (i > 0) {
@@ -364,7 +364,7 @@ private fun ToolRow(row: AgentDetailToolRow, modifier: Modifier = Modifier) {
       tint = MaterialTheme.colorScheme.primary,
       modifier = Modifier.size(16.dp),
     )
-    // Имя тула — то же, что в конструкторе и в чипах «Умеет»; сырой id остаётся только в testTag.
+    // The tool's name is the same as in the builder and in the "Can do" chips; the raw id stays only in the testTag.
     Text(
       text = CapabilityNames.tool(row.name),
       style = MaterialTheme.typography.bodyMedium,
@@ -377,9 +377,9 @@ private fun ToolRow(row: AgentDetailToolRow, modifier: Modifier = Modifier) {
 }
 
 /**
- * Пилюля в стиле макета (кадр «Инструменты»). Цвет и текст — РЕАЛЬНЫЕ (riskColor + короткая метка
- * риска), а не выдуманный allow/deny из макета: у агента все тулы разрешены, поэтому осмысленный
- * сигнал здесь — класс риска, а не «РАЗРЕШЁН» на каждой строке.
+ * A pill in the mockup's style (the "Tools" frame). The color and the text are REAL (riskColor + a short
+ * risk label), not the made-up allow/deny from the mockup: all of an agent's tools are allowed, so the
+ * meaningful signal here is the risk class, not "ALLOWED" on every row.
  */
 @Composable
 private fun RiskPill(risk: RiskClass, modifier: Modifier = Modifier) {
@@ -407,7 +407,7 @@ private fun UnavailablePill(modifier: Modifier = Modifier) {
   }
 }
 
-/** Короткая uppercase-метка риска для пилюли (полная — riskClassLabel, её показывает билдер). */
+/** A short uppercase risk label for the pill (the full one is riskClassLabel, the builder shows it). */
 private fun shortRiskLabel(risk: RiskClass): String = when (risk) {
   RiskClass.READ -> tr("ЧТЕНИЕ", "READ")
   RiskClass.WRITE -> tr("ЗАПИСЬ", "WRITE")
@@ -416,8 +416,8 @@ private fun shortRiskLabel(risk: RiskClass): String = when (risk) {
 }
 
 /**
- * Хедер секции в стиле макета: иконка + UPPERCASE-метка серым + опциональный счётчик справа.
- * Общий для секций (пока применён к «Инструментам»; остальные мигрируют в своих срезах).
+ * A section header in the mockup's style: an icon + an UPPERCASE gray label + an optional counter on the
+ * right. Shared by the sections (so far applied to "Tools"; the others migrate in their own slices).
  */
 @Composable
 private fun AgentSectionHeader(
@@ -509,8 +509,8 @@ internal fun HeartbeatSection(heartbeats: List<HeartbeatEntity>, modifier: Modif
   Column(modifier = modifier.fillMaxWidth()) {
     AgentSectionHeader(
       icon = Icons.Default.GraphicEq,
-      // «Напоминания», а не «Heartbeat»: так этот тул называется и в конструкторе («Фоновые
-      // напоминания»), и в пустом состоянии ниже.
+      // "Reminders", not "Heartbeat": that is what this tool is called both in the builder ("Background
+      // reminders") and in the empty state below.
       label = tr("Напоминания", "Reminders"),
       trailing = heartbeats.size.takeIf { it > 0 }?.let { tr("активных: $it", "active: $it") },
     )
@@ -535,7 +535,7 @@ private fun HeartbeatRow(hb: HeartbeatEntity, modifier: Modifier = Modifier) {
         color = MaterialTheme.colorScheme.onSurface,
       )
       Spacer(modifier = Modifier.height(4.dp))
-      // Расписание — лаймовым с иконкой часов, как в макете.
+      // The schedule in lime with a clock icon, as in the mockup.
       Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Icon(
           imageVector = Icons.Default.Schedule,
@@ -549,7 +549,7 @@ private fun HeartbeatRow(hb: HeartbeatEntity, modifier: Modifier = Modifier) {
           color = MaterialTheme.colorScheme.primary,
         )
       }
-      // Описание = задача агента (prompt) либо текст пуша (message) — что есть.
+      // The description = the agent's task (prompt) or the push text (message) — whichever there is.
       val desc = hb.prompt?.takeIf { it.isNotBlank() } ?: hb.message
       if (!desc.isNullOrBlank()) {
         Spacer(modifier = Modifier.height(6.dp))
@@ -563,7 +563,7 @@ private fun HeartbeatRow(hb: HeartbeatEntity, modifier: Modifier = Modifier) {
   }
 }
 
-/** «каждые N мин» для периодических, «разово» для one_time — факт периодичности, без обратного отсчёта. */
+/** "every N min" for periodic ones, "once" for one_time — the fact of periodicity, without a countdown. */
 private fun formatInterval(hb: HeartbeatEntity): String =
   hb.intervalMinutes?.let { tr("каждые $it мин", "every $it min") } ?: tr("разово", "one-time")
 
@@ -574,13 +574,12 @@ internal fun HooksSection(hooks: List<AgentDetailHookRow>, modifier: Modifier = 
     AgentSectionHeader(icon = Icons.Default.Bolt, label = tr("Хуки", "Hooks"))
     Spacer(modifier = Modifier.height(8.dp))
     if (hooks.isEmpty()) {
-      // Честная пустая карточка — у пресетов и у ещё не настроенных USER-агентов хуков просто нет.
+      // An honest empty card — presets and not-yet-configured USER agents simply have no hooks.
       EmptyStateCard(tr("у агента нет настроенных хуков", "this agent has no hooks set up"))
     } else {
       val enabled = hooks.count { it.hook.enabled }
-      // Сводная карточка как в макете (Обзор); тап разворачивает детали read-only. Полноценный
-      // редактор хуков (тумблеры/добавление) — в билдере, не здесь (решение «рестайл на реальных
-      // данных»).
+      // A summary card as in the mockup (Overview); a tap expands the details read-only. The full hook
+      // editor (toggles/adding) is in the builder, not here (the "restyle on real data" decision).
       GlassCard(
         modifier = Modifier
           .fillMaxWidth()
@@ -628,8 +627,8 @@ private fun HookRow(row: AgentDetailHookRow, modifier: Modifier = Modifier) {
         .fillMaxWidth()
         .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
-      // Те же подписи, что в конструкторе (HooksStep): событие → действие и условие. Раньше здесь
-      // стояли UUID хука и сырые enum'ы вида «BEFORE_TOOL → DENY».
+      // The same captions as in the builder (HooksStep): event → action and condition. The hook's UUID and
+      // raw enums like "BEFORE_TOOL → DENY" used to be shown here.
       Row(verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
           Text(
@@ -663,8 +662,8 @@ private fun HookRow(row: AgentDetailHookRow, modifier: Modifier = Modifier) {
 
 @Composable
 private fun HookRunLine(run: AgentHookRunEntity, modifier: Modifier = Modifier) {
-  // status — HookActionType.name (что хук сделал), errorMessage — текст исключения парсера JSON.
-  // Ни то, ни другое как есть не показываем: подпись действия как в конструкторе, ошибка — по-русски.
+  // status is HookActionType.name (what the hook did), errorMessage is the JSON parser's exception text.
+  // Neither is shown as is: the action caption is the builder's, the error is in the interface language.
   val action = runCatching { HookActionType.valueOf(run.status) }.getOrNull()
   val text = buildString {
     append(formatRelativeDate(run.timestamp))
@@ -700,7 +699,7 @@ internal fun FilesSection(files: List<AgentFile>, modifier: Modifier = Modifier)
     SectionLabel(tr("Файлы", "Files"))
     Spacer(modifier = Modifier.height(8.dp))
     Text(
-      // Без внутреннего пути «filesDir/agents/<id>»: пользователю он ничего не говорит.
+      // Without the internal path "filesDir/agents/<id>": it tells the user nothing.
       text = tr("Личная папка агента — другие агенты её не видят.", "The agent's private folder — other agents can't see it."),
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
@@ -758,7 +757,7 @@ private fun FileRow(file: AgentFile, modifier: Modifier = Modifier) {
   }
 }
 
-/** B/KB/MB — файлы агент-песочницы редко превышают несколько МБ, ГБ не ждём. */
+/** B/KB/MB — files of an agent's sandbox rarely exceed a few MB; GB is not expected. */
 private fun formatBytes(bytes: Long): String = when {
   bytes < 1_024 -> "$bytes B"
   bytes < 1_024 * 1_024 -> "%.1f KB".format(Locale.US, bytes / 1_024.0)
@@ -783,14 +782,14 @@ private fun EmptyStateCard(text: String, modifier: Modifier = Modifier) {
 }
 
 // ==================================================================================================
-// Превью экрана (скриншот-тесты). AgentDetailScreen сам тянет AgentDetailViewModel через
-// metroViewModel() у настоящего маршрута — здесь тот же визуальный каркас с фиксированным state,
-// без ViewModel, паттерн как у AgentsPreviewScaffold (AgentsScreen.kt) / HomePreviewScaffold.
+// Screen previews (screenshot tests). AgentDetailScreen itself gets AgentDetailViewModel via
+// metroViewModel() on the real route — here is the same visual frame with a fixed state, no ViewModel,
+// the same pattern as AgentsPreviewScaffold (AgentsScreen.kt) / HomePreviewScaffold.
 // ==================================================================================================
 
 private const val PREVIEW_FIXED_TIMESTAMP = 1_700_000_000_000L
 
-/** Правдоподобный, но полностью фейковый state для превью/скриншот-тестов — реальный ViewModel не участвует. */
+/** A plausible but entirely fake state for previews/screenshot tests — no real ViewModel involved. */
 internal fun samplePreviewState(): AgentDetailState {
   val agent = MiniAgentCatalog.get("budget")!!.toDefinition()
   return AgentDetailState(
@@ -894,9 +893,10 @@ internal fun AgentDetailPreviewScaffold(state: AgentDetailState = samplePreviewS
 }
 
 /**
- * Фокусное превью ОДНОЙ секции на НАСТОЯЩЕМ компоненте (не мок) — секции экрана лежат ниже сгиба, и
- * полноэкранный скриншот их не ловит. Это же превью открывается в Android Studio, чтобы потыкать
- * секцию отдельно. По мере рестайла остальных секций добавляются такие же фокусные превью.
+ * A focused preview of ONE section on the REAL component (not a mock) — the screen's sections lie below
+ * the fold, and a full-screen screenshot does not catch them. The same preview opens in Android Studio to
+ * poke at the section on its own. As the remaining sections get restyled, similar focused previews are
+ * added.
  */
 @Preview(showBackground = true, backgroundColor = 0xFF0A0A0A, heightDp = 240)
 @Composable

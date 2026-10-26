@@ -25,7 +25,7 @@ enum class BuilderStep { IDENTITY, INSTRUCTIONS, CAPABILITIES, LOOP, HOOKS, TEST
  * publish needs it). [MANUAL] is every pre-existing entry point (FAB "create agent", "duplicate"
  * via [AgentBuilderViewModel.cloneFrom], the edit route) and stays the default so none of them
  * change behavior. [ACADEMY_CAPSTONE] is set ONLY by the AI Academy capstone lesson's completion
- * CTA ("Открыть конструктор" on `agent_blueprint`'s `lesson_complete` card) — see
+ * CTA ("Open the builder" on `agent_blueprint`'s `lesson_complete` card) — see
  * `com.aiopenpocket.ui.chat.ChatScreen`'s `onOpenAgentBuilder` wiring. Even then the opened
  * [AgentDraft] is exactly as blank as [AgentDraft.new] always produces: this task deliberately does
  * NOT feed the student's free-form lesson chat through an LLM to prefill any field.
@@ -39,7 +39,7 @@ enum class AgentSourceContext { MANUAL, ACADEMY_CAPSTONE }
  * id/name/description/whenToUse/instructions and passed only the *id* on to [AgentDraft.skillIds].
  * Nothing ever wrote the body, so [com.aiopenpocket.agent.core.agent.AgentValidator] saw an id that
  * was neither a built-in nor an owned custom skill, reported `unknown_skill`, and blocked both
- * «Далее» and «Опубликовать» — with no control anywhere able to clear it again.
+ * "Next" and "Publish" — with no control anywhere able to clear it again.
  */
 data class CustomSkillDraft(
   val id: String,
@@ -217,25 +217,25 @@ data class AgentBuilderUiState(
   val step: BuilderStep = BuilderStep.IDENTITY,
   val errors: List<ValidationIssue> = emptyList(),
   /**
-   * Показывать ли инлайн-ошибки редактируемых шагов. Валидация идёт «по кнопке»: на свежем черновике
-   * все поля пусты, и раньше экран сразу встречал пользователя тремя красными строками, хотя он ещё
-   * ничего не сделал. Флаг поднимает [AgentBuilderViewModel.nextStep], когда «Далее» нажали при
-   * блокирующих ошибках, и сбрасывает любая смена шага. Шаг «Проверка» этим флагом НЕ управляется —
-   * там сводка блокеров и есть смысл экрана.
+   * Whether to show the inline errors of the editable steps. Validation happens "on the button": on a
+   * fresh draft all fields are empty, and the screen used to greet the user with three red lines right
+   * away, although they had done nothing yet. [AgentBuilderViewModel.nextStep] raises the flag when
+   * "Next" was tapped with blocking errors, and any step change resets it. The "Check" step is NOT
+   * driven by this flag — there the summary of blockers is the point of the screen.
    */
   val showErrors: Boolean = false,
   val isSaving: Boolean = false,
   val canPublish: Boolean = false,
-  // PREVIEW, не LIVE: первый тестовый прогон черновика не должен по-настоящему слать письма/писать в
-  // календарь. Раньше поле дефолтилось в LIVE, а PREVIEW навязывался LaunchedEffect'ом в роуте —
-  // подпорка, которая держалась только на том, что экран всегда открывают именно через тот роут.
+  // PREVIEW, not LIVE: the first test run of a draft must not really send emails/write to the calendar.
+  // The field used to default to LIVE, with PREVIEW forced by a LaunchedEffect in the route — a prop
+  // that held only because the screen was always opened through that particular route.
   val executionMode: ExecutionMode = ExecutionMode.PREVIEW,
   val isLoading: Boolean = true,
   val saveError: String? = null,
   /**
-   * «Опубликовать» только что прошло успешно. Раньше успех ничем не отмечался: кнопка просто
-   * переставала крутиться, и было непонятно, ушёл ли агент в ростер и что делать дальше. Поднимает
-   * [AgentBuilderViewModel.publish], гасит любая следующая правка ([AgentBuilderViewModel.updateDraft]).
+   * "Publish" has just succeeded. Success used to go unmarked: the button simply stopped spinning, and it
+   * was unclear whether the agent had gone to the roster and what to do next. Raised by
+   * [AgentBuilderViewModel.publish], cleared by any following edit ([AgentBuilderViewModel.updateDraft]).
    */
   val justPublished: Boolean = false,
 )

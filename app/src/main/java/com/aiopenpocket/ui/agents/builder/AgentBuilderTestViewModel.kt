@@ -97,11 +97,12 @@ class AgentBuilderTestViewModel(
     .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
   /**
-   * Последнее сообщение тестового диалога, если оно от ассистента. Нужно ходам «План»/«Цель»: их
-   * итог (`TurnManager.finishPlanMessage`) пишется сразу в историю сообщением, без стриминга, и
-   * [testStreamingText] у такого хода пуст — шаг «Проверка» показывал «Пустой ответ.» агенту,
-   * который на деле ответил. Роль проверяем, чтобы при пустом ответе обычного хода (последней
-   * будет реплика пользователя) не всплыл ответ прошлого хода.
+   * The last message of the test conversation, if it is from the assistant. Needed for "Plan"/"Goal"
+   * turns: their result (`TurnManager.finishPlanMessage`) is written straight into the history as a
+   * message, without streaming, and [testStreamingText] is empty for such a turn — the "Check" step
+   * showed "Empty answer." for an agent that had in fact answered. The role is checked so that with an
+   * empty answer of a normal turn (the last one will be the user's message) the previous turn's answer
+   * does not surface.
    */
   @OptIn(ExperimentalCoroutinesApi::class)
   private val lastAssistantMessage: Flow<String> = _testConversationId
@@ -115,29 +116,30 @@ class AgentBuilderTestViewModel(
     }
 
   /**
-   * То, что шаг «Проверка» показывает как ответ агента: сообщение, которое ход записал в тестовый
-   * диалог (см. [lastAssistantMessage]), а пока его нет — стрим хода. Записанное — первым: у хода
-   * «План»/«Цель» стрим пуст или застревает на строке прогресса инструмента, а итоговый текст есть
-   * только в истории. Новый ход начинается с реплики пользователя, поэтому ответ прошлого хода сюда
-   * не протекает.
+   * What the "Check" step shows as the agent's answer: the message the turn wrote into the test
+   * conversation (see [lastAssistantMessage]), and until there is one — the turn's stream. The written
+   * one comes first: a "Plan"/"Goal" turn has an empty stream or one stuck on the tool progress line,
+   * while the final text is only in the history. A new turn starts with the user's message, so the
+   * previous turn's answer does not leak in here.
    */
   val testReplyText: StateFlow<String> = combine(testStreamingText, lastAssistantMessage) { streaming, saved ->
     saved.ifBlank { streaming }
   }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
 
   /**
-   * Запрос подтверждения от хука «Требовать подтверждение» в ТЕСТОВОМ диалоге — null, пока ничего не
-   * ждёт. [ExecutionPolicy][com.aiopenpocket.agent.core.policy.ExecutionPolicy] ставит такой вызов на
-   * ожидание и в предпросмотре, а ответить на него раньше было негде: бар подтверждения жил только в
-   * чате, и тестовый ход молча висел две минуты до таймаута координатора. Фильтр по своему
-   * conversationId — как в `ChatViewModel`: чужой запрос сюда не попадёт.
+   * A confirmation request from a "Require confirmation" hook in the TEST conversation — null while
+   * nothing is waiting. [ExecutionPolicy][com.aiopenpocket.agent.core.policy.ExecutionPolicy] puts such a
+   * call on hold in preview too, and there used to be nowhere to answer it: the confirmation bar lived
+   * only in the chat, and the test turn silently hung for two minutes until the coordinator's timeout.
+   * Filtered by its own conversationId — as in `ChatViewModel`: someone else's request does not get
+   * here.
    */
   val testPendingApproval: StateFlow<ToolApprovalRequest?> =
     combine(_testConversationId, toolApprovalCoordinator.pending) { convId, pending ->
       if (convId == null) null else pending.firstOrNull { it.conversationId == convId }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-  /** Ответ на [testPendingApproval]; no-op, если запрос уже снят (таймаут, ход закончился). */
+  /** The answer to [testPendingApproval]; a no-op if the request is already gone (timeout, the turn ended). */
   fun resolveTestApproval(approved: Boolean) {
     val request = testPendingApproval.value ?: return
     toolApprovalCoordinator.resolve(request.runId, request.requestId, approved)
@@ -153,20 +155,20 @@ class AgentBuilderTestViewModel(
   fun attachAgent(agentId: String) {
     if (attachedAgentId == agentId) return
     attachedAgentId = agentId
-    // Смена агента в той же сессии: прежний тестовый диалог больше не нужен никому. Раньше он
-    // оставался висеть — [onCleared] убирал только последний, и каждый лишний id (например, новый
-    // черновик после поворота экрана) оставлял в списке чатов ещё один «Тест агента».
+    // Switching agents within the same session: the old test conversation is no longer needed by anyone.
+    // It used to stay hanging around — [onCleared] removed only the last one, and every extra id (e.g. a
+    // new draft after a screen rotation) left one more "Agent test" in the chat list.
     _testConversationId.value?.let(::discardConversation)
     _testConversationId.value = null
     viewModelScope.launch {
       val created = conversationRepository.createConversation(
         title = tr(TEST_CONVERSATION_TITLE, TEST_CONVERSATION_TITLE_EN),
         agentId = agentId,
-        // Помечаем служебным тегом: диалог привязан к agentId черновика, и без метки «Открыть чат»
-        // у собранного агента мог переиспользовать именно его (findLatestConversationByAgent).
+        // Marked with a system tag: the conversation is bound to the draft's agentId, and without the marker
+        // "Open chat" on the built agent could reuse exactly this one (findLatestConversationByAgent).
         tags = listOf(ConversationRepository.BUILDER_TEST_TAG),
       )
-      // Пока диалог создавался, могли успеть переключиться на другого агента — тогда этот уже сирота.
+      // While the conversation was being created, the user may have switched to another agent — then this one is an orphan.
       if (attachedAgentId == agentId) _testConversationId.value = created else discardConversation(created)
     }
   }
@@ -189,7 +191,7 @@ class AgentBuilderTestViewModel(
   /**
    * The test conversation is scratch space, not something the user asked to keep: it was created
    * silently by opening the wizard's TEST step and then left behind in the chat list forever, one
-   * «Тест агента» per builder session. Cleaning it up here (the ViewModel dies with the builder
+   * "Agent test" per builder session. Cleaning it up here (the ViewModel dies with the builder
    * screen) keeps that list to conversations the user actually started.
    *
    * The turn is stopped FIRST and awaited: closing the wizard mid-test-run is entirely normal, and
@@ -201,10 +203,11 @@ class AgentBuilderTestViewModel(
    * Fire-and-forget beyond that is fine: the delete is a single local Room write, and if the process
    * dies mid-way the leftover row is exactly the old behavior, not a corruption.
    *
-   * Напоминания тестового диалога снимаются ДО удаления: в LIVE-проверке агент мог поставить
-   * heartbeat (или план — свой), а у `heartbeats` нет FK на диалог, каскад их не трогает. Осиротевший
-   * heartbeat продолжал бы будить LLM, падать на записи в несуществующий чат и слать пуш со ссылкой
-   * в никуда — та же уборка, что при удалении чата из списка ([ConversationHeartbeatCleanup]).
+   * The test conversation's reminders are cancelled BEFORE the delete: in a LIVE check the agent may
+   * have set a heartbeat (or its own plan), and `heartbeats` has no FK to the conversation, so the
+   * cascade does not touch them. An orphaned heartbeat would keep waking the LLM, failing to write into
+   * a nonexistent chat and sending a push with a link to nowhere — the same cleanup as when a chat is
+   * deleted from the list ([ConversationHeartbeatCleanup]).
    */
   override fun onCleared() {
     super.onCleared()
@@ -213,7 +216,7 @@ class AgentBuilderTestViewModel(
     discardConversation(convId)
   }
 
-  /** Останавливает ход в [convId] и удаляет диалог — порядок и причины см. в [onCleared]. */
+  /** Stops the turn in [convId] and deletes the conversation — see [onCleared] for the order and the reasons. */
   private fun discardConversation(convId: String) {
     cleanupScope.launch {
       runCatching {
@@ -229,9 +232,9 @@ class AgentBuilderTestViewModel(
     private const val TEST_CONVERSATION_TITLE_EN = "Agent test"
 
     /**
-     * Один общий скоуп на все экземпляры вместо нового на каждое [onCleared]: уборка обязана
-     * пережить смерть самой ViewModel (её `viewModelScope` к этому моменту уже отменён), но плодить
-     * по скоупу на закрытие экрана незачем.
+     * One shared scope for all instances instead of a new one per [onCleared]: the cleanup must outlive
+     * the ViewModel itself (its `viewModelScope` is already cancelled by then), but there is no point
+     * spawning a scope per screen close.
      */
     private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
   }

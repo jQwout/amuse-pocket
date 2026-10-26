@@ -63,7 +63,7 @@ import dev.zacsweers.metrox.viewmodel.metroViewModel
 /**
  * Roster screen (Task 21): tapping a card navigates to the full-screen agent detail (`agent/{id}`,
  * [com.aiopenpocket.ui.agents.detail.AgentDetailRoute]) — the old read-only glass bottom-sheet
- * inspector is gone, along with "Открыть чат" living only inside that sheet. Opening a chat is now
+ * inspector is gone, along with "Open chat" living only inside that sheet. Opening a chat is now
  * the detail screen's own header action. [onCreateAgent] (the FAB) starts a brand-new draft in the
  * Task 20 builder (`agent_builder`).
  */
@@ -103,9 +103,9 @@ fun AgentsScreen(
       modifier = Modifier
         .fillMaxSize()
         .padding(horizontal = 20.dp),
-      // Отступы каркаса уходят в contentPadding, а НЕ в .padding(): тогда список занимает всю
-      // высоту и скроллится ПОД плавающими стеклянными островами (им есть что размывать), а
-      // крайние карточки при этом не прячутся под стеклом.
+      // The scaffold paddings go into contentPadding, NOT .padding(): then the list takes the full height
+      // and scrolls UNDER the floating glass islands (they have something to blur), while the edge cards
+      // do not hide under the glass.
       contentPadding = PaddingValues(
         top = padding.calculateTopPadding(),
         bottom = padding.calculateBottomPadding() + 96.dp,
@@ -144,9 +144,9 @@ fun AgentsScreen(
         }
       }
 
-      // Черновики — отдельной секцией и с переходом СРАЗУ в конструктор: у недособранного агента
-      // ещё нет чата, экран агента показывать нечего. Без этой секции черновик, который исправно
-      // писал автосейв, не показывал вообще никто.
+      // Drafts get a separate section and lead STRAIGHT to the builder: a half-built agent has no chat yet,
+      // and there is nothing to show on the agent screen. Without this section a draft that the autosave
+      // diligently wrote was shown by nobody at all.
       if (roster.drafts.isNotEmpty()) {
         item {
           Spacer(modifier = Modifier.height(8.dp))
@@ -168,7 +168,7 @@ fun AgentsScreen(
   }
 }
 
-/** Подзаголовок ростера — общий для экрана и его превью. */
+/** The roster's subtitle — shared by the screen and its preview. */
 private fun rosterIntro(): String = tr(
   "Агенты-специалисты со своими инструментами. Открой нужного — и опиши задачу.",
   "Specialist agents, each with its own tools. Open one and describe your task.",
@@ -212,8 +212,8 @@ private fun AgentCard(agent: AgentDefinition, onClick: () -> Unit, isDraft: Bool
         }
         Column(modifier = Modifier.weight(1f)) {
           Text(
-            // Черновик часто ещё безымянный: пустое имя дало бы карточку-призрак без единой подписи.
-            // displayName: у пресета есть английское имя, свой агент — как его назвал автор.
+            // A draft is often still nameless: an empty name would give a ghost card without a single caption.
+            // displayName: a preset has an English name, the user's own agent — whatever its author named it.
             text = agent.displayName.ifBlank { tr("Без имени", "Untitled") },
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
@@ -234,11 +234,12 @@ private fun AgentCard(agent: AgentDefinition, onClick: () -> Unit, isDraft: Bool
         }
       }
 
-      // «Под капотом»: что у агента в распоряжении — инструменты и навыки (его скоуп). Делает
-      // карточку информативной: видно, на что агент способен, ещё до открытия чата. Пустой список —
-      // без заголовка: голое «Умеет» над пустотой выглядит как поломка.
-      // Язык — тоже ключ: подписи берутся из CapabilityNames на текущем языке, и без него remember
-      // держал бы чипы на языке первого кадра после переключения в настройках.
+      // "Under the hood": what the agent has at its disposal — tools and skills (its scope). It makes the
+      // card informative: what the agent can do is visible before opening the chat. An empty list — no
+      // heading: a bare "Can do" over nothing looks broken.
+      // The language is a key too: the captions come from CapabilityNames in the current language, and
+      // without it remember would keep the chips in the language of the first frame after a switch in
+      // settings.
       val labels = remember(agent.toolNames, AppLanguage.code) { capabilityLabels(agent.toolNames) }
       if (labels.isNotEmpty()) {
         Spacer(modifier = Modifier.height(12.dp))
@@ -273,10 +274,11 @@ private fun CapabilityChip(label: String) {
 }
 
 /**
- * Человекочитаемые ярлыки инструментов агента — его «оснащение». Имена — из общего [CapabilityNames]:
- * раньше здесь был свой словарь, и один и тот же тул в чипе и в конструкторе звался по-разному
- * («Файлы» / «Файлы агента»). Пропускаем только тул, у которого имени нет вовсе (тул из более новой
- * версии приложения) — подпись по сырому id в чипе хуже, чем её отсутствие.
+ * Human-readable labels of the agent's tools — its "equipment". The names come from the shared
+ * [CapabilityNames]: there used to be a dictionary of its own here, and the same tool was named
+ * differently in a chip and in the builder ("Files" / "Agent files"). Only a tool with no name at all
+ * (a tool from a newer app version) is skipped — a caption made from a raw id in a chip is worse than
+ * none.
  */
 internal fun capabilityLabels(toolNames: Set<String>): List<String> =
   toolNames.filter(CapabilityNames::isKnownTool).map(CapabilityNames::tool).distinct()
@@ -292,12 +294,12 @@ internal fun iconFor(key: String): ImageVector = when (key) {
 }
 
 // ==================================================================================================
-// Превью экрана Agents (скриншот-тесты). Тот же визуальный каркас (аврора авто-фон каркаса через
-// glassState, GlassCard на карточках), что и в бою, собранный из той же file-private карточки
-// [AgentCard], но с презетами из [MiniAgentCatalog] (адаптированными в [AgentDefinition] через
-// [toDefinition]) вместо ViewModel — [AgentsScreen] тянет [AgentsViewModel] через metroViewModel(),
-// которому в Robolectric/@Preview неоткуда взять DI-граф. [userAgents] пуст по умолчанию — как и в
-// бою, секция «Мои агенты» просто не рендерится, пока пуста.
+// Previews of the Agents screen (screenshot tests). The same visual frame (the scaffold's automatic
+// aurora background via glassState, GlassCard on the cards) as in production, built from the same
+// file-private [AgentCard], but with presets from [MiniAgentCatalog] (adapted into [AgentDefinition] via
+// [toDefinition]) instead of the ViewModel — [AgentsScreen] gets [AgentsViewModel] via metroViewModel(),
+// which has no DI graph to take it from in Robolectric/@Preview. [userAgents] is empty by default — as
+// in production, the "My agents" section simply does not render while empty.
 // ==================================================================================================
 
 @Composable
@@ -332,7 +334,7 @@ internal fun AgentsPreviewScaffold(
         modifier = Modifier
           .fillMaxSize()
           .padding(horizontal = 20.dp),
-        // Как и в бою: отступы каркаса в contentPadding, список идёт под островами.
+        // As in production: the scaffold paddings go into contentPadding, the list runs under the islands.
         contentPadding = PaddingValues(
           top = padding.calculateTopPadding(),
           bottom = padding.calculateBottomPadding() + 96.dp,

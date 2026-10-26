@@ -26,27 +26,28 @@ fun AgentBuilderRoute(
   sourceContext: AgentSourceContext = AgentSourceContext.MANUAL,
   onExit: () -> Unit,
   /**
-   * Переход в чат по id диалога (как `onOpenChat` у `AgentDetailRoute`). null — после публикации
-   * только подтверждение, без кнопки «Открыть чат» (так рендерят превью и тесты экрана).
+   * Navigates to the chat by conversation id (like `onOpenChat` in `AgentDetailRoute`). null — after
+   * publishing only a confirmation, without the "Open chat" button (that is how previews and screen
+   * tests render it).
    */
   onOpenChat: ((String) -> Unit)? = null,
 ) {
   val viewModel: AgentBuilderViewModel = metroViewModel()
   val testViewModel: AgentBuilderTestViewModel = metroViewModel()
-  // Ради той же логики «найти чат агента или создать с приветствием», что и у «Открыть чат» на
-  // экране агента, — не дублировать её здесь.
+  // For the sake of the same "find the agent's chat or create one with a greeting" logic as "Open chat"
+  // on the agent screen — not to duplicate it here.
   val agentsViewModel: AgentsViewModel = metroViewModel()
 
   val state by viewModel.state.collectAsState()
   val availableSkillIds by viewModel.availableSkillIds.collectAsState()
   val testStatus by testViewModel.testStatus.collectAsState()
-  // Не голый стрим: у хода «План»/«Цель» его нет, ответ лежит в истории (см. testReplyText).
+  // Not the bare stream: a "Plan"/"Goal" turn has none, the answer is in the history (see testReplyText).
   val testReplyText by testViewModel.testReplyText.collectAsState()
   val testToolTrace by testViewModel.testToolTrace.collectAsState()
   val testPendingApproval by testViewModel.testPendingApproval.collectAsState()
 
-  // Null agentId -> new draft, otherwise load the existing one. LaunchedEffect перезапускается и при
-  // повороте экрана — повтор отсекает сам start (см. AgentBuilderViewModel.startedWith).
+  // Null agentId -> new draft, otherwise load the existing one. The LaunchedEffect restarts on a screen
+  // rotation too — start itself cuts off the repeat (see AgentBuilderViewModel.startedWith).
   LaunchedEffect(agentId, sourceContext) { viewModel.start(agentId, sourceContext) }
 
   // Binds the TEST step's dedicated test conversation once the real draft id is known (a brand-new

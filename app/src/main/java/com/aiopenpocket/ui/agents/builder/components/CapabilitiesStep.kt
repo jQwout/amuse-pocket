@@ -62,10 +62,10 @@ fun CapabilitiesStep(
   onUpdateDraft: ((AgentDraft) -> AgentDraft) -> Unit,
   modifier: Modifier = Modifier,
   /**
-   * Отступы под плавающие стеклянные острова визарда (высоты меряются в AgentBuilderScreen).
-   * Применяются ПОСЛЕ verticalScroll — тогда контент прокручивается ПОД стеклом и его есть
-   * чему размывать. Инсет вьюпорта снаружи (через [modifier]) дал бы обратное: полотно под
-   * острова не заезжает и блюр сэмплит одну аврору.
+   * Paddings for the wizard's floating glass islands (their heights are measured in AgentBuilderScreen).
+   * Applied AFTER verticalScroll — then the content scrolls UNDER the glass and there is something for
+   * it to blur. A viewport inset from outside (through [modifier]) would do the opposite: the canvas does
+   * not slide under the islands and the blur samples only the aurora.
    */
   contentPadding: PaddingValues = PaddingValues(),
 ) {
@@ -167,9 +167,9 @@ fun CapabilitiesStep(
     CustomSkillEditor(
       existingIds = availableSkillIds + draft.skillIds,
       onCreate = { skill ->
-        // Навык кладём в черновик ЦЕЛИКОМ (не только id): тело сохранит автосейв, а валидатор
-        // увидит его в customSkills и не выдаст unknown_skill — раньше id уезжал в skillIds один,
-        // и шаг намертво вставал на ошибке, которую нечем было снять.
+        // The skill goes into the draft WHOLE (not just its id): the autosave keeps the body, and the
+        // validator sees it in customSkills and does not report unknown_skill — the id used to go into
+        // skillIds alone, and the step got stuck for good on an error nothing could clear.
         onUpdateDraft { d -> d.copy(customSkills = d.customSkills + skill, skillIds = d.skillIds + skill.id) }
       },
     )
@@ -192,11 +192,11 @@ fun CapabilitiesStep(
     )
     Spacer(modifier = Modifier.height(8.dp))
     ErrorText(errors, "allowedWidgetTemplates")
-    // Шаблоны уроков Академии (квиз, пропуск, сопоставление…) рисует сам урок, в обход render_card, —
-    // обычному агенту они не нужны, и в выборе им не место. Уже отмеченный (например, у копии)
-    // оставляем видимым, иначе его нельзя было бы снять.
-    // Снятые с вооружения («Погода», «Переключатель») render_card больше не принимает — предлагать их
-    // значило бы дать выбор, который в чате обернётся ошибкой.
+    // The Academy lesson templates (quiz, gap, matching…) are drawn by the lesson itself, bypassing
+    // render_card — an ordinary agent does not need them, and they have no place in the choice. One
+    // already ticked (e.g. on a copy) stays visible, or it could not be unticked.
+    // Retired ones ("Weather", "Switch") are no longer accepted by render_card — offering them would mean
+    // a choice that turns into an error in the chat.
     val offeredTemplates = AgentValidator.KNOWN_WIDGET_TEMPLATES
       .filter { (it !in LESSON_CARD_TEMPLATES && it !in RETIRED_CARD_TEMPLATES) || it in draft.allowedWidgetTemplates }
       .sortedBy(::widgetTemplateLabel)
@@ -273,13 +273,13 @@ private fun SkillChip(id: String, selected: Boolean, onClick: () -> Unit) {
   FilterChip(
     selected = selected,
     onClick = onClick,
-    // Название — из общего CapabilityNames: тот же навык на экране агента зовётся так же.
+    // The name comes from the shared CapabilityNames: the same skill is called the same on the agent screen.
     label = { Text(CapabilityNames.skill(id)) },
     modifier = Modifier.testTag("agent_builder_skill_$id"),
   )
 }
 
-/** Человеческое имя шаблона карточки для чипа (на языке интерфейса) — сырые id (`chart_bar`, `notification_permission`) пользователю ничего не говорят. */
+/** A card template's human name for the chip (in the interface language) — raw ids (`chart_bar`, `notification_permission`) tell the user nothing. */
 private fun widgetTemplateLabel(template: String): String = when (template) {
   "todo_list" -> tr("Список дел", "To-do list")
   "weather_card" -> tr("Погода", "Weather")
@@ -336,8 +336,8 @@ private fun MemorySection(
     Spacer(modifier = Modifier.height(4.dp))
     val namespace = "agent:${agentId.ifBlank { "…" }}:"
     Text(
-      // Изоляция — не обещание в промпте, а код (MemoryTools/FileTools режут по префиксу), поэтому
-      // показываем пользователю реальный namespace, а не общую фразу «память изолирована».
+      // Isolation is not a promise in the prompt but code (MemoryTools/FileTools cut by the prefix), so the
+      // user is shown the real namespace, not a generic "memory is isolated" phrase.
       text = tr(
         "Свои факты агент пишет и читает только в своём пространстве " +
           "«$namespace» — другие агенты его не видят.",
@@ -366,9 +366,9 @@ private fun MemorySection(
         modifier = Modifier.testTag("agent_builder_shared_profile"),
       )
     }
-    // Только у копий пресетов, которые этим пользуются (например «Репетитор»). Редактора нет, но
-    // показать надо: раньше эти префиксы молча терялись при первой же правке копии, и понять, почему
-    // копия работает не как оригинал, было неоткуда.
+    // Only for copies of presets that use this (e.g. "Tutor"). There is no editor, but it has to be shown:
+    // these prefixes used to be silently lost on the copy's very first edit, and there was no way to
+    // understand why the copy worked differently from the original.
     if (stateKeyPrefixes.isNotEmpty()) {
       Spacer(modifier = Modifier.height(12.dp))
       Text(
