@@ -18,6 +18,12 @@
 
 ## 0. Подача
 
+**Для кого (Impact, решение юзера 26 окт).** Для людей, которым интересно, как применять ИИ-агентов, но которые стесняются спросить. Как книжки «для чайников» про Windows из 90-х, только про ИИ-агентов.
+
+Как это стыкуется с запретом на «AI for Education» чат-ботов: те книжки не читали лекций про Windows — они вели по шагам, пока ты сам что-то делал. Здесь так же: на выходе не знания, а **работающий агент на твоём телефоне**, собранный своими руками. Стесняться некого — спрашиваешь модель, а не человека. Ошибиться не страшно — пробный прогон имитирует действия, а удаление и отправка наружу всегда ждут твоего «да»: это страховочные колёса.
+
+Сравнение с «For Dummies» — только в тексте и в голосе ролика; в название и слоган его не выносить: это товарный знак издательства Wiley.
+
 **AI Open Pocket — платформа для создания ИИ-агентов на моделях Meta, со встроенным обучением.** Две части:
 
 1. **Обучение (теория).** Что умеют модели Meta и как из них строится агент: уроки про линейку Meta, режимы Muse Spark, как рисует Muse Image, открытые веса и API, как модель видит видео; уроки про устройство агента — инструменты, память, навыки, правила, планы. В каждом уроке интерактивная сцена, в части уроков модель Meta работает вживую.
@@ -43,7 +49,7 @@
 
 | Время | Что на экране | Подпись | Голос (EN) |
 | --- | --- | --- | --- |
-| 0:00–0:15 | Главный экран: «Путь», «Агенты» | — | AI Open Pocket is a platform for building AI agents on Meta's models — right on your phone — with a built-in course on what those models can do. |
+| 0:00–0:15 | Главный экран: «Путь», «Агенты» | — | Remember the "For Dummies" books? They didn't lecture you about Windows — they walked you through it. AI Open Pocket does that for AI agents: you build a real one, on Meta's models, right on your phone. |
 | 0:15–0:35 | Урок «Модели Meta: кто есть кто», сцена-линейка | — | First, learn. Short interactive lessons explain Meta's models — Muse Spark, Muse Image, SAM, Llama — and how an agent is built from them. |
 | 0:35–1:15 | Урок «Как модель видит»: ползунок кадров 1 → 4; «Показать на примере» → ответ в чате | Muse Spark · video understanding | Video becomes frames, and frames become tokens. One tap sends a clip to Muse Spark — it lists what it sees and names the one thing it isn't sure about. Live, not a mock-up. |
 | 1:15–2:15 | Конец курса → «Открыть конструктор» → имя и роль → инструкции → инструменты («Память», «Напоминания», «Почта») → режим → пробный прогон → «Опубликовать» | Muse Spark · agent brain | Then, build. The builder turns the lessons into a real agent: a role, instructions, tools, a mode, rules. A dry run simulates every action before anything touches the phone. Every agent you build thinks with Muse Spark. |
@@ -56,9 +62,13 @@
 
 **Project name:** AI Open Pocket
 
-**Tagline:** A platform for building AI agents on Meta's models — with a built-in course on what the models can do.
+**Tagline:** Build your first AI agent on Meta's models, right on your phone — for everyone curious about agents but too shy to ask.
 
 **Track / theme:** Indie developer · Build for Your World
+
+### Who it's for
+
+People who keep hearing about AI agents, wonder what one could do for them, and feel too embarrassed to ask. In the 90s, the "For Dummies" books did this for Windows: no lectures — they walked you through doing it yourself. AI Open Pocket does the same for AI agents. You don't read about an agent; you build one, on Meta's models, on your own phone. There is no one to feel silly in front of: you ask the model, not a person. And there is nothing to break: a dry run simulates every action, and anything that deletes data or leaves the phone waits for your yes.
 
 ### Short description
 
