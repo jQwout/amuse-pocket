@@ -3,9 +3,9 @@ package com.aiopenpocket.ui.chat.components
 // @trace streaming-llm-chat-6595a1
 // @trace user-agent-builder-848153
 //
-// Панели-бары экрана чата: поиск, выбор режима, подтверждение инструмента, запись голоса и
-// управление уроком. Вынесены из ChatScreen.kt — каждая самодостаточна и общается с экраном
-// только через параметры, поэтому держать их в теле экрана было незачем.
+// The chat screen's bars: search, mode selection, tool confirmation, voice recording and lesson control.
+// Moved out of ChatScreen.kt — each is self-contained and talks to the screen only through parameters, so
+// there was no reason to keep them in the screen's body.
 
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -77,8 +77,8 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 
 /**
- * Строка поиска в шапке: поле ввода + счётчик совпадений и стрелки навигации (пред/след), крестик —
- * закрыть поиск. Скролл к совпадениям и подсветка пузыря — на стороне ChatScreen.
+ * The search row in the header: the input field + the match counter and navigation arrows (prev/next),
+ * the cross closes the search. Scrolling to matches and highlighting the bubble happen in ChatScreen.
  */
 @Composable
 internal fun ChatSearchBar(
@@ -95,7 +95,7 @@ internal fun ChatSearchBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                // Статус-бар-инсет даёт родительская стеклянная «таблетка» (topBar); здесь не дублируем.
+                // The status bar inset comes from the parent glass "pill" (topBar); not duplicated here.
                 .padding(horizontal = 4.dp, vertical = 6.dp)
                 .height(48.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -159,7 +159,7 @@ internal fun availableModesFor(agent: AgentDefinition?): List<AgentMode> {
   return displayOrder.filter { it in agent.allowedModes }.ifEmpty { listOf(AgentMode.CHAT) }
 }
 
-// internal: зовётся и с экрана чата, и из превью-каркаса.
+// internal: called both from the chat screen and from the preview frame.
 @Composable
 internal fun ModeSelector(
     selected: AgentMode,
@@ -204,12 +204,12 @@ private fun ModeChip(
 }
 
 /**
- * Модал/бар подтверждения тула (Task 9 backend, Task 21 UI): показывается, пока
- * `state.pendingToolApproval` не null — BEFORE_TOOL-хук агента потребовал разрешения перед вызовом
- * инструмента. Показывает человеческое имя вызова ([CapabilityNames.call]), риск-класс (тот же бейдж-стиль, что и на экране агента —
- * [riskClassLabel]/[riskColor]) и аргументы вызова; «Разрешить»/«Отклонить» шлют
- * [ChatIntent.ApproveToolCall]/[ChatIntent.DenyToolCall] — ChatViewModel сам резолвит их против
- * ТЕКУЩЕГО `state.pendingToolApproval`, здесь достаточно просто послать интент.
+ * The tool confirmation modal/bar (Task 9 backend, Task 21 UI): shown while
+ * `state.pendingToolApproval` is not null — the agent's BEFORE_TOOL hook required permission before
+ * calling a tool. Shows the call's human name ([CapabilityNames.call]), the risk class (the same badge
+ * style as on the agent screen — [riskClassLabel]/[riskColor]) and the call's arguments; "Allow"/"Decline"
+ * send [ChatIntent.ApproveToolCall]/[ChatIntent.DenyToolCall] — ChatViewModel resolves them itself against
+ * the CURRENT `state.pendingToolApproval`, here sending the intent is enough.
  */
 @Composable
 internal fun ToolApprovalBar(
@@ -248,8 +248,8 @@ internal fun ToolApprovalBar(
                 }
             }
             Spacer(Modifier.height(6.dp))
-            // Что именно агент хочет сделать — по-человечески («Календарь: удалить событие»), а не
-            // сырым `calendar` моноширинным шрифтом: решение «разрешить» принимает пользователь.
+            // What exactly the agent wants to do, in human terms ("Calendar: delete event"), not a raw `calendar`
+            // in a monospace font: the user is the one deciding to "allow".
             Text(
                 text = CapabilityNames.call(request.toolName, request.arguments),
                 style = MaterialTheme.typography.bodyMedium,
@@ -283,8 +283,9 @@ internal fun ToolApprovalBar(
 }
 
 /**
- * Аргументы вызова под заголовком бара. `action` (и `id` навыка у load_skill) уже сказаны в заголовке
- * через [CapabilityNames.call] — повторять их сырым id ниже незачем. Строки — без JSON-кавычек.
+ * The call's arguments under the bar's title. `action` (and a skill's `id` for load_skill) are already
+ * said in the title through [CapabilityNames.call] — no need to repeat them below as a raw id. Strings are
+ * shown without JSON quotes.
  */
 private fun formatToolArguments(toolName: String, arguments: Map<String, JsonElement>): String =
     arguments.entries
@@ -292,10 +293,10 @@ private fun formatToolArguments(toolName: String, arguments: Map<String, JsonEle
         .joinToString(", ") { (key, value) -> "$key: ${(value as? JsonPrimitive)?.content ?: value}" }
 
 /**
- * Панель записи голоса в стиле Telegram/Claude — подменяет поле ввода, пока идёт распознавание.
- * Слева кнопка-корзина (отмена без вставки текста), по центру пилюля со статусом «Слушаю»,
- * таймером, анимированной «волной» и живым (partial) текстом, справа — акцентная кнопка завершения.
- * По завершении распознанный текст контроллер кладёт в поле ввода; отправляет пользователь сам.
+ * A Telegram/Claude-style voice recording panel — it replaces the input field while recognition runs. On
+ * the left a trash button (cancel without inserting text), in the middle a pill with the "Listening"
+ * status, a timer, an animated "wave" and live (partial) text, on the right an accent finish button. When
+ * finished, the controller puts the recognized text into the input field; the user sends it themselves.
  */
 @Composable
 internal fun VoiceRecordingBar(
@@ -327,7 +328,7 @@ internal fun VoiceRecordingBar(
             .padding(horizontal = 8.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Отмена записи — сбрасывает распознавание без вставки текста.
+        // Cancel recording — drops the recognition without inserting text.
         IconButton(
             onClick = onCancel,
             modifier = Modifier
@@ -342,7 +343,7 @@ internal fun VoiceRecordingBar(
             )
         }
         Spacer(Modifier.width(8.dp))
-        // Центральная пилюля: статус + таймер + волна + живой текст.
+        // The central pill: status + timer + wave + live text.
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -386,7 +387,7 @@ internal fun VoiceRecordingBar(
             )
         }
         Spacer(Modifier.width(8.dp))
-        // Завершить запись — та же акцентная круглая кнопка «Отправить», что и в обычном поле ввода.
+        // Finish recording — the same round accent "Send" button as in the normal input field.
         IconButton(
             onClick = onDone,
             modifier = Modifier
@@ -403,7 +404,7 @@ internal fun VoiceRecordingBar(
     }
 }
 
-/** Анимированная «звуковая волна» из нескольких полосок со сдвигом фазы — индикатор записи. */
+/** An animated "sound wave" of several bars with a phase shift — the recording indicator. */
 @Composable
 private fun VoiceWave(color: Color) {
     val transition = rememberInfiniteTransition(label = "wave")
@@ -455,9 +456,9 @@ internal fun LessonControlBar(
 }
 
 /**
- * «Спросить у ИИ» во время урока: свёрнутая пилюля, по тапу разворачивается в поле ввода + отправка.
- * Вопрос уходит обычным ходом ([ChatIntent.AskDuringLesson]); курсор урока персистится отдельно и не
- * двигается. Во время ответа (enabled=false) ввод заблокирован, чтобы не плодить параллельные ходы.
+ * "Ask the AI" during a lesson: a collapsed pill that expands into an input field + send on tap. The
+ * question goes as a normal turn ([ChatIntent.AskDuringLesson]); the lesson cursor is persisted separately
+ * and does not move. While answering (enabled=false) input is blocked, so as not to spawn parallel turns.
  */
 @Composable
 internal fun LessonAskBar(
@@ -487,7 +488,7 @@ internal fun LessonAskBar(
             Text(tr("Спросить у ИИ", "Ask the AI"))
         }
     } else {
-        // Развернули поле — сразу поднимаем клавиатуру и ставим курсор (иначе нужен второй тап).
+        // The field was expanded — raise the keyboard and place the cursor right away (otherwise a second tap is needed).
         LaunchedEffect(Unit) { focusRequester.requestFocus() }
         Row(
             modifier = Modifier

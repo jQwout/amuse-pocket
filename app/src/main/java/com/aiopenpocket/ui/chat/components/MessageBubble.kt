@@ -2,8 +2,8 @@ package com.aiopenpocket.ui.chat.components
 
 // @trace streaming-llm-chat-6595a1
 //
-// Пузырь сообщения и полоска занятости контекста. Оба stateless: получают Message/ResponseStats
-// и колбэки, ничего не знают о ViewModel — поэтому их же рендерят превью и скриншот-тесты.
+// The message bubble and the context usage strip. Both are stateless: they take Message/ResponseStats and
+// callbacks and know nothing about the ViewModel — so previews and screenshot tests render them too.
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -48,7 +48,7 @@ import com.aiopenpocket.ui.chat.toMarkdown
 import com.aiopenpocket.ui.components.MarkdownText
 import kotlinx.coroutines.flow.Flow
 
-// internal, а не private: рендерится из превью-каркасов в ChatScreenPreviews.kt (тот же модуль).
+// internal, not private: rendered from the preview frames in ChatScreenPreviews.kt (the same module).
 @Composable
 internal fun MessageBubble(
     message: Message,
@@ -69,8 +69,8 @@ internal fun MessageBubble(
     analyzingVideos: Set<String> = emptySet(),
     onLessonVideo: (String, android.net.Uri) -> Unit = { _, _ -> },
 ) {
-    // Панель действий (удалить) — по ТАПУ на пузырь, не по long-press: long-press занят выделением
-    // текста (SelectionContainer внутри MarkdownText), с ним обработчик тапа не конфликтует.
+    // The action panel (delete) opens on a TAP on the bubble, not a long press: the long press is taken by
+    // text selection (the SelectionContainer inside MarkdownText), and the tap handler does not conflict with it.
     var showActions by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val isUser = message.role == "user"
@@ -78,18 +78,19 @@ internal fun MessageBubble(
         message.cardSpec?.takeIf { it.isNotBlank() }?.let { DrivenUiEngine.parseJsonString(it) }
     }
     val hasCard = card != null
-    // Карточки рисуем интерактивными виджетами:
-    //  • уроки/туториал — любая карточка (там она и есть содержимое шага);
-    //  • свои сообщения — например вложенное фото;
-    //  • общие шаблоны render_card (таблица, график, список дел, форма, картинка, reminder…) — В ЛЮБОМ
-    //    чате: системный промпт и скиллы бюджета/фитнеса/языков просят агента рисовать графики и таблицы,
-    //    а раньше вне урока такой ответ сводился к тексту и карточка пропадала вовсе.
-    // Карточки уроков (quiz/reveal/fill…) вне урока остаются markdown'ом: без урока им некуда засчитать ответ.
+    // Cards are drawn as interactive widgets:
+    //  • lessons/tutorial — any card (there it is the step's content);
+    //  • the user's own messages — e.g. an attached photo;
+    //  • the shared render_card templates (table, chart, to-do list, form, image, reminder…) — IN ANY chat:
+    //    the system prompt and the budget/fitness/languages skills ask the agent to draw charts and tables,
+    //    and outside a lesson such an answer used to collapse into text, with the card gone entirely.
+    // Lesson cards (quiz/reveal/fill…) outside a lesson stay markdown: without a lesson there is nowhere to
+    // count the answer.
     val interactive = hasCard && (interactiveCards || isUser || card.isGeneralWidget())
 
-    // Не-интерактивная карточка: если у ответа есть текст — показываем только его, не приклеивая
-    // markdown-представление карточки. Карточку-«пустышку» без текста показываем как её markdown,
-    // чтобы пузырь не оказался пустым.
+    // A non-interactive card: if the answer has text, only the text is shown, without gluing on the card's
+    // markdown representation. A placeholder card without text is shown as its markdown so the bubble is
+    // not empty.
     val displayText = remember(card, interactive, message.content) {
         val cardMarkdown = card?.takeIf { !interactive }?.toMarkdown()
         when {
@@ -105,7 +106,7 @@ internal fun MessageBubble(
         MaterialTheme.colorScheme.surfaceVariant
     }
     val alignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart
-    // Системное сообщение — не пузырь: рисуем без клипа и фоновой заливки.
+    // A system message is not a bubble: drawn without the clip and the background fill.
     val isSystem = message.role == "system"
 
     Box(
@@ -116,7 +117,7 @@ internal fun MessageBubble(
     ) {
         Column(
             modifier = Modifier
-                // Системное сообщение — без пузыря: клип и фоновую заливку не применяем.
+                // A system message has no bubble: the clip and the background fill are not applied.
                 .then(
                     if (isUser) {
                         Modifier .clip(RoundedCornerShape(16.dp))
@@ -126,7 +127,7 @@ internal fun MessageBubble(
 
                     },
                 )
-                // Подсветка текущего совпадения поиска — акцентная рамка вокруг пузыря.
+                // Highlighting the current search match — an accent frame around the bubble.
                 .then(
                     if (highlighted) {
                         Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(16.dp))
@@ -134,7 +135,7 @@ internal fun MessageBubble(
                         Modifier
                     },
                 )
-                // Тап по пузырю — раскрыть/спрятать панель действий (удалить).
+                // A tap on the bubble expands/hides the action panel (delete).
                 .clickable(onClick = { showActions = !showActions })
                 .padding(12.dp),
         ) {
@@ -169,10 +170,12 @@ internal fun MessageBubble(
                         .padding(top = 6.dp),
                     horizontalArrangement = Arrangement.End,
                 ) {
-                    // В уроке шаг чата ведёт себя по счётчику ассистентских сообщений
-                    // (ChatViewModel.startOrResumeLesson) — удаление любого из них десинхронизирует
-                    // курсор урока (повтор или пропуск шага). Функциональные карточки (switch/разрешение/reminder)
-                    // не часть шагового счёта, поэтому их можно удалять и внутри урока — как и свои сообщения.
+                    // Inside a lesson, step messages cannot be deleted. The guard was added when the lesson cursor was
+                    // derived from the count of assistant messages (ChatViewModel.startOrResumeLesson), so
+                    // deleting one desynced it (a step repeated or skipped); the cursor is explicit state now
+                    // (lessonStepIndex), so that reason no longer holds. Functional cards (switch/permission/
+                    // reminder) were never part of the step count, so they can be deleted inside a lesson too
+                    // — as can the user's own messages.
                     val isLessonStepContent = interactiveCards &&
                             card !is DrivenUiCard.SwitchCard &&
                             card !is DrivenUiCard.NotificationPermissionCard &&
@@ -210,9 +213,10 @@ internal fun MessageBubble(
 }
 
 /**
- * Общие шаблоны render_card (не уроки): у каждого есть свой виджет, и смысл карточки — в нём, а не в
- * тексте. [DrivenUiCard.ErrorCard] сюда не входит: битый спек рядом с нормальным ответом только шумит.
- * Погода и переключатель модели больше не предлагаются, но старые сообщения с ними рисуются как прежде.
+ * The shared render_card templates (not lessons): each has its own widget, and the meaning of the card is
+ * in it, not in the text. [DrivenUiCard.ErrorCard] is not included: a broken spec next to a normal answer
+ * is only noise. The weather and the switch are no longer offered, but old messages with them render as
+ * before.
  */
 private fun DrivenUiCard?.isGeneralWidget(): Boolean = when (this) {
     is DrivenUiCard.TodoList,
@@ -230,14 +234,14 @@ private fun DrivenUiCard?.isGeneralWidget(): Boolean = when (this) {
     else -> false
 }
 
-// internal: см. MessageBubble — нужен превью-каркасу.
+// internal: see MessageBubble — the preview frame needs it.
 @Composable
 internal fun ResponseStatsBar(
     stats: ResponseStats,
     modifier: Modifier = Modifier,
 ) {
-    // Вся статистика хода сведена к одной полоске занятости контекста: цифры времени/токенов
-    // рядом с ней жили в закомментированном Row и только шумели — история осталась в git.
+    // All the turn statistics are reduced to one context usage strip: the time/token figures next to it lived
+    // in a commented-out Row and were only noise — the history is in git.
     val contextUsedFraction = (stats.contextTokensUsed.toFloat() / stats.contextBudget).coerceIn(0f, 1f)
 
     LinearProgressIndicator(

@@ -80,50 +80,50 @@ class ChatViewModel(
     private val _state = MutableStateFlow(ChatUiState())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
 
-    // Текст ввода — ОТДЕЛЬНЫЙ поток (не поле _state), по тому же принципу, что и streamingText ниже:
-    // каждое нажатие клавиши иначе меняло бы идентичность state и рекомпозировало ВСЁ тело чата
-    // (лента/оверлеи), а не только композер. Читается узким скоупом у поля ввода в ChatScreen.
+    // The input text is a SEPARATE flow (not a _state field), on the same principle as streamingText below:
+    // otherwise every keystroke would change the state's identity and recompose the WHOLE chat body
+    // (feed/overlays), not only the composer. It is read in a narrow scope at the input field in ChatScreen.
     private val _inputText = MutableStateFlow("")
     val inputText: StateFlow<String> = _inputText.asStateFlow()
 
-    /** Текущий conversationId для подписок на сессию хода (пустой = чат ещё не создан). */
+    /** The current conversationId for subscriptions to the turn session (empty = the chat has not been created yet). */
     private val convIdFlow = MutableStateFlow("")
     private var sessionJob: Job? = null
 
-    // Стриминговый текст берём напрямую из сессии хода в TurnManager: ход (и его стрим) живёт в
-    // appScope, а этот поток лишь переключается на сессию текущего диалога — вернулся на экран,
-    // стрим продолжает бежать. Отдельный поток (не поле _state), чтобы частые дельты токенов
-    // рекомпозировали только пузырь стрима, а не весь экран.
+    // The streaming text is taken straight from the turn session in TurnManager: the turn (and its stream)
+    // lives in appScope, and this flow only switches to the current conversation's session — come back to
+    // the screen and the stream keeps running. A separate flow (not a _state field), so frequent token
+    // deltas recompose only the stream bubble, not the whole screen.
     @OptIn(ExperimentalCoroutinesApi::class)
     val streamingText: StateFlow<String> = convIdFlow
         .flatMapLatest { id -> if (id.isBlank()) flowOf(null) else turnManager.session(id) }
         .flatMapLatest { session -> session?.streamingText ?: flowOf("") }
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
-    // Пагинация ленты: показываем последние [windowLimit] сообщений, «старые» догружаем увеличением
-    // лимита. Поток сообщений пересобирается через flatMapLatest при каждом изменении лимита.
+    // Feed pagination: we show the last [windowLimit] messages and load "older" ones by raising the limit.
+    // The message flow is rebuilt through flatMapLatest whenever the limit changes.
     private val windowLimit = MutableStateFlow(INITIAL_WINDOW)
     private var olderLoadInFlight = false
 
-    /** Поисковый запрос из шапки чата; скан совпадений — с дебаунсом и вне Main (см. init). */
+    /** The search query from the chat header; the match scan is debounced and runs off Main (see init). */
     private val searchQueryFlow = MutableStateFlow("")
 
     private var messagesJob: Job? = null
 
-    // Активный ход, ретрай-контекст и стрим-хэндофф переехали в TurnSession/TurnManager (appScope):
-    // ход больше не умирает с экраном, а «Повторить» переживает пересоздание ViewModel.
+    // The active turn, the retry context and the stream handoff moved to TurnSession/TurnManager (appScope):
+    // a turn no longer dies with the screen, and "Retry" survives the ViewModel being recreated.
 
-    /** Защита от повторного входа при шаге урока (быстрый двойной тап «Дальше»/квиза). */
+    /** A guard against re-entry on a lesson step (a quick double tap on "Next"/a quiz). */
     private var lessonBusy = false
 
     init {
-        // Лимит витков гоал-мода из настроек — держим в состоянии, чтобы передавать в оркестратор.
+        // The goal-mode iteration limit from settings — kept in the state to be passed to the orchestrator.
         viewModelScope.launch {
             userPreferencesRepository.goalModeMaxIterations.collect { n ->
                 _state.update { it.copy(goalMaxIterations = n) }
             }
         }
-        // Размер шрифта чата из настроек — применяется к тексту пузырей; меняется на лету.
+        // The chat font size from settings — applied to the bubbles' text; changes on the fly.
         viewModelScope.launch {
             userPreferencesRepository.chatFontScale.collect { scale ->
                 _state.update { it.copy(chatFontScale = scale) }
@@ -144,10 +144,10 @@ class ChatViewModel(
                 _inputText.update { appendTranscript(it, transcript) }
             }
         }
-        // Tool-approval бар (Task 9): coordinator публикует pending-запросы ГЛОБАЛЬНО (по всем
-        // диалогам сразу, т.к. TurnManager гоняет ходы параллельно) — фильтруем на СВОЙ conversationId,
-        // чтобы approval другого чата никогда не всплыл на этом экране. combine (не просто .collect
-        // на pending) — потому что conversationId тоже меняется (setConversationId/ensureConversation).
+        // The tool-approval bar (Task 9): the coordinator publishes pending requests GLOBALLY (for all
+        // conversations at once, since TurnManager runs turns in parallel) — we filter on OUR OWN
+        // conversationId so that another chat's approval never surfaces on this screen. combine (not just
+        // .collect on pending) — because conversationId changes too (setConversationId/ensureConversation).
         viewModelScope.launch {
             combine(convIdFlow, toolApprovalCoordinator.pending) { convId, pending ->
                 pending.firstOrNull { it.conversationId == convId }
@@ -155,16 +155,16 @@ class ChatViewModel(
                 _state.update { it.copy(pendingToolApproval = request) }
             }
         }
-        // Task 10 (structured-plan-engine-907066): approval-бар плана — реактивно из PlanRepository,
-        // не из событий хода (см. observePendingPlanApproval kdoc).
+        // Task 10 (structured-plan-engine-907066): the plan approval bar comes reactively from PlanRepository,
+        // not from turn events (see the observePendingPlanApproval kdoc).
         observePendingPlanApproval()
-        // Task 12: живой прогресс-бар плана в чате — та же реактивная подписка, но для
-        // ACTIVE/PAUSED вместо AWAITING_APPROVAL (см. observeActivePlan kdoc).
+        // Task 12: the live plan progress bar in the chat — the same reactive subscription, but for
+        // ACTIVE/PAUSED instead of AWAITING_APPROVAL (see the observeActivePlan kdoc).
         observeActivePlan()
-        // Поиск по чату: дебаунс ввода (collectLatest + delay — новый символ отменяет хвост) и
-        // contains-скан на Default. Раньше скан шёл прямо в композиции на каждый введённый символ —
-        // на длинной истории это десятки мс на Main и пропуски кадров. contains(ignoreCase) в
-        // Kotlin корректно фолдит кириллицу (SQL LIKE — нет), поэтому ищем в памяти, не в SQL.
+        // Chat search: the input is debounced (collectLatest + delay — a new character cancels the tail) and the
+        // contains scan runs on Default. The scan used to run right in composition on every typed character
+        // — on a long history that is tens of ms on Main and dropped frames. contains(ignoreCase) in Kotlin
+        // folds Cyrillic correctly (SQL LIKE does not), so the search runs in memory, not in SQL.
         viewModelScope.launch {
             combine(
                 searchQueryFlow,
@@ -224,8 +224,8 @@ class ChatViewModel(
      * Task 12 (structured-plan-engine-907066): reactive derivation of `ChatUiState.activePlanId` —
      * mirrors [observePendingPlanApproval] but picks the conversation's ACTIVE/PAUSED plan instead of
      * its AWAITING_APPROVAL one, so `PlanCard` in the chat stream can keep showing live progress once
-     * the plan is approved — исполнение стартует сразу, в фоне (см. [runPlanCommand]) — or GOAL
-     * advances it (a case [pendingPlanApproval] never covers, since it
+     * the plan is approved — execution starts right away, in the background (see [runPlanCommand]) — or
+     * GOAL advances it (a case [pendingPlanApproval] never covers, since it
      * only ever holds a plan awaiting a decision). Only the plan id is kept in state — the card itself
      * subscribes to the full [PlanSnapshot] via [observePlan], the same "card owns its own live
      * subscription" shape as `ReminderCardView`/[observeHeartbeat].
@@ -252,36 +252,37 @@ class ChatViewModel(
 
     fun setConversationId(id: String) {
         if (_state.value.conversationId == id) return
-        // Ход НЕ отменяем — он живёт в TurnManager (appScope) и дорабатывает в фоне; сбрасываем
-        // только подписки экрана и экранное состояние.
+        // The turn is NOT cancelled — it lives in TurnManager (appScope) and finishes in the background; only the
+        // screen's subscriptions and screen state are reset.
         messagesJob?.cancel()
         sessionJob?.cancel()
         lessonBusy = false
-        // Переносим pref-производные поля (шрифт/лимит витков) в новое состояние — иначе resetFor
-        // сбросил бы их в дефолт, а реактивный коллектор из DataStore на неизменном значении не
-        // переэмитит, и настройка застряла бы на дефолте.
+        // The pref-derived fields (font/iteration limit) are carried over into the new state — otherwise resetFor
+        // would reset them to the default, and the reactive collector from DataStore does not re-emit an
+        // unchanged value, so the setting would be stuck at the default.
         _state.update { prev -> ChatUiState.resetFor(id, prev.chatFontScale, prev.goalMaxIterations) }
-        _inputText.value = "" // черновик ввода между диалогами не переносим (раньше это делал resetFor)
+        _inputText.value = "" // the input draft is not carried between conversations (resetFor used to do this)
         convIdFlow.value = id
-        // Новый чат (id пуст): диалога ещё нет, его создаст ensureConversation при отправке.
-        // Коллектор по getMessages("") всегда пуст — не запускаем его.
+        // A new chat (empty id): the conversation does not exist yet, ensureConversation creates it on send.
+        // The collector for getMessages("") is always empty — it is not started.
         if (id.isBlank()) return
         observeMessages(id)
         observeSession(id)
-        // Вход в диалог гасит бейдж «готово» в списке (Running/ошибку markSeen не трогает).
+        // Entering the conversation clears the "done" badge in the list (markSeen does not touch Running/an error).
         turnManager.markSeen(id)
-        // Урок-диалог: включаем интерактивные карточки. Если для заголовка есть JSON-урок — переходим в
-        // lesson-режим и драйвим шаги контроллером (строгий контракт), иначе свободный путь (l2–l4).
-        // Режим агента (план/гоал) НЕ включаем автоматически — только явный выбор в UI.
+        // A lesson conversation: interactive cards are enabled. If there is a JSON lesson for the title, we switch
+        // to lesson mode and drive the steps with the controller (a strict contract), otherwise the free path
+        // (l2–l4). The agent mode (plan/goal) is NOT enabled automatically — only by an explicit choice in
+        // the UI.
         viewModelScope.launch {
             val conversation = conversationRepository.getConversation(id)
             val tutorial = conversation?.isTutorial == true
             val title = conversation?.title
-            // Резолвим полный снапшот (не только имя) один раз здесь — ChatScreen читает state.agent
-            // напрямую вместо повторного обращения к MiniAgentCatalog/AgentResolver в композиции.
+            // The full snapshot (not just the name) is resolved once here — ChatScreen reads state.agent directly
+            // instead of going to MiniAgentCatalog/AgentResolver again in composition.
             val agent = conversation?.agentId?.let { agentId -> agentResolver.resolve(agentId) }
-            // l1_welcome исключаем: его setup-шаги (language/persona/profile) контроллер не умеет —
-            // онбординг идёт через свой экран, не через чат-драйвер.
+            // l1_welcome is excluded: the controller cannot do its setup steps (language/persona/profile) —
+            // onboarding goes through its own screen, not through the chat driver.
             val lesson = if (tutorial && title != null && title != ONBOARDING_LESSON_ID) {
                 lessonRepository.getLessonOrNull(title)
             } else {
@@ -293,15 +294,15 @@ class ChatViewModel(
                     levelId = if (tutorial) title else null,
                     agentId = conversation?.agentId,
                     agent = agent,
-                    // У урока заголовок диалога — его id (по нему урок и находится), а в шапке нужно
-                    // человеческое название: иначе там висело бы «tokens_and_speed».
+                    // A lesson's conversation title is its id (that is how the lesson is found), while the header needs
+                    // the human title: otherwise it would show "tokens_and_speed".
                     title = agent?.displayName ?: lesson?.title?.takeIf { it.isNotBlank() } ?: title,
                     lessonMode = lesson != null,
                     lesson = lesson,
-                    // Режим по умолчанию из конфига агента. До этого поле конструктора не читал вообще
-                    // никто, кроме тестового прогона в самом визарде: чат всегда открывался в CHAT,
-                    // и «агент только для GOAL» вёл себя как обычный чат. Ставим один раз на открытие
-                    // диалога (resetFor выше уже сбросил состояние), дальше решает выбор пользователя.
+                    // The default mode from the agent's config. Until now nobody read the builder's field except the test
+                    // run in the wizard itself: the chat always opened in CHAT, and a "GOAL-only agent"
+                    // behaved like a plain chat. Set once when the conversation opens (resetFor above has
+                    // already reset the state); after that the user's choice decides.
                     agentMode = agent?.defaultMode ?: it.agentMode,
                 )
             }
@@ -310,24 +311,26 @@ class ChatViewModel(
     }
 
     /**
-     * Стартует урок (публикует шаг 0) или восстанавливает позицию после переоткрытия.
-     * Курсор — явное состояние диалога (lessonStepIndex), а не счёт assistant-сообщений: так свободный
-     * вопрос к LLM во время урока не сдвигает шаг (и удаление сообщения больше не десинхронит урок).
+     * Starts the lesson (publishes step 0) or restores the position after reopening. The cursor is
+     * explicit conversation state (lessonStepIndex), not a count of assistant messages: that way a free
+     * question to the LLM during a lesson does not move the step (and deleting a message no longer
+     * desyncs the lesson).
      */
     private suspend fun startOrResumeLesson(id: String, lesson: com.aiopenpocket.agent.core.lesson.Lesson) {
-        // Курсор берём из ЯВНОГО состояния диалога (lessonStepIndex), а не из числа assistant-сообщений:
-        // иначе свободный вопрос к LLM во время урока (лишний ответ) сдвигал бы шаг. См. LessonCursorPersistenceTest.
+        // The cursor comes from the conversation's EXPLICIT state (lessonStepIndex), not from the number of
+        // assistant messages: otherwise a free question to the LLM during a lesson (an extra answer) would
+        // move the step. See LessonCursorPersistenceTest.
         val conversation = conversationRepository.getConversation(id)
         val persistedIndex = conversation?.lessonStepIndex ?: 0
         val persistedFinished = conversation?.lessonFinished ?: false
         if (!persistedFinished) {
-            // Отдельной корутиной: картинки Muse Image рисуются десятки секунд, а первый шаг урока
-            // ждать их не должен. Пройденные шаги не рисуем — их карточки уже в истории.
+            // In a separate coroutine: Muse Image takes tens of seconds to draw, and the lesson's first step must not
+            // wait for it. Steps already passed are not drawn — their cards are already in the history.
             viewModelScope.launch { lessonChatController.prefetchImages(lesson, fromIndex = persistedIndex) }
         }
 
         if (lesson.steps.isEmpty()) {
-            // Урок без шагов: карточка завершения, чтобы экран не завис пустым — но без дублей при переоткрытии.
+            // A lesson without steps: a completion card so the screen does not hang empty — but no duplicates on reopening.
             if (!persistedFinished) {
                 lessonChatController.postCompletion(id, lesson)
                 conversationRepository.updateLessonCursor(id, stepIndex = 0, finished = true)
@@ -336,15 +339,15 @@ class ChatViewModel(
             return
         }
         if (persistedIndex == 0 && !persistedFinished) {
-            // Урок ещё не начат: публикуем первый шаг и фиксируем курсор = 1. Self-heal: если шаг 0 уже
-            // в истории (краш между постом и записью курсора), не постим повторно — только чиним курсор,
-            // чтобы не появился дубль первого шага.
+            // The lesson has not started: publish the first step and set the cursor = 1. Self-heal: if step 0 is
+            // already in the history (a crash between the post and the cursor write), do not post it again —
+            // only fix the cursor, so no duplicate of the first step appears.
             val alreadyPosted = conversationRepository.getAllMessages(id).any { it.role == "assistant" }
             if (!alreadyPosted) lessonChatController.postStep(id, lesson, 0)
             conversationRepository.updateLessonCursor(id, stepIndex = 1, finished = false)
             _state.update { it.copy(lessonStepIndex = 1, lessonFinished = false) }
         } else {
-            // Возобновление: шаги уже в истории, просто восстанавливаем сохранённый курсор.
+            // Resuming: the steps are already in the history, we just restore the saved cursor.
             _state.update {
                 it.copy(
                     lessonStepIndex = persistedIndex.coerceAtMost(lesson.steps.size),
@@ -391,10 +394,10 @@ class ChatViewModel(
                 voiceController.clearError()
                 _state.update { it.copy(voiceError = null) }
             }
-            // Смена режима инвалидирует «Повторить» прошлого хода (иначе ретрай уйдёт в старый режим).
-            // pendingPlanApproval НЕ трогаем: это состояние плана в PlanRepository, а не режима чата.
-            // Раньше чип обнулял его, а производный поток (distinctUntilChanged) заново его не
-            // присылал — единственная карточка одобрения пропадала до перезахода в диалог.
+            // Changing the mode invalidates the previous turn's "Retry" (or the retry would go to the old mode).
+            // pendingPlanApproval is NOT touched: that is plan state in PlanRepository, not chat mode state.
+            // The chip used to reset it, and the derived flow (distinctUntilChanged) did not send it again —
+            // the only approval card disappeared until the user re-entered the conversation.
             is ChatIntent.SetMode -> {
                 currentConversationId()?.let { turnManager.invalidateRetry(it) }
                 _state.update { it.copy(agentMode = intent.mode, canRetry = false) }
@@ -405,7 +408,7 @@ class ChatViewModel(
             is ChatIntent.ResumePlan -> runPlanCommand { planCommands.resume(intent.planId) }
             is ChatIntent.CancelPlan -> runPlanCommand { planCommands.cancel(intent.planId) }
             is ChatIntent.ConfirmPlanStep -> runPlanCommand { planCommands.confirmStep(intent.planId, intent.stepId) }
-            // «Поправить» — чисто локальный жест (см. ChatIntent.EditPlan kdoc): прячет бар, PlanRepository не трогает.
+            // "Edit" is a purely local gesture (see the ChatIntent.EditPlan kdoc): it hides the bar and does not touch PlanRepository.
             is ChatIntent.EditPlan -> _state.update { it.copy(pendingPlanApproval = null) }
             is ChatIntent.AdvanceLesson -> advanceLesson()
             is ChatIntent.CompleteLessonQuiz -> completeLessonQuiz()
@@ -444,12 +447,12 @@ class ChatViewModel(
         _inputText.value = ""
         viewModelScope.launch {
             try {
-                // Маршрут "chat/new" даёт пустой id — создаём диалог ДО launchTurn: сессия ключуется по id.
+                // The "chat/new" route gives an empty id — the conversation is created BEFORE launchTurn: the session is keyed by id.
                 val convId = ensureConversation(text)
-                // Task 10 (structured-plan-engine-907066): planId=null — StructuredPlanOrchestrator сам
-                // резолвит план диалога (PLAN предложит/пересмотрит текущий; GOAL продолжит ACTIVE или
-                // предложит новый, если approved плана ещё нет). goalMaxIterations из настроек мапится на
-                // maxLlmIterationsPerStep — тот же «бюджет рассуждения», просто теперь на ОДИН шаг плана.
+                // Task 10 (structured-plan-engine-907066): planId=null — StructuredPlanOrchestrator resolves the
+                // conversation's plan itself (PLAN proposes/revises the current one; GOAL continues an ACTIVE
+                // one or proposes a new one if there is no approved plan yet). goalMaxIterations from settings
+                // maps onto maxLlmIterationsPerStep — the same "reasoning budget", just now per ONE plan step.
                 turnManager.launchTurn(convId, text, _state.value.agentMode, budget = goalRunBudget(_state.value.goalMaxIterations))
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -461,7 +464,7 @@ class ChatViewModel(
     }
 
     /**
-     * Task 10 (structured-plan-engine-907066): maps the user's "лимит витков гоал-мода" setting
+     * Task 10 (structured-plan-engine-907066): maps the user's "goal-mode iteration limit" setting
      * (`ChatUiState.goalMaxIterations`, from [com.aiopenpocket.agent.core.identity.UserPreferencesRepository])
      * onto [PlanRunBudget.maxLlmIterationsPerStep] — the closest surviving analogue now that a whole
      * GOAL turn is no longer one bounded ReAct loop but a run over one plan STEP at a time. The
@@ -471,11 +474,12 @@ class ChatViewModel(
 
     /**
      * Task 5 (structured-plan-engine-907066): typed plan commands go straight to [PlanCommands] —
-     * no magic chat message. Одобрение ЗАПУСКАЕТ исполнение: [PlanCommands.approve] вызывает
-     * `PlanScheduleSync.sync`, а тот сразу ставит heartbeat на первый шаг без расписания — шаги идут
-     * в фоне (HeartbeatRunner), их ответы пишутся в этот же чат. GOAL-ход по-прежнему может продвинуть
-     * план и вручную. «Попросить правки» ([requestPlanChanges]) — единственная команда, которая
-     * следом сама заводит ход (PLAN), иначе новая версия плана не появлялась бы никогда. [runPlanCommand] mirrors
+     * no magic chat message. Approval STARTS execution: [PlanCommands.approve] calls
+     * `PlanScheduleSync.sync`, which right away arms a heartbeat for the first unscheduled step — the steps
+     * run in the background (HeartbeatRunner), and their answers are written into this same chat. A GOAL
+     * turn can still advance the plan manually. "Ask for changes" ([requestPlanChanges]) is the only
+     * command that starts a turn (PLAN) itself right after, otherwise a new plan version would never
+     * appear. [runPlanCommand] mirrors
      * [sendMessage]'s own cancellation/error handling so a rejected command (e.g. approving a
      * superseded version — see `PlanRepository.approve`) surfaces the same way any other action
      * failure does on this screen, instead of crashing the ViewModel's scope.
@@ -488,8 +492,8 @@ class ChatViewModel(
                 throw e
             } catch (e: Exception) {
                 android.util.Log.e("ChatViewModel", "plan command failed", e)
-                // e.message здесь — проверки движка вроде «Cannot apply Pause to plan …» по-английски;
-                // человеку нужна одна понятная строка, подробности — в логе.
+                // e.message here is engine checks like "Cannot apply Pause to plan …" in English; a person needs one
+                // clear line, the details go to the log.
                 _state.update { it.copy(error = tr("Не удалось выполнить действие с планом — попробуй ещё раз.", "Couldn't complete the plan action — try again.")) }
             }
         }
@@ -501,11 +505,12 @@ class ChatViewModel(
     }
 
     /**
-     * «Попросить правки»: план уходит в DRAFT, и сразу же — PLAN-ход в этом диалоге с текстом правок
-     * (или с [DEFAULT_PLAN_REVISION_REQUEST], если поле пустое), чтобы планировщик предложил новую
-     * версию. Раньше команда только переводила план в DRAFT: отзыв нигде не сохранялся
-     * (PlanRepository.requestRevision его не хранит), карточка исчезала, и ничего не происходило.
-     * Отзыв уходит репликой пользователя — так он и виден в чате, и попадает в промпт планировщика.
+     * "Ask for changes": the plan goes to DRAFT, and right away a PLAN turn runs in this conversation with
+     * the requested changes (or with [DEFAULT_PLAN_REVISION_REQUEST] if the field is empty), so the planner
+     * proposes a new version. The command used to only move the plan to DRAFT: the feedback was saved
+     * nowhere (PlanRepository.requestRevision does not store it), the card disappeared, and nothing
+     * happened. The feedback goes as a user message — so it is both visible in the chat and part of the
+     * planner's prompt.
      */
     private fun requestPlanChanges(planId: String, version: Int, feedback: String) = runPlanCommand {
         planCommands.requestChanges(planId, version, feedback)
@@ -515,17 +520,18 @@ class ChatViewModel(
         turnManager.launchTurn(convId, request, AgentMode.PLAN)
     }
 
-    /** «Дальше» по тексту и прохождение квиза одинаково продвигают курсор урока на следующий шаг. */
+    /** "Next" on text and passing a quiz both advance the lesson cursor to the next step the same way. */
     private fun advanceLesson() = advanceLessonCursor()
 
     private fun completeLessonQuiz() = advanceLessonCursor()
 
     /**
-     * Свободный вопрос к LLM во время урока: tool-less TUTOR-ход на том же диалоге ([AgentMode.TUTOR] —
-     * только объясняет, без инструментов). Рамка репетитора — из systemPromptSuffix, а контекст текущего
-     * шага инъектим через systemPromptExtra (карточные шаги пишутся с content="" и в историю НЕ попадают,
-     * см. LessonQuestion + ревью-находку). Курсор урока персистится отдельно (lessonStepIndex), поэтому
-     * лишний assistant-ответ его НЕ двигает (см. LessonCursorPersistenceTest).
+     * A free question to the LLM during a lesson: a tool-less TUTOR turn in the same conversation
+     * ([AgentMode.TUTOR] only explains, without tools). The tutor frame comes from systemPromptSuffix, and
+     * the current step's context is injected through systemPromptExtra (card steps are written with
+     * content="" and do NOT get into the history, see LessonQuestion + the review finding). The lesson
+     * cursor is persisted separately (lessonStepIndex), so an extra assistant answer does NOT move it (see
+     * LessonCursorPersistenceTest).
      */
     private fun askDuringLesson(text: String) {
         val q = text.trim()
@@ -539,8 +545,8 @@ class ChatViewModel(
             .takeIf { it.isNotBlank() }
         viewModelScope.launch {
             try {
-                // TUTOR игнорирует planId/budget (диспатчится на AgentLoopOrchestrator, не на
-                // StructuredPlanOrchestrator) — оставлены дефолтными.
+                // TUTOR ignores planId/budget (it is dispatched to AgentLoopOrchestrator, not to
+                // StructuredPlanOrchestrator) — they are left at their defaults.
                 turnManager.launchTurn(convId, q, AgentMode.TUTOR, systemPromptExtra = stepContext)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -552,10 +558,10 @@ class ChatViewModel(
     }
 
     /**
-     * «Нарисуй под меня» на шаге-картинке урока (см. LessonChatController.postPersonalizedImage).
+     * "Draw it for me" on a lesson's image step (see LessonChatController.postPersonalizedImage).
      *
-     * Сначала проверяем то, что пользователь может исправить сам, и называем это прямо: без «о себе»
-     * рисовать не под кого. Иначе на всё был бы один ответ «не вышло».
+     * First we check what the user can fix themselves, and say it plainly: without "about me" there is
+     * nobody to draw for. Otherwise there would be a single "it did not work" for everything.
      */
     private fun personalizeLessonImage(imagePrompt: String, caption: String) {
         val convId = currentConversationId() ?: return
@@ -565,7 +571,7 @@ class ChatViewModel(
         }
         viewModelScope.launch {
             val problem = try {
-                // Профиль из Room, язык из DataStore — всё на IO.
+                // The profile from Room, the language from DataStore — all on IO.
                 val (aboutMe, language) = withContext(Dispatchers.IO) {
                     aboutMeFrom(memoryRepository.getFactsByCategory("profile")) to userPreferencesRepository.getLanguage()
                 }
@@ -588,11 +594,12 @@ class ChatViewModel(
     }
 
     /**
-     * Шаг урока "video": ролик пользователя → Muse Spark → ответ в чат (LessonChatController.postVideoAnswer).
+     * The "video" lesson step: the user's clip → Muse Spark → an answer in the chat
+     * (LessonChatController.postVideoAnswer).
      *
-     * Ролик читаем с потолком — длинное или 4K-видео не грузим в память целиком.
-     * Снятый камерой файл (наш, в cacheDir) удаляем при любом исходе; выбранный из галереи — чужой, его
-     * не трогаем.
+     * The clip is read with a ceiling — a long or 4K video is not loaded into memory whole.
+     * A file filmed with the camera (ours, in cacheDir) is deleted on any outcome; one picked from the
+     * gallery belongs to someone else and is not touched.
      */
     private fun analyzeLessonVideo(videoPrompt: String, video: android.net.Uri) {
         val convId = currentConversationId() ?: return
@@ -623,12 +630,12 @@ class ChatViewModel(
         }
     }
 
-    /** Байты ролика и его тип, или null: не открылся или длиннее [VideoUnderstandingClient.MAX_VIDEO_BYTES]. */
+    /** The clip's bytes and type, or null: it did not open or is longer than [VideoUnderstandingClient.MAX_VIDEO_BYTES]. */
     private fun readLessonVideo(video: android.net.Uri): Pair<ByteArray, String>? {
         val resolver = context.contentResolver
         val mimeType = resolver.getType(video)?.takeIf { it.startsWith("video/") } ?: "video/mp4"
         val limit = com.aiopenpocket.agent.core.llm.VideoUnderstandingClient.MAX_VIDEO_BYTES
-        // Ролик-пример урока лежит в assets APK: content resolver file:///android_asset не открывает.
+        // The lesson's sample clip lives in the APK's assets: the content resolver does not open file:///android_asset.
         val asset = video.bundledAssetPath()
         val stream = if (asset != null) context.assets.open(asset) else resolver.openInputStream(video)
         val bytes = stream?.use { input ->
@@ -645,7 +652,7 @@ class ChatViewModel(
         return bytes.takeIf { it.isNotEmpty() }?.let { it to mimeType }
     }
 
-    /** Удаляет ролик, снятый камерой для урока: он наш и лежит в cacheDir. Ролики из галереи не трогаем. */
+    /** Deletes a clip filmed with the camera for a lesson: it is ours and lives in cacheDir. Gallery clips are not touched. */
     private fun deleteOwnCapture(video: android.net.Uri) {
         if (video.authority != "${context.packageName}.fileprovider") return
         val name = video.lastPathSegment ?: return
@@ -653,8 +660,9 @@ class ChatViewModel(
     }
 
     /**
-     * Публикует следующий шаг урока, либо карточку завершения, если шагов больше нет. За счёт этого квиз
-     * работает корректно, даже когда он НЕ последний шаг (после ответа просто идём дальше, а не завершаем).
+     * Publishes the next lesson step, or the completion card if there are no more steps. Thanks to this a
+     * quiz works correctly even when it is NOT the last step (after the answer we just move on rather than
+     * finish).
      */
     private fun advanceLessonCursor() {
         val s = _state.value
@@ -688,18 +696,18 @@ class ChatViewModel(
         _state.value.conversationId?.takeIf { it.isNotBlank() }
 
     /**
-     * Проекция сессии хода из TurnManager в состояние экрана. Ход живёт в appScope — экран лишь
-     * отражает его. «Мигание» конца хода решается деривацией: пузырь (isLoading) держим, пока
-     * Completed-сообщение не приехало в окно ленты, — подмена атомарна, т.к. messages и статус
-     * сходятся в одном combine и одном _state.update.
+     * Projects the turn session from TurnManager into the screen state. The turn lives in appScope — the
+     * screen only reflects it. The end-of-turn "flicker" is solved by derivation: the bubble (isLoading) is
+     * kept until the Completed message reaches the feed window — the swap is atomic, since messages and the
+     * status meet in one combine and one _state.update.
      */
     private fun observeSession(convId: String) {
         sessionJob?.cancel()
         sessionJob = viewModelScope.launch {
             turnManager.session(convId).collectLatest { session ->
                 if (session == null) {
-                    // Сессии нет (не было хода / отменён / просмотрен) — только гасим индикацию,
-                    // остальное состояние (сообщения, статистика) не трогаем.
+                    // No session (there was no turn / it was cancelled / seen) — only clear the indication,
+                    // the rest of the state (messages, statistics) is not touched.
                     _state.update { it.copy(isLoading = false) }
                     return@collectLatest
                 }
@@ -730,8 +738,8 @@ class ChatViewModel(
                                         ),
                                     )
                                 }
-                                // Ответ доехал до ленты — чистая сессия больше не нужна (гасит бейдж
-                                // «готово» в списке; markSeen сам не тронет ошибку/canRetry).
+                                // The answer reached the feed — the clean session is no longer needed (clears the "done" badge
+                                // in the list; markSeen itself will not touch an error/canRetry).
                                 if (arrived && status.insertedMessageId != null) {
                                     turnManager.markSeen(convId)
                                 }
@@ -749,8 +757,8 @@ class ChatViewModel(
     private suspend fun ensureConversation(firstMessage: String): String {
         _state.value.conversationId?.takeIf { it.isNotBlank() }?.let { return it }
         val title = ConversationRepository.placeholderTitle(firstMessage)
-        // Персона из Настроек, а не дефолт репозитория: этим путём приходят чаты, начатые голосовым
-        // ассистентом (маршрут chat/new), и без неё они всегда говорили бы «Резким напарником».
+        // The persona from Settings, not the repository's default: chats started by the voice assistant come
+        // this way (the chat/new route), and without it they would always speak as "Sharp partner".
         val newId = conversationRepository.createConversation(
             title = title,
             personaId = userPreferencesRepository.getDefaultPersonaId(),
@@ -762,15 +770,15 @@ class ChatViewModel(
         return newId
     }
 
-    /** Живая подписка карточки reminder — см. [ReminderCardView]. */
+    /** The reminder card's live subscription — see [ReminderCardView]. */
     // @trace heartbeat-napominalki-agenta-5f0442
     fun observeHeartbeat(id: String): Flow<HeartbeatEntity?> = heartbeatDao.observe(id)
 
-    /** Живая подписка [com.aiopenpocket.ui.plan.PlanCard] — см. его же kdoc "never trusts a field copied into a chat message". */
+    /** The live subscription of [com.aiopenpocket.ui.plan.PlanCard] — see its own kdoc "never trusts a field copied into a chat message". */
     // @trace structured-plan-engine-907066
     fun observePlan(planId: String): Flow<PlanSnapshot?> = planRepository.observe(planId)
 
-    /** Отмена из карточки: гасим WorkManager-задачу и фиксируем статус в Room (карточка сама перерисуется). */
+    /** Cancel from the card: cancel the WorkManager job and record the status in Room (the card redraws itself). */
     // @trace heartbeat-napominalki-agenta-5f0442
     fun cancelHeartbeat(id: String) {
         viewModelScope.launch {
@@ -779,10 +787,10 @@ class ChatViewModel(
         }
     }
 
-    /** Удаляет сообщение. `state.messages` реактивен (Flow из БД), поэтому лента обновится сама. */
+    /** Deletes a message. `state.messages` is reactive (a Flow from the DB), so the feed updates itself. */
     private fun deleteMessage(messageId: String) {
-        // Если это сообщение держит текущий «Повторить» — TurnManager погасит ретрай, иначе он
-        // переотправит текст хода, чей user-ряд в истории только что исчез.
+        // If this message holds the current "Retry", TurnManager cancels the retry; otherwise it would resend the
+        // text of a turn whose user row has just disappeared from the history.
         currentConversationId()?.let { turnManager.invalidateRetryFor(it, messageId) }
         viewModelScope.launch {
             conversationRepository.deleteMessage(messageId)
@@ -790,25 +798,26 @@ class ChatViewModel(
     }
 
     /**
-     * Область поиска по чату: пока активен — временно снимаем лимит окна ленты, чтобы поиск видел
-     * ВСЮ историю, а не только подгруженный «хвост» (иначе совпадения в старых сообщениях, ещё не
-     * попавших в окно пагинации, не находились бы — выглядело бы как «поиск не работает»). При
-     * выходе из поиска возвращаем обычное окно — незачем держать всю историю в памяти постоянно.
+     * The scope of chat search: while it is active the feed window limit is lifted temporarily so the
+     * search sees the WHOLE history, not only the loaded "tail" (otherwise matches in old messages not yet
+     * in the pagination window would not be found — it would look like "search does not work"). On leaving
+     * the search the normal window returns — there is no reason to keep the whole history in memory all the
+     * time.
      */
     fun setSearchActive(active: Boolean) {
         windowLimit.value = if (active) Int.MAX_VALUE else INITIAL_WINDOW
         if (!active) searchQueryFlow.value = ""
     }
 
-    /** Текущий текст поиска из шапки чата — совпадения пересчитает фоновый скан (см. init). */
+    /** The current search text from the chat header — the background scan recomputes the matches (see init). */
     fun setSearchQuery(query: String) {
         searchQueryFlow.value = query
     }
 
     /**
-     * Подписка на окно последних сообщений. [windowLimit] управляет размером окна: при «подгрузке
-     * старых» он растёт, flatMapLatest переподписывается на больший запрос. hasMoreOlder выводим
-     * эвристикой «вернули ровно лимит → вероятно, есть ещё старше».
+     * The subscription to the window of the last messages. [windowLimit] controls the window size: on "load
+     * older" it grows and flatMapLatest resubscribes to the larger query. hasMoreOlder is derived by the
+     * heuristic "exactly the limit came back → there are probably older ones".
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun observeMessages(id: String) {
@@ -822,9 +831,9 @@ class ChatViewModel(
                 }
                 .collect { (messages, limit) ->
                     olderLoadInFlight = false
-                    // Снятие стрим-пузыря при приходе сообщения арбитрируется в observeSession: там
-                    // messages участвуют в combine со статусом сессии (isLoading держится, пока
-                    // Completed-сообщение не появилось в окне ленты) — здесь только сама лента.
+                    // Removing the stream bubble when a message arrives is arbitrated in observeSession: there messages take
+                    // part in the combine with the session status (isLoading holds until the Completed message
+                    // appears in the feed window) — here it is only the feed itself.
                     _state.update {
                         it.copy(messages = messages, hasMoreOlder = messages.size >= limit)
                     }
@@ -832,7 +841,7 @@ class ChatViewModel(
         }
     }
 
-    /** Просьба показать более старые сообщения — растим окно. Защита от повторных вызовов в полёте. */
+    /** A request to show older messages — the window grows. Guarded against repeated calls in flight. */
     fun loadOlderMessages() {
         if (olderLoadInFlight || !_state.value.hasMoreOlder) return
         olderLoadInFlight = true
@@ -845,17 +854,17 @@ class ChatViewModel(
     }
 
     companion object {
-        /** Урок-онбординг (setup-шаги language/persona/profile) драйвится не чат-контроллером, а экраном онбординга. */
+        /** The onboarding lesson (setup steps language/persona/profile) is driven by the onboarding screen, not the chat controller. */
         private const val ONBOARDING_LESSON_ID = "l1_welcome"
 
-        /** Начальный размер окна ленты и шаг догрузки «старых» сообщений. */
+        /** The initial feed window size and the step for loading "older" messages. */
         private const val INITIAL_WINDOW = 40
         private const val WINDOW_PAGE = 40
 
-        /** Дебаунс поискового ввода перед сканом истории. */
+        /** Debounce of the search input before scanning the history. */
         private const val SEARCH_DEBOUNCE_MS = 250L
 
-        /** Реплика для PLAN-хода после «Попросить правки» с пустым полем отзыва. */
+        /** The message for a PLAN turn after "Ask for changes" with an empty feedback field. */
         internal const val DEFAULT_PLAN_REVISION_REQUEST = "Пересобери план с учётом правок"
     }
 }

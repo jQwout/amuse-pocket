@@ -11,72 +11,73 @@ sealed class ChatIntent {
   data object SendMessage : ChatIntent()
   data object CancelRequest : ChatIntent()
   data object ToggleToolTrace : ChatIntent()
-  /** Удалить сообщение (подтверждение — на стороне UI, до отправки этого интента). */
+  /** Delete a message (the confirmation happens in the UI, before this intent is sent). */
   data class DeleteMessage(val messageId: String) : ChatIntent()
   data object RetryRequest : ChatIntent()
   data object ClearError : ChatIntent()
   data object NavigateBack : ChatIntent()
   data object ToggleVoiceInput : ChatIntent()
-  /** Отмена записи: сбросить распознавание без вставки текста (кнопка-корзина в баре записи). */
+  /** Cancel recording: drop the recognition without inserting text (the trash button in the recording bar). */
   data object CancelVoiceInput : ChatIntent()
   data object ClearVoiceError : ChatIntent()
 
-  /** Сменить режим агента (Чат/План/Цель). Заменяет прежний boolean-тогл план-мода. */
+  /** Change the agent mode (Chat/Plan/Goal). Replaces the old plan-mode boolean toggle. */
   data class SetMode(val mode: AgentMode) : ChatIntent()
 
   /**
-   * Task 5 (structured-plan-engine-907066): typed plan commands — идут напрямую в
-   * `PlanCommands`/`PlanRepository`, БЕЗ magic chat message («Одобряю план, выполни его по
-   * шагам» больше нигде не пишется в историю — см. удалённый `TurnTexts.APPROVE_PLAN_MESSAGE`).
-   * [version] — ровно та версия, которую пользователь видел в PlanApprovalBar/PlanCard:
-   * `PlanCommands` отклоняет команду над устаревшей (уже не текущей pending) версией. Одобрение
-   * запускает исполнение в фоне: PlanScheduler ставит typed heartbeat на следующий шаг (без
-   * расписания — сразу), и ответ шага ложится в этот же чат.
+   * Task 5 (structured-plan-engine-907066): typed plan commands — they go straight to
+   * `PlanCommands`/`PlanRepository`, WITHOUT a magic chat message ("I approve the plan, run it step by
+   * step" is no longer written into the history anywhere — see the removed `TurnTexts.APPROVE_PLAN_MESSAGE`).
+   * [version] is exactly the version the user saw in PlanApprovalBar/PlanCard: `PlanCommands` rejects a
+   * command on an outdated (no longer the current pending) version. Approval starts execution in the
+   * background: PlanScheduler arms a typed heartbeat for the next step (without a schedule — right
+   * away), and the step's answer lands in this same chat.
    */
   data class ApprovePlan(val planId: String, val version: Int) : ChatIntent()
   /**
-   * Запрос правок: план уходит в DRAFT, и сразу запускается ход PLAN с комментарием пользователя
-   * (или «Пересобери план с учётом правок») — иначе карточка исчезала, а новой версии никто не ждал.
+   * A request for changes: the plan goes to DRAFT, and a PLAN turn starts right away with the user's
+   * comment (or "Rebuild the plan with the changes") — otherwise the card disappeared and nobody waited
+   * for a new version.
    */
   data class RequestPlanChanges(val planId: String, val version: Int, val feedback: String) : ChatIntent()
-  /** Task 5: приостановить ACTIVE-план (и его typed heartbeat/schedule — см. PlanScheduleSync). */
+  /** Task 5: pause an ACTIVE plan (and its typed heartbeat/schedule — see PlanScheduleSync). */
   data class PausePlan(val planId: String) : ChatIntent()
-  /** Task 5: возобновить PAUSED-план. */
+  /** Task 5: resume a PAUSED plan. */
   data class ResumePlan(val planId: String) : ChatIntent()
-  /** Task 5: отменить план — терминальный статус. */
+  /** Task 5: cancel the plan — a terminal status. */
   data class CancelPlan(val planId: String) : ChatIntent()
 
   /**
-   * USER_CONFIRMATION: пользователь подтверждает шаг, заблокированный на критерии-подтверждении
-   * (design fork «только пере-проверить, без ре-рана»). Идёт в `PlanCommands.confirmStep`: пишет
-   * evidence подтверждения и ПЕРЕ-проверяет критерии БЕЗ повторного запуска шага (COMPLETED, если
-   * закрыт последний обязательный критерий; иначе шаг просто разблокируется в READY).
+   * USER_CONFIRMATION: the user confirms a step blocked on a confirmation criterion (the design fork
+   * "re-check only, no re-run"). Goes to `PlanCommands.confirmStep`: writes the confirmation evidence and
+   * RE-checks the criteria WITHOUT running the step again (COMPLETED if the last required criterion is
+   * closed; otherwise the step is just unblocked to READY).
    */
   data class ConfirmPlanStep(val planId: String, val stepId: String) : ChatIntent()
 
   /**
-   * План-мод: «Поправить» — чисто локальный UI-жест (прячет approval-бар в ChatUiState, даёт
-   * дописать в чат), в отличие от [RequestPlanChanges] не обращается к PlanRepository.
+   * Plan mode: "Edit" is a purely local UI gesture (it hides the approval bar in ChatUiState and lets the
+   * user write in the chat); unlike [RequestPlanChanges] it does not go to PlanRepository.
    */
   data object EditPlan : ChatIntent()
 
-  /** Урок: показать следующий шаг (или завершить, если шаг был последним). */
+  /** Lesson: show the next step (or finish if the step was the last). */
   data object AdvanceLesson : ChatIntent()
-  /** Урок: квиз пройден — показать карточку завершения. */
+  /** Lesson: the quiz is passed — show the completion card. */
   data object CompleteLessonQuiz : ChatIntent()
 
-  /** «Нарисуй под меня» на шаге-картинке урока: перерисовать [imagePrompt] под профиль и язык. */
+  /** "Draw it for me" on a lesson's image step: redraw [imagePrompt] for the profile and the language. */
   data class PersonalizeLessonImage(val imagePrompt: String, val caption: String) : ChatIntent()
 
-  /** Шаг урока "video": пользователь снял или выбрал ролик [video] — отдать его Muse Spark с [videoPrompt]. */
+  /** The "video" lesson step: the user filmed or picked a clip [video] — hand it to Muse Spark with [videoPrompt]. */
   data class AnalyzeLessonVideo(val videoPrompt: String, val video: android.net.Uri) : ChatIntent()
 
-  /** Урок: свободный вопрос к LLM прямо во время урока (кнопка «Спросить»). */
+  /** Lesson: a free question to the LLM right during the lesson (the "Ask" button). */
   data class AskDuringLesson(val text: String) : ChatIntent()
 
   /**
-   * Tool-approval бар (Task 9): пользователь разрешил/отклонил `state.pendingToolApproval`. Оба
-   * параметров не несут — резолвят ровно тот запрос, что сейчас лежит в state (см. ChatViewModel).
+   * The tool-approval bar (Task 9): the user allowed/denied `state.pendingToolApproval`. Neither carries
+   * parameters — they resolve exactly the request that is in the state right now (see ChatViewModel).
    */
   data object ApproveToolCall : ChatIntent()
   data object DenyToolCall : ChatIntent()

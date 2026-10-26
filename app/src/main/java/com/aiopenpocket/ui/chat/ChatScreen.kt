@@ -178,17 +178,17 @@ import kotlinx.serialization.json.JsonElement
 fun ChatScreen(
     conversationId: String,
     onNavigateBack: () -> Unit,
-    // Тап по «шапке» агент-чата (Task 21) открывает полноэкранный AgentDetailScreen
-    // (com.aiopenpocket.ui.agents.detail.AgentDetailRoute, маршрут "agent/{agentId}") — заменяет
-    // старый read-only инспектор-шторку, которая раньше жила прямо в этом экране.
+    // A tap on the agent chat's header (Task 21) opens the full-screen AgentDetailScreen
+    // (com.aiopenpocket.ui.agents.detail.AgentDetailRoute, route "agent/{agentId}") — it replaces the
+    // old read-only inspector sheet that used to live right in this screen.
     onOpenAgentDetail: (String) -> Unit = {},
-    // CTA на карточке завершения капстоуна Академии (Task 23, «Открыть конструктор»): открывает
-    // agent_builder с новым пустым черновиком, помеченным sourceContext = ACADEMY_CAPSTONE. Кнопка
-    // существует только на РЕАЛЬНОЙ completion-карточке agent_blueprint (см. DrivenUiEngine/
-    // LessonChatController.postCompletion) — обычные уроки её не показывают.
+    // The CTA on the Academy capstone completion card (Task 23, "Open the builder"): opens agent_builder
+    // with a new empty draft marked sourceContext = ACADEMY_CAPSTONE. The button exists only on the REAL
+    // agent_blueprint completion card (see DrivenUiEngine/LessonChatController.postCompletion) —
+    // ordinary lessons do not show it.
     onOpenAgentBuilder: (AgentSourceContext) -> Unit = {},
-    // Тап «Открыть →» на живой карточке плана (Task 12, structured-plan-engine-907066) — открывает
-    // com.aiopenpocket.ui.plan.PlanDetailRoute, маршрут "plan/{planId}".
+    // A tap on "Open →" on the live plan card (Task 12, structured-plan-engine-907066) opens
+    // com.aiopenpocket.ui.plan.PlanDetailRoute, route "plan/{planId}".
     onOpenPlanDetail: (String) -> Unit = {},
 ) {
     val glassState = rememberGlassState()
@@ -196,10 +196,10 @@ fun ChatScreen(
     val state by viewModel.state.collectAsState()
     val scope = rememberCoroutineScope()
 
-    // Высоты плавающих стеклянных баров (шапка/композер) меряем через onSizeChanged в разметке ниже
-    // и превращаем в contentPadding ленты (чтобы сообщения скроллились ПОД барами, а крайние не
-    // прятались под стеклом) и в отступ FAB. Держим на уровне функции, чтобы и BoxWithConstraints,
-    // и FAB (вне его) читали bottomPad.
+    // The heights of the floating glass bars (header/composer) are measured via onSizeChanged in the layout
+    // below and turned into the feed's contentPadding (so messages scroll UNDER the bars, while the edge
+    // ones do not hide under the glass) and into the FAB offset. Kept at function level so both
+    // BoxWithConstraints and the FAB (outside it) read bottomPad.
     val density = LocalDensity.current
     var topBarHeightPx by remember { mutableStateOf(0) }
     var bottomBarHeightPx by remember { mutableStateOf(0) }
@@ -210,11 +210,11 @@ fun ChatScreen(
         viewModel.setConversationId(conversationId)
     }
 
-    // Действия switch-карточек. Шаблон выведен (RETIRED_CARD_TEMPLATES): новые switch модель создать не
-    // может, а старые сообщения с ним рисуются как были — переключатель в них ничего не делает.
-    // Стабильные колбэки ленты: не зависят от конкретного сообщения, поэтому создаём один раз (remember).
-    // Нестабильные (новые на каждой рекомпозиции) лямбды заставляли бы видимые пузыри пересобираться зря —
-    // Message это стабильный data class, и при стабильных колбэках Compose пропускает неизменившиеся итемы.
+    // Actions of switch cards. The template is retired (RETIRED_CARD_TEMPLATES): the model cannot create new
+    // switches, and old messages with one render as they were — the toggle in them does nothing.
+    // Stable feed callbacks: they do not depend on a particular message, so they are created once
+    // (remember). Unstable lambdas (new on every recomposition) would make visible bubbles rebuild for
+    // nothing — Message is a stable data class, and with stable callbacks Compose skips unchanged items.
     val onCardAction: (String, Boolean) -> Unit = remember { { _, _ -> } }
     val onChoiceSelected: (String) -> Unit = remember { { text: String -> viewModel.sendUserMessage(text) } }
     val onLessonQuizComplete: () -> Unit = remember { { viewModel.handleIntent(ChatIntent.CompleteLessonQuiz) } }
@@ -224,26 +224,26 @@ fun ChatScreen(
     val onLessonVideo: (String, android.net.Uri) -> Unit = remember {
         { prompt, uri -> viewModel.handleIntent(ChatIntent.AnalyzeLessonVideo(prompt, uri)) }
     }
-    // Живая карточка reminder: подписка на heartbeat + отмена — стабильные ссылки на методы ViewModel.
+    // The live reminder card: the heartbeat subscription + cancel are stable references to ViewModel methods.
     val observeHeartbeat: (String) -> Flow<HeartbeatEntity?> = remember { viewModel::observeHeartbeat }
     val onCancelHeartbeat: (String) -> Unit = remember { viewModel::cancelHeartbeat }
-    // Живая карточка плана (Task 12): PlanCard подписывается на PlanSnapshot по id сама — см. её kdoc.
+    // The live plan card (Task 12): PlanCard subscribes to the PlanSnapshot by id itself — see its kdoc.
     val observePlan: (String) -> Flow<PlanSnapshot?> = remember { viewModel::observePlan }
     var composerExpanded by remember { mutableStateOf(false) }
 
-    // --- Полнотекстовый поиск по сообщениям чата (иконка-лупа в тулбаре). ---
+    // --- Full-text search over the chat's messages (the magnifier icon in the toolbar). ---
     var searchActive by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var currentMatch by remember { mutableStateOf(0) }
 
-    // Закрыть поиск — общий путь для крестика, системной «назад» и смены диалога: помимо локального
-    // флага, снимает с ViewModel полное окно истории (см. setSearchActive ниже).
+    // Closing the search — a shared path for the cross, the system "back" and a conversation change: besides
+    // the local flag, it releases the ViewModel's full history window (see setSearchActive below).
     fun closeSearch() {
         searchActive = false
         searchQuery = ""
         viewModel.setSearchActive(false)
     }
-    // Совпадения считает ViewModel (дебаунс + Default-диспетчер) — здесь только читаем.
+    // Matches are counted by the ViewModel (debounce + the Default dispatcher) — here we only read them.
     val matchIndices = state.searchMatches
     LaunchedEffect(matchIndices.size) {
         if (currentMatch >= matchIndices.size) currentMatch = 0
@@ -251,7 +251,7 @@ fun ChatScreen(
     val currentMatchId = matchIndices.getOrNull(currentMatch)
         ?.let { state.messages.getOrNull(it)?.id }
 
-    // Системная «назад» при открытом поиске закрывает поиск, а не выходит из чата.
+    // The system "back" with the search open closes the search, not the chat.
     BackHandler(enabled = searchActive) { closeSearch() }
 
     val listState = rememberLazyListState()
@@ -262,14 +262,14 @@ fun ChatScreen(
         derivedStateOf { listState.canScrollForward }
     }
 
-    // Резерв под ответ: пустое место в высоту ВИДИМОГО вьюпорта, чтобы вопрос прибился к верхней
-    // кромке, а ответ рос в него сверху вниз.
+    // The reserve for the answer: empty space the height of the VISIBLE viewport, so the question sticks to
+    // the top edge and the answer grows into it from top to bottom.
     //
-    // Высота АНИМИРУЕТСЯ, но только в одну сторону — это принципиально. Схлопывание плавное (иначе
-    // дыра размером с экран исчезала за кадр, и это читалось как рывок в конце хода), а вот РОСТ
-    // мгновенный: резерв нужен подскроллу `animateScrollToItem(qIndex, 0)` уже в тот момент, когда
-    // тот начинается. Если бы место набиралось те же 280мс, скролл гнался бы за растущим контентом и
-    // мог не довести вопрос до верхней кромки — ровно то, ради чего резерв и существует.
+    // The height is ANIMATED, but only one way — that is essential. Collapsing is smooth (otherwise a
+    // screen-sized hole vanished within a frame, which read as a jerk at the end of the turn), while GROWTH
+    // is instant: the reserve is needed by the `animateScrollToItem(qIndex, 0)` scroll at the very moment
+    // it starts. If the space filled in over the same 280 ms, the scroll would chase growing content and
+    // could fail to bring the question to the top edge — exactly what the reserve exists for.
     val fullHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
     val tailSpacerHeight by animateDpAsState(
         targetValue = if (hasStreamingItem) (fullHeight - topPad - bottomPad).coerceAtLeast(0.dp) else 0.dp,
@@ -278,12 +278,12 @@ fun ChatScreen(
     )
 
     /**
-     * Индекс последнего элемента ленты: сообщения + стриминговый пузырь + tail-спейсер.
+     * Index of the feed's last item: messages + the streaming bubble + the tail spacer.
      *
-     * Спейсер учитывается по СВОЕЙ высоте, а не по [hasStreamingItem]: он переживает флаг на время
-     * схлопывания, и в это окно индекс был бы на единицу меньше реального. Симптом: дотянул ленту до
-     * низа во время стрима, ход закончился — докрутка «к последнему» уезжала в ещё не схлопнувшуюся
-     * пустоту.
+     * The spacer is counted by ITS OWN height, not by [hasStreamingItem]: it outlives the flag while it
+     * collapses, and during that window the index would be one less than the real one. Symptom: you pulled
+     * the feed to the bottom during the stream, the turn ended — and scrolling "to the last item" went into
+     * the not-yet-collapsed emptiness.
      */
     fun lastItemIndex(): Int {
         val streamingItems = if (hasStreamingItem) 1 else 0
@@ -291,24 +291,24 @@ fun ChatScreen(
         return state.messages.size - 1 + streamingItems + spacerItems
     }
 
-    // Гейт пагинации: при открытии чата мы доли секунды стоим у индекса 0 (до автоскролла к низу) —
-    // без этого флага «подгрузка старых» сработала бы прямо на открытии. Разрешаем её только ПОСЛЕ того,
-    // как первый автоскролл к низу отработал. Сбрасывается при смене диалога.
+    // The pagination gate: when the chat opens we stand at index 0 for a split second (before the
+    // autoscroll to the bottom) — without this flag "load older" would fire right on opening. It is
+    // allowed only AFTER the first autoscroll to the bottom has run. Reset when the conversation changes.
     var initialScrollDone by remember(conversationId) { mutableStateOf(false) }
 
-    // --- Прилипание к низу (pinnedToBottom) — единственный источник истины для ВСЕХ автоскроллов. ---
-    // Отлипаем только на пользовательском ЖЕСТЕ (начало драга): раньше «у низа?» проверялось как
-    // «последний итем хоть частично видим», и во время стрима длинного ответа (пузырь выше экрана)
-    // любая попытка проскроллить вверх внутри пузыря переигрывалась следующим токеном — пользователь
-    // был заперт у низа до конца стрима. Прилипаем обратно, когда лента остановилась на самом низу.
+    // --- Sticking to the bottom (pinnedToBottom) is the single source of truth for ALL autoscrolls. ---
+    // We unstick only on a user GESTURE (the start of a drag): "at the bottom?" used to be checked as "the
+    // last item is at least partly visible", and while a long answer was streaming (a bubble taller than
+    // the screen) any attempt to scroll up inside the bubble was overridden by the next token — the user
+    // was locked at the bottom until the stream ended. We stick back when the feed stops at the very bottom.
     var pinnedToBottom by remember(conversationId) { mutableStateOf(true) }
-    // «Пришло новое, пока читаем историю» — подсветка FAB вместо принудительного прыжка вниз.
+    // "Something new arrived while we read the history" — the FAB is highlighted instead of a forced jump down.
     var hasUnseenNew by remember(conversationId) { mutableStateOf(false) }
-    // Стрим-ход в стиле ChatGPT/Claude: при отправке вопроса он уезжает к ВЕРХУ экрана, снизу
-    // резервируется пустое место (tail-spacer в ленте), и ответ «печатается» в него сверху вниз —
-    // лента не дёргается за каждым токеном, и после ответа не нужно скроллить. Флаг активен от
-    // отправки вопроса до конца хода; сбрасывается пользовательским жестом (юзер сам взял
-    // управление) и сменой диалога.
+    // A ChatGPT/Claude-style streaming turn: when a question is sent it moves to the TOP of the screen, empty
+    // space is reserved below (a tail spacer in the feed), and the answer "types" into it from top to
+    // bottom — the feed does not jerk with every token, and no scrolling is needed after the answer. The
+    // flag is active from sending the question to the end of the turn; reset by a user gesture (the user
+    // took control) and by a conversation change.
     var streamAnchorActive by remember(conversationId) { mutableStateOf(false) }
 
     LaunchedEffect(listState) {
@@ -319,8 +319,8 @@ fun ChatScreen(
             }
         }
     }
-    // Прилип обратно: лента неподвижна и докручена до последнего пикселя (включая конец инерции).
-    // Программные скроллы DragInteraction не эмитят, поэтому автоскролл сам себя не отлепляет.
+    // Stuck back: the feed is still and scrolled to the last pixel (including the end of a fling).
+    // Programmatic scrolls do not emit DragInteraction, so an autoscroll does not unstick itself.
     LaunchedEffect(listState) {
         snapshotFlow { listState.isScrollInProgress to listState.canScrollForward }
             .collect { (scrolling, canScrollFwd) ->
@@ -330,28 +330,30 @@ fun ChatScreen(
                 }
             }
     }
-    // Выход из поиска: могли остаться посреди истории у найденного совпадения — прилипание
-    // пересчитываем по факту, чтобы следующий ответ не дёргал читателя вниз.
+    // Leaving the search: we may have stayed in the middle of the history at a found match — stickiness is
+    // recomputed from the actual position, so the next answer does not yank the reader down.
     LaunchedEffect(searchActive) {
         if (!searchActive) pinnedToBottom = !listState.canScrollForward
     }
 
-    // Новое сообщение либо старт/конец стрима. Ключ — id ПОСЛЕДНЕГО сообщения (а не размер списка):
-    // подгрузка старых растит ленту сверху, последнего не меняет — и низ дёргать не нужно.
+    // A new message, or the start/end of a stream. The key is the id of the LAST message (not the list size):
+    // loading older messages grows the feed at the top without changing the last one — no need to touch
+    // the bottom.
     LaunchedEffect(state.messages.lastOrNull()?.id, hasStreamingItem) {
-        if (searchActive) return@LaunchedEffect // во время поиска не перебиваем подскролл к совпадению
+        if (searchActive) return@LaunchedEffect // during a search we do not interrupt the scroll to a match
         val last = state.messages.lastOrNull()
         when {
-            // СТАРТ ХОДА: пользователь отправил вопрос, пошёл стрим. Прибиваем вопрос к верху экрана —
-            // ответ будет «печататься» ниже, в зарезервированный tail-spacer (см. LazyColumn), а не
-            // толкать ленту снизу. scrollToItem(qIndex, 0): вопрос ровно у верхней кромки.
+            // THE START OF A TURN: the user sent a question, the stream started. Pin the question to the top of the
+            // screen — the answer will "type" below, into the reserved tail spacer (see LazyColumn),
+            // instead of pushing the feed from below. scrollToItem(qIndex, 0): the question exactly at the
+            // top edge.
             last?.role == "user" && hasStreamingItem -> {
                 streamAnchorActive = true
                 val qIndex = state.messages.lastIndex
-                // Плавно, а не рывком: раньше вопрос МГНОВЕННО прыгал к верхней кромке, и это
-                // читалось как дёрганье экрана. Мгновенным остаётся только самый первый подскролл
-                // при открытии диалога (initialScrollDone ещё false) — там лента скрыта alpha=0 и
-                // анимация показала бы прокрутку через всю историю.
+                // Smoothly, not with a jerk: the question used to jump to the top edge INSTANTLY, and that read
+                // as the screen twitching. Only the very first scroll on opening a conversation stays
+                // instant (initialScrollDone is still false) — there the feed is hidden with alpha=0, and an
+                // animation would show a scroll through the whole history.
                 if (qIndex >= 0) {
                     if (initialScrollDone) {
                         listState.animateScrollToItem(qIndex, 0)
@@ -360,20 +362,20 @@ fun ChatScreen(
                     }
                 }
             }
-            // КОНЕЦ ХОДА: ответ сохранён, стрим-пузырь снят. НЕ дёргаем ленту вниз — оставляем ответ
-            // там, где его читают; прилипание пересчитываем по фактической позиции.
+            // THE END OF A TURN: the answer is saved, the stream bubble is gone. Do NOT pull the feed down — leave
+            // the answer where it is being read; stickiness is recomputed from the actual position.
             streamAnchorActive && !hasStreamingItem -> {
                 streamAnchorActive = false
                 pinnedToBottom = !listState.canScrollForward
             }
-            // Обычный путь (не стрим-ход: урок постит сообщение, приходит чужое и т.п.): к низу —
-            // только когда прилипли; иначе метим «есть новое» (подсветка FAB).
+            // The normal path (not a streaming turn: a lesson posts a message, something else arrives etc.): go to
+            // the bottom only when stuck there; otherwise mark "there is something new" (FAB highlight).
             pinnedToBottom -> {
-                // scrollOffset = Int.MAX_VALUE — докрутка до САМОГО низа: обычный scrollToItem(target)
-                // выравнивает верх элемента по верху вьюпорта, и длинный ответ оставался обрезан снизу.
+                // scrollOffset = Int.MAX_VALUE scrolls to the VERY bottom: a plain scrollToItem(target) aligns the top
+                // of the item with the top of the viewport, and a long answer stayed cut off at the bottom.
                 val target = lastItemIndex()
                 if (target >= 0) {
-                    // Тоже плавно — кроме первого подскролла (см. выше).
+                    // Smoothly too — except the first scroll (see above).
                     if (initialScrollDone) {
                         listState.animateScrollToItem(target, Int.MAX_VALUE)
                     } else {
@@ -387,23 +389,23 @@ fun ChatScreen(
         if (state.messages.isNotEmpty()) initialScrollDone = true
     }
 
-    // Поиск: при смене текущего совпадения подскроллить к нему.
+    // Search: when the current match changes, scroll to it.
     LaunchedEffect(currentMatch, matchIndices) {
         matchIndices.getOrNull(currentMatch)?.let { listState.animateScrollToItem(it) }
     }
 
-    // Пагинация: у верха ленты подгружаем более ранние сообщения и якорим позицию, чтобы контент не
-    // «прыгал» при дорастании окна сверху. pendingAnchorId — элемент, который держим на месте.
+    // Pagination: near the top of the feed we load earlier messages and anchor the position so the content
+    // does not "jump" when the window grows at the top. pendingAnchorId is the item we keep in place.
     //
-    // ВАЖНО: триггерим подгрузку только на ЖИВОМ скролле (isScrollInProgress), а не на любой
-    // рекомпозиции около верха. Раньше условие держалось на derivedStateOf(firstVisibleItemIndex) +
-    // LaunchedEffect с state.messages в ключах — после КАЖДОЙ подгрузки список переэмитился, ключ
-    // менялся, пользователь по-прежнему был у верха (только что туда подгрузили), и эффект тут же
-    // запускал следующую догрузку — рекурсивный шторм релейаутов прямо под пальцем. Внешне это и
-    // выглядело как «скролл не работает»: лента постоянно перестраивалась вместо обычной прокрутки.
+    // IMPORTANT: loading is triggered only on a LIVE scroll (isScrollInProgress), not on any recomposition
+    // near the top. The condition used to rest on derivedStateOf(firstVisibleItemIndex) + a
+    // LaunchedEffect with state.messages in its keys — after EVERY load the list re-emitted, the key
+    // changed, the user was still at the top (we had just loaded things there), and the effect immediately
+    // started the next load — a recursive storm of relayouts right under the finger. From the outside it
+    // looked like "scrolling does not work": the feed kept rebuilding instead of scrolling normally.
     var pendingAnchorId by remember { mutableStateOf<String?>(null) }
-    // Размер ленты в момент запроса догрузки: по нему отличаем нашу догрузку от постороннего
-    // переэмита того же окна (touch updatedAt, фоновая аннотация).
+    // The feed size at the moment the load was requested: it tells our load apart from an unrelated re-emit
+    // of the same window (a touched updatedAt, a background annotation).
     var anchorRequestSize by remember { mutableStateOf(0) }
     LaunchedEffect(listState) {
         snapshotFlow { listState.firstVisibleItemIndex to listState.isScrollInProgress }
@@ -419,9 +421,10 @@ fun ChatScreen(
     }
     LaunchedEffect(state.messages) {
         val anchor = pendingAnchorId ?: return@LaunchedEffect
-        // Посторонний переэмит того же окна (размер не вырос, якорь на месте, старые ещё есть) — НЕ
-        // наша догрузка: держим якорь, иначе он сбрасывался бы, не дождавшись префикса, и лента
-        // «съедала» жест догрузки. Ждём эмит, где окно реально выросло сверху (или дошли до самых старых).
+        // An unrelated re-emit of the same window (the size did not grow, the anchor is in place, older messages
+        // remain) is NOT our load: keep the anchor, or it would be reset before the prefix arrived and the
+        // feed would "eat" the load gesture. Wait for the emit where the window really grew at the top (or
+        // we reached the very oldest).
         if (state.messages.size == anchorRequestSize &&
             state.hasMoreOlder &&
             state.messages.any { it.id == anchor }
@@ -429,7 +432,7 @@ fun ChatScreen(
             return@LaunchedEffect
         }
         val newIndex = state.messages.indexOfFirst { it.id == anchor }
-        // Старые приклеились сверху — мгновенно (без анимации) возвращаем якорь на прежнее место.
+        // The older messages stuck on at the top — instantly (no animation) put the anchor back where it was.
         if (newIndex > listState.firstVisibleItemIndex) {
             listState.scrollToItem(newIndex, listState.firstVisibleItemScrollOffset)
         }
@@ -437,40 +440,41 @@ fun ChatScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Аурора — ОТДЕЛЬНЫЙ слой-источник для стекла: именно её размывают бары и навбар.
-        // Раньше источником была только лента (glassSource на LazyColumn), а за баром — где ленты
-        // нет — hazeEffect сэмплить было нечего и падал в плоский MaterialTheme.colorScheme.background+tint (та самая «мутная
-        // плашка»). Источник обязан быть отдельным слоем: модификатор на корневом Box захватил бы
-        // и сами бары (петля), поэтому аурора вынесена в собственный matchParentSize-слой позади.
+        // The aurora is a SEPARATE source layer for the glass: it is what the bars and the navbar blur. The source
+        // used to be only the feed (glassSource on LazyColumn), and behind a bar — where there is no feed —
+        // hazeEffect had nothing to sample and fell back to a flat MaterialTheme.colorScheme.background+tint
+        // (that very "murky slab"). The source must be a separate layer: a modifier on the root Box would
+        // capture the bars themselves too (a loop), so the aurora is moved into its own matchParentSize
+        // layer behind.
         Box(
             modifier = Modifier
                 .matchParentSize()
                 .auroraBackground()
                 .glassSource(glassState),
         )
-        // Стеклянные бары «плавают» ПОВЕРХ ленты (iOS-стиль): лента заполняет весь Box и скроллится
-        // ПОД шапкой и композером, поэтому за стеклом видны и размываются сами сообщения, а не только
-        // аурора. Высоты баров меряем (onSizeChanged) → contentPadding ленты, чтобы крайние сообщения
-        // вставали у кромки бара, а не прятались под ним.
+        // The glass bars "float" ON TOP of the feed (iOS style): the feed fills the whole Box and scrolls UNDER
+        // the header and the composer, so behind the glass the messages themselves are visible and blurred,
+        // not only the aurora. The bars' heights are measured (onSizeChanged) → the feed's contentPadding,
+        // so the edge messages stop at the bar's edge rather than hide under it.
         Box(modifier = Modifier.fillMaxSize()) {
-            // fullHeight/tailSpacerHeight подняты в скоуп выше: их читает ещё и lastItemIndex(),
-            // которому нужно знать, жив ли сейчас спейсер. Высота берётся из LocalWindowInfo, а НЕ из
-            // BoxWithConstraints: тот — SubcomposeLayout и субкомпозировал весь экран на каждую
-            // рекомпозицию тела (дорого при печати).
+            // fullHeight/tailSpacerHeight are lifted to the scope above: lastItemIndex() reads them too, and it
+            // needs to know whether the spacer is alive right now. The height comes from LocalWindowInfo,
+            // NOT from BoxWithConstraints: that one is a SubcomposeLayout and subcomposed the whole screen
+            // on every recomposition of the body (expensive while typing).
 
-            // ЛЕНТА (задний слой) — заполняет весь Box и скроллится под обоими барами. Свежие сообщения
-            // снизу. Arrangement.Bottom: короткий чат прижимается к низу. contentPadding сверху/снизу =
-            // измеренные высоты баров, чтобы первое/последнее сообщение не уезжали под стекло.
+            // THE FEED (the back layer) fills the whole Box and scrolls under both bars. Fresh messages at the
+            // bottom. Arrangement.Bottom: a short chat sticks to the bottom. The top/bottom contentPadding =
+            // the measured heights of the bars, so the first/last message does not slide under the glass.
             LazyColumn(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    // До первого автоскролла ленту не показываем: LazyColumn рождается на индексе 0
-                    // (старые сообщения), и до снапа юзер видел вспышку начала истории. graphicsLayer
-                    // читает флаг на фазе рисования — смена не рекомпозирует ленту.
+                    // The feed is not shown until the first autoscroll: LazyColumn is born at index 0 (the old
+                    // messages), and before the snap the user saw a flash of the start of the history.
+                    // graphicsLayer reads the flag in the draw phase — the change does not recompose the feed.
                     .graphicsLayer { alpha = if (initialScrollDone) 1f else 0f }
-                    // Источник для стеклянной обвязки (топбар/инпут) — сама лента НЕ размывается,
-                    // только читается как backdrop чужим hazeEffect (перф: без RenderEffect в items).
+                    // The source for the glass chrome (top bar/input) — the feed itself is NOT blurred, it is only read
+                    // as a backdrop by someone else's hazeEffect (perf: no RenderEffect in the items).
                     .glassSource(glassState),
                 contentPadding = PaddingValues(top = topPad, bottom = bottomPad),
                 verticalArrangement = Arrangement.Bottom,
@@ -478,25 +482,25 @@ fun ChatScreen(
                 items(
                     state.messages,
                     key = { it.id },
-                    // Подсказка Compose переиспользовать раскладку пузыря того же типа при скролле — меньше
-                    // пересборок и подлагиваний на длинной ленте.
+                    // A hint for Compose to reuse the layout of a bubble of the same type while scrolling — fewer rebuilds
+                    // and stutters on a long feed.
                     contentType = { it.role },
                 ) { message ->
-                    // Пер-итемные колбэки запоминаем по id (и по нужным флагам), чтобы они были стабильны между
-                    // рекомпозициями — тогда неизменившиеся пузыри Compose пропускает.
+                    // Per-item callbacks are remembered by id (and by the needed flags) so they are stable between
+                    // recompositions — then Compose skips unchanged bubbles.
                     val onDelete = remember(message.id) {
                         { viewModel.handleIntent(ChatIntent.DeleteMessage(message.id)) }
                     }
                     val onLessonComplete = remember(message.id, state.lessonMode) {
                         {
-                            // JSON-урок: отметить пройденным и вернуться к списку. Старых roadmap-уроков
-                            // с отдельным экраном-квизом больше нет — все уроки JSON со своим квизом.
+                            // A JSON lesson: mark it done and return to the list. The old roadmap lessons with a separate
+                            // quiz screen are gone — all lessons are JSON with their own quiz.
                             if (state.lessonMode) viewModel.completeLesson(onNavigateBack) else onNavigateBack()
                         }
                     }
-                    // CTA капстоуна (Task 23): рендерится ТОЛЬКО когда сама карточка несёт
-                    // primaryAction (см. DrivenUiEngine.LessonCompleteCardView) — это и есть
-                    // capstone-only гейт, здесь мы просто открываем билдер с нужным источником.
+                    // The capstone CTA (Task 23): rendered ONLY when the card itself carries primaryAction (see
+                    // DrivenUiEngine.LessonCompleteCardView) — that is the capstone-only gate; here we just
+                    // open the builder with the right source.
                     val onOpenAgentBuilderTap = remember(message.id) {
                         { onOpenAgentBuilder(AgentSourceContext.ACADEMY_CAPSTONE) }
                     }
@@ -522,8 +526,8 @@ fun ChatScreen(
                 }
                 if (hasStreamingItem) {
                     item(key = "streaming") {
-                        // Подписка на стриминговый текст ЛОКАЛЬНА для этого итема: дельты токенов рекомпозируют
-                        // только пузырь, а не весь экран.
+                        // The subscription to the streaming text is LOCAL to this item: token deltas recompose only the
+                        // bubble, not the whole screen.
                         val streamingText by viewModel.streamingText.collectAsState()
                         StreamingBubble(
                             text = streamingText,
@@ -533,10 +537,11 @@ fun ChatScreen(
                         )
                     }
                 }
-                // Резерв под ответ: пустое место в высоту ВИДИМОГО вьюпорта (экран минус оба бара),
-                // чтобы вопрос прибился к верхней кромке видимой области, а ответ рос в него сверху вниз.
-                // Условие НЕ на hasStreamingItem, а на саму высоту: после конца хода спейсер ещё жив,
-                // пока схлопывается анимацией (см. tailSpacerHeight выше).
+                // The reserve for the answer: empty space the height of the VISIBLE viewport (the screen minus both
+                // bars), so the question sticks to the top edge of the visible area and the answer grows into
+                // it from top to bottom. The condition is NOT on hasStreamingItem but on the height itself:
+                // after the turn ends the spacer is still alive while its animation collapses it (see
+                // tailSpacerHeight above).
                 if (tailSpacerHeight > 0.dp) {
                     item(key = "tail_spacer") {
                         Spacer(Modifier.height(tailSpacerHeight))
@@ -544,19 +549,20 @@ fun ChatScreen(
                 }
             }
 
-            // ВЕРХНИЙ оверлей: стеклянная «таблетка» шапки + стат-бар, под статус-баром.
-            // Высоту меряем (onSizeChanged → topBarHeightPx) → contentPadding.top ленты. statusBarsPadding
-            // живёт на самой таблетке (ребёнок Column), поэтому измеренная высота уже включает его инсет.
+            // THE TOP overlay: the header's glass "pill" + the stat bar, under the status bar.
+            // The height is measured (onSizeChanged → topBarHeightPx) → the feed's contentPadding.top.
+            // statusBarsPadding lives on the pill itself (a child of the Column), so the measured height
+            // already includes its inset.
             Column(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
                     .onSizeChanged { topBarHeightPx = it.height },
             ) {
-                // Плавающая стеклянная «таблетка» шапки — как нижний навбар: скруглённая, с боковыми
-                // отступами, мягкой тенью и рим-бордером (от GlassSurface). Статус-бар-инсет вынесен на
-                // саму таблетку (statusBarsPadding), поэтому дети (TopAppBar/строка поиска) свой инсет НЕ
-                // добавляют — иначе он задвоился бы и таблетка ушла бы под системные часы/вырез.
+                // The header's floating glass "pill" — like the bottom navbar: rounded, with side paddings, a soft
+                // shadow and a rim border (from GlassSurface). The status bar inset is moved onto the pill
+                // itself (statusBarsPadding), so the children (TopAppBar/the search row) do NOT add their own
+                // inset — otherwise it would double and the pill would go under the system clock/cutout.
                 val barShape = RoundedCornerShape(24.dp)
                 GlassSurface(
                     state = glassState,
@@ -620,7 +626,7 @@ fun ChatScreen(
                                     }
                                 },
                                 actions = {
-                                    // Поиск по сообщениям чата.
+                                    // Search over the chat's messages.
                                     IconButton(onClick = { searchActive = true; viewModel.setSearchActive(true) }) {
                                         Icon(
                                             Icons.Default.Search,
@@ -628,8 +634,8 @@ fun ChatScreen(
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
                                     }
-                                    // Переключатель трассы инструментов показываем ТОЛЬКО когда трасса есть — иначе кнопка была бы
-                                    // «мёртвой» (раньше это была шестерёнка с пустым меню).
+                                    // The tool trace toggle is shown ONLY when there is a trace — otherwise the button would be
+                                    // "dead" (it used to be a gear with an empty menu).
                                     if (state.toolTrace.isNotEmpty()) {
                                         IconButton(onClick = { viewModel.handleIntent(ChatIntent.ToggleToolTrace) }) {
                                             Icon(
@@ -640,7 +646,7 @@ fun ChatScreen(
                                             )
                                         }
                                     }
-                                    // Тап открывает полноэкранный AgentDetailScreen (Task 21). Только для агент-чатов.
+                                    // A tap opens the full-screen AgentDetailScreen (Task 21). Only for agent chats.
                                     if (state.agentId != null) {
                                         IconButton(onClick = { onOpenAgentDetail(state.agentId!!) }) {
                                             Icon(
@@ -660,8 +666,8 @@ fun ChatScreen(
                     }
                 }
 
-                // Контекст/токены — тонкий прогресс под шапкой. Показываем, пока есть статистика (в т.ч.
-                // во время загрузки — тогда виден контекст прошлого хода).
+                // Context/tokens — a thin progress bar under the header. Shown while there are statistics (including
+                // during loading — then the previous turn's context is visible).
                 if (state.lastResponseStats != null) {
                     ResponseStatsBar(
                         stats = state.lastResponseStats!!,
@@ -670,10 +676,11 @@ fun ChatScreen(
                 }
             }
 
-            // НИЖНИЙ оверлей: композер и все нижние бары. Высоту меряем (onSizeChanged → bottomBarHeightPx)
-            // → contentPadding.bottom ленты и отступ FAB. onSizeChanged СТОИТ ПЕРЕД windowInsetsPadding,
-            // чтобы измеренная высота ВКЛЮЧАЛА нижний инсет (навбар/IME): safeDrawing bottom = max(навбар,
-            // клавиатура), без двойного счёта — navigationBars/imePadding поверх НЕ добавляем.
+            // THE BOTTOM overlay: the composer and all bottom bars. The height is measured (onSizeChanged →
+            // bottomBarHeightPx) → the feed's contentPadding.bottom and the FAB offset. onSizeChanged comes
+            // BEFORE windowInsetsPadding so the measured height INCLUDES the bottom inset (navbar/IME):
+            // safeDrawing bottom = max(navbar, keyboard), without counting twice — navigationBars/
+            // imePadding are NOT added on top.
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -715,7 +722,7 @@ fun ChatScreen(
                     }
                 }
 
-                // Ошибка распознавания — мягкая самоисчезающая подсказка, а не висящий баннер ошибки.
+                // A recognition error is a soft self-dismissing hint, not a hanging error banner.
                 val voiceError = state.voiceError
                 if (voiceError != null) {
                     LaunchedEffect(voiceError) {
@@ -745,10 +752,10 @@ fun ChatScreen(
                     }
                 }
 
-                // Tool-approval бар (бэкенд — Task 9, UI — Task 21): BEFORE_TOOL-хук потребовал
-                // подтверждения, ход стоит на паузе в ожидании решения. В отличие от PlanCard/
-                // ModeSelector ниже — сознательно НЕ гейтится на state.agentId == null: подтверждение
-                // тула — ровно то, что триггерят хуки кастомных агентов (Задача 8/9).
+                // The tool-approval bar (backend — Task 9, UI — Task 21): a BEFORE_TOOL hook required confirmation, and
+                // the turn is paused waiting for the decision. Unlike PlanCard/ModeSelector below it is
+                // deliberately NOT gated on state.agentId == null: confirming a tool is exactly what custom
+                // agents' hooks trigger (Tasks 8/9).
                 state.pendingToolApproval?.let { request ->
                     ToolApprovalBar(
                         request = request,
@@ -757,15 +764,15 @@ fun ChatScreen(
                     )
                 }
 
-                // Живая карточка плана (Task 12) — над полем ввода. Показывает proposal-превью
-                // (Одобрить/Попросить правки) пока pendingPlanApproval не null, иначе компактный
-                // прогресс, пока activePlanId (ACTIVE/PAUSED) не null; сама подписывается на полный
-                // PlanSnapshot по id через viewModel.observePlan — см. PlanCard.kt kdoc. Действия идут
-                // напрямую типизированными ChatIntent-командами в PlanRepository/PlanCommands (Task 5),
-                // никакого второго механизма approval здесь не заводится.
-                // (кластер A) План живёт у агента: карточку плана показываем в чатах, привязанных к
-                // мини-агенту (agentId != null) — планировщик без агента не работает, а в обычном чате
-                // плановых режимов теперь и нет (см. availableModesFor ниже).
+                // The live plan card (Task 12) — above the input field. It shows the proposal preview (Approve/Ask for
+                // changes) while pendingPlanApproval is not null, otherwise compact progress while
+                // activePlanId (ACTIVE/PAUSED) is not null; it subscribes to the full PlanSnapshot by id
+                // itself through viewModel.observePlan — see the PlanCard.kt kdoc. Actions go directly as
+                // typed ChatIntent commands to PlanRepository/PlanCommands (Task 5); no second approval
+                // mechanism is started here.
+                // (cluster A) A plan belongs to an agent: the plan card is shown in chats bound to a
+                // mini-agent (agentId != null) — the planner does not work without an agent, and a plain
+                // chat no longer has plan modes at all (see availableModesFor below).
                 val livePlanId = state.pendingPlanApproval?.planId ?: state.activePlanId
                 if (livePlanId != null && !state.lessonMode && !state.isTutorial && state.agentId != null) {
                     PlanCard(
@@ -784,18 +791,18 @@ fun ChatScreen(
                     )
                 }
 
-                // Поле ввода — внизу, как в обычном чате. Во время ответа показывает кнопку «стоп».
-                // В режиме урока ввод не нужен — контроллер сам ведёт шаги (кнопка «Дальше» внизу экрана).
+                // The input field is at the bottom, as in a normal chat. While answering it shows the "stop" button.
+                // In lesson mode no input is needed — the controller drives the steps itself (the "Next"
+                // button at the bottom of the screen).
                 AnimatedVisibility(visible = inputVisible) {
                     Column {
-                        // (3-агенты, кластер A) Плановые режимы живут у агентов: PLAN/GOAL требуют
-                        // резолвящегося агента (планировщик без него падает), поэтому обычный чат
-                        // получает только Чат/Рефлексию, а привязанный к мини-агенту — полный набор.
-                        // Скрываем селектор в гайд-уроках.
+                        // (3-agents, cluster A) Plan modes belong to agents: PLAN/GOAL require an agent that resolves
+                        // (the planner fails without one), so a plain chat gets only Chat/Reflection, while a
+                        // chat bound to a mini-agent gets the full set. The selector is hidden in guided lessons.
                         if (!state.isTutorial) {
-                            // Селектор лежал БЕЗ подложки прямо поверх ленты: сообщения просвечивали
-                            // сквозь «Чат»/«Рефлексию», и текст мешался с чипами до неразборчивости.
-                            // Даём ему ту же плашку, что и у остальной нижней обвязки.
+                            // The selector used to sit WITHOUT a backing right on top of the feed: messages showed through
+                            // "Chat"/"Reflection", and the text mixed with the chips until it was unreadable.
+                            // It gets the same slab as the rest of the bottom chrome.
                             val modeShape = RoundedCornerShape(24.dp)
                             GlassSurface(
                                 state = glassState,
@@ -812,8 +819,9 @@ fun ChatScreen(
                                 )
                             }
                         }
-                        // Во время записи поле ввода подменяется панелью записи (как в Telegram/Claude): слева —
-                        // отмена, по центру статус/таймер/волна/живой текст, справа — завершение. Итог падает в поле.
+                        // While recording, the input field is replaced by a recording panel (as in Telegram/Claude): cancel on
+                        // the left, status/timer/waveform/live text in the middle, finish on the right. The
+                        // result goes into the field.
                         AnimatedContent(
                             targetState = state.voiceState is VoiceInputState.Listening,
                             transitionSpec = {
@@ -831,8 +839,8 @@ fun ChatScreen(
                                     onDone = { viewModel.handleIntent(ChatIntent.ToggleVoiceInput) },
                                 )
                             } else {
-                                // inputText — из отдельного потока, читаем узким скоупом: печать
-                                // рекомпозирует только композер, а не всё тело чата (лента/оверлеи).
+                                // inputText comes from a separate flow and is read in a narrow scope: typing recomposes only
+                                // the composer, not the whole chat body (feed/overlays).
                                 val inputText by viewModel.inputText.collectAsState()
                                 ChatInput(
                                     value = inputText,
@@ -843,17 +851,17 @@ fun ChatScreen(
                                     glassState = glassState,
                                     placeholder = when (state.agentMode) {
                                         AgentMode.PLAN -> tr("Опиши задачу — агент составит план…", "Describe the task — the agent will draft a plan…")
-                                        // Текст GOAL берёт, только пока у диалога нет плана (тогда это
-                                        // задача для планировщика). Есть план — исполняется его шаг, а
-                                        // реплика игнорируется (StructuredPlanOrchestrator.executeGoal),
-                                        // поэтому «сформулируй цель» здесь обманывало.
+                                        // GOAL takes the text only while the conversation has no plan (then it is a task for the
+                                        // planner). With a plan, its step runs and the message is ignored
+                                        // (StructuredPlanOrchestrator.executeGoal), so "state your goal"
+                                        // was misleading here.
                                         AgentMode.GOAL -> when {
                                             state.pendingPlanApproval != null -> tr("Сначала одобри план в карточке выше…", "Approve the plan in the card above first…")
                                             state.activePlanId != null -> tr("Напиши «дальше» — агент сделает следующий шаг плана…", "Type “next” — the agent will do the next plan step…")
                                             else -> tr("Напиши цель — сначала придёт план…", "Write a goal — a plan comes first…")
                                         }
                                         AgentMode.REFLECT -> tr("Спроси — агент даст черновик, критику и итог…", "Ask — the agent drafts, critiques and finalizes…")
-                                        // TUTOR не выбирается пользователем (только разовый вопрос в уроке) — как обычный чат.
+                                        // TUTOR is not chosen by the user (only a one-off question in a lesson) — treated like a plain chat.
                                         AgentMode.CHAT, AgentMode.TUTOR -> tr("Сообщение...", "Message...")
                                     },
                                     onExpand = { composerExpanded = true },
@@ -867,23 +875,24 @@ fun ChatScreen(
                 }
 
                 if (state.lessonMode) {
-                    // Урок драйвит контроллер: пользователь листает шаги кнопкой, текстовый инпут не нужен.
+                    // The controller drives the lesson: the user moves through steps with a button, no text input is needed.
                     val currentStep = state.lesson?.steps?.getOrNull(state.lessonStepIndex - 1)
-                    // Ручная кнопка — для шагов без собственного «завершения»: текст, картинка и карточки-
-                    // отображения (reveal/concept/example). Интерактивные (quiz/fill/sort/match/scenario) двигают
-                    // урок сами по факту прохождения; исключение — вырожденный quiz без вопросов, ему нужна кнопка.
-                    // "video" — тоже с кнопкой: снять ролик можно не всегда (нет OpenRouter, не та обстановка),
-                    // и урок не должен на этом застревать.
+                    // The manual button is for steps without their own "completion": text, image and display cards
+                    // (reveal/concept/example). Interactive ones (quiz/fill/sort/match/scenario) move the lesson
+                    // themselves once completed; the exception is a degenerate quiz without questions, which
+                    // needs the button. "video" has a button too: filming a clip is not always possible (no
+                    // OpenRouter, the wrong setting), and the lesson must not get stuck on it.
                     val displayStep = currentStep?.type in
                             setOf("text", "image", "video", "animation", "reveal", "concept", "example", "input", "challenge")
-                    // !isLoading: во время стрима tutor-ответа не даём листать урок, иначе следующий шаг
-                    // впечатается в живой ход. Кнопка вернётся, когда ответ дойдёт. По той же причине прячем
-                    // её, пока модель смотрит видео: ответ про ролик должен лечь под своим шагом.
+                    // !isLoading: while a tutor answer is streaming, the lesson cannot be advanced, otherwise the next step
+                    // would be printed into the live turn. The button comes back when the answer arrives. For
+                    // the same reason it is hidden while the model watches the video: the answer about the clip
+                    // must land under its own step.
                     val needsManualAdvance = currentStep != null && !state.lessonFinished && !state.isLoading &&
                             state.analyzingVideoPrompts.isEmpty() &&
                             (displayStep || (currentStep.type == "quiz" && currentStep.questions.isEmpty()))
-                    // «Спросить» — свободный вопрос к LLM в любой момент урока (пока он не завершён).
-                    // Курсор персистится отдельно (lessonStepIndex), так что вопрос не сдвигает шаги.
+                    // "Ask" is a free question to the LLM at any point of the lesson (until it is complete). The cursor is
+                    // persisted separately (lessonStepIndex), so a question does not move the steps.
                     if (!state.lessonFinished) {
                         LessonAskBar(
                             enabled = !state.isLoading,
@@ -901,10 +910,11 @@ fun ChatScreen(
             }
         }
 
-        // Плавающая кнопка быстрого скролла вниз — когда уехали вверх по истории. Садится ровно НАД
-        // композером: bottomPad = измеренная высота нижнего оверлея (уже с навбар/IME-инсетом) + 16dp
-        // запаса, иначе FAB налезал бы на кнопку «Отправить». Когда во время чтения истории пришло
-        // новое сообщение, кнопка подсвечивается акцентом (вместо прежнего принудительного прыжка вниз).
+        // A floating quick-scroll-to-bottom button — when we have gone up the history. It sits exactly ABOVE the
+        // composer: bottomPad = the measured height of the bottom overlay (already with the navbar/IME
+        // inset) + 16dp of margin, otherwise the FAB would overlap the "Send" button. When a new message
+        // arrives while reading the history, the button is highlighted with the accent (instead of the old
+        // forced jump down).
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -912,15 +922,15 @@ fun ChatScreen(
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // Во время хода FAB прячем: снизу висит tail-spacer, поэтому canScrollForward всегда true
-            // (иначе кнопка «вниз» маячила бы на каждом ответе и вела бы в пустой резерв).
+            // The FAB is hidden during a turn: the tail spacer hangs at the bottom, so canScrollForward is always
+            // true (otherwise the "down" button would show on every answer and lead into the empty reserve).
             AnimatedVisibility(visible = showScrollDown && !hasStreamingItem) {
                 SmallFloatingActionButton(
                     onClick = {
                         pinnedToBottom = true
                         hasUnseenNew = false
-                        // Оффсет MAX_VALUE — до самого низа (см. комментарий у автоскролла): без него
-                        // длинное последнее сообщение выравнивалось верхом и низ оставался обрезан.
+                        // The MAX_VALUE offset goes to the very bottom (see the comment at the autoscroll): without it a
+                        // long last message was aligned by its top and its bottom stayed cut off.
                         scope.launch {
                             listState.animateScrollToItem(lastItemIndex().coerceAtLeast(0), Int.MAX_VALUE)
                         }
@@ -944,9 +954,9 @@ fun ChatScreen(
             }
         }
 
-        // Полноэкранный композер: тот же state.inputText, поверх чата. Отправка/Очистка идут теми же
-        // интентами, что и инлайновый ввод, поэтому два режима всегда показывают один и тот же текст.
-        // Появление/скрытие анимируем: fade + лёгкий зум, чтобы «разворот» ощущался плавным.
+        // The full-screen composer: the same state.inputText, on top of the chat. Send/Clear go through the same
+        // intents as the inline input, so both modes always show the same text. Showing/hiding is animated:
+        // a fade + a slight zoom so the "expansion" feels smooth.
         AnimatedVisibility(
             visible = composerExpanded,
             enter = fadeIn(animationSpec = tween(200)) +

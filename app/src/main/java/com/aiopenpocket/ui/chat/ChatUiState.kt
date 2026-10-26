@@ -25,7 +25,7 @@ data class ResponseStats(
  * Task 5 (structured-plan-engine-907066): identifies the exact [com.aiopenpocket.agent.core.plan.model.PlanVersion]
  * a `PlanApprovalBar`/PlanCard is currently showing the user, so `ChatIntent.ApprovePlan`/
  * `RequestPlanChanges` always target that precise version — never "whatever is pending now".
- * Replaces the Фаза A per-turn `planAwaitingApproval: Boolean`: whether a plan awaits a decision is
+ * Replaces the Phase A per-turn `planAwaitingApproval: Boolean`: whether a plan awaits a decision is
  * no longer a byproduct of the last chat turn, it is `PlanRepository`'s own persisted state (see
  * `PlanCommands`). Populated by `ChatViewModel.observePendingPlanApproval` (Task 10) — a reactive
  * subscription to `PlanRepository.observeByConversation`, not a one-shot turn event — so it is
@@ -36,17 +36,17 @@ data class PendingPlanApproval(val planId: String, val version: Int)
 data class ChatUiState(
   val conversationId: String? = null,
   val messages: List<Message> = emptyList(),
-  /** True, пока в БД есть сообщения старше текущего окна (см. пагинацию в ChatViewModel). */
+  /** True while the DB has messages older than the current window (see pagination in ChatViewModel). */
   val hasMoreOlder: Boolean = false,
   /**
-   * Индексы сообщений (в [messages]), содержащих текущий поисковый запрос. Считаются во
-   * ViewModel с дебаунсом на Dispatchers.Default — раньше скан шёл в композиции на каждый
-   * введённый символ (десятки мс на длинной истории прямо на Main).
+   * Indexes of the messages (in [messages]) containing the current search query. Computed in the
+   * ViewModel with a debounce on Dispatchers.Default — the scan used to run in composition on every typed
+   * character (tens of ms on a long history right on Main).
    */
   val searchMatches: List<Int> = emptyList(),
   val isLoading: Boolean = false,
-  // Стриминговый текст живёт в отдельном потоке ChatViewModel.streamingText (не в этом state),
-  // чтобы дельты токенов не пересобирали весь экран — только пузырь стрима.
+  // The streaming text lives in a separate flow, ChatViewModel.streamingText (not in this state), so token
+  // deltas do not rebuild the whole screen — only the stream bubble.
   val toolTrace: List<ToolTrace> = emptyList(),
   val error: String? = null,
   /** True when the last failed turn can be retried (we still have the last user message). */
@@ -71,13 +71,13 @@ data class ChatUiState(
    * DESTRUCTIVE/EXTERNAL call, or a `BEFORE_TOOL` hook that asked for it, Task 9) — null whenever
    * nothing is waiting. [ChatViewModel] derives this from `ToolApprovalCoordinator.pending`, filtered
    * to this screen's own conversation id, so a pending approval in a different chat never leaks in
-   * here. ChatScreen shows it as `ToolApprovalBar` («Агенту нужно разрешение» → «Разрешить»/«Отклонить»).
+   * here. ChatScreen shows it as `ToolApprovalBar` ("The agent needs permission" → "Allow"/"Decline").
    */
   val pendingToolApproval: ToolApprovalRequest? = null,
 
-  // --- Режим агента (план-/гоал-мод) — эфемерный UI-флаг экрана чата. Заменяет прежний planMode-boolean. ---
+  // --- The agent mode (plan/goal mode) — an ephemeral UI flag of the chat screen. Replaces the old planMode boolean. ---
   val agentMode: AgentMode = AgentMode.CHAT,
-  /** План-мод (Task 5): план показан, ждём «Выполнить»/«Поправить» — null, пока решать нечего. */
+  /** Plan mode (Task 5): the plan is shown, waiting for "Run"/"Edit" — null while there is nothing to decide. */
   val pendingPlanApproval: PendingPlanApproval? = null,
   /**
    * Task 12 (structured-plan-engine-907066): id of THIS conversation's currently ACTIVE/PAUSED plan,
@@ -88,31 +88,31 @@ data class ChatUiState(
    * covers that case since it only ever holds an AWAITING_APPROVAL plan.
    */
   val activePlanId: String? = null,
-  /** Лимит витков гоал-мода (из настроек). */
+  /** The goal-mode iteration limit (from settings). */
   val goalMaxIterations: Int = 3,
-  /** Пресет размера шрифта сообщений — из Настроек, применяется к тексту пузырей. */
+  /** The message font size preset — from Settings, applied to the bubbles' text. */
   val chatFontScale: ChatFontScale = ChatFontScale.DEFAULT,
 
-  // --- Урок, который драйвит чат-контроллер по JSON-контракту ---
-  /** True, если этот чат — JSON-урок (есть assets/lessons/{title}.json). */
+  // --- A lesson driven by the chat controller by the JSON contract ---
+  /** True if this chat is a JSON lesson (assets/lessons/{title}.json exists). */
   val lessonMode: Boolean = false,
   val lesson: Lesson? = null,
-  /** Сколько шагов урока уже опубликовано (следующий к показу — steps[lessonStepIndex]). */
+  /** How many lesson steps have been published already (the next to show is steps[lessonStepIndex]). */
   val lessonStepIndex: Int = 0,
-  /** True, когда показана карточка завершения урока. */
+  /** True when the lesson completion card is shown. */
   val lessonFinished: Boolean = false,
-  /** Картинки урока, которые сейчас перерисовываются «под меня» (по imagePrompt). */
+  /** Lesson images currently being redrawn "for me" (by imagePrompt). */
   val personalizingImagePrompts: Set<String> = emptySet(),
-  /** Шаги "video", чьи ролики модель сейчас смотрит (по videoPrompt). Пока не пусто — «Дальше» спрятана. */
+  /** "video" steps whose clips the model is watching right now (by videoPrompt). While not empty, "Next" is hidden. */
   val analyzingVideoPrompts: Set<String> = emptySet(),
 ) {
   companion object {
     /**
-     * Свежее состояние для диалога [id]: разговорные поля сбрасываются, но pref-производные
-     * ([chatFontScale], [goalMaxIterations] — из Настроек) СОХРАНЯЮТСЯ. Их кладёт реактивный
-     * коллектор в ChatViewModel.init, а DataStore-Flow на неизменном значении повторно не эмитит —
-     * без явного переноса они застряли бы на дефолте после первого же переключения диалога
-     * (баг «смена размера шрифта в чате не работает»).
+     * A fresh state for conversation [id]: the conversation fields are reset, but the pref-derived ones
+     * ([chatFontScale], [goalMaxIterations] — from Settings) are KEPT. They are set by the reactive
+     * collector in ChatViewModel.init, and a DataStore Flow does not re-emit an unchanged value — without
+     * carrying them over explicitly they would be stuck at the default after the very first conversation
+     * switch (the "changing the chat font size does not work" bug).
      */
     fun resetFor(
       id: String,
