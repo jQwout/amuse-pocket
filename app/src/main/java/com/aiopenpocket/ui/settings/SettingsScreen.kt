@@ -104,7 +104,7 @@ import com.aiopenpocket.ui.theme.GlassTokens
 import com.aiopenpocket.ui.theme.ThemeMode
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
-// internal (не private): общие для экрана и вынесенных карточек в SettingsCards.kt (тот же пакет).
+// internal (not private): shared by the screen and the cards moved out to SettingsCards.kt (the same package).
 internal val SettingsCardShape = RoundedCornerShape(16.dp)
 internal val SettingsFieldShape = RoundedCornerShape(12.dp)
 
@@ -122,14 +122,14 @@ fun SettingsScreen(
   val personaSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   val currentPersona = PersonaCatalog.findById(state.personaId)
 
-  // Выбор значения везде идёт через стеклянный лист (как у персоны), а не через стоковый
-  // DropdownMenu — см. SettingsSelectorRow.
+  // A value is chosen everywhere through a glass sheet (as for the persona), not through a stock
+  // DropdownMenu — see SettingsSelectorRow.
   var showModelSheet by remember { mutableStateOf(false) }
   val modelSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   var showThemeSheet by remember { mutableStateOf(false) }
   val themeSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-  // Лист темы живёт вне прокручиваемой колонки, поэтому маппинг label↔enum поднят сюда (раньше
-  // объявлялся прямо у селектора). Порядок фиксированный — LinkedHashMap.
+  // The theme sheet lives outside the scrolling column, so the label↔enum mapping is lifted here (it used to
+  // be declared right at the selector). The order is fixed — a LinkedHashMap.
   val themeLabels = remember {
     linkedMapOf(
       ThemeMode.LIGHT to "Светлая",
@@ -140,10 +140,10 @@ fun SettingsScreen(
   val themeByLabel = remember { themeLabels.entries.associate { (mode, label) -> label to mode } }
   var showLanguageSheet by remember { mutableStateOf(false) }
   val languageSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-  // Названия языков — каждое на своём языке, чтобы выбор находился при любом текущем.
+  // Language names — each in its own language, so the choice can be found whatever the current one is.
   val languageLabels = remember { linkedMapOf(AppLanguage.RU to "Русский", AppLanguage.EN to "English") }
 
-  // Аврора-фон + стекло, как на вкладке «Чат» — навбар/каркас становятся прозрачными (см. glassState).
+  // The aurora background + glass, as on the "Chat" tab — the navbar/scaffold become transparent (see glassState).
   val glassState = rememberGlassState()
   AcademyCollapsingScaffold(
     title = tr("Настройки", "Settings"),
@@ -238,8 +238,8 @@ fun SettingsScreen(
       modifier = Modifier
         .fillMaxSize()
         .verticalScroll(rememberScrollState())
-        // ПОСЛЕ verticalScroll: иначе отступы инсетят вьюпорт и контент не заезжает под
-        // плавающие острова — стеклу нечего размывать.
+        // AFTER verticalScroll: otherwise the paddings inset the viewport and the content does not slide under
+        // the floating islands — the glass has nothing to blur.
         .padding(padding),
     ) {
       Spacer(modifier = Modifier.height(8.dp))
@@ -260,9 +260,9 @@ fun SettingsScreen(
         modifier = Modifier.padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
       ) {
-        // Ключ Meta — первым: это основной маршрут (см. LlmProvider). Вшитого ключа Meta нет, так что
-        // это поле — единственный путь к прямому Meta Model API, в том числе у того, кто собрал
-        // проект из открытого репозитория.
+        // The Meta key comes first: it is the primary route (see LlmProvider). There is no bundled Meta key, so
+        // this field is the only way to the direct Meta Model API, including for someone who built the
+        // project from the public repository.
         ApiKeyField(
           label = tr("Ключ Meta Model API", "Meta Model API key"),
           value = state.metaKey,
@@ -277,11 +277,11 @@ fun SettingsScreen(
         )
       }
 
-      // Без этой строки первым сигналом о забытом ключе был бы «All providers failed» в чате, уже
-      // после отправки вопроса, а о том, что ключ Meta что-то переключил, человек узнал бы только из
-      // расхода. Маршрут — тем же предикатом, что у цепочки (state.provider → activeLlmProvider), а
-      // наличие ключа OpenRouter — тем же, что у его резолвера: иначе строка и реальное поведение
-      // однажды разойдутся.
+      // Without this line the first signal of a forgotten key would be "All providers failed" in the chat,
+      // already after sending a question, and that a Meta key switched something a person would learn only
+      // from the spend. The route uses the same predicate as the chain (state.provider → activeLlmProvider),
+      // and the presence of an OpenRouter key the same as its resolver: otherwise the line and the real
+      // behavior would one day diverge.
       val openRouterKeyMissing =
         state.openRouterKey.isBlank() && bundledOpenRouterKey(BuildConfig.OPENROUTER_API_KEY).isBlank()
       ProviderRouteLine(
@@ -301,7 +301,7 @@ fun SettingsScreen(
       SelectorCard(
         label = tr("ТЕКУЩАЯ МОДЕЛЬ", "CURRENT MODEL"),
         selected = modelLabel(state.currentModel),
-        // Та же иконка, что у заголовка секции — строка и заголовок читаются как одно целое.
+        // The same icon as the section header — the row and the header read as one whole.
         icon = Icons.Default.Memory,
         onClick = { showModelSheet = true },
         modifier = Modifier.padding(horizontal = 20.dp),
@@ -542,16 +542,16 @@ fun SettingsScreen(
 }
 
 /**
- * Имя модели для человека: «meta/muse-spark-1.3» (OpenRouter) и «muse-spark-1.3» (Meta) →
- * «Muse Spark 1.3», "AUTO" → «Авто — по приоритету». Id остаётся ключом в настройках и в цепочке;
- * здесь только подпись — без префикса вендора (он у всех один) и без сентинела настроек, который
- * пользователю ничего не говорит.
+ * A model's name for a person: "meta/muse-spark-1.3" (OpenRouter) and "muse-spark-1.3" (Meta) →
+ * "Muse Spark 1.3", "AUTO" → "Auto — by priority". The id stays the key in the settings and in the chain;
+ * here is only the caption — without the vendor prefix (it is the same for all) and without the settings
+ * sentinel, which tells the user nothing.
  */
 internal fun modelLabel(id: String): String {
   if (id == "AUTO") return tr("Авто — по приоритету", "Auto — by priority")
   return id.substringAfter('/')
     .split('-')
-    // «30b» — размер модели в миллиардах параметров, его пишут «30B».
+    // "30b" is the model size in billions of parameters, written as "30B".
     .joinToString(" ") { part -> if (part.matches(SIZE_SUFFIX)) part.uppercase() else part.replaceFirstChar { it.uppercase() } }
 }
 

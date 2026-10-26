@@ -10,57 +10,57 @@ import com.aiopenpocket.ui.theme.ThemeMode
 
 data class SettingsUiState(
   val openRouterKey: String = "",
-  /** Ключ Meta Model API. Непустой — запросы идут напрямую в Meta (см. [activeLlmProvider]). */
+  /** The Meta Model API key. Non-empty — requests go straight to Meta (see [activeLlmProvider]). */
   val metaKey: String = "",
-  /** Модель маршрута OpenRouter ("AUTO" — по приоритету из каталога). */
+  /** The model of the OpenRouter route ("AUTO" — by priority from the catalog). */
   val selectedModel: String = "AUTO",
-  /** Модель прямого маршрута Meta — свой выбор, см. SettingsRepository.getSelectedModel. */
+  /** The model of the direct Meta route — a choice of its own, see SettingsRepository.getSelectedModel. */
   val selectedMetaModel: String = "AUTO",
-  /** Модели Meta из каталога OpenRouter, отсортированные по приоритету. */
+  /** Meta models from the OpenRouter catalog, sorted by priority. */
   val openRouterModels: List<String> = emptyList(),
-  /** Модели прямого Meta Model API (статичный каталог), отсортированные по приоритету. */
+  /** Models of the direct Meta Model API (a static catalog), sorted by priority. */
   val metaModels: List<String> = emptyList(),
   val personaId: String = "sharp_partner",
   val personas: List<String> = emptyList(),
-  /** Лимит витков гоал-мода (петля ReAct до достижения цели). */
+  /** The goal-mode iteration limit (the ReAct loop until the goal is reached). */
   val goalMaxIterations: Int = 3,
-  /** Пресет размера шрифта сообщений в чате. */
+  /** The chat message font size preset. */
   val chatFontScale: ChatFontScale = ChatFontScale.DEFAULT,
-  /** Режим темы: Светлая/Тёмная/Системная. */
+  /** The theme mode: Light/Dark/System. */
   val themeMode: ThemeMode = ThemeMode.SYSTEM,
-  /** Расход за последнюю неделю. `null` — ещё не прочитан с диска. */
+  /** Spend over the last week. `null` — not read from disk yet. */
   val usage: UsageSummary? = null,
   val saved: Boolean = false,
 ) {
   /**
-   * Куда пойдут запросы с ТЕМИ ключами, что сейчас в полях, — ещё до «Сохранить»: экран сразу
-   * показывает, что изменит нажатие, и список моделей переключается вместе со строкой маршрута.
+   * Where requests will go with THE keys that are in the fields right now — even before "Save": the screen
+   * shows at once what a tap will change, and the model list switches together with the route line.
    */
   val provider: LlmProvider get() = activeLlmProvider(metaKey)
 
-  /** Опции селектора модели — каталог текущего [provider]. */
+  /** The model selector's options — the catalog of the current [provider]. */
   val availableModels: List<String>
     get() = if (provider == LlmProvider.META) metaModels else openRouterModels
 
-  /** Выбранная модель текущего [provider]. */
+  /** The selected model of the current [provider]. */
   val currentModel: String
     get() = if (provider == LlmProvider.META) selectedMetaModel else selectedModel
 }
 
 /**
- * Расход за период — то, что видит пользователь и по чему считаются тарифы.
+ * Spend over a period — what the user sees and what pricing is computed from.
  *
- * Фон вынесен отдельным полем, а не спрятан в общей сумме: вызовы вне хода (аннотатор диалога,
- * извлечение профиля, heartbeat) пользователь не заказывал и не видит, и именно их доля отвечает на
- * вопрос «почему счёт растёт, когда я ничего не делаю».
+ * The background is a separate field, not hidden in the total: calls outside a turn (the conversation
+ * annotator, profile extraction, heartbeat) were not ordered by the user and are not seen by them, and it is
+ * exactly their share that answers "why does the bill grow when I am doing nothing".
  */
 data class UsageSummary(
   val calls: Int,
   val promptTokens: Long,
   val completionTokens: Long,
-  /** `null` — цену не назвал ни один вызов периода (провайдер отдал только токены). */
+  /** `null` — no call of the period named a price (the provider gave only tokens). */
   val costUsd: Double?,
-  /** Сколько вызовов посчитаны оценкой, а не замером провайдера — мера доверия к цифрам выше. */
+  /** How many calls were counted by estimate rather than by the provider's measurement — a measure of trust in the figures above. */
   val estimatedCalls: Int,
   val backgroundCalls: Int,
   val backgroundTokens: Long,

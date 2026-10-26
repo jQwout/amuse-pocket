@@ -28,7 +28,7 @@ fun StreamingBubble(
   modifier: Modifier = Modifier,
   showCursor: Boolean = false,
   isWaiting: Boolean = false,
-  /** Тот же множитель, что у [MarkdownText] в пузыре: подмена стрима готовым сообщением не должна менять размер текста. */
+  /** The same multiplier as [MarkdownText] in the bubble: swapping the stream for the finished message must not change the text size. */
   fontScale: Float = 1f,
 ) {
   Box(
@@ -44,15 +44,15 @@ fun StreamingBubble(
       when {
         text.isNotEmpty() -> {
           val displayText = if (showCursor) "$text▌" else text
-          // Масштаб кегля запоминаем по (тема, fontScale): стрим рекомпозируется на каждый токен,
-          // без remember scaledBy аллоцировал бы TextStyle на каждую дельту при не-дефолтном размере.
+          // The font scale is remembered by (theme, fontScale): the stream recomposes on every token, and without
+          // remember scaledBy would allocate a TextStyle on every delta at a non-default size.
           val baseStyle = MaterialTheme.typography.bodySmall
           val style = remember(baseStyle, fontScale) { baseStyle.scaledBy(fontScale) }
           Text(
             text = displayText,
             style = style,
-            // Тот же цвет и размер, что у сохранённого сообщения (plain-путь MarkdownText / markdown
-            // m3 — onBackground): подмена пузыря сообщением не должна менять вид текста.
+            // The same color and size as the saved message (MarkdownText's plain path / markdown m3 — onBackground):
+            // swapping the bubble for the message must not change how the text looks.
             color = MaterialTheme.colorScheme.onBackground,
           )
         }

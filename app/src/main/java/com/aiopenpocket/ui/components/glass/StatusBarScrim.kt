@@ -13,18 +13,19 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
 /**
- * Мягкая подложка ровно по высоте системного статус-бара: цвет фона темы вверху, прозрачность внизу.
+ * A soft backing exactly the height of the system status bar: the theme's background color at the top,
+ * transparency at the bottom.
  *
- * Зачем. Приложение рисует edge-to-edge, то есть контент уезжает прямо под часы, батарею и сеть. Даже
- * при верно выбранном цвете иконок (его чинит [com.aiopenpocket.ui.theme.MyApplicationTheme], синхронизируя
- * `isAppearanceLightStatusBars` с темой ПРИЛОЖЕНИЯ, а не системы) на пёстром месте — светлая карточка,
- * картинка, яркое пятно ауроры — они всё равно теряются.
+ * Why. The app draws edge-to-edge, so the content slides right under the clock, the battery and the network.
+ * Even with the icon color chosen right (fixed by [com.aiopenpocket.ui.theme.MyApplicationTheme], which syncs
+ * `isAppearanceLightStatusBars` with the APP's theme rather than the system's), on a busy spot — a light card,
+ * an image, a bright aurora spot — they still get lost.
  *
- * Почему градиент, а не полоса. Сплошная плашка вернула бы визуальный «статус-бар» и убила бы саму
- * идею «контент занимает всё пространство»: экран снова начинался бы с чужой панели. Градиент в
- * прозрачность даёт контраст там, где он нужен (у самых иконок), и растворяется к контенту.
+ * Why a gradient and not a strip. A solid plate would bring back a visual "status bar" and kill the very idea
+ * of "content takes all the space": the screen would again start with someone else's panel. A gradient to
+ * transparency gives contrast where it is needed (right at the icons) and dissolves towards the content.
  *
- * Ничего не перехватывает: это просто фон без обработчиков, тапы проходят насквозь.
+ * It intercepts nothing: it is just a background without handlers, taps pass through.
  *
  * @trace glass-design-system-21a3fe
  */
@@ -44,7 +45,7 @@ fun StatusBarScrim(modifier: Modifier = Modifier) {
 }
 
 /**
- * Плотность у самой кромки экрана. Ручка вкуса: выше — надёжнее читаются часы на пёстром, ниже —
- * незаметнее переход. 0.7 подобрано как «видно всегда, но полосой не читается».
+ * The density at the very edge of the screen. A taste knob: higher — the clock reads more reliably on a busy
+ * background, lower — the transition is less noticeable. 0.7 was picked as "always visible, but not read as a strip".
  */
 private const val SCRIM_TOP_ALPHA = 0.7f

@@ -2,9 +2,9 @@ package com.aiopenpocket.ui.settings
 
 // @trace app-settings-beb470
 //
-// Карточки и секции экрана настроек, вынесенные из SettingsScreen.kt (тот же пакет, поэтому
-// без кросс-импортов — только видимость private -> internal у тех, что зовёт экран). Каждая
-// карточка самодостаточна и общается с экраном через параметры-колбэки.
+// Cards and sections of the settings screen, moved out of SettingsScreen.kt (the same package, so no
+// cross-imports — only private -> internal visibility for those the screen calls). Each card is
+// self-contained and talks to the screen through callback parameters.
 
 import android.content.pm.PackageManager
 import android.Manifest
@@ -181,8 +181,8 @@ internal fun ApiKeyField(
 }
 
 /**
- * Где взять ключ Meta. Путь не только владельца: судьи хакатона и любой, кто соберёт открытый
- * репозиторий, приходят сюда без ключа, и экран должен объяснять себя сам, без README.
+ * Where to get a Meta key. Not only the owner's path: hackathon judges and anyone who builds the public
+ * repository arrive here without a key, and the screen must explain itself, without the README.
  */
 @Composable
 internal fun MetaKeyHint(modifier: Modifier = Modifier) {
@@ -194,8 +194,8 @@ internal fun MetaKeyHint(modifier: Modifier = Modifier) {
     ),
     style = MaterialTheme.typography.bodySmall,
     color = MaterialTheme.colorScheme.primary,
-    // runCatching: без браузера на устройстве openUri бросает ActivityNotFoundException — подсказка
-    // не должна ронять экран настроек.
+    // runCatching: without a browser on the device openUri throws ActivityNotFoundException — a hint must
+    // not crash the settings screen.
     modifier = modifier.clickable { runCatching { uriHandler.openUri(META_API_KEY_GUIDE_URL) } },
   )
 }
@@ -203,9 +203,10 @@ internal fun MetaKeyHint(modifier: Modifier = Modifier) {
 private const val META_API_KEY_GUIDE_URL = "https://dev.meta.ai/docs/quickstart"
 
 /**
- * Куда сейчас пойдут запросы. Маршрут переключается одним вставленным ключом (см.
- * [com.aiopenpocket.agent.core.llm.activeLlmProvider]), и без этой строки человек не узнал бы, что
- * ввод ключа Meta что-то изменил, а без ключей вовсе — узнал бы об этом из ошибки уже в чате.
+ * Where requests will go right now. The route is switched by a single pasted key (see
+ * [com.aiopenpocket.agent.core.llm.activeLlmProvider]), and without this line a person would not learn that
+ * entering a Meta key changed anything, and without any keys at all — would learn it from an error already in
+ * the chat.
  */
 @Composable
 internal fun ProviderRouteLine(
@@ -239,11 +240,11 @@ internal fun ProviderRouteLine(
 }
 
 /**
- * Размер шрифта чата: сегмент-контрол (буквы «A» растущего кегля между фланкирующими A/A) +
- * живой пузырь-превью, отрисованный тем же [MarkdownText], что и настоящий чат — размер точь-в-точь.
- * Применение по «Сохранить»: [onSelect] обновляет только состояние (как раньше делал SelectorCard),
- * персист — в SettingsViewModel.save(). Превью реагирует на выбор мгновенно (читает [selected]).
- * `internal` (не `private`) ради скриншот-теста в том же пакете.
+ * The chat font size: a segmented control (the letters "A" of a growing size between flanking A/A) + a live
+ * preview bubble drawn by the same [MarkdownText] as the real chat — the size matches exactly. Applied on
+ * "Save": [onSelect] only updates the state (as SelectorCard used to do), persisting is in
+ * SettingsViewModel.save(). The preview reacts to the choice instantly (it reads [selected]). `internal`
+ * (not `private`) for the sake of a screenshot test in the same package.
  */
 @Composable
 internal fun ChatFontSizeCard(
@@ -258,7 +259,7 @@ internal fun ChatFontSizeCard(
         .testTag("settings_chat_font_selector"),
       verticalAlignment = Alignment.CenterVertically,
     ) {
-      // Фланкирующая маленькая «A» — левый край оси размера.
+      // The flanking small "A" — the left end of the size axis.
       Text(text = "A", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
       Row(
         modifier = Modifier
@@ -281,7 +282,7 @@ internal fun ChatFontSizeCard(
               .testTag("font_segment_${preset.name}"),
             contentAlignment = Alignment.Center,
           ) {
-            // «A» кеглем самого пресета — сегменты растут слева направо.
+            // An "A" in the preset's own size — the segments grow from left to right.
             Text(
               text = "A",
               fontSize = (15 * preset.scale).sp,
@@ -290,13 +291,13 @@ internal fun ChatFontSizeCard(
           }
         }
       }
-      // Фланкирующая крупная «A» — правый край оси.
+      // The flanking large "A" — the right end of the axis.
       Text(text = "A", fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 
     Spacer(modifier = Modifier.height(16.dp))
 
-    // Живой пузырь-превью: тот же MarkdownText(fontScale), что и в бою — размер совпадает с чатом.
+    // The live preview bubble: the same MarkdownText(fontScale) as in production — the size matches the chat.
     Box(
       modifier = Modifier
         .clip(RoundedCornerShape(20.dp))
@@ -314,14 +315,14 @@ internal fun ChatFontSizeCard(
 }
 
 /**
- * ОДНА форма строки-селектора на весь экран настроек: осмысленная иконка в круглом бейдже, метка +
- * текущее значение, шеврон ВПРАВО (открывает лист, а не выпадает вниз).
+ * ONE selector row shape for the whole settings screen: a meaningful icon in a round badge, a label + the
+ * current value, a chevron to the RIGHT (it opens a sheet rather than dropping down).
  *
- * Раньше «Модель»/«Тема» были стоковым `DropdownMenu`, а «Персона» — стеклянным листом, из-за чего
- * на одном экране жили два разных паттерна выбора, и худший был у дропдауна: плоская непрозрачная
- * панель с дефолтным скруглением поверх авроры, `.background()` на внешнем модификаторе спорил с
- * внутренним `Surface` меню (жёсткий прямоугольник против скруглённой поверхности), а выбранный
- * пункт отличался только цветом текста. Плюс иконка всегда была молнией — даже у темы.
+ * "Model"/"Theme" used to be a stock `DropdownMenu`, and "Persona" a glass sheet, so two different choice
+ * patterns lived on one screen, and the dropdown's was worse: a flat opaque panel with the default rounding
+ * over the aurora, `.background()` on the outer modifier fought the menu's inner `Surface` (a hard rectangle
+ * against a rounded surface), and the selected item differed only by text color. Plus the icon was always a
+ * lightning bolt — even for the theme.
  */
 @Composable
 private fun SettingsSelectorRow(
@@ -381,7 +382,7 @@ private fun SettingsSelectorRow(
   }
 }
 
-/** Селектор-значение (модель, тема). Открывает [SelectorSheet] — сам ничего не выпадает. */
+/** A value selector (model, theme). Opens a [SelectorSheet] — nothing drops down by itself. */
 @Composable
 internal fun SelectorCard(
   label: String,
@@ -402,10 +403,9 @@ internal fun SelectorCard(
 }
 
 /**
- * Стеклянный лист выбора — единственный способ выбирать значение в настройках (тот же паттерн, что
- * уже был у персоны). Пунктов может быть много (моделей), поэтому лист прокручиваемый; выбранный
- * помечен галочкой И лаймовой гранью — как выбранный язык в онбординге и `PersonaCard`, а не одним
- * цветом текста.
+ * A glass choice sheet — the only way to choose a value in settings (the same pattern the persona already
+ * had). There can be many items (models), so the sheet scrolls; the selected one is marked with a checkmark
+ * AND a lime edge — like the selected language in onboarding and `PersonaCard`, not by text color alone.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -434,9 +434,9 @@ internal fun SelectorSheet(
 }
 
 /**
- * Содержимое [SelectorSheet] без самого листа. Вынесено отдельно, потому что `ModalBottomSheet` —
- * popup-окно: `onRoot()` в скриншот-тесте его не захватывает, и вёрстка листа осталась бы без
- * эталона. Заодно контент отделён от контейнера.
+ * The content of a [SelectorSheet] without the sheet itself. Moved out separately because `ModalBottomSheet`
+ * is a popup window: `onRoot()` in a screenshot test does not capture it, and the sheet's layout would be left
+ * without a baseline. It also separates the content from the container.
  */
 @Composable
 internal fun SelectorSheetContent(
@@ -466,19 +466,19 @@ internal fun SelectorSheetContent(
       )
     }
     Spacer(modifier = Modifier.height(12.dp))
-    // LazyColumn, а не forEach в скроллящейся колонке: список моделей OpenRouter живой, в нём
-    // сотни строк, и eager-композиция всех карточек означала бы застывший на полсекунды лист при
-    // каждом открытии. heightIn(max) вместо fillMaxHeight — короткий список (тема, провайдер)
-    // должен остаться коротким листом, а не разворачиваться во весь экран.
+    // LazyColumn, not forEach in a scrolling column: the OpenRouter model list is live, it has hundreds of
+    // rows, and eagerly composing all the cards would mean a sheet frozen for half a second on every opening.
+    // heightIn(max) instead of fillMaxHeight — a short list (theme, provider) must stay a short sheet rather
+    // than expand to the whole screen.
     LazyColumn(
       modifier = Modifier
         .fillMaxWidth()
         .heightIn(max = MAX_SELECTOR_LIST_HEIGHT),
       contentPadding = PaddingValues(bottom = 32.dp),
     ) {
-      // Без key СОЗНАТЕЛЬНО: строки здесь не держат состояния и не анимируются, так что ключ не даёт
-      // ничего — а `key = { it }` роняет LazyColumn на двух одинаковых строках. Источник списка —
-      // каталог стороннего сервиса, и падать из-за дубля в чужих данных экран настроек не должен.
+      // No key ON PURPOSE: the rows here hold no state and are not animated, so a key gives nothing — while
+      // `key = { it }` crashes LazyColumn on two identical rows. The list's source is a third-party
+      // service's catalog, and the settings screen must not crash over a duplicate in someone else's data.
       items(options) { option ->
         val isSelected = option == selected
         Row(
@@ -517,7 +517,7 @@ internal fun SelectorSheetContent(
   }
 }
 
-/** Потолок высоты списка в стеклянном листе — дальше он скроллится внутри себя. */
+/** The height ceiling of the list in the glass sheet — beyond it the list scrolls inside itself. */
 private val MAX_SELECTOR_LIST_HEIGHT = 520.dp
 
 @Composable
@@ -591,8 +591,8 @@ internal fun IntegrationsSection(modifier: Modifier = Modifier) {
   val context = LocalContext.current
   val lifecycleOwner = LocalLifecycleOwner.current
 
-  // Статус разрешений читается из системы вживую; refreshTick форсит пересчёт
-  // после возврата из системного диалога / настроек (ON_RESUME).
+  // The permission status is read from the system live; refreshTick forces a recomputation
+  // after returning from the system dialog / settings (ON_RESUME).
   var refreshTick by remember { mutableIntStateOf(0) }
 
   DisposableEffect(lifecycleOwner) {
@@ -729,8 +729,8 @@ private fun StatusChip(text: String, granted: Boolean) {
 }
 
 /**
- * Персона открывает свой лист (у неё богатые карточки со статами, не плоский список строк), но форма
- * самой строки — общая [SettingsSelectorRow], чтобы три селектора настроек читались как одна семья.
+ * The persona opens its own sheet (it has rich cards with stats, not a flat list of rows), but the shape of
+ * the row itself is the shared [SettingsSelectorRow], so the three settings selectors read as one family.
  */
 @Composable
 internal fun PersonaSelectorCard(
@@ -750,12 +750,12 @@ internal fun PersonaSelectorCard(
 }
 
 /**
- * Расход за неделю: сколько вызовов, токенов и денег ушло.
+ * Spend over the week: how many calls, tokens and money went.
  *
- * Только чтение и никаких кнопок: карточка отвечает на вопрос «сколько я трачу», а не управляет
- * лимитами. Три вещи названы вслух, потому что без них цифра выше вводит в заблуждение:
- * доля фоновых вызовов (их пользователь не заказывал), доля оценок (провайдер не всегда называет
- * расход) и отсутствие цены (если провайдер отдал только токены, придумывать доллары по ним нельзя).
+ * Read-only and no buttons: the card answers "how much am I spending", it does not manage limits. Three
+ * things are named out loud, because without them the figure above misleads: the share of background calls
+ * (the user did not order them), the share of estimates (the provider does not always name the spend) and the
+ * absence of a price (if the provider gave only tokens, dollars must not be made up from them).
  */
 @Composable
 internal fun LlmUsageCard(
@@ -793,7 +793,7 @@ internal fun LlmUsageCard(
       )
       UsageRow(
         label = "Стоимость",
-        // Пустая строка вместо нуля: ноль означал бы «бесплатно», а честный ответ — «не назвали».
+        // An empty string instead of zero: zero would mean "free", while the honest answer is "not named".
         value = usage.costUsd?.let { "$" + String.format(Locale.US, "%.4f", it) }
           ?: "провайдер не называет",
       )
@@ -813,8 +813,8 @@ internal fun LlmUsageCard(
           style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.primary,
         )
-        // Три строки, а не весь список: у OpenRouter моделей сотни, и хвост из однократных вызовов
-        // не отвечает ни на один вопрос, ради которого сюда смотрят.
+        // Three rows, not the whole list: OpenRouter has hundreds of models, and a tail of one-off calls answers
+        // none of the questions people look here for.
         usage.byModel.take(3).forEach { model ->
           UsageRow(
             label = model.model.substringAfterLast('/'),
@@ -846,7 +846,7 @@ private fun UsageRow(label: String, value: String) {
   }
 }
 
-/** Тысячи — в «12.3k»: точное число токенов не читается и ни на что не влияет. */
+/** Thousands as "12.3k": an exact token count is unreadable and affects nothing. */
 private fun formatTokens(tokens: Long): String = when {
   tokens < 1_000 -> tokens.toString()
   tokens < 1_000_000 -> String.format(Locale.US, "%.1fk", tokens / 1_000.0)
