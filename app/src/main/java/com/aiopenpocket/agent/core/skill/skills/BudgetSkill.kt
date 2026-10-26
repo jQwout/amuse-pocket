@@ -9,7 +9,7 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
 
-/** Навык учёта личных трат. Тело — assets/skills/budget/SKILL.md. */
+/** Personal spending tracking skill. Body: assets/skills/budget/SKILL.md. */
 @Inject
 @SingleIn(AppScope::class)
 class BudgetSkill(

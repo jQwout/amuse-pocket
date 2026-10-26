@@ -18,7 +18,7 @@ import dev.zacsweers.metro.Provides
 @BindingContainer
 object SkillModule {
 
-  // Навыки — мультибиндинг Set<Skill>, потребляется SkillRegistry.
+  // Skills are a Set<Skill> multibinding, consumed by SkillRegistry.
   @Provides
   @IntoSet
   fun provideBudgetSkill(skill: BudgetSkill): Skill = skill
@@ -35,7 +35,7 @@ object SkillModule {
   @IntoSet
   fun provideFitnessSkill(skill: FitnessSkill): Skill = skill
 
-  // Меташар load_skill регистрируется как обычный Tool (виден агент-лупу).
+  // The load_skill meta tool is registered as an ordinary Tool (visible to the agent loop).
   @Provides
   @IntoSet
   fun provideLoadSkillTool(tool: LoadSkillTool): Tool = tool

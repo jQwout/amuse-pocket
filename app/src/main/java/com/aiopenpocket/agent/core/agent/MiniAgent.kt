@@ -242,23 +242,23 @@ fun MiniAgent.toDefinition(): AgentDefinition = AgentDefinition(
     else -> emptySet()
   },
   defaultMode = AgentMode.CHAT,
-  // Пресетам — только Чат и Рефлексия. Это НАМЕРЕННО, и не «пока не дошли руки».
+  // Presets get only Chat and Reflection. This is DELIBERATE, not "we have not got round to it yet".
   //
-  // Решение владельца продукта: методология планирования у пресетов зафиксирована автором
-  // (`assets/plan_templates/budget|languages|nutrition.json`), и переписать её из чата быть не должно.
-  // Единственный вход в планировщик — режим PLAN из чата (TurnModule: `AgentMode.PLAN ->
-  // structuredPlanOrchestrator.propose(...)`), поэтому «не давать пресетам PLAN/GOAL» и означает
-  // «нельзя переделать изначальный план или цель».
+  // The product owner's decision: the planning methodology of the presets is fixed by the author
+  // (`assets/plan_templates/budget|languages|nutrition.json`), and it must not be rewritable from the
+  // chat. The only entry into the planner is the PLAN mode from the chat (TurnModule: `AgentMode.PLAN ->
+  // structuredPlanOrchestrator.propose(...)`), so "do not give presets PLAN/GOAL" means exactly "the
+  // original plan or goal cannot be redone".
   //
-  // СЛЕДСТВИЕ, которое легко принять за мусор: три шаблона в assets сейчас недостижимы ни одним
-  // рантайм-путём. Они оставлены СОЗНАТЕЛЬНО как зафиксированная методология — не удалять их как
-  // «мёртвые ассеты» и не возвращать сюда PLAN/GOAL, не сверившись с этим решением.
-  // См. также PlanTemplateRegistry.
+  // A CONSEQUENCE that is easy to mistake for garbage: the three templates in assets are currently
+  // unreachable by any runtime path. They are kept ON PURPOSE as fixed methodology — do not delete them
+  // as "dead assets" and do not bring PLAN/GOAL back here without checking this decision.
+  // See also PlanTemplateRegistry.
   //
-  // Планирование остаётся у агентов, которых пользователь собрал сам и явно включил режимы в
-  // конструкторе. Раньше здесь стоял полный набор одной общей строкой, поэтому План/Цель
-  // предлагались КАЖДОМУ пресету независимо от смысла; поле allowedModes рантаймом игнорировалось,
-  // и разнобой был не виден, пока не заработала фильтрация.
+  // Planning stays with the agents the user built themselves and explicitly enabled the modes for in
+  // the builder. There used to be the full set here as one shared line, so Plan/Goal were offered to
+  // EVERY preset regardless of meaning; the allowedModes field was ignored at runtime, and the mismatch
+  // was invisible until filtering started to work.
   allowedModes = setOf(AgentMode.CHAT, AgentMode.REFLECT),
   memoryPolicy = AgentMemoryPolicy(namespace = "agent:$id:", includeSharedProfile = true),
   allowedWidgetTemplates = AgentValidator.KNOWN_WIDGET_TEMPLATES,

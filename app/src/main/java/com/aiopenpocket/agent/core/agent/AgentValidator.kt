@@ -93,9 +93,9 @@ object AgentValidator {
   fun validate(definition: AgentDefinition, ownedCustomSkillIds: Set<String> = emptySet()): List<ValidationIssue> {
     val issues = mutableListOf<ValidationIssue>()
 
-    // Тексты [ValidationIssue.message] — на языке интерфейса в момент проверки ([tr]); визард
-    // перепроверяет черновик на каждой правке, так что строки не застывают. [ValidationIssue.code]
-    // от языка не зависит — на нём и ветвятся тесты/UI.
+    // [ValidationIssue.message] texts are in the interface language at the moment of the check ([tr]);
+    // the wizard re-validates the draft on every edit, so the strings do not freeze.
+    // [ValidationIssue.code] does not depend on the language — tests/UI branch on it.
     if (!ID_REGEX.matches(definition.id)) {
       issues += ValidationIssue(
         code = "invalid_id_format",
@@ -127,9 +127,9 @@ object AgentValidator {
       )
     }
 
-    // Иконка НЕ обязательна: пустой iconKey — законное состояние, `iconFor` отдаёт дефолтный значок.
-    // Раньше здесь было правило blank_icon_key, и оно блокировало публикацию из-за декоративного
-    // поля: собрать рабочего агента без выбора картинки было нельзя.
+    // The icon is NOT required: an empty iconKey is a legitimate state, `iconFor` returns the default
+    // icon. There used to be a blank_icon_key rule here, and it blocked publishing over a decorative
+    // field: a working agent could not be built without picking a picture.
 
     if (definition.systemPrompt.isBlank()) {
       issues += ValidationIssue(

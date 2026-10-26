@@ -9,7 +9,7 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
 
-/** Навык спорта/тренировок/шагомера. Тело — assets/skills/fitness/SKILL.md. */
+/** Sports/workouts/step counter skill. Body: assets/skills/fitness/SKILL.md. */
 @Inject
 @SingleIn(AppScope::class)
 class FitnessSkill(

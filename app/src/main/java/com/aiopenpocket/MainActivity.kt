@@ -51,36 +51,36 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.onEach
 
 /**
- * Длительность перехода между экранами. 260мс — сознательный компромисс: короче читается как
- * подмигивание и смысла в анимации нет, длиннее начинает восприниматься как тормоза приложения.
- * Easing стандартный material-ный: быстрый старт, мягкое торможение.
+ * Duration of the transition between screens. 260 ms is a deliberate compromise: shorter reads as a
+ * blink and the animation loses its point, longer starts to feel like the app is lagging. The easing
+ * is the standard Material one: a fast start, a soft stop.
  */
 private const val NAV_ANIM_MS = 260
 
-/** Спеки разнесены по типам: сдвиг анимирует IntOffset, прозрачность — Float, общий на оба не годится. */
+/** The specs are split by type: the slide animates IntOffset, the fade a Float; one spec cannot serve both. */
 private val NAV_SLIDE = tween<androidx.compose.ui.unit.IntOffset>(NAV_ANIM_MS, easing = FastOutSlowInEasing)
 private val NAV_FADE = tween<Float>(NAV_ANIM_MS, easing = FastOutSlowInEasing)
 
 class MainActivity : ComponentActivity() {
 
-    // Увеличивается каждый раз, когда приложение открыто как голосовой помощник —
-    // сигнал для UI открыть новый чат.
+    // Incremented every time the app is opened as a voice assistant —
+    // a signal for the UI to open a new chat.
     private val openNewChatRequest = MutableStateFlow(0)
 
-    // Id диалога из тапа по уведомлению «агент ответил» — сигнал UI открыть этот чат.
+    // The conversation id from a tap on the "agent replied" notification — a signal for the UI to open that chat.
     private val openConversationRequest = MutableStateFlow<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Интент запуска разбираем только при «чистом» старте. После поворота, смены системной темы
-        // или восстановления процесса getIntent() — всё тот же исходный интент, а стек навигации уже
-        // восстановлен: повторный разбор добавлял поверх лишние home и пустой chat/new (после вызова
-        // ассистента) или второй раз открывал чат из уведомления. Запуск из «Недавних» повторяет
-        // старый интент так же — его тоже пропускаем.
-        // Разрешение на уведомления здесь больше не спрашиваем: системный диалог до онбординга, без
-        // объяснения зачем, — лёгкий повод нажать «Запретить». Его просят по делу: карточка
-        // notification_permission, которую агент показывает, когда heartbeat упирается в отказ.
+        // The launch intent is handled only on a "clean" start. After a rotation, a system theme change or
+        // process restoration getIntent() is still the same original intent, while the navigation stack
+        // is already restored: handling it again added extra home and empty chat/new screens on top
+        // (after an assistant call) or opened the chat from the notification a second time. A launch
+        // from Recents repeats the old intent the same way — it is skipped too.
+        // The notification permission is no longer asked here: a system dialog before onboarding,
+        // with no explanation why, is an easy reason to tap "Don't allow". It is asked when it matters:
+        // the notification_permission card the agent shows when a heartbeat runs into a refusal.
         if (savedInstanceState == null &&
             (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) == 0
         ) {
@@ -100,8 +100,8 @@ class MainActivity : ComponentActivity() {
                     val userPreferencesRepository = remember { appGraph.userPreferencesRepository }
                     val onboardingCompleted by userPreferencesRepository.onboardingCompleted
                         .collectAsState(initial = null)
-                    // onEach до состояния: AppLanguage.code меняется раньше, чем language станет не
-                    // null, — первый кадр после заглушки уже рисуется на нужном языке, без мигания.
+                    // onEach before the state: AppLanguage.code changes before language becomes non-null — the first
+                    // frame after the placeholder is already drawn in the right language, without a flicker.
                     val language by remember {
                         userPreferencesRepository.language.onEach { AppLanguage.code = it }
                     }.collectAsState(initial = null)
@@ -118,13 +118,13 @@ class MainActivity : ComponentActivity() {
                         else -> {
                             val navController = rememberNavController()
                             val newChatToken by openNewChatRequest.collectAsState()
-                            // Стартовый экран выбираем сразу по факту прохождения онбординга — иначе
-                            // NavHost сперва рисует "onboarding", и только потом LaunchedEffect уводит
-                            // на "home", из-за чего у уже прошедшего пользователя онбординг мелькает.
-                            // К этому моменту onboardingCompleted уже не null (мы в ветке else).
+                            // The start screen is chosen right away from whether onboarding is done — otherwise
+                            // NavHost first draws "onboarding", and only then LaunchedEffect moves to
+                            // "home", which makes onboarding flash for a user who has already completed it.
+                            // By this point onboardingCompleted is no longer null (we are in the else branch).
                             val startDestination = if (onboardingCompleted == true) "home" else "onboarding"
-                            // Подстраховка на случай, если онбординг завершится уже после старта
-                            // (false → true): уводим на home, сняв онбординг со стека.
+                            // A safety net in case onboarding completes after the start
+                            // (false → true): go to home, removing onboarding from the stack.
                             LaunchedEffect(onboardingCompleted) {
                                 if (onboardingCompleted == true &&
                                     navController.currentDestination?.route == "onboarding"
@@ -135,8 +135,8 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             }
-                            // Открываем новый чат при вызове голосового помощника.
-                            // Онбординг должен быть завершён — иначе чат недоступен.
+                            // Open a new chat when the voice assistant is invoked.
+                            // Onboarding must be completed — otherwise the chat is not available.
                             LaunchedEffect(newChatToken, onboardingCompleted) {
                                 if (newChatToken > 0 && onboardingCompleted == true) {
                                     navController.navigate("home") {
@@ -148,19 +148,19 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             }
-                            // Тап по уведомлению «агент ответил»: открываем тот самый диалог.
+                            // A tap on the "agent replied" notification: open that very conversation.
                             val openConversationId by openConversationRequest.collectAsState()
                             LaunchedEffect(openConversationId, onboardingCompleted) {
                                 val convId = openConversationId
                                 if (convId != null && onboardingCompleted == true) {
-                                    // Id уже проверен (UUID) в handleLaunchIntent; encode — на случай,
-                                    // если формат id когда-нибудь расширят: «/» в маршруте роняла навигацию.
+                                    // The id was already checked (a UUID) in handleLaunchIntent; encode is in case
+                                    // the id format is ever extended: a "/" in the route broke navigation.
                                     navController.navigate("chat/${Uri.encode(convId)}") { launchSingleTop = true }
                                     openConversationRequest.value = null
                                 }
                             }
-                            // Переключение вкладок нижнего бара: держим стек плоским —
-                            // «home» как база, текущая вкладка сверху, с сохранением состояния.
+                            // Switching bottom bar tabs: keep the stack flat —
+                            // "home" as the base, the current tab on top, with state saved.
                             val navigateToTab: (String) -> Unit = { route ->
                                 navController.navigate(route) {
                                     popUpTo("home") { saveState = true }
@@ -168,17 +168,17 @@ class MainActivity : ComponentActivity() {
                                     restoreState = true
                                 }
                             }
-                            // Фейд под часами — ОДИН на всё приложение, поверх NavHost: экраны про
-                            // него не знают и не могут забыть его добавить. Он ничего не
-                            // перехватывает (просто фон), поэтому лежать поверх безопасно.
+                            // The fade under the clock — ONE for the whole app, on top of NavHost: screens do not
+                            // know about it and cannot forget to add it. It intercepts nothing (it is
+                            // just a background), so lying on top is safe.
                             Box(modifier = Modifier.fillMaxSize()) {
-                            // Переходы между экранами — один раз на весь NavHost, а не по маршрутам:
-                            // иначе 18 destination'ов пришлось бы держать в синхроне вручную, и
-                            // рано или поздно один поехал бы. Жест простой и не «мультяшный»:
-                            // новый экран въезжает с небольшим сдвигом и проявляется, старый уходит
-                            // симметрично; назад — зеркально, чтобы направление читалось.
-                            // Сдвиг маленький (1/8 ширины): полноэкранная проездка на каждом
-                            // переходе быстро надоедает и субъективно замедляет приложение.
+                            // Screen transitions — once for the whole NavHost, not per route: otherwise
+                            // 18 destinations would have to be kept in sync by hand, and sooner or
+                            // later one would drift. The motion is simple and not "cartoonish": the new
+                            // screen slides in with a small offset and fades in, the old one leaves
+                            // symmetrically; back is mirrored so the direction reads.
+                            // The offset is small (1/8 of the width): a full-screen slide on every
+                            // transition quickly gets tiresome and subjectively slows the app down.
                             NavHost(
                                 navController = navController,
                                 startDestination = startDestination,
@@ -196,12 +196,12 @@ class MainActivity : ComponentActivity() {
                                 },
                             ) {
                                 composable("onboarding") {
-                                    // Навигация после завершения управляется наблюдателем
-                                    // onboardingCompleted (LaunchedEffect выше) — единый источник.
+                                    // Navigation after completion is driven by the onboardingCompleted observer
+                                    // (the LaunchedEffect above) — a single source.
                                     OnboardingScreen()
                                 }
                                 composable("onboarding_edit") {
-                                    // Урок 1 = онбординг: повторный вход с карты для правки настроек.
+                                    // Lesson 1 = onboarding: re-entering from the map to edit the settings.
                                     OnboardingScreen(onClose = { navController.popBackStack() })
                                 }
                                 composable("home") {
@@ -227,7 +227,7 @@ class MainActivity : ComponentActivity() {
                                     AgentsScreen(
                                         onOpenAgent = { id -> navController.navigate("agent/$id") },
                                         onCreateAgent = { navController.navigate("agent_builder") },
-                                        // Черновик открывается сразу в конструкторе: чата у него ещё нет.
+                                        // A draft opens straight in the builder: it has no chat yet.
                                         onEditDraft = { id -> navController.navigate("agent_builder/$id") },
                                         onNavigateBack = { navController.popBackStack() },
                                     )
@@ -261,9 +261,9 @@ class MainActivity : ComponentActivity() {
                                 composable(
                                     route = "agent_builder?source={source}",
                                     arguments = listOf(
-                                        // Капстоун Академии (Task 23): ChatScreen's onOpenAgentBuilder навигирует сюда
-                                        // с source=ACADEMY_CAPSTONE. Все прочие входы (FAB "Создать агента" и т.п.)
-                                        // навигируют на голое "agent_builder" — источник берёт defaultValue = MANUAL.
+                                        // The Academy capstone (Task 23): ChatScreen's onOpenAgentBuilder navigates here
+                                        // with source=ACADEMY_CAPSTONE. All other entries (the "Create agent" FAB etc.)
+                                        // navigate to bare "agent_builder" — the source takes defaultValue = MANUAL.
                                         navArgument("source") {
                                             type = NavType.StringType
                                             defaultValue = AgentSourceContext.MANUAL.name
@@ -277,8 +277,8 @@ class MainActivity : ComponentActivity() {
                                         agentId = null,
                                         sourceContext = sourceContext,
                                         onExit = { navController.popBackStack() },
-                                        // Опубликованного агента — сразу в его чат; конструктор закрываем,
-                                        // чтобы «Назад» из чата не возвращал в уже законченный мастер.
+                                        // A published agent goes straight to its chat; the builder is closed
+                                        // so that "Back" from the chat does not return to the finished wizard.
                                         onOpenChat = { id ->
                                             navController.popBackStack()
                                             navController.navigate("chat/$id")
@@ -396,8 +396,8 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Превращает интент запуска в разовый сигнал UI и «съедает» его: действие и id диалога
-     * стираются, чтобы тот же объект интента уже ничего не значил, если его прочтут ещё раз.
+     * Turns the launch intent into a one-off UI signal and "consumes" it: the action and the
+     * conversation id are erased so the same intent object means nothing if it is read again.
      */
     private fun handleLaunchIntent(intent: Intent?) {
         if (intent == null) return
@@ -413,10 +413,10 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
-        /** Открыть новый чат (приложение вызвано как голосовой помощник). */
+        /** Open a new chat (the app was invoked as a voice assistant). */
         const val ACTION_OPEN_NEW_CHAT = "com.aiopenpocket.action.OPEN_NEW_CHAT"
 
-        /** Тап по уведомлению «агент ответил» — открыть конкретный диалог. */
+        /** A tap on the "agent replied" notification — open a specific conversation. */
         const val ACTION_OPEN_CONVERSATION = "com.aiopenpocket.action.OPEN_CONVERSATION"
         const val EXTRA_CONVERSATION_ID = "conversation_id"
 
@@ -424,9 +424,9 @@ class MainActivity : ComponentActivity() {
             Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 
         /**
-         * Активити экспортирована (лаунчер/ассистент), так что интент с ACTION_OPEN_CONVERSATION может
-         * прислать любое приложение. Id диалогов у нас — только UUID (ConversationRepository), всё
-         * прочее отбрасываем: id с «/» раньше бросал исключение прямо в LaunchedEffect навигации.
+         * The activity is exported (launcher/assistant), so an intent with ACTION_OPEN_CONVERSATION can
+         * come from any app. Our conversation ids are UUIDs only (ConversationRepository), everything
+         * else is dropped: an id with a "/" used to throw right in the navigation LaunchedEffect.
          */
         internal fun validConversationIdOrNull(raw: String?): String? =
             raw?.trim()?.takeIf { CONVERSATION_ID_REGEX.matches(it) }

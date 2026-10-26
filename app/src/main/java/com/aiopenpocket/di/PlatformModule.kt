@@ -12,16 +12,16 @@ import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.SingleIn
 
-/** Android-реализации портов доменного слоя (лог, ассеты). */
+/** Android implementations of the domain layer's ports (log, assets). */
 @ContributesTo(AppScope::class)
 @BindingContainer
 object PlatformModule {
 
   /**
-   * `d` пишет только в debug-сборке. Отладочные строки цикла несут данные пользователя — превью
-   * аргументов и результатов тулов (текст заметок, события календаря), начало его сообщения, — а
-   * logcat release-сборки читают adb, баг-репорты и логгеры производителей. `w`/`e` остаются во всех
-   * сборках: это сбои, без них поддержке не за что зацепиться.
+   * `d` writes only in the debug build. The loop's debug lines carry user data — previews of tool
+   * arguments and results (note text, calendar events), the start of their message — and a release
+   * build's logcat is read by adb, bug reports and vendor loggers. `w`/`e` stay in every build: those
+   * are failures, and without them support has nothing to go on.
    */
   @Provides
   @SingleIn(AppScope::class)

@@ -9,7 +9,7 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
 
-/** Навык личного дневника. Тело — assets/skills/diary/SKILL.md. */
+/** Personal diary skill. Body: assets/skills/diary/SKILL.md. */
 @Inject
 @SingleIn(AppScope::class)
 class DiarySkill(

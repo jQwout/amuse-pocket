@@ -37,14 +37,14 @@ object TurnModule {
     structuredPlanOrchestrator: StructuredPlanOrchestrator,
   ): TurnExecutor =
     TurnExecutor { conversationId, message, provider, mode, planId, budget, systemPromptExtra, executionMode ->
-      // Точка диспатча по режиму (а не в ChatViewModel, как на старой ветке): менеджер уже прокинул
-      // mode. REFLECT — 3-фазный оркестратор поверх того же ReactLoopRunner. PLAN/GOAL (Task 10,
-      // structured-plan-engine-907066) — типовой Structured Plan Engine (PlanPlanner → PlanRunner →
-      // PlanExecutor/PlanVerifier), а не старый prompt-only гейт/петля, которые раньше жили в
-      // AgentLoopOrchestrator: Task 15 (structured-plan-engine-907066) убрал их вместе с
-      // planApproved/goalMaxIterations params и ассетами prompts/modes/*.md — с этой точки диспатча
-      // они и так были недостижимы. CHAT/TUTOR — как раньше, основной цикл; planId/budget этой ветке
-      // не нужны (AgentLoopOrchestrator.execute их не принимает вовсе).
+      // The dispatch point by mode (not in ChatViewModel, as on the old branch): the manager has already
+      // passed the mode. REFLECT is a 3-phase orchestrator on top of the same ReactLoopRunner. PLAN/GOAL
+      // (Task 10, structured-plan-engine-907066) are the typed Structured Plan Engine (PlanPlanner →
+      // PlanRunner → PlanExecutor/PlanVerifier), not the old prompt-only gate/loop that used to live in
+      // AgentLoopOrchestrator: Task 15 (structured-plan-engine-907066) removed them together with the
+      // planApproved/goalMaxIterations params and the prompts/modes/*.md assets — from this dispatch
+      // point they were unreachable anyway. CHAT/TUTOR — as before, the main loop; this branch needs no
+      // planId/budget (AgentLoopOrchestrator.execute does not take them at all).
       when (mode) {
         AgentMode.REFLECT -> reflectionOrchestrator.execute(conversationId, message, provider, executionMode)
         // PLAN's propose() only ever sees internal control schemas (never action tools), so PREVIEW
@@ -87,11 +87,11 @@ object TurnModule {
     foreground = foreground,
     notifier = notifier,
     lifeSupport = lifeSupport,
-    // Свой скоуп уровня приложения: ход агента живёт, пока жив процесс, а не экран.
+    // An app-level scope of its own: an agent turn lives as long as the process does, not the screen.
     scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     monotonicNowMs = android.os.SystemClock::uptimeMillis,
-    // Лямбда, а не значение: провайдер читается на каждом ходе — когда их станет больше одного
-    // (прямой Meta Model API), выбор подхватится сразу, без пересборки DI-графа.
+    // A lambda rather than a value: the provider is read on every turn — with two routes (the direct Meta
+    // Model API and OpenRouter) a change is picked up at once, without rebuilding the DI graph.
     selectedProvider = { selectedProvider() },
     log = log,
   )

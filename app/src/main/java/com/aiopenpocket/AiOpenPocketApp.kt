@@ -27,8 +27,9 @@ class AiOpenPocketApp : Application(), ImageLoaderFactory {
     }
 
     /**
-     * Язык интерфейса на весь процесс (см. [AppLanguage]). Нужен и без активности: процесс, поднятый
-     * WorkManager'ом ради напоминания, пишет уведомление и подписи инструментов на выбранном языке.
+     * The interface language for the whole process (see [AppLanguage]). Needed even without an
+     * activity: a process started by WorkManager for a reminder writes the notification and tool
+     * captions in the chosen language.
      */
     private fun mirrorInterfaceLanguage() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
@@ -37,18 +38,18 @@ class AiOpenPocketApp : Application(), ImageLoaderFactory {
     }
 
     /**
-     * Обновление каталога моделей OpenRouter на старте процесса (внутри — TTL в сутки, так что это
-     * максимум один запрос в день).
+     * Refreshes the OpenRouter model catalog when the process starts (with a one-day TTL inside, so it
+     * is at most one request a day).
      *
-     * Раньше единственным местом, где каталог вообще обновлялся, был экран Настроек: тот, кто выбрал
-     * OpenRouter и больше туда не заходил, навсегда оставался на списке той минуты — то есть ровно на
-     * вшитом списке, от которого живой каталог и должен был увести.
+     * The Settings screen used to be the only place where the catalog was refreshed at all: someone who
+     * chose OpenRouter and never went back there stayed forever on the list of that minute — i.e.
+     * exactly on the bundled list the live catalog was supposed to lead away from.
      *
-     * ЦЕЛИКОМ внутри корутины на IO, включая чтение самой настройки: провайдер лежит в
-     * EncryptedSharedPreferences, а первое обращение к ним поднимает Android Keystore — на главном
-     * потоке это и заметная задержка старта, и, там где Keystore недоступен, исключение прямо в
-     * onCreate, то есть краш при запуске вместо одной неудачной настройки. runCatching по той же
-     * причине: приложение не должно падать из-за списка моделей.
+     * ENTIRELY inside a coroutine on IO, including reading the setting itself: the provider lives in
+     * EncryptedSharedPreferences, and the first access to them brings up the Android Keystore — on the
+     * main thread that is both a noticeable startup delay and, where the Keystore is unavailable, an
+     * exception right in onCreate, i.e. a crash on launch instead of one failed setting. runCatching
+     * for the same reason: the app must not crash because of a model list.
      */
     private fun refreshOpenRouterCatalog() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
@@ -61,10 +62,10 @@ class AiOpenPocketApp : Application(), ImageLoaderFactory {
     }
 
     /**
-     * Единый Coil-синглтон приложения: SVG-декодер и ОБЩИЙ кэш картинок. Все AsyncImage без
-     * явного imageLoader берут его через context.imageLoader — кэш переживает уход итема ленты
-     * из вьюпорта (раньше карточки чата собирали свой ImageLoader на каждый экземпляр, и при
-     * скролле назад картинка грузилась заново).
+     * The app's single Coil singleton: the SVG decoder and a SHARED image cache. Every AsyncImage
+     * without an explicit imageLoader takes it via context.imageLoader — the cache survives a feed item
+     * leaving the viewport (chat cards used to build their own ImageLoader per instance, and scrolling
+     * back reloaded the image).
      */
     override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)
         .components { add(SvgDecoder.Factory()) }

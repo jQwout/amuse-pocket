@@ -40,7 +40,7 @@ interface AgentResolver {
   /**
    * Unfinished USER drafts — deliberately NOT part of [observeRoster] (a draft is not startable), but
    * they still need a listing surface of their own, or an agent whose wizard was closed before
-   * «Опубликовать» is written to Room by autosave and then shown by nothing.
+   * "Publish" is written to Room by autosave and then shown by nothing.
    */
   fun observeDrafts(): Flow<List<AgentDefinition>>
 }
@@ -62,8 +62,8 @@ class DefaultAgentResolver(
   override fun observeRoster(): Flow<List<AgentDefinition>> =
     userAgentRepository.observePublished().map { published ->
       // distinctBy id + presets FIRST = preset wins a same-id collision, matching resolve()'s
-      // precedence. Без этого пара с одинаковым id (напр. будущий preset-id, уже занятый старым
-      // published-агентом) дала бы дубликат и уронила LazyColumn(items, key = { it.id }).
+      // precedence. Without this a pair with the same id (e.g. a future preset id already taken by an
+      // old published agent) would produce a duplicate and crash LazyColumn(items, key = { it.id }).
       (PRESET_DEFINITIONS + published).distinctBy { it.id }
     }
 
