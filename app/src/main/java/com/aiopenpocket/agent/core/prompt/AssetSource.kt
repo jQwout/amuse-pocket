@@ -3,10 +3,11 @@ package com.aiopenpocket.agent.core.prompt
 // @trace streaming-llm-chat-6595a1
 
 /**
- * Порт чтения текстовых ассетов (prompts/, personas/) для сборки промпта: PrePromptAssembler не
- * должен тянуть android.app.Application ради AssetManager. Реализация — в di/PlatformModule.
+ * A port for reading text assets (prompts/, personas/) for prompt assembly: PrePromptAssembler must not
+ * pull android.app.Application in for the sake of AssetManager. The implementation is in
+ * di/PlatformModule.
  */
 fun interface AssetSource {
-  /** Текст ассета по пути внутри assets/, либо null (нет файла / ошибка чтения). */
+  /** The asset text by its path inside assets/, or null (no file / read error). */
   fun load(path: String): String?
 }

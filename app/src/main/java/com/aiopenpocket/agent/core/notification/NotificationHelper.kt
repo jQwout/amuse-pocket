@@ -17,10 +17,10 @@ import com.aiopenpocket.i18n.tr
 private const val CHANNEL_ID = "ai_agent_channel"
 
 /**
- * Единая точка показа локальных уведомлений — общая для [com.aiopenpocket.agent.tools.NotificationsTool]
- * (немедленный показ) и [com.aiopenpocket.agent.workers.NotificationWorker] (отложенный/периодический через
- * WorkManager), чтобы канал/стиль уведомления не расходились по двум местам. Возвращает false, если
- * разрешение POST_NOTIFICATIONS не выдано (Android 13+) — уведомление не показано.
+ * The single point for showing local notifications — shared by [com.aiopenpocket.agent.tools.NotificationsTool]
+ * (immediate display) and [com.aiopenpocket.agent.workers.NotificationWorker] (delayed/periodic via
+ * WorkManager), so the notification channel/style does not diverge between two places. Returns false if
+ * the POST_NOTIFICATIONS permission is not granted (Android 13+) — the notification is not shown.
  */
 fun showAgentNotification(
   context: Context,
@@ -40,15 +40,15 @@ fun showAgentNotification(
     context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
   if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-    // Имя канала видит пользователь в системных настройках уведомлений — по-русски. Тот же
-    // CHANNEL_ID: повторный createNotificationChannel просто переименует уже созданный канал.
+    // The user sees the channel name in the system notification settings — in the interface language. The
+    // same CHANNEL_ID: calling createNotificationChannel again simply renames the existing channel.
     notificationManager.createNotificationChannel(
       NotificationChannel(CHANNEL_ID, tr("Напоминания и ответы агента", "Reminders and agent replies"), NotificationManager.IMPORTANCE_DEFAULT),
     )
   }
 
   val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-    // Своя монохромная иконка вместо системной «i»: в шторке сразу видно, от кого уведомление.
+    // Our own monochrome icon instead of the system "i": in the shade it is clear at once who the notification is from.
     .setSmallIcon(R.drawable.ic_stat_agent)
     .setContentTitle(title)
     .setContentText(message)

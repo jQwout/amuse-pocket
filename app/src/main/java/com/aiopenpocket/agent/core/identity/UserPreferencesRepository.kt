@@ -22,18 +22,20 @@ internal val Context.userPreferencesDataStore: DataStore<Preferences> by prefere
 )
 
 /**
- * DataStore приходит снаружи (см. `UserPreferencesModule`), а не берётся из `Context` внутри.
+ * The DataStore comes from outside (see `UserPreferencesModule`) rather than being taken from `Context`
+ * inside.
  *
- * Делегат `preferencesDataStore` держит ОДИН экземпляр на процесс, привязанный к тому `Context`, с
- * которым к нему обратились первым. В проде это ровно то, что нужно. В JVM-тестах — общее состояние
- * на весь прогон: Robolectric выдаёт каждому тесту свой `filesDir`, а стор остаётся на пути и
- * в кеше ПЕРВОГО, так что тесты начинают видеть чужие записи и зависят от порядка запуска.
+ * The `preferencesDataStore` delegate keeps ONE instance per process, bound to the `Context` it was
+ * first accessed with. In production that is exactly what is needed. In JVM tests it is shared state
+ * for the whole run: Robolectric gives every test its own `filesDir`, while the store stays on the path
+ * and in the cache of the FIRST one, so tests start seeing each other's writes and depend on the run
+ * order.
  *
- * Так это и проявилось: `UncompletedCoroutinesError` в `UserPreferencesChatFontTest` только в полном
- * прогоне, при зелёном прогоне того же класса в одиночку (тот же почерк, что у Room-Flow тестов,
- * посаженных на testDispatcher). Конкретный механизм зависания не воспроизводился прицельно —
- * поэтому здесь утверждается только проверяемое: параметр убирает общий на процесс канал между
- * тестами, каждый берёт свой файл.
+ * That is how it showed: `UncompletedCoroutinesError` in `UserPreferencesChatFontTest` only in the full
+ * run, with the same class green when run alone (the same signature as the Room-Flow tests put on the
+ * testDispatcher). The exact hang mechanism could not be reproduced on purpose — so only what can be
+ * checked is claimed here: the parameter removes the process-wide channel between tests, each takes its
+ * own file.
  */
 @SingleIn(AppScope::class)
 @Inject
@@ -75,7 +77,7 @@ class UserPreferencesRepository(
       .map { prefs -> prefs[KEY_LANGUAGE] ?: DEFAULT_LANGUAGE }
       .first()
 
-  /** Лимит витков гоал-мода (петля ReAct до достижения цели). По умолчанию 3. */
+  /** Goal-mode iteration limit (the ReAct loop until the goal is reached). 3 by default. */
   val goalModeMaxIterations: Flow<Int> =
     dataStore.data.map { prefs ->
       prefs[KEY_GOAL_MODE_MAX_ITERATIONS] ?: DEFAULT_GOAL_MODE_MAX_ITERATIONS
@@ -92,7 +94,7 @@ class UserPreferencesRepository(
     }
   }
 
-  /** Пресет размера шрифта сообщений в чате. Хранится по имени enum; неизвестное значение → MEDIUM. */
+  /** The chat message font size preset. Stored by enum name; an unknown value → MEDIUM. */
   val chatFontScale: Flow<ChatFontScale> =
     dataStore.data.map { prefs ->
       ChatFontScale.fromName(prefs[KEY_CHAT_FONT_SCALE])
@@ -139,7 +141,7 @@ class UserPreferencesRepository(
       prefs[KEY_ONBOARDING_COMPLETED] = true
       prefs[KEY_DEFAULT_PERSONA_ID] = personaId
       prefs[KEY_LANGUAGE] = language
-      // Онбординг = урок 1: отмечаем его пройденным, чтобы на карте открылся урок 2.
+      // Onboarding = lesson 1: mark it as done so lesson 2 opens on the map.
       val progress = prefs[KEY_ROADMAP_PROGRESS]?.split(",")?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
       prefs[KEY_ROADMAP_PROGRESS] = (progress + ONBOARDING_LEVEL_ID).joinToString(",")
     }

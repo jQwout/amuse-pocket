@@ -14,8 +14,8 @@ class HeartbeatWorker(
 
   override suspend fun doWork(): Result {
     val heartbeatId = inputData.getString(KEY_HEARTBEAT_ID) ?: return Result.failure()
-    // Metro-граф достаём через Application: дефолтная WorkerFactory остаётся,
-    // NotificationWorker продолжает работать как раньше.
+    // The Metro graph is taken through Application: the default WorkerFactory stays, and
+    // NotificationWorker keeps working as before.
     val graph = (applicationContext as AiOpenPocketApp).appGraph
     return when (graph.heartbeatRunner.handleFire(heartbeatId, runAttemptCount)) {
       FireOutcome.RETRY -> Result.retry()

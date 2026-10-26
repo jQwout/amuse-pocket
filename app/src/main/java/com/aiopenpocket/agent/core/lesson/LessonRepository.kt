@@ -37,7 +37,7 @@ class LessonRepository(
     }.getOrNull()
   }
 
-  /** Как [getLesson], но возвращает null, если урока с таким id нет (нет ассета или не парсится). */
+  /** Like [getLesson], but returns null if there is no lesson with that id (no asset, or it does not parse). */
   suspend fun getLessonOrNull(id: String): Lesson? = withContext(Dispatchers.IO) {
     runCatching { getLesson(id) }.getOrNull()
   }

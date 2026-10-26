@@ -20,42 +20,42 @@ import androidx.room.PrimaryKey
 enum class HeartbeatTargetType { GENERIC_AGENT, PLAN_STEP }
 
 /**
- * Реестр напоминалок/heartbeat'ов — источник правды для карточки в чате и для
- * [com.aiopenpocket.agent.workers.HeartbeatWorker]. В WorkManager уходит только id
- * (обходим 10KB-лимит input Data); unique work name = "heartbeat_<id>".
+ * The registry of reminders/heartbeats — the source of truth for the card in the chat and for
+ * [com.aiopenpocket.agent.workers.HeartbeatWorker]. Only the id goes to WorkManager (working around the
+ * 10KB input Data limit); unique work name = "heartbeat_<id>".
  */
 @Entity(tableName = "heartbeats")
 data class HeartbeatEntity(
   @PrimaryKey val id: String,
   val title: String,
-  /** "push" — статичный пуш без LLM; "agent" — фоновое пробуждение агента. Ignored when [targetType]
+  /** "push" — a static push without the LLM; "agent" — a background wake-up of the agent. Ignored when [targetType]
    * is [HeartbeatTargetType.PLAN_STEP] — that path is dispatched purely off [targetType], never `mode`. */
   val mode: String,
-  /** Задача для agent-режима; null = дефолтный «пульс» (агент сам решает, писать ли). Unused for a
+  /** The task for agent mode; null = the default "pulse" (the agent decides itself whether to write). Unused for a
    * [HeartbeatTargetType.PLAN_STEP] row — [com.aiopenpocket.agent.core.plan.execution.PlanExecutor]
    * builds that run's whole prompt from persisted plan data, never from this field. */
   val prompt: String? = null,
-  /** Текст пуша для push-режима. */
+  /** The push text for push mode. */
   val message: String? = null,
-  /** Мини-агент, от чьего имени просыпаемся; null = дефолтный ассистент. For a [HeartbeatTargetType.PLAN_STEP]
+  /** The mini-agent on whose behalf we wake up; null = the default assistant. For a [HeartbeatTargetType.PLAN_STEP]
    * row this mirrors [com.aiopenpocket.agent.core.plan.model.AgentPlan.agentId], not a value the LLM chose. */
   val agentId: String? = null,
-  /** Диалог, куда пишется результат agent-режима (и который открывает тап по пушу). */
+  /** The conversation that agent mode writes its result to (and that a tap on the push opens). */
   val conversationId: String,
   /** "one_time" | "periodic". */
   val kind: String,
-  /** Epoch millis планового срабатывания. For "one_time" this is the sole fire time; for "periodic"
+  /** Epoch millis of the scheduled firing. For "one_time" this is the sole fire time; for "periodic"
    * this is the FIRST occurrence only (mirrors the original `firstRunDelay = delay ?: interval`
    * behavior `HeartbeatTool.schedule` had before Task 11 moved WorkManager mechanics out to
    * [com.aiopenpocket.agent.core.plan.schedule.HeartbeatScheduler]) — later periodic fires are timed
    * by WorkManager itself off [intervalMinutes]. */
   val fireAt: Long? = null,
   val intervalMinutes: Long? = null,
-  /** "scheduled" | "fired" | "cancelled" | "error". Periodic после срабатывания остаётся scheduled. */
+  /** "scheduled" | "fired" | "cancelled" | "error". A periodic one stays scheduled after firing. */
   val status: String = "scheduled",
   val createdAt: Long = System.currentTimeMillis(),
   val lastRunAt: Long? = null,
-  /** Короткая выжимка последнего результата — для карточки. */
+  /** A short digest of the last result — for the card. */
   val lastResult: String? = null,
   /** [HeartbeatTargetType.GENERIC_AGENT] (default) for every pre-Task-11 row and every ordinary
    * push/agent reminder created via the `heartbeat` tool; [HeartbeatTargetType.PLAN_STEP] only for a
@@ -67,8 +67,8 @@ data class HeartbeatEntity(
   /** [com.aiopenpocket.agent.core.plan.model.AgentPlan.id] this heartbeat resumes; non-null only when [targetType] is [HeartbeatTargetType.PLAN_STEP]. */
   val planId: String? = null,
   /** The plan's approved version this heartbeat was armed against. A heartbeat whose plan has since
-   * been approved to a DIFFERENT version is stale (design spec section 12.1: "heartbeat не запускает
-   * старый шаг") — [com.aiopenpocket.agent.workers.HeartbeatRunner] checks this against the plan's
+   * been approved to a DIFFERENT version is stale (design spec section 12.1: "the heartbeat does not run
+   * the old step") — [com.aiopenpocket.agent.workers.HeartbeatRunner] checks this against the plan's
    * CURRENT `approvedVersion` before ever running the step, never trusts this field blindly. */
   val planVersion: Int? = null,
   /** [com.aiopenpocket.agent.core.plan.model.PlanStep.id] this heartbeat resumes. */

@@ -3,14 +3,14 @@ package com.aiopenpocket.agent.core.lesson
 // @trace uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2
 
 /**
- * Контекст текущего шага урока для инъекции в системный промпт tutor-хода (свободный вопрос к LLM).
- * Нужен, потому что карточные шаги (reveal/concept/sort/…) публикуются с пустым `content` и НЕ
- * попадают в промптовую историю — без этого репетитор отвечал бы, не видя, о чём спросил ученик.
- * Чистая склейка строки (покрыта LessonQuestionTest).
+ * Context of the current lesson step, injected into the system prompt of a tutor turn (a free question
+ * to the LLM). Needed because card steps (reveal/concept/sort/…) are published with an empty `content`
+ * and do NOT get into the prompt history — without it the tutor would answer without seeing what the
+ * learner asked about. A pure string assembly (covered by LessonQuestionTest).
  */
 object LessonQuestion {
 
-  /** Строка-контекст для системного промпта, либо "" если у шага нет извлекаемого текста. */
+  /** The context line for the system prompt, or "" if the step has no extractable text. */
   fun stepContext(lessonTitle: String, step: LessonStep?): String {
     val body = step?.let(::stepText).orEmpty().trim()
     if (body.isEmpty()) return ""
@@ -19,7 +19,7 @@ object LessonQuestion {
     return "Ученик сейчас $where. Содержание этого шага: $body"
   }
 
-  /** Плоский текст шага по типам — для карточек собираем из их полей. */
+  /** The step's plain text by type — for cards it is assembled from their fields. */
   private fun stepText(step: LessonStep): String = when (step.type) {
     "text" -> step.text
     "reveal" -> "${step.question} — ${step.answer}"

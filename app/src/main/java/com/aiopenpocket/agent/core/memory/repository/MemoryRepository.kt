@@ -45,15 +45,15 @@ class MemoryRepository(
   suspend fun getFactsByNamespace(namespace: String): List<Fact> = getFactsByKeyPrefix(namespace)
 
   /**
-   * Факты для секции памяти системного промпта: под [namespace] агента, а без агента — общая память
-   * пользователя (без рабочих заметок агентов `agent:…`: расходы бюджета или записи дневника в
-   * каждом ходе обычного чата — шум; по запросу их всё равно найдёт `search_memory`).
+   * Facts for the memory section of the system prompt: under the agent's [namespace], and without an
+   * agent — the user's shared memory (without the agents' working notes `agent:…`: budget expenses or
+   * diary entries in every turn of a plain chat are noise; `search_memory` still finds them on demand).
    *
-   * Пока фактов немного (≤ [SMALL_MEMORY_FACTS]), отдаём ВСЕ, свежие первыми, — без поиска по
-   * словам. Пословный поиск по-русски слаб даже со стеммингом: факт пишет модель, часто с
-   * английским ключом («family.sister = Аня»), и вопрос «как зовут мою сестру» не совпадает с ним
-   * ни одним словом. На маленькой памяти дешевле показать всё (длину режет вызывающий), чем угадывать.
-   * Дальше — ранжированный поиск, не больше [limit] штук.
+   * While there are few facts (≤ [SMALL_MEMORY_FACTS]), ALL of them are returned, freshest first —
+   * without a word search. Word-by-word search in Russian is weak even with stemming: the model writes
+   * the fact, often with an English key ("family.sister = Аня"), and the question "what is my sister's
+   * name" does not share a single word with it. For a small memory it is cheaper to show everything
+   * (the caller cuts the length) than to guess. Beyond that — a ranked search, no more than [limit].
    */
   suspend fun factsForPrompt(namespace: String?, message: String, limit: Int): List<Fact> {
     val pool = if (namespace != null) {
@@ -72,18 +72,19 @@ class MemoryRepository(
     .replace("_", "\\_")
 
   /**
-   * Основы слов [query]: в нижнем регистре, без стоп-слов и слов короче [MIN_TOKEN_LENGTH], без
-   * повторов и не более [MAX_TOKENS] штук.
+   * Stems of the words of [query]: lowercased, without stop words and words shorter than
+   * [MIN_TOKEN_LENGTH], without repeats and no more than [MAX_TOKENS].
    *
-   * Именно отсутствие этого шага и ломало «релевантные факты»: `PrePromptAssembler` передаёт сюда
-   * ЦЕЛОЕ сообщение пользователя, а прежний запрос подставлял его в `LIKE '%…%'` целиком — совпасть
-   * могла только фраза, целиком являющаяся подстрокой факта, то есть практически никогда.
+   * The absence of exactly this step is what broke "relevant facts": `PrePromptAssembler` passes the
+   * WHOLE user message here, and the old query put it into `LIKE '%…%'` as is — only a phrase that was
+   * entirely a substring of a fact could match, i.e. practically never.
    *
-   * Короткие слова отбрасываются намеренно: «я», «в», «и», «на» совпадают почти с любым фактом и
-   * превратили бы поиск в «отдай всю память». Стоп-слова — по той же причине и ещё по одной: «как»,
-   * «мою», «что» проходили фильтр длины и съедали потолок [MAX_TOKENS], вытесняя значимые слова.
-   * Основа ([stem]) — потому что русский падежный: «сестру» в вопросе и «сестра» в факте как
-   * подстроки не совпадают, а их общее начало «сест» — совпадает.
+   * Short words are dropped on purpose: "я", "в", "и", "на" (I, in, and, on) match almost any fact and
+   * would turn the search into "return the whole memory". Stop words — for the same reason and one
+   * more: "как", "мою", "что" (how, my, what) passed the length filter and ate the [MAX_TOKENS] ceiling,
+   * pushing out meaningful words. The stem ([stem]) — because Russian is inflected: "сестру" in the
+   * question and "сестра" in the fact (sister, in two cases) do not match as substrings, while their
+   * common start "сест" does.
    */
   internal fun tokenize(query: String): List<String> =
     query.split(NON_WORD_REGEX)
@@ -94,10 +95,11 @@ class MemoryRepository(
       .take(MAX_TOKENS)
 
   /**
-   * Грубая основа: слово без двух последних букв (обычно там окончание), но не короче
-   * [MIN_STEM_LENGTH] — иначе «дом»/«домик» превращались бы в однобуквенный мусор, совпадающий со
-   * всем подряд. Числа не режем: «2026» без «26» — уже другое число. Настоящий стеммер был бы
-   * точнее, но на памяти из сотен строк ошибка «лишний факт в выдаче» дешевле зависимости.
+   * A rough stem: the word without its last two letters (usually the ending there), but not shorter than
+   * [MIN_STEM_LENGTH] — otherwise "дом"/"домик" (house/little house) would become one-letter garbage
+   * matching everything. Numbers are not cut: "2026" without "26" is a different number. A real stemmer
+   * would be more accurate, but on a memory of hundreds of rows the error "an extra fact in the results"
+   * is cheaper than a dependency.
    */
   private fun stem(word: String): String {
     if (word.length <= MIN_STEM_LENGTH || word.all { it.isDigit() }) return word
@@ -105,14 +107,14 @@ class MemoryRepository(
   }
 
   /**
-   * [facts], оставленные только совпавшие с [query], в порядке убывания числа совпавших слов (при
-   * равенстве — свежие раньше). Ранжирование здесь имеет смысл: вызывающий обрезает результат до
-   * `LlmContextConfig.RELEVANT_FACTS_LIMIT`, и без порядка в этот срез попадало бы что попало.
+   * [facts] filtered down to those matching [query], in descending order of the number of matched
+   * words (on a tie — fresher first). Ranking makes sense here: the caller cuts the result to
+   * `LlmContextConfig.RELEVANT_FACTS_LIMIT`, and without an order that slice would get whatever.
    *
-   * Сопоставление идёт в Kotlin, а не в SQL, сознательно — по той же причине, по которой поиск по
-   * чату живёт в памяти (см. `ChatViewModel`): `contains(ignoreCase = true)` корректно сворачивает
-   * регистр кириллицы, а SQL `LIKE` — только ASCII, поэтому запрос «казань» не нашёл бы факт
-   * «Казань». Таблица фактов — это личная память масштаба сотен строк, не лог.
+   * Matching happens in Kotlin, not in SQL, on purpose — for the same reason chat search lives in
+   * memory (see `ChatViewModel`): `contains(ignoreCase = true)` folds Cyrillic case correctly, while
+   * SQL `LIKE` folds only ASCII, so the query "казань" would not find the fact "Казань". The facts table
+   * is a personal memory of hundreds of rows, not a log.
    */
   private fun rankByQuery(facts: List<Fact>, query: String): List<Fact> {
     val tokens = tokenize(query)
@@ -141,14 +143,14 @@ class MemoryRepository(
   }
 
   /**
-   * Пишет факт ПО КЛЮЧУ: один ключ — ровно одна строка. Возвращает id записанного факта, либо null,
-   * если пустое значение стёрло факт.
+   * Writes a fact BY KEY: one key — exactly one row. Returns the id of the written fact, or null if an
+   * empty value erased the fact.
    *
-   * Это единственный корректный путь записи для повторяющихся ключей, и потому — путь `remember_fact`
-   * (см. [com.aiopenpocket.agent.tools.MemoryTools]). Родственный [saveFact] делает INSERT с новым
-   * UUID, а индекс по `key` не уникальный: два `remember_fact("user.name", …)` подряд клали ДВЕ
-   * строки, обе уезжали в промпт, а [FactDao.getByKey] (LIMIT 1 без ORDER BY) отдавал произвольную —
-   * на практике старую. Память тем противоречивее, чем дольше ей пользуются.
+   * This is the only correct write path for repeated keys, and hence the path of `remember_fact` (see
+   * [com.aiopenpocket.agent.tools.MemoryTools]). Its sibling [saveFact] does an INSERT with a new UUID,
+   * and the index on `key` is not unique: two `remember_fact("user.name", …)` in a row put TWO rows,
+   * both went into the prompt, and [FactDao.getByKey] (LIMIT 1 without ORDER BY) returned an arbitrary
+   * one — in practice the old one. The longer the memory was used, the more contradictory it got.
    */
   suspend fun upsertFact(key: String, value: String, category: String): String? {
     if (value.isBlank()) {
@@ -191,9 +193,9 @@ class MemoryRepository(
     episodeDao.getRecentForConversation(conversationId, limit).map { it.toDomain() }
 
   /**
-   * Эпизоды ОДНОГО диалога в окне [since, until), свежие первыми, не больше [limit]. Прежние
-   * `getEpisodesSince/Between` читали журнал всех диалогов и всех агентов без потолка — так
-   * `recall_episodes` в чате одного агента приносил вызовы инструментов чужих чатов, целиком.
+   * Episodes of ONE conversation in the window [since, until), freshest first, no more than [limit].
+   * The old `getEpisodesSince/Between` read the log of all conversations and all agents without a
+   * ceiling — so `recall_episodes` in one agent's chat brought back other chats' tool calls, whole.
    */
   suspend fun getEpisodesForConversationBetween(
     conversationId: String,
@@ -245,28 +247,29 @@ class MemoryRepository(
   )
 
   private companion object {
-    /** Всё, что не буква и не цифра, — граница слова (запятые/точки живого сообщения). */
+    /** Everything that is not a letter or a digit is a word boundary (the commas/periods of a live message). */
     val NON_WORD_REGEX = Regex("[^\\p{L}\\p{N}]+")
 
-    /** Короче — шум («я», «в», «на»), совпадающий почти с любым фактом. */
+    /** Shorter is noise ("я", "в", "на" — I, in, on) that matches almost any fact. */
     const val MIN_TOKEN_LENGTH = 3
 
-    /** Короче основу не режем — см. [stem]. */
+    /** A stem is never cut shorter than this — see [stem]. */
     const val MIN_STEM_LENGTH = 4
 
-    /** Потолок на длинное сообщение: больше слов запрос точнее уже не делают. */
+    /** The ceiling for a long message: more words no longer make the query more precise. */
     const val MAX_TOKENS = 8
 
-    /** До стольких фактов память показывается в промпте целиком — см. [factsForPrompt]. */
+    /** Up to this many facts the memory is shown in the prompt whole — see [factsForPrompt]. */
     const val SMALL_MEMORY_FACTS = 40
 
-    /** Корень пространств имён агентов (`agent:{id}:`, см. AgentMemoryPolicy). */
+    /** The root of agents' namespaces (`agent:{id}:`, see AgentMemoryPolicy). */
     const val AGENT_NAMESPACE_ROOT = "agent:"
 
     /**
-     * Служебные слова вопроса: проходят фильтр длины, но о содержании факта не говорят ничего.
-     * Только местоимения, вопросительные слова, частицы и глаголы-обращения («скажи», «напомни») —
-     * существительные сюда не попадают, даже частые: «имя» или «город» как раз и ищутся.
+     * Function words of a question: they pass the length filter but say nothing about a fact's content.
+     * Only pronouns, question words, particles and addressing verbs ("скажи", "напомни" — tell, remind)
+     * — nouns do not go here, even frequent ones: "имя" (name) or "город" (city) are exactly what is
+     * searched for.
      */
     val STOP_WORDS = setOf(
       "как", "что", "это", "эта", "этот", "эти", "тот", "так", "там", "тут", "где", "кто", "чем",

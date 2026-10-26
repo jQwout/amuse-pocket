@@ -21,14 +21,15 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Драйвит шаги JSON-урока как СТРОГИЙ контракт прямо в чате: код решает последовательность шагов и
- * что рисовать, публикуя по одному сообщению ассистента на шаг. LLM в этот поток не вмешивается —
- * чётко разделяя «шаги урока» (код) и «команды для LLM-чата» (явные хода, которых тут нет).
+ * Drives the steps of a JSON lesson as a STRICT contract right in the chat: code decides the order of
+ * steps and what to render, publishing one assistant message per step. The LLM does not interfere with
+ * this flow — a clear split between "lesson steps" (code) and "commands for the LLM chat" (explicit
+ * turns, of which there are none here).
  *
- * Контракт: 1 шаг = ровно 1 assistant-сообщение. Курсор урока при этом — явное состояние диалога
- * (lessonStepIndex в [com.aiopenpocket.ui.chat.ChatViewModel]), а не счёт сообщений: поэтому
- * дополнительные сообщения — ответ на вопрос по ходу урока, картинка «Нарисуй под меня» — шаг не
- * сдвигают.
+ * Contract: 1 step = exactly 1 assistant message. The lesson cursor is explicit conversation state
+ * (lessonStepIndex in [com.aiopenpocket.ui.chat.ChatViewModel]), not a message count: so extra
+ * messages — an answer to a question asked during the lesson, a "Draw it for me" image — do not move
+ * the step.
  */
 @Inject
 @SingleIn(AppScope::class)
@@ -39,9 +40,9 @@ class LessonChatController(
 ) {
 
   /**
-   * Ответ Muse Spark на ролик пользователя к шагу "video": задание урока ([videoPrompt]) плюс
-   * язык ответа. Ответ ложится в чат обычным сообщением ассистента под карточкой шага; курсор урока
-   * это не сдвигает. `false` — разобрать не вышло, сообщения нет.
+   * Muse Spark's answer to the user's clip for a "video" step: the lesson's task ([videoPrompt]) plus
+   * the answer language. The answer lands in the chat as a normal assistant message under the step's
+   * card; the lesson cursor does not move. `false` — it could not be analyzed, there is no message.
    */
   suspend fun postVideoAnswer(
     conversationId: String,
@@ -59,9 +60,10 @@ class LessonChatController(
   }
 
   /**
-   * Заранее рисует картинки шагов урока, начиная с [fromIndex], — по порядку шагов, чтобы ближайшая
-   * была готова первой. Muse Image думает перед отрисовкой десятки секунд; без предзагрузки это
-   * время пользователь простоял бы на кнопке «Дальше». Уже нарисованные берутся из кеша мгновенно.
+   * Draws the images of the lesson steps in advance, starting at [fromIndex] — in step order, so the
+   * nearest one is ready first. Muse Image thinks for tens of seconds before drawing; without the
+   * prefetch the user would spend that time standing on the "Next" button. Already drawn ones come from
+   * the cache instantly.
    */
   suspend fun prefetchImages(lesson: Lesson, fromIndex: Int = 0) {
     lesson.steps.drop(fromIndex)
@@ -70,12 +72,14 @@ class LessonChatController(
   }
 
   /**
-   * «Нарисуй под меня»: картинка шага заново, под «о себе» и язык пользователя
-   * ([personalizedImagePrompt]). Публикуется отдельным сообщением под шагом — видно «было / стало».
+   * "Draw it for me": the step's image again, tailored to the user's "about me" and language
+   * ([personalizedImagePrompt]). Published as a separate message under the step — "before / after" is
+   * visible.
    *
-   * Без [STEP_IMAGE_WAIT_MS]: пользователь нажал сам и видит «Рисую…», ждать он согласен; потолок
-   * всё равно есть — таймаут запроса в ImageGenClient. У новой карточки нет промпта, значит нет и
-   * кнопки: перерисовывать перерисованное незачем. `false` — нарисовать не вышло, сообщения нет.
+   * No [STEP_IMAGE_WAIT_MS]: the user tapped it themselves and sees "Drawing…", so they are willing to
+   * wait; there is still a ceiling — the request timeout in ImageGenClient. The new card has no prompt,
+   * hence no button: there is no point redrawing a redrawn image. `false` — drawing failed, there is no
+   * message.
    */
   suspend fun postPersonalizedImage(
     conversationId: String,
@@ -88,7 +92,7 @@ class LessonChatController(
     val params = JSONObject()
       .put("asset", "")
       .put("url", Uri.fromFile(file).toString())
-      // Подпись запекается в сообщение на языке момента публикации — как и сам текст шагов урока.
+      // The caption is baked into the message in the language at the moment of publishing — like the text of the lesson steps.
       .put(
         "caption",
         if (caption.isBlank()) {
@@ -103,8 +107,8 @@ class LessonChatController(
   }
 
   /**
-   * Публикует шаг урока [index] как одно сообщение ассистента. text → текст; остальные типы с
-   * визуалом/интерактивом → driven-UI карточка (по одному cardSpec на шаг).
+   * Publishes lesson step [index] as one assistant message. text → text; the other types with visuals/
+   * interaction → a driven-UI card (one cardSpec per step).
    */
   suspend fun postStep(conversationId: String, lesson: Lesson, index: Int) {
     val step = lesson.steps.getOrNull(index) ?: return
@@ -130,8 +134,9 @@ class LessonChatController(
   }
 
   /**
-   * Текст для шагов без карточки. input/challenge (живой чат) пока не реализованы — показываем их
-   * авторский текст как обычный шаг, чтобы урок не выдавал пустой пузырь. Это временно (фаза 2).
+   * Text for steps without a card. input/challenge (a live chat) are not implemented yet — their
+   * authored text is shown as a normal step so the lesson does not produce an empty bubble. This is
+   * temporary (phase 2).
    */
   private fun textForStep(step: LessonStep): String = when (step.type) {
     "input" -> listOf(step.prompt, step.hint).filter { it.isNotBlank() }.joinToString("\n\n")
@@ -140,17 +145,18 @@ class LessonChatController(
   }
 
   /**
-   * Финальная карточка «урок пройден»: её кнопка отметит уровень пройденным и вернёт на список.
+   * The final "lesson complete" card: its button marks the level as done and returns to the list.
    *
-   * Капстоун Академии (Task 23): если ПОСЛЕДНИЙ шаг урока несёт [LessonStep.primaryAction] (сегодня
-   * только `agent_blueprint` его задаёт — см. её json), прокидываем CTA в params карточки как
-   * `primary_action` (снейк-кейс — та же трансляция camelCase-ассета в snake_case card-params, что и
-   * в [buildFillCardSpec] для `case_sensitive`). У обычных уроков последний шаг primaryAction не
-   * задаёт → params не меняются, и completion-поведение остаётся прежним byte-for-byte.
+   * The Academy capstone (Task 23): if the LAST step of the lesson carries [LessonStep.primaryAction]
+   * (today only `agent_blueprint` sets it — see its json), the CTA is passed into the card params as
+   * `primary_action` (snake case — the same camelCase-asset to snake_case card-params translation as in
+   * [buildFillCardSpec] for `case_sensitive`). For ordinary lessons the last step sets no primaryAction →
+   * the params do not change, and the completion behavior stays byte-for-byte the same.
    */
   suspend fun postCompletion(conversationId: String, lesson: Lesson) {
-    // Тексты карточки запекаются в сообщение на языке момента публикации (как и шаги урока):
-    // lesson.title уже на этом языке — LessonRepository отдаёт английскую копию урока, если она есть.
+    // The card's texts are baked into the message in the language at the moment of publishing (like the
+    // lesson steps): lesson.title is already in that language — LessonRepository returns the English
+    // copy of the lesson if there is one.
     val params = JSONObject()
       .put("title", tr("Урок «${lesson.title}» пройден!", "Lesson “${lesson.title}” complete!"))
       .put("subtitle", tr("Отличная работа.", "Great job."))
@@ -165,7 +171,7 @@ class LessonChatController(
     conversationRepository.addMessage(conversationId, "assistant", "", cardSpec = spec)
   }
 
-  /** Собирает cardSpec для интерактивной карточки `lesson_quiz` из quiz-шага урока. */
+  /** Builds the cardSpec for the interactive `lesson_quiz` card from the lesson's quiz step. */
   private fun buildQuizCardSpec(step: LessonStep): String {
     val questions = JSONArray()
     step.questions.forEach { q ->
@@ -182,13 +188,13 @@ class LessonChatController(
   }
 
   /**
-   * Собирает cardSpec для карточки `image`. Источники по порядку: ассет из бандла (работает без
-   * сети), картинка Muse Image по [LessonStep.imagePrompt], сетевой [LessonStep.url].
+   * Builds the cardSpec for the `image` card. Sources in order: a bundled asset (works without the
+   * network), a Muse Image picture from [LessonStep.imagePrompt], a network [LessonStep.url].
    *
-   * Сгенерированная картинка уходит в `url` карточки как `file://` — рендер её от сетевой не
-   * отличает. Ждём её не дольше [STEP_IMAGE_WAIT_MS]: обычно она уже в кеше после
-   * [prefetchImages], а если нет — шаг выходит без неё. Держать пользователя на «Дальше» дольше
-   * хуже, чем показать шаг без картинки.
+   * A generated image goes into the card's `url` as `file://` — the renderer does not tell it from a
+   * network one. We wait for it no longer than [STEP_IMAGE_WAIT_MS]: usually it is already in the cache
+   * after [prefetchImages], and if not, the step comes out without it. Keeping the user on "Next" longer
+   * is worse than showing the step without the image.
    */
   private suspend fun buildImageCardSpec(step: LessonStep): String {
     val asset = step.bundledImageAsset()
@@ -201,19 +207,19 @@ class LessonChatController(
       .put("asset", asset)
       .put("url", generated?.let { Uri.fromFile(it).toString() } ?: step.url)
       .put("caption", step.caption.ifBlank { step.alt })
-    // Промпт едет в карточку ради кнопки «Нарисуй под меня»: перерисовать под пользователя можно
-    // только то, что знаешь, как нарисовать.
+    // The prompt rides in the card for the sake of the "Draw it for me" button: you can only redraw for
+    // the user what you know how to draw.
     if (step.imagePrompt.isNotBlank()) params.put("image_prompt", step.imagePrompt)
     return JSONObject().put("template", "image").put("params", params).toString()
   }
 
-  /** "animation": процедурная сцена по id + подпись под ней. */
+  /** "animation": a procedural scene by id + a caption under it. */
   private fun buildAnimationCardSpec(step: LessonStep): String {
     val params = JSONObject().put("scene", step.scene).put("caption", step.caption)
     return JSONObject().put("template", "lesson_animation").put("params", params).toString()
   }
 
-  /** "video": что снять (видит пользователь) + задание модели (уходит с роликом в Muse Spark). */
+  /** "video": what to film (the user sees it) + the task for the model (goes to Muse Spark with the clip). */
   private fun buildVideoCardSpec(step: LessonStep): String {
     val params = JSONObject()
       .put("instruction", step.instruction)
@@ -223,21 +229,21 @@ class LessonChatController(
     return JSONObject().put("template", "lesson_video").put("params", params).toString()
   }
 
-  // imageKey — короткая форма: lessons/images/{key}.svg. Явный asset имеет приоритет.
+  // imageKey is the short form: lessons/images/{key}.svg. An explicit asset takes priority.
   private fun LessonStep.bundledImageAsset(): String =
     asset.ifBlank { imageKey.takeIf { it.isNotBlank() }?.let { "lessons/images/$it.svg" } ?: "" }
 
-  /** Рисовать есть смысл только шагу-картинке с промптом и без своего ассета. */
+  /** Drawing makes sense only for an image step with a prompt and no asset of its own. */
   private fun LessonStep.needsGeneratedImage(): Boolean =
     type == "image" && imagePrompt.isNotBlank() && bundledImageAsset().isBlank()
 
-  /** "reveal": вопрос, по тапу раскрывается ответ. */
+  /** "reveal": a question; tapping reveals the answer. */
   private fun buildRevealCardSpec(step: LessonStep): String {
     val params = JSONObject().put("question", step.question).put("answer", step.answer)
     return JSONObject().put("template", "reveal").put("params", params).toString()
   }
 
-  /** "concept": термин + определение + пример. */
+  /** "concept": term + definition + example. */
   private fun buildConceptCardSpec(step: LessonStep): String {
     val params = JSONObject()
       .put("term", step.term)
@@ -246,7 +252,7 @@ class LessonChatController(
     return JSONObject().put("template", "concept").put("params", params).toString()
   }
 
-  /** "example": заголовок + разбор на части (текст/роль/заметка). */
+  /** "example": a heading + a breakdown into parts (text/role/note). */
   private fun buildExampleCardSpec(step: LessonStep): String {
     val parts = JSONArray()
     step.parts.forEach { p ->
@@ -257,8 +263,8 @@ class LessonChatController(
   }
 
   /**
-   * "fill": предложение с пропуском `___`, ответ проверяется по [LessonStep.answer] и принятым
-   * вариантам [LessonStep.answers] (пустые строки отбрасываем — они засчитали бы любой ввод).
+   * "fill": a sentence with a `___` gap; the answer is checked against [LessonStep.answer] and the
+   * accepted variants [LessonStep.answers] (empty strings are dropped — they would accept any input).
    */
   private fun buildFillCardSpec(step: LessonStep): String {
     val params = JSONObject()
@@ -269,7 +275,7 @@ class LessonChatController(
     return JSONObject().put("template", "fill").put("params", params).toString()
   }
 
-  /** "sort": расставить items в правильный порядок (correct — массив целевых индексов). */
+  /** "sort": put the items in the right order (correct is an array of target indexes). */
   private fun buildSortCardSpec(step: LessonStep): String {
     val correct = JSONArray()
     (step.correct as? JsonArray)?.forEach { el ->
@@ -283,7 +289,7 @@ class LessonChatController(
     return JSONObject().put("template", "sort").put("params", params).toString()
   }
 
-  /** "match": сопоставить термины и определения. */
+  /** "match": match terms with definitions. */
   private fun buildMatchCardSpec(step: LessonStep): String {
     val pairs = JSONArray()
     step.pairs.forEach { p ->
@@ -293,9 +299,9 @@ class LessonChatController(
     return JSONObject().put("template", "match").put("params", params).toString()
   }
 
-  /** "scenario": ситуативный вопрос с одним правильным вариантом (correct — целое). */
+  /** "scenario": a situational question with one right option (correct is an integer). */
   private fun buildScenarioCardSpec(step: LessonStep): String {
-    // -1, а не 0: при отсутствующем/битом correct не помечаем первый вариант как «правильный».
+    // -1, not 0: with a missing/broken correct the first option is not marked as "right".
     val correctIndex = step.scenarioCorrectIndex()
     val params = JSONObject()
       .put("situation", step.situation)

@@ -10,17 +10,17 @@ import android.service.voice.VoiceInteractionSession
 import com.aiopenpocket.MainActivity
 
 /**
- * Сессия голосового помощника.
+ * The voice assistant session.
  *
- * Мы не показываем собственный оверлей помощника — вместо этого при вызове
- * сразу открываем приложение на новом чате и скрываем сессию.
+ * We do not show an assistant overlay of our own — instead, when invoked, we open the app on a new chat
+ * right away and hide the session.
  */
 class AssistSession(context: Context) : VoiceInteractionSession(context) {
 
     override fun onShow(args: Bundle?, showFlags: Int) {
         super.onShow(args, showFlags)
         openNewChat()
-        // Сразу убираем (пустой) UI сессии — пользователь видит только наше приложение.
+        // Remove the (empty) session UI right away — the user sees only our app.
         hide()
     }
 
@@ -29,10 +29,10 @@ class AssistSession(context: Context) : VoiceInteractionSession(context) {
             action = MainActivity.ACTION_OPEN_NEW_CHAT
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
-        // startAssistantActivity запускает активити в контексте помощника (работает в том числе
-        // поверх экрана блокировки), но добавлен только в API 26. На 24–25 (minSdk=24) его нет —
-        // падаем на обычный запуск: intent уже с FLAG_ACTIVITY_NEW_TASK, поэтому стартует из
-        // контекста сессии.
+        // startAssistantActivity starts an activity in the assistant's context (it works even over the lock
+        // screen), but it was added only in API 26. On 24–25 (minSdk=24) it is missing — we fall back to
+        // a normal start: the intent already has FLAG_ACTIVITY_NEW_TASK, so it starts from the session's
+        // context.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startAssistantActivity(intent)
         } else {

@@ -19,7 +19,7 @@ interface EpisodeDao {
   )
   suspend fun getRecentForConversation(conversationId: String, limit: Int): List<EpisodeEntity>
 
-  /** Окно [since, until) одного диалога — источник `recall_episodes` (см. MemoryRepository). */
+  /** The window [since, until) of one conversation — the source of `recall_episodes` (see MemoryRepository). */
   @Query(
     "SELECT * FROM episodes WHERE conversationId = :conversationId " +
       "AND timestamp >= :since AND timestamp < :until ORDER BY timestamp DESC LIMIT :limit",

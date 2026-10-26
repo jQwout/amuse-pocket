@@ -39,8 +39,8 @@ class ConversationRepository(
     conversationDao.getById(id)?.toDomain(conversationTagDao.getTagsForConversation(id))
 
   /**
-   * Самый свежий чат, привязанный к мини-агенту [agentId], либо null. Нужен, чтобы повторный вход
-   * в агента переоткрывал его существующий чат, а не плодил новый пустой при каждом тапе.
+   * The freshest chat bound to the mini-agent [agentId], or null. Needed so that entering an agent again
+   * reopens its existing chat instead of spawning a new empty one on every tap.
    */
   suspend fun findLatestConversationByAgent(agentId: String): Conversation? {
     val entity = conversationDao.findLatestByAgent(agentId, excludedTag = BUILDER_TEST_TAG) ?: return null
@@ -48,9 +48,9 @@ class ConversationRepository(
   }
 
   /**
-   * Самый свежий обычный (не агентный, не туториал) чат, если в нём ЕЩЁ нет ни одного сообщения.
-   * Нужен, чтобы повторный тап «Новый чат» без отправки сообщения переиспользовал уже созданный
-   * пустой чат, а не плодил новые пустые «Новый чат» в списке диалогов при каждом тапе.
+   * The freshest plain (not an agent's, not a tutorial) chat, if it has NO messages YET. Needed so that
+   * tapping "New chat" again without sending a message reuses the already created empty chat instead of
+   * spawning new empty "New chat" entries in the conversation list on every tap.
    */
   suspend fun findReusableNewChat(): Conversation? {
     val latest = conversationDao.findLatestReusableNewChat() ?: return null
@@ -59,7 +59,7 @@ class ConversationRepository(
     return latest.toDomain(conversationTagDao.getTagsForConversation(latest.id))
   }
 
-  /** Существующий чат урока [title] (Roadmap/Library переиспользуют его вместо нового). */
+  /** The existing chat of lesson [title] (Roadmap/Library reuse it instead of creating a new one). */
   suspend fun findLatestTutorialConversation(title: String): Conversation? {
     val entity = conversationDao.findLatestTutorialByTitle(title) ?: return null
     return entity.toDomain(conversationTagDao.getTagsForConversation(entity.id))
@@ -106,9 +106,9 @@ class ConversationRepository(
     summary?.trim()?.takeIf { it.isNotBlank() }?.let { conversationDao.updateSummary(id, it) }
     val normalized = tags.map(::normalizeTag).filter { it.isNotBlank() }.distinct()
     if (normalized.isNotEmpty()) {
-      // Служебные теги («__…», например BUILDER_TEST_TAG) ставит код, а не аннотатор, и затирать их
-      // нельзя: без метки тестовый чат конструктора после первой же аннотации всплывал бы в списке
-      // диалогов и находился бы как «чат агента».
+      // System tags ("__…", e.g. BUILDER_TEST_TAG) are set by code, not by the annotator, and must not be
+      // overwritten: without the marker the builder's test chat would pop up in the conversation list
+      // after the very first annotation and be found as "the agent's chat".
       val reserved = conversationTagDao.getTagsForConversation(id).filter { it.startsWith(RESERVED_TAG_PREFIX) }
       conversationTagDao.replaceTags(id, (normalized + reserved).distinct().map { ConversationTagEntity(id, it) })
     }
@@ -127,12 +127,12 @@ class ConversationRepository(
     conversationDao.delete(id)
   }
 
-  /** Закрепляет/снимает диалог из избранного (избранные всплывают в начало списка). */
+  /** Pins/unpins the conversation as a favorite (favorites rise to the top of the list). */
   suspend fun setFavorite(id: String, favorite: Boolean) {
     conversationDao.setFavorite(id, favorite)
   }
 
-  /** Персистит курсор урока на диалоге — независимо от числа сообщений. */
+  /** Persists the lesson cursor on the conversation — independently of the message count. */
   suspend fun updateLessonCursor(id: String, stepIndex: Int, finished: Boolean) {
     conversationDao.updateLessonCursor(id, stepIndex, finished)
   }
@@ -143,11 +143,11 @@ class ConversationRepository(
     }.flowOn(Dispatchers.Default)
 
   /**
-   * Окно последних [limit] сообщений в хронологическом порядке (старые→новые). БД отдаёт свежие в
-   * обратном порядке (DESC + LIMIT), поэтому разворачиваем. Используется чатом для пагинации, чтобы
-   * не грузить и не держать в памяти всю историю длинного диалога. flowOn(Default): разворот и
-   * маппинг в домен не выполняются в контексте коллектора (Main) — при больших окнах (поиск по
-   * всей истории) это ощутимая работа.
+   * A window of the last [limit] messages in chronological order (old→new). The DB returns the freshest
+   * in reverse order (DESC + LIMIT), so they are reversed. The chat uses it for pagination, so as not to
+   * load and keep the whole history of a long conversation in memory. flowOn(Default): the reversal and
+   * the mapping to the domain do not run in the collector's context (Main) — with large windows (search
+   * over the whole history) it is noticeable work.
    */
   fun getMessagesWindow(conversationId: String, limit: Int): Flow<List<Message>> =
     messageDao.getByConversationWindow(conversationId, limit).map { list ->
@@ -164,8 +164,8 @@ class ConversationRepository(
     messageDao.getAllOrdered(conversationId).map { it.toDomain() }
 
   /**
-   * Head + tail + счётчик «промптовых» сообщений для сборки промпт-окна (ContextWindowBuilder)
-   * БЕЗ загрузки всей истории с диска на каждый ход. Фильтр «промптовости» — на стороне SQL.
+   * Head + tail + the count of "prompt" messages for assembling the prompt window (ContextWindowBuilder)
+   * WITHOUT loading the whole history from disk on every turn. The "prompt" filter is on the SQL side.
    */
   suspend fun getPromptWindowParts(
     conversationId: String,
@@ -190,11 +190,11 @@ class ConversationRepository(
     val totalPromptable: Int,
   )
 
-  /** Счётчик текстовых user/assistant-реплик — гейт частоты фонового аннотатора. */
+  /** The count of text user/assistant messages — the rate gate of the background annotator. */
   suspend fun countAnnotatableMessages(conversationId: String): Int =
     messageDao.countAnnotatable(conversationId)
 
-  /** Последние [limit] текстовых user/assistant-реплик (старые→новые) — вход аннотатора. */
+  /** The last [limit] text user/assistant messages (old→new) — the annotator's input. */
   suspend fun getRecentAnnotatableMessages(conversationId: String, limit: Int): List<Message> =
     messageDao.getLastAnnotatable(conversationId, limit).asReversed().map { it.toDomain() }
 
@@ -216,13 +216,13 @@ class ConversationRepository(
         cardSpec = cardSpec,
       ),
     )
-    // Сообщение — это активность диалога: поднимаем updatedAt, чтобы «последний чат» и порядок в
-    // списке отражали реальную свежесть (иначе updatedAt стоял со времени создания/аннотации).
+    // A message is conversation activity: bump updatedAt so the "last chat" and the list order reflect real
+    // freshness (otherwise updatedAt stayed at the creation/annotation time).
     conversationDao.touch(conversationId)
     return id
   }
 
-  /** Удаляет одно сообщение по id (действие пользователя в чате). */
+  /** Deletes one message by id (a user action in the chat). */
   suspend fun deleteMessage(messageId: String) {
     messageDao.deleteById(messageId)
   }
@@ -268,14 +268,14 @@ class ConversationRepository(
     /**
      * Marks the agent builder's throwaway test conversation. It is bound to the draft's `agentId`
      * (the TEST step has to run the real agent), which would otherwise make it a candidate for
-     * [findLatestConversationByAgent] — so the first «Открыть чат» on a freshly built agent could
+     * [findLatestConversationByAgent] — so the first "Open chat" on a freshly built agent could
      * land the user inside the builder's scratch chat, complete with its test messages. Excluded by
      * tag rather than by title (titles are user-editable) and rather than by a new column (a schema
      * bump would destructively reset the local database before release).
      */
     const val BUILDER_TEST_TAG = "__builder_test"
 
-    /** Префикс служебных тегов, которые ставит код: аннотатор их не затирает (см. updateAnnotation). */
+    /** Prefix of the system tags that code sets: the annotator does not overwrite them (see updateAnnotation). */
     const val RESERVED_TAG_PREFIX = "__"
 
     /**

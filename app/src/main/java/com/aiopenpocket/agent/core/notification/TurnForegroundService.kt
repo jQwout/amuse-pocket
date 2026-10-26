@@ -20,30 +20,31 @@ import com.aiopenpocket.R
 import com.aiopenpocket.i18n.tr
 
 /**
- * Держит процесс живым, пока идёт ход агента (спека
- * `docs/superpowers/specs/2026-07-28-turn-foreground-service-design.md`). Поднимается и гасится
- * только из [AndroidTurnLifeSupport] — снаружи стартовать его нечем и незачем.
+ * Keeps the process alive while an agent turn is running (spec
+ * `docs/superpowers/specs/2026-07-28-turn-foreground-service-design.md`). It is started and stopped
+ * only from [AndroidTurnLifeSupport] — there is nothing outside to start it with and no reason to.
  *
- * Тип `shortService`: система даёт около трёх минут и затем зовёт [onTimeout], после чего сервис
- * ОБЯЗАН остановиться, иначе приложение будет прибито. Поэтому [handleTimeout] сначала сообщает
- * наверх (через [onSystemTimeout]), а потом безусловно зовёт `stopSelf`.
+ * Type `shortService`: the system gives about three minutes and then calls [onTimeout], after which the
+ * service MUST stop, or the app will be killed. So [handleTimeout] first reports upwards (through
+ * [onSystemTimeout]) and then unconditionally calls `stopSelf`.
  *
- * Связь через статический колбэк, а не через DI-граф: экземпляр сервиса создаёт система, и тянуть в
- * него `AppGraph` ради одного уведомления наверх было бы дороже, чем один `@Volatile`-указатель,
- * который выставляет singleton-владелец сервиса.
+ * The link is a static callback rather than the DI graph: the system creates the service instance, and
+ * pulling `AppGraph` into it for the sake of one upward notification would cost more than one
+ * `@Volatile` pointer that the service's singleton owner sets.
  */
 class TurnForegroundService : Service() {
 
   override fun onBind(intent: Intent?): IBinder? = null
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-    // startForeground обязан случиться в первые ~5 секунд после startForegroundService, иначе
-    // система прибьёт приложение — поэтому никакой отложенной инициализации здесь нет.
+    // startForeground must happen within ~5 seconds of startForegroundService, or the system kills the
+    // app — so there is no deferred initialization here.
     //
-    // Тип передаём ЯВНО, а не полагаемся на объявленный в манифесте: двухаргументная форма на
-    // API 34+ действительно берёт типы из манифеста, но у shortService особая семантика (таймаут,
-    // запрет комбинирования), и документация просит указывать его явно. Проверить это в Robolectric
-    // нечем — цена явной формы нулевая, цена ошибки видна только на устройстве с Android 14+.
+    // The type is passed EXPLICITLY rather than relying on the one declared in the manifest: the
+    // two-argument form on API 34+ does take the types from the manifest, but shortService has special
+    // semantics (a timeout, no combining), and the documentation asks for it to be specified explicitly.
+    // Robolectric cannot check this — the explicit form costs nothing, while the cost of a mistake shows
+    // only on a device with Android 14+.
     ServiceCompat.startForeground(
       this,
       NOTIFICATION_ID,
@@ -72,8 +73,8 @@ class TurnForegroundService : Service() {
     val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       notificationManager.createNotificationChannel(
-        // IMPORTANCE_LOW: без звука и вибрации. Отдельный канал от ai_agent_channel, чтобы юзер мог
-        // приглушить «агент отвечает…», не глуша при этом напоминалки.
+        // IMPORTANCE_LOW: no sound or vibration. A channel separate from ai_agent_channel so the user can
+        // mute "the agent is replying…" without muting reminders.
         NotificationChannel(CHANNEL_ID, tr("Ход агента", "Agent turn"), NotificationManager.IMPORTANCE_LOW),
       )
     }
@@ -93,9 +94,9 @@ class TurnForegroundService : Service() {
       .setPriority(NotificationCompat.PRIORITY_LOW)
       .setOngoing(true)
       .setContentIntent(contentIntent)
-      // Намеренно НЕ FOREGROUND_SERVICE_IMMEDIATE: поведение по умолчанию позволяет системе
-      // отложить показ примерно на 10 секунд, и типичный ход завершится раньше, чем уведомление
-      // вообще появится. Это то, что делает цену фичи почти нулевой.
+      // Deliberately NOT FOREGROUND_SERVICE_IMMEDIATE: the default behavior lets the system delay showing
+      // it by about 10 seconds, and a typical turn finishes before the notification even appears. That is
+      // what makes the cost of the feature almost zero.
       .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_DEFAULT)
       .build()
   }
@@ -104,7 +105,7 @@ class TurnForegroundService : Service() {
     private const val CHANNEL_ID = "turn_foreground_channel"
     private const val NOTIFICATION_ID = 4242
 
-    /** Выставляется [AndroidTurnLifeSupport] при сборке графа; дёргается из [handleTimeout]. */
+    /** Set by [AndroidTurnLifeSupport] when the graph is built; called from [handleTimeout]. */
     @Volatile
     var onSystemTimeout: (() -> Unit)? = null
   }

@@ -13,10 +13,10 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 
 /**
- * Пуш «агент ответил/ход упал», когда приложение в фоне. Тап ведёт в тот самый диалог.
- * notificationId = hashCode диалога: новое уведомление того же чата заменяет старое.
- * Без разрешения POST_NOTIFICATIONS showAgentNotification молча вернёт false — ответ всё
- * равно сохранён в истории.
+ * The "the agent replied / the turn failed" push when the app is in the background. A tap leads to that
+ * very conversation. notificationId = the conversation's hashCode: a new notification of the same chat
+ * replaces the old one. Without the POST_NOTIFICATIONS permission showAgentNotification silently
+ * returns false — the answer is saved in the history anyway.
  */
 @Inject
 @SingleIn(AppScope::class)

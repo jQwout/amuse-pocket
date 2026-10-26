@@ -7,12 +7,11 @@ import android.speech.RecognitionService
 import android.speech.SpeechRecognizer
 
 /**
- * Минимальный RecognitionService.
+ * A minimal RecognitionService.
  *
- * Объявление сервиса распознавания речи обязательно для регистрации
- * VoiceInteractionService (атрибут recognitionService в xml). Реальное
- * распознавание здесь не выполняется — помощник лишь открывает новый чат,
- * поэтому на любой запрос мы возвращаем ошибку "не поддерживается".
+ * Declaring a speech recognition service is required to register a VoiceInteractionService (the
+ * recognitionService attribute in the xml). No real recognition happens here — the assistant only opens
+ * a new chat, so any request gets a "not supported" error.
  */
 class AssistRecognitionService : RecognitionService() {
 

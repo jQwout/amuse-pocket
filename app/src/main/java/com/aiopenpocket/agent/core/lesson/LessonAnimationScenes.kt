@@ -3,12 +3,12 @@ package com.aiopenpocket.agent.core.lesson
 // @trace protsedurnye-animatsii-v-urokah-68b2bf
 
 /**
- * Сцены шага "animation", которые приложение умеет рисовать. Анимация не видеофайл, а код на
- * Compose: несколько килобайт вместо мегабайт в APK, работает без сети, подстраивается под экран и
- * может быть интерактивной (ползунок температуры).
+ * The "animation" step scenes the app can draw. An animation is not a video file but Compose code: a few
+ * kilobytes instead of megabytes in the APK, it works offline, adapts to the screen and can be
+ * interactive (the temperature slider).
  *
- * Один список на рендер и на проверку уроков: шаг с неизвестной сценой показал бы заглушку
- * вместо урока, и LessonAssetsValidationTest ловит это до сборки.
+ * One list for rendering and for checking lessons: a step with an unknown scene would show a placeholder
+ * instead of the lesson, and LessonAssetsValidationTest catches that before the build.
  */
 val LESSON_ANIMATION_SCENES: Set<String> =
   setOf(

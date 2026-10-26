@@ -11,8 +11,9 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 
 /**
- * «Приложение на экране?» через ProcessLifecycleOwner: STARTED и выше — любой экран приложения
- * виден. Гейт пуша об окончании фонового хода: внутри приложения вместо пуша — бейджи списка.
+ * "Is the app on screen?" via ProcessLifecycleOwner: STARTED and above — some screen of the app is
+ * visible. The gate for the push about a background turn finishing: inside the app there are list
+ * badges instead of a push.
  */
 @Inject
 @SingleIn(AppScope::class)

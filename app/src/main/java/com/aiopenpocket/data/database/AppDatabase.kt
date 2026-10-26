@@ -81,10 +81,11 @@ import com.aiopenpocket.agent.core.srs.SrsWordEntity
     LlmUsageEntity::class,
   ],
   version = 11,
-  // exportSchema = true, хотя миграций пока нет и всё пересоздаётся разрушительно (см. политику на
-  // DatabaseBindings.provideDatabase). Именно поэтому и включено: первую настоящую Migration придётся
-  // писать ОТ схемы релизной версии, а взять её будет неоткуда, если снимки не начать копить заранее.
-  // Снимки складываются в app/schemas (ksp room.schemaLocation) и коммитятся вместе с кодом.
+  // exportSchema = true, although there are no migrations yet and everything is recreated destructively
+  // (see the policy in DatabaseBindings.provideDatabase). That is exactly why it is on: the first real
+  // Migration will have to be written FROM the release version's schema, and there will be nowhere to
+  // take it from if the snapshots are not collected in advance. The snapshots go to app/schemas (ksp
+  // room.schemaLocation) and are committed together with the code.
   exportSchema = true,
 )
 @TypeConverters(AgentRoomConverters::class)

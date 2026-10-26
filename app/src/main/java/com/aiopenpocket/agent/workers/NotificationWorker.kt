@@ -18,8 +18,8 @@ class NotificationWorker(
     val notificationId = inputData.getInt(KEY_NOTIFICATION_ID, System.currentTimeMillis().toInt())
 
     val shown = showAgentNotification(applicationContext, title, message, notificationId)
-    // Разрешение могли отозвать между постановкой в очередь и срабатыванием — сообщаем об этом
-    // через Result.failure(), а не молча делаем вид, что уведомление показано.
+    // The permission may have been revoked between enqueueing and firing — we report that via
+    // Result.failure() rather than silently pretending the notification was shown.
     return if (shown) Result.success() else Result.failure()
   }
 

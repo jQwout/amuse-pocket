@@ -12,11 +12,12 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 
 /**
- * Владелец [TurnForegroundService]: считает защищённые ходы и держит сервис ровно пока их больше нуля.
+ * The owner of [TurnForegroundService]: counts protected turns and keeps the service exactly while
+ * there are more than zero.
  *
- * Счётчик, а не множество id: новый ход того же диалога стартует ДО того, как отменённый предыдущий
- * дойдёт до своего [release], поэтому по одному conversationId вполне бывает два одновременных
- * держателя. Множество сняло бы защиту на первом же release и оставило новый ход голым.
+ * A counter rather than a set of ids: a new turn of the same conversation starts BEFORE the cancelled
+ * previous one reaches its [release], so one conversationId can easily have two holders at once. A set
+ * would drop the protection on the first release and leave the new turn bare.
  */
 @Inject
 @SingleIn(AppScope::class)
@@ -41,8 +42,9 @@ class AndroidTurnLifeSupport(private val application: Application) : TurnLifeSup
     }
     if (!needsStart) return true
 
-    // С API 31 старт FGS из фона запрещён (ForegroundServiceStartNotAllowedException). Это не
-    // ошибка программиста и не повод валить ход — просто гарантии не будет, см. спеку, раздел 6.
+    // Since API 31 starting an FGS from the background is forbidden (ForegroundServiceStartNotAllowedException).
+    // It is neither a programmer error nor a reason to fail the turn — there just will be no guarantee,
+    // see the spec, section 6.
     val started = runCatching {
       ContextCompat.startForegroundService(
         application,
@@ -69,9 +71,9 @@ class AndroidTurnLifeSupport(private val application: Application) : TurnLifeSup
   }
 
   /**
-   * Счётчики обнуляются здесь, а не в [release]: сервис к этому моменту система уже забрала, и без
-   * обнуления следующий [acquire] увидел бы непустую мапу, решил «сервис уже поднят» и вернул бы
-   * ходу ложную гарантию.
+   * The counters are reset here, not in [release]: by this point the system has already taken the
+   * service, and without a reset the next [acquire] would see a non-empty map, decide "the service is
+   * already up" and hand the turn a false guarantee.
    */
   private fun reportProtectionLost() {
     val protectedIds = synchronized(lock) {

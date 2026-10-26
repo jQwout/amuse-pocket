@@ -36,38 +36,39 @@ import java.util.concurrent.ConcurrentHashMap
 class ConversationAnnotator(
   private val llmClient: LlmClient,
   private val conversationRepository: ConversationRepository,
-  // Тело этого вызова — дословный кусок переписки. Он обязан уходить туда же, куда и сам чат:
-  // раньше здесь работал дефолт LlmProvider.NIM, и переписка уезжала к NVIDIA даже у того, кто
-  // осознанно ушёл к другому вендору.
+  // The body of this call is a verbatim piece of the conversation. It must go wherever the chat itself
+  // goes: the LlmProvider.NIM default used to apply here, and the conversation went to NVIDIA even for
+  // someone who had deliberately moved to another vendor.
   private val selectedProvider: SelectedLlmProvider,
 ) {
 
   private val json = Json { ignoreUnknownKeys = true }
 
   /**
-   * Число «аннотируемых» реплик на момент последней аннотации, по conversationId. Даёт устойчивый
-   * гейт «раз в N реплик» независимо от чётности счётчика: прежний `count % N == 0` навсегда
-   * переставал срабатывать в диалогах с нечётным числом реплик (мини-агент начинается с одного
-   * приветствия → count всегда нечётный → `% N` никогда не 0). Память процесса: после перезапуска
-   * карта пуста, поэтому первый ход диалога аннотируется повторно — приемлемо и самокорректируется.
+   * The number of "annotatable" messages at the last annotation, by conversationId. Gives a stable
+   * "once per N messages" gate regardless of the counter's parity: the old `count % N == 0` stopped
+   * firing forever in conversations with an odd number of messages (a mini-agent starts with one
+   * greeting → count is always odd → `% N` is never 0). Process memory: after a restart the map is
+   * empty, so the conversation's first turn is annotated again — acceptable and self-correcting.
    */
   private val lastAnnotatedCount = ConcurrentHashMap<String, Int>()
 
-  /** Скоуп процесса (класс — синглтон AppScope): фоновая аннотация переживает экран и сам ход. */
+  /** The process scope (the class is an AppScope singleton): a background annotation outlives the screen and the turn itself. */
   private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-  /** Диалоги, для которых фоновая аннотация уже в полёте — см. [annotateInBackground]. */
+  /** Conversations whose background annotation is already in flight — see [annotateInBackground]. */
   private val inFlight: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
   /**
-   * [annotate] отдельной корутиной, ВНЕ хода. Раньше оркестраторы звали её внутри потока хода,
-   * после Completed: ответ уже в чате, а ход (и его foreground-защита с уведомлением) жил ещё один
-   * вызов модели, и `runCatching` вокруг глотал отмену — Stop в этот момент не останавливал поток.
-   * Здесь Stop и новый ход аннотацию не касаются; сбой — в [onFailure], отмена не глотается.
+   * [annotate] in a separate coroutine, OUTSIDE the turn. Orchestrators used to call it inside the
+   * turn's flow, after Completed: the answer was already in the chat, but the turn (and its foreground
+   * protection with a notification) lived on for one more model call, and the `runCatching` around it
+   * swallowed cancellation — Stop at that moment did not stop the flow. Here Stop and a new turn do not
+   * touch the annotation; a failure goes to [onFailure], cancellation is not swallowed.
    *
-   * Не больше одной аннотации на диалог одновременно: два быстрых хода подряд иначе прошли бы гейт
-   * частоты оба (якорь [lastAnnotatedCount] сдвигается только после ответа модели) и заплатили бы
-   * дважды.
+   * No more than one annotation per conversation at a time: two quick turns in a row would otherwise
+   * both pass the rate gate (the [lastAnnotatedCount] anchor moves only after the model answers) and
+   * pay twice.
    */
   fun annotateInBackground(conversationId: String, onFailure: (Throwable) -> Unit = {}) {
     if (!inFlight.add(conversationId)) return
@@ -86,19 +87,20 @@ class ConversationAnnotator(
 
   /** Regenerate title/summary/tags for [conversationId] from its current messages. */
   suspend fun annotate(conversationId: String) {
-    // Счётчик вместо загрузки всей истории (раньше — getAllMessages на каждый ход).
+    // A counter instead of loading the whole history (it used to be getAllMessages on every turn).
     val count = conversationRepository.countAnnotatableMessages(conversationId)
     if (count < LlmContextConfig.MIN_MESSAGES_FOR_ANNOTATION) return
-    // Гейт частоты: аннотация — это ВТОРОЙ LLM-вызов после ответа. Первый раз (last == null) — как
-    // только реплик хватает, дальше — не чаще, чем раз в ANNOTATE_EVERY_MESSAGES НОВЫХ реплик с
-    // прошлой аннотации. «Реплик с прошлой», а не `count % N`: последнее навсегда переставало
-    // срабатывать при нечётном count (см. lastAnnotatedCount).
+    // The rate gate: the annotation is a SECOND LLM call after the answer. The first time (last == null)
+    // as soon as there are enough messages, then no more often than once per ANNOTATE_EVERY_MESSAGES
+    // NEW messages since the last annotation. "Messages since the last one", not `count % N`: the latter
+    // stopped firing forever on an odd count (see lastAnnotatedCount).
     val last = lastAnnotatedCount[conversationId]
     if (last != null && count - last < LlmContextConfig.ANNOTATE_EVERY_MESSAGES) return
-    // Чат урока не аннотируем совсем: его title — это id урока (по нему урок ищется при повторном
-    // входе и грузится prompts/roadmap/<title>.md). Вопрос посреди урока запускал обычный ход,
-    // аннотация переписывала title темой разговора — и урок при следующем открытии ломался.
-    // Резюме и теги уроку тоже не нужны (в список чатов он не попадает), а LLM-вызов сэкономим.
+    // A lesson chat is not annotated at all: its title is the lesson id (the lesson is found by it on
+    // re-entry and prompts/roadmap/<title>.md is loaded by it). A question in the middle of a lesson
+    // started a normal turn, the annotation rewrote the title with the topic of the conversation — and
+    // the lesson broke the next time it was opened. A lesson needs no summary and tags either (it does
+    // not appear in the chat list), and we save an LLM call.
     if (conversationRepository.getConversation(conversationId)?.isTutorial == true) return
 
     val messages = conversationRepository.getRecentAnnotatableMessages(
@@ -106,8 +108,8 @@ class ConversationAnnotator(
       LlmContextConfig.ANNOTATION_MESSAGE_LIMIT,
     )
     val transcript = ContextWindowBuilder.formatMessagesForSummary(messages)
-    // Якорь гейта двигаем только на УСПЕХЕ: при сбое LLM (request == null) last не обновляется,
-    // и следующий ход повторит попытку, а не «съест» интервал молчанием.
+    // The gate's anchor moves only on SUCCESS: on an LLM failure (request == null) last is not updated,
+    // and the next turn retries instead of "eating" the interval with silence.
     val annotation = request(transcript) ?: return
     conversationRepository.updateAnnotation(
       id = conversationId,
@@ -125,7 +127,7 @@ class ConversationAnnotator(
       appendLine()
       appendLine("Верни СТРОГО JSON-объект без markdown и пояснений вида:")
       appendLine("""{"title": "...", "summary": "...", "tags": ["...", "..."]}""")
-      // Язык — язык интерфейса: заголовок показывается в списке чатов рядом с переведёнными подписями.
+      // The language is the interface language: the title is shown in the chat list next to translated captions.
       val lang = tr("на русском", "in English")
       appendLine("- title: короткий заголовок темы, до 6 слов, $lang.")
       appendLine("- summary: суть диалога (ключевые факты, решения, открытые задачи), до 500 слов, $lang.")
@@ -144,7 +146,7 @@ class ConversationAnnotator(
     var streamError: String? = null
     llmClient.streamChat(chat, tools = emptyList(), provider = selectedProvider()).collect { event ->
       when (event) {
-        // Размышление вместо ответа — не ответ: черновик JSON из него разобрался бы как заголовок.
+        // Thinking instead of an answer is not an answer: a JSON draft from it would parse as a title.
         is StreamEvent.TextDelta -> if (!event.reasoning) builder.append(event.content)
         is StreamEvent.Error -> streamError = event.message
         else -> Unit

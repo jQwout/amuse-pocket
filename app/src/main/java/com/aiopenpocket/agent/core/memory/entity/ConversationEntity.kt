@@ -16,11 +16,11 @@ data class ConversationEntity(
   val isTutorial: Boolean = false,
   /** Bound mini-agent id (scopes tools + role); null = general assistant. */
   val agentId: String? = null,
-  /** Закреплён пользователем в избранное — всплывает в начало списка диалогов. */
+  /** Pinned by the user as a favorite — rises to the top of the conversation list. */
   val isFavorite: Boolean = false,
-  /** Курсор урока: индекс следующего шага для показа (0 = урок ещё не начат). Явное состояние, а не
-   *  вывод из числа assistant-сообщений — иначе свободный вопрос к LLM во время урока сдвигал бы шаг. */
+  /** The lesson cursor: the index of the next step to show (0 = the lesson has not started). Explicit state rather than
+   *  something derived from the number of assistant messages — otherwise a free question to the LLM during a lesson would move the step. */
   val lessonStepIndex: Int = 0,
-  /** Урок полностью пройден (показана карточка завершения). */
+  /** The lesson is fully completed (the completion card was shown). */
   val lessonFinished: Boolean = false,
 )

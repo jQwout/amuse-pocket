@@ -18,17 +18,17 @@ import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Картинка для шага урока по его [LessonStep.imagePrompt]: из кеша на диске, а если её там нет —
- * из Muse Image.
+ * The image for a lesson step by its [LessonStep.imagePrompt]: from the disk cache, or from Muse Image
+ * if it is not there.
  *
- * Кеш — файлы в `filesDir/lesson_images`, имя — хеш модели и полного промпта. Повторный проход
- * урока, переоткрытие чата и прокрутка назад картинку не перерисовывают: каждая генерация стоит
- * денег и десятков секунд. `filesDir`, а не `cacheDir`: система чистит `cacheDir` когда захочет, и
- * урок посреди прохождения потерял бы уже оплаченные картинки.
+ * The cache is files in `filesDir/lesson_images`, named by a hash of the model and the full prompt.
+ * Going through the lesson again, reopening the chat and scrolling back do not redraw the image: every
+ * generation costs money and tens of seconds. `filesDir`, not `cacheDir`: the system clears `cacheDir`
+ * whenever it likes, and a lesson in progress would lose images already paid for.
  *
- * Один промпт рисуется не больше одного раза одновременно: предзагрузка урока и показ шага могут
- * попросить одну и ту же картинку почти одновременно, и без блокировки по ключу это были бы две
- * оплаченные генерации одного кадра.
+ * One prompt is drawn no more than once at a time: the lesson prefetch and showing the step may ask for
+ * the same image almost at once, and without a per-key lock that would be two paid generations of the
+ * same frame.
  */
 @SingleIn(AppScope::class)
 @Inject
@@ -41,15 +41,15 @@ class LessonImageGenerator(
 
   private val dir: File get() = File(application.filesDir, DIR_NAME)
 
-  /** Файл с картинкой или `null`, если нарисовать не вышло (нет ключа, сети, отказ провайдера). */
+  /** The image file, or `null` if drawing failed (no key, no network, a provider refusal). */
   suspend fun imageFor(prompt: String): File? = withContext(Dispatchers.IO) {
-    // Ключ читается из EncryptedSharedPreferences, а первое обращение к ним поднимает Keystore —
-    // поэтому весь путь на IO, а не на потоке вызывающего (это может быть viewModelScope).
+    // The key is read from EncryptedSharedPreferences, and the first access to them brings up the Keystore
+    // — so the whole path runs on IO, not on the caller's thread (which may be viewModelScope).
     val fullPrompt = styled(prompt)
     val name = cacheName(fullPrompt)
     file(name).takeIf { it.isUsable() }?.let { return@withContext it }
     locks.getOrPut(name) { Mutex() }.withLock {
-      // Пока ждали блокировку, картинку мог дорисовать другой вызов.
+      // While we waited for the lock, another call may have finished the image.
       file(name).takeIf { it.isUsable() }?.let { return@withLock it }
       val image = client.generate(fullPrompt) ?: return@withLock null
       write(name, image.bytes)
@@ -68,9 +68,9 @@ class LessonImageGenerator(
   private fun File.isUsable() = isFile && length() > 0
 
   /**
-   * Запись через временный файл и переименование: читатель (Coil при показе карточки) видит либо
-   * старое состояние, либо картинку целиком, но не обрубок. Сбой записи — `null`: картинка уже
-   * оплачена, но урок без неё всё равно пойдёт дальше.
+   * Write via a temporary file and a rename: a reader (Coil showing the card) sees either the old state
+   * or the whole image, never a stub. A write failure gives `null`: the image is already paid for, but
+   * the lesson goes on without it anyway.
    */
   private fun write(name: String, bytes: ByteArray): File? = try {
     dir.mkdirs()
@@ -86,19 +86,19 @@ class LessonImageGenerator(
   private companion object {
     const val TAG = "LessonImageGenerator"
     const val DIR_NAME = "lesson_images"
-    // Расширение условное: тип картинки (png/webp/jpeg) Coil определяет по содержимому файла.
+    // The extension is nominal: Coil detects the image type (png/webp/jpeg) from the file content.
     const val EXTENSION = ".img"
   }
 }
 
 /**
- * Общий стиль для всех картинок уроков. Без него каждый шаг выглядел бы как из другой книжки.
- * «Без текста» — потому что подпись у карточки своя, а буквы, особенно кириллицу, модели рисуют
- * криво. Горизонтальный кадр — под карточку 16:9: параметра формы у `meta/muse-image` нет.
+ * The shared style of all lesson images. Without it every step would look like it came from a different
+ * book. "No text" — because the card has its own caption, and models draw letters, Cyrillic especially,
+ * badly. A horizontal frame — for the 16:9 card: `meta/muse-image` has no shape parameter.
  *
- * Ту же строку дословно дописывает скрипт предгенерации `tools/lesson-images/pregenerate.py` —
- * иначе картинки из сборки и нарисованные на телефоне были бы в разном стиле. Расхождение ловит
- * LessonImageStyleSyncTest.
+ * The pre-generation script `tools/lesson-images/pregenerate.py` appends the same string verbatim —
+ * otherwise images from the build and those drawn on the phone would be in different styles.
+ * LessonImageStyleSyncTest catches a mismatch.
  */
 internal const val LESSON_IMAGE_STYLE = "Flat, clean editorial illustration for a mobile lesson about AI. " +
   "Light background, soft colors, wide 16:9 landscape composition. " +
