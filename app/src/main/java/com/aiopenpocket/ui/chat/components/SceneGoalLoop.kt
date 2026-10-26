@@ -49,10 +49,10 @@ import kotlinx.coroutines.delay
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-/** Виток: что агент сделал, чем подтвердил сверку и какие критерии после неё закрыты. */
+/** An iteration: what the agent did, what proved the check and which criteria are closed after it. */
 private class GoalTurn(val action: String, val evidence: String, val passed: List<Boolean>)
 
-// Пример из урока: список покупок для борща и напоминание на вечер.
+// The lesson's example: a shopping list for borscht and a reminder for the evening.
 private val GOAL_CRITERIA = listOf("есть список", "в нём всё для борща", "напоминание на вечер")
 private val GOAL_TURNS = listOf(
     GoalTurn("Список: картошка, капуста, морковь", "свёклы в списке нет", listOf(true, false, false)),
@@ -62,14 +62,15 @@ private val GOAL_TURNS = listOf(
 private const val GOAL_ROW_H = 68
 
 /**
- * «Гоал-мод»: у цели три проверяемых критерия, а ползунок задаёт лимит витков. «Запустить» крутит
- * петлю: действие → сверка с критериями (✓/✗) → следующий виток лучше прошлого. Мало витков — шаг
- * честно встаёт на полпути и ждёт человека; хватает — каждый критерий закрыт доказательством.
+ * "Goal mode": the goal has three checkable criteria, and a slider sets the iteration limit. "Run" spins the
+ * loop: an action → a check against the criteria (✓/✗) → the next iteration better than the last. Too few
+ * iterations — the step honestly stops halfway and waits for a person; enough — every criterion is closed with
+ * evidence.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun GoalLoopScene() {
-    var limit by rememberSaveable { mutableFloatStateOf(3f) } // по умолчанию три — как в приложении
+    var limit by rememberSaveable { mutableFloatStateOf(3f) } // three by default — as in the app
     var runs by rememberSaveable { mutableIntStateOf(0) }
     var attempted by remember { mutableIntStateOf(0) }
     var checked by remember { mutableIntStateOf(0) }
@@ -122,13 +123,13 @@ internal fun GoalLoopScene() {
             value = limit,
             onValueChange = {
                 limit = it
-                runs = 0 // новый лимит — новый прогон, старые витки не путаем с новыми
+                runs = 0 // a new limit — a new run; old iterations are not mixed with new ones
             },
             valueRange = 1f..5f,
             steps = 3,
             enabled = !running,
         )
-        // Место под три витка держим всегда: кнопка под ними не съезжает, пока петля крутится.
+        // Space for three iterations is always kept: the button under them does not slide while the loop spins.
         Column(
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.fillMaxWidth().height((GOAL_TURNS.size * GOAL_ROW_H + (GOAL_TURNS.size - 1) * 4).dp),
@@ -145,7 +146,7 @@ internal fun GoalLoopScene() {
                 !finished -> " "
                 reached && turnsLimit > GOAL_TURNS.size -> "Цель на витке 3: каждый критерий закрыт доказательством — агент остановился сам, остаток лимита не понадобился"
                 reached -> "Цель на витке 3: каждый критерий закрыт доказательством — агент остановился сам, ровно в лимит"
-                // Как в движке планов: упёрся в лимит — шаг не засчитан и ждёт человека, без «готово».
+                // As in the plan engine: having hit the limit, the step is not counted and waits for a person, without "done".
                 else -> "Лимит — $turnsLimit, витки кончились: не закрыто «${GOAL_CRITERIA.filterIndexed { i, _ -> last?.passed?.get(i) != true }.joinToString("», «")}». Шаг не засчитан и ждёт тебя — без притворного «готово»"
             },
             style = MaterialTheme.typography.bodyMedium,
@@ -202,7 +203,7 @@ private fun GoalMarks(turn: GoalTurn, checked: Boolean) {
     val error = MaterialTheme.colorScheme.error
     Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
         turn.passed.forEachIndexed { i, ok ->
-            // До сверки — номер критерия; после — ✓ или ✗: агент не верит себе на слово.
+            // Before the check — the criterion's number; after — ✓ or ✗: the agent does not take its own word for it.
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier

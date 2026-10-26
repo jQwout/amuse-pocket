@@ -42,10 +42,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 
-// События одного хода — те, что называет урок, в порядке, в котором их проходит ход с инструментом.
+// The events of one turn — the ones the lesson names, in the order a turn with a tool passes them.
 private val EVENTS = listOf("Перед ходом", "Перед инструментом", "После инструмента", "После хода", "Завершение")
 
-// Правила: два на одно событие (разрешить и запретить «почту») и одно, которое только пишет в журнал.
+// Rules: two on the same event (allow and deny "mail") and one that only writes to the log.
 private val RULES = listOf("Перед «почтой» → разрешить", "Перед «почтой» → запретить", "После хода → в журнал")
 private const val ALLOW = 0
 private const val DENY = 1
@@ -59,9 +59,9 @@ private const val STEP_MS = 550
 private fun Int.on(rule: Int) = (this and (1 shl rule)) != 0
 
 /**
- * Что видно на событии [index] при включённых правилах — движок детерминирован: те же правила, тот же итог.
- * Почта уходит наружу, поэтому твоё «ок» она спрашивает и без хуков; «разрешить» этого не отменяет —
- * сцена не должна учить, что «Разрешить» — обход подтверждения.
+ * What is visible at event [index] with the rules switched on — the engine is deterministic: the same rules,
+ * the same result. Mail leaves the phone, so it asks for your "ok" even without hooks; "allow" does not cancel
+ * that — the scene must not teach that "Allow" bypasses the confirmation.
  */
 private fun outcome(index: Int, allow: Boolean, deny: Boolean, log: Boolean): String = when (index) {
     0 -> "агент начал думать"
@@ -77,14 +77,14 @@ private fun outcome(index: Int, allow: Boolean, deny: Boolean, log: Boolean): St
 }
 
 /**
- * «Хуки на ходу»: пользователь включает правила и прогоняет один ход — метка бежит по событиям,
- * и на своём событии каждое правило срабатывает у всех на виду: запрет блокирует черновик письма,
- * журнал получает запись. Включи «разрешить» и «запретить» разом — победит запрет.
+ * "Hooks along the turn": the user switches on rules and runs one turn — a marker runs along the events, and at
+ * its event each rule fires in plain sight: the ban blocks the email draft, the log gets an entry. Switch on
+ * "allow" and "deny" at once — the ban wins.
  */
 @Composable
 internal fun HookTimelineScene() {
     var rules by rememberSaveable { mutableIntStateOf(0) }
-    var run by rememberSaveable { mutableIntStateOf(0) } // 0 — ещё не прогоняли с этими правилами
+    var run by rememberSaveable { mutableIntStateOf(0) } // 0 — not run with these rules yet
     val marker = remember { Animatable(-1f) }
     val last = (EVENTS.size - 1).toFloat()
     LaunchedEffect(run) {
@@ -116,7 +116,7 @@ internal fun HookTimelineScene() {
                     .padding(horizontal = 12.dp),
             ) {
                 Text(rule, style = MaterialTheme.typography.bodyMedium, color = SceneInk, maxLines = 1, modifier = Modifier.weight(1f))
-                // Правило меняется — прошлый прогон уже не про него: метка возвращается на старт.
+                // A rule changes — the previous run is no longer about it: the marker goes back to the start.
                 Switch(checked = rules.on(index), onCheckedChange = { rules = rules xor (1 shl index); run = 0 }, enabled = !running)
             }
         }
@@ -146,7 +146,7 @@ internal fun HookTimelineScene() {
                     }
                 }
             }
-            // Метка хода: кольцо едет по рельсу от события к событию.
+            // The turn marker: a ring travels along the rail from event to event.
             if (marker.value >= 0f) {
                 Box(
                     Modifier

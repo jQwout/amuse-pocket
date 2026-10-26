@@ -2,9 +2,9 @@ package com.aiopenpocket.ui.chat.components
 
 // @trace driven-ui-cards-0418d0
 //
-// Рендер Driven-UI карточек: RenderDrivenUiCard и все *CardView, плюс светлая тема карточки урока
-// с её палитрой. Отделено от DrivenUiEngine.kt, где остались модель карточек и парсинг JSON —
-// раньше ~1250 строк Compose погребали под собой логику разбора спеки.
+// Rendering of Driven-UI cards: RenderDrivenUiCard and all the *CardView, plus the lesson card's light
+// theme with its palette. Separated from DrivenUiEngine.kt, which kept the card model and JSON parsing —
+// previously ~1250 lines of Compose buried the spec parsing logic.
 
 import com.aiopenpocket.ui.chat.DrivenUiCard
 import com.aiopenpocket.ui.chat.ExamplePart
@@ -73,29 +73,30 @@ import org.json.JSONObject
 
 private val CardSuccessGreen = Color(0xFF4CAF50)
 
-// Светлая подложка под картинками урока. SVG-диаграммы нарисованы «под светлый фон» (серые подписи
-// #9aa0a6 + светлый текст на цветных заливках). После glass-редизайна пузырь ассистента стал
-// прозрачным поверх тёмной ауроры — и прозрачные SVG «пропадали». Фиксированный светлый фон под
-// картинкой возвращает им читаемость в любой теме (тема к SVG не применяется, см. lesson-format.md).
+// A light backing under lesson images. The SVG diagrams are drawn "for a light background" (gray captions
+// #9aa0a6 + light text on colored fills). After the glass redesign the assistant bubble became
+// transparent over the dark aurora — and transparent SVGs "disappeared". A fixed light background under
+// the image brings back their readability in any theme (the theme is not applied to SVGs, see
+// lesson-format.md).
 private val LessonImageBacking = Color(0xFFF4F4F7)
 
-// Тёмная тема: карточки урока рисуем светлым серебром с тёмным текстом (а не тёмным surfaceVariant
-// «тёмное-на-тёмном»). LessonCardTheme переопределяет surface-семейство схемы для поддерева карточки,
-// чтобы существующие onSurfaceVariant/outline/surface внутри сами стали «под светлую карточку».
-private val LessonCardSilver = Color(0xFFDCDCE4)   // фон карточки (surfaceVariant)
-private val LessonCardPanel = Color(0xFFCBCDD8)    // внутренние панели (surface)
-private val LessonCardInk = Color(0xFF2A2730)      // текст (onSurface/onSurfaceVariant)
-private val LessonCardOutline = Color(0xFF6B6B75)  // подписи и разделители (outline)
-// Семантические цвета квизов (fill/sort/match/scenario красят «выбрано/неверно» через primary/error):
-// дефолтные PurpleAccent/CancelRed рассчитаны на тёмный фон и на светлом серебре блёкнут — берём
-// тёмные насыщенные версии, читаемые на LessonCardSilver, со светлым on-цветом для контейнерных use.
-private val LessonCardPrimary = Color(0xFF5B3FA6)  // primary (выбрано/верно) — тёмно-фиолетовый
+// Dark theme: lesson cards are drawn in light silver with dark text (rather than a dark surfaceVariant,
+// "dark on dark"). LessonCardTheme overrides the scheme's surface family for the card's subtree, so the
+// existing onSurfaceVariant/outline/surface inside become "for a light card" on their own.
+private val LessonCardSilver = Color(0xFFDCDCE4)   // the card background (surfaceVariant)
+private val LessonCardPanel = Color(0xFFCBCDD8)    // inner panels (surface)
+private val LessonCardInk = Color(0xFF2A2730)      // text (onSurface/onSurfaceVariant)
+private val LessonCardOutline = Color(0xFF6B6B75)  // captions and dividers (outline)
+// Semantic quiz colors (fill/sort/match/scenario color "selected/wrong" through primary/error): the
+// default PurpleAccent/CancelRed are made for a dark background and fade on light silver — we take dark
+// saturated versions, readable on LessonCardSilver, with a light on-color for container uses.
+private val LessonCardPrimary = Color(0xFF5B3FA6)  // primary (selected/right) — dark purple
 private val LessonCardOnPrimary = Color(0xFFF3EEFF)
-private val LessonCardError = Color(0xFFB3261E)    // error (неверно) — тёмно-красный (M3 light error)
+private val LessonCardError = Color(0xFFB3261E)    // error (wrong) — dark red (the M3 light error)
 private val LessonCardOnError = Color(0xFFFFFFFF)
-private val LessonCardSecondary = Color(0xFF544F63) // secondary (редкие иконки-акценты)
+private val LessonCardSecondary = Color(0xFF544F63) // secondary (rare accent icons)
 
-/** В тёмной теме подменяет surface-семейство схемы на светлое серебро для поддерева карточки урока. */
+/** In the dark theme swaps the scheme's surface family for light silver in the lesson card's subtree. */
 @Composable
 private fun LessonCardTheme(enabled: Boolean, content: @Composable () -> Unit) {
     if (!enabled) {
@@ -121,32 +122,32 @@ private fun LessonCardTheme(enabled: Boolean, content: @Composable () -> Unit) {
 
 @Composable
 fun RenderDrivenUiCard(
-    // Готовая карточка, а не JSON-спек: пузырь уже парсил spec, решая interactive/markdown —
-    // второй парс того же JSON на главном потоке при первой композиции итема был лишним.
+    // A ready card rather than a JSON spec: the bubble has already parsed the spec deciding interactive/markdown
+    // — a second parse of the same JSON on the main thread at the item's first composition was redundant.
     card: DrivenUiCard,
     onFormSubmitted: (String) -> Unit = {},
     onChoiceSelected: (String) -> Unit = {},
     onLessonComplete: () -> Unit = {},
     onLessonQuizComplete: () -> Unit = {},
-    // Капстоун Академии (Task 23): тап по CTA lesson_complete-карточки. Zero-arg — какой
-    // AgentSourceContext это значит, решает вызывающий (ChatScreen), а не движок карточек.
+    // The Academy capstone (Task 23): a tap on the CTA of the lesson_complete card. Zero-arg — which
+    // AgentSourceContext it means is decided by the caller (ChatScreen), not by the card engine.
     onOpenAgentBuilder: () -> Unit = {},
     onAction: (String, Boolean) -> Unit = { _, _ -> },
     observeHeartbeat: (String) -> Flow<HeartbeatEntity?> = { kotlinx.coroutines.flow.flowOf(null) },
     onCancelHeartbeat: (String) -> Unit = {},
-    /** true → карточка урока: в тёмной теме рисуем светлым серебром с тёмным текстом. */
+    /** true → a lesson card: in the dark theme it is drawn in light silver with dark text. */
     lessonCard: Boolean = false,
-    /** Промпты картинок, которые прямо сейчас перерисовываются «под меня» — их кнопка показывает «Рисую…». */
+    /** Image prompts being redrawn "for me" right now — their button shows "Drawing…". */
     personalizingImages: Set<String> = emptySet(),
     onPersonalizeImage: (DrivenUiCard.ImageCard) -> Unit = {},
-    /** Задания шагов "video", чьи ролики модель прямо сейчас смотрит. */
+    /** The tasks of "video" steps whose clips the model is watching right now. */
     analyzingVideos: Set<String> = emptySet(),
     onLessonVideo: (videoPrompt: String, video: android.net.Uri) -> Unit = { _, _ -> },
 ) {
-    // Приложение форсит тёмную тему всегда (Theme.kt: darkTheme=true, LightColorScheme=DarkColorScheme),
-    // НЕЗАВИСИМО от системной темы устройства. Поэтому гейт — только по lessonCard, а не по
-    // isSystemInDarkTheme(): иначе у юзера с системной светлой темой карточка урока оставалась бы
-    // тёмной на тёмной ауроре (ровно та нечитаемость, которую этот код и чинит).
+    // The gate is only lessonCard, not isSystemInDarkTheme(): the app's theme is chosen in Settings
+    // (Light/Dark/System, see Theme.kt), so the system flag can disagree with what is on screen — and in a
+    // forced dark theme a lesson card would stay dark on the dark aurora (exactly the unreadability this
+    // code fixes). A lesson card is drawn light in any theme.
     val useLightCard = lessonCard
     Box(
         modifier = Modifier
@@ -160,8 +161,9 @@ fun RenderDrivenUiCard(
             .padding(16.dp)
     ) {
         LessonCardTheme(useLightCard) {
-        // Контент-цвет surface явно — как сделал бы Surface(color = surfaceVariant): тексты без явного
-        // цвета (ответ reveal/fill, определение concept, пункты sort/match) не берут ~чёрный дефолт.
+        // The surface content color is explicit — as Surface(color = surfaceVariant) would do: texts without an
+        // explicit color (the reveal/fill answer, the concept definition, sort/match items) do not take the
+        // ~black default.
         CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant) {
         when (card) {
             is DrivenUiCard.TodoList -> TodoListCardView(card)
@@ -176,8 +178,8 @@ fun RenderDrivenUiCard(
             is DrivenUiCard.SwitchCard -> SwitchCardView(card, onAction)
             is DrivenUiCard.NotificationPermissionCard -> NotificationPermissionCardView(card)
             is DrivenUiCard.ReminderCard -> ReminderCardView(card, observeHeartbeat, onCancelHeartbeat)
-            // Кнопка «Нарисуй под меня» — только у картинок урока с промптом: картинку, которую
-            // нарисовал агент в обычном чате, перерисовывать «под урок» нечего.
+            // The "Draw it for me" button — only for lesson images with a prompt: an image the agent drew in a
+            // normal chat has nothing to be redrawn "for the lesson".
             is DrivenUiCard.ImageCard -> ImageCardView(
                 card = card,
                 personalizing = card.prompt in personalizingImages,
@@ -651,8 +653,8 @@ fun ChoiceCardView(
 
         card.options.forEachIndexed { i, option ->
             val answered = selected != null
-            // answerIndex < 0 — правильный вариант не задан (например, открытый опрос без "верного"
-            // ответа): не подсвечиваем выбор как неверный, см. f646e64 для того же класса бага.
+            // answerIndex < 0 — the right option is not set (e.g. an open poll without a "right" answer): the choice
+            // is not highlighted as wrong, see f646e64 for the same class of bug.
             val hasKey = card.answerIndex >= 0
             val isCorrect = hasKey && i == card.answerIndex
             val isPicked = selected == i
@@ -736,9 +738,9 @@ fun LessonCompleteCardView(
                 color = MaterialTheme.colorScheme.outline
             )
         }
-        // Капстоун Академии (Task 23): рендерится, ТОЛЬКО когда саму карточку собрал
-        // LessonChatController.postCompletion для agent_blueprint — обычные уроки primaryAction не
-        // задают, поэтому здесь ничего не появляется и старое поведение не меняется.
+        // The Academy capstone (Task 23): rendered ONLY when the card itself was built by
+        // LessonChatController.postCompletion for agent_blueprint — ordinary lessons set no primaryAction,
+        // so nothing appears here and the old behavior does not change.
         card.primaryAction?.let { action ->
             Button(onClick = onOpenAgentBuilder, modifier = Modifier.fillMaxWidth()) {
                 Text(action.label)
@@ -788,9 +790,9 @@ fun SwitchCardView(
 }
 
 /**
- * Живая карточка heartbeat'а: подписывается на строку в Room по [DrivenUiCard.ReminderCard.heartbeatId]
- * и отражает её (расписание/статус/последний результат) в реальном времени — без ререндера всего
- * сообщения. Кнопка отмены показывается, только пока напоминание ещё "scheduled".
+ * A live heartbeat card: it subscribes to the Room row by [DrivenUiCard.ReminderCard.heartbeatId] and
+ * reflects it (schedule/status/last result) in real time — without re-rendering the whole message. The
+ * cancel button is shown only while the reminder is still "scheduled".
  */
 @Composable
 fun ReminderCardView(
@@ -845,9 +847,8 @@ fun ReminderCardView(
 }
 
 /**
- * Самодостаточная карточка запроса разрешения на уведомления: сама держит launcher и
- * отражает РЕАЛЬНОЕ состояние (areNotificationsEnabled), обновляя его на ON_RESUME —
- * никакого внешнего роутинга действий не требуется.
+ * A self-contained notification permission request card: it holds its own launcher and reflects the REAL
+ * state (areNotificationsEnabled), refreshing it on ON_RESUME — no external action routing is needed.
  */
 @Composable
 fun NotificationPermissionCardView(card: DrivenUiCard.NotificationPermissionCard) {
@@ -862,7 +863,7 @@ fun NotificationPermissionCardView(card: DrivenUiCard.NotificationPermissionCard
         enabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
     }
 
-    // Возврат из системного диалога/настроек → пересчитываем состояние, чтобы карточка не врала.
+    // Coming back from the system dialog/settings → the state is recomputed so the card does not lie.
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -910,7 +911,7 @@ fun NotificationPermissionCardView(card: DrivenUiCard.NotificationPermissionCard
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
                     } else {
-                        // < 33: runtime-разрешения нет — ведём в системные настройки уведомлений.
+                        // < 33: there is no runtime permission — lead to the system notification settings.
                         openAppNotificationSettings(context)
                     }
                 },
@@ -923,23 +924,23 @@ fun NotificationPermissionCardView(card: DrivenUiCard.NotificationPermissionCard
 }
 
 /**
- * Картинка/диаграмма в шаге урока. Источник — бандл-ассет (пробуем ПЕРВЫМ, чтобы работало оффлайн),
- * с фоллбеком на сетевой URL, если ассета нет или он не загрузился. SVG и растр декодирует общий
- * Coil-синглтон приложения (SvgDecoder подключён в [com.aiopenpocket.AiOpenPocketApp.newImageLoader]).
- * Раньше здесь собирался СВОЙ ImageLoader на каждый экземпляр карточки — его кэш умирал вместе с
- * итемом ленты, и при возврате пузыря в вьюпорт картинка грузилась заново (пустой пузырь → скачок).
+ * An image/diagram in a lesson step. The source is a bundled asset (tried FIRST so it works offline), with
+ * a fallback to the network URL if there is no asset or it failed to load. SVG and raster are decoded by
+ * the app's shared Coil singleton (SvgDecoder is plugged in in [com.aiopenpocket.AiOpenPocketApp.newImageLoader]).
+ * This used to build ITS OWN ImageLoader per card instance — its cache died with the feed item, and when
+ * the bubble came back into the viewport the image loaded again (an empty bubble → a jump).
  */
 @Composable
 fun ImageCardView(
     card: DrivenUiCard.ImageCard,
     personalizing: Boolean = false,
-    // null — кнопки нет. Не Boolean-флаг рядом с колбэком: «показать кнопку без действия» не бывает.
+    // null — no button. Not a Boolean flag next to the callback: "show the button with no action" does not exist.
     onPersonalize: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val assetData = card.asset.takeIf { it.isNotBlank() }?.let { "file:///android_asset/$it" }
     val urlData = card.url.takeIf { it.isNotBlank() }
-    // Ассет первым; при ошибке загрузки переключаемся на URL (один раз).
+    // The asset first; on a load error we switch to the URL (once).
     var useFallback by remember(card) { mutableStateOf(assetData == null) }
     val data = if (!useFallback) (assetData ?: urlData) else urlData
 
@@ -964,20 +965,20 @@ fun ImageCardView(
             AsyncImage(
                 model = ImageRequest.Builder(context).data(data).crossfade(true).build(),
                 contentDescription = card.caption.ifBlank { null },
-                // Фиксированный аспект: высота пузыря известна ДО загрузки картинки, поэтому лента
-                // не «раздувается» и не прыгает, когда картинка доехала (раньше — FillWidth без
-                // высоты: пузырь рождался схлопнутым). Fit — схемы/диаграммы не обрезаем, возможен
-                // леттербокс по краям.
+                // A fixed aspect: the bubble's height is known BEFORE the image loads, so the feed does not "swell"
+                // and jump when the image arrives (previously FillWidth without a height: the bubble was
+                // born collapsed). Fit — schemes/diagrams are not cropped; letterboxing at the edges is
+                // possible.
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(16f / 9f)
                     .clip(RoundedCornerShape(12.dp))
-                    // Светлая подложка: прозрачные SVG рисовались «под светлый фон», а после glass
-                    // пузырь стал прозрачным над тёмной ауророй — без неё диаграмма пропадала.
+                    // The light backing: transparent SVGs were drawn "for a light background", and after the glass
+                    // redesign the bubble became transparent over the dark aurora — without it the diagram vanished.
                     .background(LessonImageBacking),
                 onError = {
-                    // Ассет не загрузился — пробуем сетевой URL, если он задан и ещё не пробовали.
+                    // The asset did not load — try the network URL if it is set and not tried yet.
                     if (!useFallback && assetData != null && urlData != null) useFallback = true
                 },
             )
@@ -991,8 +992,8 @@ fun ImageCardView(
             )
         }
         if (onPersonalize != null) {
-            // Muse Image думает перед отрисовкой десятки секунд: без явного «Рисую…» повторные тапы
-            // выглядели бы как сломанная кнопка, а каждый был бы ещё одной оплаченной генерацией.
+            // Muse Image thinks for tens of seconds before drawing: without an explicit "Drawing…" repeated taps
+            // would look like a broken button, and each would be one more paid generation.
             OutlinedButton(onClick = onPersonalize, enabled = !personalizing) {
                 if (personalizing) {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
@@ -1008,11 +1009,11 @@ fun ImageCardView(
     }
 }
 
-/** "reveal": вопрос, по кнопке раскрывается ответ. Шаг продвигается кнопкой «Дальше». */
+/** "reveal": a question; a button reveals the answer. The step advances with the "Next" button. */
 @Composable
 fun RevealCardView(card: DrivenUiCard.RevealCard) {
-    // rememberSaveable: раскрытие переживает рециклинг элемента в LazyColumn и поворот
-    // (обычный remember сбрасывал карточку в «закрыто» при скролле за экран и обратно).
+    // rememberSaveable: the reveal survives the item being recycled in LazyColumn and a rotation
+    // (a plain remember reset the card to "closed" when scrolled off screen and back).
     var revealed by rememberSaveable(card) { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
@@ -1037,7 +1038,7 @@ fun RevealCardView(card: DrivenUiCard.RevealCard) {
     }
 }
 
-/** "concept": термин, определение, пример. Статичная карточка. */
+/** "concept": a term, a definition, an example. A static card. */
 @Composable
 fun ConceptCardView(card: DrivenUiCard.ConceptCard) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1054,7 +1055,7 @@ fun ConceptCardView(card: DrivenUiCard.ConceptCard) {
     }
 }
 
-/** "example": заголовок и разбор на части (текст + роль-бейдж + заметка). Статичная карточка. */
+/** "example": a heading and a breakdown into parts (text + a role badge + a note). A static card. */
 @Composable
 fun ExampleCardView(card: DrivenUiCard.ExampleCard) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1097,24 +1098,24 @@ fun ExampleCardView(card: DrivenUiCard.ExampleCard) {
     }
 }
 
-/** Сколько промахов fill-шага терпим, прежде чем показать ответ и пустить дальше. */
+/** How many misses on a fill step we tolerate before showing the answer and letting the learner move on. */
 private const val FILL_MISSES_BEFORE_REVEAL = 2
 
 /**
- * "fill": заполни пропуск. Правильный ввод продвигает урок (как пройденный квиз).
+ * "fill": fill in the gap. A correct input advances the lesson (like a passed quiz).
  *
- * После [FILL_MISSES_BEFORE_REVEAL] промахов карточка показывает ответ и кнопку «Дальше»: у fill нет
- * своей «Дальше», и раньше ученик, не угадавший точное слово, застревал в уроке навсегда. Подсмотренный
- * ответ продвигает урок так же, как решённый, — смысл шага в том, чтобы прочитать правильное слово,
- * а не в экзамене.
+ * After [FILL_MISSES_BEFORE_REVEAL] misses the card shows the answer and a "Next" button: fill has no "Next"
+ * of its own, and a learner who did not guess the exact word used to be stuck in the lesson forever. A
+ * peeked answer advances the lesson the same way as a solved one — the point of the step is to read the
+ * right word, not an exam.
  */
 @Composable
 fun FillCardView(card: DrivenUiCard.FillCard, onSolved: () -> Unit) {
-    // rememberSaveable: решённость (и черновик) переживают рециклинг/поворот. Иначе карточка
-    // сбрасывалась в нерешённую, и повторное решение ЕЩЁ РАЗ дёргало onSolved — курсор урока
-    // прыгал на лишний шаг. onSolved зовётся только на переходе solved=false→true, поэтому
-    // восстановленное solved=true повторного продвижения не даёт. Счётчик промахов тоже saveable:
-    // иначе поворот экрана снова прятал бы уже показанный ответ.
+    // rememberSaveable: being solved (and the draft) survive recycling/rotation. Otherwise the card was reset to
+    // unsolved, and solving it again called onSolved ONE MORE TIME — the lesson cursor jumped an extra step.
+    // onSolved is called only on the solved=false→true transition, so a restored solved=true does not
+    // advance again. The miss counter is saveable too: otherwise a screen rotation would hide an answer
+    // already shown.
     var input by rememberSaveable(card) { mutableStateOf("") }
     var solved by rememberSaveable(card) { mutableStateOf(false) }
     var revealed by rememberSaveable(card) { mutableStateOf(false) }
@@ -1133,7 +1134,7 @@ fun FillCardView(card: DrivenUiCard.FillCard, onSolved: () -> Unit) {
         )
         if (solved) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Подсмотренный ответ — без зелёной галочки: честно, что его не угадали, а прочитали.
+                // A peeked answer gets no green checkmark: honest that it was read, not guessed.
                 if (revealed) {
                     Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.outline)
                 } else {
@@ -1175,14 +1176,14 @@ fun FillCardView(card: DrivenUiCard.FillCard, onSolved: () -> Unit) {
     }
 }
 
-/** "sort": расставь элементы стрелками вверх/вниз. Верный порядок продвигает урок. */
+/** "sort": arrange the items with up/down arrows. The right order advances the lesson. */
 @Composable
 fun SortCardView(card: DrivenUiCard.SortCard, onSolved: () -> Unit) {
-    // rememberSaveable: расстановка и решённость переживают рециклинг элемента в LazyColumn и
-    // поворот. Раньше remember сбрасывал карточку в нерешённую, и повторное решение ЕЩЁ РАЗ дёргало
-    // onSolved — курсор урока прыгал на лишний шаг. onSolved зовётся только на переходе
-    // solved=false→true, поэтому восстановленное solved=true повторного продвижения не даёт.
-    // Порядок храним индексами: дубликаты строк в items не путают восстановление.
+    // rememberSaveable: the arrangement and being solved survive the item being recycled in LazyColumn and a
+    // rotation. remember used to reset the card to unsolved, and solving it again called onSolved ONE MORE
+    // TIME — the lesson cursor jumped an extra step. onSolved is called only on the solved=false→true
+    // transition, so a restored solved=true does not advance again.
+    // The order is stored as indexes: duplicate strings in items do not confuse the restore.
     val order = rememberSaveable(
         card,
         saver = listSaver<SnapshotStateList<Int>, Int>(
@@ -1190,9 +1191,9 @@ fun SortCardView(card: DrivenUiCard.SortCard, onSolved: () -> Unit) {
             restore = { it.toMutableStateList() },
         ),
     ) { card.items.indices.toList().toMutableStateList() }
-    // correct должен быть полной перестановкой индексов items. Если он битый (вне диапазона, дубли,
-    // не та длина — частый брак LLM-карточки или авторской ошибки урока), деградируем к исходному
-    // порядку, чтобы шаг остался решаемым по «Проверить», а не залип навсегда.
+    // correct must be a full permutation of the items' indexes. If it is broken (out of range, duplicates,
+    // the wrong length — a frequent defect of an LLM card or an authoring mistake in a lesson), we degrade
+    // to the original order so the step stays solvable with "Check" instead of getting stuck forever.
     val target = remember(card) {
         val n = card.items.size
         val isPermutation = card.correct.size == n && card.correct.toSet() == (0 until n).toSet()
@@ -1239,8 +1240,8 @@ fun SortCardView(card: DrivenUiCard.SortCard, onSolved: () -> Unit) {
             }
             Button(
                 onClick = {
-                    // Сравниваем отображаемые строки (а не индексы): при дубликатах в items любой
-                    // визуально совпадающий порядок засчитывается — как и раньше.
+                    // The displayed strings are compared (not the indexes): with duplicates in items any visually identical
+                    // order counts — as before.
                     if (order.map { card.items[it] } == target) { solved = true; wrong = false; onSolved() } else wrong = true
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -1249,19 +1250,19 @@ fun SortCardView(card: DrivenUiCard.SortCard, onSolved: () -> Unit) {
     }
 }
 
-/** "match": сопоставь термины и определения тапами. Полное верное сопоставление продвигает урок. */
+/** "match": match terms with definitions by tapping. A full correct match advances the lesson. */
 @Composable
 fun MatchCardView(card: DrivenUiCard.MatchCard, onSolved: () -> Unit) {
     val terms = card.pairs.map { it.term }
-    // Определения показываем в перемешанном (стабильном) порядке. Раньше был сдвиг на 1 — верное
-    // определение почти всегда оказывалось «следующим по списку» и сопоставление угадывалось.
-    // avoidIdentity: исходный порядок подсказал бы все пары разом.
+    // Definitions are shown in a shuffled (stable) order. It used to be a shift by 1 — the right definition was
+    // almost always "the next one in the list", and the matching could be guessed.
+    // avoidIdentity: the original order would give away all pairs at once.
     val displayDefOrder = remember(card) {
         val seed = card.pairs.fold(0) { acc, p -> (acc * 31 + p.term.hashCode()) * 31 + p.def.hashCode() }
         stableShuffledIndices(card.pairs.size, seed, avoidIdentity = true)
     }
-    // rememberSaveable: сопоставление и решённость переживают рециклинг/поворот (см. SortCardView —
-    // тот же класс бага с повторным onSolved).
+    // rememberSaveable: the matching and being solved survive recycling/rotation (see SortCardView — the same
+    // class of bug with a repeated onSolved).
     val assign = rememberSaveable(
         card,
         saver = listSaver<SnapshotStateMap<Int, Int>, Int>(
@@ -1276,7 +1277,7 @@ fun MatchCardView(card: DrivenUiCard.MatchCard, onSolved: () -> Unit) {
                 }
             },
         ),
-    ) { mutableStateMapOf() } // termIndex -> исходный индекс пары (он же верный термин)
+    ) { mutableStateMapOf() } // termIndex -> the original index of the pair (which is also the right term)
     var selectedTerm by remember(card) { mutableStateOf<Int?>(null) }
     var solved by rememberSaveable(card) { mutableStateOf(false) }
     var wrong by remember(card) { mutableStateOf(false) }
@@ -1287,7 +1288,7 @@ fun MatchCardView(card: DrivenUiCard.MatchCard, onSolved: () -> Unit) {
             Text(card.instruction, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        // Термины
+        // Terms
         terms.forEachIndexed { ti, term ->
             val assignedDef = assign[ti]?.let { card.pairs[it].def }
             val isSel = selectedTerm == ti
@@ -1317,7 +1318,7 @@ fun MatchCardView(card: DrivenUiCard.MatchCard, onSolved: () -> Unit) {
         }
         CardDivider()
         Text(tr("Определения:", "Definitions:"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
-        // Определения-кнопки: тап назначает выбранному термину
+        // Definition buttons: a tap assigns it to the selected term
         displayDefOrder.forEach { di ->
             val used = assign.containsValue(di)
             Row(
@@ -1332,7 +1333,7 @@ fun MatchCardView(card: DrivenUiCard.MatchCard, onSolved: () -> Unit) {
                     .clickable(enabled = !solved && selectedTerm != null) {
                         val t = selectedTerm
                         if (t != null) {
-                            // снять этот def с прежнего термина, затем назначить
+                            // remove this def from its previous term, then assign
                             assign.entries.firstOrNull { it.value == di }?.let { assign.remove(it.key) }
                             assign[t] = di
                             selectedTerm = null
@@ -1362,15 +1363,15 @@ fun MatchCardView(card: DrivenUiCard.MatchCard, onSolved: () -> Unit) {
     }
 }
 
-/** "scenario": ситуация + один вопрос с вариантами. Ответ продвигает урок. */
+/** "scenario": a situation + one question with options. The answer advances the lesson. */
 @Composable
 fun ScenarioCardView(card: DrivenUiCard.ScenarioCard, onSolved: () -> Unit) {
-    // rememberSaveable: ответ переживает рециклинг/поворот — повторный тап по «сброшенной» карточке
-    // раньше ЕЩЁ РАЗ дёргал onSolved и толкал урок на лишний шаг. -1 = ещё не отвечено
-    // (Int? автосейвер не сохраняет). Храним ИСХОДНЫЙ индекс варианта — сверка с answerIndex
-    // и восстановление не зависят от порядка показа.
+    // rememberSaveable: the answer survives recycling/rotation — a repeated tap on a "reset" card used to call
+    // onSolved ONE MORE TIME and push the lesson an extra step. -1 = not answered yet (the autosaver does
+    // not save Int?). The ORIGINAL option index is stored — checking against answerIndex and restoring do
+    // not depend on the display order.
     var selected by rememberSaveable(card) { mutableStateOf(-1) }
-    // Варианты — в перемешанном (стабильном) порядке: в авторских JSON правильный всегда первый.
+    // The options are in a shuffled (stable) order: in the authored JSON the right one is always first.
     val displayOrder = remember(card) {
         val seed = (card.situation.hashCode() * 31 + card.question.hashCode()) * 31 +
             card.options.fold(0) { acc, o -> acc * 31 + o.hashCode() }
@@ -1394,8 +1395,8 @@ fun ScenarioCardView(card: DrivenUiCard.ScenarioCard, onSolved: () -> Unit) {
         displayOrder.forEach { i ->
             val option = card.options[i]
             val answered = selected >= 0
-            // answerIndex < 0 — правильный вариант неизвестен (не задан/битый): не подсвечиваем
-            // ничего как «верное/неверное», чтобы не вводить в заблуждение ложным ключом.
+            // answerIndex < 0 — the right option is unknown (not set/broken): nothing is highlighted as "right/wrong",
+            // so as not to mislead with a false key.
             val hasKey = card.answerIndex >= 0
             val isCorrect = hasKey && i == card.answerIndex
             val isPicked = selected == i
@@ -1413,7 +1414,7 @@ fun ScenarioCardView(card: DrivenUiCard.ScenarioCard, onSolved: () -> Unit) {
                     .border(1.5.dp, border, RoundedCornerShape(12.dp))
                     .clickable(enabled = selected < 0) {
                         selected = i
-                        // Ответил — двигаемся дальше независимо от правильности: виден верный вариант + пояснение.
+                        // Answered — move on regardless of correctness: the right option + the explanation are visible.
                         onSolved()
                     }
                     .padding(14.dp),

@@ -41,10 +41,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 
-/** Прогон арены: ответ, балл судьи (из 10, иллюстративно), его вердикт и в какую долю времени прогон допишет. */
+/** An arena run: the answer, the judge's score (out of 10, illustrative), its verdict and at which share of the time the run finishes. */
 private class ArenaRun(val answer: String, val score: Int, val verdict: String, val doneAt: Float)
 
-// Пример из урока: три варианта письма и судья с критериями «вежливо, коротко, точно».
+// The lesson's example: three versions of a letter and a judge with the criteria "polite, short, precise".
 private const val ARENA_PROMPT = "письмо коллеге: встречу переносим на пятницу"
 private val RUNS = listOf(
     ArenaRun("Встречи в среду не будет. Перенесли на пятницу.", 5, "коротко, но сухо и без времени", 0.55f),
@@ -53,10 +53,10 @@ private val RUNS = listOf(
 )
 private const val WINNER = 1
 
-/** Воркер роя: какой кусок достался, что он в нём нашёл и сколько читает (мс, для анимации). */
+/** A swarm worker: which chunk it got, what it found in it and how long it reads (ms, for the animation). */
 private class SwarmWorker(val reviews: String, val finding: String, val workMs: Int)
 
-// Пример роя из урока: 20 отзывов, оркестратор раздаёт по пять четырём воркерам.
+// The lesson's swarm example: 20 reviews, the orchestrator hands five each to four workers.
 private val WORKERS = listOf(
     SwarmWorker("отзывы 1–5", "хвалят скорость", 1300),
     SwarmWorker("отзывы 6–10", "путаются в меню", 1700),
@@ -67,13 +67,14 @@ private const val SUMMARY = "Выжимка: хвалят скорость, пу
 private const val SPLIT_MS = 500
 private const val MERGE_MS = 600
 private val SWARM_MS = SPLIT_MS + WORKERS.maxOf { it.workMs } + MERGE_MS
-/** Один агент читал бы все 20 подряд: та же работа, но без параллели. */
+/** A single agent would read all 20 in a row: the same work, but without parallelism. */
 private val SOLO_MS = WORKERS.sumOf { it.workMs }
 
 /**
- * «Арена и рой»: две вкладки. На арене один запрос дают трём прогонам — они пишут разное, а судья по
- * критериям выбирает лучший; тап по карточке показывает, что судья сказал о ней. В рое оркестратор
- * режет 20 отзывов на четыре куска, воркеры читают параллельно, и итоги сводятся в одну выжимку.
+ * "Arena and swarm": two tabs. In the arena one request goes to three runs — they write different things,
+ * and a judge picks the best one by criteria; a tap on a card shows what the judge said about it. In the
+ * swarm the orchestrator cuts 20 reviews into four chunks, the workers read in parallel, and the results
+ * merge into one summary.
  */
 @Composable
 internal fun ArenaSwarmScene() {
@@ -89,7 +90,7 @@ internal fun ArenaSwarmScene() {
 
 @Composable
 private fun ArenaTab() {
-    // 0 — ждём, 1 — прогоны пишут, 2 — ответы готовы, 3 — судья читает, 4 — победитель выбран.
+    // 0 — waiting, 1 — the runs are writing, 2 — the answers are ready, 3 — the judge is reading, 4 — a winner is picked.
     var stage by rememberSaveable { mutableIntStateOf(0) }
     var picked by rememberSaveable { mutableIntStateOf(WINNER) }
     val write = remember { Animatable(0f) }
@@ -106,7 +107,7 @@ private fun ArenaTab() {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Один запрос — три прогона: «$ARENA_PROMPT»", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         RUNS.forEachIndexed { index, run ->
-            // Три прогона пишут одновременно, но с разной скоростью — как параллельные запросы.
+            // Three runs write at once, but at different speeds — like parallel requests.
             val progress = (write.value / run.doneAt).coerceIn(0f, 1f)
             RunCard(
                 number = index + 1,

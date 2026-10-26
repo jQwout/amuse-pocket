@@ -43,10 +43,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-/** Шаг плана и сохранённый результат, который движок примет как доказательство его критерия. */
+/** A plan step and the saved result the engine will accept as evidence for its criterion. */
 private class PlanStep(val title: String, val evidence: String)
 
-// План из практики урока: найти три статьи, выписать главные мысли, собрать их в один список.
+// The plan from the lesson's practice: find three articles, write out the main ideas, gather them into one list.
 private val PLAN = listOf(
     PlanStep("Найти три статьи по теме", "3 ссылки сохранены"),
     PlanStep("Выписать из каждой главную мысль", "3 выписки в заметке"),
@@ -54,8 +54,8 @@ private val PLAN = listOf(
 )
 
 /**
- * Статусы шага — теми же словами, что на настоящей карточке плана в чате (PlanCard): ученик потом
- * увидит именно их. «Ожидает» — пока не выполнен предыдущий шаг.
+ * Step statuses — in the same words as on the real plan card in the chat (PlanCard): those are exactly what the
+ * learner will see later. "Waiting" — until the previous step is done.
  */
 private enum class StepStatus(val label: String) { Waiting("Ожидает"), Ready("Готов к запуску"), Blocked("Заблокирован"), Verified("Завершён") }
 
@@ -64,13 +64,13 @@ private val ProvenGreen = Color(0xFF2E7D32)
 private fun Int.hasStep(index: Int) = (this and (1 shl index)) != 0
 
 /**
- * «Сделал — докажи»: пользователь играет агента и жмёт «Сдать» у шагов плана. Голое «готово» движок
- * не засчитывает — шаг блокируется, пока к нему не приложено доказательство. Следующий шаг открывается
- * только за проверенным, и план выполнен, лишь когда доказательство есть у каждого.
+ * "Done — prove it": the user plays the agent and taps "Submit" on the plan's steps. The engine does not count
+ * a bare "done" — the step is blocked until evidence is attached. The next step opens only after a checked
+ * one, and the plan is done only when every step has its evidence.
  */
 @Composable
 internal fun StepEvidenceScene() {
-    // Битовые маски по шагам: приложено доказательство / проверен / заблокирован.
+    // Bitmasks per step: evidence attached / checked / blocked.
     var attached by rememberSaveable { mutableIntStateOf(0) }
     var verified by rememberSaveable { mutableIntStateOf(0) }
     var blocked by rememberSaveable { mutableIntStateOf(0) }
@@ -112,8 +112,8 @@ internal fun StepEvidenceScene() {
                     } else {
                         blocked = blocked or bit
                         rejected = true
-                        // Настоящий движок сначала даёт шагу ещё попытку и блокирует после второй (урок
-                        // это проговаривает); сцена сжимает обе попытки в одно нажатие.
+                        // The real engine first gives the step another attempt and blocks after the second (the lesson
+                        // says so); the scene squeezes both attempts into one tap.
                         message = "Шаг ${index + 1}: «готово» без доказательства — не засчитано, шаг заблокирован"
                     }
                 },
@@ -181,8 +181,8 @@ private fun StepCard(number: Int, step: PlanStep, status: StepStatus, attached: 
                 Text(if (status == StepStatus.Verified) "✓" else "$number", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = SceneInk)
             }
             Text(step.title, style = MaterialTheme.typography.bodyMedium, color = SceneInk, modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
-            // Фиксированная ширина: смена статуса не должна переносить заголовок шага.
-            // 112dp — под самую длинную подпись PlanCard («Готов к запуску») в одну строку.
+            // A fixed width: a status change must not wrap the step's heading.
+            // 112dp — for PlanCard's longest label ("Ready to run") on one line.
             Box(contentAlignment = Alignment.Center, modifier = Modifier.width(112.dp).clip(RoundedCornerShape(50)).background(accent).padding(vertical = 4.dp)) {
                 Text(
                     text = status.label,

@@ -39,10 +39,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-/** Ответ модели: текст, что покажет проверка (правда, выдумка или честное «не уверен») и подпись к итогу. */
+/** A model answer: the text, what the check will show (true, made up or an honest "not sure") and the caption for the result. */
 private class ModelClaim(val text: String, val verdict: String, val truthful: Boolean, val note: String)
 
-// Как в уроке: дата, цитата и ссылка на статью. Первые две — настоящие факты, статья выдумана для примера.
+// As in the lesson: a date, a quote and a link to an article. The first two are real facts, the article is made up for the example.
 private val CLAIMS = listOf(
     ModelClaim("Гагарин полетел в космос 12 апреля 1961 года.", "Правда", true, "Дата сходится с энциклопедией"),
     ModelClaim("Перед стартом Гагарин сказал: «Поехали!»", "Правда", true, "Есть в записи переговоров"),
@@ -54,9 +54,9 @@ private const val SURE = 0.95f
 private const val UNSURE = 0.3f
 
 /**
- * «Уверенно и неверно»: три ответа модели звучат одинаково уверенно — шкала тона у всех полная.
- * Пользователь проверяет каждый: два подтверждаются, третий выдуман. Переключатель дописывает в запрос
- * «если не уверен — так и скажи», и выдумка сменяется честным сомнением. Уверенный тон — не признак правды.
+ * "Confident and wrong": three model answers sound equally confident — the tone scale is full for all of them.
+ * The user checks each: two are confirmed, the third is made up. A toggle adds "if you are not sure, say so" to
+ * the request, and the fabrication turns into an honest doubt. A confident tone is not a sign of truth.
  */
 @Composable
 internal fun ConfidentWrongScene() {
@@ -73,7 +73,7 @@ internal fun ConfidentWrongScene() {
                 checked = allowDoubt,
                 onCheckedChange = {
                     allowDoubt = it
-                    checked = checked and (1 shl INVENTED).inv() // третий ответ стал другим — его проверка заново
+                    checked = checked and (1 shl INVENTED).inv() // the third answer changed — its check starts over
                 },
             )
         }
@@ -122,7 +122,7 @@ private fun ClaimCard(claim: ModelClaim, confidence: Float, isChecked: Boolean, 
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Text("уверенность", color = SceneInk.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall)
             Spacer(Modifier.width(6.dp))
-            // Шкала одного цвета у правды и у выдумки: по ней их не различить — в этом весь фокус.
+            // The truth and the fabrication have a scale of the same color: they cannot be told apart by it — that is the whole trick.
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -138,7 +138,7 @@ private fun ClaimCard(claim: ModelClaim, confidence: Float, isChecked: Boolean, 
                         .background(SceneInk.copy(alpha = 0.55f)),
                 )
             }
-            // Кнопка и вердикт делят одно место фиксированного размера — карточка не меняется под пальцем.
+            // The button and the verdict share one fixed-size spot — the card does not change under the finger.
             Box(contentAlignment = Alignment.Center, modifier = Modifier.width(112.dp).height(40.dp)) {
                 if (isChecked) {
                     Row(verticalAlignment = Alignment.CenterVertically) {

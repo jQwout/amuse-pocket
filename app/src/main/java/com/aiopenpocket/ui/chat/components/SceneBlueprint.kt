@@ -43,8 +43,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Идея агента: что написать в карточке и что ломается без инструментов и без памяти именно у этой задачи.
- * Тексты — парами ru/en, язык выбирается геттером в момент показа: список инициализируется один раз.
+ * An agent idea: what to write in the card and what breaks without tools and without memory for this
+ * particular task. Texts come in ru/en pairs, the language is picked by a getter at display time: the list is
+ * initialized once.
  */
 private class BlueprintIdea(
     private val chipRu: String,
@@ -108,8 +109,9 @@ private val IDEAS = listOf(
 )
 
 /**
- * Пять вопросов каркаса из урока. Первый вариант цели у каждой идеи свой — подставляется в коде.
- * Тексты — парами ru/en (варианты — двумя списками одной длины), язык выбирается в момент показа.
+ * The lesson's five blueprint questions. The first goal option is different for each idea — it is filled in
+ * in code. Texts come in ru/en pairs (the options as two lists of the same length), the language is picked at
+ * display time.
  */
 private class BlueprintQuestion(
     private val titleRu: String,
@@ -160,7 +162,7 @@ private fun specValue(q: Int, a: Int, idea: BlueprintIdea): String = when (q) {
     else -> listOf(tr("на глазок", "by eye"), tr("10 типовых задач", "10 typical tasks"))[a]
 }
 
-/** Несостыковка ответа с задачей — или null, если ответ годится. */
+/** The mismatch between an answer and the task — or null if the answer fits. */
 private fun flagFor(q: Int, a: Int, idea: BlueprintIdea): String? = when {
     q == 0 && a == 1 -> tr("размытая цель — остальным решениям не на что опереться", "vague goal — the other decisions have nothing to stand on")
     q == 1 && a == 0 -> idea.noTools
@@ -173,9 +175,9 @@ private fun flagFor(q: Int, a: Int, idea: BlueprintIdea): String? = when {
 }
 
 /**
- * «Каркас агента»: пользователь берёт идею и по очереди отвечает на пять вопросов чипами — карточка
- * агента заполняется на глазах. Ответ, который не вяжется с задачей (напоминания без инструментов,
- * долгая программа без памяти), сразу помечается. Пять согласованных ответов — и идея стала проектом.
+ * "Agent blueprint": the user takes an idea and answers five questions in turn with chips — the agent's card
+ * fills in before their eyes. An answer that does not fit the task (reminders without tools, a long program
+ * without memory) is flagged right away. Five consistent answers — and the idea has become a project.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -233,7 +235,7 @@ internal fun BlueprintScene() {
             fontWeight = FontWeight.SemiBold,
             minLines = 2,
         )
-        // Место под два ряда чипов заранее: у вопросов разное число вариантов, и без запаса всё ниже прыгало бы.
+        // Space for two rows of chips in advance: the questions have different numbers of options, and without the margin everything below would jump.
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp)) {
             question.options.forEachIndexed { i, label ->
                 FilterChip(
@@ -241,7 +243,7 @@ internal fun BlueprintScene() {
                     onClick = {
                         val updated = answers.toMutableList().also { it[current] = i }
                         answers = updated
-                        // Пауза, чтобы выбор успели увидеть, — и к первому вопросу без ответа.
+                        // A pause so the choice is seen — then on to the first unanswered question.
                         scope.launch {
                             delay(350)
                             updated.indexOfFirst { it < 0 }.takeIf { it >= 0 }?.let { current = it }
@@ -311,7 +313,7 @@ private fun SpecRow(title: String, value: String?, flagged: Boolean, active: Boo
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        // Отметка справа: пусто — ещё не ответил, галочка — годится, «!» — не вяжется с задачей.
+        // The mark on the right: empty — not answered yet, a checkmark — fits, "!" — does not fit the task.
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier

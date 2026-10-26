@@ -34,12 +34,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Locale
 
-/** Время на чипе: как его пишет человек и как модель раскладывает его в параметры вызова. */
+/** The time on a chip: how a person writes it and how the model lays it out into the call's parameters. */
 private class AlarmTime(val label: String, val hour: Int, val minute: Int)
 
 private val TIMES = listOf(AlarmTime("6:30", 6, 30), AlarmTime("7:00", 7, 0), AlarmTime("8:15", 8, 15))
 
-// Три коробки сверху вниз — и есть направление: модель → приложение → модель.
+// Three boxes from top to bottom — that is the direction: model → app → model.
 private val HEADERS = listOf(
     "Модель → приложению: вызов",
     "Приложение → модели: результат",
@@ -56,18 +56,18 @@ private val NOTES = listOf(
 private val BUTTONS = listOf("Отправить", "Выполнить в приложении", "Вернуть результат модели", "Сначала")
 
 /**
- * «Вызов инструмента»: пользователь выбирает время будильника и кнопкой проводит один вызов
- * целиком — модель пишет просьбу, приложение её выполняет, результат возвращается модели, и только
- * тогда она отвечает. Видно, что параметры берутся из твоих слов, а руки — у приложения.
+ * "A tool call": the user picks an alarm time and walks one call through with a button — the model writes the
+ * request, the app executes it, the result returns to the model, and only then does it answer. It shows that
+ * the parameters come from your words, while the hands belong to the app.
  */
 @Composable
 internal fun ToolCallScene() {
     var timeIndex by rememberSaveable { mutableIntStateOf(1) }
-    // 0 — ещё не отправили, 1 — модель написала вызов, 2 — приложение вернуло результат, 3 — ответ.
+    // 0 — not sent yet, 1 — the model wrote the call, 2 — the app returned the result, 3 — the answer.
     var step by rememberSaveable { mutableIntStateOf(0) }
     val time = TIMES[timeIndex]
     val clock = String.format(Locale.US, "%02d:%02d", time.hour, time.minute)
-    // Имя, действие, параметры и строка-результат — как у настоящего инструмента будильника в приложении.
+    // The name, the action, the parameters and the result line — as in the app's real alarm tool.
     val contents = listOf(
         "{\"tool\": \"alarm\",\n \"action\": \"set_alarm\",\n \"hour\": ${time.hour}, \"minute\": ${time.minute}}",
         "\"Будильник на $clock открыт\n в приложении часов.\"",
@@ -81,7 +81,7 @@ internal fun ToolCallScene() {
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
-        // Время можно менять на любом шаге: параметры вызова тут же следуют за твоими словами.
+        // The time can be changed at any step: the call's parameters follow your words right away.
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TIMES.forEachIndexed { index, t ->
                 FilterChip(selected = index == timeIndex, onClick = { timeIndex = index }, label = { Text(t.label) })
@@ -129,7 +129,7 @@ internal fun ToolCallScene() {
     }
 }
 
-/** Коробка одного шага. Место под текст занято с самого начала — появление содержимого ничего не сдвигает. */
+/** The box of one step. The space for the text is taken from the start — content appearing moves nothing. */
 @Composable
 private fun CallBox(header: String, content: String, lines: Int, mono: Boolean, shown: Boolean, active: Boolean) {
     val primary = MaterialTheme.colorScheme.primary

@@ -56,7 +56,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Строка панели: что меняется, когда веса переезжают. */
+/** A panel row: what changes when the weights move. */
 private class WeightsFact(val label: String, val mine: String, val vendor: String)
 
 private val FACTS = listOf(
@@ -71,18 +71,19 @@ private val Vendor = ScenePalette[0]
 private val Warn = Color(0xFFF4C2C2)
 
 /**
- * «Открытые веса и API»: пользователь переключает, где лежат веса — у него на сервере или у Meta.
- * Запрос бежит точкой от телефона туда, а панели меняются: кто видит данные, что нужно, как платишь,
- * кто обновляет. В режиме API можно включить contributor-версию — и копия запроса уходит в обучение.
+ * "Open weights and API": the user switches where the weights live — on their own server or at Meta. The
+ * request runs as a dot from the phone to there, and the panels change: who sees the data, what is needed, how
+ * you pay, who updates. In API mode a contributor version can be switched on — and a copy of the request goes
+ * into training.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun OpenWeightsScene() {
     var api by rememberSaveable { mutableStateOf(false) }
     var contributor by rememberSaveable { mutableStateOf(false) }
-    var visited by rememberSaveable { mutableIntStateOf(1) } // бит 0 — «у тебя», бит 1 — «у Meta»
+    var visited by rememberSaveable { mutableIntStateOf(1) } // bit 0 — "yours", bit 1 — "at Meta"
     val copy = api && contributor
-    // 0..1 — запрос летит к модели, 1..2 — ответ обратно (а при contributor копия уходит в обучение).
+    // 0..1 — the request flies to the model, 1..2 — the answer comes back (and with contributor a copy goes into training).
     val trip = remember { Animatable(0f) }
     LaunchedEffect(api, copy) {
         trip.snapTo(0f)
@@ -145,7 +146,7 @@ internal fun OpenWeightsScene() {
             label(measurer, "облако Meta", cloud + Offset(0f, 20.dp.toPx()))
             label(measurer, "обучение", training + Offset(0f, 18.dp.toPx()))
 
-            // Точка-запрос: туда, потом ответ обратно. Копия при contributor отделяется у облака и уходит вправо.
+            // The request dot: there, then the answer back. With contributor a copy separates at the cloud and goes off to the right.
             val t = trip.value
             if (t < 2f) {
                 val dot = if (t <= 1f) lerp(phone, target, t) else lerp(target, phone, t - 1f)
@@ -225,7 +226,7 @@ private fun DrawScope.drawPhone(center: Offset) {
     drawRect(Vendor, topLeft + Offset(inset, inset * 2), Size(body.width - inset * 2, body.height - inset * 4))
 }
 
-/** Стойка из трёх юнитов: так рисуют свой сервер с видеокартой. */
+/** A rack of three units: that is how one's own server with a GPU is drawn. */
 private fun DrawScope.drawServer(center: Offset, active: Boolean, accent: Color) {
     val unit = Size(46.dp.toPx(), 11.dp.toPx())
     val gap = 2.dp.toPx()
@@ -237,7 +238,7 @@ private fun DrawScope.drawServer(center: Offset, active: Boolean, accent: Color)
     }
 }
 
-/** Облако из трёх кругов: сначала круги чуть больше цветом контура, потом белые поверх — получается один силуэт. */
+/** A cloud of three circles: first the circles slightly larger in the outline color, then white ones on top — one silhouette results. */
 private fun DrawScope.drawCloud(center: Offset, active: Boolean, accent: Color) {
     val circles = listOf(
         Offset(-15.dp.toPx(), 4.dp.toPx()) to 11.dp.toPx(),

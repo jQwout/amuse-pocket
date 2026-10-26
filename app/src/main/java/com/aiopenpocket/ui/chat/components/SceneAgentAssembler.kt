@@ -47,12 +47,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
-/** Часть агента: подпись на чипе, что появляется в карточке и чего без неё не хватает. */
+/** A part of the agent: the label on the chip, what appears in the card and what is missing without it. */
 private class AgentPart(val chip: String, val slot: String, val missing: String)
 
-// Те же части, что шаги конструктора в уроке. «Проверку» играет кнопка теста. Хук — такой, какой
-// реально собирается в конструкторе: условие у хука только «всегда» или «инструмент из списка», хука
-// «перед любой записью» там нет.
+// The same parts as the builder steps in the lesson. "Check" is played by the test button. The hook is as it
+// really gets built in the builder: a hook's condition is only "always" or "a tool from the list"; there is
+// no "before any write" hook there.
 private val PARTS = listOf(
     AgentPart("Личность", "Домовёнок · своя память", "без личности агент безымянный и без своего отсека памяти"),
     AgentPart("Инструкции", "«Коротко и по делу»", "без инструкций агент болтает не по делу"),
@@ -82,17 +82,17 @@ private fun replyFor(parts: Int): String {
 }
 
 /**
- * «Собери своего агента»: пользователь тапает части — личность, инструкции, инструменты, режим, хуки —
- * и карточка агента собирается на глазах. Тест «напомни завтра купить хлеб» можно гонять на любом
- * этапе: без инструментов агент только обещает словами, с ними — ставит напоминание (запись идёт без
- * вопроса по умолчанию), с хуком на «Напоминания» — ещё и спрашивает разрешения. Агент — это сумма
- * частей, которые ты уже прошёл.
+ * "Build your agent": the user taps parts — identity, instructions, tools, mode, hooks — and the agent's card
+ * assembles before their eyes. The test "remind me to buy bread tomorrow" can be run at any stage: without
+ * tools the agent only promises in words, with them it sets the reminder (writing goes without asking by
+ * default), with a hook on "Reminders" it also asks for permission. An agent is the sum of the parts you have
+ * already gone through.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun AgentAssemblerScene() {
     var parts by rememberSaveable { mutableIntStateOf(0) }
-    // С какими частями прогнан последний тест; -1 — ещё не гоняли.
+    // Which parts the last test ran with; -1 — not run yet.
     var tested by rememberSaveable { mutableIntStateOf(-1) }
     var pending by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(pending) {
@@ -191,7 +191,7 @@ private fun AgentCard(parts: Int) {
     }
 }
 
-/** Результат теста: ответ агента и что он на самом деле сделал. Строки зарезервированы — панель не прыгает. */
+/** The test result: the agent's answer and what it actually did. The lines are reserved — the panel does not jump. */
 @Composable
 private fun TestPanel(tested: Int, thinking: Boolean, stale: Boolean) {
     val error = MaterialTheme.colorScheme.error
@@ -205,7 +205,7 @@ private fun TestPanel(tested: Int, thinking: Boolean, stale: Boolean) {
             .clip(RoundedCornerShape(14.dp))
             .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(14.dp))
             .padding(10.dp)
-            // Части поменяли после теста — старый результат приглушён, пока не прогонишь заново.
+            // The parts changed after the test — the old result is dimmed until you run it again.
             .alpha(if (stale && !thinking) 0.5f else 1f),
     ) {
         Text(
@@ -228,7 +228,7 @@ private fun TestPanel(tested: Int, thinking: Boolean, stale: Boolean) {
                 minLines = 3,
             )
         }
-        // Что агент сделал на деле: напоминание поставлено — или были только слова.
+        // What the agent did for real: a reminder was set — or there were only words.
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(32.dp)) {
             if (ran) {
                 if (tools) {

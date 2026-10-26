@@ -50,7 +50,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
-/** Что лежит в телефоне, уйдёт ли это провайдеру вместе с вопросом и почему — ровно по тексту урока. */
+/** What lives on the phone, whether it goes to the provider with the question and why — exactly as the lesson says. */
 private class DataItem(val label: String, val leaves: Boolean, val why: String)
 
 private val ITEMS = listOf(
@@ -65,20 +65,20 @@ private val ITEMS = listOf(
 private const val CHIP_HEIGHT = 40
 private const val CHIP_GAP = 6
 
-// Попытки при сбое: 0 — ждёт, 1 — пробуем, 2 — упала, 3 — ответила.
+// Attempts on a failure: 0 — waiting, 1 — trying, 2 — failed, 3 — answered.
 private const val IDLE = 0
 private const val TRYING = 1
 private const val FAILED = 2
 private const val ANSWERED = 3
 
 /**
- * «Что уходит из телефона»: пользователь тапает данные, и каждое либо уезжает к провайдеру модели,
- * либо остаётся дома под замком — с объяснением почему. Ниже — сбой: упала модель — приложение
- * пробует следующую модель того же провайдера; пропала сеть — честная ошибка вместо вечного ожидания.
+ * "What leaves the phone": the user taps data, and each piece either goes to the model's provider or stays at
+ * home under a lock — with an explanation why. Below is a failure: a model went down — the app tries the next
+ * model of the same provider; the network dropped — an honest error instead of an endless wait.
  */
 @Composable
 internal fun DataFlowScene() {
-    var sorted by rememberSaveable { mutableIntStateOf(0) } // биты: какие данные уже тапнули
+    var sorted by rememberSaveable { mutableIntStateOf(0) } // bits: which data have already been tapped
     var last by rememberSaveable { mutableIntStateOf(-1) }
     val all = (1 shl ITEMS.size) - 1
     val primary = MaterialTheme.colorScheme.primary
@@ -92,7 +92,7 @@ internal fun DataFlowScene() {
                 Row {
                     Text("Телефон", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, modifier = Modifier.width(half))
                     Spacer(Modifier.width(gap))
-                    // Запрос видят двое: посредник (OpenRouter) и сама Meta — урок называет обоих.
+                    // Two parties see the request: the intermediary (OpenRouter) and Meta itself — the lesson names both.
                     Text("OpenRouter и Meta", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = primary, modifier = Modifier.width(half))
                 }
                 Box(Modifier.fillMaxWidth().height(((CHIP_HEIGHT + CHIP_GAP) * ITEMS.size + 10).dp)) {
@@ -145,7 +145,7 @@ private fun DataChip(item: DataItem, sorted: Boolean, width: Dp, shift: Dp, onTa
         tween(300),
         label = "chipFill",
     )
-    // Оставшееся дома «дёргается» на месте: хотело бы уехать, но замок не пускает.
+    // What stays at home "twitches" in place: it would like to leave, but the lock does not let it.
     val shake = remember { Animatable(0f) }
     LaunchedEffect(sorted) {
         if (sorted && !item.leaves) {
@@ -172,10 +172,10 @@ private fun DataChip(item: DataItem, sorted: Boolean, width: Dp, shift: Dp, onTa
     }
 }
 
-/** Сбой запроса: какую поломку выбрал ученик — так и проходят попытки по моделям выбранного провайдера. */
+/** A request failure: whichever breakage the learner picked, the attempts go through the models of the chosen provider accordingly. */
 @Composable
 private fun NetworkFailure() {
-    var mode by rememberSaveable { mutableIntStateOf(-1) } // 0 — модель упала, 1 — сеть пропала
+    var mode by rememberSaveable { mutableIntStateOf(-1) } // 0 — a model went down, 1 — the network dropped
     var run by rememberSaveable { mutableIntStateOf(0) }
     val attempts = remember { mutableStateListOf(IDLE, IDLE, IDLE) }
     var done by remember { mutableIntStateOf(0) }

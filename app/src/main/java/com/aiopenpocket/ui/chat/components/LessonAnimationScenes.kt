@@ -55,9 +55,9 @@ import kotlin.math.exp
 import kotlin.random.Random
 
 /**
- * Шаг урока "animation": процедурная сцена вместо видеофайла. Код на Compose весит килобайты, а не
- * мегабайты, работает без сети и может быть интерактивным — урок становится тем, что можно
- * потрогать, а не только посмотреть.
+ * The "animation" lesson step: a procedural scene instead of a video file. Compose code weighs kilobytes,
+ * not megabytes, works without the network and can be interactive — the lesson becomes something you can
+ * touch, not only watch.
  */
 @Composable
 internal fun LessonAnimationCardView(card: DrivenUiCard.LessonAnimationCard) {
@@ -94,7 +94,7 @@ internal fun LessonAnimationCardView(card: DrivenUiCard.LessonAnimationCard) {
             "open_weights" -> OpenWeightsScene()
             "thinking_modes" -> ThinkingModesScene()
             "image_reasoning" -> ImageReasoningScene()
-            // Сюда попадает только урок новее приложения: проверка уроков не пустит неизвестную сцену в сборку.
+            // Only a lesson newer than the app gets here: the lesson check does not let an unknown scene into the build.
             else -> Text(
                 tr("Эта анимация появится в следующей версии приложения.", "This animation will arrive in the next version of the app."),
                 style = MaterialTheme.typography.bodyMedium,
@@ -112,13 +112,13 @@ internal fun LessonAnimationCardView(card: DrivenUiCard.LessonAnimationCard) {
     }
 }
 
-// --- «Токены»: одна мысль по-русски и по-английски рассыпается на кусочки ---
+// --- "Tokens": one thought in Russian and in English falls apart into pieces ---
 
-/** Кусочки — пример, а не вывод настоящего токенизатора: у каждой модели свой словарь. Ведущий пробел — часть токена. */
+/** The pieces are an example, not the output of a real tokenizer: every model has its own vocabulary. A leading space is part of the token. */
 private val RU_TOKENS = listOf("Пос", "овет", "уй", ",", " что", " пригот", "овить", " на", " у", "жин")
 private val EN_TOKENS = listOf("Suggest", " what", " to", " cook", " for", " dinner")
 
-/** Светлые тона, читаемые тёмным текстом на серебре карточки урока в любой теме. */
+/** Light tones, readable as dark text on the lesson card's silver in any theme. */
 internal val ScenePalette = listOf(
     Color(0xFFB9D7F0), Color(0xFFF4C7A1), Color(0xFFC9E4B4),
     Color(0xFFE6C3E8), Color(0xFFF6E3A1), Color(0xFFB8E3DD),
@@ -129,13 +129,13 @@ private const val TOKEN_STEP_MS = 320
 
 @Composable
 private fun TokensScene() {
-    // Сколько кусочков уже «откололось». Сначала русская строка, затем английская — одной шкалой.
+    // How many pieces have "broken off" already. First the Russian line, then the English one — on one scale.
     var run by remember { mutableIntStateOf(0) }
     val split = remember { Animatable(0f) }
     val total = RU_TOKENS.size + EN_TOKENS.size
     LaunchedEffect(run) {
         split.snapTo(0f)
-        kotlinx.coroutines.delay(600) // секунду показываем фразы целиком — иначе не видно, что их режут
+        kotlinx.coroutines.delay(600) // for a second the phrases are shown whole — otherwise it is not visible that they get cut
         split.animateTo(total.toFloat(), tween(durationMillis = total * TOKEN_STEP_MS, easing = LinearEasing))
     }
     val ruSplit = split.value.toInt().coerceAtMost(RU_TOKENS.size)
@@ -174,8 +174,9 @@ private fun TokenRow(label: String, tokens: List<String>, splitCount: Int) {
                 color = MaterialTheme.colorScheme.outline,
             )
         }
-        // Пока кусочек не «откололся», он слит с соседями: без зазора и без своего цвета — читается
-        // как обычная фраза. Отколотый получает цвет и зазор, и фраза на глазах распадается на токены.
+        // Until a piece "breaks off", it is merged with its neighbours: no gap and no color of its own — it reads
+        // as a normal phrase. A broken-off piece gets a color and a gap, and the phrase falls apart into
+        // tokens before your eyes.
         FlowRow(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             tokens.forEachIndexed { index, token ->
                 TokenChip(token = token, split = index < splitCount, color = ScenePalette[index % ScenePalette.size])
@@ -198,7 +199,7 @@ private fun TokenChip(token: String, split: Boolean, color: Color) {
             .padding(horizontal = 6.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Ведущий пробел — тоже часть токена: показываем его точкой, иначе «пробелы идут в счёт» не увидеть.
+        // A leading space is part of the token too: it is shown as a dot, otherwise "spaces count" cannot be seen.
         if (token.startsWith(" ")) {
             Text("·", color = SceneInk.copy(alpha = 0.45f), style = MaterialTheme.typography.bodyLarge)
         }
@@ -206,9 +207,9 @@ private fun TokenChip(token: String, split: Boolean, color: Color) {
     }
 }
 
-// --- «Температура»: столбики вероятностей следующего слова и ползунок ---
+// --- "Temperature": next-word probability bars and a slider ---
 
-/** Варианты продолжения и их «сырые» оценки. Числа иллюстративные: у настоящей модели вариантов тысячи. */
+/** Continuation options and their "raw" scores. The numbers are illustrative: a real model has thousands of options. */
 private val NEXT_WORDS = listOf(
     "бодрость" to 2.2f,
     "привычка" to 1.6f,
@@ -241,8 +242,8 @@ private fun TemperatureScene() {
             ProbabilityBar(word = word, probability = probs[index], highlighted = picked == index)
         }
         Spacer(Modifier.height(4.dp))
-        // Две строки по одной, а не одна склеенная: склейка переносилась на узком экране только при
-        // некоторых значениях, и ползунок прыгал вниз прямо под пальцем.
+        // Two lines, one each, rather than one glued line: the glued one wrapped on a narrow screen only for some
+        // values, and the slider jumped down right under the finger.
         Text(
             text = "Температура: ${String.format(Locale.US, "%.1f", temperature)}",
             style = MaterialTheme.typography.labelLarge,
@@ -288,7 +289,7 @@ private fun TemperatureScene() {
 
 @Composable
 private fun ProbabilityBar(word: String, probability: Float, highlighted: Boolean) {
-    // Плавно, а не скачком: под пальцем на ползунке распределение «течёт» — в этом весь смысл сцены.
+    // Smoothly, not in a jump: under the finger on the slider the distribution "flows" — that is the whole point of the scene.
     val shown by animateFloatAsState(probability, tween(250), label = "prob")
     val barColor by animateColorAsState(
         if (highlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),

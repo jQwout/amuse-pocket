@@ -51,8 +51,9 @@ import com.aiopenpocket.i18n.tr
 import kotlin.math.roundToInt
 
 /**
- * Модель линейки: что берёт на вход и что отдаёт, работает ли в этом приложении и что сказать, когда задача приехала.
- * Тексты — парами ru/en, язык выбирается геттером в момент показа: список инициализируется один раз.
+ * A model of the lineup: what it takes as input and gives as output, whether it works in this app and what to
+ * say when a task arrives. Texts come in ru/en pairs, the language is picked by a getter at display time: the
+ * list is initialized once.
  */
 private class LineupModel(
     private val nameRu: String,
@@ -106,12 +107,12 @@ private val LINEUP = listOf(
     ),
 )
 
-/** Задача и номер модели, которая её берёт. Текст — парой ru/en, выбирается в момент показа. */
+/** A task and the number of the model that takes it. The text is a ru/en pair, picked at display time. */
 private class LineupJob(private val textRu: String, private val textEn: String, val model: Int) {
     val text: String get() = tr(textRu, textEn)
 }
 
-/** Порядок нарочно не совпадает с моделями — задаче есть куда ехать. */
+/** The order deliberately does not match the models — the task has somewhere to travel. */
 private val JOBS = listOf(
     LineupJob("обвести кота на видео", "outline a cat in a video", 2),
     LineupJob("ответить и вызвать инструмент", "answer and call a tool", 0),
@@ -120,7 +121,7 @@ private val JOBS = listOf(
     LineupJob("расшифровать голосовое", "transcribe a voice message", 3),
 )
 
-/** Где на экране лежат карточки — чтобы задача летела от своей кнопки к своей модели. Не состояние: только для расчёта полёта. */
+/** Where the cards lie on screen — so a task flies from its button to its model. Not state: only for computing the flight. */
 private class LineupAnchors {
     var root: LayoutCoordinates? = null
     val jobs = arrayOfNulls<LayoutCoordinates>(JOBS.size)
@@ -130,13 +131,13 @@ private class LineupAnchors {
 private class LineupFlight(val job: Int, val from: Offset, val to: Offset)
 
 /**
- * «Модели Meta»: пользователь нажимает на задачу, и она едет к модели, которая с ней справится; карточка
- * модели загорается и показывает, что берёт на вход и что отдаёт. Отметка «в этом приложении» — у двух
- * моделей, на которых работает приложение. Пять задач — пять разных специалистов.
+ * "Meta models": the user taps a task, and it travels to the model that can handle it; the model's card lights
+ * up and shows what it takes as input and gives as output. The "in this app" mark is on the two models the
+ * app runs on. Five tasks — five different specialists.
  */
 @Composable
 internal fun MetaLineupScene() {
-    var done by rememberSaveable { mutableIntStateOf(0) } // битовая маска задач, уже отданных модели
+    var done by rememberSaveable { mutableIntStateOf(0) } // a bitmask of the tasks already handed to a model
     var lit by rememberSaveable { mutableIntStateOf(-1) }
     var flight by remember { mutableStateOf<LineupFlight?>(null) }
     val anchors = remember { LineupAnchors() }
@@ -217,7 +218,7 @@ internal fun MetaLineupScene() {
                 )
             }
         }
-        // Летящая задача поверх карточек: от кнопки к модели, к концу пути чуть уменьшается — «въезжает» в карточку.
+        // A flying task on top of the cards: from the button to the model; towards the end it shrinks a little — it "drives into" the card.
         flight?.let { f ->
             val p = travel.value
             val at = lerp(f.from, f.to, p)
@@ -286,7 +287,7 @@ private fun ModelCard(model: LineupModel, lit: Boolean, color: Color, modifier: 
                 )
             }
         }
-        // Вход → выход виден всегда, но бледно: загорается вместе с карточкой, когда к ней приехала задача.
+        // Input → output is always visible, but faint: it lights up together with the card when a task reaches it.
         Text(model.io, style = MaterialTheme.typography.bodySmall, color = SceneInk.copy(alpha = if (lit) 1f else 0.55f))
     }
 }

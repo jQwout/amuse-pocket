@@ -57,10 +57,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.random.Random
 
-/** Ящик плана: подпись и место на холсте в долях ширины и высоты. Подпись справа — чтобы не налезала на соседнюю. */
+/** A plan box: a caption and a place on the canvas in fractions of the width and the height. The caption is on the right so it does not overlap the neighbour. */
 private class SketchPart(val label: String, val rect: Rect, val tagRight: Boolean = false)
 
-/** Раскладка одного «броска»: ящики плана, область, которую проверка перерисует, и капли для неё. */
+/** The layout of one "throw": the plan boxes, the area the check will redraw, and the drops for it. */
 private class SketchPicture(val parts: List<SketchPart>, val fix: Rect, val drops: List<Offset>)
 
 private class SketchPrompt(val chip: String, val text: String, val issue: String, val fixNote: String)
@@ -99,7 +99,7 @@ private fun lighthouseSketch(seed: Int): SketchPicture {
     val horizon = rnd.between(0.55f, 0.66f)
     val towerW = rnd.between(0.09f, 0.12f)
     val towerX = rnd.between(0.08f, 0.85f - towerW)
-    // Солнце — по другую сторону от маяка. Доли 0,05 × 0,08 при холсте 16:10 дают ровный круг.
+    // The sun is on the other side from the lighthouse. Fractions 0.05 × 0.08 on a 16:10 canvas give an even circle.
     val sunX = if (towerX > 0.45f) rnd.between(0.15f, 0.35f) else rnd.between(0.6f, 0.85f)
     val sunY = horizon - rnd.between(0.02f, 0.1f)
     val sky = Rect(0f, 0f, 1f, horizon)
@@ -116,14 +116,14 @@ private fun lighthouseSketch(seed: Int): SketchPicture {
 }
 
 /**
- * «Как рисует Muse Image»: пользователь ведёт модель по шагам. «План» — ящики композиции с подписями,
- * «Рисунок» — ящики становятся картинкой, «Проверка» — модель замечает, чего из промпта нет, и
- * перерисовывает только эту область. «Ещё раз» — тот же промпт, но новый план и новая картинка.
+ * "How Muse Image draws": the user leads the model through the steps. "Plan" — composition boxes with
+ * captions, "Drawing" — the boxes become a picture, "Check" — the model notices what from the prompt is missing
+ * and redraws only that area. "Again" — the same prompt, but a new plan and a new picture.
  */
 @Composable
 internal fun ImageReasoningScene() {
     var promptIndex by rememberSaveable { mutableIntStateOf(0) }
-    var stage by rememberSaveable { mutableIntStateOf(0) } // 0 холст, 1 план, 2 рисунок, 3 проверка
+    var stage by rememberSaveable { mutableIntStateOf(0) } // 0 canvas, 1 plan, 2 drawing, 3 check
     var seed by rememberSaveable { mutableIntStateOf(7) }
     var variant by rememberSaveable { mutableIntStateOf(1) }
     var checked by rememberSaveable { mutableStateOf(false) }
@@ -135,7 +135,7 @@ internal fun ImageReasoningScene() {
     val prompt = PROMPTS[promptIndex]
     val picture = remember(promptIndex, seed) { if (promptIndex == 0) catSketch(seed) else lighthouseSketch(seed) }
     val p = phase.value
-    // «Рисунок»: первую треть ящики плана ещё стоят — видно, по какому плану рисуют, потом тают в картинку.
+    // "Drawing": for the first third the plan boxes are still there — it shows which plan is being drawn, then they melt into the picture.
     val reveal = if (stage == 2) ((p - 0.3f) / 0.7f).coerceIn(0f, 1f) else if (stage == 3) 1f else 0f
     val fixK = if (stage == 3) ((p - 0.35f) / 0.65f).coerceIn(0f, 1f) else 0f
     val primary = MaterialTheme.colorScheme.primary
@@ -150,11 +150,11 @@ internal fun ImageReasoningScene() {
         }
         Text("Промпт: «${prompt.text}»", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 10f).clip(RoundedCornerShape(12.dp)).background(Color.White)) {
-            // Слой картинки: проявляется на шаге «Рисунок».
+            // The picture layer: it shows up at the "Drawing" step.
             Canvas(modifier = Modifier.matchParentSize().alpha(reveal)) {
                 if (promptIndex == 0) drawCat(picture, fixK) else drawLighthouse(picture, fixK)
             }
-            // Слой плана и проверки: ящики по одному, потом тают; на проверке — рамка вокруг того, что не так.
+            // The plan and check layer: boxes one by one, then they melt; at the check — a frame around what is wrong.
             Canvas(modifier = Modifier.matchParentSize()) {
                 val dash = PathEffect.dashPathEffect(floatArrayOf(10f, 7f))
                 picture.parts.forEachIndexed { i, part ->
@@ -195,7 +195,7 @@ internal fun ImageReasoningScene() {
                 },
                 modifier = Modifier.weight(1f),
             ) { Text(listOf("1 · План", "2 · Рисунок", "3 · Проверка", "Сначала")[stage]) }
-            // Новое зерно случайности — новый план, и сразу рисунок по нему: тот же промпт, другая картинка.
+            // A new random seed — a new plan, and a drawing from it right away: the same prompt, a different picture.
             OutlinedButton(onClick = { seed = Random.nextInt(); variant++; stage = 2 }) { Text("Ещё раз") }
         }
         Text(
@@ -221,7 +221,7 @@ internal fun ImageReasoningScene() {
 
 private fun Rect.px(s: Size) = Rect(left * s.width, top * s.height, right * s.width, bottom * s.height)
 
-/** Подпись на белой плашке у угла ящика; не вылезает за холст. */
+/** A caption on a white plate at the box's corner; it does not stick out of the canvas. */
 private fun DrawScope.tag(measurer: TextMeasurer, text: String, box: Rect, right: Boolean, color: Color, alpha: Float) {
     val layout = measurer.measure(text, TextStyle(fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = color))
     val pad = 4.dp.toPx()
@@ -242,7 +242,7 @@ private fun DrawScope.drawCat(picture: SketchPicture, fixK: Float) {
     val glass = picture.fix.px(size)
     drawRect(Wood, window.topLeft, window.size)
     drawRect(Brush.verticalGradient(listOf(Color(0xFF7F95A8), Color(0xFFB4C4D0)), glass.top, glass.bottom), glass.topLeft, glass.size)
-    // Капли рисует только проверка — и только в своей области, сверху вниз.
+    // Only the check draws the drops — and only in its area, top to bottom.
     if (fixK > 0f) {
         clipRect(glass.left, glass.top, glass.right, glass.top + glass.height * fixK) {
             picture.drops.forEach { d ->
@@ -283,7 +283,7 @@ private fun DrawScope.drawLighthouse(picture: SketchPicture, fixK: Float) {
     val sun = picture.parts[3].rect.px(size)
     drawRect(Brush.verticalGradient(listOf(Color(0xFF7DB9E8), Color(0xFFCFE8F7)), sky.top, sky.bottom), sky.topLeft, sky.size)
     drawCircle(Color(0xFFFFF1A8), sun.width / 2, sun.center)
-    // Проверка перекрашивает только небо: маяк и море рисуются поверх и не меняются.
+    // The check recolors only the sky: the lighthouse and the sea are drawn on top and do not change.
     if (fixK > 0f) {
         clipRect(sky.left, sky.top, sky.right, sky.top + sky.height * fixK) {
             drawRect(Brush.verticalGradient(listOf(Color(0xFF7B5EA7), Color(0xFFF08A5D), Color(0xFFF9D976)), sky.top, sky.bottom), sky.topLeft, sky.size)

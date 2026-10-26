@@ -47,7 +47,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
-// Цепочка из урока: тезисы → твоя проверка → текст по тезисам.
+// The lesson's chain: theses → your check → a text from the theses.
 private val CHAIN_STATIONS = listOf(
     "Шаг 1 · модель" to "«составь тезисы статьи про наш продукт»",
     "Проверка · ты" to "прочитай тезисы и вычеркни лишнее",
@@ -57,7 +57,7 @@ private const val STATION_H = 100
 private const val STATION_GAP = 10
 private const val PACKET_H = 40
 
-/** Запросы, метка роутера и ветка, куда он их отправит. Ветки — те, что в уроке: по сложности и по теме. */
+/** Requests, the router's label and the branch it sends them to. The branches are the lesson's: by difficulty and by topic. */
 private class RoutedAsk(val text: String, val tag: String, val lane: Int, val result: String)
 
 private val ROUTER_LANES = listOf("Быстрая модель" to "дёшево", "Ветка «доставка»" to "свой промпт", "Большая модель" to "дороже, умнее")
@@ -68,9 +68,9 @@ private val ROUTER_ASKS = listOf(
 )
 
 /**
- * «Цепочка и роутинг» на двух вкладках. В цепочке пользователь жмёт «Дальше», и один и тот же листок
- * съезжает со станции на станцию: выход шага становится входом следующего, а на проверке можно
- * вычеркнуть лишний тезис. В роутинге выбираешь входящий запрос — роутер ставит метку и шлёт его в свою ветку.
+ * "Chain and routing" on two tabs. In the chain the user taps "Next", and the same sheet slides from station
+ * to station: a step's output becomes the next one's input, and at the check an extra thesis can be crossed
+ * out. In routing you pick an incoming request — the router labels it and sends it to its branch.
  */
 @Composable
 internal fun ChainRouterScene() {
@@ -86,12 +86,12 @@ internal fun ChainRouterScene() {
 
 @Composable
 private fun ChainPart() {
-    // 0 — ждём, 1 — тезисы готовы, 2 — на проверке, 3 — дошли до шага 2, 4 — текст готов.
+    // 0 — waiting, 1 — the theses are ready, 2 — at the check, 3 — reached step 2, 4 — the text is ready.
     var phase by rememberSaveable { mutableIntStateOf(0) }
     var struck by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(phase) {
         if (phase == 3) {
-            delay(900) // листок сначала доезжает как вход — и только потом превращается в текст
+            delay(900) // the sheet first arrives as input — and only then turns into text
             phase = 4
         }
     }
@@ -110,7 +110,7 @@ private fun ChainPart() {
     } else {
         buildAnnotatedString {
             append("Тезисы: 1) что умеет продукт 2) кому он нужен ")
-            // Сомнительный тезис помечен красным: его и стоит поймать на проверке.
+            // A doubtful thesis is marked red: that is the one to catch at the check.
             withStyle(SpanStyle(color = error, textDecoration = if (struck) TextDecoration.LineThrough else null)) {
                 append("3) «лучший на рынке»")
             }
@@ -136,7 +136,7 @@ private fun ChainPart() {
                 }
             }
         }
-        // Один и тот же листок едет вниз: что вышло из станции, то и вошло в следующую.
+        // The same sheet travels down: what came out of a station is what went into the next one.
         if (phase > 0) {
             Box(
                 contentAlignment = Alignment.CenterStart,
@@ -198,7 +198,7 @@ private fun ChainPart() {
 private fun RouterPart() {
     var picked by rememberSaveable { mutableIntStateOf(-1) }
     var runs by rememberSaveable { mutableIntStateOf(0) }
-    // 0 — роутер читает, 1 — метка поставлена, 2 — запрос в своей ветке.
+    // 0 — the router is reading, 1 — the label is set, 2 — the request is in its branch.
     var phase by remember { mutableIntStateOf(0) }
     LaunchedEffect(runs) {
         phase = 0

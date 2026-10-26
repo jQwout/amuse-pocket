@@ -43,7 +43,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
-// Пример из урока: «разбери мою почту и удали лишнее». Числа писем — для примера.
+// The lesson's example: "sort out my mail and delete the junk". The email counts are for the example.
 private val GATE_PLAN = listOf(
     "Прочитать входящие за месяц",
     "Отписаться от 12 рассылок",
@@ -52,9 +52,9 @@ private val GATE_PLAN = listOf(
 )
 
 /**
- * «План-мод»: агент показывает план из четырёх шагов, и все они под замком. До «Одобрить»
- * пользователь может вычеркнуть шаг тапом — и это бесплатно. После «ок» замки открываются по очереди,
- * выполняются только одобренные шаги, вычеркнутые агент не трогает.
+ * "Plan mode": the agent shows a four-step plan, and all steps are locked. Before "Approve" the user can cross
+ * out a step with a tap — and that is free. After the "ok" the locks open one by one, only the approved steps
+ * run, and the agent does not touch the crossed-out ones.
  */
 @Composable
 internal fun PlanGateScene() {
@@ -65,7 +65,7 @@ internal fun PlanGateScene() {
         progress = 0
         if (!approved) return@LaunchedEffect
         GATE_PLAN.indices.forEach { i ->
-            // Вычеркнутый шаг пролетаем быстро: его не выполняют, только отмечают пропуск.
+            // A crossed-out step is passed quickly: it is not run, only the skip is marked.
             delay(if (struck and (1 shl i) != 0) 300 else 750)
             progress = i + 1
         }
