@@ -35,7 +35,4 @@ interface FactDao {
 
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insert(fact: FactEntity)
-
-  @Query("DELETE FROM facts WHERE id = :id")
-  suspend fun delete(id: String)
 }

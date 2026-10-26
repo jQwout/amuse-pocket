@@ -72,7 +72,4 @@ interface MessageDao {
   /** Deleting one message (a user action from the chat, not "clear the conversation"). */
   @Query("DELETE FROM messages WHERE id = :id")
   suspend fun deleteById(id: String)
-
-  @Query("DELETE FROM messages WHERE conversationId = :conversationId")
-  suspend fun deleteByConversation(conversationId: String)
 }

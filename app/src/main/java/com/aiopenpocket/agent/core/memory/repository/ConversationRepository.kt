@@ -8,13 +8,11 @@ import com.aiopenpocket.agent.core.memory.dao.MessageDao
 import com.aiopenpocket.agent.core.memory.entity.ConversationEntity
 import com.aiopenpocket.agent.core.memory.entity.ConversationTagEntity
 import com.aiopenpocket.agent.core.memory.entity.MessageEntity
-import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.core.memory.model.Conversation
 import com.aiopenpocket.agent.core.memory.model.Message
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import java.util.UUID
@@ -154,12 +152,6 @@ class ConversationRepository(
       list.asReversed().map { it.toDomain() }
     }.flowOn(Dispatchers.Default)
 
-  suspend fun getRecentMessages(
-    conversationId: String,
-    limit: Int = LlmContextConfig.FULL_HISTORY_LIMIT,
-  ): List<Message> =
-    messageDao.getRecent(conversationId, limit).reversed().map { it.toDomain() }
-
   suspend fun getAllMessages(conversationId: String): List<Message> =
     messageDao.getAllOrdered(conversationId).map { it.toDomain() }
 
@@ -226,15 +218,6 @@ class ConversationRepository(
   suspend fun deleteMessage(messageId: String) {
     messageDao.deleteById(messageId)
   }
-
-  suspend fun deleteMessages(conversationId: String) {
-    messageDao.deleteByConversation(conversationId)
-  }
-
-  suspend fun getTutorialConversation(): Conversation? =
-    conversationDao.getAll()
-      .map { list -> list.find { it.isTutorial }?.toDomain(emptyList()) }
-      .first()
 
   private fun ConversationEntity.toDomain(tags: List<String>) = Conversation(
     id = id,

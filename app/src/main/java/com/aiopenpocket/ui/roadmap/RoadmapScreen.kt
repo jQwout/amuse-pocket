@@ -87,8 +87,6 @@ data class RoadmapLevel(
   val icon: ImageVector,
   val titleEn: String,
   val descriptionEn: String,
-  /** Markdown theory kept as reference for the in-chat lesson script. Not rendered directly. */
-  val theory: String = "",
 ) {
   val title: String get() = tr(titleRu, titleEn)
   val description: String get() = tr(descriptionRu, descriptionEn)

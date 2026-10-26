@@ -3,8 +3,8 @@ package com.aiopenpocket.agent.core.llm
 // @trace streaming-llm-chat-6595a1
 
 /**
- * Budget for a single LLM request. Llama 3.1 supports ~128K tokens; we reserve headroom
- * for system prompt, tool schemas, and the model reply.
+ * Budget for a single LLM request, with headroom reserved for the system prompt, tool schemas and the
+ * model reply.
  */
 object LlmContextConfig {
   /** Verbatim messages kept from the start of the dialog (topic / goals). */
@@ -12,9 +12,6 @@ object LlmContextConfig {
 
   /** Verbatim messages kept from the end of the dialog (recent context). */
   const val TAIL_MESSAGE_COUNT = 40
-
-  /** Max messages loaded when the dialog fits in head + tail without a gap. */
-  const val FULL_HISTORY_LIMIT = 500
 
   const val RELEVANT_FACTS_LIMIT = 5
   const val EPISODES_LIMIT = 5
