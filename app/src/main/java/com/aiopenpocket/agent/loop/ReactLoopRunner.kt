@@ -77,10 +77,11 @@ class ReactLoopRunner(
   private val memoryRepository: MemoryRepository,
   private val log: AgentLog,
   private val agentHookRepository: AgentHookRepository,
-  // Без значения по умолчанию СОЗНАТЕЛЬНО: `= ToolApprovalCoordinator()` создавал бы приватный
-  // экземпляр, если DI однажды не подставит общий синглтон, — и тогда UI резолвил бы аппрувы в один
-  // объект, а цикл ждал бы другой. Отказ был бы не громким, а тихим: каждый запрос подтверждения
-  // просто висел бы до своего двухминутного таймаута и превращался в deny. Пусть лучше не соберётся.
+  // No default value ON PURPOSE: `= ToolApprovalCoordinator()` would create a private instance if DI
+  // ever failed to supply the shared singleton — then the UI would resolve approvals in one object
+  // while the loop waited on another. The failure would be quiet, not loud: every confirmation
+  // request would just hang until its two-minute timeout and turn into a deny. Better that it does
+  // not compile.
   private val toolApprovalCoordinator: ToolApprovalCoordinator,
 ) {
 
@@ -124,8 +125,9 @@ class ReactLoopRunner(
   ): AgentResult {
     val toolTrace = mutableListOf<ToolTrace>()
     var accumulatedText = ""
-    // Текст всех витков подряд — чтобы на лимите витков вернуть НЕпустой ответ (последний виток часто =
-    // только tool_call без текста). На нормальном финише возвращаем итог последнего витка как есть.
+    // The text of all iterations in a row — so that at the iteration limit we return a NON-empty answer
+    // (the last iteration is often just a tool_call without text). On a normal finish we return the
+    // last iteration's result as is.
     val transcript = StringBuilder()
     var finished = false
     var lastIteration = 0
@@ -170,8 +172,8 @@ class ReactLoopRunner(
 
     runLoop@ for (iteration in 1..maxIterations) {
       lastIteration = iteration
-      // Текст и tool-call копятся в рамках одной итерации (одного хода модели). Сбрасываем в начале:
-      // преамбула перед tool-call не должна склеиваться с финальным ответом следующей итерации.
+      // Text and tool calls accumulate within one iteration (one model turn). Reset at the start: the
+      // preamble before a tool call must not stick to the next iteration's final answer.
       accumulatedText = ""
       val pendingToolCalls = mutableListOf<StreamEvent.ToolCall>()
       var streamError: String? = null
@@ -198,8 +200,8 @@ class ReactLoopRunner(
               emit(AgentEvent.TextDelta(chunk.content))
             }
             is StreamEvent.ToolCall -> {
-              // Не выполняем сразу — копим все вызовы хода, чтобы оформить их ОДНИМ assistant-сообщением
-              // с массивом tool_calls (этого требует протокол при нескольких параллельных вызовах).
+              // Do not execute right away — collect all the calls of the turn to send them as ONE assistant
+              // message with a tool_calls array (the protocol requires this for parallel calls).
               pendingToolCalls += chunk
             }
             is StreamEvent.Finish -> if (pendingToolCalls.isEmpty()) finished = true
@@ -230,13 +232,13 @@ class ReactLoopRunner(
 
       log.d(TAG, "iter $iteration: ${pendingToolCalls.size} tool-call(s) [${pendingToolCalls.joinToString { it.name }}]")
       emit(AgentEvent.StateChanged(AgentState.EXECUTING_TOOL))
-      // Скоуп мини-агента реализован только через то, какие schemas показаны модели (tools) —
-      // ToolExecutor сам по себе резолвит имя против ГЛОБАЛЬНОГО ToolRegistry. Без этой проверки
-      // галлюцинация модели (или унаследованное из истории имя тула от другого агента) выполнилась
-      // бы, даже если этот tool не входил в scoped-набор текущего хода.
+      // A mini-agent's scope is implemented only through which schemas the model is shown (tools) —
+      // ToolExecutor itself resolves a name against the GLOBAL ToolRegistry. Without this check a
+      // model hallucination (or a tool name inherited from another agent's history) would execute even
+      // if the tool was not in the current turn's scoped set.
       val allowedToolNames = tools.map { it.function.name }.toSet()
-      // Одно assistant-сообщение со всеми вызовами хода. Преамбулу кладём в content, чтобы на следующей
-      // итерации модель видела собственный текст, предшествовавший вызовам.
+      // One assistant message with all the calls of the turn. The preamble goes into content so that on
+      // the next iteration the model sees its own text that preceded the calls.
       messages += ChatMessage(
         role = "assistant",
         content = accumulatedText.ifBlank { null },
@@ -251,7 +253,7 @@ class ReactLoopRunner(
         },
       )
 
-      // Сохраняем преамбулу этого витка в общий транскрипт (на случай остановки по лимиту витков).
+      // Keep this iteration's preamble in the overall transcript (in case we stop at the iteration limit).
       if (accumulatedText.isNotBlank()) {
         if (transcript.isNotEmpty()) transcript.append("\n\n")
         transcript.append(accumulatedText)
@@ -320,8 +322,8 @@ class ReactLoopRunner(
         )
         emit(AgentEvent.ToolCompleted(tc.name, result, iteration, tc.arguments))
 
-        // Эпизодическая память — побочный эффект «по возможности»: сбой записи (БД занята/полна) не
-        // должен ронять уже успешный ход.
+        // Episodic memory is a best-effort side effect: a write failure (DB busy/full) must not bring down
+        // an otherwise successful turn.
         runCatching {
           memoryRepository.saveEpisode(
             type = "tool_call",
@@ -337,7 +339,7 @@ class ReactLoopRunner(
           )
         }.onFailure { log.w(TAG, "saveEpisode failed for ${tc.name}: ${it.message}") }
 
-        // Каждый tool_call должен получить ровно один tool-ответ с тем же id.
+        // Every tool_call must get exactly one tool response with the same id.
         messages += ChatMessage(
           role = "tool",
           toolCallId = tc.id,
@@ -354,17 +356,17 @@ class ReactLoopRunner(
       if (toolLoopStopped || toolBudgetExhausted) break@runLoop
     }
 
-    // Либо модель ответила без инструментов (finished), либо упёрлись в лимит шагов/tool-call бюджет —
-    // во всех случаях отдаём накопленный текст и трейс; терминальное событие выберет вызывающий.
+    // Either the model answered without tools (finished), or we hit the step limit/tool-call budget —
+    // in every case we return the accumulated text and trace; the caller picks the terminal event.
     if (toolBudgetExhausted) {
       log.w(TAG, "⚠ tool-call budget exhausted maxToolCalls=$maxToolCalls")
     } else if (!finished) {
       log.w(TAG, "⚠ exhausted maxIterations=$maxIterations")
     }
-    // На лимите отдаём транскрипт всех витков (а не возможно-пустой текст последнего); на финише — итог.
+    // At the limit return the transcript of all iterations (not the possibly empty last text); on a finish — the result.
     val finalText = if (finished) accumulatedText else transcript.toString().trim().ifBlank { accumulatedText }
     fireHook(HookEvent.ON_COMPLETE, HookContext(iteration = lastIteration))
-    // hitIterationLimit=!finished — единственный источник «упёрлись в лимит» для GOAL-фолбэка (a hook
+    // hitIterationLimit=!finished is the only "hit the limit" source for the GOAL fallback (a hook
     // STOP also lands here with hitIterationLimit=true: it halted before a model-driven finish, same
     // as exhausting maxIterations, so GOAL's existing partial-result fallback applies unchanged). A
     // tool-budget stop ALSO leaves finished=false (this iteration had pending tool calls, so it never
@@ -437,18 +439,18 @@ class ReactLoopRunner(
    * could ever answer) denies immediately without ever registering with [toolApprovalCoordinator] —
    * no point publishing a request nobody will see and paying its timeout for nothing. Otherwise emits
    * [AgentEvent.ToolApprovalRequired] (so the chat UI can show a modal/bar) and suspends on the
-   * coordinator; the coordinator's own two-minute timeout resolves to a deny, and «Стоп» cancels this
+   * coordinator; the coordinator's own two-minute timeout resolves to a deny, and "Stop" cancels this
    * coroutine (the coordinator's `finally` cleans up) — never a hang, never a silent execute.
    *
-   * Уход приложения в фон запрос НЕ отклоняет: ход продолжает жить в TurnManager, и вернувшийся за
-   * минуту пользователь ещё может нажать «Разрешить». Отдельного сигнала «ушли в фон», который звал
-   * бы [ToolApprovalCoordinator.denyAllPending], в приложении нет (ForegroundState — только опрос для
-   * пуша) — раньше этот KDoc обещал обратное.
+   * The app going to the background does NOT deny the request: the turn keeps living in TurnManager,
+   * and a user who comes back within a minute can still tap "Allow". There is no separate "went to
+   * the background" signal in the app that would call [ToolApprovalCoordinator.denyAllPending]
+   * (ForegroundState is only polled for the push) — this KDoc used to promise the opposite.
    *
-   * Одобрение снимает вопрос хука, но не отменяет предпросмотр: в [ExecutionMode.PREVIEW] всё, кроме
-   * чтения, и после «Разрешить» только имитируется — иначе проверка черновика агента в конструкторе
-   * с хуком «Требовать подтверждение» по-настоящему ставила бы будильники и писала файлы, хотя
-   * предпросмотр обещает обратное.
+   * Approval lifts the hook's question but does not cancel the preview: in [ExecutionMode.PREVIEW]
+   * everything except reading is still only simulated after "Allow" — otherwise testing an agent draft
+   * in the builder with a "Require confirmation" hook would really set alarms and write files, even
+   * though the preview promises the opposite.
    */
   private suspend fun awaitApprovalAndExecute(
     request: ToolApprovalRequest,
@@ -472,7 +474,7 @@ class ReactLoopRunner(
         toolExecutor.execute(request.toolName, request.arguments)
       }
     } else {
-      // Bare «was not approved» read to the model like a missing Android permission: after «Отклонить»
+      // Bare "was not approved" read to the model like a missing Android permission: after "Decline"
       // it told the user to enable mail in Settings. Spell out that this was the user's choice.
       ToolResult.Error(
         "The user did not approve '${request.toolName}' in the chat (declined it or did not answer in time). " +

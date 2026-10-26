@@ -11,12 +11,12 @@ import kotlinx.coroutines.asContextElement
 import kotlin.coroutines.CoroutineContext
 
 /**
- * Контекст текущего хода агента (диалог + мини-агент) для тулз, которым он нужен (heartbeat пишет
- * результат в «свой» диалог; [com.aiopenpocket.agent.tools.MemoryTools] namespace-скоупит
- * facts — Task 5). Хранится thread-local и прокидывается через coroutine-context:
- * [com.aiopenpocket.agent.loop.TurnManager] гоняет ходы РАЗНЫХ диалогов параллельно, поэтому
- * глобальный volatile отдал бы тулу чужой conversationId. [contextElement] привязывает значение к
- * корутине хода — тул-вызовы внутри неё читают именно свой контекст, на каком бы потоке ни возобновились.
+ * Context of the current agent turn (conversation + mini-agent) for the tools that need it (heartbeat
+ * writes its result into "its own" conversation; [com.aiopenpocket.agent.tools.MemoryTools] scopes
+ * facts by namespace — Task 5). It is stored thread-local and carried through the coroutine context:
+ * [com.aiopenpocket.agent.loop.TurnManager] runs turns of DIFFERENT conversations in parallel, so a
+ * global volatile would hand a tool someone else's conversationId. [contextElement] binds the value to
+ * the turn's coroutine — tool calls inside it read their own context, whatever thread they resume on.
  *
  * [Ctx] carries the resolved [AgentDefinition] snapshot itself (not just its id): the orchestrator
  * already resolved it once via `PrePromptAssembler.PromptContext.agent`, and tools must read that
@@ -37,11 +37,11 @@ class TurnContextHolder() {
   /** Convenience for callers that only need the id (e.g. [com.aiopenpocket.agent.tools.HeartbeatTool] persisting `HeartbeatEntity.agentId`). */
   val agentId: String? get() = agent?.id
 
-  /** Обернуть ход: `withContext(holder.contextElement(convId, agent)) { reactLoopRunner.run(...) }`. */
+  /** Wrap a turn: `withContext(holder.contextElement(convId, agent)) { reactLoopRunner.run(...) }`. */
   fun contextElement(conversationId: String?, agent: AgentDefinition?): CoroutineContext =
     threadLocal.asContextElement(Ctx(conversationId, agent))
 
-  /** Прямая установка на текущем потоке — для тестов и синхронных путей. */
+  /** Sets the value directly on the current thread — for tests and synchronous paths. */
   fun set(conversationId: String?, agent: AgentDefinition?) {
     threadLocal.set(Ctx(conversationId, agent))
   }

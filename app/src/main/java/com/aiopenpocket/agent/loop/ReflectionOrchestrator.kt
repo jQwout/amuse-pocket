@@ -62,15 +62,15 @@ class ReflectionOrchestrator(
     provider: LlmProvider,
     executionMode: ExecutionMode = ExecutionMode.LIVE,
   ): Flow<AgentEvent> = agentTurnFlow(log, TAG, REFLECTION_FAILED) {
-    // Каждый TextDelta зеркалим в transcript, чтобы сохранённое сообщение совпало с тем, что
-    // пользователь видел в стриме (черновик + критика + итог), а не только с финальным ответом.
+    // Every TextDelta is mirrored into the transcript so the saved message matches what the user saw
+    // in the stream (draft + critique + result), not only the final answer.
     val transcript = StringBuilder()
     val tap: suspend (AgentEvent) -> Unit = { ev ->
       if (ev is AgentEvent.TextDelta) transcript.append(ev.content)
       send(ev)
     }
-    // Общий выход по ошибке фазы: ERROR-состояние от ReactLoopRunner превращаем в терминальное
-    // событие ошибки, а не в мнимый «успех». Досрочный выход из хода — return@agentTurnFlow.
+    // Common exit on a phase error: the ERROR state from ReactLoopRunner becomes a terminal error event,
+    // not a fake "success". An early exit from the turn is return@agentTurnFlow.
     suspend fun emitError(message: String?) {
       send(AgentEvent.StateChanged(AgentState.ERROR))
       send(AgentEvent.Error(message ?: REFLECTION_FAILED))
@@ -79,22 +79,23 @@ class ReflectionOrchestrator(
     val context = prePromptAssembler.assemble(conversationId, userMessage)
     log.d(TAG, "▶ reflection conv=$conversationId msg=\"${userMessage.take(60)}\"")
 
-    // Скоуп мини-агента/custom agent — те же scoped schemas + agent snapshot, что AgentLoopOrchestrator
-    // передаёт обычному чат-ходу. Раньше обе фазы (draft/revise) получали registry.getAllSchemas() без
-    // agent — REFLECT-ход custom агента обходил бы его toolNames/skillIds allowlist целиком.
+    // The mini-agent/custom agent scope — the same scoped schemas + agent snapshot that
+    // AgentLoopOrchestrator passes to a normal chat turn. Both phases (draft/revise) used to get
+    // registry.getAllSchemas() without the agent — a custom agent's REFLECT turn would bypass its
+    // toolNames/skillIds allowlist entirely.
     val tools = context.toolNames?.let { registry.getSchemasFor(it) } ?: registry.getAllSchemas()
 
-    // 1. DRAFT — обычный ReAct-цикл со scoped-набором тулов. context.history уже заканчивается
-    // текущим сообщением пользователя (его персистит вызывающий до execute()).
+    // 1. DRAFT — a normal ReAct loop with the scoped tool set. context.history already ends with the
+    // current user message (the caller persists it before execute()).
     tap(AgentEvent.StateChanged(AgentState.STREAMING))
     tap(AgentEvent.TextDelta("✍️ **Черновик**\n"))
     val draftMessages = mutableListOf(ChatMessage(role = "system", content = context.systemPrompt))
     draftMessages += context.history.map { it.toChatMessage() }
-    // Тот же snapshot агента, что видят scoped tools/schemas, должны видеть и memory/file-тулы
-    // внутри этого хода (Task 5) — без этой обёртки TurnContextHolder остался бы пустым на
-    // протяжении всего REFLECT-хода, и remember_fact/search_memory работали бы по ГЛОБАЛЬНОМУ
-    // пространству имён даже для агента со своим namespace (тот же класс дыры, что и REFLECT
-    // tool-scope до фикса в Task 4, только для памяти, а не allowlist тулов).
+    // The memory/file tools inside this turn must see the same agent snapshot that the scoped
+    // tools/schemas see (Task 5) — without this wrapper TurnContextHolder would stay empty for the
+    // whole REFLECT turn, and remember_fact/search_memory would work in the GLOBAL namespace even for
+    // an agent with its own namespace (the same class of hole as the REFLECT tool scope before the fix
+    // in Task 4, only for memory instead of the tool allowlist).
     val draft = withContext(turnContextHolder.contextElement(conversationId, context.agent)) {
       reactLoopRunner.run(
         conversationId, draftMessages, tools, provider,
@@ -102,18 +103,19 @@ class ReflectionOrchestrator(
       )
     }
     log.d(TAG, "draft len=${draft.text.length}")
-    // ReactLoopRunner на сбое стрима не бросает, а возвращает state=ERROR. Не проглатываем: как и
-    // обычный чат-цикл, поднимаем ошибку наружу и не тратим critique/revise на пустой черновик.
+    // ReactLoopRunner does not throw on a stream failure; it returns state=ERROR. We do not swallow it:
+    // like the normal chat loop, we raise the error and do not spend critique/revise on an empty draft.
     if (draft.state == AgentState.ERROR) {
       return@agentTurnFlow emitError(draft.errorMessage)
     }
 
-    // 2. CRITIQUE — один tool-less вызов: назвать конкретные слабые места черновика.
+    // 2. CRITIQUE — a single tool-less call: name the concrete weak spots of the draft.
     tap(AgentEvent.TextDelta("\n\n🔍 **Критика**\n"))
     val critique = runCritic(userMessage, draft.text, provider) { tap(it) }
 
-    // 3. REVISE — снова общий цикл, но только с тулами чтения и карточкой (см. reviseTools): черновик
-    // свои действия уже выполнил по-настоящему, правка переписывает ТЕКСТ, а не повторяет дела.
+    // 3. REVISE — the shared loop again, but only with reading tools and the card (see reviseTools): the
+    // draft has already performed its actions for real; the revision rewrites the TEXT, it does not
+    // repeat the deeds.
     tap(AgentEvent.TextDelta(FINAL_HEADING))
     val reviseMessages = mutableListOf(ChatMessage(role = "system", content = context.systemPrompt))
     reviseMessages += context.history.map { it.toChatMessage() }
@@ -131,9 +133,10 @@ class ReflectionOrchestrator(
     if (revised.state == AgentState.ERROR) {
       return@agentTurnFlow emitError(revised.errorMessage)
     }
-    // Пустой финал (revise не дал ни текста, ни карточки): декоративные заголовки ✍/🔍/✨ делают
-    // transcript непустым, поэтому blank-гейт resolveCompletedTurn для REFLECT не сработал бы — юзер
-    // получил бы три заголовка без содержимого. Гасим тем же blank-error + «Повторить», что и обычный ход.
+    // An empty final (revise gave neither text nor a card): the decorative headings ✍/🔍/✨ make the
+    // transcript non-empty, so resolveCompletedTurn's blank gate would not fire for REFLECT — the user
+    // would get three headings with no content. Handle it with the same blank error + "Retry" as a
+    // normal turn.
     val revisedHasCard = revised.toolTrace.any { it.toolName == RENDER_CARD_TOOL }
     if (revised.text.isBlank() && !revisedHasCard) {
       return@agentTurnFlow emitError(TurnTexts.BLANK_REPLY_ERROR)
@@ -144,18 +147,19 @@ class ReflectionOrchestrator(
       AgentEvent.Completed(
         AgentResult(
           text = transcript.toString(),
-          // Карточки (render_card) берём только из фазы правки: черновик — выброшенный, его
-          // карточки не должны отрисоваться как финальные. Остальной трейс черновика оставляем для
-          // прозрачности (видно, чем агент пользовался на первом проходе). Критика тулы не вызывает.
+          // Cards (render_card) come only from the revise phase: the draft is discarded, its cards must
+          // not render as final ones. The rest of the draft's trace is kept for transparency (it shows
+          // what the agent used on the first pass). The critique calls no tools.
           toolTrace = draft.toolTrace.filterNot { it.toolName == RENDER_CARD_TOOL } + revised.toolTrace,
           state = AgentState.FINISHED,
-          // Число фаз (draft → critique → revise), не LLM-раундов — поле только для отладочного лога.
+          // The number of phases (draft → critique → revise), not LLM rounds — the field is only for the debug log.
           iterations = 3,
         ),
       ),
     )
-    // Как и обычный чат-ход: заголовок/резюме/теги — отдельно от хода (см. annotateInBackground), иначе
-    // лишний вызов модели держал бы ход и foreground-сервис, а runCatching глотал бы отмену.
+    // As with a normal chat turn: title/summary/tags are produced outside the turn (see
+    // annotateInBackground), otherwise an extra model call would keep the turn and the foreground
+    // service alive, and runCatching would swallow cancellation.
     conversationAnnotator.annotateInBackground(conversationId) {
       log.w(TAG, "annotate failed for $conversationId: ${it.message}")
     }
@@ -178,15 +182,15 @@ class ReflectionOrchestrator(
     )
     val critique = StringBuilder()
     var streamError: String? = null
-    // Критик без инструментов: это чистое рассуждение над текстом, тулы ему не нужны.
+    // The critic has no tools: it is pure reasoning over text and needs none.
     llmClient.streamChat(messages, emptyList(), provider).collect { chunk ->
       when (chunk) {
         is StreamEvent.TextDelta -> {
           critique.append(chunk.content)
           emit(AgentEvent.TextDelta(chunk.content))
         }
-        // Не глотаем сбой стрима на фазе критики: бросаем, чтобы внешний catch поднял ту же
-        // терминальную ошибку, что и для draft/revise.
+        // Do not swallow a stream failure in the critique phase: throw, so the outer catch raises the same
+        // terminal error as for draft/revise.
         is StreamEvent.Error -> streamError = chunk.message
         else -> {}
       }
@@ -197,18 +201,19 @@ class ReflectionOrchestrator(
 
   /**
    * The revise phase's tool set: [scoped] narrowed to `render_card` plus tools that can do nothing
-   * but read. Раньше правка получала тот же набор, что и черновик, а инструкция велела «вызвать
-   * нужный инструмент заново» — и черновик, уже создавший событие или поставивший напоминание по-
-   * настоящему (LIVE), повторял это второй раз. Правка переписывает текст; всё, что меняет мир,
-   * черновик уже сделал.
+   * but read. The revision used to get the same set as the draft, while the instruction said "call
+   * the needed tool again" — and a draft that had already created an event or set a reminder for
+   * real (LIVE) did it a second time. The revision rewrites text; everything that changes the world
+   * the draft has already done.
    *
-   * «Только читает» проверяется по КАЖДОМУ действию из `action`-enum схемы через
-   * [com.aiopenpocket.agent.core.mcp.Tool.riskFor], а не по потолку `riskClass`: у части тулов
-   * (memory_tool, heartbeat) потолок занижен до READ при пишущих действиях, и он один пропустил бы
-   * `remember_fact`/`cancel`. Тул со смешанными действиями (calendar: list + delete) в правку не
-   * попадает целиком — схема не умеет показать модели половину enum'а. Тул с параметром `action`
-   * без enum'а не классифицировать честно — его тоже не даём. Рантайм-гейт ReactLoopRunner
-   * (allowedToolNames) отклонит любой вызов вне этого списка, даже если модель его «вспомнит».
+   * "Read-only" is checked for EVERY action of the schema's `action` enum through
+   * [com.aiopenpocket.agent.core.mcp.Tool.riskFor], not by the `riskClass` ceiling: some tools
+   * (memory_tool, heartbeat) have the ceiling lowered to READ while having writing actions, and the
+   * ceiling alone would let `remember_fact`/`cancel` through. A tool with mixed actions (calendar:
+   * list + delete) is left out of the revision entirely — a schema cannot show the model half an
+   * enum. A tool with an `action` parameter without an enum cannot be classified honestly — it is not
+   * given either. ReactLoopRunner's runtime gate (allowedToolNames) rejects any call outside this list,
+   * even if the model "remembers" it.
    */
   private fun reviseTools(scoped: List<FunctionSchema>): List<FunctionSchema> = scoped.filter { schema ->
     val name = schema.function.name
@@ -235,7 +240,7 @@ class ReflectionOrchestrator(
     appendLine("Критика черновика:")
     appendLine(critique)
     appendLine()
-    // Карточки черновика — не «действия»: они выбрасываются и строятся заново (см. ниже).
+    // The draft's cards are not "actions": they are thrown away and built again (see below).
     val draftActions = draftTrace.filterNot { it.toolName == RENDER_CARD_TOOL }
     if (draftActions.isNotEmpty()) {
       appendLine(
@@ -261,7 +266,7 @@ class ReflectionOrchestrator(
     )
   }
 
-  /** «- calendar.create_event — успешно» / «- email.compose — ошибка: …» — одна строка на вызов черновика. */
+  /** "- calendar.create_event — success" / "- email.compose — error: …" — one line per draft call. */
   private fun describeDraftCall(trace: ToolTrace): String {
     val action = trace.arguments.string("action")
     val label = if (action != null) "${trace.toolName}.$action" else trace.toolName
@@ -276,14 +281,14 @@ class ReflectionOrchestrator(
     private const val TAG = "Reflection"
     private const val REFLECTION_FAILED = "Рефлексия не получилась — попробуй ещё раз."
 
-    /** Хватает на суть ошибки инструмента; длинный стек в промпте правки только мешал бы. */
+    /** Enough for the gist of a tool error; a long stack trace in the revise prompt would only get in the way. */
     private const val MAX_ERROR_CHARS = 160
 
     /**
-     * Заголовок финальной части в сохранённом транскрипте REFLECT. Сообщение хранится целиком
-     * (черновик + критика + итог) — именно это пользователь смотрит в чате после хода. Тому, кто
-     * собирает историю для СЛЕДУЮЩИХ ходов, достаточно `text.substringAfterLast(FINAL_HEADING)`:
-     * черновик и критика модели в контексте не нужны и только раздувают его.
+     * Heading of the final part in a saved REFLECT transcript. The message is stored in full (draft +
+     * critique + result) — that is what the user sees in the chat after the turn. Whoever assembles
+     * the history for NEXT turns only needs `text.substringAfterLast(FINAL_HEADING)`: the draft and
+     * the critique are not needed in the model's context and would only bloat it.
      */
     const val FINAL_HEADING = REFLECTION_FINAL_HEADING
 
