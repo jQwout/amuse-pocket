@@ -4,14 +4,22 @@ package com.aiopenpocket.ui.settings
 // @trace vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53
 
 import com.aiopenpocket.agent.core.identity.ChatFontScale
+import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.llm.activeLlmProvider
 import com.aiopenpocket.ui.theme.ThemeMode
 
 data class SettingsUiState(
   val openRouterKey: String = "",
-  /** Конкретная модель Meta ("AUTO" — по приоритету из каталога). */
+  /** Ключ Meta Model API. Непустой — запросы идут напрямую в Meta (см. [activeLlmProvider]). */
+  val metaKey: String = "",
+  /** Модель маршрута OpenRouter ("AUTO" — по приоритету из каталога). */
   val selectedModel: String = "AUTO",
-  /** Модели Meta из каталога OpenRouter, отсортированные по приоритету — опции для выбора. */
-  val availableModels: List<String> = emptyList(),
+  /** Модель прямого маршрута Meta — свой выбор, см. SettingsRepository.getSelectedModel. */
+  val selectedMetaModel: String = "AUTO",
+  /** Модели Meta из каталога OpenRouter, отсортированные по приоритету. */
+  val openRouterModels: List<String> = emptyList(),
+  /** Модели прямого Meta Model API (статичный каталог), отсортированные по приоритету. */
+  val metaModels: List<String> = emptyList(),
   val personaId: String = "sharp_partner",
   val personas: List<String> = emptyList(),
   /** Лимит витков гоал-мода (петля ReAct до достижения цели). */
@@ -23,7 +31,21 @@ data class SettingsUiState(
   /** Расход за последнюю неделю. `null` — ещё не прочитан с диска. */
   val usage: UsageSummary? = null,
   val saved: Boolean = false,
-)
+) {
+  /**
+   * Куда пойдут запросы с ТЕМИ ключами, что сейчас в полях, — ещё до «Сохранить»: экран сразу
+   * показывает, что изменит нажатие, и список моделей переключается вместе со строкой маршрута.
+   */
+  val provider: LlmProvider get() = activeLlmProvider(metaKey)
+
+  /** Опции селектора модели — каталог текущего [provider]. */
+  val availableModels: List<String>
+    get() = if (provider == LlmProvider.META) metaModels else openRouterModels
+
+  /** Выбранная модель текущего [provider]. */
+  val currentModel: String
+    get() = if (provider == LlmProvider.META) selectedMetaModel else selectedModel
+}
 
 /**
  * Расход за период — то, что видит пользователь и по чему считаются тарифы.

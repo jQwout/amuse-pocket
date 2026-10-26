@@ -100,10 +100,10 @@ class OpenAiCompatClient(
           stream = true,
           temperature = p.temperature,
           topP = p.topP,
-          // Цену в долларах называет OpenRouter, и только когда её попросили. Другой провайдер
-          // (следующим станет прямой Meta Model API) может этого поля не знать, а слать его туда —
-          // просить строгий API отказать по неизвестному ключу; та же осторожность, что с
-          // type:"function" у тулов.
+          // Цену в долларах называет OpenRouter, и только когда её попросили. В запросе прямого Meta
+          // Model API такого поля нет, а на неподдерживаемые поля Meta отвечает 400 (в описании
+          // протокола их целый список); та же осторожность, что с type:"function" у тулов. Цену Meta
+          // считаем сами — см. metaListPriceUsd.
           usage = if (p.name == LlmProvider.OPENROUTER) UsageRequest() else null,
         )
         val bodyJson = json.encodeToString(requestBody)
@@ -188,7 +188,11 @@ class OpenAiCompatClient(
               // сумма длин сообщений недосчитала бы ровно то, что дороже всего.
               promptTokens = sseUsage?.promptTokens ?: LlmContextConfig.estimateTokens(bodyJson.length),
               completionTokens = sseUsage?.completionTokens ?: LlmContextConfig.estimateTokens(textChars),
-              costUsd = sseUsage?.cost,
+              // Прямой Meta Model API присылает одни токены, без цены, — считаем её по прайсу Meta.
+              // Иначе карточка расхода показывала бы токены без денег ровно на том маршруте, где
+              // тратятся кредиты, оплаченные самим пользователем.
+              costUsd = sseUsage?.cost
+                ?: sseUsage?.takeIf { p.name == LlmProvider.META }?.let { metaListPriceUsd(p.model, it) },
               estimated = sseUsage == null,
               hadTools = tools.isNotEmpty(),
             ),
@@ -466,7 +470,12 @@ internal data class SseUsage(
   val completionTokens: Int = 0,
   /** Цена вызова в USD. Присылает OpenRouter, и только когда её попросили; иначе — null. */
   val cost: Double? = null,
+  /** Сколько токенов промпта взято из кеша провайдера: у Meta они в 8 раз дешевле обычных. */
+  val promptTokensDetails: PromptTokensDetails? = null,
 )
+
+@Serializable
+internal data class PromptTokensDetails(val cachedTokens: Int = 0)
 
 @Serializable
 private data class SseChoice(

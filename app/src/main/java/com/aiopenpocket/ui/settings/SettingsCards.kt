@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Loop
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Remove
@@ -65,6 +66,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -76,6 +78,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.aiopenpocket.agent.core.identity.ChatFontScale
+import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.glass.glassCardSurface
 import com.aiopenpocket.ui.components.MarkdownText
 import com.aiopenpocket.ui.theme.GlassTokens
@@ -152,7 +156,7 @@ internal fun ApiKeyField(
       IconButton(onClick = { visible = !visible }) {
         Icon(
           imageVector = if (visible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-          contentDescription = if (visible) "Скрыть" else "Показать",
+          contentDescription = if (visible) tr("Скрыть", "Hide") else tr("Показать", "Show"),
           tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
@@ -174,6 +178,64 @@ internal fun ApiKeyField(
       .fillMaxWidth()
       .border(1.dp, GlassTokens.BorderBrush, SettingsFieldShape),
   )
+}
+
+/**
+ * Где взять ключ Meta. Путь не только владельца: судьи хакатона и любой, кто соберёт открытый
+ * репозиторий, приходят сюда без ключа, и экран должен объяснять себя сам, без README.
+ */
+@Composable
+internal fun MetaKeyHint(modifier: Modifier = Modifier) {
+  val uriHandler = LocalUriHandler.current
+  Text(
+    text = tr(
+      "Где взять ключ: dev.meta.ai — нажмите, откроется инструкция.",
+      "Where to get a key: dev.meta.ai — tap to open the guide.",
+    ),
+    style = MaterialTheme.typography.bodySmall,
+    color = MaterialTheme.colorScheme.primary,
+    // runCatching: без браузера на устройстве openUri бросает ActivityNotFoundException — подсказка
+    // не должна ронять экран настроек.
+    modifier = modifier.clickable { runCatching { uriHandler.openUri(META_API_KEY_GUIDE_URL) } },
+  )
+}
+
+private const val META_API_KEY_GUIDE_URL = "https://dev.meta.ai/docs/quickstart"
+
+/**
+ * Куда сейчас пойдут запросы. Маршрут переключается одним вставленным ключом (см.
+ * [com.aiopenpocket.agent.core.llm.activeLlmProvider]), и без этой строки человек не узнал бы, что
+ * ввод ключа Meta что-то изменил, а без ключей вовсе — узнал бы об этом из ошибки уже в чате.
+ */
+@Composable
+internal fun ProviderRouteLine(
+  provider: LlmProvider,
+  openRouterKeyMissing: Boolean,
+  modifier: Modifier = Modifier,
+) {
+  val noKey = provider == LlmProvider.OPENROUTER && openRouterKeyMissing
+  val text = when {
+    provider == LlmProvider.META ->
+      tr("Запросы идут напрямую в Meta Model API.", "Requests go straight to Meta Model API.")
+    noKey ->
+      tr("Ключа нет — запросы не уйдут. Введите ключ Meta Model API.", "No key yet — requests won't go out. Add a Meta Model API key.")
+    else ->
+      tr("Запросы идут через OpenRouter. С ключом Meta они пойдут напрямую.", "Requests go through OpenRouter. Add a Meta key to go direct.")
+  }
+  val color = if (noKey) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+  Row(
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
+    modifier = modifier.testTag("settings_provider_route"),
+  ) {
+    Icon(
+      imageVector = Icons.Default.Key,
+      contentDescription = null,
+      tint = color,
+      modifier = Modifier.size(14.dp),
+    )
+    Text(text = text, style = MaterialTheme.typography.bodySmall, color = color)
+  }
 }
 
 /**

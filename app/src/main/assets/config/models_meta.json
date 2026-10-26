@@ -1,0 +1,38 @@
+{
+  "_comment": "Каталог прямого Meta Model API (api.meta.ai). Статичный: живой список не тянем — моделей с tools четыре, а порядок курируемый. Id без префикса вендора — так их называет сам Meta API (у OpenRouter они meta/…). Сверено с dev.meta.ai/docs/models 26 окт 2026: все четыре умеют function calling, вход — текст, картинка, видео, аудио, PDF. Muse Wonder (preview) в 3–5 раз дороже Spark — последней, только как фолбэк. Contributor-версий тут нет и быть не должно: на их данных Meta обучается. Ни у одной модели нет temperature вместе с top_p: Meta просит задавать что-то одно.",
+  "base_url": "https://api.meta.ai/v1",
+  "models": [
+    {
+      "name": "muse-spark-1.3",
+      "priority": 1,
+      "max_tokens": 16000,
+      "reasoning": true,
+      "input_modalities": ["text", "image", "video", "audio", "file"],
+      "supports_tools": true
+    },
+    {
+      "name": "muse-spark-1.2",
+      "priority": 2,
+      "max_tokens": 16000,
+      "reasoning": true,
+      "input_modalities": ["text", "image", "video", "audio", "file"],
+      "supports_tools": true
+    },
+    {
+      "name": "muse-spark-1.1",
+      "priority": 3,
+      "max_tokens": 16000,
+      "reasoning": true,
+      "input_modalities": ["text", "image", "video", "audio", "file"],
+      "supports_tools": true
+    },
+    {
+      "name": "muse-wonder-1.0",
+      "priority": 4,
+      "max_tokens": 16000,
+      "reasoning": true,
+      "input_modalities": ["text", "image", "video", "audio", "file"],
+      "supports_tools": true
+    }
+  ]
+}
