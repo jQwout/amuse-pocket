@@ -6,6 +6,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** Короткий формат даты/времени для текстовых ответов тулов (календарь и т.п.). */
+/** A short date/time format for tools' text answers (calendar etc.). */
 internal fun formatToolDateTime(millis: Long): String =
   SimpleDateFormat("dd.MM HH:mm", Locale.getDefault()).format(Date(millis))

@@ -27,11 +27,11 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonElement
 
 /**
- * Тонкий датчик-обёртка: одно действие — снять снимок текущего совокупного счётчика шагов
- * (Sensor.TYPE_STEP_COUNTER, монотонный с момента последней перезагрузки устройства).
+ * A thin sensor wrapper: one action — take a snapshot of the current cumulative step counter
+ * (Sensor.TYPE_STEP_COUNTER, monotonic since the device's last reboot).
  *
- * Хранение и вычисление дельт за день/период — забота скилла fitness через memory_tool,
- * чтобы тул оставался stateless и легко тестируемым.
+ * Storing it and computing deltas per day/period is the fitness skill's job via memory_tool, so the
+ * tool stays stateless and easy to test.
  */
 @Inject
 @SingleIn(AppScope::class)

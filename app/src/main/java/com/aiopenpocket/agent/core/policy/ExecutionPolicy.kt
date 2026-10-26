@@ -73,14 +73,15 @@ sealed interface PolicyDecision {
  * un-configurable floor applies. If a richer per-agent policy is ever added, it plugs in here without
  * changing this function's contract.
  *
- * Пол LIVE (решение владельца перед демо): [RiskClass.DESTRUCTIVE] и [RiskClass.EXTERNAL] ВСЕГДА ждут
- * «Разрешить» от человека, даже у агента без единого хука и в обычном чате без агента. Раньше пол был
- * просто Execute — удалить событие календаря или переписать документ пользователя модель могла сама,
- * и единственной защитой был хук, который никто не обязан настраивать. Необратимое и уходящее за
- * пределы приложения не должно зависеть от того, вспомнил ли автор агента про хук. Фоновый ход
- * (`interactiveApproval = false`) ответить не может, поэтому там тот же AwaitApproval превращается в
- * немедленный отказ — это делает [com.aiopenpocket.agent.loop.ReactLoopRunner], не эта функция.
- * [RiskClass.READ]/[RiskClass.WRITE] выполняются как раньше, пока хук не попросит иного.
+ * The LIVE floor (the owner's decision before the demo): [RiskClass.DESTRUCTIVE] and
+ * [RiskClass.EXTERNAL] ALWAYS wait for a human "Allow", even for an agent without a single hook and in a
+ * plain chat with no agent. The floor used to be plain Execute — the model could delete a calendar
+ * event or overwrite the user's document on its own, and the only protection was a hook nobody is
+ * obliged to set up. What is irreversible or leaves the app must not depend on whether the agent's
+ * author remembered a hook. A background turn (`interactiveApproval = false`) cannot answer, so there
+ * the same AwaitApproval becomes an immediate denial — [com.aiopenpocket.agent.loop.ReactLoopRunner]
+ * does that, not this function. [RiskClass.READ]/[RiskClass.WRITE] run as before unless a hook asks
+ * otherwise.
  *
  * Hook DENY/REQUIRE_APPROVAL are checked BEFORE the mode/risk table and win unconditionally, in both
  * LIVE and PREVIEW — a hook that blocks a tool must actually block it during a preview run too, not get

@@ -68,9 +68,10 @@ class StorageTool(
   // get/list only read it. An unrecognized/missing action fails closed to READ - execute() rejects it
   // before anything runs either way.
   //
-  // delete — DESTRUCTIVE: запись исчезает без корзины и без версии, вернуть её нечем. put тоже может
-  // перезаписать значение по тому же ключу, но это основной путь записи агента в СОБСТВЕННЫЙ блокнот —
-  // спрашивать разрешение на каждое «сохрани» значило бы сломать сам смысл хранилища, поэтому WRITE.
+  // delete is DESTRUCTIVE: the entry disappears with no trash and no version, there is nothing to bring
+  // it back with. put can also overwrite a value under the same key, but it is the agent's main path for
+  // writing into its OWN notebook — asking permission for every "save this" would break the very point
+  // of the storage, so it is WRITE.
   override val riskClass = RiskClass.DESTRUCTIVE
 
   override fun riskFor(arguments: Map<String, JsonElement>): RiskClass = when (arguments.string("action")) {

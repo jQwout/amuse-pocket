@@ -77,9 +77,9 @@ class DatabaseQueryTool(
     return try {
       executeSelect(db, sql)
     } catch (e: CancellationException) {
-      // Отмена хода — не «ошибка SQL». Общий catch ниже превратил бы её в ToolResult.Error, и
-      // ToolExecutor (который отмену как раз пробрасывает) её бы уже не увидел — цикл агента поехал
-      // бы дальше по остановленному ходу.
+      // Cancelling the turn is not "an SQL error". The general catch below would turn it into a
+      // ToolResult.Error, and ToolExecutor (which does rethrow cancellation) would no longer see it —
+      // the agent loop would carry on with a stopped turn.
       throw e
     } catch (e: Exception) {
       ToolResult.Error("SQL error: ${e.message}")
@@ -94,9 +94,9 @@ class DatabaseQueryTool(
    * reference is treated exactly like a forbidden one - see [extractTables]).
    */
   private fun rejectionReason(sql: String): String? {
-    // Разрешаем одну хвостовую ';', но блокируем мульти-стейтменты - один SQL-аргумент обязан быть
-    // РОВНО одним запросом, иначе проверки таблиц ниже вообще не увидят второй/третий стейтмент,
-    // склеенный через ';'.
+    // One trailing ';' is allowed, but multi-statements are blocked — one SQL argument must be EXACTLY one
+    // query, otherwise the table checks below would never see a second/third statement glued on with
+    // ';'.
     val clean = sql.trim().trimEnd(';').trim()
     if (';' in clean) return "Multiple statements in one call are not allowed."
 
@@ -224,8 +224,8 @@ class DatabaseQueryTool(
   private fun executeSelect(db: SupportSQLiteDatabase, sql: String): ToolResult {
     val result = JSONArray()
     var truncated = false
-    // `use`, а не close() в конце тела: getString() на BLOB-колонке бросает, и на этом пути курсор
-    // раньше оставался незакрытым — SELECT по бинарному полю тёк курсором на каждый вызов.
+    // `use`, not close() at the end of the body: getString() on a BLOB column throws, and on that path the
+    // cursor used to stay open — a SELECT over a binary field leaked a cursor on every call.
     db.query(sql).use { cursor ->
       val columns = cursor.columnNames
       while (cursor.moveToNext()) {
@@ -240,9 +240,10 @@ class DatabaseQueryTool(
         result.put(row)
       }
     }
-    // Модель сама пишет SQL и часто не ставит LIMIT — без потолка большой SELECT (вся история
-    // сообщений и т.п.) раздул бы результат тула на мегабайты JSON прямо в контекст LLM. Маркер
-    // усечения кладём ПОСЛЕДНИМ элементом массива — вывод остаётся валидным JSON целиком.
+    // The model writes the SQL itself and often omits LIMIT — without a ceiling a big SELECT (the whole
+    // message history, etc.) would bloat the tool result with megabytes of JSON right into the LLM
+    // context. The truncation marker goes in as the LAST array element — the output stays valid JSON as
+    // a whole.
     if (truncated) {
       result.put(JSONObject().put("_truncated", true).put("_note", "truncated at $MAX_ROWS rows, add LIMIT to your query for fewer"))
     }

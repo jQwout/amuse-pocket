@@ -52,8 +52,9 @@ class EmailTool(
       if (!body.isNullOrBlank()) putExtra(Intent.EXTRA_TEXT, body)
     }
 
-    // В фоне Android не даст открыть почту (см. launchExternalActivity) — тогда черновик ждёт тапа по
-    // уведомлению, и модели это сказано прямо: раньше тул рапортовал «открыт», а не открывалось ничего.
+    // In the background Android will not let us open the mail app (see launchExternalActivity) — then the
+    // draft waits for a tap on the notification, and the model is told so plainly: the tool used to
+    // report "opened" while nothing opened.
     val notificationText = subject?.takeIf { it.isNotBlank() }?.let { "«$it» — нажми, чтобы открыть в почте." }
       ?: "Нажми, чтобы открыть его в почте."
     return when (val outcome = launchExternalActivity(context, foreground, intent, "Черновик письма готов", notificationText)) {

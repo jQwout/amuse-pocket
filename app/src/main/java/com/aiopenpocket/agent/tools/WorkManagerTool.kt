@@ -91,10 +91,11 @@ class WorkManagerTool(
 
       "cancel_work" -> {
         val workId = arguments.string("work_id") ?: return missingArg("work_id")
-        // Отменяем только СВОИ задачи. cancelUniqueWork принимает любое уникальное имя, и раньше
-        // модель могла снести так чужую работу — напоминание `heartbeat_<id>` в обход HeartbeatTool
-        // (строка в Room осталась бы «scheduled», а пуш не пришёл бы никогда), шаг плана или
-        // служебный воркер. Свою задачу тул узнаёт по тегу `id:<work_id>`, который ставит при создании.
+        // Only OUR OWN jobs are cancelled. cancelUniqueWork accepts any unique name, and the model used to
+        // be able to wipe someone else's work this way — a `heartbeat_<id>` reminder bypassing
+        // HeartbeatTool (the Room row would stay "scheduled", while the push would never come), a plan
+        // step or a system worker. The tool recognizes its own job by the `id:<work_id>` tag it sets on
+        // creation.
         val infos = workManager.getWorkInfosForUniqueWorkFlow(workId).first()
         val ownTag = "$TAG_ID_PREFIX$workId"
         if (infos.isEmpty() || infos.any { ownTag !in it.tags }) {
@@ -140,9 +141,9 @@ class WorkManagerTool(
     .addTag("$TAG_ID_PREFIX$id")
 
   /**
-   * Теги, которыми тул метит свои задачи. Их читает экран «Запланированные задачи»: по виду
-   * ([TAG_ONE_TIME]/[TAG_PERIODIC]) он отличает наши задачи от чужих (напоминания
-   * HeartbeatScheduler, служебные воркеры), а по [TAG_ID_PREFIX] — отменяет по уникальному имени.
+   * Tags the tool marks its jobs with. The "Scheduled tasks" screen reads them: by kind
+   * ([TAG_ONE_TIME]/[TAG_PERIODIC]) it tells our jobs from others (HeartbeatScheduler reminders, system
+   * workers), and by [TAG_ID_PREFIX] it cancels by the unique name.
    */
   companion object {
     const val TAG_ONE_TIME = "one_time"

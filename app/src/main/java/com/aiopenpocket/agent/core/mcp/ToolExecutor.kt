@@ -17,21 +17,21 @@ class ToolExecutor(
     // Validate against the declared schema once here, so tools don't each re-check required/enum.
     SchemaValidator.validate(tool.schema, arguments)?.let { return it }
     return try {
-      // Потолок по времени на КАЖДЫЙ вызов инструмента. Тулы ходят в ContentResolver, Room и
-      // системные сервисы — залипший вызов держал бы весь ход агента: стрим не закрывается, статус
-      // остаётся Running, спасает только внешняя отмена хода. Модель должна получить ошибку и иметь
-      // возможность пойти дальше.
+      // A time ceiling on EVERY tool call. Tools call ContentResolver, Room and system services — a stuck
+      // call would hold the whole agent turn: the stream does not close, the status stays Running,
+      // and only an external cancellation of the turn helps. The model must get an error and be able
+      // to move on.
       //
-      // withTimeoutOrNull, а не withTimeout: последний бросает TimeoutCancellationException, которая
-      // сама является CancellationException — её поймала бы ветка ниже и пробросила наружу как
-      // «отмену хода», то есть таймаут одного тула убил бы весь ход вместо того, чтобы вернуть Error.
+      // withTimeoutOrNull, not withTimeout: the latter throws TimeoutCancellationException, which is
+      // itself a CancellationException — the branch below would catch it and rethrow it as "turn
+      // cancelled", so one tool's timeout would kill the whole turn instead of returning an Error.
       withTimeoutOrNull(TOOL_TIMEOUT_MS) { tool.execute(arguments) }
         ?: ToolResult.Error(
           "Tool '$name' timed out after ${TOOL_TIMEOUT_MS / 1000}s and was aborted.",
           recoverable = true,
         )
     } catch (e: CancellationException) {
-      // Отмена запроса (юзер нажал Stop) — не глотаем, иначе цикл агента поедет дальше.
+      // Cancellation of the request (the user tapped Stop) is not swallowed, or the agent loop would go on.
       throw e
     } catch (e: Exception) {
       ToolResult.Error("Execution failed: ${e.message}", recoverable = true)
@@ -40,17 +40,17 @@ class ToolExecutor(
 
   companion object {
     /**
-     * Все инструменты здесь локальные (БД, ContentResolver, системные сервисы) — секунды им нужны,
-     * а не десятки секунд. Потолок выбран так, чтобы заведомо не резать честный медленный вызов, но
-     * и не превращать зависший в бесконечное ожидание с точки зрения пользователя.
+     * All tools here are local (DB, ContentResolver, system services) — they need seconds, not tens of
+     * seconds. The ceiling is chosen so it surely does not cut an honest slow call, yet does not turn a
+     * hung one into an endless wait from the user's point of view.
      *
-     * ОСТРЫЙ УГОЛ В ТЕСТАХ. `withTimeoutOrNull` считает по часам корутинного контекста, а `runTest`
-     * даёт ВИРТУАЛЬНЫЕ часы. Если тул внутри теста уходит работать на чужой поток (типичный случай —
-     * suspend-DAO Room на своём исполнителе), тестовый диспетчер остаётся без работы и промотывает
-     * виртуальное время вперёд: тул, отрабатывающий за микросекунды, получает таймаут. Лечится НЕ
-     * правкой этого числа, а посадкой Room на прямой исполнитель в самом тесте:
-     * `.setQueryExecutor(Runnable::run).setTransactionExecutor(Runnable::run)` — см.
-     * `CompositeSkillRegistryTest`, который на это и напоролся.
+     * A SHARP EDGE IN TESTS. `withTimeoutOrNull` counts by the coroutine context's clock, and `runTest`
+     * provides VIRTUAL time. If a tool inside a test goes off to work on another thread (the typical
+     * case is a suspend Room DAO on its own executor), the test dispatcher is left with no work and
+     * skips virtual time forward: a tool that finishes in microseconds gets a timeout. The cure is NOT
+     * changing this number but putting Room on a direct executor in the test itself:
+     * `.setQueryExecutor(Runnable::run).setTransactionExecutor(Runnable::run)` — see
+     * `CompositeSkillRegistryTest`, which ran into exactly this.
      */
     const val TOOL_TIMEOUT_MS = 30_000L
   }

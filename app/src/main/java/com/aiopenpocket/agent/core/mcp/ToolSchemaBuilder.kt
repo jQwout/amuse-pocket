@@ -40,7 +40,7 @@ class ToolSchemaBuilder(private val toolName: String, private val toolDescriptio
       buildMap {
         put("type", JsonPrimitive(jsonType))
         put("description", JsonPrimitive(description))
-        // JSON Schema требует enum МАССИВОМ — иначе constrained decoding модели его игнорирует.
+        // JSON Schema requires enum to be an ARRAY — otherwise the model's constrained decoding ignores it.
         if (enum != null) put("enum", JsonArray(enum.map { JsonPrimitive(it) }))
       },
     )

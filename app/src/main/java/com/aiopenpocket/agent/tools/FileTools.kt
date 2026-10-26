@@ -99,10 +99,11 @@ class FileTools(
     val file = resolveSafePath(root, path)
     if (!file.exists()) return ToolResult.Error("File not found: $path")
     if (!file.isFile) return ToolResult.Error("Not a file: $path")
-    // Файл в песочнице пишет сам агент, поэтому его размер ничем не ограничен: без потолка одно
-    // read_file и раздувало контекст LLM, и тянуло весь файл в память. Тот же приём, что у
-    // database_query с его MAX_ROWS — и, главное, усечение ВИДИМОЕ: молча укороченный файл модель
-    // прочитала бы как полный и сделала вывод по половине данных.
+    // A sandbox file is written by the agent itself, so its size is not limited by anything: without a
+    // ceiling a single read_file both bloated the LLM context and pulled the whole file into memory.
+    // The same trick as database_query with its MAX_ROWS — and, importantly, the truncation is
+    // VISIBLE: a silently shortened file would be read by the model as complete, and it would draw
+    // conclusions from half the data.
     val text = file.readText()
     if (text.length <= MAX_READ_CHARS) return ToolResult.Success(text)
     return ToolResult.Success(
@@ -129,9 +130,10 @@ class FileTools(
     val all = dir.listFiles()
       ?.map { if (it.isDirectory) "[DIR] ${it.name}" else "[FILE] ${it.name}" }
       .orEmpty()
-    // Каталог наполняет сам агент, поэтому число записей ничем не ограничено — тот же довод, что и у
-    // read_file/search_files ниже. Обрезка названа явно: молча укороченный список читается как «это
-    // всё, что там есть», и модель делает вывод по неполному каталогу.
+    // The directory is filled by the agent itself, so the number of entries is not limited by anything —
+    // the same argument as for read_file/search_files below. The cut is stated explicitly: a silently
+    // shortened list reads as "that is everything there is", and the model draws conclusions from an
+    // incomplete directory.
     val shown = all.take(MAX_LIST_ENTRIES)
     val note = if (all.size > shown.size) "\n\n[показаны первые ${shown.size} из ${all.size} записей]" else ""
     return ToolResult.Success(shown.joinToString("\n") + note)
@@ -144,22 +146,22 @@ class FileTools(
     var skippedCount = 0
     var capped = false
     for (file in root.walkTopDown().filter { it.isFile }) {
-      // Потолок проверяется В НАЧАЛЕ витка, а не после каждого добавления: у совпадения по имени своя
-      // ветка с `continue`, и проверка в хвосте цикла её просто не видела — тысяча подходящих по
-      // имени файлов возвращалась целиком, потолок existed только на бумаге.
+      // The ceiling is checked AT THE START of an iteration, not after each addition: a name match has its
+      // own branch with `continue`, and a check at the tail of the loop simply did not see it — a
+      // thousand files matching by name came back whole, and the ceiling existed only on paper.
       if (results.size >= MAX_SEARCH_RESULTS) {
         capped = true
         break
       }
       val relative = file.relativeTo(root).path
-      // Совпадение по ИМЕНИ проверяем первым: оно не требует читать файл вообще, поэтому огромный
-      // файл всё ещё находится по названию, просто не по содержимому.
+      // A NAME match is checked first: it does not require reading the file at all, so a huge file is
+      // still found by its name, just not by its content.
       if (file.name.contains(query, ignoreCase = true)) {
         results += relative
         continue
       }
-      // Раньше readText() звался на КАЖДОМ файле песочницы без оглядки на размер — один большой файл
-      // (или бинарник, записанный самим агентом) утаскивал в память всё сразу.
+      // readText() used to be called on EVERY sandbox file regardless of size — one big file (or a binary
+      // written by the agent itself) dragged everything into memory at once.
       if (file.length() > MAX_SEARCH_FILE_BYTES) {
         skippedCount++
         if (skipped.size < MAX_SKIPPED_NAMES) skipped += relative
@@ -167,10 +169,10 @@ class FileTools(
       }
       if (file.readText().contains(query, ignoreCase = true)) results += relative
     }
-    // Пропущенное называем явно: «не найдено» и «не искали» — разные ответы, и модель должна их
-    // различать, иначе усечение читается как отсутствие результата. Но и сама сноска ограничена:
-    // «назвать всё пропущенное» на песочнице с сотней крупных файлов раздувало бы вывод ровно так же,
-    // как раздувал его отсутствующий потолок.
+    // What was skipped is named explicitly: "not found" and "not searched" are different answers, and the
+    // model must tell them apart, otherwise truncation reads as no result. But the footnote itself is
+    // capped too: "name everything skipped" on a sandbox with a hundred large files would bloat the
+    // output exactly as the missing ceiling used to.
     val skippedNote = when {
       skippedCount == 0 -> ""
       else -> {
@@ -229,21 +231,22 @@ class FileTools(
 
   companion object {
     /**
-     * Потолок выдачи `read_file` в символах — примерно столько связного текста ещё осмысленно класть
-     * в контекст модели за один вызов. Больше — это уже не «прочитать файл», а «залить в промпт всё».
+     * Ceiling of a `read_file` answer in characters — roughly as much coherent text as still makes
+     * sense to put into the model's context in one call. More than that is no longer "read a file" but
+     * "dump everything into the prompt".
      */
     const val MAX_READ_CHARS = 40_000
 
-    /** Крупнее — `search_files` не читает содержимое (поиск по имени файла продолжает работать). */
+    /** Above this size `search_files` does not read the content (search by file name keeps working). */
     const val MAX_SEARCH_FILE_BYTES = 256L * 1024
 
-    /** Больше совпадений за один вызов модели всё равно не нужны — пусть уточнит запрос. */
+    /** More matches per model call are not needed anyway — let it refine the query. */
     const val MAX_SEARCH_RESULTS = 100
 
-    /** Сколько пропущенных по размеру файлов называть поимённо; остальные идут числом. */
+    /** How many files skipped for size to name one by one; the rest are given as a count. */
     const val MAX_SKIPPED_NAMES = 10
 
-    /** Потолок записей в выдаче `list_dir`. */
+    /** Ceiling of entries in a `list_dir` answer. */
     const val MAX_LIST_ENTRIES = 200
   }
 }

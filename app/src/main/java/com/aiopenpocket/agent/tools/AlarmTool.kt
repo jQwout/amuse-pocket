@@ -28,10 +28,10 @@ class AlarmTool(
   override val riskClass = RiskClass.WRITE
 
   override val name = "alarm"
-  // Явно сказано, ЧТО НЕ надо брать этот тул: раньше он был единственным, чем модель могла
-  // воспользоваться (heartbeat требует delay_minutes, а текущего времени в промпте не было), и
-  // «напомни в 19:00» стабильно превращалось в системный будильник. Время в промпт теперь
-  // подставляется — осталось убрать привычку.
+  // It says explicitly when NOT to use this tool: it used to be the only thing the model could reach for
+  // (heartbeat requires delay_minutes, and there was no current time in the prompt), and "remind me at
+  // 19:00" consistently turned into a system alarm. The time is now put into the prompt — what remained
+  // was to break the habit.
   override val description =
     "СИСТЕМНЫЙ БУДИЛЬНИК — со звонком, через приложение «Часы». Бери ТОЛЬКО когда человек " +
     "прямо просит будильник («поставь будильник», «разбуди меня»). Для «напомни», «напиши мне», " +
@@ -88,9 +88,9 @@ class AlarmTool(
   }
 
   /**
-   * На экране — открывает «Часы» сразу. В фоне Android запуск не пропустит (см.
-   * [launchExternalActivity]), поэтому — уведомление, и модели прямо сказано, что будильник ещё НЕ
-   * стоит: раньше тул в этом случае рапортовал успех, а будильника не было.
+   * On screen it opens Clock right away. In the background Android will not allow the launch (see
+   * [launchExternalActivity]), so it shows a notification, and the model is told plainly that the
+   * alarm is NOT set yet: the tool used to report success in this case while there was no alarm.
    */
   private fun launch(
     intent: Intent,

@@ -155,7 +155,7 @@ class CalendarTool(
     else ToolResult.Error("Событие $eventId не найдено.")
   }
 
-  /** Возвращает ID первого доступного для записи календаря. */
+  /** Returns the ID of the first calendar available for writing. */
   private fun primaryCalendarId(): Long? {
     context.contentResolver.query(
       CalendarContract.Calendars.CONTENT_URI,
