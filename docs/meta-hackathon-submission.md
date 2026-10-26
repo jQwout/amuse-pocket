@@ -1,100 +1,158 @@
 # Сабмишн на Meta Global AI Developer Hackathon
 
-Сценарий демо-видео и текст сабмишна. Сдать до **4 ноя, 21:00 ET** (5 ноя, 03:00 по Белграду); план — 3 ноября, 4-е в запасе. Цифры сняты 24 окт 2026.
+Сценарий демо-ролика и текст для судей. Сдать до **4 ноя, 21:00 ET** (5 ноя, 03:00 по Белграду). План: ролик 2 ноября, отправка 3-го, 4-е в запасе. Цифры сняты 25 окт 2026.
 
-Как судят проекты (из правил события): польза 30%, использование инструментов Meta 25% (вышли ли за базовую интеграцию, показали ли неожиданные возможности), техническая глубина 20%, демо 25% (рабочее, впечатляющее, держится вживую; качество ролика).
+**Правила.** Источник — Participant Guide в кабинете участника (`cerebralvalley.ai/e/meta-ai-developer-hackathon/details`, видно только залогиненным; прочитан 26 окт). Official Rules отдельным документом там нет: в гайде сказано, что их публикуют до старта и допущенные обязаны их принять — если появятся, перечитать.
 
-## 0. До записи — обязательно
+**Жёсткие требования, из которых всё остальное:**
 
-- [ ] **Перечитать Official Rules (выйдут 26 окт):** длина и формат ролика, поля формы, требования к репозиторию и лицензии.
-- [ ] **Сроки работы.** Вся Muse-часть сделана **24–25 октября, до старта 26-го**: Muse по умолчанию, картинки Muse Image, «Нарисуй под меня», видео-урок, интерактивные сцены во всех 31 уроке, 4 урока про модели Meta. Если правила требуют, чтобы проект делался в окне хакатона, — в описании честно разделить «было до 26 окт» и «сделано на хакатоне», и сделать заметную часть в окне (кандидаты — раздел 1). Выдавать сделанное 24-го за сделанное на хакатоне нельзя: даты видны в git.
-- [x] **Видео-урок проверен вживую** 24 окт на эмуляторе: Muse Spark через OpenRouter принял base64-ролик. Свой ролик (комната) и ролик-пример (стол) — ответ по-русски за ~11 с: предметы, одно сомнение, объяснение про кадры.
-- [ ] **Язык.** Интерфейс и уроки на русском, судьи, скорее всего, англоязычные: озвучка и субтитры ролика — на английском. Локализация уроков — кандидат на работу в окне.
-- [ ] Ключ OpenRouter в `.env`, провайдер — OpenRouter; в профиле «о себе» — что-то, что красиво ляжет в картинку (пример ниже); карточка расхода за неделю не пустая.
-- [ ] Ключ, засветившийся в переписке, после хакатона заменить.
+- **Репозиторий обязан быть публичным** («Open source: Repositories must be public»).
+- **Демо показывает только то, что сделано на хакатоне.** Судьи должны ясно понимать, что именно создано в окне; невозможность это различить = немедленная дисквалификация на усмотрение судей. Право надстраивать существующий код дано стартапам (и то с явным разделением нового) — мы на Indie.
+- **Окно работы: 27 окт — 4 ноя.** Всё, что закоммичено 23–26 окт (Muse, картинки, видео-урок, сцены, выпиливание NIM, аудит), — ДО окна, и даты видны в git.
+- **Демо-ролик 3 минуты** — обязателен и назван одним из главных артефактов судейства наравне с кодом и живым продуктом.
+- Команда ≤4, один сабмишн на команду, представитель команды отправляет; сдача через платформу CV до 4 ноя 21:00 ET; опоздания не рассматривают.
 
-## 1. Что сделать в окне хакатона (26 окт – 3 ноя)
+**Как судят — три стадии.** Stage 1 — pass/fail: проект попадает в тему и реально использует Meta Model API и/или открытые веса Meta. Stage 2 — рубрика 0–10 с весами: **Impact 30%** (кому и насколько это нужно, станет ли этим кто-то пользоваться, попадает ли в тему), **Use of Meta AI tooling 25%** (насколько творчески, вышли ли за базовую интеграцию, «удивили ли нас»), **Technical Depth & Execution 20%**, **Demo 25%** (работает ли живьём, интересно ли смотреть ролик). Stage 3 — топ-5 на трек, судьи смотрят ролики живьём и ранжируют по той же рубрике.
 
-По влиянию на оценку, сверху вниз:
+**Anti-projects — чего нельзя.** В гайде есть список «generic» проектов под дисквалификацию, и два пункта касаются нас впрямую: **простые «AI for Education» чат-боты** и **AI Nutrition Coach** (а также базовый RAG, простые анализаторы картинок, медсоветы, анализаторы личности, спорт, политика и война). Отсюда два правила подачи: заголовок и первые 15 секунд ролика — **платформа сборки агентов**, а обучение — её часть («учим возможностям моделей Meta», не «обучающий бот»); агента про питание в ролике и в тексте **не показывать вообще**.
 
-1. **Уроки на английском через Muse Spark.** 31 JSON-урок перевести моделью по их же контракту, в выборе языка «English» уже есть (сейчас «скоро»). Польза — курс для всех, а не только русскоязычных; демо — судьи видят интерфейс на своём языке.
-2. **Генеративные сцены.** «Объясни RAG анимацией» → Muse Spark пишет раскадровку на маленьком языке примитивов (блоки, стрелки, фишки, подписи) → приложение проигрывает. Прямой ответ на «вышли ли за базовую интеграцию».
-3. **Прямой Meta Model API** на $150 кредитов допущенного участника и **SAM 3.1** поверх кадров видео-урока: модель обводит то, о чём говорит. Неожиданная возможность — и вторая модель Meta в видео-уроке.
-4. Запись ролика и сабмишн — 2–3 ноября.
+## 0. Подача
 
-## 2. Сценарий демо-видео (3:00)
+**AI Open Pocket — платформа для создания ИИ-агентов на моделях Meta, со встроенным обучением.** Две части:
 
-Камера для демо не нужна: видео-шаг идёт через «Показать на примере» (ролик в сборке). Записывать можно с эмулятора или телефона — scrcpy с записью или встроенная запись экрана, 1080p. Озвучка — на английском, субтитры английские, интерфейс русский. Пример «о себе» для профиля: «Учитель биологии, бегаю по утрам, у меня кот Барсик» — картинка «под меня» получится узнаваемой.
+1. **Обучение (теория).** Что умеют модели Meta и как из них строится агент: уроки про линейку Meta, режимы Muse Spark, как рисует Muse Image, открытые веса и API, как модель видит видео; уроки про устройство агента — инструменты, память, навыки, правила, планы. В каждом уроке интерактивная сцена, в части уроков модель Meta работает вживую.
+2. **Платформа.** Конструктор: собираешь агента на Muse Spark (роль, инструкции, инструменты, режимы, правила), проверяешь пробным прогоном и запускаешь. Агент живёт на телефоне, делает настоящие дела и спрашивает разрешения перед удалением и отправкой наружу.
 
-| Время | Что на экране | Закадровый текст (EN) |
-| --- | --- | --- |
-| 0:00–0:15 | Главный экран, быстрые нарезки сцен уроков | Millions of people talk to AI every day, yet almost nobody knows what a prompt, a context window or a tool call actually is. AI Open Pocket teaches it inside a working AI agent on your phone — built on Meta Muse. |
-| 0:15–0:35 | Онбординг: одно свободное «о себе» → профиль заполнен | Muse Spark is the agent's brain. During onboarding it reads one free-form answer and fills in my profile — no forms. |
-| 0:35–1:05 | Урок с иллюстрацией → «Нарисуй под меня» → новая картинка под шагом | Every lesson is illustrated by Muse Image — 26 pictures generated ahead of time and bundled, so lessons work offline. One tap redraws the scene around my own life. Only my "about me" and my language leave the phone — never my name, age or gender. |
-| 1:05–1:45 | «Почему ответы разные»: ползунок температуры, «Вытянуть слово». Затем «Память и контекст»: имя уезжает за окно, переключатель долгой памяти | Lessons you can touch. Drag the temperature and watch the next-word distribution sharpen or spread out. Scroll a chat and see my name fall out of the context window — the model forgets it. Switch on long-term memory, and the answer changes. |
-| 1:45–2:00 | «Как модель видит»: шкала кадров, 1 → 4 кадра в секунду | Video becomes frames, and frames become tokens. At one frame per second the cup lift slips between frames; at four, the model sees it — and pays four times more. |
-| 2:00–2:20 | Шаг с видео: «Показать на примере» → «Смотрю видео…» → ответ Muse Spark в чате (ноутбук, три книги, рыжий кот; сомнение про крошки) | One tap sends a six-second clip to Muse Spark. It lists what it sees — a laptop, three books, a sleeping ginger cat — and names the one detail it isn't sure about. Exactly the lesson's point. Learners can film their own, too. |
-| 2:20–2:45 | Обычный чат: задача с инструментом (напоминание) → трасса вызовов; затем Настройки → карточка расхода за неделю | And it's a real agent: a ReAct loop, fifteen on-device tools, plans I approve before anything runs. Every model call — text, image or video — is metered, so I see exactly what learning cost me this week. |
-| 2:45–3:00 | Логотип, ссылка на репозиторий | AI Open Pocket — understand AI by using it. Built solo on Muse Spark and Muse Image. |
+Ролик — не промо, а демо: запись экрана настоящего приложения, английский голос и субтитры, подписи внизу кадра, какая модель Meta сейчас работает.
 
-Запасной вариант, если OpenRouter в день записи не ответит: 2:00–2:20 заменить на сцену «Цикл ReAct» (ведём агента по кругу кнопкой).
+## 1. До записи
 
-## 3. Текст сабмишна (EN)
+- [ ] **Репозиторий открыт** — без этого сабмишн не принимают. Порядок в разделе 4.
+- [ ] **Сроки работы — честно.** Muse-часть сделана 23–25 окт, до окна 27 окт — 4 ноя. В описании разделить «было до хакатона» и «сделано в окне»; заметную часть делать в окне. Выдавать сделанное раньше за сделанное на хакатоне нельзя: даты видны в git, а за нечитаемый вклад в гайде обещана дисквалификация.
+- [ ] **Ролик ровно про сделанное в окне.** Если сцена ролика показывает то, что было до 27 окт, — либо переделать это в окне, либо не показывать.
+- [ ] **Питание из демо убрано.** В ростере агент остаётся, в ролике и тексте его нет (anti-project «AI Nutrition Coach»).
+- [ ] **Английский интерфейс на пути демо:** главный экран, уроки «Модели Meta: кто есть кто» и «Как модель видит», конструктор, чат агента, полоса подтверждения, уведомление.
+- [ ] **Конструктор от начала до конца на эмуляторе:** все шаги, пробный прогон, публикация, чат с агентом. Пробный прогон на устройстве ещё не проверялся.
+- [ ] **Письмо на эмуляторе:** после «Разрешить» должно открыться почтовое приложение — проверить, что оно есть.
+- [ ] **SAM 3.1 (обещан в заявке)** — только если после допуска дадут кредиты на Meta Model API.
+- [ ] Чистые данные для записи: свежая установка, ключ OpenRouter в `.env`, карточка расходов не пустая.
+
+## 2. Сценарий ролика (3:00)
+
+Запись с эмулятора, 1080p. Ожидание ответов модели вырезаем или ускоряем с пометкой «sped up». Подпись модели — внизу кадра в момент её работы.
+
+| Время | Что на экране | Подпись | Голос (EN) |
+| --- | --- | --- | --- |
+| 0:00–0:15 | Главный экран: «Путь», «Агенты» | — | AI Open Pocket is a platform for building AI agents on Meta's models — right on your phone — with a built-in course on what those models can do. |
+| 0:15–0:35 | Урок «Модели Meta: кто есть кто», сцена-линейка | — | First, learn. Short interactive lessons explain Meta's models — Muse Spark, Muse Image, SAM, Llama — and how an agent is built from them. |
+| 0:35–1:15 | Урок «Как модель видит»: ползунок кадров 1 → 4; «Показать на примере» → ответ в чате | Muse Spark · video understanding | Video becomes frames, and frames become tokens. One tap sends a clip to Muse Spark — it lists what it sees and names the one thing it isn't sure about. Live, not a mock-up. |
+| 1:15–2:15 | Конец курса → «Открыть конструктор» → имя и роль → инструкции → инструменты («Память», «Напоминания», «Почта») → режим → пробный прогон → «Опубликовать» | Muse Spark · agent brain | Then, build. The builder turns the lessons into a real agent: a role, instructions, tools, a mode, rules. A dry run simulates every action before anything touches the phone. Every agent you build thinks with Muse Spark. |
+| 2:15–2:50 | Чат агента: «remind me in 2 minutes to call mom» → «Напоминания: поставить → ок»; «email Masha the meeting moves to Friday» → «Агенту нужно разрешение · Покидает устройство» → «Разрешить»; уведомление приходит | Muse Spark · tool call | And it runs. Every action is visible. Reading and writing just happen; deleting or sending anything off the phone always waits for my OK. Two minutes later — the reminder, on time. |
+| 2:50–3:00 | Логотип, слоган | — | AI Open Pocket — learn Meta's models, build agents on them. Built solo on Muse Spark and Muse Image. |
+
+Запасной вариант, если OpenRouter в день записи не ответит: 0:35–1:15 — только ползунок кадров и сцена «Цикл ReAct».
+
+## 3. Текст для судей (EN)
 
 **Project name:** AI Open Pocket
 
-**Tagline:** Learn how AI agents work inside a real agent on your phone — lessons you can touch, built on Meta Muse.
+**Tagline:** A platform for building AI agents on Meta's models — with a built-in course on what the models can do.
 
 **Track / theme:** Indie developer · Build for Your World
 
 ### Short description
 
-AI Open Pocket is an Android AI agent that teaches people how AI agents work — inside the agent itself. 31 short lessons, each with an interactive scene you can touch, four of them about Meta's own models, illustrations by Muse Image that redraw around your life, a lesson where Muse Spark watches a video in one tap, and an agent builder at the end. Muse Spark runs the agent; every call is metered and private by design.
+AI Open Pocket is an Android platform for building AI agents on Meta's models, with learning built in. First you learn: 31 short interactive lessons explain what Meta's models can do and how an agent is made of them, with Muse Spark and Muse Image working live inside the lessons. Then you build: a no-code builder turns those lessons into your own agent — role, instructions, tools, modes, rules — and runs it on your phone, on Muse Spark, asking before anything risky.
 
 ### What it does
 
-People use AI assistants every day without knowing what a prompt, a context window, a tool call or a hallucination is — so they either trust every answer or give up. Courses explain this with slides. AI Open Pocket explains it inside a working agent on your phone: you learn in the same chat where the agent works, try each idea on the live agent, and finish by assembling your own mini-agent.
-
-- **31 lessons** from "what is an AI" to building your own agent, each a strict step contract (text, quizzes, fill-in, sorting, scenarios) driven by code, not by the model.
-- **An interactive scene in every lesson** — 31, drawn in code, not video files. Each one turns the lesson's mechanism into something you do: drag the temperature and watch the next-word distribution reshape, scroll a chat until your name falls out of the context window, step an agent through its ReAct loop, toggle the hidden layers the app adds to your prompt, approve or strike out plan steps before anything runs, run a day of cron jobs and heartbeat wake-ups, assemble an agent part by part.
-- **Four lessons about Meta's models:** who is who in the lineup (Muse Spark, Muse Image, SAM 3.1, Voice Transcribe, Llama), open weights vs API and the «contributor» versions, Muse Spark's Instant / Thinking / Contemplating modes, and how Muse Image plans, draws and checks itself.
-- **A real agent:** ReAct loop over function calling, 15 on-device tools (alarms, calendar, notifications, files, memory, spaced-repetition cards, generative UI cards and more), a structured plan engine with approval, specialist mini-agents, layered memory.
+- **Learn.** 31 lessons from "what is an AI" to building your own agent, each a strict step contract driven by code, with an interactive scene you can touch: drag the temperature, scroll your name out of the context window, step an agent through its ReAct loop. Four lessons are about Meta's own models: the lineup (Muse Spark, Muse Image, SAM 3.1, Voice Transcribe, Llama), Muse Spark's reasoning modes, how Muse Image plans and draws, open weights vs API.
+- **Build.** A no-code agent builder: identity, instructions, 14 on-device tools (reminders, alarms, calendar, notifications, files, memory, email drafts, spaced-repetition cards, generative UI cards and more), custom skills, modes (chat, reflection, plan, goal) and declarative rules. A dry run simulates every side effect before the agent goes live.
+- **Run.** Agents live on the phone: a ReAct loop over function calling, layered memory, background reminders and heartbeats, a structured plan engine with approval and evidence-checked steps. Safe by default: reading and writing just happen, deleting or sending anything off the device always asks in chat and is never done in the background.
 
 ### How it uses Meta models
 
-- **Muse Spark 1.3** is the agent's brain: the tool loop, onboarding (one free-form "about me" turned into a profile) and every lesson question.
-- **Muse Image** illustrates the course. 26 illustrations were generated ahead of time by a script and bundled, so lessons work offline and on any provider. On the phone, "Draw it for me" redraws a lesson scene around the learner's own life — the same idea, their world.
-- **Muse Spark video understanding** powers "How a model sees": one tap sends a short bundled clip (or the learner films 5–10 seconds of their own), and Muse Spark explains what it saw, what it is unsure about, and why — frames, not continuous motion. The sample clip is itself a Muse Image scene with a slow camera pan. The interactive timeline right before it shows the same thing: what slips between frames, and what extra frames cost in tokens.
+- **Muse Spark 1.3** is the brain of every agent built on the platform: the tool loop, reflection, plans, onboarding and every lesson question. Fallback stays inside Meta's lineup (Muse Spark 1.2 → Wonder → …).
+- **Muse Spark video understanding** powers "How a model sees": one tap sends a short clip (or the learner films their own), and Muse Spark explains what it saw, what it is unsure about, and why.
+- **Muse Image** illustrates the course — generated ahead of time and bundled, so lessons work offline — and "Draw it for me" redraws a lesson scene around the learner's own life.
 
-### Private by design
+### Private and safe by design
 
-- Only the provider the user picked receives requests; images and video are sent only when it is Muse via OpenRouter.
-- "Draw it for me" sends only the learner's own "about me" text (capped) and language — never name, age, gender or religion.
-- Videos filmed for a lesson go to the app cache, not the gallery, and are deleted right after analysis.
-- Model variants that train on user data (Muse Spark "contributor") are filtered out of the model list and the fallback chain.
-- Every model call — text, image, video — is recorded with its cost in a weekly spend card.
+- Only Meta models are used; variants that train on user data ("contributor") are filtered out of the model list and the fallback chain.
+- Destructive and outbound actions always need the user's OK; background runs can't do them at all.
+- "Draw it for me" sends only the learner's own "about me" text and language — never name, age or gender. Lesson videos stay in the app cache and are deleted after analysis.
+- Every model call — text, image, video — is metered in a weekly spend card.
+- **Your key, your quota.** The Meta API key is typed into the app by the person using it and kept in `EncryptedSharedPreferences` behind an Android Keystore master key. No key lives in the repository — `.env` is gitignored and has never been committed. And no live key can reach a shipped build: a Gradle check fails `bundleRelease` and `assembleRelease` when `.env` holds one, because the secrets plugin copies `.env` into `BuildConfig`, and `BuildConfig` travels inside the AAB — one unzip away from anyone. (Local debug builds do read a key from the developer's own gitignored `.env`, so onboarding can reach a model before the settings screen is open; a release build gets the placeholder instead and uses only the key you type in.)
 
 ### Challenges
 
-- **Muse Image declares no parameters on OpenRouter**, so a strict request is just `model` + `prompt`. Composition and a consistent "no text, 16:9, flat editorial" style live in the prompt — one style string shared by the build-time script and the app, kept in sync by a test.
-- **Strict tool-call replay:** the Meta API rejects an assistant tool call without its paired tool result. We verified every branch of the loop (stops, budget limits, errors) still answers every call.
-- **Video from a phone** can't be a URL, so it goes as a base64 data URL, recorded short and low-quality by the system camera and capped at 20 MB.
-- **Filming is friction.** Camera, permissions and light stopped people at the video step, so the main button now sends a bundled sample clip in one tap; filming your own is the second option.
-- **A lesson must never hang:** if a picture or a video answer can't be produced (offline, no key, provider error), the step still posts and the lesson continues.
+- **Strict tool-call replay:** Meta's API rejects an assistant tool call without its paired result; every branch of the loop (stops, limits, errors, denials) answers every call.
+- **A denial must read as a decision:** a bare "not approved" made the model tell users to enable a permission; the loop now says the user declined.
+- **Muse Image declares no parameters on OpenRouter**, so composition and one consistent style live in the prompt, shared by the build-time script and the app and kept in sync by a test.
+- **Video from a phone** goes as a base64 data URL, short and capped at 20 MB.
 
 ### How it's built
 
-Kotlin, Jetpack Compose, Metro DI, Ktor (SSE streaming), Room, WorkManager. ~42k lines of Kotlin, ~980 unit tests, 426 commits since May 2026, built solo. A traceability check links every feature to the reason it exists and to its code.
+Kotlin, Jetpack Compose, Metro DI, Ktor (SSE streaming), Room, WorkManager. ~49k lines of Kotlin, 1075 unit tests on CI, 432 commits since May 2026, built solo. A traceability check links every feature to the reason it exists and to its code.
+
+### Before / during the hackathon
+
+*Обязательный раздел: судьи должны различить вклад, иначе дисквалификация. Заполнять по факту, с датами и диапазоном коммитов.*
+
+**Before the hackathon** *(до 27 окт)* — the platform existed: the agent loop, the builder, the on-device tools, the lesson engine, and the first pass of Meta-model integration through OpenRouter.
+
+**Built during the hackathon** *(Oct 27 – Nov 4, commits `<первый>`..`<последний>`)* — *(заполнять по ходу; сюда идёт всё, что делается в окне: английский интерфейс и английский курс, Meta Model API напрямую, SAM 3.1, Voice Transcribe, …)*
 
 ### What's next
 
-English lessons translated by Muse Spark; scenes that Muse Spark storyboards on request ("explain RAG as an animation"); SAM 3.1 outlines on the video lesson; Play Store release.
+English and other languages for the whole course via Muse Spark; SAM 3.1 and Voice Transcribe through Meta Model API; agents that see and draw; Play Store release.
 
 ### Built with
 
-Muse Spark 1.3 · Muse Image · OpenRouter · Kotlin · Jetpack Compose · Ktor · Room · WorkManager · Coil
+Muse Spark 1.3 · Muse Image · OpenRouter · Kotlin · Jetpack Compose · Ktor · Room · WorkManager
 
 ### Links
 
-- Demo video: *(YouTube, после записи)*
-- Repository: https://github.com/jQwout/ai-open-pocket-2 *(сейчас приватный — открыть или не давать; помнить про лицензию организаторам на показанные материалы из правил)*
+- Demo video: *(после записи)*
+- Repository: https://github.com/jQwout/ai-open-pocket-2 *(пока закрытый — порядок открытия в разделе 4)*
+
+## 4. Публикация репозитория
+
+Без публичного репо сабмишн не примут, поэтому это не «потом», а отдельная задача со своим порядком.
+
+**Что мешает.** В истории лежит собранный APK `.build-outputs/app-debug.apk` (20,7 МБ), добавлен в `0e3331a`, удалён только в `197306c`. Внутри него, в `classes4.dex` и `classes9.dex`, зашит Google-ключ `AIzaSyDSmlm5Mc1g…` эпохи AI Studio (проверено 26 окт распаковкой блоба из истории). Удаление файла в последнем коммите ничего не меняет: блоб достаётся из любого коммита диапазона.
+
+**Порядок:**
+
+1. **Отозвать ключ** `AIzaSyDSmlm5Mc1g…` в Google Cloud Console — это делает юзер, и это главное: даже после чистки истории копии блоба могут остаться у клонов и в кеше GitHub.
+2. **Выбросить `.build-outputs/` из всей истории** (`git filter-repo --path .build-outputs --invert-paths`, при отсутствии filter-repo — `filter-branch`/BFG). Побочно уносит 20 МБ мусора. Переписывает хеши ВСЕХ коммитов, поэтому делать на чистом дереве и когда ни одна ветка не в работе.
+3. **Повторно просканировать** историю тем же способом (распаковка всех блобов + поиск по шаблонам ключей). Проверено 26 окт: `.env` в истории никогда не было; единственное совпадение по `sk-or-v1-` — заведомо фейковый ключ в `RequestJournalTest.kt`.
+4. **Force-push**, затем README на английском и лицензия. В README — как собрать и **где взять свой ключ Meta Model API и куда его вставить в приложении** (ключ вводит пользователь, в репозитории и в артефакте его нет): судьи пойдут этим путём, и спотыкаться им негде.
+5. **Сделать репо публичным** и открыть ссылку в сабмишне.
+
+Делать после того, как закончится работа над английским интерфейсом: переписывание истории на ветке, которую параллельно правят, гарантированно всё поломает.
+
+## 5. Бонусные призы ($50K помимо треков)
+
+Берём те, что ложатся на проект без отдельной разработки:
+
+- **Best Agentic Use-Case $5K** — наш профиль: судят автономность, эффективность в своей задаче и практическую пользу. Значит в ролике нужен не один тул-колл, а многошаговый ход агента с решением и подтверждением.
+- **Most Viral Project $20K** — пост с демо на X плюс ссылка на пост, отправленная через платформу; считают лайки, репосты и комментарии до 8 ноя включительно. Нужен аккаунт X и пост сразу после сабмишна, не 8-го.
+- **Community Vote $10K** — голоса в публичной галерее, один голос с подтверждённого аккаунта, объявят 16 ноя. Делать нечего, кроме понятной карточки проекта и ролика.
+- **Best Creative Build $5K** (Muse Image или Wonder) — картинки курса рисует Muse Image, формально подходим; отмечают на первом круге судейства. Не гнаться, но упомянуть Muse Image в сабмишне обязательно.
+- **Best Build on Open Weights $10K** — требует Muse Glimmer или Muse Spark Open на своём железе либо у партнёра (Baseten/Modal). Сейчас не наш путь; открывается, если дадут партнёрские кредиты.
+
+## 6. Кредиты, даты и ссылки
+
+**Кредиты — заявки подаёт юзер сам, за другого нельзя. Два потолка работают по принципу «кто раньше».**
+
+| Что | Сколько | Условия | Форма |
+| --- | --- | --- | --- |
+| Meta Model API | $150 | до 4 ноя 21:00 ET, нужна привязанная карта (будет временная преавторизация), лимит расходов ставится на странице Billing; начисляют партиями | [форма](https://docs.google.com/forms/d/e/1FAIpQLScam78z7tHsNYibiFyJQVFzEgr0coyBTiY568SxxNbsPa3jiw/viewform) |
+| Baseten | $100 + 2M TPM | **не более 2000 участников**, отбор по описанию применения; в хакатоне модель называется `meta-models/muse-spark-open-1026` (а не `muse-spark-open`, как в доках) | [форма](https://docs.google.com/forms/d/e/1FAIpQLSfM7gcK8yMZEmAGq6DbTyiuv2c71IH7CKCy0fXGIfUED1qxVQ/viewform) |
+| Modal | $100 | **первым 1000** | [форма](https://docs.google.com/forms/d/e/1FAIpQLSe_GDPtLZsdA57xPhFcOCi_yLjPf8HRxMIQJ5V7ystoKSqWCQ/viewform) |
+| Fireworks | $25 | шортлист команд, присылают реквизиты письмом | [форма](https://docs.google.com/forms/d/e/1FAIpQLSdPQTTES8_nhavzZkOrebVNYbM1FumWLdpeZx8ZSNe4QLXKPA/viewform) |
+
+**Даты (ET, +6 ч к Белграду):** окно работы 27 окт — 4 ноя · воркшопы 27 окт Agents 101, 28 окт Agents 102 (verifiable agents), 30 окт Fireworks · офис-часы Meta в Discord по будням 10:00–11:00, текстом в `#office-hours` · 3 ноя — последний день вопросов по сабмишну · **4 ноя 21:00 — сдача** · 5–8 ноя судейство · 9 ноя 12:00 закрытие (топ-5 на трек, живой финал) · 16 ноя — народное голосование.
+
+**Ссылки:** [сабмишн](https://cerebralvalley.ai/e/meta-ai-developer-hackathon/hackathon/submit) · [Discord](https://cerebralvalley.ai/e/meta-ai-developer-hackathon/discord) · [трансляция](https://cerebralvalley.ai/e/meta-ai-developer-hackathon/live) · [гайд участника](https://cerebralvalley.ai/e/meta-ai-developer-hackathon/details) · [Meta Model API](https://dev.meta.ai/products/meta-model-api) · [quickstart](https://dev.meta.ai/docs/quickstart) · [список моделей](https://dev.meta.ai/docs/models) · [кукбук](https://github.com/meta-models/meta-model-cookbook) · [SAM 3.1](https://dev.meta.ai/models/sam-3-1) · [Voice Transcribe](https://dev.meta.ai/models/muse-voice-transcribe)
