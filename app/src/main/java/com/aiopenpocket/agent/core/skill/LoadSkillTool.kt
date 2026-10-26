@@ -13,13 +13,13 @@ import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
 
 /**
- * Меташар: загружает подробную инструкцию навыка по id (уровень 2 progressive disclosure).
- * Для агент-лупа это обычный Tool — результат уходит обратно в контекст как tool-message.
- * Грузить можно только зарегистрированные навыки (whitelist) — built-in ИЛИ agent-owned Room custom
- * (см. composite [SkillRegistry]), произвольный текст/путь — нельзя. Этот Tool сам по себе не знает,
- * КАКОМУ агенту разрешён конкретный id — тот скоуп проверяет вызывающий цикл
- * ([com.aiopenpocket.agent.loop.ReactLoopRunner]'s isSkillAllowed, сверяет id с
- * [com.aiopenpocket.agent.core.agent.AgentDefinition.skillIds]) ДО того, как этот Tool вообще исполнится.
+ * A meta tool: loads a skill's detailed instruction by id (level 2 of progressive disclosure).
+ * For the agent loop it is an ordinary Tool — the result goes back into the context as a tool message.
+ * Only registered skills can be loaded (a whitelist) — built-in OR agent-owned Room custom ones
+ * (see the composite [SkillRegistry]); arbitrary text/paths cannot. This Tool by itself does not know
+ * WHICH agent a particular id is allowed for — the calling loop checks that scope
+ * ([com.aiopenpocket.agent.loop.ReactLoopRunner]'s isSkillAllowed, matching the id against
+ * [com.aiopenpocket.agent.core.agent.AgentDefinition.skillIds]) BEFORE this Tool runs at all.
  */
 @Inject
 @SingleIn(AppScope::class)

@@ -32,11 +32,11 @@ import dev.zacsweers.metro.SingleIn
 object DatabaseBindings {
 
     /**
-     * Имя файла БД. Константа, а не литерал в одном месте, потому что это же имя дословно повторено в
-     * `res/xml/backup_rules.xml` и `res/xml/data_extraction_rules.xml` — база исключена из облачного
-     * бэкапа (вся переписка и память агента лежат в ней открытым текстом). XML не умеет ссылаться на
-     * Kotlin-константу, поэтому расхождение ловит `BackupRulesTest`: переименование БД без правки
-     * правил молча вернуло бы её в бэкап.
+     * The DB file name. A constant rather than a literal in one place, because the same name is
+     * repeated verbatim in `res/xml/backup_rules.xml` and `res/xml/data_extraction_rules.xml` — the
+     * database is excluded from cloud backup (all of the agent's conversations and memory are in it as
+     * plain text). XML cannot reference a Kotlin constant, so `BackupRulesTest` catches a mismatch:
+     * renaming the DB without updating the rules would silently put it back into the backup.
      */
     const val DATABASE_NAME = "ai_open_pocket_db"
 
@@ -102,8 +102,9 @@ object DatabaseBindings {
     fun provideLlmUsageDao(database: AppDatabase): LlmUsageDao = database.llmUsageDao()
 
     /**
-     * Учёт расхода — Room-реализация. Отдельной заглушки в проде нет намеренно: связывание тут
-     * обязательно, и если его убрать, сборка графа упадёт, а не начнёт молча не считать деньги.
+     * Spend accounting — the Room implementation. There is deliberately no separate stub in
+     * production: the binding is required here, and if it is removed the graph build fails instead of
+     * silently not counting money.
      */
     @Provides
     @SingleIn(AppScope::class)

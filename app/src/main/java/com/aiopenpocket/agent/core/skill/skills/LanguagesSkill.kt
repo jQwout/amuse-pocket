@@ -9,7 +9,7 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
 
-/** Навык изучения иностранных языков. Тело — assets/skills/languages/SKILL.md. */
+/** Foreign language learning skill. Body: assets/skills/languages/SKILL.md. */
 @Inject
 @SingleIn(AppScope::class)
 class LanguagesSkill(

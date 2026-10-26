@@ -7,15 +7,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Навык, тело которого лежит в ассете `assets/skills/{id}/SKILL.md`.
- * Манифест задаётся в коде наследником (дёшево для каталога), тело читается лениво.
+ * A skill whose body lives in the asset `assets/skills/{id}/SKILL.md`.
+ * The manifest is defined in code by a subclass (cheap for the catalog), the body is read lazily.
  */
 abstract class AssetSkill(
   private val application: Application,
 ) : Skill {
 
-  // Содержимое ассета неизменно на всё время жизни процесса — кэшируем, чтобы повторные
-  // load_skill(id) в одном диалоге не переоткрывали и не перечитывали файл заново.
+  // The asset content does not change for the life of the process — cache it so repeated
+  // load_skill(id) calls in one conversation do not reopen and reread the file.
   @Volatile
   private var cachedInstructions: String? = null
 

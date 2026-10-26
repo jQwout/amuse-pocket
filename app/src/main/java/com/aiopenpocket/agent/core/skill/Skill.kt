@@ -3,8 +3,8 @@ package com.aiopenpocket.agent.core.skill
 // @trace agent-skills-7189cc
 
 /**
- * Манифест навыка — дешёвые метаданные для каталога (уровень 1 progressive disclosure).
- * Объявляется в коде (как PersonaInfo), чтобы каталог собирался без чтения ассетов.
+ * A skill manifest — cheap metadata for the catalog (level 1 of progressive disclosure).
+ * Declared in code (like PersonaInfo) so the catalog is built without reading assets.
  */
 data class SkillManifest(
   val id: String,
@@ -13,15 +13,15 @@ data class SkillManifest(
 )
 
 /**
- * Навык = упакованная процедура/знание, которое модель подгружает по требованию.
+ * A skill = a packaged procedure/knowledge the model loads on demand.
  *
- * Уровень 1: [manifest] виден в системном промпте (каталог, дёшево).
- * Уровень 2: модель зовёт load_skill(id) → [instructions] попадает в контекст.
- * Уровень 3: внутри инструкции — ссылки на ресурсы, которые модель читает обычными тулами.
+ * Level 1: the [manifest] is visible in the system prompt (the catalog, cheap).
+ * Level 2: the model calls load_skill(id) → the [instructions] go into the context.
+ * Level 3: inside the instruction — references to resources the model reads with ordinary tools.
  */
 interface Skill {
   val manifest: SkillManifest
 
-  /** Полный текст инструкции (SKILL.md). Загружается лениво, только при активации. */
+  /** The full instruction text (SKILL.md). Loaded lazily, only on activation. */
   suspend fun instructions(): String
 }

@@ -175,10 +175,10 @@ object HookEngine {
     val firings = mutableListOf<Firing>()
     var executed = executedSoFar
     for (candidate in candidates) {
-      // Бюджет исчерпан — пропускаем (а не break) только «мягкие» действия: DENY/REQUIRE_APPROVAL/STOP
-      // ниже по приоритету должны сработать и на 51-м срабатывании. Раньше здесь стоял break, и
-      // после 50 срабатываний (их легко набрать LOG-хуком на каждый тул) запрет агента просто
-      // переставал действовать — ограничитель расхода превращался в способ обойти правило.
+      // The budget is exhausted — skip (rather than break) only the "soft" actions: DENY/REQUIRE_APPROVAL/
+      // STOP further down by priority must still fire on the 51st trigger. There used to be a break
+      // here, and after 50 triggers (easy to reach with a LOG hook on every tool) the agent's ban
+      // simply stopped working — the spend limiter turned into a way around the rule.
       if (executed >= maxExecutionsPerRun && candidate.actionType !in BUDGET_EXEMPT_ACTIONS) continue
       val isMatch = runCatching { conditionMatches(candidate.conditionType, candidate.conditionJson, context) }
         .getOrDefault(false) // malformed conditionJson fails closed: never matches, never throws.

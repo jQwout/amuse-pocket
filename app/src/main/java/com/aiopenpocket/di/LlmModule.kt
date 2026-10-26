@@ -33,17 +33,19 @@ import io.ktor.client.engine.android.Android
 object LlmModule {
 
   /**
-   * Ключ OpenRouter: из Настроек, иначе вшитый в отладочную сборку из .env. Одна функция на чат,
-   * картинки и видео — иначе Muse однажды заработала бы в чате и молча отказала в уроке.
+   * The OpenRouter key: from Settings, otherwise the one baked into the debug build from .env. One
+   * function for chat, images and video — otherwise Muse would one day work in the chat and silently
+   * fail in a lesson.
    */
   private fun openRouterKey(settingsRepository: SettingsRepository): String =
     settingsRepository.getApiKey("OPENROUTER").ifBlank { bundledOpenRouterKey(BuildConfig.OPENROUTER_API_KEY) }
 
   /**
-   * Ключ Meta Model API — ТОЛЬКО из Настроек: вшитого нет ни в отладочной, ни в релизной сборке
-   * (решение 26 окт 2026). Репозиторий открыт, а секретный плагин копирует `.env` в BuildConfig, то
-   * есть внутрь артефакта: вшитый ключ раздавал бы кредиты Meta всем, кто соберёт проект. Пустой
-   * ключ — не ошибка, а «идём через OpenRouter» (см. [activeLlmProvider]).
+   * The Meta Model API key — ONLY from Settings: there is no bundled one in either the debug or the
+   * release build (decision of Oct 26, 2026). The repository is public, and the secrets plugin copies
+   * `.env` into BuildConfig, i.e. into the artifact: a bundled key would hand out Meta credits to
+   * anyone who builds the project. An empty key is not an error but "go through OpenRouter" (see
+   * [activeLlmProvider]).
    */
   private fun metaKey(settingsRepository: SettingsRepository): String = settingsRepository.getApiKey("META")
 
@@ -54,15 +56,15 @@ object LlmModule {
   @SingleIn(AppScope::class)
   fun provideLlmClient(client: OpenAiCompatClient): LlmClient = client
 
-  /** Прод-транспорт [OpenAiCompatClient]; в тестах его место занимает MockEngine. */
+  /** The production transport of [OpenAiCompatClient]; in tests MockEngine takes its place. */
   @Provides
   @SingleIn(AppScope::class)
   fun provideLlmHttpEngine(): HttpClientEngine = Android.create()
 
   /**
-   * Muse Image через OpenRouter — для картинок уроков. Ключ тот же, что у чата, и читается при
-   * каждой генерации: ключ, введённый в Настройках, действует без перезапуска. Пустой ключ клиент
-   * понимает как «не рисовать» — урок показывает картинки из сборки.
+   * Muse Image through OpenRouter — for lesson images. The key is the same as the chat's and is read on
+   * every generation: a key entered in Settings takes effect without a restart. The client treats an
+   * empty key as "do not draw" — the lesson shows the images bundled in the build.
    */
   @Provides
   @SingleIn(AppScope::class)
@@ -77,8 +79,9 @@ object LlmModule {
   )
 
   /**
-   * Muse Spark через OpenRouter — для видео в уроке. Ключ тот же, что у картинок; на прямой Meta
-   * Model API видео пока не переведено, так что с одним ключом Meta урок о видео не ответит.
+   * Muse Spark through OpenRouter — for video in a lesson. The key is the same as for images; video has
+   * not been moved to the direct Meta Model API yet, so with only a Meta key the video lesson will not
+   * answer.
    */
   @Provides
   @SingleIn(AppScope::class)
@@ -93,9 +96,9 @@ object LlmModule {
   )
 
   /**
-   * Провайдер на всё приложение: чат, план-движок и фоновые heartbeat'ы. Решает ключ Meta (см.
-   * [activeLlmProvider]); читается на каждом обращении, так что введённый ключ действует со
-   * следующего хода.
+   * The provider for the whole app: chat, the plan engine and background heartbeats. The Meta key
+   * decides it (see [activeLlmProvider]); it is read on every access, so an entered key takes effect
+   * from the next turn.
    */
   @Provides
   @SingleIn(AppScope::class)
@@ -108,16 +111,16 @@ object LlmModule {
     settingsRepository: SettingsRepository,
     modelCatalogLoader: ModelCatalogLoader,
   ): ProviderFallbackChain {
-    // Каталог OpenRouter (см. ModelCatalogLoader): сид из ассетов, который в бою заменяется списком
-    // с /api/v1/models. Каталог Meta — статичный ассет.
-    // OpenAiCompatClient постит на полный endpoint, поэтому дописываем /chat/completions к base_url.
+    // The OpenRouter catalog (see ModelCatalogLoader): an asset seed that in practice is replaced by the
+    // list from /api/v1/models. The Meta catalog is a static asset.
+    // OpenAiCompatClient posts to the full endpoint, so /chat/completions is appended to base_url.
     fun configsFor(provider: LlmProvider, catalog: ModelCatalog, apiKey: () -> String): List<ProviderConfig> {
       val endpoint = catalog.baseUrl.trimEnd('/') + "/chat/completions"
-      // Только модели Meta: приложение работает на Muse. На OpenRouter отсев здесь, а не только в
-      // разборе живого каталога: кеш, записанный прошлой версией, ещё может держать чужие модели, и
-      // модель, выбранная в Настройках до обновления, иначе осталась бы в цепочке первой. У прямого
-      // Meta Model API чужих моделей нет, а id там без префикса «meta/» — отсев по префиксу выбросил
-      // бы весь каталог.
+      // Only Meta models: the app runs on Muse. On OpenRouter the filter is here, not only in parsing the
+      // live catalog: a cache written by a previous version may still hold foreign models, and a model
+      // chosen in Settings before an update would otherwise stay first in the chain. The direct Meta
+      // Model API has no foreign models, and its ids have no "meta/" prefix — filtering by the prefix
+      // would throw out the whole catalog.
       val models = if (provider == LlmProvider.OPENROUTER) catalog.models.filter { isMetaModel(it.name) } else catalog.models
       return models.map { entry ->
         ProviderConfig(
@@ -128,31 +131,31 @@ object LlmModule {
           reasoning = entry.reasoning,
           temperature = entry.temperature,
           topP = entry.topP,
-          // Гейт «только модели с tools» применяет ProviderFallbackChain.resolve — здесь мы лишь
-          // доносим до него факт из каталога.
+          // The "tool-capable models only" gate is applied by ProviderFallbackChain.resolve — here we just
+          // pass the fact from the catalog on to it.
           supportsTools = entry.supportsTools,
           apiKeyResolver = apiKey,
         )
       }
     }
 
-    // Каталог обновляется в рантайме (OpenRouterCatalogService пишет кеш), поэтому он пересобирается
-    // на каждый resolve — иначе новый список не действовал бы до перезапуска процесса.
+    // The catalog is updated at runtime (OpenRouterCatalogService writes the cache), so it is rebuilt on
+    // every resolve — otherwise a new list would not take effect until the process restarts.
     return ProviderFallbackChain(
       configsFor = { provider ->
         when (provider) {
-          // Ключ из Настроек в приоритете; иначе — вшитый в отладочную сборку из .env.
+          // The key from Settings takes priority; otherwise the one baked into the debug build from .env.
           LlmProvider.OPENROUTER -> configsFor(provider, modelCatalogLoader.loadOpenRouter()) {
             openRouterKey(settingsRepository)
           }
-          // Ключ только из Настроек — см. metaKey.
+          // The key comes only from Settings — see metaKey.
           LlmProvider.META -> configsFor(provider, modelCatalogLoader.loadMeta()) {
             metaKey(settingsRepository)
           }
         }
       },
-      // Выбор модели у каждого маршрута свой (см. SettingsRepository.getSelectedModel): id у OpenRouter
-      // и у Meta разные, и общий выбор показывал бы в Настройках модель, которой цепочка не знает.
+      // Each route has its own model choice (see SettingsRepository.getSelectedModel): ids on OpenRouter
+      // and on Meta differ, and a shared choice would show a model in Settings the chain does not know.
       preferredModel = { settingsRepository.getSelectedModel(activeProvider(settingsRepository).name) },
     )
   }

@@ -20,9 +20,9 @@ object UserPreferencesModule {
   fun provideContext(application: Application): Context = application.applicationContext
 
   /**
-   * Единственный на процесс DataStore пользовательских настроек. Явный биндинг (а не обращение к
-   * делегату внутри репозитория) нужен, чтобы в тестах на его место вставал изолированный файл —
-   * см. KDoc [com.aiopenpocket.agent.core.identity.UserPreferencesRepository].
+   * The one-per-process DataStore of user preferences. An explicit binding (rather than reaching for
+   * the delegate inside the repository) lets tests put an isolated file in its place — see the KDoc of
+   * [com.aiopenpocket.agent.core.identity.UserPreferencesRepository].
    */
   @Provides
   @SingleIn(AppScope::class)

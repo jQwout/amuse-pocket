@@ -48,10 +48,10 @@ class UserAgentRepository @Inject constructor(
   fun observePublished(): Flow<List<AgentDefinition>> = dao.observePublished().map { it.decode() }
 
   /**
-   * Never-published USER drafts, most-recently-updated first — the roster's «Черновики» section.
+   * Never-published USER drafts, most-recently-updated first — the roster's "Drafts" section.
    * Without this read a draft was written by every autosave and then shown by nothing: the only
    * listing surface ([observePublished]) filters drafts out by design, so an agent whose wizard was
-   * closed before «Опубликовать» stayed in Room forever with no way back into it.
+   * closed before "Publish" stayed in Room forever with no way back into it.
    */
   fun observeDrafts(): Flow<List<AgentDefinition>> = dao.observeDrafts().map { it.decode() }
 
@@ -79,15 +79,15 @@ class UserAgentRepository @Inject constructor(
    *
    * This used to force `status = DRAFT, configVersion = 0` on every call. Chained with the builder's
    * per-keystroke autosave that meant editing a PUBLISHED agent silently unpublished it: it dropped
-   * out of [observePublished] (i.e. out of «Мои агенты») the moment the user typed one character, and
-   * closing the wizard without pressing «Опубликовать» left it invisible — recoverable only through an
+   * out of [observePublished] (i.e. out of "My agents") the moment the user typed one character, and
+   * closing the wizard without pressing "Publish" left it invisible — recoverable only through an
    * already-existing chat with it. It also forced `publish` to be called in a catch-up LOOP to walk a
    * reset configVersion back up to its true next value.
    *
    * Now an existing row keeps whatever [AgentStatus]/`configVersion` it already had, so:
    * - a never-published draft stays [AgentStatus.DRAFT] at 0 (and is listed by [observeDrafts]);
    * - a published agent stays published and keeps its version — its edits go live for the NEXT run
-   *   (every run takes an immutable snapshot, so nothing in flight changes), and «Опубликовать»
+   *   (every run takes an immutable snapshot, so nothing in flight changes), and "Publish"
    *   becomes the explicit "cut a new configVersion" action rather than the only way back into the
    *   roster;
    * - an archived agent stays archived until an explicit [publish] revives it.
@@ -226,7 +226,7 @@ class UserAgentRepository @Inject constructor(
   }
 
   /**
-   * Demotes a published agent back to [AgentStatus.DRAFT] — the explicit "выключить агента" action,
+   * Demotes a published agent back to [AgentStatus.DRAFT] — the explicit "turn the agent off" action,
    * the mirror of [publish]. This used to be expressed as a bare [saveDraft] call, relying on that
    * method's old side effect of force-resetting status; now that saveDraft preserves status (so a
    * per-keystroke autosave can't silently unpublish anything), demoting has to say so out loud.
@@ -245,7 +245,7 @@ class UserAgentRepository @Inject constructor(
    * Hooks and custom skills are forked too, under fresh ids owned by the copy. Without that, a fork
    * of a user agent carried `skillIds`/`hooks` still pointing at the SOURCE's rows: [saveDraft] and
    * [publish] both refuse to reassign another agent's rows, so the hooks silently vanished and every
-   * copied custom skill id validated as `unknown_skill` — an error the wizard shows on «Возможности»
+   * copied custom skill id validated as `unknown_skill` — an error the wizard shows on "Capabilities"
    * with no control able to clear it, wedging the copy permanently. A `skillIds` entry that is
    * neither a built-in nor one of the source's own custom skills is dropped rather than copied
    * forward, for the same reason.
