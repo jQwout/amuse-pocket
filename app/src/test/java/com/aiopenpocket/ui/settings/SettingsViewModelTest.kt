@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModel
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
+import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.ModelCatalogLoader
 import com.aiopenpocket.agent.core.llm.OpenRouterCatalogCache
 import com.aiopenpocket.agent.core.llm.OpenRouterCatalogService
@@ -104,12 +105,15 @@ class SettingsViewModelTest {
       values["key_$provider"] = key
     }
 
-    override fun getSelectedModel(): String = values["model"] ?: "AUTO"
+    override fun getSelectedModel(provider: String): String = values[modelKey(provider)] ?: "AUTO"
 
-    override fun setSelectedModel(model: String) {
+    override fun setSelectedModel(model: String, provider: String) {
       writes++
-      values["model"] = model
+      values[modelKey(provider)] = model
     }
+
+    /** Выбор OpenRouter — под "model", как до второго маршрута: на нём стоят проверки ниже. */
+    private fun modelKey(provider: String) = if (provider == "OPENROUTER") "model" else "model_$provider"
   }
 
   private fun catalogJson(vararg ids: String): String {
@@ -228,6 +232,41 @@ class SettingsViewModelTest {
     val state = vm.await { it.availableModels.contains("meta/one") }
 
     assertFalse(state.availableModels.contains("anthropic/claude-sonnet-5"))
+  }
+
+  /**
+   * Ключ Meta переводит запросы на прямой Meta Model API — и список моделей вместе с ними: иначе в
+   * Настройках выбирались бы id OpenRouter, которых цепочка Meta не знает.
+   */
+  @Test
+  fun `с ключом Meta в выборе модели каталога Meta`() = runTest {
+    settings.values["key_META"] = "meta-test"
+    val vm = viewModel(openRouterIds = arrayOf("meta/one"))
+    val state = vm.await { it.metaModels.isNotEmpty() && it.metaKey.isNotEmpty() }
+
+    assertEquals(LlmProvider.META, state.provider)
+    assertTrue(state.availableModels.contains("muse-spark-1.3"))
+    assertFalse(state.availableModels.contains("meta/one"))
+  }
+
+  /**
+   * У маршрутов свой выбор модели: модель, выбранная при ключе Meta, не затирает выбор OpenRouter —
+   * он понадобится, если ключ Meta уберут. Ключ из буфера сохраняется без пробелов по краям.
+   */
+  @Test
+  fun `выбор модели Meta сохраняется отдельно от OpenRouter`() = runTest {
+    settings.values["model"] = "meta/one"
+    val vm = viewModel(openRouterIds = arrayOf("meta/one"))
+    vm.await { it.openRouterModels.contains("meta/one") }
+
+    vm.updateMetaKey("  meta-test\n")
+    vm.updateModel("muse-wonder-1.0")
+    vm.save()
+    vm.await { it.saved }
+
+    assertEquals("meta-test", settings.values["key_META"])
+    assertEquals("muse-wonder-1.0", settings.values["model_META"])
+    assertEquals("meta/one", settings.values["model"])
   }
 
   /**

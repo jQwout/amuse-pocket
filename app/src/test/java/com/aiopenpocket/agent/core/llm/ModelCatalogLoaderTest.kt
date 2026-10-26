@@ -54,4 +54,33 @@ class ModelCatalogLoaderTest {
     val foreign = loader.loadOpenRouterSeed().models.map { it.name }.filterNot(::isMetaModel)
     assertEquals(emptyList<String>(), foreign)
   }
+
+  /** Каталог прямого Meta Model API так же молча упал бы на fallback из одной модели при опечатке. */
+  @Test
+  fun `Meta catalog parses, is sorted and points at the direct API`() {
+    val catalog = loader.loadMeta()
+    assertTrue("ожидали больше одной модели, похоже на fallback", catalog.models.size > 1)
+    assertEquals(ModelCatalog.META_BASE_URL, catalog.baseUrl)
+    assertEquals(catalog.models.map { it.priority }.sorted(), catalog.models.map { it.priority })
+  }
+
+  /**
+   * У прямого API id без префикса вендора — «meta/muse-spark-1.3» это имя на OpenRouter. Каждая модель
+   * с function calling, и ни одной contributor-версии: на их данных Meta обучается.
+   */
+  @Test
+  fun `Meta catalog holds direct-API ids with tools and no contributor models`() {
+    val models = loader.loadMeta().models
+    assertEquals(emptyList<String>(), models.map { it.name }.filter { it.contains('/') })
+    assertTrue(models.all { it.supportsTools })
+    assertEquals(emptyList<String>(), models.map { it.name }.filter(::trainsOnUserData))
+  }
+
+  /** Модель без цены в прайсе — и расход на маршруте Meta молча остаётся без денег. */
+  @Test
+  fun `every Meta catalog model has a list price`() {
+    val unpriced = loader.loadMeta().models.map { it.name }
+      .filter { metaListPriceUsd(it, SseUsage(promptTokens = 1)) == null }
+    assertEquals(emptyList<String>(), unpriced)
+  }
 }

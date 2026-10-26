@@ -19,7 +19,8 @@ import kotlinx.serialization.json.JsonNamingStrategy
  * (handled by [ProviderFallbackChain] + [OpenAiCompatClient]).
  *
  * Ассет `config/models_openrouter.json` — лишь СИД на первый запуск и офлайн; в бою список тянется
- * с `/api/v1/models` OpenRouter и кешируется (см. [OpenRouterCatalogService]).
+ * с `/api/v1/models` OpenRouter и кешируется (см. [OpenRouterCatalogService]). Каталог прямого Meta
+ * Model API — `config/models_meta.json`, статичный (см. [ModelCatalogLoader.loadMeta]).
  */
 @Serializable
 data class ModelCatalog(
@@ -28,12 +29,16 @@ data class ModelCatalog(
 ) {
   companion object {
     const val OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+    const val META_BASE_URL = "https://api.meta.ai/v1"
   }
 }
 
 @Serializable
 data class ModelEntry(
-  /** Model id as the provider names it, e.g. `meta/muse-spark-1.3`. */
+  /**
+   * Model id as the provider names it: `meta/muse-spark-1.3` on OpenRouter, `muse-spark-1.3` on the
+   * direct Meta Model API.
+   */
   val name: String,
   /** Selection order — 1 is tried first, then 2, 3, ... as fallbacks. */
   val priority: Int = Int.MAX_VALUE,
@@ -121,6 +126,16 @@ class ModelCatalogLoader(
    */
   fun loadOpenRouterSeed(): ModelCatalog = load(OPENROUTER_ASSET_PATH, OPENROUTER_FALLBACK)
 
+  /**
+   * Каталог прямого Meta Model API — статичный, из ассетов, без живого списка.
+   *
+   * `GET /v1/models` у Meta есть, но тянуть его незачем: моделей с tools там четыре, и порядок у них
+   * не «как отдал сервер», а курируемый — Muse Wonder в 3–5 раз дороже Spark и стоит последней, только
+   * как фолбэк. Живой каталог OpenRouter нужен потому, что там сотни моделей и они меняются; здесь
+   * меняться нечему, а новая модель Meta всё равно требует сверки цены (см. metaListPriceUsd).
+   */
+  fun loadMeta(): ModelCatalog = load(META_ASSET_PATH, META_FALLBACK)
+
   /** Loads a catalog from assets, sorted by priority. Falls back to a single safe model on error. */
   private fun load(assetPath: String, fallback: ModelCatalog): ModelCatalog {
     val catalog = try {
@@ -141,6 +156,19 @@ class ModelCatalogLoader(
   private companion object {
     const val TAG = "ModelCatalogLoader"
     const val OPENROUTER_ASSET_PATH = "config/models_openrouter.json"
+    const val META_ASSET_PATH = "config/models_meta.json"
+    val META_FALLBACK = ModelCatalog(
+      baseUrl = ModelCatalog.META_BASE_URL,
+      models = listOf(
+        ModelEntry(
+          name = "muse-spark-1.3",
+          priority = 1,
+          maxTokens = 16000,
+          reasoning = true,
+          inputModalities = listOf("text", "image", "video", "audio", "file"),
+        ),
+      ),
+    )
     val OPENROUTER_FALLBACK = ModelCatalog(
       baseUrl = ModelCatalog.OPENROUTER_BASE_URL,
       models = listOf(

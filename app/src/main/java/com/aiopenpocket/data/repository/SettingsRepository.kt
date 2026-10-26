@@ -13,7 +13,7 @@ import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
 
 /**
- * Ключ OpenRouter и выбор модели.
+ * Ключи провайдеров (OpenRouter и Meta Model API) и выбор модели.
  *
  * Интерфейс (реализация — [EncryptedSettingsRepository]) не ради «абстракции на будущее», а потому
  * что единственная реализация принципиально не создаётся в юнит-тесте: она поднимает Android
@@ -27,10 +27,17 @@ interface SettingsRepository {
 
   fun setApiKey(provider: String, key: String)
 
-  /** Конкретная модель Meta. "AUTO" — идти по priority из каталога. */
-  fun getSelectedModel(): String
+  /**
+   * Конкретная модель Meta на маршруте [provider] (`LlmProvider.name`). "AUTO" — идти по priority из
+   * каталога.
+   *
+   * У каждого маршрута свой выбор: id одной и той же модели у OpenRouter и у прямого Meta Model API
+   * разные («meta/muse-wonder» и «muse-wonder-1.0»). Общий выбор при вводе ключа Meta либо молча
+   * терялся бы, либо показывал бы в Настройках модель, которой цепочка не знает.
+   */
+  fun getSelectedModel(provider: String = "OPENROUTER"): String
 
-  fun setSelectedModel(model: String)
+  fun setSelectedModel(model: String, provider: String = "OPENROUTER")
 
   companion object {
     /**
@@ -87,10 +94,18 @@ class EncryptedSettingsRepository(
     prefs.edit().putString("api_key_$provider", key).apply()
   }
 
-  override fun getSelectedModel(): String =
-    prefs.getString("selected_model", "AUTO") ?: "AUTO"
+  override fun getSelectedModel(provider: String): String =
+    prefs.getString(selectedModelKey(provider), "AUTO") ?: "AUTO"
 
-  override fun setSelectedModel(model: String) {
-    prefs.edit().putString("selected_model", model).apply()
+  override fun setSelectedModel(model: String, provider: String) {
+    prefs.edit().putString(selectedModelKey(provider), model).apply()
   }
+
+  /**
+   * OpenRouter — под прежним ключом: выбор, сделанный до появления второго маршрута, не теряется.
+   * Не `selected_provider` и не что-то с этим именем: такой ключ удаляется при каждом открытии prefs
+   * (наследство NIM, см. OBSOLETE_PROVIDER).
+   */
+  private fun selectedModelKey(provider: String): String =
+    if (provider == "OPENROUTER") "selected_model" else "selected_model_$provider"
 }

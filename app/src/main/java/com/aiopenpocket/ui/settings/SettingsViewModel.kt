@@ -7,6 +7,7 @@ import com.aiopenpocket.agent.core.identity.ChatFontScale
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
+import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.ModelCatalog
 import com.aiopenpocket.agent.core.llm.ModelCatalogLoader
 import com.aiopenpocket.agent.core.llm.isMetaModel
@@ -53,10 +54,16 @@ class SettingsViewModel(
       // Keystore), и каталог моделей. Живой каталог OpenRouter — сотни моделей, а не пять строк
       // ассета, так что на главном потоке это заметный кадр при каждом входе в Настройки.
       val loaded = withContext(Dispatchers.IO) {
+        val metaModels = modelOptions(modelCatalogLoader.loadMeta(), LlmProvider.META)
         LoadedSettings(
           openRouterKey = settingsRepository.getApiKey("OPENROUTER"),
-          selectedModel = settingsRepository.getSelectedModel(),
-          availableModels = modelOptions(modelCatalogLoader.loadOpenRouter()),
+          metaKey = settingsRepository.getApiKey("META"),
+          selectedModel = settingsRepository.getSelectedModel("OPENROUTER"),
+          // Каталог Meta статичный и полный — по нему, в отличие от сида OpenRouter, можно судить,
+          // что модели больше нет (её убрали из ассета в новой версии), и сразу показать «Авто».
+          selectedMetaModel = pruneMissingModel(settingsRepository.getSelectedModel("META"), metaModels),
+          openRouterModels = modelOptions(modelCatalogLoader.loadOpenRouter(), LlmProvider.OPENROUTER),
+          metaModels = metaModels,
           personaId = userPreferencesRepository.getDefaultPersonaId(),
           goalMaxIterations = userPreferencesRepository.getGoalModeMaxIterations(),
           chatFontScale = userPreferencesRepository.getChatFontScale(),
@@ -65,8 +72,11 @@ class SettingsViewModel(
       _state.update {
         it.copy(
           openRouterKey = loaded.openRouterKey,
+          metaKey = loaded.metaKey,
           selectedModel = loaded.selectedModel,
-          availableModels = loaded.availableModels,
+          selectedMetaModel = loaded.selectedMetaModel,
+          openRouterModels = loaded.openRouterModels,
+          metaModels = loaded.metaModels,
           personaId = loaded.personaId,
           goalMaxIterations = loaded.goalMaxIterations,
           chatFontScale = loaded.chatFontScale,
@@ -121,8 +131,11 @@ class SettingsViewModel(
   /** Снимок того, что читается с диска, — чтобы прочитать всё одним заходом на IO. */
   private data class LoadedSettings(
     val openRouterKey: String,
+    val metaKey: String,
     val selectedModel: String,
-    val availableModels: List<String>,
+    val selectedMetaModel: String,
+    val openRouterModels: List<String>,
+    val metaModels: List<String>,
     val personaId: String,
     val goalMaxIterations: Int,
     val chatFontScale: ChatFontScale,
@@ -146,10 +159,12 @@ class SettingsViewModel(
       // на диск, и расхождение — запись в кеш могла не удаться, и тогда мы показали бы старый
       // список, имея на руках новый.
       val snapshot = openRouterCatalogService.refreshIfStale()
-      val options = modelOptions(snapshot.catalog)
+      val options = modelOptions(snapshot.catalog, LlmProvider.OPENROUTER)
+      // Сверяем с каталогом OpenRouter только выбор маршрута OpenRouter — и при введённом ключе Meta
+      // тоже: выбор хранится на случай, если ключ Meta уберут, и снятая модель не должна в нём ожить.
       _state.update {
         val model = if (snapshot.authoritative) pruneMissingModel(it.selectedModel, options) else it.selectedModel
-        it.copy(availableModels = options, selectedModel = model, saved = it.saved && model == it.selectedModel)
+        it.copy(openRouterModels = options, selectedModel = model, saved = it.saved && model == it.selectedModel)
       }
     }
   }
@@ -161,7 +176,8 @@ class SettingsViewModel(
    * как выбранную, `save()` записал бы её обратно, а цепочка провайдеров молча ушла бы на первую по
    * priority — разрыв между тем, что показано, и тем, что происходит.
    *
-   * Вызывается ТОЛЬКО на авторитетном каталоге (сеть или кеш). Сид из ассетов — пять курируемых
+   * Вызывается ТОЛЬКО на авторитетном каталоге: у OpenRouter — сеть или кеш, у Meta — статичный
+   * ассет (живого списка там нет, ассет и есть полный список). Сид OpenRouter — пять курируемых
    * моделей, и по нему нельзя заключить, что выбранная модель снята: иначе первый же запуск без
    * сети молча сбрасывал бы выбор пользователя.
    */
@@ -172,8 +188,19 @@ class SettingsViewModel(
     _state.update { it.copy(openRouterKey = key, saved = false) }
   }
 
+  fun updateMetaKey(key: String) {
+    _state.update { it.copy(metaKey = key, saved = false) }
+  }
+
+  /** Модель пишется в выбор того маршрута, что показан сейчас, — его список и видит пользователь. */
   fun updateModel(model: String) {
-    _state.update { it.copy(selectedModel = model, saved = false) }
+    _state.update {
+      if (it.provider == LlmProvider.META) {
+        it.copy(selectedMetaModel = model, saved = false)
+      } else {
+        it.copy(selectedModel = model, saved = false)
+      }
+    }
   }
 
   /**
@@ -183,13 +210,19 @@ class SettingsViewModel(
    * фоллбэк-цепочке, поэтому список в Настройках совпадает с реальным порядком попыток. Отсев тот же,
    * что в цепочке: только модели Meta с function calling (см. [isMetaModel] и
    * [com.aiopenpocket.agent.core.llm.ModelEntry.supportsTools]) — кеш прошлой версии ещё может держать
-   * чужие модели, и показать их значило бы предложить выбор, который цепочка молча отбросит.
+   * чужие модели, и показать их значило бы предложить выбор, который цепочка молча отбросит. Отсев по
+   * префиксу «meta/» — только для OpenRouter, как и в цепочке (LlmModule): у Meta id без префикса.
    */
-  private fun modelOptions(catalog: ModelCatalog): List<String> =
+  private fun modelOptions(catalog: ModelCatalog, provider: LlmProvider): List<String> =
     // distinct: одинаковые имена — краш LazyColumn на дублирующихся ключах. Живой каталог уже
     // дедуплицирован (OpenRouterCatalogService), но ассет правится руками, а кеш мог быть записан
     // прошлой версией приложения.
-    (listOf("AUTO") + catalog.models.filter { it.supportsTools && isMetaModel(it.name) && !trainsOnUserData(it.name) }.map { it.name }).distinct()
+    (
+      listOf("AUTO") + catalog.models
+        .filter { it.supportsTools && !trainsOnUserData(it.name) }
+        .filter { provider != LlmProvider.OPENROUTER || isMetaModel(it.name) }
+        .map { it.name }
+      ).distinct()
 
   fun updatePersona(personaId: String) {
     _state.update { it.copy(personaId = personaId, saved = false) }
@@ -236,8 +269,12 @@ class SettingsViewModel(
     // вызывающем потоке, а первое обращение к ним поднимает Keystore. Нажать «Сохранить» можно
     // раньше, чем завершится чтение в init, — и тогда главный поток вставал бы на том же мониторе.
     withContext(Dispatchers.IO) {
-      settingsRepository.setApiKey("OPENROUTER", current.openRouterKey)
-      settingsRepository.setSelectedModel(current.selectedModel)
+      // trim: ключ обычно вставляют из буфера, и хвостовой пробел или перевод строки уехали бы в
+      // заголовок Authorization — со стороны это «ключ правильный, а Meta отвечает 401».
+      settingsRepository.setApiKey("OPENROUTER", current.openRouterKey.trim())
+      settingsRepository.setApiKey("META", current.metaKey.trim())
+      settingsRepository.setSelectedModel(current.selectedModel, "OPENROUTER")
+      settingsRepository.setSelectedModel(current.selectedMetaModel, "META")
     }
     // «Сохранено» показываем только после реальной записи в DataStore (suspend), а не до неё.
     userPreferencesRepository.setDefaultPersonaId(current.personaId)

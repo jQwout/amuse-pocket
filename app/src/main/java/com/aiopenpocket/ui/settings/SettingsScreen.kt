@@ -146,13 +146,13 @@ fun SettingsScreen(
   // Аврора-фон + стекло, как на вкладке «Чат» — навбар/каркас становятся прозрачными (см. glassState).
   val glassState = rememberGlassState()
   AcademyCollapsingScaffold(
-    title = "Настройки",
+    title = tr("Настройки", "Settings"),
     glassState = glassState,
     navigationIcon = {
       IconButton(onClick = onNavigateBack) {
         Icon(
           imageVector = Icons.AutoMirrored.Default.ArrowBack,
-          contentDescription = "Назад",
+          contentDescription = tr("Назад", "Back"),
         )
       }
     },
@@ -187,7 +187,7 @@ fun SettingsScreen(
               modifier = Modifier.size(14.dp),
             )
             Text(
-              text = "Ключ хранится в зашифрованном виде на устройстве.",
+              text = tr("Ключи хранятся в зашифрованном виде на устройстве.", "Keys are stored encrypted on this device."),
               style = MaterialTheme.typography.bodySmall,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -206,14 +206,14 @@ fun SettingsScreen(
             ),
           ) {
             Text(
-              text = "Сохранить изменения",
+              text = tr("Сохранить изменения", "Save changes"),
               style = MaterialTheme.typography.titleMedium,
             )
           }
           if (state.saved) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-              text = "Сохранено",
+              text = tr("Сохранено", "Saved"),
               color = MaterialTheme.colorScheme.primary,
               style = MaterialTheme.typography.bodyMedium,
               modifier = Modifier.align(Alignment.CenterHorizontally),
@@ -252,7 +252,7 @@ fun SettingsScreen(
 
       SettingsSectionHeader(
         icon = Icons.Default.Key,
-        title = "КЛЮЧ API",
+        title = tr("КЛЮЧ API", "API KEY"),
         modifier = Modifier.padding(horizontal = 20.dp),
       )
       Spacer(modifier = Modifier.height(12.dp))
@@ -260,48 +260,47 @@ fun SettingsScreen(
         modifier = Modifier.padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
       ) {
+        // Ключ Meta — первым: это основной маршрут (см. LlmProvider). Вшитого ключа Meta нет, так что
+        // это поле — единственный путь к прямому Meta Model API, в том числе у того, кто собрал
+        // проект из открытого репозитория.
         ApiKeyField(
-          label = "Ключ OpenRouter",
+          label = tr("Ключ Meta Model API", "Meta Model API key"),
+          value = state.metaKey,
+          onValueChange = viewModel::updateMetaKey,
+          modifier = Modifier.testTag("settings_meta_key"),
+        )
+        MetaKeyHint()
+        ApiKeyField(
+          label = tr("Ключ OpenRouter — запасной путь", "OpenRouter key — backup route"),
           value = state.openRouterKey,
           onValueChange = viewModel::updateOpenRouterKey,
         )
       }
 
       // Без этой строки первым сигналом о забытом ключе был бы «All providers failed» в чате, уже
-      // после отправки вопроса. Тем же предикатом, что и резолвер ключа в цепочке, — иначе
-      // предупреждение и реальное поведение однажды разойдутся.
-      val keyMissing = state.openRouterKey.isBlank() && bundledOpenRouterKey(BuildConfig.OPENROUTER_API_KEY).isBlank()
-      if (keyMissing) {
-        Row(
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(8.dp),
-          modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-        ) {
-          Icon(
-            imageVector = Icons.Default.Key,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.error,
-            modifier = Modifier.size(14.dp),
-          )
-          Text(
-            text = "Ключ OpenRouter не задан — запросы не уйдут.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error,
-          )
-        }
-      }
+      // после отправки вопроса, а о том, что ключ Meta что-то переключил, человек узнал бы только из
+      // расхода. Маршрут — тем же предикатом, что у цепочки (state.provider → activeLlmProvider), а
+      // наличие ключа OpenRouter — тем же, что у его резолвера: иначе строка и реальное поведение
+      // однажды разойдутся.
+      val openRouterKeyMissing =
+        state.openRouterKey.isBlank() && bundledOpenRouterKey(BuildConfig.OPENROUTER_API_KEY).isBlank()
+      ProviderRouteLine(
+        provider = state.provider,
+        openRouterKeyMissing = openRouterKeyMissing,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+      )
 
       Spacer(modifier = Modifier.height(28.dp))
 
       SettingsSectionHeader(
         icon = Icons.Default.Memory,
-        title = "МОДЕЛЬ",
+        title = tr("МОДЕЛЬ", "MODEL"),
         modifier = Modifier.padding(horizontal = 20.dp),
       )
       Spacer(modifier = Modifier.height(12.dp))
       SelectorCard(
-        label = "ТЕКУЩАЯ МОДЕЛЬ",
-        selected = modelLabel(state.selectedModel),
+        label = tr("ТЕКУЩАЯ МОДЕЛЬ", "CURRENT MODEL"),
+        selected = modelLabel(state.currentModel),
         // Та же иконка, что у заголовка секции — строка и заголовок читаются как одно целое.
         icon = Icons.Default.Memory,
         onClick = { showModelSheet = true },
@@ -450,10 +449,13 @@ fun SettingsScreen(
 
   if (showModelSheet) {
     SelectorSheet(
-      title = "Выбор модели",
-      subtitle = "На чём агент будет думать. Быстрее — не всегда умнее.",
+      title = tr("Выбор модели", "Choose a model"),
+      subtitle = tr(
+        "На чём агент будет думать. Быстрее — не всегда умнее.",
+        "What your agent thinks with. Faster isn't always smarter.",
+      ),
       options = state.availableModels.map(::modelLabel),
-      selected = modelLabel(state.selectedModel),
+      selected = modelLabel(state.currentModel),
       sheetState = modelSheetState,
       onSelect = { label ->
         state.availableModels.firstOrNull { modelLabel(it) == label }?.let(viewModel::updateModel)
@@ -540,12 +542,13 @@ fun SettingsScreen(
 }
 
 /**
- * Имя модели для человека: «meta/muse-spark-1.3» → «Muse Spark 1.3», "AUTO" → «Авто — по приоритету».
- * Id остаётся ключом в настройках и в цепочке; здесь только подпись — без префикса вендора (он у всех
- * один) и без сентинела настроек, который пользователю ничего не говорит.
+ * Имя модели для человека: «meta/muse-spark-1.3» (OpenRouter) и «muse-spark-1.3» (Meta) →
+ * «Muse Spark 1.3», "AUTO" → «Авто — по приоритету». Id остаётся ключом в настройках и в цепочке;
+ * здесь только подпись — без префикса вендора (он у всех один) и без сентинела настроек, который
+ * пользователю ничего не говорит.
  */
 internal fun modelLabel(id: String): String {
-  if (id == "AUTO") return "Авто — по приоритету"
+  if (id == "AUTO") return tr("Авто — по приоритету", "Auto — by priority")
   return id.substringAfter('/')
     .split('-')
     // «30b» — размер модели в миллиардах параметров, его пишут «30B».
