@@ -29,7 +29,7 @@ object CurrentMoment {
    */
   fun format(nowMillis: Long, zone: TimeZone = TimeZone.getDefault()): String {
     val now = Date(nowMillis)
-    val stamp = SimpleDateFormat("EEEE, d MMMM yyyy, HH:mm", Locale("ru"))
+    val stamp = SimpleDateFormat("EEEE, d MMMM yyyy, HH:mm", Locale.forLanguageTag("ru"))
       .apply { timeZone = zone }
       .format(now)
     val offsetMinutes = zone.getOffset(now.time) / 60_000
