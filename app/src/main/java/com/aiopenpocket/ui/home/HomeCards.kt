@@ -2,9 +2,9 @@ package com.aiopenpocket.ui.home
 
 // @trace multi-chat-conversations-b3c93b
 //
-// Карточки экрана Home (герой, «Новый чат», вход в агентов, недавние чаты, карточка курса,
-// заголовок секции, пустая подсказка). Вынесены из HomeScreen.kt — экран лишь собирает их.
-// Тот же пакет: у карточек, что зовёт экран и превью, видимость private -> internal.
+// Cards of the Home screen (hero, "New chat", the way into agents, recent chats, the course card, the section
+// header, an empty hint). Moved out of HomeScreen.kt — the screen only assembles them. Same package: the cards
+// the screen and the previews call changed visibility from private to internal.
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border

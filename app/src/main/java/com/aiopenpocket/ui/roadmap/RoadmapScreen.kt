@@ -76,8 +76,9 @@ import com.aiopenpocket.ui.components.AcademyTab
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 /**
- * Уровень пути. Тексты хранятся парой ru/en, а [title]/[description] выбирают язык геттером в момент
- * показа: [ROADMAP_LEVELS] инициализируется один раз, и `tr` в инициализаторе заморозил бы язык.
+ * A level of the path. Texts are stored as a ru/en pair, and [title]/[description] pick the language with a
+ * getter at display time: [ROADMAP_LEVELS] is initialized once, and `tr` in the initializer would freeze the
+ * language.
  */
 data class RoadmapLevel(
   val id: String,
@@ -93,9 +94,9 @@ data class RoadmapLevel(
   val description: String get() = tr(descriptionRu, descriptionEn)
 }
 
-// Единый путь обучения = онбординг + все уроки-концепции (порядок педагогический, совпадает с
-// каталогом библиотеки). l1_welcome — онбординг (открывается своим экраном), остальные — JSON-уроки
-// из assets/lessons, которые драйвит чат-контроллер. Описания держим в синхроне с *.json.
+// The single learning path = onboarding + all the concept lessons (the order is pedagogical and matches the
+// library catalog). l1_welcome is onboarding (it opens its own screen), the rest are JSON lessons from
+// assets/lessons driven by the chat controller. The descriptions are kept in sync with the *.json.
 val ROADMAP_LEVELS = listOf(
   RoadmapLevel(
     "l1_welcome",
@@ -105,9 +106,9 @@ val ROADMAP_LEVELS = listOf(
     titleEn = "Welcome and setup",
     descriptionEn = "Tune the assistant to you: language, persona, profile — and a first look at how the chat works.",
   ),
-  // Стоит ПЕРВЫМ уроком пути: до него курс нигде не объяснял, что вообще за программа отвечает
-  // пользователю. «Как ИИ читает твой запрос» сразу начинает с промпта, а слова «модель» и
-  // «агент» звучат дальше в каждом уроке. Полное разворачивание агента — в «Воркфлоу и агент».
+  // It is the FIRST lesson of the path: before it the course explained nowhere what kind of program is answering
+  // the user at all. "How AI reads your request" starts right away with the prompt, and the words "model" and
+  // "agent" come up later in every lesson. The full unfolding of the agent is in "Workflow and agent".
   RoadmapLevel(
     "what_is_agent",
     "Что такое ИИ и кто такой агент",
@@ -140,8 +141,8 @@ val ROADMAP_LEVELS = listOf(
     titleEn = "Tokens and speed",
     descriptionEn = "What a token is, input vs. output tokens, and why one answer is fast while another is slow and expensive.",
   ),
-  // Сразу за токенами: видео — это те же токены, только из кадров, и урок опирается на «больше
-  // токенов — дольше и дороже». Здесь же пользователь впервые отдаёт модели свои данные не словами.
+  // Right after tokens: video is the same tokens, only from frames, and the lesson builds on "more tokens — slower
+  // and more expensive". Here too the user gives the model their data other than in words for the first time.
   RoadmapLevel(
     "how_model_sees",
     "Как модель видит",
@@ -150,10 +151,10 @@ val ROADMAP_LEVELS = listOf(
     titleEn = "How a model sees",
     descriptionEn = "Photos and video become tokens too. Show the model a short clip — and see what it notices.",
   ),
-  // Модели Meta — сразу за видео: ученик только что видел, как Muse Spark смотрит ролик, и естественно
-  // спросить «а кто она и кто ещё есть». Режимы рассуждения — следом: урок сам вводит думающие модели
-  // (раньше это был блок «Токенов», и урок про токены разросся до 23 шагов) и опирается на «рассуждение —
-  // это тоже выходные токены», пока токены свежи.
+  // Meta's models — right after video: the learner has just seen Muse Spark watch a clip, and it is natural to ask
+  // "who is she and who else is there". Reasoning modes come next: the lesson itself introduces thinking models
+  // (this used to be a block in "Tokens", and the tokens lesson grew to 23 steps) and builds on "reasoning is
+  // output tokens too" while tokens are fresh.
   RoadmapLevel(
     "meta_models",
     "Модели Meta: кто есть кто",
@@ -170,10 +171,10 @@ val ROADMAP_LEVELS = listOf(
     titleEn = "Muse Spark: fast or thoughtful",
     descriptionEn = "Thinking models and Muse Spark's modes: why a model would think longer, when it's worth it, and how it works here.",
   ),
-  // В первой половине пути, а не в середине: урок сам вводит контекстное окно (блок переехал сюда из
-  // «Токенов») и сразу выводит из него «окно ограничено, середина длинного чата выпадает, значит важное
-  // надо хранить снаружи». К тому же «Приватность» ниже опирается на виды памяти, и раньше ссылалась
-  // на шесть уроков вперёд.
+  // In the first half of the path, not in the middle: the lesson itself introduces the context window (the block
+  // moved here from "Tokens") and right away derives from it "the window is limited, the middle of a long chat
+  // drops out, so what matters must be kept outside". Besides, "Privacy" below builds on the kinds of memory, and
+  // it used to refer six lessons ahead.
   RoadmapLevel(
     "memory_and_context",
     "Память и контекст",
@@ -190,7 +191,7 @@ val ROADMAP_LEVELS = listOf(
     titleEn = "Why answers vary",
     descriptionEn = "What temperature is and why the same request gets different answers.",
   ),
-  // За температурой: «один промпт — новая картинка» — та же случайность, только в рисовании.
+  // After temperature: "one prompt — a new picture" is the same randomness, only in drawing.
   RoadmapLevel(
     "muse_image_draws",
     "Как рисует Muse Image",
@@ -207,7 +208,7 @@ val ROADMAP_LEVELS = listOf(
     titleEn = "Privacy and reliability",
     descriptionEn = "What goes to the cloud, what stays with you, and what to do when something fails.",
   ),
-  // За приватностью: «что уходит провайдеру» доводится до «а можно ли не отдавать вовсе».
+  // After privacy: "what goes to the provider" is taken as far as "can I not hand it over at all".
   RoadmapLevel(
     "open_weights_and_api",
     "Открытые веса и API",
@@ -232,8 +233,8 @@ val ROADMAP_LEVELS = listOf(
     titleEn = "Workflows and agents",
     descriptionEn = "Two ways to set up a multi-step task: a predefined workflow or an autonomous agent — and when to use which.",
   ),
-  // Сразу за «Воркфлоу и агент»: цепочка и роутинг — типовые кирпичи воркфлоу, урок продолжает его с
-  // полуслова («у воркфлоу есть типовые кирпичи»). Раньше он стоял в конце пути, через десяток уроков.
+  // Right after "Workflow and agent": chain and routing are typical workflow bricks, and the lesson continues it
+  // mid-sentence ("a workflow has typical bricks"). It used to stand at the end of the path, a dozen lessons later.
   RoadmapLevel(
     "chaining_and_routing",
     "Паттерны: цепочка и роутинг",
@@ -258,8 +259,9 @@ val ROADMAP_LEVELS = listOf(
     titleEn = "Agent tools",
     descriptionEn = "How an agent takes action: how the model calls tools and gets the results back.",
   ),
-  // Навыки — до контекст-инжиниринга: тот собирает препромпт из «уже знакомых» слоёв, и каталог
-  // навыков среди них. Раньше порядок был обратным, и урок ссылался на ещё не пройденное.
+  // Skills come before context engineering: that lesson assembles the preprompt from "already familiar" layers,
+  // and the skill catalog is among them. The order used to be the reverse, and the lesson referred to something
+  // not yet covered.
   RoadmapLevel(
     "agent_skills",
     "Навыки агента",
@@ -268,9 +270,9 @@ val ROADMAP_LEVELS = listOf(
     titleEn = "Agent skills",
     descriptionEn = "How an agent loads skills on demand without bloating the context — three levels of disclosure.",
   ),
-  // Идёт ПОСЛЕ памяти и навыков: урок опирается на контекстное окно («место в окне ограничено»,
-  // «середина длинного диалога выпадает»), на релевантные факты из памяти и на каталог навыков.
-  // На пути порядок — обещание, и вперёд ссылаться нельзя.
+  // Goes AFTER memory and skills: the lesson builds on the context window ("space in the window is limited", "the
+  // middle of a long conversation drops out"), on relevant facts from memory and on the skill catalog. On the path
+  // the order is a promise, and referring ahead is not allowed.
   RoadmapLevel(
     "context_engineering",
     "Контекст-инжиниринг",
@@ -279,12 +281,11 @@ val ROADMAP_LEVELS = listOf(
     titleEn = "Context engineering",
     descriptionEn = "How the pre-prompt is assembled before every answer: layers, selection, budget and protection against tampering.",
   ),
-  // «RAG» убран с ПУТИ и оставлен только в библиотеке (LIBRARY_LESSON_IDS): урок сам трижды
-  // честно говорит, что в приложении этой техники ещё нет, и его «практика» — упражнение на
-  // бумаге. На пути каждый урок заканчивается действием в приложении; вернуть сюда, когда
-  // поиск по документам появится.
-  // Подтверждение — перед хуками: урок вводит правило по умолчанию (отправка и удаление — только с
-  // «ок»), а хуки добавляют свои правила поверх него.
+  // "RAG" is removed from the PATH and kept only in the library (LIBRARY_LESSON_IDS): the lesson itself honestly
+  // says three times that the app does not have this technique yet, and its "practice" is an exercise on paper.
+  // On the path every lesson ends with an action in the app; bring it back here when document search appears.
+  // Confirmation comes before hooks: the lesson introduces the default rule (sending and deleting — only with an
+  // "ok"), and hooks add their own rules on top of it.
   RoadmapLevel(
     "tool_approval_and_limits",
     "Подтверждение инструментов",
@@ -293,8 +294,8 @@ val ROADMAP_LEVELS = listOf(
     titleEn = "Tool approval",
     descriptionEn = "Which actions an agent takes on its own and which only with your “OK”: risk classes, per-call assessment, the default rule and hooks.",
   ),
-  // Хуки и конструктор — ДО режимов: практика план-мода, гоал-мода и планов идёт на своём агенте из
-  // конструктора (у обычного чата «Плана» и «Цели» нет), а у конструктора есть шаг «Хуки».
+  // Hooks and the builder come BEFORE the modes: the practice of plan mode, goal mode and plans happens on your own
+  // agent from the builder (a plain chat has no "Plan" and "Goal"), and the builder has a "Hooks" step.
   RoadmapLevel(
     "hooks_and_lifecycle",
     "Хуки и жизненный цикл",
@@ -335,8 +336,8 @@ val ROADMAP_LEVELS = listOf(
     titleEn = "Structured plans",
     descriptionEn = "A big task as a list of verifiable steps: plan approval, statuses and the “done it? prove it” rule.",
   ),
-  // Рефлексия — такой же режим агента, как план-мод и гоал-мод, и он в приложении РЕАЛЬНО есть
-  // (чип над полем ввода). Поэтому её место здесь, среди режимов, а не только в библиотеке.
+  // Reflection is an agent mode just like plan mode and goal mode, and it REALLY exists in the app (a chip above the
+  // input field). So its place is here, among the modes, not only in the library.
   RoadmapLevel(
     "reflection",
     "Рефлексия",
@@ -353,8 +354,8 @@ val ROADMAP_LEVELS = listOf(
     titleEn = "Heartbeat and cron",
     descriptionEn = "How an agent lives without your messages: schedules, background wake-ups and the right to stay quiet.",
   ),
-  // Арена — последней перед капстоуном: тот опирается на «модель-судью, как на арене» и подводит
-  // итог «от токенов до роя агентов».
+  // The arena comes last before the capstone: the capstone builds on "a judge model, as in the arena" and sums up
+  // "from tokens to a swarm of agents".
   RoadmapLevel(
     "arena_and_swarm",
     "Арена и рой агентов",
@@ -409,8 +410,8 @@ fun RoadmapScreen(
       modifier = Modifier
         .fillMaxSize()
         .padding(horizontal = 20.dp),
-      // Отступы каркаса — в contentPadding, а не в .padding(): список идёт во всю высоту и
-      // скроллится под плавающими островами, крайние карточки не прячутся под стеклом.
+      // The scaffold paddings go into contentPadding, not .padding(): the list runs the full height and scrolls under
+      // the floating islands, while the edge cards do not hide under the glass.
       contentPadding = PaddingValues(
         top = padding.calculateTopPadding(),
         bottom = padding.calculateBottomPadding() + 24.dp,
@@ -443,7 +444,7 @@ fun RoadmapScreen(
           isLast = index == ROADMAP_LEVELS.lastIndex,
           onClick = {
             if (status != LevelStatus.LOCKED) {
-              // Урок 1 = онбординг: открываем его экран, остальные уроки — чат.
+              // Lesson 1 = onboarding: open its screen; the other lessons are a chat.
               if (level.id == "l1_welcome") onReopenOnboarding()
               else viewModel.openLesson(level.id, onOpenLessonChat)
             }

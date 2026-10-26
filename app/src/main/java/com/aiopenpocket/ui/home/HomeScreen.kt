@@ -168,9 +168,9 @@ fun HomeScreen(
                   .fillMaxSize()
                   .padding(horizontal = 20.dp)
                   .glassSource(glassState),
-                // Отступы каркаса — в contentPadding, а НЕ в .padding(): иначе список инсетится и
-                // не заезжает под плавающий навбар, из-за чего Главная выглядела иначе, чем
-                // остальные экраны (навбар «стоял», а не плавал над контентом).
+                // The scaffold paddings go into contentPadding, NOT .padding(): otherwise the list is inset and does not
+                // slide under the floating navbar, which made Home look different from the other screens (the
+                // navbar "stood" rather than floated above the content).
                 contentPadding = PaddingValues(
                     top = padding.calculateTopPadding() + 4.dp,
                     bottom = padding.calculateBottomPadding() + 12.dp,

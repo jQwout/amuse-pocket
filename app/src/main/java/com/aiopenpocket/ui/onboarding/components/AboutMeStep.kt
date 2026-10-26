@@ -45,10 +45,10 @@ fun AboutMeStep(
   onTextChange: (String) -> Unit,
   modifier: Modifier = Modifier,
   /**
-   * Отступы под плавающие стеклянные острова онбординга (высоты меряются в [OnboardingContent]).
-   * Применяются ПОСЛЕ [verticalScroll] — тогда контент прокручивается ПОД стеклом и его есть чему
-   * размывать. Если инсетить вьюпорт снаружи (через [modifier]), полотно под острова не заезжает
-   * и блюр сэмплит одну аврору — плоская плашка (см. ChatScreen.kt:396-400 и спеку
+   * Paddings for the onboarding's floating glass islands (the heights are measured in [OnboardingContent]).
+   * Applied AFTER [verticalScroll] — then the content scrolls UNDER the glass and there is something to blur.
+   * If the viewport is inset from outside (through [modifier]), the canvas does not slide under the islands and
+   * the blur samples only the aurora — a flat slab (see ChatScreen.kt:396-400 and the spec
    * docs/superpowers/specs/2026-07-28-onboarding-liquid-glass-design.md).
    */
   contentPadding: PaddingValues = PaddingValues(),
@@ -66,8 +66,8 @@ fun AboutMeStep(
     Text(
       text = tr("Расскажи о себе", "Tell me about yourself"),
       style = MaterialTheme.typography.headlineSmall,
-      // Явный цвет, а не ambient LocalContentColor: без него заголовок наследует near-black
-      // вне корневого Surface (в т.ч. в скриншот-тесте) и тонет.
+      // An explicit color, not the ambient LocalContentColor: without it the heading inherits near-black outside
+      // the root Surface (including in the screenshot test) and drowns.
       color = MaterialTheme.colorScheme.onBackground,
     )
     Text(
@@ -89,9 +89,9 @@ fun AboutMeStep(
 
     Spacer(modifier = Modifier.size(16.dp))
 
-    // Стеклянный вид: свой clip/tint/blick-бордер на обёртке, а у самого поля контейнер и
-    // рамка сделаны прозрачными (colors ниже) — иначе под стеклом просвечивал бы ещё и
-    // непрозрачный дефолтный outline M3.
+    // The glass look: its own clip/tint/highlight border on the wrapper, while the field's own container and
+    // border are made transparent (colors below) — otherwise the opaque default M3 outline would also show
+    // through under the glass.
     Box(
       modifier = Modifier
         .fillMaxWidth()
@@ -101,9 +101,9 @@ fun AboutMeStep(
     ) {
       OutlinedTextField(
         value = text,
-        // Потолок на вставку огромного текста — иначе весь кусок уходит одним user-сообщением в LLM
-        // при извлечении профиля. Обрезаем, а не отбрасываем целиком: иначе вставка текста длиннее
-        // лимита молча не давала бы вообще никакого эффекта.
+        // A ceiling on pasting huge text — otherwise the whole chunk goes to the LLM as one user message when the
+        // profile is extracted. It is cut rather than dropped entirely: otherwise pasting text longer than the
+        // limit would silently have no effect at all.
         onValueChange = { onTextChange(it.take(ABOUT_ME_MAX_LENGTH)) },
         placeholder = {
           Text(
@@ -162,7 +162,7 @@ private const val ABOUT_ME_MAX_LENGTH = 2000
 
 @Composable
 private fun PersonaAskBubble(personaName: String, line: String) {
-  // Тема-зависимый акцент: лайм на тёмной, оливка на светлой — читается на обеих подложках.
+  // A theme-dependent accent: lime on dark, olive on light — readable on both backgrounds.
   val accent = MaterialTheme.colorScheme.primary
   val shape = RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomEnd = 16.dp, bottomStart = 16.dp)
   Column(
@@ -170,7 +170,7 @@ private fun PersonaAskBubble(personaName: String, line: String) {
       .fillMaxWidth()
       .clip(shape)
       .background(MaterialTheme.colorScheme.surfaceVariant)
-      // Тонкая лаймовая грань отделяет карточку от ауроры — без неё тёмное на тёмном сливается.
+      // A thin lime edge separates the card from the aurora — without it dark on dark merges.
       .border(1.dp, accent.copy(alpha = 0.22f), shape)
       .padding(14.dp),
   ) {

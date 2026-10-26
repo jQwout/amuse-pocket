@@ -9,7 +9,7 @@ data class ConversationsListState(
   val conversations: List<Conversation> = emptyList(),
   val isLoading: Boolean = false,
   val selectedTag: String? = null,
-  /** Статусы фоновых ходов по диалогам: «варится» / «готово» / «ошибка» (нет в мапе = хода нет). */
+  /** Background turn statuses per conversation: "cooking" / "done" / "error" (not in the map = no turn). */
   val turnStatuses: Map<String, TurnStatus> = emptyMap(),
 ) {
   /** Every tag in use across conversations, for the filter row. */

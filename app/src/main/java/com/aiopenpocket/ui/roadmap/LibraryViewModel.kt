@@ -22,7 +22,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** Метаданные урока для карточки в Библиотеке. */
+/** A lesson's metadata for its card in the Library. */
 data class LibraryLesson(
   val id: String,
   val title: String,
@@ -31,13 +31,13 @@ data class LibraryLesson(
 )
 
 /**
- * Каталог уроков-концепций (порядок — педагогический). `l1_welcome` — это онбординг, в библиотеке его нет.
- * Каждый id должен соответствовать `assets/lessons/{id}.json` — это сверяет LessonAssetsValidationTest
- * (потому и internal, а не private).
+ * The catalog of concept lessons (the order is pedagogical). `l1_welcome` is onboarding, it is not in the
+ * library. Every id must match `assets/lessons/{id}.json` — LessonAssetsValidationTest checks that (hence
+ * internal, not private).
  *
- * Порядок повторяет ROADMAP_LEVELS: уроки ссылаются на «урок про память», «урок про инструменты», и
- * в библиотеке читатель идёт сверху вниз так же, как по пути. Единственное отличие — «RAG», которого
- * на пути нет: он стоит сразу за контекст-инжинирингом, потому что RAG — это тоже наполнение окна.
+ * The order repeats ROADMAP_LEVELS: lessons refer to "the lesson about memory", "the lesson about tools", and in
+ * the library the reader goes top to bottom just as along the path. The only difference is "RAG", which is not
+ * on the path: it sits right after context engineering, because RAG is also about filling the window.
  */
 internal val LIBRARY_LESSON_IDS = listOf(
   "what_is_agent",
@@ -88,13 +88,13 @@ class LibraryViewModel(
     userPreferencesRepository.roadmapProgress
       .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
-  /** Защита от двойного создания lesson-чата при быстром двойном тапе по карточке. */
+  /** A guard against creating a lesson chat twice on a quick double tap on a card. */
   private var opening = false
 
   init {
     viewModelScope.launch {
-      // Независимые чтения ассетов — грузим все разом, а не по одному (16 уроков подряд иначе
-      // задерживают первую отрисовку экрана суммой всех round-trip'ов вместо максимума одного).
+      // Independent asset reads — load them all at once rather than one by one (otherwise 16 lessons in a row delay
+      // the screen's first draw by the sum of all round trips instead of the maximum of one).
       val loaded = LIBRARY_LESSON_IDS.map { id ->
         async { id to lessonRepository.getLessonOrNull(id) }
       }.awaitAll().mapNotNull { (id, lesson) ->
@@ -112,8 +112,8 @@ class LibraryViewModel(
   }
 
   /**
-   * Открывает (или переиспользует) lesson-чат для [lessonId] и возвращает его id через [onReady].
-   * Приветствие НЕ публикуем — шаги драйвит [com.aiopenpocket.agent.core.lesson.LessonChatController].
+   * Opens (or reuses) the lesson chat for [lessonId] and returns its id through [onReady]. No greeting is
+   * published — the steps are driven by [com.aiopenpocket.agent.core.lesson.LessonChatController].
    */
   fun openLesson(lessonId: String, onReady: (String) -> Unit) {
     if (opening) return

@@ -45,7 +45,7 @@ class ScheduledWorksViewModel(
       )
       workManager.getWorkInfosLiveData(query)
         .asFlow()
-        // Только задачи тула work_manager — чужие (напоминания, служебные воркеры) отсекает маппер.
+        // Only the work_manager tool's jobs — the mapper cuts off others (reminders, system workers).
         .map { infos -> infos.mapNotNull { it.toScheduledWorkItem() } }
         .collect { works ->
           _state.value = ScheduledWorksUiState(
@@ -57,8 +57,8 @@ class ScheduledWorksViewModel(
   }
 
   /**
-   * Тул ставит задачи как unique work, поэтому отменяем по уникальному имени из тега `id:`.
-   * Без тега cancelUniqueWork(uuid) не совпал бы ни с чем — тогда отменяем по самому UUID.
+   * The tool schedules jobs as unique work, so they are cancelled by the unique name from the `id:` tag. Without
+   * the tag cancelUniqueWork(uuid) would match nothing — then we cancel by the UUID itself.
    */
   fun cancelWork(work: ScheduledWorkItem) {
     val uniqueName = work.uniqueName

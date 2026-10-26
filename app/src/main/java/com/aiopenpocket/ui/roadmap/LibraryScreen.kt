@@ -185,8 +185,8 @@ private fun LibraryCard(
 }
 
 /**
- * Английские тексты карточек уроков, которых нет на пути (остальные берутся из [ROADMAP_LEVELS]).
- * Только данные: язык выбирается в [displayTitle]/[displayDescription] в момент показа.
+ * English texts of the cards for lessons that are not on the path (the rest come from [ROADMAP_LEVELS]). Data
+ * only: the language is picked in [displayTitle]/[displayDescription] at display time.
  */
 private val LIBRARY_ONLY_EN: Map<String, Pair<String, String>> = mapOf(
   "rag" to Pair(
@@ -196,15 +196,15 @@ private val LIBRARY_ONLY_EN: Map<String, Pair<String, String>> = mapOf(
 )
 
 /**
- * Заголовок карточки на языке интерфейса. По-русски — из JSON урока, как и раньше. По-английски
- * переведены пока не все уроки, поэтому английский берём из каталога пути — он есть для каждого урока.
+ * The card's title in the interface language. In Russian — from the lesson's JSON, as before. Not all lessons
+ * are translated into English yet, so the English one comes from the path catalog — it exists for every lesson.
  */
 private fun LibraryLesson.displayTitle(): String {
   val en = ROADMAP_LEVELS.find { it.id == id }?.titleEn ?: LIBRARY_ONLY_EN[id]?.first ?: return title
   return tr(title, en)
 }
 
-/** Описание карточки на языке интерфейса — по тому же правилу, что [displayTitle]. */
+/** The card's description in the interface language — by the same rule as [displayTitle]. */
 private fun LibraryLesson.displayDescription(): String {
   val en = ROADMAP_LEVELS.find { it.id == id }?.descriptionEn ?: LIBRARY_ONLY_EN[id]?.second ?: return description
   return tr(description, en)

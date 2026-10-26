@@ -64,7 +64,7 @@ import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 private val ONBOARDING_STEP_ORDER = OnboardingStep.entries.toList()
 
-/** Форма плавающих стеклянных островов — та же «таблетка», что у баров чата. */
+/** The shape of the floating glass islands — the same "pill" as the chat bars. */
 private val ISLAND_SHAPE = RoundedCornerShape(24.dp)
 
 @Composable
@@ -76,7 +76,7 @@ fun OnboardingScreen(
     val state by viewModel.state.collectAsState()
     val editMode = onClose != null
 
-    // В режиме правки подтягиваем сохранённые значения, иначе Complete затрёт профиль пустыми полями.
+    // In edit mode the saved values are pulled in, otherwise Complete would overwrite the profile with empty fields.
     LaunchedEffect(editMode) { if (editMode) viewModel.loadExistingProfile() }
 
     LaunchedEffect(state.currentStep) {
@@ -99,13 +99,13 @@ fun OnboardingScreen(
 }
 
 /**
- * Онбординг в концепции Liquid Glass: полотно занимает ВЕСЬ экран, а обвязка — стеклянные острова,
- * плавающие поверх него (спека `docs/superpowers/specs/2026-07-28-onboarding-liquid-glass-design.md`).
+ * Onboarding in the Liquid Glass concept: the canvas takes the WHOLE screen, and the chrome is glass islands
+ * floating on top of it (spec `docs/superpowers/specs/2026-07-28-onboarding-liquid-glass-design.md`).
  *
- * Раньше здесь был Material3 [androidx.compose.material3.Scaffold] с topBar/bottomBar: они СЪЕДАЮТ
- * место, контент жил в остатке через `innerPadding` и под стекло не заезжал — размывать было нечего,
- * кроме статичной авроры, отсюда «плоская плашка». Сейчас острова лежат оверлеями поверх полотна, их
- * высоты меряются и превращаются в отступы контента.
+ * There used to be a Material3 [androidx.compose.material3.Scaffold] here with topBar/bottomBar: they EAT
+ * space, the content lived in what was left via `innerPadding` and never slid under the glass — there was
+ * nothing to blur but the static aurora, hence the "flat slab". Now the islands lie as overlays on top of the
+ * canvas, and their heights are measured and turned into content paddings.
  *
  * internal (not private): the Task 5 glass screenshot test renders this directly on fake
  * OnboardingUiState — it takes no ViewModel, so a harness composable would just duplicate it.
@@ -121,8 +121,8 @@ internal fun OnboardingContent(
     val stepIndex = ONBOARDING_STEP_ORDER.indexOf(state.currentStep).coerceAtLeast(0)
     val progress = (stepIndex + 1) / ONBOARDING_STEP_ORDER.size.toFloat()
 
-    // Высоты плавающих островов меряем (onSizeChanged) и превращаем в отступы полотна — иначе
-    // верх/низ шага навсегда прячутся под стеклом. Тот же приём, что в ChatScreen.
+    // The floating islands' heights are measured (onSizeChanged) and turned into the canvas paddings — otherwise
+    // the top/bottom of the step would hide under the glass forever. The same trick as in ChatScreen.
     val density = LocalDensity.current
     var topIslandHeightPx by remember { mutableIntStateOf(0) }
     var bottomIslandHeightPx by remember { mutableIntStateOf(0) }
@@ -130,8 +130,8 @@ internal fun OnboardingContent(
     val bottomPad = with(density) { bottomIslandHeightPx.toDp() }
 
     Box(Modifier.fillMaxSize()) {
-        // Аврора — ОТДЕЛЬНЫЙ слой-источник, лежащий позади всего. Повесить glassSource на корневой
-        // Box нельзя: источник захватил бы и сами острова — петля (см. ChatScreen.kt:396-400).
+        // The aurora is a SEPARATE source layer lying behind everything. glassSource cannot be hung on the root Box:
+        // the source would capture the islands themselves — a loop (see ChatScreen.kt:396-400).
         Box(
             Modifier
                 .matchParentSize()
@@ -139,18 +139,18 @@ internal fun OnboardingContent(
                 .glassSource(glassState),
         )
 
-        // ПОЛОТНО: тело шага занимает весь экран и уходит под острова. Тоже помечено источником —
-        // тогда стекло размывает НАСТОЯЩИЙ контент, а не только аврору.
+        // THE CANVAS: the step body takes the whole screen and goes under the islands. It is marked as a source too —
+        // then the glass blurs the REAL content, not just the aurora.
         Box(
             Modifier
                 .fillMaxSize()
                 .glassSource(glassState),
         ) {
-            // Над полотном нет Scaffold/Surface, поэтому ambient LocalContentColor остаётся
-            // дефолтным (near-black) и заголовки шагов тонут на тёмной ауроре. Дефект НЕ новый:
-            // AboutMeStep уже лечил его у себя явным цветом (см. его комментарий), а «Выбери язык»
-            // тонул и до этой переделки. Задаём цвет один раз на всё полотно — тогда каждому шагу
-            // не нужно чинить это самостоятельно.
+            // There is no Scaffold/Surface above the canvas, so the ambient LocalContentColor stays the default
+            // (near-black) and the step headings drown on the dark aurora. The defect is NOT new: AboutMeStep
+            // already cured it locally with an explicit color (see its comment), and "Choose a language"
+            // drowned even before this rework. The color is set once for the whole canvas — then no step needs
+            // to fix it on its own.
             CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onBackground) {
                 OnboardingStepBody(
                     state = state,
@@ -162,8 +162,8 @@ internal fun OnboardingContent(
             }
         }
 
-        // ВЕРХНИЙ остров: заголовок + шкала прогресса. statusBarsPadding живёт на самой таблетке
-        // (ребёнок этой Column), поэтому измеренная снаружи высота уже включает инсет статус-бара.
+        // The TOP island: the title + the progress scale. statusBarsPadding lives on the pill itself (a child of
+        // this Column), so the height measured from outside already includes the status bar inset.
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -178,9 +178,9 @@ internal fun OnboardingContent(
             )
         }
 
-        // НИЖНИЙ остров: ошибка + «Назад»/«Готово». onSizeChanged СТОИТ ПЕРЕД windowInsetsPadding,
-        // чтобы измеренная высота ВКЛЮЧАЛА нижний инсет: safeDrawing bottom = max(навбар, клавиатура),
-        // без двойного счёта — navigationBars/imePadding поверх НЕ добавляем.
+        // The BOTTOM island: the error + "Back"/"Done". onSizeChanged comes BEFORE windowInsetsPadding so the
+        // measured height INCLUDES the bottom inset: safeDrawing bottom = max(navbar, keyboard), without counting
+        // twice — navigationBars/imePadding are NOT added on top.
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -194,9 +194,9 @@ internal fun OnboardingContent(
 }
 
 /**
- * Верхний стеклянный остров: заголовок и прогресс мастера. Прогресс — тонкая капсула ВНУТРИ острова
- * вместо прежней материаловской полосы во всю ширину экрана: полноширинная линия разрезала полотно
- * и спорила с плавающей формой. Значение не меняется — та же доля `(шаг + 1) / всего`.
+ * The top glass island: the wizard's title and progress. The progress is a thin capsule INSIDE the island
+ * instead of the old Material bar across the full screen width: the full-width line cut the canvas and fought
+ * the floating shape. The value does not change — the same share `(step + 1) / total`.
  */
 @Composable
 private fun OnboardingTopIsland(
@@ -242,7 +242,7 @@ private fun OnboardingTopIsland(
     }
 }
 
-/** Нижний стеклянный остров: сообщение об ошибке и кнопки шага. */
+/** The bottom glass island: the error message and the step's buttons. */
 @Composable
 private fun OnboardingBottomIsland(
     state: OnboardingUiState,
@@ -300,9 +300,9 @@ private fun OnboardingBottomIsland(
 }
 
 /**
- * Тело шага. Отступы под острова прокидываются РАЗНЫМИ путями и это принципиально: у прокручиваемого
- * шага они должны лежать ВНУТРИ скролла (иначе инсетится вьюпорт и контент под стекло не заезжает),
- * у статичных достаточно отступа снаружи.
+ * The step body. The paddings for the islands are passed in DIFFERENT ways, and that matters: for a
+ * scrollable step they must lie INSIDE the scroll (otherwise the viewport is inset and the content does not
+ * slide under the glass), for static ones a padding outside is enough.
  */
 @Composable
 private fun OnboardingStepBody(
@@ -313,7 +313,7 @@ private fun OnboardingStepBody(
     modifier: Modifier,
 ) {
     when (state.currentStep) {
-        // Статичные шаги: прокрутки нет, заезжать под стекло нечему — отступ снаружи.
+        // Static steps: there is no scrolling, nothing to slide under the glass — the padding goes outside.
         OnboardingStep.LANGUAGE -> LanguageSelectionStep(
             selectedLanguage = state.selectedLanguage,
             onSelectLanguage = { onIntent(OnboardingIntent.SelectLanguage(it)) },
@@ -326,8 +326,8 @@ private fun OnboardingStepBody(
             modifier = modifier.padding(top = topPad, bottom = bottomPad),
         )
 
-        // PROFILE — последний шаг мастера («Готово» завершает настройку) и единственный
-        // прокручиваемый: отступы уходят ВНУТРЬ, под verticalScroll.
+        // PROFILE is the wizard's last step ("Done" finishes the setup) and the only scrollable one: the paddings go
+        // INSIDE, under verticalScroll.
         OnboardingStep.PROFILE -> AboutMeStep(
             personaId = state.selectedPersonaId,
             text = state.aboutMeText,

@@ -6,14 +6,14 @@ import java.util.Date
 import java.util.Locale
 import com.aiopenpocket.i18n.tr
 
-// ThreadLocal: SimpleDateFormat не потокобезопасен, а formatDateTime — публичная util (может
-// вызываться не только с Main). Общий mutable-инстанс при конкурентном format() давал искажённые
-// даты/AIOOBE; ThreadLocal даёт по инстансу на поток без аллокации на каждый вызов.
+// ThreadLocal: SimpleDateFormat is not thread-safe, and formatDateTime is a public util (it may be called not
+// only from Main). A shared mutable instance under concurrent format() produced mangled dates/AIOOBE; ThreadLocal
+// gives one instance per thread without an allocation per call.
 private val DATE_TIME = ThreadLocal.withInitial { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
 
 fun formatDateTime(timestamp: Long): String = DATE_TIME.get()!!.format(Date(timestamp))
 
-/** Сегодня/Вчера с временем, иначе «N дней назад» или дата. */
+/** Today/Yesterday with the time, otherwise "N days ago" or the date. */
 fun formatRelativeDate(timestamp: Long): String {
   val now = Calendar.getInstance()
   val then = Calendar.getInstance().apply { timeInMillis = timestamp }
