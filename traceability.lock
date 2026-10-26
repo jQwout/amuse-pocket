@@ -54,8 +54,8 @@
       "git": "ec20311"
     },
     "kartinki-urokov-cherez-muse-image-fd6f8c": {
-      "hash": "decf0758e981",
-      "git": "ff190fd"
+      "hash": "cbfe36d2d00d",
+      "git": "891341e"
     },
     "mcp-tools-f77d9b": {
       "hash": "e6456621916f",
@@ -82,8 +82,8 @@
       "git": "197306c"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "0753745d3c07",
-      "git": "7611a68"
+      "hash": "69a6a5266720",
+      "git": "891341e"
     },
     "structured-plan-engine-907066": {
       "hash": "eefe5c457dad",
@@ -102,16 +102,16 @@
       "git": "7611a68"
     },
     "video-na-vhod-v-uroke-muse-spark-08ccdb": {
-      "hash": "6c98007fdf17",
-      "git": "1328548"
+      "hash": "b626fc2ba611",
+      "git": "891341e"
     },
     "voice-input-1a0dfd": {
       "hash": "3ef7f56d2b20",
       "git": "197306c"
     },
     "vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53": {
-      "hash": "6f90119c11e9",
-      "git": "1328548"
+      "hash": "11ec5fcb1fd3",
+      "git": "891341e"
     },
     "yazykovoy-agent-repetitor-s-intervalnymi-povtoreniyami-4a9360": {
       "hash": "74722c84ed79",

@@ -35,14 +35,15 @@ import com.aiopenpocket.di.AppScope
 class OpenAiCompatClient(
   private val fallbackChain: ProviderFallbackChain,
   /**
-   * Учёт расхода. Без значения по умолчанию — намеренно, по тому же доводу, что и провайдер в
-   * [LlmClient.streamChat]: заглушка «по умолчанию» превратила бы забытое связывание в тихо
-   * неработающий учёт денег, а так граф просто не соберётся. Тесты передают
-   * [NoOpLlmUsageRecorder] явно, и это заодно говорит читателю, что расход в них не проверяется.
+   * Spend accounting. No default value on purpose, for the same reason as the provider in
+   * [LlmClient.streamChat]: a "default" stub would turn a forgotten binding into quietly broken money
+   * accounting, while this way the graph simply does not build. Tests pass [NoOpLlmUsageRecorder]
+   * explicitly, which also tells the reader that spend is not checked in them.
    */
   private val usageRecorder: LlmUsageRecorder,
-  // Движок инъектится (а не создаётся здесь), чтобы тест фолбэка подменял транспорт MockEngine'ом:
-  // цепочку моделей нельзя проверить, не управляя ответами. Прод-движок — в LlmModule.
+  // The engine is injected (not created here) so the fallback test can swap the transport for a
+  // MockEngine: the model chain cannot be tested without controlling the responses. The production
+  // engine is in LlmModule.
   engine: HttpClientEngine,
 ) : LlmClient {
 
@@ -52,8 +53,8 @@ class OpenAiCompatClient(
     install(ContentNegotiation) {
       json(json)
     }
-    // Стрим живёт долго, поэтому общий request-таймаут отключаем, но страхуемся от зависшего
-    // соединения: connect — на установку, socket — на простой между SSE-пакетами.
+    // A stream lives long, so the overall request timeout is off, but we guard against a hung
+    // connection: connect covers establishing it, socket covers idle time between SSE packets.
     install(HttpTimeout) {
       connectTimeoutMillis = CONNECT_TIMEOUT_MS
       socketTimeoutMillis = SOCKET_IDLE_TIMEOUT_MS
@@ -69,11 +70,11 @@ class OpenAiCompatClient(
     val providers = fallbackChain.resolve(provider)
     var lastError: Exception? = null
     var lastErrorCode: String? = if (providers.isEmpty()) "no_provider" else null
-    // Как только провайдер отдал хоть кусок ответа, переход к следующему склеил бы два разных
-    // ответа в один. Поэтому после первого эмита фоллбэк запрещён.
+    // As soon as a provider has sent any part of an answer, moving on to the next one would glue two
+    // different answers together. So after the first emit the fallback is forbidden.
     var emittedAnswer = false
 
-    // Единая трасса хода: какие провайдеры в цепочке и сколько их (видно, есть ли вообще фолбэк).
+    // A single trace for the turn: which providers are in the chain and how many (shows whether there is any fallback at all).
     Log.i(
       TAG,
       "▶ LLM turn requested=$provider chain=[${providers.joinToString { "${it.name}/${it.model}" }}] " +
@@ -100,15 +101,15 @@ class OpenAiCompatClient(
           stream = true,
           temperature = p.temperature,
           topP = p.topP,
-          // Цену в долларах называет OpenRouter, и только когда её попросили. В запросе прямого Meta
-          // Model API такого поля нет, а на неподдерживаемые поля Meta отвечает 400 (в описании
-          // протокола их целый список); та же осторожность, что с type:"function" у тулов. Цену Meta
-          // считаем сами — см. metaListPriceUsd.
+          // OpenRouter names the price in dollars, and only when asked. The direct Meta Model API request
+          // has no such field, and Meta answers 400 to unsupported fields (the protocol description
+          // lists a whole set of them); the same caution as with type:"function" on tools. The Meta
+          // price is computed by us — see metaListPriceUsd.
           usage = if (p.name == LlmProvider.OPENROUTER) UsageRequest() else null,
         )
         val bodyJson = json.encodeToString(requestBody)
-        // Ключевая проверка сериализации: type:"function" должен присутствовать у тулов, иначе строгие
-        // провайдеры дают HTTP 400 «missing field type». Логируем явно, чтобы баг было видно сразу.
+        // The key serialization check: tools must carry type:"function", otherwise strict providers return
+        // HTTP 400 "missing field type". Logged explicitly so the bug is visible at once.
         val toolTypeOk = tools.isEmpty() || bodyJson.contains("\"type\":\"function\"")
         Log.i(
           TAG,
@@ -117,7 +118,7 @@ class OpenAiCompatClient(
         )
 
         val callStart = System.currentTimeMillis()
-        // HTTP 200 ещё не значит «ответ»: провайдер умеет закрыть стрим, не прислав ни токена.
+        // HTTP 200 does not yet mean "an answer": a provider can close the stream without sending a single token.
         var emptyAttempt = false
         httpClient.preparePost(p.baseUrl) {
           header("Authorization", "Bearer $apiKey")
@@ -127,21 +128,21 @@ class OpenAiCompatClient(
           val status = response.status.value
           if (status !in 200..299) {
             val bodyText = response.body<String>()
-            // Отказ в самом запросе (400/413) разбирают по телу ответа — там причина («слишком
-            // длинный контекст», «модель не принимает картинки»), поэтому его пишем целиком.
+            // A rejection of the request itself (400/413) is diagnosed from the response body — the reason
+            // is there ("context too long", "the model does not accept images"), so it is logged in full.
             val logLimit = if (status.toString() in REQUEST_LEVEL_FAILURES) 4_000 else 800
             Log.w(TAG, "$attempt $tag ✗ HTTP $status: ${bodyText.replace("\n", " ").take(logLimit)}")
-            // Бросаем, чтобы catch ниже перешёл к следующему провайдеру AUTO-цепочки.
+            // Throw so the catch below moves on to the next provider of the AUTO chain.
             throw LlmHttpException(status, bodyText)
           }
           Log.i(TAG, "$attempt $tag ← HTTP $status, streaming…")
 
-          // Счётчики по итогу стрима — сразу видно, ПУСТОЙ ли ответ и почему (нет content? только reasoning?).
+          // Counters for the stream's outcome — shows at once whether the answer is EMPTY and why (no content? only reasoning?).
           var textChars = 0
           var toolCalls = 0
           var finishReason = "?"
-          // Ошибку, которую нашёл сам разбор стрима (ответ обрезан по max_tokens — см. consumeOpenAiSse),
-          // придерживаем до конца попытки, как и Finish: она терминальная для хода.
+          // An error found by the stream parsing itself (the answer was cut at max_tokens — see
+          // consumeOpenAiSse) is held until the end of the attempt, like Finish: it is terminal for the turn.
           var streamError: StreamEvent.Error? = null
           val channel = response.body<ByteReadChannel>()
           val sseUsage = consumeOpenAiSse(
@@ -161,15 +162,15 @@ class OpenAiCompatClient(
                 Log.d(TAG, "$tag tool_call: ${event.name}")
                 emit(event)
               }
-              // Finish придерживаем до конца попытки: он терминальный, а пустая попытка уходит в
-              // фолбэк — потребитель не должен увидеть конец хода раньше ответа следующей модели.
+              // Finish is held until the end of the attempt: it is terminal, and an empty attempt goes to
+              // the fallback — the consumer must not see the end of the turn before the next model's answer.
               is StreamEvent.Finish -> finishReason = event.reason
               is StreamEvent.Error -> streamError = event
             }
           }
           val ms = System.currentTimeMillis() - callStart
-          // Ошибка разбора — не «пустая попытка»: модель ответила, но обрезанно, и следующая модель
-          // цепочки упрётся в тот же max_tokens. Ход кончается ошибкой с «Повторить», без фолбэка.
+          // A parse error is not an "empty attempt": the model answered, but truncated, and the next model of
+          // the chain would hit the same max_tokens. The turn ends with an error and "Retry", no fallback.
           emptyAttempt = textChars == 0 && toolCalls == 0 && streamError == null
           Log.i(
             TAG,
@@ -177,29 +178,29 @@ class OpenAiCompatClient(
               (if (emptyAttempt) "  ⚠ EMPTY RESPONSE" else "") +
               (streamError?.let { "  ✗ ${it.code}" } ?: ""),
           )
-          // Пишем расход и для ПУСТОЙ попытки тоже: промпт у неё улетел целиком и оплачен, а
-          // ответа не было. Пропускать такие значило бы прятать самую дорогую разновидность
-          // потерь — деньги за деградировавшую модель, которую цепочка молча заменила следующей.
+          // Spend is recorded for an EMPTY attempt too: its whole prompt went out and was paid for, and
+          // there was no answer. Skipping those would hide the most expensive kind of loss — money
+          // spent on a degraded model that the chain silently replaced with the next one.
           usageRecorder.record(
             LlmCallUsage(
               provider = p.name,
               model = p.model,
-              // Тело запроса как мера промпта: в нём и системная часть, и история, и схемы тулов —
-              // сумма длин сообщений недосчитала бы ровно то, что дороже всего.
+              // The request body as the measure of the prompt: it holds the system part, the history and the
+              // tool schemas — the sum of message lengths would undercount exactly what costs most.
               promptTokens = sseUsage?.promptTokens ?: LlmContextConfig.estimateTokens(bodyJson.length),
               completionTokens = sseUsage?.completionTokens ?: LlmContextConfig.estimateTokens(textChars),
-              // Прямой Meta Model API присылает одни токены, без цены, — считаем её по прайсу Meta.
-              // Иначе карточка расхода показывала бы токены без денег ровно на том маршруте, где
-              // тратятся кредиты, оплаченные самим пользователем.
+              // The direct Meta Model API sends tokens only, without a price — we compute it from Meta's price
+              // list. Otherwise the spend card would show tokens without money exactly on the route
+              // where the credits the user paid for are being spent.
               costUsd = sseUsage?.cost
                 ?: sseUsage?.takeIf { p.name == LlmProvider.META }?.let { metaListPriceUsd(p.model, it) },
               estimated = sseUsage == null,
               hadTools = tools.isNotEmpty(),
             ),
           )
-          // finish_reason "error" — OpenRouter так закрывает стрим, когда модель упала посреди ответа.
-          // Часть текста уже у пользователя, и обычный Finish сохранил бы обрывок как готовый ответ;
-          // ошибка даёт «Повторить» (фолбэк здесь нельзя — см. emittedAnswer ниже).
+          // finish_reason "error" — that is how OpenRouter closes a stream when the model fails mid-answer.
+          // Part of the text is already with the user, and a normal Finish would save the fragment as
+          // a finished answer; an error gives "Retry" (no fallback here — see emittedAnswer below).
           val parseError = streamError
           when {
             parseError != null -> emit(parseError)
@@ -210,40 +211,41 @@ class OpenAiCompatClient(
           }
         }
         if (emptyAttempt) {
-          // Ни текста, ни тул-колла при HTTP 200 — это не ответ, а молчание (живой случай: NIM так
-          // отдаёт деградировавшую модель). Берём следующую модель вместо того, чтобы закончить ход
-          // пустым сообщением, имея в цепочке живые модели.
+          // Neither text nor a tool call with HTTP 200 is not an answer but silence (a real case: NIM
+          // served a degraded model like this). Take the next model instead of ending the turn with an
+          // empty message while the chain still has live models.
           lastError = IllegalStateException("Empty response from $tag")
           lastErrorCode = "empty_response"
           continue
         }
         return@flow
       } catch (e: CancellationException) {
-        // Отмена — НЕ отказ провайдера. `CancellationException` наследует `Exception`, поэтому без
-        // этой ветки Stop (или новый ход, гасящий предыдущий) ловился бы общим catch ниже, засчитывался
-        // как «модель не ответила» и прогонял остаток цепочки, чтобы в конце эмитнуть
-        // «All providers failed» из уже отменённого flow. Тот же порядок веток, что и в ToolExecutor.
+        // Cancellation is NOT a provider failure. `CancellationException` extends `Exception`, so without
+        // this branch Stop (or a new turn cancelling the previous one) would be caught by the general
+        // catch below, counted as "the model did not answer", and run the rest of the chain only to
+        // emit "All providers failed" from an already cancelled flow. Same branch order as in
+        // ToolExecutor.
         throw e
       } catch (e: Exception) {
         Log.w(TAG, "$attempt $tag failed: ${e.message}")
         lastError = e
-        // Всегда переписываем оба поля вместе — иначе на не-HTTP ошибке (таймаут и т.п.) следующего
-        // провайдера lastErrorCode остался бы от ПРЕДЫДУЩЕГО провайдера и разошёлся бы с lastError.
+        // Always overwrite both fields together — otherwise on a non-HTTP error (a timeout etc.) of the next
+        // provider lastErrorCode would remain from the PREVIOUS provider and disagree with lastError.
         lastErrorCode = (e as? LlmHttpException)?.status?.toString()
         if (emittedAnswer) {
-          // Часть ответа уже ушла потребителю — молча перезапускать на другом провайдере нельзя,
-          // иначе в чат попадёт обрывок + новый полный ответ.
+          // Part of the answer has already gone to the consumer — silently restarting on another provider is
+          // not allowed, or the chat would get a fragment plus a new full answer.
           Log.w(TAG, "$tag interrupted mid-stream — НЕ фолбэчим (часть ответа уже у пользователя)")
           emit(StreamEvent.Error(userFacingLlmError(lastErrorCode, interrupted = true), code = lastErrorCode))
           return@flow
         }
-        // Ключ не подошёл или на счёте пусто — это отказ ключа, а не модели: следующая модель того же
-        // провайдера получит тот же ответ. Перебирать цепочку дальше — четыре лишних запроса и минута
-        // ожидания ради той же ошибки.
+        // The key did not fit or the balance is empty — a key rejection, not a model one: the next model of
+        // the same provider would get the same answer. Going on through the chain means four extra
+        // requests and a minute of waiting for the same error.
         if (lastErrorCode in KEY_LEVEL_FAILURES) break
-        // 400/413 — отказ в самом ЗАПРОСЕ (слишком длинный контекст, неподдерживаемое вложение,
-        // кривое тело): его получит и следующая модель. Раньше цепочка проходила все пять моделей и
-        // заканчивалась «нет сети» — и неправдой, и минутой ожидания.
+        // 400/413 is a rejection of the REQUEST itself (context too long, an unsupported attachment, a
+        // malformed body): the next model would get it too. The chain used to go through all five
+        // models and end with "no network" — both untrue and a minute of waiting.
         if (lastErrorCode in REQUEST_LEVEL_FAILURES) break
         continue
       }
@@ -258,21 +260,21 @@ class OpenAiCompatClient(
     val model: String,
     val messages: List<ChatMessage>,
     val tools: List<FunctionSchema>? = null,
-    // namingStrategy = SnakeCase маппит maxTokens -> max_tokens. Бэкстоп, если ProviderConfig
-    // почему-то не задал значение; обычно приходит из ProviderConfig.maxTokens.
+    // namingStrategy = SnakeCase maps maxTokens -> max_tokens. A backstop in case ProviderConfig for some
+    // reason did not set a value; normally it comes from ProviderConfig.maxTokens.
     val maxTokens: Int = 4096,
     val stream: Boolean = true,
     // null omitted via explicitNulls=false — providers without an override fall back to their own default.
     val temperature: Double? = null,
     val topP: Double? = null,
     /**
-     * Просим провайдера прислать расход последним чанком стрима. Поле стандартное для
-     * OpenAI-совместимого API (`stream_options.include_usage`), и шлём его всегда: без него usage
-     * в стриме не приходит вовсе, а считать расход по оценке там, где провайдер готов назвать
-     * точное число, — терять единственный достоверный источник данных для тарифов.
+     * Asks the provider to send the spend as the last chunk of the stream. The field is standard for
+     * an OpenAI-compatible API (`stream_options.include_usage`), and we always send it: without it no
+     * usage arrives in a stream at all, and estimating spend where the provider is ready to name the
+     * exact number means losing the only reliable data source for pricing.
      */
     val streamOptions: StreamOptions = StreamOptions(),
-    /** Только OpenRouter — см. место заполнения. */
+    /** OpenRouter only — see where it is filled in. */
     val usage: UsageRequest? = null,
   )
 
@@ -289,11 +291,12 @@ class OpenAiCompatClient(
   }
 }
 
-// OpenAI-совместимый протокол использует snake_case (tool_calls, finish_reason, tool_call_id).
-// explicitNulls = false, чтобы не слать null-поля (tool_calls/content) в запросе.
-// encodeDefaults = true ОБЯЗАТЕЛЕН: без него поля со значением по умолчанию выпадают из запроса —
-// в частности type="function" у каждого тула и у tool_call. Лояльные модели это глотают, но строгие
-// (llama/gpt-oss/nemotron на NIM) отвечают HTTP 400 «missing field `type`», ломая фолбэк при rate-limit.
+// The OpenAI-compatible protocol uses snake_case (tool_calls, finish_reason, tool_call_id).
+// explicitNulls = false so that null fields (tool_calls/content) are not sent in a request.
+// encodeDefaults = true is REQUIRED: without it fields with default values drop out of the request —
+// in particular type="function" on every tool and tool_call. Lenient models swallow that, but strict
+// ones (llama/gpt-oss/nemotron on NIM) answer HTTP 400 "missing field `type`", breaking the fallback on
+// a rate limit.
 @OptIn(ExperimentalSerializationApi::class)
 internal fun openAiCompatJson(): Json = Json {
   ignoreUnknownKeys = true
@@ -321,11 +324,13 @@ internal suspend fun consumeOpenAiSse(
 ): SseUsage? {
   val toolAccumulators = LinkedHashMap<Int, ToolCallAccumulator>()
   var finishReason: String? = null
-  // Расход хода. Приезжает отдельным чанком в конце стрима, поэтому копится вне цикла.
+  // The turn's spend. It arrives as a separate chunk at the end of the stream, so it is accumulated outside the loop.
   var usage: SseUsage? = null
-  // Reasoning-модели стримят размышление отдельным полем (OpenRouter, в том числе для Muse Spark, —
-  // delta.reasoning; прямые OpenAI-совместимые API — reasoning_content), а ответ — в content. Копим размышление отдельно: если у хода content так и не пришёл (модель уложила всё в
-  // reasoning) и не было tool-call, отдаём размышление как ответ — иначе пользователь видит пустоту.
+  // Reasoning models stream their thinking in a separate field (OpenRouter, including for Muse Spark —
+  // delta.reasoning; direct OpenAI-compatible APIs, Meta Model API among them — reasoning_content), and
+  // the answer in content. Thinking is accumulated separately: if the turn never got content (the
+  // model put everything into reasoning) and there was no tool call, the thinking is returned as the
+  // answer — otherwise the user sees nothing.
   var contentSeen = false
   val reasoning = StringBuilder()
   while (!channel.isClosedForRead) {
@@ -341,23 +346,24 @@ internal suspend fun consumeOpenAiSse(
       onParseError(e)
       continue
     }
-    // Строго ДО проверки choices ниже: usage приезжает отдельным финальным чанком, у которого
-    // choices пуст, и `firstOrNull() ?: continue` выбрасывал его вместе с чанком — расход хода
-    // оставался неизвестен, хотя провайдер его прислал. Присваиваем и продолжаем: за usage-чанком
-    // идёт ещё [DONE], да и порядок чанков провайдер не обещает.
+    // Strictly BEFORE the choices check below: usage arrives as a separate final chunk whose choices
+    // are empty, and `firstOrNull() ?: continue` used to throw it away together with the chunk — the
+    // turn's spend stayed unknown although the provider had sent it. Assign and continue: [DONE]
+    // still follows the usage chunk, and the provider does not promise the chunk order anyway.
     sseChunk.usage?.let { usage = it }
     val choice = sseChunk.choices.firstOrNull() ?: continue
     choice.delta?.content?.let {
-      // Пустая content-дельта (role-priming чанк «content:""» в начале стрима) текста не несёт, но
-      // во внешнем цикле выставила бы emittedAnswer=true и запретила фолбэк ещё до реального ответа —
-      // при обрыве сразу после неё ход умер бы на пустом экране. Пропускаем пустые дельты целиком.
+      // An empty content delta (the role-priming chunk `content:""` at the start of the stream) carries no
+      // text, but in the outer loop it would set emittedAnswer=true and forbid the fallback before any
+      // real answer — a break right after it would kill the turn on an empty screen. Empty deltas are
+      // skipped entirely.
       if (it.isNotEmpty()) {
         contentSeen = true
         emit(StreamEvent.TextDelta(it))
       }
     }
     (choice.delta?.reasoningContent ?: choice.delta?.reasoning)?.let { reasoning.append(it) }
-    // Tool-call приходит фрагментами по нескольким дельтам — копим по index.
+    // A tool call arrives in fragments across several deltas — accumulate by index.
     choice.delta?.toolCalls?.forEach { tc ->
       val idx = tc.index ?: 0
       val acc = toolAccumulators.getOrPut(idx) { ToolCallAccumulator(idx) }
@@ -368,12 +374,14 @@ internal suspend fun consumeOpenAiSse(
     choice.finishReason?.let { finishReason = it }
   }
 
-  // finish_reason "length" — модель упёрлась в max_tokens. У reasoning-моделей это чаще всего значит,
-  // что бюджет съело размышление, а ответ так и не начался. Раньше такой ответ считался готовым:
-  // обрывок уходил в чат как полноценный, а недописанный tool-call исполнялся с `{}` вместо аргументов.
+  // finish_reason "length" — the model hit max_tokens. For reasoning models this most often means the
+  // thinking ate the budget and the answer never started. Such an answer used to count as finished:
+  // the fragment went to the chat as a full answer, and a half-written tool call ran with `{}` instead
+  // of arguments.
   val truncated = finishReason == FINISH_LENGTH
-  // Аргументы разбираем ДО эмита: при обрезке последний вызов может оказаться недописанным, и тогда
-  // нельзя отдавать ни его, ни соседние — ход должен закончиться ошибкой, а не половиной действий.
+  // Arguments are parsed BEFORE emitting: on truncation the last call may be half-written, and then
+  // neither it nor its neighbours may be returned — the turn must end with an error, not half the
+  // actions.
   val assembledCalls = toolAccumulators.values.map { acc ->
     acc to parseToolArgumentsOrNull(acc.arguments.toString(), json, onParseError)
   }
@@ -382,21 +390,22 @@ internal suspend fun consumeOpenAiSse(
     return usage
   }
   if (truncated && !contentSeen && assembledCalls.isEmpty()) {
-    // Размышление здесь НЕ отдаём ответом: оно оборвано на полуслове так же, как ответ.
+    // The thinking is NOT returned as the answer here: it is cut mid-word, just like the answer.
     emit(StreamEvent.Error(userFacingLlmError(CODE_LENGTH_EMPTY, interrupted = false), code = CODE_LENGTH_EMPTY))
     return usage
   }
 
-  // Фолбэк: модель выдала только reasoning_content (без content и без tool-call) — отдаём его, чтобы
-  // ход не закончился немым экраном, но с пометкой: без неё размышление вслух («пользователь хочет…»)
-  // читалось как странный ответ. Флаг reasoning — для тех, кто ждёт JSON (см. StreamEvent.TextDelta).
+  // Fallback: the model produced only reasoning_content (no content and no tool call) — return it so
+  // the turn does not end on a mute screen, but with a marker: without it thinking aloud ("the user
+  // wants…") read as a strange answer. The reasoning flag is for those who expect JSON (see
+  // StreamEvent.TextDelta).
   if (!contentSeen && assembledCalls.isEmpty() && reasoning.isNotBlank()) {
     emit(StreamEvent.TextDelta(REASONING_ONLY_PREFIX + reasoning.toString().trim(), reasoning = true))
   }
 
-  // Эмитим каждый собранный tool-call один раз, с полными аргументами. Нечитаемые аргументы без
-  // обрезки (модель ошиблась в JSON) — пустая карта, как и раньше: тул ответит «нет аргумента», и
-  // модель поправится на следующем витке.
+  // Emit every assembled tool call once, with full arguments. Unreadable arguments without truncation
+  // (the model made a JSON mistake) become an empty map, as before: the tool answers "argument
+  // missing", and the model corrects itself on the next iteration.
   for ((acc, args) in assembledCalls) {
     emit(
       StreamEvent.ToolCall(
@@ -406,27 +415,27 @@ internal suspend fun consumeOpenAiSse(
       ),
     )
   }
-  // Текстовый ответ, обрезанный по длине, — не ошибка: сказано почти всё, и переспрашивать заново
-  // дороже. Но пользователь должен видеть, что конец потерян, а не думать, что модель так и закончила.
+  // A text answer cut by length is not an error: almost everything was said, and asking again costs
+  // more. But the user must see that the end is lost rather than think the model ended like that.
   if (truncated && contentSeen && assembledCalls.isEmpty()) {
     emit(StreamEvent.TextDelta(TRUNCATED_ANSWER_SUFFIX))
   }
-  // Некоторые провайдеры закрывают поток без finish_reason — считаем это "stop",
-  // иначе агент-цикл крутится до MAX_ITERATIONS и теряет готовый ответ.
+  // Some providers close the stream without a finish_reason — we treat that as "stop", otherwise the
+  // agent loop spins until MAX_ITERATIONS and loses a finished answer.
   emit(StreamEvent.Finish(finishReason ?: "stop"))
   return usage
 }
 
 private const val FINISH_LENGTH = "length"
 
-/** Маркеры обрезки по max_tokens — коды [StreamEvent.Error], по ним же [userFacingLlmError] выбирает текст. */
+/** Markers of truncation at max_tokens — [StreamEvent.Error] codes; [userFacingLlmError] picks the text by them too. */
 internal const val CODE_LENGTH_EMPTY = "length_empty"
 internal const val CODE_LENGTH_TOOL_CALL = "length_tool_call"
 
-/** Пометка над размышлением, отданным вместо ответа: читается как мысли модели, а не её ответ. */
+/** Marker above thinking returned instead of an answer: it reads as the model's thoughts, not its answer. */
 internal const val REASONING_ONLY_PREFIX = "💭 *Ответа нет — вот ход мыслей модели:*\n\n"
 
-/** Хвост ответа, обрезанного по длине. */
+/** Tail of an answer cut by length. */
 internal const val TRUNCATED_ANSWER_SUFFIX = "…\n\n*(ответ обрезан)*"
 
 private class ToolCallAccumulator(val index: Int) {
@@ -435,14 +444,14 @@ private class ToolCallAccumulator(val index: Int) {
   val arguments = StringBuilder()
 }
 
-/** Аргументы tool-call'а; null — JSON не разобрался (недописан или битый), решает вызывающий. */
+/** A tool call's arguments; null — the JSON did not parse (half-written or broken), the caller decides. */
 private fun parseToolArgumentsOrNull(
   args: String,
   json: Json,
   onError: (Throwable) -> Unit = {},
 ): Map<String, JsonElement>? =
   try {
-    // Пустая строка тоже null: при обрезке по длине это вызов, оборванный сразу после имени.
+    // An empty string is null too: on truncation by length it is a call cut right after its name.
     json.decodeFromString<JsonObject>(args).toMap()
   } catch (e: Exception) {
     onError(e)
@@ -457,20 +466,21 @@ private data class SseChunk(
 )
 
 /**
- * Расход одного вызова так, как его назвал сам провайдер.
+ * The spend of one call as the provider itself named it.
  *
- * Отсутствие usage целиком (`consumeOpenAiSse` возвращает `null`) и нули в полях — РАЗНЫЕ
- * утверждения, и различать их обязан тип: `null` значит «провайдер не сказал», и вызывающий берёт
- * оценку по длине текста, помечая её приблизительной; нули значили бы «ход был бесплатным». Слить
- * их в одно число — получить учёт, в котором молчание провайдера неотличимо от нулевого счёта.
+ * No usage at all (`consumeOpenAiSse` returns `null`) and zeros in the fields are DIFFERENT
+ * statements, and the type must tell them apart: `null` means "the provider did not say", and the
+ * caller takes an estimate from the text length, marking it approximate; zeros would mean "the turn
+ * was free". Merging them into one number gives accounting in which a provider's silence is
+ * indistinguishable from a zero bill.
  */
 @Serializable
 internal data class SseUsage(
   val promptTokens: Int = 0,
   val completionTokens: Int = 0,
-  /** Цена вызова в USD. Присылает OpenRouter, и только когда её попросили; иначе — null. */
+  /** Price of the call in USD. OpenRouter sends it, and only when asked; otherwise null. */
   val cost: Double? = null,
-  /** Сколько токенов промпта взято из кеша провайдера: у Meta они в 8 раз дешевле обычных. */
+  /** How many prompt tokens came from the provider's cache: at Meta they are 8 times cheaper than regular ones. */
   val promptTokensDetails: PromptTokensDetails? = null,
 )
 
@@ -488,9 +498,10 @@ private data class SseChoice(
 private data class SseDelta(
   val role: String? = null,
   val content: String? = null,
-  // Размышление reasoning-моделей: прямые OpenAI-совместимые API шлют reasoning_content, OpenRouter —
-  // reasoning. Читаем оба: без второго фолбэк «размышление как ответ» на OpenRouter не срабатывал
-  // никогда, и ход, уложившийся в одно размышление, жёг пять попыток по моделям цепочки.
+  // Thinking of reasoning models: direct OpenAI-compatible APIs send reasoning_content, OpenRouter —
+  // reasoning. Both are read: without the second, the "thinking as the answer" fallback never fired
+  // on OpenRouter, and a turn that fit into a single thought burned five attempts across the chain's
+  // models.
   val reasoningContent: String? = null,
   val reasoning: String? = null,
   val toolCalls: List<SseToolCall>? = null,
@@ -513,17 +524,18 @@ private data class SseFunctionCall(
 private class LlmHttpException(val status: Int, body: String) : Exception("HTTP $status: $body")
 
 /**
- * Текст ошибки хода для человека: его показывают в чате и в пуше о неудачном фоновом ходе.
+ * The turn's error text for a person: it is shown in the chat and in the push about a failed
+ * background turn.
  *
- * Раньше туда уходило «All providers failed. Last: HTTP 401: {json…}» — английский и сырой JSON
- * провайдера в русском приложении, по которому не понять, что делать. Подробности остаются в логе;
- * здесь — что случилось и что поправить. [code] — HTTP-статус последней попытки или наш маркер
- * (`blank_key`, `empty_response`).
+ * It used to be "All providers failed. Last: HTTP 401: {json…}" — English and the provider's raw JSON
+ * in a Russian app, with no way to tell what to do. The details stay in the log; here — what happened
+ * and what to fix. [code] is the HTTP status of the last attempt or our own marker (`blank_key`,
+ * `empty_response`).
  */
-/** HTTP-статусы, при которых виноват ключ или счёт, а не модель (см. фолбэк в streamChat). */
+/** HTTP statuses where the key or the balance is at fault, not the model (see the fallback in streamChat). */
 private val KEY_LEVEL_FAILURES = setOf("401", "402", "403")
 
-/** HTTP-статусы, при которых провайдер отверг сам запрос: другая модель цепочки отвергнет его так же. */
+/** HTTP statuses where the provider rejected the request itself: another model of the chain would reject it the same way. */
 private val REQUEST_LEVEL_FAILURES = setOf("400", "413")
 
 internal fun userFacingLlmError(code: String?, interrupted: Boolean): String = when {

@@ -20,22 +20,22 @@ object LlmContextConfig {
   const val EPISODES_LIMIT = 5
 
   /**
-   * Потолок секции фактов в системном промпте (символы). Маленькая память показывается целиком
-   * (см. MemoryRepository.factsForPrompt), и без потолка один длинный факт — запись дневника,
-   * вставленный текст — ехал бы в каждый ход.
+   * Ceiling of the facts section in the system prompt (characters). A small memory is shown in full
+   * (see MemoryRepository.factsForPrompt), and without a ceiling one long fact — a diary entry, a
+   * pasted text — would ride along in every turn.
    */
   const val PROMPT_FACTS_MAX_CHARS = 3_000
 
-  /** Потолок одной строки факта в промпте: остальное доступно через search_memory. */
+  /** Ceiling of one fact line in the prompt: the rest is available through search_memory. */
   const val PROMPT_FACT_LINE_MAX_CHARS = 300
 
   /** Rough token budget for verbatim dialog (system + tools are extra). */
   const val HISTORY_TOKEN_BUDGET = 48_000
 
   /**
-   * Сколько последних реплик защищено от обрезки по бюджету дольше всего — дольше, чем начало
-   * диалога: без них модель не видит, на что отвечает. Самая последняя (текущий вопрос) не
-   * выбрасывается никогда — см. ContextWindowBuilder.trimVerbatimToTokenBudget.
+   * How many of the latest messages are protected from budget trimming the longest — longer than the
+   * start of the conversation: without them the model does not see what it is answering. The very last
+   * one (the current question) is never dropped — see ContextWindowBuilder.trimVerbatimToTokenBudget.
    */
   const val PROTECTED_RECENT_MESSAGES = 6
 
@@ -52,8 +52,9 @@ object LlmContextConfig {
   const val ANNOTATION_MESSAGE_LIMIT = 40
 
   /**
-   * Гейт частоты фонового аннотатора: после первичной аннотации обновляем заголовок/резюме/теги
-   * раз в столько текстовых реплик (а не после каждого хода — это второй LLM-вызов на ход).
+   * Rate gate of the background annotator: after the initial annotation the title/summary/tags are
+   * refreshed once per this many text messages (not after every turn — that would be a second LLM call
+   * per turn).
    */
   const val ANNOTATE_EVERY_MESSAGES = 4
 
@@ -63,9 +64,10 @@ object LlmContextConfig {
   fun estimateTokens(text: String): Int = estimateTokens(text.length)
 
   /**
-   * Та же оценка, когда на руках только длина. Нужна учёту расхода: там считать нечего по строке —
-   * тело запроса уже отправлено, а ответ приходил дельтами, и известна лишь сумма их длин. Одна
-   * формула на оба случая, иначе оценка окна контекста и оценка расхода разъедутся молча.
+   * The same estimate when only the length is at hand. Spend accounting needs it: there is no string
+   * to count there — the request body has already been sent, and the answer arrived in deltas, so only
+   * the sum of their lengths is known. One formula for both cases, otherwise the context window
+   * estimate and the spend estimate would drift apart silently.
    */
   fun estimateTokens(chars: Int): Int = maxOf(1, chars / 3)
 }

@@ -15,7 +15,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
 import java.io.File
 
-/** Каталог, скачанный с OpenRouter, вместе со временем скачивания (для TTL). */
+/** The catalog downloaded from OpenRouter, together with the download time (for the TTL). */
 @Serializable
 data class CachedModelCatalog(
   val fetchedAt: Long,
@@ -23,16 +23,16 @@ data class CachedModelCatalog(
 )
 
 /**
- * Кеш каталога моделей OpenRouter — ОДИН JSON-файл в `filesDir`, а не таблица в Room.
+ * Cache of the OpenRouter model catalog — ONE JSON file in `filesDir`, not a Room table.
  *
- * Это документ, который заменяется целиком и никогда не запрашивается по частям: реляционного в нём
- * нет ни одного признака. Плюс цена ошибки: пока приложение до релиза, схема Room живёт на
- * `fallbackToDestructiveMigration`, и добавление таблицы РАДИ КЕША стоило бы пользователю всех
- * диалогов и агентов при обновлении. Файл такой цены не имеет.
+ * It is a document that is replaced as a whole and never queried in parts: it has nothing relational
+ * about it. Plus the cost of a mistake: until release the Room schema lives on
+ * `fallbackToDestructiveMigration`, and adding a table FOR A CACHE would cost the user all their
+ * conversations and agents on update. A file has no such cost.
  *
- * `filesDir`, а не `cacheDir`: систему никто не просил чистить это в середине сессии, а объём —
- * десятки килобайт. Потеря файла не страшна в любом случае — [ModelCatalogLoader] откатится на сид
- * из ассетов.
+ * `filesDir`, not `cacheDir`: nobody asked the system to clear this mid-session, and it is tens of
+ * kilobytes. Losing the file is not a problem anyway — [ModelCatalogLoader] falls back to the asset
+ * seed.
  */
 @SingleIn(AppScope::class)
 @Inject
@@ -50,13 +50,12 @@ class OpenRouterCatalogCache(
   private val file: File get() = File(application.filesDir, FILE_NAME)
 
   /**
-   * Кешированный каталог или null: файла нет, он битый или пустой.
+   * The cached catalog, or null: no file, or it is broken or empty.
    *
-   * Битый файл НЕ удаляем. Раньше удаляли — и это превращало любое расхождение чтения с записью в
-   * потерю данных: [read] зовётся на каждом ходе агента (через `ModelCatalogLoader.loadOpenRouter`
-   * в цепочке провайдеров), а [write] — из фонового обновления, так что пересечься они могут в
-   * любой момент. Теперь запись атомарна, а чтение просто возвращает null: следующее обновление
-   * перезапишет файл само.
+   * A broken file is NOT deleted. It used to be — and that turned any race between reading and writing
+   * into data loss: [read] is called on every agent turn (through `ModelCatalogLoader.loadOpenRouter`
+   * in the provider chain), and [write] from the background update, so they can overlap at any moment.
+   * Now the write is atomic, and a read simply returns null: the next update overwrites the file.
    */
   @Synchronized
   fun read(): CachedModelCatalog? {
@@ -72,25 +71,26 @@ class OpenRouterCatalogCache(
   }
 
   /**
-   * Замена через временный файл: пишем рядом и переименовываем.
+   * Replace via a temporary file: write next to it and rename.
    *
-   * Прямой `writeText` сначала обрезает файл до нуля — читатель, попавший в это окно, увидел бы
-   * обрубок вместо каталога. `renameTo` внутри одного каталога на Android это `rename(2)`, то есть
-   * читатель видит либо прежний файл целиком, либо новый целиком.
+   * A plain `writeText` first truncates the file to zero — a reader hitting that window would see a
+   * stub instead of the catalog. `renameTo` within one directory on Android is `rename(2)`, so a reader
+   * sees either the whole old file or the whole new one.
    *
-   * `java.nio.file.Files.move` здесь НЕЛЬЗЯ, хотя он и удобнее: `java.nio.file` появился на Android
-   * только в API 26, а minSdk у проекта 24 и десугаринга нет. На 7.x это `NoClassDefFoundError` —
-   * `Error`, а не `Exception`, то есть мимо catch ниже и мимо catch в сервисе: приложение падало бы
-   * при открытии Настроек. Ловим Throwable по той же причине: кеш моделей не повод ронять процесс.
+   * `java.nio.file.Files.move` must NOT be used here, convenient as it is: `java.nio.file` appeared on
+   * Android only in API 26, the project's minSdk is 24 and there is no desugaring. On 7.x that is a
+   * `NoClassDefFoundError` — an `Error`, not an `Exception`, so it would bypass the catch below and the
+   * catch in the service: the app would crash on opening Settings. Throwable is caught for the same
+   * reason: a model cache is no reason to bring the process down.
    */
   @Synchronized
   fun write(catalog: ModelCatalog, fetchedAt: Long) {
     val tmp = File(application.filesDir, "$FILE_NAME.tmp")
     try {
       tmp.writeText(json.encodeToString(CachedModelCatalog(fetchedAt, catalog)))
-      // renameTo НЕ перезаписывает существующий файл на Windows (молча возвращает false). На
-      // Android первая попытка проходит всегда; вторая ветка нужна только хостовой JVM, где
-      // Robolectric и где атомарность не важна.
+      // renameTo does NOT overwrite an existing file on Windows (it silently returns false). On Android
+      // the first attempt always succeeds; the second branch is only for the host JVM, where Robolectric
+      // runs and atomicity does not matter.
       if (!tmp.renameTo(file)) {
         file.delete()
         if (!tmp.renameTo(file)) {
@@ -99,7 +99,7 @@ class OpenRouterCatalogCache(
         }
       }
     } catch (e: Throwable) {
-      // Не смогли записать — не повод ронять ход: в следующий раз просто сходим в сеть снова.
+      // Could not write — no reason to fail the turn: next time we simply go to the network again.
       Log.w(TAG, "Failed to cache OpenRouter catalog: ${e.message}")
       runCatching { tmp.delete() }
     }

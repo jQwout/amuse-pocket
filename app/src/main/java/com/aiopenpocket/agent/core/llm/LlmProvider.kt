@@ -4,18 +4,19 @@ package com.aiopenpocket.agent.core.llm
 // @trace vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53
 
 /**
- * Через кого идут запросы к модели. Модели на обоих маршрутах одни и те же — Muse от Meta, разный
- * только путь:
- * - [META] — прямой Meta Model API (`api.meta.ai`). Основной маршрут: отсев хакатона засчитывает
- *   «Meta Model API и/или открытые веса Meta», а OpenRouter буквально ни то, ни другое; и только
- *   здесь есть SAM 3.1 и Voice Transcribe.
- * - [OPENROUTER] — запасной путь к тем же моделям; из его каталога приложение берёт только модели
- *   Meta (см. [isMetaModel]).
+ * Who requests to the model go through. The models are the same on both routes — Meta's Muse; only
+ * the path differs:
+ * - [META] — the direct Meta Model API (`api.meta.ai`). The primary route: the hackathon's first
+ *   screening accepts "Meta Model API and/or Meta's open weights", and OpenRouter is literally neither;
+ *   and only here are SAM 3.1 and Voice Transcribe available.
+ * - [OPENROUTER] — the backup path to the same models; from its catalog the app takes only Meta
+ *   models (see [isMetaModel]).
  *
- * Какой из них работает, решает ключ (см. [activeLlmProvider]). Было `NIM, OPENROUTER`, а ещё раньше
- * `AUTO, NIM, GROQ, GITHUB`; NVIDIA NIM выпилен 25 окт 2026 — чужой вендор означал чужие модели в
- * курсе про Meta. Кросс-провайдерного автофолбэка нет и не будет: фолбэк — между МОДЕЛЯМИ одного
- * провайдера (см. [ProviderFallbackChain]), иначе запрос мог бы молча уехать другому адресату.
+ * Which one is in effect is decided by the key (see [activeLlmProvider]). It used to be
+ * `NIM, OPENROUTER`, and before that `AUTO, NIM, GROQ, GITHUB`; NVIDIA NIM was removed on Oct 25,
+ * 2026 — another vendor meant other models in a course about Meta. There is no cross-provider
+ * auto-fallback and there will not be: fallback happens between MODELS of one provider (see
+ * [ProviderFallbackChain]), otherwise a request could silently go to another recipient.
  */
 enum class LlmProvider {
   OPENROUTER,
@@ -23,24 +24,24 @@ enum class LlmProvider {
 }
 
 /**
- * Провайдер решает ключ: введён ключ Meta Model API — запросы идут напрямую в Meta, нет — через
- * OpenRouter.
+ * The key decides the provider: with a Meta Model API key entered, requests go straight to Meta;
+ * without one — through OpenRouter.
  *
- * Отдельного переключателя нет сознательно. Ключ Meta вводит сам пользователь (вшитого нет, см.
- * LlmModule), и «ввёл ключ — работает напрямую» не требует объяснять, что такое маршрут. А без ключа
- * Meta отладочная сборка продолжает работать на вшитом ключе OpenRouter. ОДНА функция и для цепочки,
- * и для строки «куда идут запросы» в Настройках: разойдись они — экран обещал бы Meta, а ход уходил
- * бы в OpenRouter.
+ * There is no separate switch on purpose. The Meta key is entered by the user (there is no bundled one,
+ * see LlmModule), and "entered a key — it works directly" needs no explanation of what a route is.
+ * Without a Meta key the debug build keeps working on the bundled OpenRouter key. ONE function for both
+ * the chain and the "where requests go" line in Settings: if they diverged, the screen would promise
+ * Meta while the turn went to OpenRouter.
  */
 fun activeLlmProvider(metaKey: String): LlmProvider =
   if (metaKey.isNotBlank()) LlmProvider.META else LlmProvider.OPENROUTER
 
 /**
- * Ключ OpenRouter, вшитый в отладочную сборку из `.env`, или пустая строка. Без него приложение на
- * Muse не дожило бы до Настроек — онбординг сам ходит в модель. ОДНА функция и для цепочки, и для
- * предупреждения в Настройках: разойдись они — плейсхолдер ушёл бы в запрос как настоящий ключ, а
- * предупреждения при этом не было бы. В магазинную сборку живой ключ не пустит проверка в
- * app/build.gradle.kts.
+ * The OpenRouter key baked into the debug build from `.env`, or an empty string. Without it the app on
+ * Muse would not make it to Settings — onboarding calls the model itself. ONE function for both the
+ * chain and the warning in Settings: if they diverged, the placeholder would go into a request as a
+ * real key, and there would be no warning. A live key cannot get into a store build — a check in
+ * app/build.gradle.kts stops it.
  */
 fun bundledOpenRouterKey(buildKey: String): String =
   buildKey.takeUnless { it.isBlank() || it == OPENROUTER_KEY_PLACEHOLDER }.orEmpty()
@@ -48,13 +49,13 @@ fun bundledOpenRouterKey(buildKey: String): String =
 const val OPENROUTER_KEY_PLACEHOLDER = "MY_OPENROUTER_API_KEY"
 
 /**
- * Провайдер, к которому идёт запрос, — читается на каждом обращении, а не фиксируется при сборке
- * графа: ключ Meta, введённый в Настройках, переводит на прямой Meta Model API уже следующий ход —
- * и чат, и план-движок, и фоновые heartbeat'ы, без перезапуска.
+ * The provider a request goes to — read on every access, not fixed when the graph is built: a Meta key
+ * entered in Settings moves the very next turn to the direct Meta Model API — the chat, the plan
+ * engine and background heartbeats alike, without a restart.
  *
- * Отдельный тип, а не `SettingsRepository` напрямую: потребителям (петля агента, heartbeat'ы) нужен
- * ровно один факт «куда слать», и тащить ради него хранилище ключей — значит тащить в тесты
- * EncryptedSharedPreferences с Android Keystore.
+ * A separate type rather than `SettingsRepository` directly: consumers (the agent loop, heartbeats)
+ * need exactly one fact, "where to send", and pulling the key store in for it would mean pulling
+ * EncryptedSharedPreferences with the Android Keystore into tests.
  */
 fun interface SelectedLlmProvider {
   operator fun invoke(): LlmProvider
@@ -64,15 +65,15 @@ data class ProviderConfig(
   val name: LlmProvider,
   val baseUrl: String,
   val model: String,
-  // Дефолт для моделей, не задавших своё значение. Каталог (assets/config/models_openrouter.json)
-  // проставляют max_tokens сами. Это лимит ДЛИНЫ ОТВЕТА (output), препромпт сюда не входит.
+  // The default for models that did not set their own value. The catalogs (assets/config/models_*.json)
+  // set max_tokens themselves. This is the limit on the ANSWER LENGTH (output); the prompt is not part of it.
   val maxTokens: Int = 4096,
   val reasoning: Boolean = false,
   val temperature: Double? = null,
   val topP: Double? = null,
   /**
-   * Умеет ли модель звать инструменты (см. [ModelEntry.supportsTools]). Гейт применяет
-   * [ProviderFallbackChain.resolve] — одна точка на все способы собрать цепочку.
+   * Whether the model can call tools (see [ModelEntry.supportsTools]). The gate is applied by
+   * [ProviderFallbackChain.resolve] — one point for every way to build a chain.
    */
   val supportsTools: Boolean = true,
   val apiKeyResolver: () -> String,

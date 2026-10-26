@@ -7,15 +7,16 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * Одна строка учёта — один завершившийся вызов модели (см. `LlmCallUsage`).
+ * One accounting row — one finished model call (see `LlmCallUsage`).
  *
- * Таблица только пополняется и читается сводками; строки не обновляются и не удаляются по одной.
- * Поэтому суррогатный автоключ, а не составной: естественного ключа у события «вызов случился» нет,
- * два одинаковых вызова подряд — это два разных факта, и склеивать их нельзя.
+ * The table is only appended to and read by summaries; rows are never updated or deleted one by one.
+ * Hence a surrogate auto key rather than a composite one: the event "a call happened" has no natural
+ * key, two identical calls in a row are two different facts, and they must not be merged.
  *
- * [conversationId] и [agentId] заполняются ПО ВОЗМОЖНОСТИ, из контекста хода. `null` — не пробел в
- * данных, а содержательный ответ: так выглядят вызовы вне хода (аннотатор диалога, извлечение
- * профиля), и доля таких строк как раз и отвечает на вопрос «сколько съедает фон».
+ * [conversationId] and [agentId] are filled in WHEN POSSIBLE, from the turn context. `null` is not a
+ * gap in the data but a meaningful answer: that is what calls outside a turn look like (the
+ * conversation annotator, profile extraction), and the share of such rows is exactly what answers
+ * "how much does the background eat".
  */
 @Entity(
   tableName = "llm_usage",
@@ -23,7 +24,7 @@ import androidx.room.PrimaryKey
 )
 data class LlmUsageEntity(
   @PrimaryKey(autoGenerate = true) val id: Long = 0,
-  /** Момент завершения вызова, epoch millis. */
+  /** The moment the call finished, epoch millis. */
   val at: Long,
   val provider: String,
   val model: String,
@@ -36,18 +37,18 @@ data class LlmUsageEntity(
   val hadTools: Boolean,
 )
 
-/** Свод по всем вызовам за период. Отдельный тип — Room не умеет возвращать кортеж. */
+/** Totals over all calls of a period. A separate type — Room cannot return a tuple. */
 data class LlmUsageTotals(
   val calls: Int,
   val promptTokens: Long,
   val completionTokens: Long,
-  /** `null`, когда цену не назвал ни один вызов периода (провайдер отдал только токены). */
+  /** `null` when no call of the period named a price (the provider returned only tokens). */
   val costUsd: Double?,
-  /** Сколько строк периода посчитаны оценкой, а не замером — мера доверия к сводке. */
+  /** How many rows of the period are estimated rather than measured — a measure of trust in the summary. */
   val estimatedCalls: Int,
 )
 
-/** Тот же свод, но в разрезе модели: где именно горят деньги. */
+/** The same totals, broken down by model: where exactly the money burns. */
 data class LlmUsageByModel(
   val model: String,
   val calls: Int,

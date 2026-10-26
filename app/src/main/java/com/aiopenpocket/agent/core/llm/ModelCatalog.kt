@@ -18,9 +18,10 @@ import kotlinx.serialization.json.JsonNamingStrategy
  * The model with the lowest [ModelEntry.priority] is tried first, the rest act as fallbacks
  * (handled by [ProviderFallbackChain] + [OpenAiCompatClient]).
  *
- * Ассет `config/models_openrouter.json` — лишь СИД на первый запуск и офлайн; в бою список тянется
- * с `/api/v1/models` OpenRouter и кешируется (см. [OpenRouterCatalogService]). Каталог прямого Meta
- * Model API — `config/models_meta.json`, статичный (см. [ModelCatalogLoader.loadMeta]).
+ * The `config/models_openrouter.json` asset is only a SEED for the first launch and offline use; in
+ * practice the list is fetched from OpenRouter's `/api/v1/models` and cached (see
+ * [OpenRouterCatalogService]). The direct Meta Model API catalog is `config/models_meta.json`, static
+ * (see [ModelCatalogLoader.loadMeta]).
  */
 @Serializable
 data class ModelCatalog(
@@ -50,46 +51,46 @@ data class ModelEntry(
   val temperature: Double? = null,
   val topP: Double? = null,
   /**
-   * Что модель принимает на вход: `text`, `image`, `file`, ... Ключ `architecture.input_modalities`
-   * из ответа OpenRouter `/api/v1/models`.
+   * What the model accepts as input: `text`, `image`, `file`, ... The `architecture.input_modalities`
+   * key from OpenRouter's `/api/v1/models` response.
    *
-   * В ЭТОЙ фазе не используется — гейт для будущих вложений: скрепку и камеру можно показывать
-   * только там, где модель действительно умеет их принять, иначе пользователь прикрепит фото и
-   * получит молчаливое игнорирование. Хранить начинаем сразу, чтобы не переделывать формат потом.
-   * Пустой список означает «неизвестно» (так у сида из ассетов), НЕ «только текст».
+   * Not used in THIS phase — a gate for future attachments: the paperclip and the camera may be shown
+   * only where the model can really accept them, otherwise the user attaches a photo and gets silently
+   * ignored. We start storing it right away so the format does not have to change later. An empty list
+   * means "unknown" (that is the case for the asset seed), NOT "text only".
    */
   val inputModalities: List<String> = emptyList(),
   /**
-   * Умеет ли модель вызывать инструменты (`tools` в `supported_parameters`).
+   * Whether the model can call tools (`tools` in `supported_parameters`).
    *
-   * Для этого приложения это не украшение: агентский луп, MCP-тулы и план-движок целиком построены
-   * на function calling. Модель без tools не падает — она просто перестаёт вызывать инструменты, и
-   * со стороны это выглядит как «агент отупел», а не как неверная настройка. Поэтому такие модели
-   * в выбор не попадают.
+   * For this app it is not decoration: the agent loop, the MCP tools and the plan engine are all built
+   * on function calling. A model without tools does not fail — it simply stops calling tools, and from
+   * the outside that looks like "the agent got dumb", not like a wrong setting. So such models are not
+   * offered for selection.
    */
   val supportsTools: Boolean = true,
 )
 
 /**
- * Модель, на данных которой обучается сам вендор. У Meta это `-contributor`-версии Muse Spark: они в
- * 12 раз дешевле, потому что пользователь платит своим контентом.
+ * A model the vendor itself trains on. At Meta these are the `-contributor` versions of Muse Spark:
+ * they are 12 times cheaper because the user pays with their content.
  *
- * В приложении, через которое идут профиль, дневник, фото и память, такая модель недопустима — ни в
- * выборе, ни в цепочке. И попасть туда она может молча: OpenRouter отдаёт её в общем списке рядом с
- * обычной версией, с tools и тем же именем, только с суффиксом.
+ * In an app that carries the user's profile, diary, photos and memory such a model is unacceptable —
+ * neither in the choice nor in the chain. And it can get there silently: OpenRouter lists it next to
+ * the regular version, with tools and the same name, only with a suffix.
  */
 fun trainsOnUserData(modelId: String): Boolean = modelId.endsWith(CONTRIBUTOR_SUFFIX)
 
 private const val CONTRIBUTOR_SUFFIX = "-contributor"
 
 /**
- * Модель Meta (семейство Muse) — только такие приложение и берёт с OpenRouter.
+ * A Meta model (the Muse family) — the only kind the app takes from OpenRouter.
  *
- * Курс учит на Muse и рассказывает про модели Meta: агент, который при этом отвечает чужой моделью,
- * учил бы одному, а показывал другое. Отсев стоит и в разборе живого каталога, и при сборке цепочки
- * (LlmModule), и в списке Настроек — кеш, записанный прошлой версией, и модель, выбранная до
- * обновления, ещё могут быть чужими.
- * `meta-llama/` сюда не входит: Llama на OpenRouter обслуживают сторонние хостеры, а не Meta.
+ * The course teaches on Muse and talks about Meta's models: an agent that answered with someone else's
+ * model would teach one thing and show another. The filter is applied when parsing the live catalog,
+ * when building the chain (LlmModule) and in the Settings list — a cache written by a previous version
+ * and a model chosen before an update may still be foreign.
+ * `meta-llama/` is not included: Llama on OpenRouter is served by third-party hosts, not by Meta.
  */
 fun isMetaModel(modelId: String): Boolean = modelId.startsWith(META_PREFIX)
 
@@ -102,7 +103,7 @@ class ModelCatalogLoader(
   private val openRouterCache: OpenRouterCatalogCache,
 ) {
   // base_url / max_tokens in JSON are snake_case; map them to the camelCase DTO fields.
-  // namingStrategy всё ещё @ExperimentalSerializationApi — единственная причина opt-in здесь.
+  // namingStrategy is still @ExperimentalSerializationApi — the only reason for the opt-in here.
   @OptIn(ExperimentalSerializationApi::class)
   private val json = Json {
     ignoreUnknownKeys = true
@@ -111,28 +112,29 @@ class ModelCatalogLoader(
   }
 
   /**
-   * Актуальный каталог OpenRouter: скачанный и закешированный ([OpenRouterCatalogService]), а если
-   * его ещё нет — сид из ассетов.
+   * The current OpenRouter catalog: downloaded and cached ([OpenRouterCatalogService]), or the asset
+   * seed if there is none yet.
    *
-   * Читается ЗАНОВО на каждом обращении, а не один раз при сборке графа: обновление каталога должно
-   * действовать со следующего же хода, иначе пользователь выбрал бы модель, которой цепочка не
-   * знает, до перезапуска процесса.
+   * Read AGAIN on every access, not once when the graph is built: a catalog update must take effect
+   * from the very next turn, otherwise the user could choose a model the chain does not know until the
+   * process restarts.
    */
   fun loadOpenRouter(): ModelCatalog = openRouterCache.read()?.catalog ?: loadOpenRouterSeed()
 
   /**
-   * СИД-список OpenRouter из ассетов: первый запуск, офлайн и порядок «курируемые модели сверху»
-   * при разборе живого ответа. Источником правды НЕ является — им является скачанный каталог.
+   * The OpenRouter SEED list from the assets: first launch, offline, and the "curated models on top"
+   * order when parsing the live answer. It is NOT the source of truth — the downloaded catalog is.
    */
   fun loadOpenRouterSeed(): ModelCatalog = load(OPENROUTER_ASSET_PATH, OPENROUTER_FALLBACK)
 
   /**
-   * Каталог прямого Meta Model API — статичный, из ассетов, без живого списка.
+   * The direct Meta Model API catalog — static, from the assets, without a live list.
    *
-   * `GET /v1/models` у Meta есть, но тянуть его незачем: моделей с tools там четыре, и порядок у них
-   * не «как отдал сервер», а курируемый — Muse Wonder в 3–5 раз дороже Spark и стоит последней, только
-   * как фолбэк. Живой каталог OpenRouter нужен потому, что там сотни моделей и они меняются; здесь
-   * меняться нечему, а новая модель Meta всё равно требует сверки цены (см. metaListPriceUsd).
+   * Meta does have `GET /v1/models`, but there is no reason to fetch it: it has four models with tools,
+   * and their order is not "as the server returned it" but curated — Muse Wonder is 3–5 times the price
+   * of Spark and comes last, only as a fallback. The live OpenRouter catalog exists because it has
+   * hundreds of models that change; here nothing changes, and a new Meta model needs its price checked
+   * anyway (see metaListPriceUsd).
    */
   fun loadMeta(): ModelCatalog = load(META_ASSET_PATH, META_FALLBACK)
 

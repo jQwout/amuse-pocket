@@ -3,59 +3,62 @@ package com.aiopenpocket.agent.core.llm
 // @trace streaming-llm-chat-6595a1
 // @trace vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53
 
-// Экземпляр предоставляется через LlmModule.provideProviderFallbackChain (единственный binding).
-// Провайдер даёт СПИСОК конфигов — модели каталога, отсортированные по priority. OpenAiCompatClient
-// перебирает их по очереди с фоллбэком при ошибке.
+// The instance is provided via LlmModule.provideProviderFallbackChain (the only binding).
+// A provider gives a LIST of configs — the catalog's models sorted by priority. OpenAiCompatClient
+// tries them in turn, falling back on an error.
 class ProviderFallbackChain(
-  // Функция, а не готовая мапа: каталог OpenRouter обновляется в рантайме (OpenRouterCatalogService),
-  // и зафиксированный при сборке графа список жил бы до перезапуска процесса.
+  // A function rather than a ready map: the OpenRouter catalog is updated at runtime
+  // (OpenRouterCatalogService), and a list fixed when the graph is built would live until the process
+  // restarts.
   private val configsFor: (LlmProvider) -> List<ProviderConfig>,
-  // Лямбда (не значение) — как apiKeyResolver у ProviderConfig: читается заново на каждый resolve(),
-  // поэтому смена модели в Настройках подхватывается со следующего же хода, без пересборки DI-графа.
+  // A lambda (not a value) — like apiKeyResolver in ProviderConfig: it is read again on every resolve(),
+  // so a model change in Settings is picked up from the very next turn, without rebuilding the DI graph.
   private val preferredModel: () -> String? = { null },
 ) {
-  /** Статичная мапа — для тестов и для провайдеров, чей список моделей не меняется в рантайме. */
+  /** A static map — for tests and for providers whose model list does not change at runtime. */
   constructor(
     configs: Map<LlmProvider, List<ProviderConfig>>,
     preferredModel: () -> String? = { null },
   ) : this({ configs[it].orEmpty() }, preferredModel)
 
   /**
-   * Конфиги ТОЛЬКО запрошенного провайдера, в порядке попыток: выбранная пользователем модель
-   * первой, остальные — фолбэком по priority.
+   * Configs of ONLY the requested provider, in attempt order: the model the user chose first, the rest
+   * as a fallback by priority.
    *
-   * Кросс-провайдерной ветки здесь больше нет (была `AUTO`): провайдер выбирается явно, и молча
-   * уехать к другому вендору запрос не может. Фолбэк между МОДЕЛЯМИ одного провайдера остался —
-   * он не меняет ни адресата данных, ни прайс.
+   * There is no cross-provider branch here any more (it used to be `AUTO`): the provider is chosen
+   * explicitly, and a request cannot silently go to another vendor. Fallback between MODELS of one
+   * provider remains — it changes neither the recipient of the data nor the price list.
    */
   fun resolve(requested: LlmProvider): List<ProviderConfig> {
-    // Отсев моделей без function calling живёт ЗДЕСЬ, а не только в сборке конфигов: тут через него
-    // проходит каждый путь построения цепочки — и живой каталог, и правленый руками ассет, и кеш,
-    // записанный прошлой версией приложения. Модель без tools не падает, она молча перестаёт звать
-    // инструменты, и со стороны это «агент отупел», а не неверная настройка. По той же причине здесь
-    // и отсев моделей, обучающихся на данных пользователя: кеш прошлой версии ещё может их содержать,
-    // и выбравший такую модель пользователь продолжал бы слать в неё свои данные. (Отсев не-Meta
-    // моделей — при сборке конфигов в LlmModule: это политика приложения, а не свойство цепочки.)
+    // Models without function calling are filtered HERE, not only when building configs: every way of
+    // building the chain passes through this point — the live catalog, a hand-edited asset, and a
+    // cache written by a previous app version. A model without tools does not fail, it silently stops
+    // calling tools, and from the outside that is "the agent got dumb", not a wrong setting. For the
+    // same reason models that train on the user's data are filtered here too: a previous version's
+    // cache may still contain them, and a user who chose one would keep sending their data into it.
+    // (Non-Meta models are filtered when building configs in LlmModule: that is app policy, not a
+    // property of the chain.)
     val base = configsFor(requested).filter { it.supportsTools && !trainsOnUserData(it.model) }
-    // "AUTO" — сентинел настроек «не выбирал вручную, идти по priority», а не имя модели. Режима
-    // LlmProvider.AUTO больше нет, но эта строка живёт в SettingsRepository как дефолт, и без явной
-    // проверки она молча искалась бы среди моделей (нашла бы ноль — безвредно, но по случайности).
+    // "AUTO" is a settings sentinel, "not chosen by hand, go by priority", not a model name. The
+    // LlmProvider.AUTO mode is gone, but the string lives on in SettingsRepository as the default, and
+    // without an explicit check it would be silently looked up among the models (it would find none —
+    // harmless, but by accident).
     val preferred = preferredModel()?.takeIf { it.isNotBlank() && it != "AUTO" }
       ?: return base.take(MAX_ATTEMPTS)
-    // Сравниваем ТОЛЬКО по имени модели: base уже сужен до одного провайдера. Обрезаем ПОСЛЕ выбора:
-    // выбранная модель может стоять в каталоге последней.
+    // Compare ONLY by model name: base is already narrowed to one provider. Truncate AFTER the choice:
+    // the chosen model may be the last one in the catalog.
     val (match, rest) = base.partition { it.model == preferred }
     return (match + rest).take(MAX_ATTEMPTS)
   }
 
   private companion object {
     /**
-     * Сколько моделей пробуем максимум за один ход.
+     * The maximum number of models tried in one turn.
      *
-     * Фолбэк лечит ОДИН класс проблем: у конкретной модели прямо сейчас rate-limit или она прилегла.
-     * После двух-трёх отказов подряд дело не в модели, а в ключе, сети или самом провайдере — и
-     * перебирать дальше значит греть телефон и жечь минуты пользователя: один неверный ключ без
-     * потолка означал бы 401 на каждую модель каталога подряд.
+     * Fallback cures ONE class of problems: a particular model is rate-limited or down right now.
+     * After two or three refusals in a row the problem is not the model but the key, the network or
+     * the provider itself — and trying further means heating the phone and burning the user's minutes:
+     * without a ceiling one wrong key would mean a 401 on every model of the catalog in turn.
      */
     const val MAX_ATTEMPTS = 5
   }
