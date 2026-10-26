@@ -14,7 +14,7 @@ import dev.zacsweers.metrox.viewmodel.metroViewModel
 /**
  * Route wrapper for `agent/{agentId}` (Task 21): obtains [AgentDetailViewModel] (this screen's own
  * aggregated state) and, purely to reuse the exact same find-latest-or-create + greeting logic
- * "Открыть чат" needs, [AgentsViewModel] — the same "grab more than one `metroViewModel()` per
+ * "Open chat" needs, [AgentsViewModel] — the same "grab more than one `metroViewModel()` per
  * route" pattern `AgentBuilderRoute` already uses for its own two ViewModels. Hosts every
  * navigation/lifecycle callback the screen's actions need:
  * - `onOpenChat`: opens (or creates, and reuses across repeat visits) this agent's conversation.
@@ -43,13 +43,13 @@ fun AgentDetailRoute(
   // Once per navigation entry (mirrors AgentBuilderRoute's LaunchedEffect(agentId) { viewModel.start(agentId) }).
   LaunchedEffect(agentId) { viewModel.select(agentId) }
 
-  // ПОЛНОЭКРАННЫЙ маршрут, а НЕ ModalBottomSheet.
+  // A FULL-SCREEN route, NOT a ModalBottomSheet.
   //
-  // Раньше инспектор открывался шторкой с drag-handle, и её жест «смахнуть вниз» конкурировал с
-  // вертикальной прокруткой содержимого: скроллы пересекались, тянуть список было неприятно.
-  // Шторка тут ничего не давала — экран и так занимает почти всю высоту, рисует свою аврору и имеет
-  // ✕ для закрытия, — поэтому убрана целиком: конфликта жестов больше нет как класса.
-  // Закрытие теперь только ✕ и системное «назад» (onNavigateBack), без свайпа и скрима.
+  // The inspector used to open as a sheet with a drag handle, and its "swipe down" gesture competed with
+  // the vertical scrolling of the content: the scrolls intersected, and dragging the list was
+  // unpleasant. The sheet gave nothing here — the screen takes almost the whole height anyway, draws its
+  // own aurora and has a ✕ to close — so it was removed entirely: the gesture conflict is gone as a class.
+  // Closing is now only the ✕ and the system "back" (onNavigateBack), with no swipe and no scrim.
   AgentDetailScreen(
     state = state,
     onOpenChat = { agentsViewModel.openAgentChat(agentId, onOpenChat) },

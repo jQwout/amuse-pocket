@@ -47,10 +47,10 @@ fun IdentityStep(
   onUpdateDraft: ((AgentDraft) -> AgentDraft) -> Unit,
   modifier: Modifier = Modifier,
   /**
-   * Отступы под плавающие стеклянные острова визарда (высоты меряются в AgentBuilderScreen).
-   * Применяются ПОСЛЕ verticalScroll — тогда контент прокручивается ПОД стеклом и его есть
-   * чему размывать. Инсет вьюпорта снаружи (через [modifier]) дал бы обратное: полотно под
-   * острова не заезжает и блюр сэмплит одну аврору.
+   * Paddings for the wizard's floating glass islands (their heights are measured in AgentBuilderScreen).
+   * Applied AFTER verticalScroll — then the content scrolls UNDER the glass and there is something for
+   * it to blur. A viewport inset from outside (through [modifier]) would do the opposite: the canvas does
+   * not slide under the islands and the blur samples only the aurora.
    */
   contentPadding: PaddingValues = PaddingValues(),
 ) {

@@ -50,17 +50,17 @@ import com.aiopenpocket.ui.agents.iconFor
 import com.aiopenpocket.ui.components.glass.auroraBackground
 
 /**
- * Содержимое модалки-инспектора агента (открывается как ModalBottomSheet из [AgentDetailRoute],
- * решение «модалка 1:1 с ✕» по присланному макету): аврора-фон, компактная шапка
- * [AgentDetailModalHeader] (иконка+имя+статус+id, крестик закрытия), сегмент-табы [AgentDetailTabs]
- * Обзор/Файлы и прокручиваемый контент. Вкладка «Обзор» — «Открыть чат» → действия → стат-плитки →
- * препромпт → Планы → Инструменты → Навыки → Напоминания (heartbeat) → Хуки; вкладка «Файлы» —
- * секция файлов.
+ * The agent inspector's content, shown as a full-screen route from [AgentDetailRoute] (it used to be a
+ * ModalBottomSheet; see the route for why the sheet was removed): an aurora background, the compact
+ * header [AgentDetailModalHeader] (icon+name+status+id, a close cross), the segment tabs
+ * [AgentDetailTabs] Overview/Files and scrollable content. The "Overview" tab — "Open chat" → actions →
+ * stat tiles → preprompt → Plans → Tools → Skills → Reminders (heartbeat) → Hooks; the "Files" tab — the
+ * files section.
  *
- * Все секции — stateless-компоненты из AgentDetailSections.kt на реальном [AgentDetailState] (у
- * каждой есть фокусное @Preview). Планы (Task 12) тапом открывают `plan/{planId}` ([onOpenPlan]),
- * «Все планы» — `plans/{agentId}` ([onOpenPlanList]). Ранее это был полноэкранный экран на
- * AcademyCollapsingScaffold (Task 21); редизайн вернул презентацию к шторке по макету.
+ * All sections are stateless components from AgentDetailSections.kt on the real [AgentDetailState]
+ * (each has a focused @Preview). Plans (Task 12) open `plan/{planId}` on tap ([onOpenPlan]), "All
+ * plans" opens `plans/{agentId}` ([onOpenPlanList]). Before that it was a full-screen screen on
+ * AcademyCollapsingScaffold (Task 21).
  */
 @Composable
 fun AgentDetailScreen(
@@ -74,9 +74,10 @@ fun AgentDetailScreen(
   onOpenPlan: (String) -> Unit = {},
   onOpenPlanList: () -> Unit = {},
 ) {
-  // Модалка (ModalBottomSheet) собирается в AgentDetailRoute; здесь её содержимое: аврора-фон,
-  // компактная шапка с ✕, табы Обзор/Файлы и прокручиваемый контент. Полноэкранный
-  // AcademyCollapsingScaffold с ←-стрелкой заменён на шторку по макету (решение «модалка 1:1 с ✕»).
+  // The route (AgentDetailRoute) shows this content full screen; here is the content itself: the aurora
+  // background, the compact header with ✕, the Overview/Files tabs and the scrollable content. The old
+  // full-screen AcademyCollapsingScaffold with a ← arrow was replaced by this layout from the mockup
+  // ("a modal 1:1 with ✕").
   Box(modifier = Modifier.fillMaxSize().auroraBackground()) {
     val agent = state.definition
     if (agent == null) {
@@ -102,9 +103,9 @@ fun AgentDetailScreen(
         )
         Column(
           modifier = Modifier
-            // weight(1f), а НЕ fillMaxSize: в Column нон-weighted fillMaxSize берёт полную высоту
-            // родителя (не «оставшуюся после шапки/табов»), и низ прокрутки уходил под экран —
-            // хвост секций был недостижим. weight отдаёт скроллу ровно остаток высоты.
+            // weight(1f), NOT fillMaxSize: in a Column a non-weighted fillMaxSize takes the parent's full height
+            // (not "what is left after the header/tabs"), and the bottom of the scroll went off screen —
+            // the tail of the sections was unreachable. weight gives the scroll exactly the remaining height.
             .fillMaxWidth()
             .weight(1f)
             .verticalScroll(rememberScrollState())
@@ -133,8 +134,8 @@ fun AgentDetailScreen(
               onToggleEnabled = onToggleEnabled,
               onArchive = onArchive,
             )
-            // Ошибка последнего действия (включить/дублировать/архивировать). Раньше она писалась в
-            // state и нигде не показывалась: неудачное «Включить» выглядело как тап в пустоту.
+            // The error of the last action (enable/duplicate/archive). It used to be written to the state and
+            // shown nowhere: a failed "Enable" looked like a tap into nothing.
             state.actionError?.let { error ->
               Spacer(modifier = Modifier.height(8.dp))
               Text(
@@ -169,7 +170,7 @@ fun AgentDetailScreen(
   }
 }
 
-/** Компактная шапка модалки по макету: иконка агента, имя, статус-точка + id, крестик закрытия. */
+/** The modal's compact header per the mockup: the agent's icon, name, status dot + id, a close cross. */
 @Composable
 private fun AgentDetailModalHeader(
   agent: AgentDefinition,
@@ -203,10 +204,10 @@ private fun AgentDetailModalHeader(
             .background(if (enabled) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)),
         )
         Text(
-          // Версия конфига — единственный видимый признак того, что «Опубликовать» действительно
-          // зафиксировало правки (шапка со «status · vN» уехала вместе со старым полноэкранным
-          // вариантом). Сырой id агента (`budget`, uuid) здесь больше не показываем: пользователю он
-          // ничего не говорит, имя агента стоит строкой выше.
+          // The config version is the only visible sign that "Publish" really committed the edits (the header
+          // with "status · vN" went away together with the old full-screen variant). The agent's raw id
+          // (`budget`, a uuid) is no longer shown here: it tells the user nothing, and the agent's name is
+          // one line above.
           text = tr("версия ${agent.configVersion}", "version ${agent.configVersion}"),
           style = MaterialTheme.typography.labelMedium,
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
@@ -224,7 +225,7 @@ private fun AgentDetailModalHeader(
   }
 }
 
-/** Сегмент-табы Обзор/Файлы по макету: выбранный — заливка primaryContainer, невыбранный — обводка. */
+/** Overview/Files segment tabs per the mockup: the selected one is filled with primaryContainer, the unselected one outlined. */
 @Composable
 private fun AgentDetailTabs(
   selected: Int,

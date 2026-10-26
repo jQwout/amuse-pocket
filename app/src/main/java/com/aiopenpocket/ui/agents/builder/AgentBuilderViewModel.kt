@@ -80,11 +80,11 @@ class AgentBuilderViewModel(
   private val pendingEdits = MutableStateFlow<AgentDraft?>(null)
 
   /**
-   * С какими аргументами уже отработал [start]. Маршрут зовёт его из `LaunchedEffect`, а тот
-   * перезапускается при каждом пересоздании композиции — поворот экрана, смена темы, — хотя сама
-   * ViewModel переживает их нетронутой. Без этой отметки поворот заводил новый пустой черновик с
-   * новым id (а редактирование отбрасывало на первый шаг), и под каждый новый id тестовый шаг
-   * создавал ещё один чат «Тест агента». Тот же приём, что `AgentDetailViewModel.select`.
+   * The arguments [start] has already run with. The route calls it from a `LaunchedEffect`, which
+   * restarts on every recreation of the composition — a screen rotation, a theme change — although the
+   * ViewModel itself survives them untouched. Without this mark a rotation started a new empty draft
+   * with a new id (and editing threw the user back to the first step), and for every new id the test
+   * step created one more "Agent test" chat. The same trick as `AgentDetailViewModel.select`.
    */
   private var startedWith: Pair<String?, AgentSourceContext>? = null
 
@@ -104,9 +104,9 @@ class AgentBuilderViewModel(
    * branch — see [newDraft]; it is ignored (never overrides an existing agent's bookkeeping) when
    * [loadExisting] runs instead.
    *
-   * Повторный вызов с теми же аргументами — no-op (см. [startedWith]): черновик и текущий шаг
-   * переживают поворот экрана. [newDraft]/[loadExisting] сами по себе не охраняются — явный вызов
-   * по-прежнему перезагружает.
+   * A repeated call with the same arguments is a no-op (see [startedWith]): the draft and the current
+   * step survive a screen rotation. [newDraft]/[loadExisting] themselves are not guarded — an explicit
+   * call still reloads.
    */
   fun start(agentId: String?, sourceContext: AgentSourceContext = AgentSourceContext.MANUAL) {
     val key = agentId to sourceContext
@@ -151,7 +151,7 @@ class AgentBuilderViewModel(
   /**
    * Forks [sourceAgentId] (a preset OR an existing user agent — [AgentResolver.resolve] covers
    * both) into a brand-new USER draft: fresh id/memory namespace via
-   * [UserAgentRepository.clonePreset], renamed "Копия: <имя>" per the brief — the repository method
+   * [UserAgentRepository.clonePreset], renamed "Copy: <name>" per the brief — the repository method
    * itself does not rename, Task 19 owns that. The rename is persisted immediately (not left to the
    * debounced autosave) so the stored row already matches what is on screen even if the process
    * dies before the user makes their first real edit.
@@ -167,8 +167,8 @@ class AgentBuilderViewModel(
         }
         val cloned = userAgentRepository.clonePreset(source)
         val clonedSkills = customSkillsOf(cloned.id)
-        // Имя и описание копии — на языке интерфейса: у пресета есть английские (displayName),
-        // у своего агента они совпадают с исходными. В базу ложатся как обычный текст автора.
+        // The copy's name and description are in the interface language: a preset has English ones
+        // (displayName), the user's own agent keeps the source's. They go into the DB as ordinary author text.
         val renamed = userAgentRepository.saveDraft(
           definition = cloned.copy(
             name = tr("Копия: ${source.displayName}", "Copy: ${source.displayName}"),
@@ -190,8 +190,8 @@ class AgentBuilderViewModel(
   fun updateDraft(transform: (AgentDraft) -> AgentDraft) {
     val updated = transform(_state.value.draft)
     setDraftAndValidate(updated)
-    // Новая правка после публикации — уже неопубликованное изменение: плашка «Опубликовано» дальше
-    // врала бы, что на экране то же, что ушло в ростер.
+    // A new edit after publishing is already an unpublished change: the "Published" badge would
+    // otherwise lie that the screen shows the same as what went to the roster.
     _state.update { it.copy(justPublished = false) }
     pendingEdits.value = updated
   }
@@ -211,9 +211,9 @@ class AgentBuilderViewModel(
    * Advances to the next step; returns false (no-op) if the CURRENT step still has its own blocking
    * errors, or [BuilderStep.TEST] is already active.
    *
-   * Валидация «по кнопке»: отказ не молчит, а поднимает [AgentBuilderUiState.showErrors] — только
-   * после этого шаг рисует инлайн-ошибки. До первого нажатия «Далее» свежий черновик не встречает
-   * пользователя красными строками на полях, которых он ещё не трогал.
+   * Validation "on the button": a refusal is not silent, it raises [AgentBuilderUiState.showErrors] —
+   * only then does the step draw inline errors. Before the first "Next" a fresh draft does not greet
+   * the user with red lines on fields they have not touched yet.
    */
   fun nextStep(): Boolean {
     val current = _state.value
@@ -268,8 +268,8 @@ class AgentBuilderViewModel(
           )
         }
       } catch (e: Exception) {
-        // Текст исключения не показываем: это `require`-сообщения репозитория на английском, с
-        // кодами и id. Локальная валидация выше уже отсеяла всё, что можно поправить на шагах.
+        // The exception text is not shown: these are the repository's `require` messages in English, with
+        // codes and ids. The local validation above has already filtered out everything fixable on the steps.
         _state.update { it.copy(isSaving = false, saveError = ERROR_PUBLISH) }
       }
     }
@@ -332,9 +332,9 @@ class AgentBuilderViewModel(
     const val AUTOSAVE_DEBOUNCE_MS = 500L
     private const val ID_SUFFIX_LENGTH = 10
 
-    // Тексты ошибок для пользователя — на языке интерфейса и без `e.message`: туда попадают
-    // английские `require`/Room-сообщения с кодами и id, которые на экране ничего не объясняют.
-    // Геттеры, а не const: язык выбирается в момент ошибки, а не при загрузке класса.
+    // Error texts for the user are in the interface language and without `e.message`: that gets English
+    // `require`/Room messages with codes and ids that explain nothing on screen.
+    // Getters, not consts: the language is chosen at the moment of the error, not when the class loads.
     private val ERROR_LOAD: String
       get() = tr("Не удалось загрузить агента. Попробуй открыть его ещё раз.", "Couldn't load the agent. Try opening it again.")
     private val ERROR_NOT_FOUND: String get() = tr("Агент не найден.", "Agent not found.")

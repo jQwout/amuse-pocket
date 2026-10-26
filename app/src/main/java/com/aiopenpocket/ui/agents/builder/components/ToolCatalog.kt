@@ -29,22 +29,24 @@ data class ToolCatalogEntry(
   val name: String,
   val riskClass: RiskClass,
   val permission: String?,
-  /** [consequence] по-русски. Обе версии хранятся рядом, язык выбирается при показе. */
+  /** [consequence] in Russian. Both versions are stored side by side, the language is picked on display. */
   val consequenceRu: String,
-  /** [consequence] по-английски. */
+  /** [consequence] in English. */
   val consequenceEn: String,
   /** Hidden from [ToolCatalog.default] — only offered via the CAPABILITIES step's "Advanced tools" expander. */
   val advancedOnly: Boolean = false,
 ) {
   /**
-   * Что тул делает с данными пользователя — на языке интерфейса. Геттер, а не поле: [ToolCatalog]
-   * собирается один раз на процесс, и текст, выбранный при инициализации, застыл бы на том языке.
+   * What the tool does with the user's data — in the interface language. A getter, not a field:
+   * [ToolCatalog] is built once per process, and a text chosen at initialization would freeze in that
+   * language.
    */
   val consequence: String get() = tr(consequenceRu, consequenceEn)
 
   /**
-   * Имя тула — из общего [CapabilityNames], а не своё: конструктор, чипы «Умеет», экран агента и бар
-   * подтверждения обязаны звать один и тот же тул одинаково (раньше тут был отдельный словарь).
+   * The tool's name comes from the shared [CapabilityNames], not its own: the builder, the "Can do"
+   * chips, the agent screen and the confirmation bar must all call one tool the same way (there used to
+   * be a separate dictionary here).
    */
   val label: String get() = CapabilityNames.tool(name)
 
@@ -76,8 +78,8 @@ object ToolCatalog {
     ),
     ToolCatalogEntry(
       name = "storage_tool",
-      // DESTRUCTIVE — худший случай: delete стирает данные агента (25 окт 2026 переклассифицирован в
-      // самом туле); каждое удаление в чате спрашивает разрешения, в фоне запрещено.
+      // DESTRUCTIVE is the worst case: delete erases the agent's data (reclassified in the tool itself on
+      // Oct 25, 2026); every delete in the chat asks for permission, and it is forbidden in the background.
       riskClass = RiskClass.DESTRUCTIVE,
       permission = null,
       // Part B of the database_query security hardening (user-agent-builder-848153, 2026-07-15): the
@@ -98,12 +100,12 @@ object ToolCatalog {
     ),
     // advancedOnly, and the consequence says plainly that nothing works yet: the tool only accepts
     // content:// URIs the user has already granted (see ExternalFilesTool.rejectionReason), and this
-    // app still has no SAF picker to grant any. Promising "выбор файла" in the default picker would
+    // app still has no SAF picker to grant any. Promising "pick a file" in the default picker would
     // sell a capability that cannot fire — and the pre-gate version only "worked" by reading the
     // app's own private storage through file://, which is exactly what the gate now refuses.
     ToolCatalogEntry(
       name = "external_files",
-      // DESTRUCTIVE: write_file перезаписывает документ пользователя целиком (режим "wt").
+      // DESTRUCTIVE: write_file overwrites the user's document entirely (the "wt" mode).
       riskClass = RiskClass.DESTRUCTIVE,
       permission = null,
       consequenceRu = "Читает и пишет файлы вне песочницы — только те, доступ к которым пользователь " +

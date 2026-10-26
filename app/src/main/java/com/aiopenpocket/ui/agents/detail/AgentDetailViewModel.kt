@@ -47,7 +47,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** One resolved row for the Инструменты section — real tool metadata, never a bare count. */
+/** One resolved row for the Tools section — real tool metadata, never a bare count. */
 data class AgentDetailToolRow(
   val name: String,
   val description: String,
@@ -55,12 +55,13 @@ data class AgentDetailToolRow(
   val available: Boolean,
 )
 
-/** One resolved row for the Навыки section — real skill-pack metadata, never "есть/нет". */
+/** One resolved row for the Skills section — real skill-pack metadata, never "yes/no". */
 data class AgentDetailSkillRow(
   val id: String,
   /**
-   * Что видит пользователь вместо [id]: название своего навыка из Room либо имя встроенного из
-   * [CapabilityNames.skill]. Сам [id] — контракт с моделью (`load_skill(id)`), на экран не идёт.
+   * What the user sees instead of [id]: the name of the agent's own skill from Room or the built-in
+   * one's name from [CapabilityNames.skill]. The [id] itself is a contract with the model
+   * (`load_skill(id)`) and never goes to the screen.
    */
   val title: String,
   val description: String,
@@ -74,7 +75,7 @@ data class AgentDetailHookRow(
   val recentRuns: List<AgentHookRunEntity>,
 )
 
-/** One resolved row for the Планы section (Task 12) — a flattened, display-ready projection of one [PlanSnapshot] for this agent. */
+/** One resolved row for the Plans section (Task 12) — a flattened, display-ready projection of one [PlanSnapshot] for this agent. */
 data class AgentDetailPlanRow(
   val planId: String,
   val objective: String,
@@ -125,7 +126,7 @@ val AgentDetailState.isEnabled: Boolean get() = definition?.status == AgentStatu
 
 private val TERMINAL_PLAN_STATUSES = setOf(PlanStatus.COMPLETED, PlanStatus.CANCELLED, PlanStatus.FAILED)
 
-/** Планы section counts (Task 12) — every non-terminal, non-paused status (including a pending proposal) counts as "active", mirroring `PlanListState`'s own three-bucket split. */
+/** Plans section counts (Task 12) — every non-terminal, non-paused status (including a pending proposal) counts as "active", mirroring `PlanListState`'s own three-bucket split. */
 val AgentDetailState.activePlansCount: Int
   get() = plans.count { it.status !in TERMINAL_PLAN_STATUSES && it.status != PlanStatus.PAUSED }
 val AgentDetailState.pausedPlansCount: Int get() = plans.count { it.status == PlanStatus.PAUSED }
@@ -147,13 +148,13 @@ val AgentDetailState.completedPlansCount: Int get() = plans.count { it.status in
  *
  * A tool/skill id in [AgentDefinition.toolNames]/[AgentDefinition.skillIds] that no registry
  * recognizes (e.g. authored against a newer build, then the APK was downgraded) never crashes
- * resolution — [resolveToolRow]/[resolveSkillRow] fail closed into an "недоступен" row instead, and
+ * resolution — [resolveToolRow]/[resolveSkillRow] fail closed into an "unavailable" row instead, and
  * [AgentDetailState.hasInvalidCapabilities] flips true so the screen can warn without blocking.
  *
  * [AgentDetailState.plans] (Task 12) is, like [AgentDetailState.activeHeartbeats], a LIVE
  * subscription independent of [reload] — [PlanRepository.observeByAgent] rather than a one-shot
  * resolver call, so approving/pausing/resuming/cancelling a plan (from chat or `plan/{planId}`)
- * updates this screen's Планы section without navigating back to it.
+ * updates this screen's Plans section without navigating back to it.
  */
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
@@ -176,13 +177,13 @@ class AgentDetailViewModel(
   val state: StateFlow<AgentDetailState> = _state.asStateFlow()
 
   init {
-    // Живая часть состояния — активные heartbeat'ы этого агента (как в старом инспекторе): подписка
-    // сама переустанавливается на смену agentId, reload() её не трогает и не дублирует.
+    // The live part of the state — this agent's active heartbeats (as in the old inspector): the subscription
+    // re-establishes itself when agentId changes, reload() neither touches nor duplicates it.
     viewModelScope.launch {
       heartbeatsFlow().collect { hb -> _state.update { it.copy(activeHeartbeats = hb) } }
     }
-    // Планы агента (Task 12) — та же живая подписка, что и у heartbeat'ов: PlanRepository.observeByAgent
-    // сама переустанавливается на смену agentId, reload() её не трогает и не дублирует.
+    // The agent's plans (Task 12) — the same live subscription as the heartbeats: PlanRepository.observeByAgent
+    // re-establishes itself when agentId changes, reload() neither touches nor duplicates it.
     viewModelScope.launch {
       plansFlow().collect { rows -> _state.update { it.copy(plans = rows) } }
     }
@@ -197,7 +198,7 @@ class AgentDetailViewModel(
     .flatMapLatest { id -> if (id == null) flowOf(emptyList()) else planRepository.observeByAgent(id) }
     .map { snapshots -> snapshots.map { it.toPlanRow() }.sortedByDescending { row -> row.updatedAt } }
 
-  /** Открывает экран для [agentId]; вызывается один раз из `LaunchedEffect(agentId)` на маршруте. */
+  /** Opens the screen for [agentId]; called once from `LaunchedEffect(agentId)` on the route. */
   fun select(agentId: String) {
     if (agentIdFlow.value == agentId) return
     agentIdFlow.value = agentId
@@ -205,9 +206,10 @@ class AgentDetailViewModel(
   }
 
   /**
-   * Пересобирает всё, кроме [AgentDetailState.activeHeartbeats] (та часть уже живая) — definition,
-   * тулы/навыки/хуки/файлы. Вызывается из [select] и заново после каждого мутирующего действия
-   * ([duplicate] не мутирует ЭТОГО агента и reload не зовёт), чтобы экран сразу отражал свою же правку.
+   * Rebuilds everything except [AgentDetailState.activeHeartbeats] (that part is already live) — the
+   * definition, tools/skills/hooks/files. Called from [select] and again after every mutating action
+   * ([duplicate] does not mutate THIS agent and does not call reload), so the screen reflects its own
+   * edit right away.
    */
   private fun reload() {
     val id = agentIdFlow.value ?: return
@@ -215,11 +217,11 @@ class AgentDetailViewModel(
     viewModelScope.launch {
       try {
         val definition = agentResolver.resolve(id)
-        // Сортировка по тому, что видно на экране (имени), а не по сырому id.
+        // Sorted by what is visible on screen (the name), not by the raw id.
         val toolRows = definition?.toolNames.orEmpty()
           .map(::resolveToolRow)
           .sortedBy { CapabilityNames.tool(it.name) }
-        // Названия своих навыков агента: у custom-навыка в манифесте только id, имя живёт в Room.
+        // Names of the agent's own skills: a custom skill's manifest has only the id, the name lives in Room.
         val ownSkillNames = if (definition != null) {
           userSkillRepository.getForAgent(id).associate { it.id to it.name }
         } else {
@@ -228,8 +230,8 @@ class AgentDetailViewModel(
         val skillRows = definition?.skillIds.orEmpty()
           .map { skillId -> resolveSkillRow(skillId, ownSkillNames[skillId]) }
           .sortedBy { it.title }
-        // Хуки/файлы только для реально резолвящегося агента: пропускаем их для несуществующего id
-        // вместо похода в agentFilesRepository с потенциально «грязным» id (см. sandboxRoot).
+        // Hooks/files only for an agent that really resolves: skip them for a nonexistent id rather than going
+        // to agentFilesRepository with a potentially "dirty" id (see sandboxRoot).
         val hooks = if (definition != null) agentHookRepository.getForAgent(id) else emptyList()
         val hookRows = hooks.map { hook ->
           AgentDetailHookRow(
@@ -258,7 +260,7 @@ class AgentDetailViewModel(
     }
   }
 
-  /** Never throws: an unregistered tool name (APK downgrade) becomes an honest "недоступен" row instead of an IndexOutOfBounds/NPE further down the screen. */
+  /** Never throws: an unregistered tool name (APK downgrade) becomes an honest "unavailable" row instead of an IndexOutOfBounds/NPE further down the screen. */
   private fun resolveToolRow(name: String): AgentDetailToolRow {
     val tool = toolRegistry.get(name)
     return if (tool != null) {
@@ -275,7 +277,7 @@ class AgentDetailViewModel(
 
   /**
    * Mirrors [resolveToolRow] for an [AgentDefinition.skillIds] entry the composite [SkillRegistry] no longer resolves.
-   * [ownName] — название своего навыка агента из Room (пустое/нет — берём имя встроенного навыка).
+   * [ownName] — the name of the agent's own skill from Room (empty/absent — the built-in skill's name is used).
    */
   private suspend fun resolveSkillRow(id: String, ownName: String?): AgentDetailSkillRow {
     val skill = skillRegistry.get(id)
@@ -293,26 +295,27 @@ class AgentDetailViewModel(
     }
   }
 
-  // --- Действия (по source — см. AgentDetailState.canEdit/canToggleEnabled/canArchive) --------------
+  // --- Actions (by source — see AgentDetailState.canEdit/canToggleEnabled/canArchive) ----------------
 
   /**
-   * Форкает текущего агента (preset ИЛИ уже свой USER-агент) в новый независимый USER-черновик — та
-   * же операция, что [com.aiopenpocket.ui.agents.builder.AgentBuilderViewModel.cloneFrom], вызванная
-   * здесь напрямую вместо похода через сам билдер (этот экран уже держит [userAgentRepository]).
-   * [onReady] получает id свежего клона — маршрут переходит в `agent_builder/{id}`, который открывает
-   * УЖЕ заполненный (не пустой) черновик, ровно как "prefilled-clone" из брифа Task 21.
+   * Forks the current agent (a preset OR the user's own USER agent) into a new independent USER draft —
+   * the same operation as [com.aiopenpocket.ui.agents.builder.AgentBuilderViewModel.cloneFrom], called
+   * here directly instead of going through the builder itself (this screen already holds
+   * [userAgentRepository]). [onReady] gets the fresh clone's id — the route navigates to
+   * `agent_builder/{id}`, which opens an ALREADY filled-in (not empty) draft, exactly the
+   * "prefilled-clone" from the Task 21 brief.
    */
   fun duplicate(onReady: (String) -> Unit) {
     val definition = _state.value.definition ?: return
     viewModelScope.launch {
       try {
         val cloned = userAgentRepository.clonePreset(definition)
-        // Навыки копии передаём явно: saveDraft заменяет навыки агента ЦЕЛИКОМ переданным списком,
-        // и вызов без skills стирал только что скопированные clonePreset'ом — копия своего агента
-        // с навыком сразу вставала на unknown_skill (так же, как это уже сделано в
+        // The copy's skills are passed explicitly: saveDraft replaces the agent's skills ENTIRELY with the
+        // given list, and a call without skills erased the ones clonePreset had just copied — a copy of
+        // one's own agent with a skill immediately got stuck on unknown_skill (just as is already done in
         // AgentBuilderViewModel.cloneFrom).
-        // Имя/описание копии — на языке интерфейса (у пресета есть английские); как и в
-        // AgentBuilderViewModel.cloneFrom, по-русски результат тот же, что раньше.
+        // The copy's name/description are in the interface language (a preset has English ones); as in
+        // AgentBuilderViewModel.cloneFrom, in Russian the result is the same as before.
         val renamed = userAgentRepository.saveDraft(
           definition = cloned.copy(
             name = tr("Копия: ${definition.displayName}", "Copy: ${definition.displayName}"),
@@ -331,13 +334,13 @@ class AgentDetailViewModel(
   }
 
   /**
-   * «Отключить/Включить»: PUBLISHED → DRAFT (пропадает из ростера
-   * [com.aiopenpocket.agent.core.agent.AgentResolver.observeRoster], но остаётся резолвимым и
-   * повторно публикуемым отсюда же) либо DRAFT/ARCHIVED → PUBLISHED. Republish передаёт ТЕКУЩИЕ хуки
-   * и собственные навыки агента: [UserAgentRepository.publish] безусловно перезаписывает и то, и
-   * другое переданным набором, а валидатор считает навык «своим», только если он есть в `skills`.
-   * Без навыков «Включить» у агента со своим навыком падало на `unknown_skill` (и молча: ошибку
-   * экран не показывал), а успешное включение стёрло бы сами навыки.
+   * "Disable/Enable": PUBLISHED → DRAFT (it disappears from the roster
+   * [com.aiopenpocket.agent.core.agent.AgentResolver.observeRoster], but stays resolvable and can be
+   * republished from here) or DRAFT/ARCHIVED → PUBLISHED. Republishing passes the agent's CURRENT hooks
+   * and own skills: [UserAgentRepository.publish] unconditionally overwrites both with the given set, and
+   * the validator considers a skill "own" only if it is in `skills`. Without the skills "Enable" on an
+   * agent with its own skill failed on `unknown_skill` (and silently: the screen did not show the error),
+   * while a successful enable would have erased the skills themselves.
    */
   fun toggleEnabled() {
     val definition = _state.value.definition ?: return
@@ -345,9 +348,9 @@ class AgentDetailViewModel(
     viewModelScope.launch {
       try {
         if (definition.status == AgentStatus.PUBLISHED) {
-          // unpublish, а не saveDraft: снятие с публикации теперь отдельное явное действие —
-          // saveDraft больше не сбрасывает статус (иначе автосейв визарда снимал агента с
-          // публикации на каждой правке). Выключенный агент виден в секции «Черновики».
+          // unpublish, not saveDraft: unpublishing is now a separate explicit action — saveDraft no longer
+          // resets the status (otherwise the wizard's autosave unpublished the agent on every edit). A
+          // disabled agent is visible in the "Drafts" section.
           userAgentRepository.unpublish(definition.id)
         } else {
           userAgentRepository.publish(
@@ -360,7 +363,7 @@ class AgentDetailViewModel(
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
-        // Не e.message: это английский `require` репозитория с кодами валидатора.
+        // Not e.message: that is the repository's English `require` with validator codes.
         val message = if (definition.status == AgentStatus.PUBLISHED) {
           tr("Не удалось отключить агента.", "Couldn't disable the agent.")
         } else {
@@ -374,7 +377,7 @@ class AgentDetailViewModel(
     }
   }
 
-  /** Архивирует текущего (обязательно USER) агента — строка сохраняется, меняется только статус. */
+  /** Archives the current (necessarily USER) agent — the row is kept, only the status changes. */
   fun archive() {
     val definition = _state.value.definition ?: return
     if (definition.source != AgentSource.USER) return
@@ -391,7 +394,7 @@ class AgentDetailViewModel(
   }
 
   companion object {
-    /** Cap on how many recent `agent_hook_runs` rows the Хуки section shows per hook (the repository itself keeps up to 100 — see [AgentHookRepository.KEEP_RUNS]). */
+    /** Cap on how many recent `agent_hook_runs` rows the Hooks section shows per hook (the repository itself keeps up to 100 — see [AgentHookRepository.KEEP_RUNS]). */
     private const val RECENT_RUNS_SHOWN = 5
   }
 }

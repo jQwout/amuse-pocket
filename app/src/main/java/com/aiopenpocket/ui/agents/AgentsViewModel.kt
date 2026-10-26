@@ -25,15 +25,15 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
- * Deterministic roster sections (Task 21): «Шаблоны» (read-only presets) and «Мои агенты» (the
+ * Deterministic roster sections (Task 21): "Templates" (read-only presets) and "My agents" (the
  * caller's own PUBLISHED custom agents) from [AgentResolver.observeRoster]'s single flat list, plus
- * «Черновики» from [AgentResolver.observeDrafts]. Order within each list matches its source flow's
+ * "Drafts" from [AgentResolver.observeDrafts]. Order within each list matches its source flow's
  * own order (presets in catalog order, everything else most-recently-updated first).
  *
  * [drafts] is a separate list, not a third slice of the roster flow: a draft is deliberately NOT
  * startable (it never becomes a chat), it is only resumable in the wizard. But it does need to be
  * SHOWN somewhere — every autosave writes one, and before this section existed nothing listed them,
- * so closing the wizard before «Опубликовать» left the agent in Room with no way back to it.
+ * so closing the wizard before "Publish" left the agent in Room with no way back to it.
  * ARCHIVED agents stay out of both lists, as before.
  */
 data class AgentRosterSections(
@@ -51,7 +51,7 @@ class AgentsViewModel(
   private val userPreferencesRepository: UserPreferencesRepository,
 ) : ViewModel() {
 
-  /** Roster split into «Шаблоны»/«Мои агенты»/«Черновики» — see [AgentRosterSections]. */
+  /** Roster split into "Templates"/"My agents"/"Drafts" — see [AgentRosterSections]. */
   val roster: StateFlow<AgentRosterSections> =
     combine(agentResolver.observeRoster(), agentResolver.observeDrafts()) { all, drafts ->
       AgentRosterSections(
@@ -62,20 +62,20 @@ class AgentsViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AgentRosterSections())
 
   /**
-   * Агенты, для которых прямо сейчас идёт открытие чата. Защита от быстрого двойного тапа: без неё
-   * два тапа по агенту без существующего чата оба увидели бы «чата нет» (первый insert ещё не
-   * закоммичен) и создали бы два дубля — тот самый баг, который чинит переиспользование.
-   * Доступ только с главного потока (viewModelScope), поэтому обычного set достаточно.
+   * Agents whose chat is being opened right now. A guard against a quick double tap: without it two
+   * taps on an agent with no existing chat would both see "no chat" (the first insert is not committed
+   * yet) and create two duplicates — the very bug that reuse fixes. Accessed only from the main thread
+   * (viewModelScope), so a plain set is enough.
    */
   private val opening = mutableSetOf<String>()
 
   /**
-   * Открывает чат агента [agentId] (скоуп инструментов + роль) и отдаёт его id через [onReady].
-   * Переиспользует существующий чат этого агента, если он есть, — иначе каждый повторный вход
-   * плодил бы новый пустой чат агента в списке диалогов («агенты плодят чаты»).
+   * Opens the chat of agent [agentId] (tool scope + role) and hands its id to [onReady]. Reuses this
+   * agent's existing chat if there is one — otherwise every repeated entry would spawn a new empty agent
+   * chat in the conversation list ("agents spawn chats").
    */
   fun openAgentChat(agentId: String, onReady: (String) -> Unit) {
-    // add() == false → открытие этого агента уже идёт: игнорируем повторный тап.
+    // add() == false → this agent is already being opened: ignore the repeated tap.
     if (!opening.add(agentId)) return
     viewModelScope.launch {
       try {
@@ -86,8 +86,9 @@ class AgentsViewModel(
           return@launch
         }
         val personaId = userPreferencesRepository.getDefaultPersonaId()
-        // Заголовок и приветствие пишутся в базу один раз — на языке интерфейса в момент создания
-        // чата (у пресета есть английское имя/описание, свой агент — как его назвал автор).
+        // The title and the greeting are written to the DB once — in the interface language at the moment
+        // the chat is created (a preset has an English name/description, the user's own agent —
+        // whatever its author named it).
         val name = agent.displayName
         val description = agent.displayDescription
         val id = conversationRepository.createConversation(
