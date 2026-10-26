@@ -38,13 +38,12 @@ enum class AcademyTab {
 }
 
 /**
- * Плавающий нижний навбар: стеклянная «таблетка» с тенью, оторванная от краёв экрана.
- * Размещается в слоте Scaffold.bottomBar — прозрачный внешний Box резервирует высоту,
- * поэтому контент не перекрывается, а сама панель выглядит парящей над фоном.
+ * A floating bottom navbar: a glass "pill" with a shadow, detached from the screen edges. It sits in the
+ * Scaffold.bottomBar slot — a transparent outer Box reserves the height, so content is not covered, while the
+ * panel itself looks like it hovers above the background.
  *
- * [glassState] по умолчанию — свежий несвязанный [rememberGlassState] (тонировка без
- * blur, т.к. не привязан ни к одному hazeSource); экраны подключают реальный blur,
- * передавая свой [GlassState].
+ * [glassState] defaults to a fresh unbound [rememberGlassState] (tinting without blur, since it is not bound
+ * to any hazeSource); screens hook up the real blur by passing their own [GlassState].
  */
 @Composable
 fun AcademyBottomNav(

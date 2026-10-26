@@ -14,8 +14,8 @@ import androidx.compose.ui.unit.dp
 import com.aiopenpocket.ui.theme.GlassTokens
 
 /**
- * «Слабое» стекло — имитация без blur (tint + блик-бордер). Безопасно внутри
- * item'ов LazyColumn (никакого RenderEffect на прокрутке).
+ * "Weak" glass — an imitation without blur (tint + a highlight border). Safe inside LazyColumn items (no
+ * RenderEffect while scrolling).
  * @trace glass-design-system-21a3fe
  */
 @Composable
@@ -37,9 +37,9 @@ fun GlassCard(
 }
 
 /**
- * Рецепт [GlassCard] как модификатор — для мест, где обернуть контент в [GlassCard] нельзя
- * (кастомная вёрстка на Column/Box, TextField): скругление + полупрозрачный tint + рим-блик.
- * Тот же вид, что у карточек на вкладке «Чат».
+ * The [GlassCard] recipe as a modifier — for places where the content cannot be wrapped in a [GlassCard]
+ * (custom layout on Column/Box, TextField): rounding + a translucent tint + a rim highlight. The same look as
+ * the cards on the "Chat" tab.
  * @trace glass-design-system-21a3fe
  */
 @Composable

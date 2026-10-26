@@ -10,15 +10,14 @@ import androidx.compose.ui.graphics.Color
 import com.aiopenpocket.ui.theme.GlassTokens
 import com.aiopenpocket.ui.theme.LocalThemeIsDark
 
-/** Кисть + геометрия одного пятна ауроры, посчитанные для конкретного размера холста. */
+/** The brush + geometry of one aurora spot, computed for a particular canvas size. */
 private data class AuroraSpotBrush(val brush: Brush, val radius: Float, val center: Offset)
 
 /**
- * База + статичные радиальные пятна ауроры. На тёмной теме — чернильная база с
- * лайм/оливковыми пятнами; на светлой аврора отключается (пустой список пятен),
- * остаётся чистая бумажная база — намеренный минимализм, а не тёмный эффект на светлом
- * фоне. Кисти пересчитываются в [drawWithCache] только при смене размера холста; сама
- * отрисовка — без аллокаций на кадр. Наносить на корневой контейнер экрана.
+ * The base + static radial aurora spots. In the dark theme — an ink base with lime/olive spots; in the light
+ * theme the aurora is off (an empty list of spots) and a clean paper base remains — deliberate minimalism,
+ * not a dark effect on a light background. The brushes are recomputed in [drawWithCache] only when the canvas
+ * size changes; the drawing itself allocates nothing per frame. Apply it to the screen's root container.
  * @trace glass-design-system-21a3fe
  */
 @Composable

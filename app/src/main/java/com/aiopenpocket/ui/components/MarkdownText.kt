@@ -37,16 +37,16 @@ import com.mikepenz.markdown.model.rememberMarkdownState
  * Built on mikepenz/multiplatform-markdown-renderer (Material 3 flavor): a proper
  * Markdown AST renderer with solid support for headings, lists, tables, blockquotes,
  * code blocks and links. The `-m3` module pulls styling from the active MaterialTheme,
- * so it matches the forced-dark theme out of the box.
+ * so it follows the app's theme out of the box.
  *
- * Локальные настройки против дефолтов библиотеки:
- *  - синхронный парс с сохранением состояния (immediate + retainState) — дефолтный асинхронный
- *    рендер показывал пустой пузырь нулевой высоты до завершения парса (см. комментарий ниже);
- *  - [compact] — компактная типографика для пузырей чата (дефолтный body = 16sp слишком крупный).
- *  - таблицы рендерим с переносом строк в ячейках (дефолт — `maxLines = 1` + ellipsis, из-за чего
- *    длинные значения вроде дат/сроков обрезались многоточием).
- *  - [selectable] — оборачивает в [SelectionContainer], чтобы текст можно было выделить и
- *    скопировать (в пузырях чата). По умолчанию выкл.
+ * Local settings versus the library's defaults:
+ *  - a synchronous parse that retains state (immediate + retainState) — the default async render showed an
+ *    empty zero-height bubble until the parse finished (see the comment below);
+ *  - [compact] — compact typography for chat bubbles (the default body = 16sp is too large).
+ *  - tables render with line wrapping in cells (the default is `maxLines = 1` + an ellipsis, which cut long
+ *    values like dates/deadlines off with an ellipsis).
+ *  - [selectable] — wraps in a [SelectionContainer] so the text can be selected and copied (in chat
+ *    bubbles). Off by default.
  */
 @Composable
 fun MarkdownText(
@@ -54,24 +54,24 @@ fun MarkdownText(
   modifier: Modifier = Modifier,
   compact: Boolean = false,
   selectable: Boolean = false,
-  /** Множитель кегля поверх темы — регулируемый размер шрифта чата (см. [com.aiopenpocket.agent.core.identity.ChatFontScale]). 1f = без изменений, дефолт для всех не-чатовых вызовов. */
+  /** A font size multiplier on top of the theme — the adjustable chat font size (see [com.aiopenpocket.agent.core.identity.ChatFontScale]). 1f = unchanged, the default for all non-chat calls. */
   fontScale: Float = 1f,
 ) {
-  // Типографику и набор компонентов запоминаем (remember): иначе они аллоцируются на каждую
-  // рекомпозицию каждого пузыря — заметный джанк при скролле длинной ленты. Ключи типографики —
-  // тема и compact; набор компонентов от темы не зависит, поэтому создаётся один раз.
-  // Размер шрифта чата масштабируем на уровне ВСЕЙ темы один раз (а не каждый markdown-стиль по
-  // отдельности): любой стиль, выведенный из typo.*, автоматически в нужном кегле, и будущий стиль
-  // не забудешь отмасштабировать. scaledBy(1f) возвращает ту же тему — дефолтный размер без аллокаций.
+  // The typography and the component set are remembered (remember): otherwise they would be allocated on every
+  // recomposition of every bubble — noticeable jank when scrolling a long feed. The typography keys are the
+  // theme and compact; the component set does not depend on the theme, so it is created once.
+  // The chat font size scales the WHOLE theme once (rather than each markdown style separately): any style
+  // derived from typo.* is automatically the right size, and a future style cannot be forgotten.
+  // scaledBy(1f) returns the same theme — the default size with no allocations.
   val baseTypo = MaterialTheme.typography
   val typo = remember(baseTypo, fontScale) { baseTypo.scaledBy(fontScale) }
 
-  // Быстрый путь для обычного текста (а это большинство сообщений чата): без markdown-разметки
-  // рендерим лёгким Text. Тяжёлый AST-рендер Markdown измеряется не за один кадр — из-за этого при
-  // быстром скролле пузырь сперва появлялся пустым, а текст «доезжал» следующим кадром, и лента
-  // прыгала. Цвет берём как у Markdown m3 (onBackground), чтобы обычные и markdown-пузыри совпадали.
-  // Скан кэшируем по тексту: без remember он гонялся бы на КАЖДУЮ рекомпозицию пузыря (подсветка
-  // поиска, панель действий, пин, смена окна) — O(n) по всей строке на каждый кадр.
+  // A fast path for plain text (that is most chat messages): without markdown markup we render a light Text.
+  // The heavy Markdown AST render is not measured within one frame — because of that, during a fast scroll
+  // the bubble first appeared empty and the text "arrived" a frame later, and the feed jumped. The color is
+  // taken as in Markdown m3 (onBackground), so plain and markdown bubbles match.
+  // The scan is cached by the text: without remember it would run on EVERY recomposition of the bubble
+  // (search highlighting, the action panel, pinning, a window change) — O(n) over the whole string on every frame.
   val isMarkdown = remember(text) { looksLikeMarkdown(text) }
   if (!isMarkdown) {
     val style = if (compact) typo.bodySmall else typo.bodyLarge
@@ -89,9 +89,9 @@ fun MarkdownText(
 
   val typography = remember(typo, compact) { buildMarkdownTypography(typo, compact) }
 
-  // Перенос текста в ячейках таблицы: переопределяем header/row-блоки, разрешая многострочность
-  // (дефолт обрезает ячейку одной строкой и ставит «…»). Узкие таблицы по-прежнему скроллятся
-  // горизонтально — это поведение самого MarkdownTable.
+  // Text wrapping in table cells: the header/row blocks are overridden to allow multiple lines (the default
+  // cuts a cell to one line and adds "…"). Narrow tables still scroll horizontally — that is MarkdownTable's
+  // own behavior.
   val components = remember {
     markdownComponents(
       table = { model ->
@@ -125,16 +125,16 @@ fun MarkdownText(
   }
 
   val dimens = markdownDimens(tableCellPadding = 10.dp)
-  // Синхронный парс (immediate) + retainState: без них библиотека парсит в корутине на
-  // Dispatchers.Default из начального состояния Loading, а loading-слот по умолчанию — пустой Box
-  // НУЛЕВОЙ высоты. Итог был виден как «пустые сообщения, потом контент»: каждый markdown-пузырь
-  // рождался пустым (и заново — при каждом возврате в вьюпорт, remember-состояние итема умирает),
-  // а лента прыгала от доросших высот. immediate=true даёт Success уже к первому кадру; парс
-  // сообщения чата — та же категория работы, что и layout его текста. retainState=true не даёт
-  // откатиться в Loading при обновлении контента (фоновый ре-парс подменяет контент на месте).
-  // Бонус rememberMarkdownState: его дефолтные parser/flavour/handler запомнены (в отличие от
-  // дефолтов оверлоада Markdown(content=…), которые пересоздавались бы на каждую рекомпозицию,
-  // сбрасывая контент в Loading).
+  // A synchronous parse (immediate) + retainState: without them the library parses in a coroutine on
+  // Dispatchers.Default from an initial Loading state, and the loading slot by default is an empty Box of
+  // ZERO height. The result was visible as "empty messages, then content": every markdown bubble was born
+  // empty (and again on every return into the viewport, since the item's remember state dies), and the feed
+  // jumped from the grown heights. immediate=true gives Success by the first frame; parsing a chat message
+  // is the same category of work as laying out its text. retainState=true prevents falling back to Loading
+  // when the content updates (a background re-parse swaps the content in place).
+  // A bonus of rememberMarkdownState: its default parser/flavour/handler are remembered (unlike the defaults
+  // of the Markdown(content=…) overload, which would be recreated on every recomposition, resetting the
+  // content to Loading).
   val markdownState = rememberMarkdownState(
     content = text,
     retainState = true,
@@ -148,11 +148,11 @@ fun MarkdownText(
       typography = typography,
       components = components,
       dimens = dimens,
-      // Рост текста не анимируем: дефолтный animateContentSize превращал каждое дорастание
-      // контента в видимый reflow ленты.
+      // Text growth is not animated: the default animateContentSize turned every content growth into a visible
+      // reflow of the feed.
       animations = markdownAnimations(animateTextSize = { this }),
-      // Страховка на случай Loading-состояния (например, если immediate когда-нибудь выключат):
-      // сырой текст вместо пустого бокса — пузырь никогда не схлопывается в ноль.
+      // A safety net for the Loading state (e.g. if immediate is ever turned off): raw text instead of an empty
+      // box — the bubble never collapses to zero.
       loading = { m ->
         Text(
           text = text,
@@ -163,8 +163,8 @@ fun MarkdownText(
       },
     )
   }
-  // SelectionContainer обрабатывает long-press на тексте сам (выделение), поэтому он перехватывает
-  // его у родительского combinedClickable пузыря — закрепление по long-press остаётся на отступах.
+  // SelectionContainer handles a long press on the text itself (selection), so it takes it away from the
+  // bubble's parent combinedClickable — pinning by long press stays on the paddings.
   if (selectable) {
     SelectionContainer { render() }
   } else {
@@ -172,17 +172,17 @@ fun MarkdownText(
   }
 }
 
-/** Регулярка нумерованного списка в начале строки: «1. », «23. ». */
+/** The regex of a numbered list at the start of a line: "1. ", "23. ". */
 private val MARKDOWN_LIST_NUMBER = Regex("""^\d+\.\s""")
 
 /**
- * Грубая, КОНСЕРВАТИВНАЯ проверка на наличие markdown-разметки. Любой признак → true (полноценный
- * рендер). Цель — отправить большинство обычных текстовых сообщений на быстрый путь (plain Text),
- * не сломав те, где разметка реально есть. Ложно-положительное (обычный текст со «*» или «_») безопасно
- * — просто чуть дороже; ложно-отрицательное недопустимо, поэтому проверяем широко.
+ * A rough, CONSERVATIVE check for markdown markup. Any sign → true (the full render). The goal is to send most
+ * plain text messages down the fast path (plain Text) without breaking those that really have markup. A false
+ * positive (plain text with "*" or "_") is safe — just slightly more expensive; a false negative is
+ * unacceptable, so the check is broad.
  */
 private fun looksLikeMarkdown(text: String): Boolean {
-  // Инлайновые токены: заголовки/эмфазис/код/strikethrough/таблицы/цитаты/ссылки.
+  // Inline tokens: headings/emphasis/code/strikethrough/tables/quotes/links.
   for (c in text) {
     if (c == '#' || c == '*' || c == '_' || c == '`' || c == '~' || c == '|' || c == '>' ||
       c == '[' || c == ']'
@@ -190,7 +190,7 @@ private fun looksLikeMarkdown(text: String): Boolean {
       return true
     }
   }
-  // Маркированные/нумерованные списки в начале строки: «- », «+ », «1. ».
+  // Bulleted/numbered lists at the start of a line: "- ", "+ ", "1. ".
   return text.lineSequence().any { line ->
     val t = line.trimStart()
     t.startsWith("- ") || t.startsWith("+ ") || MARKDOWN_LIST_NUMBER.containsMatchIn(t)
@@ -198,15 +198,15 @@ private fun looksLikeMarkdown(text: String): Boolean {
 }
 
 /**
- * Строит [MarkdownTypography] из активной [Typography] вручную — без @Composable-фабрики
- * `markdownTypography`, чтобы результат можно было закэшировать через `remember`. Значения один в
- * один повторяют прежний вызов: compact-ветка — компактные кегли для пузырей чата (тело bodySmall,
- * заголовки прижаты к title-тирам и ниже, чтобы не вылезали display-кегли 57sp); обычная — дефолты
- * библиотеки 0.41.0 (поэтому те же поля, что фабрика задаёт сама).
+ * Builds [MarkdownTypography] from the active [Typography] by hand — without the @Composable factory
+ * `markdownTypography`, so the result can be cached with `remember`. The values repeat the old call one to
+ * one: the compact branch has compact sizes for chat bubbles (bodySmall body, headings pressed down to the
+ * title tiers and below so the 57sp display sizes do not show up); the normal one has the defaults of library
+ * 0.41.0 (hence the same fields the factory sets itself).
  */
 private fun buildMarkdownTypography(typo: Typography, compact: Boolean): MarkdownTypography {
-  // typo УЖЕ отмасштабирован вызывающей стороной (MarkdownText: typo.scaledBy(fontScale)) — здесь
-  // просто выводим markdown-стили из него; масштаб размножать по полям не нужно.
+  // typo is ALREADY scaled by the caller (MarkdownText: typo.scaledBy(fontScale)) — here the markdown styles
+  // are simply derived from it; there is no need to spread the scale over the fields.
   val code = typo.bodyMedium.copy(fontFamily = FontFamily.Monospace)
   val quote = typo.bodyMedium.plus(SpanStyle(fontStyle = FontStyle.Italic))
   val textLink = TextLinkStyles(
@@ -259,9 +259,9 @@ private fun buildMarkdownTypography(typo: Typography, compact: Boolean): Markdow
 }
 
 /**
- * Масштабирует ВСЮ [Typography] один раз — каждый её текст-стиль через [scaledBy]. Так регулируемый
- * размер шрифта чата применяется на границе темы, а не размножается по 15 markdown-полям; любой
- * стиль, выведенный из результата, автоматически в нужном кегле. `scale == 1f` возвращает ту же тему.
+ * Scales the WHOLE [Typography] once — each of its text styles through [scaledBy]. That way the adjustable
+ * chat font size is applied at the theme boundary instead of being spread over 15 markdown fields; any style
+ * derived from the result is automatically the right size. `scale == 1f` returns the same theme.
  */
 internal fun Typography.scaledBy(scale: Float): Typography =
   if (scale == 1f) this
@@ -284,12 +284,12 @@ internal fun Typography.scaledBy(scale: Float): Typography =
   )
 
 /**
- * Умножает кегль (и абсолютный `sp`-межстрочный интервал) стиля на [scale]. `scale == 1f` возвращает
- * исходный стиль без изменений (быстрый путь + отсутствие лишних аллокаций для дефолтного размера).
+ * Multiplies a style's font size (and an absolute `sp` line height) by [scale]. `scale == 1f` returns the
+ * original style unchanged (a fast path + no extra allocations for the default size).
  *
- * `lineHeight` масштабируем ТОЛЬКО когда он задан в `sp` (абсолют): `em`-интервал уже относителен
- * кеглю и вырастет сам — второе умножение раздуло бы его; `Unspecified` не трогаем. `fontSize`
- * в теме всегда `sp`, но guard симметричен на случай нестандартного стиля.
+ * `lineHeight` is scaled ONLY when it is in `sp` (absolute): an `em` line height is already relative to the
+ * font size and grows by itself — a second multiplication would inflate it; `Unspecified` is left alone.
+ * `fontSize` in the theme is always `sp`, but the guard is symmetric in case of a non-standard style.
  */
 internal fun TextStyle.scaledBy(scale: Float): TextStyle =
   if (scale == 1f) this

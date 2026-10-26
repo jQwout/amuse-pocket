@@ -50,17 +50,17 @@ class SettingsViewModel(
 
   init {
     viewModelScope.launch {
-      // Всё чтение с диска — на IO: и EncryptedSharedPreferences (первое обращение поднимает
-      // Keystore), и каталог моделей. Живой каталог OpenRouter — сотни моделей, а не пять строк
-      // ассета, так что на главном потоке это заметный кадр при каждом входе в Настройки.
+      // All disk reads are on IO: both EncryptedSharedPreferences (the first access brings up the Keystore) and
+      // the model catalog. The live OpenRouter catalog is hundreds of models, not five asset lines, so on the
+      // main thread it would be a noticeable frame on every entry into Settings.
       val loaded = withContext(Dispatchers.IO) {
         val metaModels = modelOptions(modelCatalogLoader.loadMeta(), LlmProvider.META)
         LoadedSettings(
           openRouterKey = settingsRepository.getApiKey("OPENROUTER"),
           metaKey = settingsRepository.getApiKey("META"),
           selectedModel = settingsRepository.getSelectedModel("OPENROUTER"),
-          // Каталог Meta статичный и полный — по нему, в отличие от сида OpenRouter, можно судить,
-          // что модели больше нет (её убрали из ассета в новой версии), и сразу показать «Авто».
+          // The Meta catalog is static and complete — unlike the OpenRouter seed, it can tell that a model is gone
+          // (it was removed from the asset in a new version), and "Auto" can be shown right away.
           selectedMetaModel = pruneMissingModel(settingsRepository.getSelectedModel("META"), metaModels),
           openRouterModels = modelOptions(modelCatalogLoader.loadOpenRouter(), LlmProvider.OPENROUTER),
           metaModels = metaModels,
@@ -90,11 +90,11 @@ class SettingsViewModel(
   }
 
   /**
-   * Расход за неделю — отдельной корутиной от остальных настроек.
+   * Spend over the week — in a coroutine separate from the other settings.
    *
-   * Не в общий блок чтения: там всё нужно ДО первого кадра (иначе селекторы моргнут значениями по
-   * умолчанию), а суммы по таблице учёта — нет. Их задержка не должна откладывать весь экран, и
-   * пустая карточка, доехавшая на кадр позже, честнее пустого экрана.
+   * Not in the shared read block: everything there is needed BEFORE the first frame (otherwise the selectors
+   * would blink with default values), while the sums over the accounting table are not. Their delay must not
+   * hold up the whole screen, and an empty card arriving a frame later is more honest than an empty screen.
    */
   private fun loadUsage() {
     viewModelScope.launch {
@@ -122,13 +122,13 @@ class SettingsViewModel(
           )
         }.getOrNull()
       }
-      // Отказ чтения оставляет usage = null, то есть карточку «данных пока нет»: статистика не тот
-      // повод, ради которого стоит показывать пользователю ошибку на экране настроек.
+      // A read failure leaves usage = null, i.e. the "no data yet" card: statistics are not a reason to show the
+      // user an error on the settings screen.
       if (summary != null) _state.update { it.copy(usage = summary) }
     }
   }
 
-  /** Снимок того, что читается с диска, — чтобы прочитать всё одним заходом на IO. */
+  /** A snapshot of what is read from disk — so everything is read in one go on IO. */
   private data class LoadedSettings(
     val openRouterKey: String,
     val metaKey: String,
@@ -142,26 +142,26 @@ class SettingsViewModel(
   )
 
   private companion object {
-    /** Окно сводки: неделя. Достаточно, чтобы увидеть будни и выходные, и коротко для «сейчас». */
+    /** The summary window: a week. Enough to see weekdays and weekends, and short enough for "now". */
     const val USAGE_WINDOW_MS = 7L * 24 * 60 * 60 * 1000
   }
 
   /**
-   * Тянет свежий список моделей OpenRouter (не чаще раза в сутки — TTL внутри сервиса) и
-   * подставляет его в селектор.
+   * Fetches a fresh OpenRouter model list (no more than once a day — the TTL is inside the service) and
+   * puts it into the selector.
    *
-   * Сеть недоступна — список остаётся прежним (кеш или сид), ошибку не показываем: пользователь
-   * пришёл в Настройки не за отчётом о фоновом запросе.
+   * The network is unavailable — the list stays as it was (cache or seed), no error is shown: the user came
+   * to Settings not for a report about a background request.
    */
   private fun refreshOpenRouterCatalog() {
     viewModelScope.launch {
-      // Берём каталог, который вернул сервис, вместо повторного чтения файла: это и лишний поход
-      // на диск, и расхождение — запись в кеш могла не удаться, и тогда мы показали бы старый
-      // список, имея на руках новый.
+      // We take the catalog the service returned instead of reading the file again: that would be both an extra
+      // trip to disk and a mismatch — the cache write may have failed, and then we would show the old list
+      // while holding the new one.
       val snapshot = openRouterCatalogService.refreshIfStale()
       val options = modelOptions(snapshot.catalog, LlmProvider.OPENROUTER)
-      // Сверяем с каталогом OpenRouter только выбор маршрута OpenRouter — и при введённом ключе Meta
-      // тоже: выбор хранится на случай, если ключ Meta уберут, и снятая модель не должна в нём ожить.
+      // Only the OpenRouter route's choice is checked against the OpenRouter catalog — with a Meta key entered too:
+      // the choice is kept in case the Meta key is removed, and a retired model must not come back to life in it.
       _state.update {
         val model = if (snapshot.authoritative) pruneMissingModel(it.selectedModel, options) else it.selectedModel
         it.copy(openRouterModels = options, selectedModel = model, saved = it.saved && model == it.selectedModel)
@@ -170,16 +170,16 @@ class SettingsViewModel(
   }
 
   /**
-   * Выбранная модель, которой больше нет в каталоге, сбрасывается на "AUTO".
+   * A selected model that is no longer in the catalog is reset to "AUTO".
    *
-   * OpenRouter регулярно снимает модели. Без этого Настройки продолжали бы показывать снятую модель
-   * как выбранную, `save()` записал бы её обратно, а цепочка провайдеров молча ушла бы на первую по
-   * priority — разрыв между тем, что показано, и тем, что происходит.
+   * OpenRouter regularly retires models. Without this Settings would keep showing a retired model as
+   * selected, `save()` would write it back, and the provider chain would silently go to the first one by
+   * priority — a gap between what is shown and what happens.
    *
-   * Вызывается ТОЛЬКО на авторитетном каталоге: у OpenRouter — сеть или кеш, у Meta — статичный
-   * ассет (живого списка там нет, ассет и есть полный список). Сид OpenRouter — пять курируемых
-   * моделей, и по нему нельзя заключить, что выбранная модель снята: иначе первый же запуск без
-   * сети молча сбрасывал бы выбор пользователя.
+   * Called ONLY on an authoritative catalog: for OpenRouter — network or cache, for Meta — the static asset
+   * (there is no live list, the asset is the complete list). The OpenRouter seed is five curated models, and
+   * it cannot tell that the selected model was retired: otherwise the very first launch without a network
+   * would silently reset the user's choice.
    */
   private fun pruneMissingModel(selected: String, options: List<String>): String =
     if (selected in options) selected else "AUTO"
@@ -192,7 +192,7 @@ class SettingsViewModel(
     _state.update { it.copy(metaKey = key, saved = false) }
   }
 
-  /** Модель пишется в выбор того маршрута, что показан сейчас, — его список и видит пользователь. */
+  /** The model is written into the choice of the route shown right now — that is the list the user sees. */
   fun updateModel(model: String) {
     _state.update {
       if (it.provider == LlmProvider.META) {
@@ -204,19 +204,19 @@ class SettingsViewModel(
   }
 
   /**
-   * Опции селектора модели: "AUTO" (идти по priority) + модели каталога.
+   * The model selector's options: "AUTO" (go by priority) + the catalog's models.
    *
-   * Каталог уже отсортирован по priority (ModelCatalogLoader) — тот же порядок, что и в
-   * фоллбэк-цепочке, поэтому список в Настройках совпадает с реальным порядком попыток. Отсев тот же,
-   * что в цепочке: только модели Meta с function calling (см. [isMetaModel] и
-   * [com.aiopenpocket.agent.core.llm.ModelEntry.supportsTools]) — кеш прошлой версии ещё может держать
-   * чужие модели, и показать их значило бы предложить выбор, который цепочка молча отбросит. Отсев по
-   * префиксу «meta/» — только для OpenRouter, как и в цепочке (LlmModule): у Meta id без префикса.
+   * The catalog is already sorted by priority (ModelCatalogLoader) — the same order as in the fallback
+   * chain, so the list in Settings matches the real order of attempts. The filter is the same as in the
+   * chain: only Meta models with function calling (see [isMetaModel] and
+   * [com.aiopenpocket.agent.core.llm.ModelEntry.supportsTools]) — a previous version's cache may still hold
+   * foreign models, and showing them would offer a choice the chain silently drops. The "meta/" prefix
+   * filter is for OpenRouter only, as in the chain (LlmModule): Meta ids have no prefix.
    */
   private fun modelOptions(catalog: ModelCatalog, provider: LlmProvider): List<String> =
-    // distinct: одинаковые имена — краш LazyColumn на дублирующихся ключах. Живой каталог уже
-    // дедуплицирован (OpenRouterCatalogService), но ассет правится руками, а кеш мог быть записан
-    // прошлой версией приложения.
+    // distinct: identical names crash LazyColumn on duplicate keys. The live catalog is already deduplicated
+    // (OpenRouterCatalogService), but the asset is edited by hand, and the cache may have been written by a
+    // previous app version.
     (
       listOf("AUTO") + catalog.models
         .filter { it.supportsTools && !trainsOnUserData(it.name) }
@@ -237,23 +237,23 @@ class SettingsViewModel(
   }
 
   /**
-   * Язык тоже применяется сразу: запись в настройки зеркалится в AppLanguage, и интерфейс
-   * перерисовывается на месте; ответы агента переходят на этот язык со следующего хода.
+   * The language is applied right away too: the setting is mirrored into AppLanguage, and the interface
+   * redraws in place; the agent's answers switch to this language from the next turn.
    */
   fun updateLanguage(code: String) {
     viewModelScope.launch { userPreferencesRepository.setLanguage(code) }
   }
 
-  /** Тему применяем сразу (реактивно через ThemeRepository), а не по кнопке «Сохранить». */
+  /** The theme is applied right away (reactively through ThemeRepository), not by the "Save" button. */
   fun updateThemeMode(value: ThemeMode) {
     themeRepository.setMode(value)
     _state.update { it.copy(themeMode = value) }
   }
 
   /**
-   * Сохранения не должны наслаиваться. Пока запись шла на главном потоке, два нажатия были
-   * сериализованы сами собой; после переезда на IO — уже нет, и два блока могли перемешаться,
-   * записав ключ от одного нажатия и модель от другого.
+   * Saves must not overlap. While the write ran on the main thread, two taps were serialized by themselves;
+   * after the move to IO they no longer are, and two blocks could interleave, writing the key from one tap
+   * and the model from the other.
    */
   private val saveMutex = Mutex()
 
@@ -265,26 +265,26 @@ class SettingsViewModel(
   }
 
   private suspend fun persist(current: SettingsUiState) {
-    // Запись ключей — тоже IO, как и чтение: EncryptedSharedPreferences шифрует значение на
-    // вызывающем потоке, а первое обращение к ним поднимает Keystore. Нажать «Сохранить» можно
-    // раньше, чем завершится чтение в init, — и тогда главный поток вставал бы на том же мониторе.
+    // Writing keys is IO too, like reading: EncryptedSharedPreferences encrypts the value on the calling
+    // thread, and the first access to them brings up the Keystore. "Save" can be tapped before the read in
+    // init finishes — and then the main thread would stall on the same monitor.
     withContext(Dispatchers.IO) {
-      // trim: ключ обычно вставляют из буфера, и хвостовой пробел или перевод строки уехали бы в
-      // заголовок Authorization — со стороны это «ключ правильный, а Meta отвечает 401».
+      // trim: a key is usually pasted from the clipboard, and a trailing space or newline would go into the
+      // Authorization header — from the outside that looks like "the key is right, but Meta answers 401".
       settingsRepository.setApiKey("OPENROUTER", current.openRouterKey.trim())
       settingsRepository.setApiKey("META", current.metaKey.trim())
       settingsRepository.setSelectedModel(current.selectedModel, "OPENROUTER")
       settingsRepository.setSelectedModel(current.selectedMetaModel, "META")
     }
-    // «Сохранено» показываем только после реальной записи в DataStore (suspend), а не до неё.
+    // "Saved" is shown only after the actual write to DataStore (suspend), not before it.
     userPreferencesRepository.setDefaultPersonaId(current.personaId)
     userPreferencesRepository.setGoalModeMaxIterations(current.goalMaxIterations)
     userPreferencesRepository.setChatFontScale(current.chatFontScale)
-    // ...и только если пользователь не успел изменить поля во время записи (иначе соврём «Сохранено»).
-    // Сравниваем всё состояние целиком (без флага saved): любое новое поле настройки попадает в
-    // проверку автоматически, без ручного дописывания клаузы. Побочный эффект: если ровно в этот
-    // момент долетел свежий каталог OpenRouter (availableModels), «Сохранено» не покажется —
-    // настройки при этом записаны. Врать «сохранено» на изменившемся состоянии хуже.
+    // ...and only if the user did not manage to change the fields during the write (otherwise we would lie
+    // "Saved"). The whole state is compared (without the saved flag): any new settings field gets into the
+    // check automatically, without adding a clause by hand. A side effect: if a fresh OpenRouter catalog
+    // (openRouterModels) arrives at exactly that moment, "Saved" will not show — the settings are written
+    // anyway. Lying "saved" about a changed state is worse.
     _state.update { s ->
       if (s.copy(saved = false) == current.copy(saved = false)) s.copy(saved = true) else s
     }

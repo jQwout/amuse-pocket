@@ -15,12 +15,12 @@ import androidx.core.view.WindowCompat
 
 // @trace smena-temy-svetlaya-temnaya-sistemnaya-palitra-lime-ink-paper-005bc6
 
-/** Тёмная схема: лаймовый акцент по чернильным нейтралям. */
+/** The dark scheme: a lime accent on ink neutrals. */
 val AppDarkColors =
   darkColorScheme(
     primary = LimeSignal,
     onPrimary = LimeOnDark,
-    primaryContainer = Color(0xFF2A3B00), // приглушённый лайм-контейнер
+    primaryContainer = Color(0xFF2A3B00), // a muted lime container
     onPrimaryContainer = Color(0xFFE6F5B8),
     background = InkBg,
     onBackground = InkText,
@@ -30,15 +30,15 @@ val AppDarkColors =
     onSurfaceVariant = InkTextSub,
     outline = InkOutline,
     outlineVariant = Color(0x14FFFFFF),
-    // error/onError — дефолты Material 3.
+    // error/onError are Material 3 defaults.
   )
 
-/** Светлая схема: оливковый акцент по тёплой бумаге. */
+/** The light scheme: an olive accent on warm paper. */
 val AppLightColors =
   lightColorScheme(
-    primary = OliveAccent, // акцент на тексте/иконках
+    primary = OliveAccent, // the accent on text/icons
     onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFDDF0A6), // светлый лайм-контейнер
+    primaryContainer = Color(0xFFDDF0A6), // a light lime container
     onPrimaryContainer = OliveOnLight,
     background = PaperBg,
     onBackground = PaperText,
@@ -48,16 +48,16 @@ val AppLightColors =
     onSurfaceVariant = PaperTextSub,
     outline = PaperOutline,
     outlineVariant = Color(0x14000000),
-    // error/onError — дефолты Material 3.
+    // error/onError are Material 3 defaults.
   )
 
-/** Три режима переключателя темы. [SYSTEM] следует за системной настройкой. */
+/** The three modes of the theme switch. [SYSTEM] follows the system setting. */
 enum class ThemeMode { LIGHT, DARK, SYSTEM }
 
 /**
- * Тёмная ли сейчас тема — с учётом форс-режима (LIGHT/DARK перебивают систему).
- * Читают glass-слои (тинты/бордер/аврора), чтобы адаптироваться, не полагаясь на
- * [isSystemInDarkTheme] (та соврала бы при форс-режиме).
+ * Whether the theme is dark right now — taking the forced mode into account (LIGHT/DARK override the system).
+ * The glass layers (tints/border/aurora) read it to adapt, without relying on [isSystemInDarkTheme] (which
+ * would lie in a forced mode).
  */
 val LocalThemeIsDark = staticCompositionLocalOf { true }
 
@@ -72,19 +72,19 @@ fun MyApplicationTheme(
       ThemeMode.DARK -> true
       ThemeMode.SYSTEM -> isSystemInDarkTheme()
     }
-  // Иконки системных баров (часы, батарея, сеть) красим по ТЕМЕ ПРИЛОЖЕНИЯ, а не по системной.
+  // The system bar icons (clock, battery, network) are colored by the APP'S THEME, not the system's.
   //
-  // `enableEdgeToEdge()` в MainActivity вызывается в onCreate — до того, как известен выбранный
-  // ThemeMode, — и по умолчанию решает светлые иконки или тёмные по системному dark mode. При своей
-  // переключалке это врёт: выбрал Светлую при системной Тёмной — иконки остались светлыми, и часы с
-  // зарядкой пропали на светлом фоне (ровно тот баг, что видно на устройстве). Здесь тема уже
-  // разрешена (включая SYSTEM), поэтому источник правды один.
+  // `enableEdgeToEdge()` in MainActivity is called in onCreate — before the chosen ThemeMode is known — and by
+  // default decides between light and dark icons by the system dark mode. With our own switch that lies:
+  // choose Light while the system is Dark — the icons stayed light, and the clock and the battery disappeared
+  // on the light background (exactly the bug seen on the device). Here the theme is already resolved
+  // (including SYSTEM), so there is a single source of truth.
   val view = LocalView.current
   if (!view.isInEditMode) {
     SideEffect {
       val window = (view.context as? Activity)?.window ?: return@SideEffect
       WindowCompat.getInsetsController(window, view).apply {
-        // Светлая тема ⇒ светлый фон ⇒ иконки должны быть ТЁМНЫМИ (isAppearanceLight* = true).
+        // A light theme ⇒ a light background ⇒ the icons must be DARK (isAppearanceLight* = true).
         isAppearanceLightStatusBars = !dark
         isAppearanceLightNavigationBars = !dark
       }
