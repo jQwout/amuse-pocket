@@ -44,10 +44,10 @@ import kotlin.random.Random
 private val CorrectGreen = Color(0xFF4CAF50)
 
 /**
- * Детерминированно перемешанные индексы [0, size): seed считается из содержимого, поэтому порядок
- * одинаков на каждом показе — сохранённые ответы и подсветка не съезжают после рециклинга, поворота
- * или переоткрытия. Лечит «правильный ответ всегда первый» в авторских JSON, не трогая контент.
- * [avoidIdentity] — для match-карточки: исходный порядок подсказывал бы все пары разом.
+ * Deterministically shuffled indexes [0, size): the seed is computed from the content, so the order is the same
+ * on every display — saved answers and highlighting do not slide after recycling, a rotation or reopening. It
+ * cures "the right answer is always first" in the authored JSON without touching the content. [avoidIdentity]
+ * is for the match card: the original order would give away all the pairs at once.
  */
 internal fun stableShuffledIndices(size: Int, seed: Int, avoidIdentity: Boolean = false): List<Int> {
   val order = (0 until size).shuffled(Random(seed))
@@ -55,7 +55,7 @@ internal fun stableShuffledIndices(size: Int, seed: Int, avoidIdentity: Boolean 
   return if (avoidIdentity && size > 1 && isIdentity) order.drop(1) + order.first() else order
 }
 
-/** Seed перемешивания вариантов вопроса — стабилен, пока не меняется сам вопрос. */
+/** The seed for shuffling a question's options — stable as long as the question itself does not change. */
 private fun QuizQuestion.shuffleSeed(): Int =
   question.hashCode() * 31 + options.fold(0) { acc, o -> acc * 31 + o.hashCode() }
 
@@ -71,8 +71,8 @@ fun QuizContent(
   /** Fires once every question has an answer — used by the in-chat lesson quiz to advance. */
   onAllAnswered: (() -> Unit)? = null,
 ) {
-  // questionIndex -> selected option index. rememberSaveable, чтобы ответы переживали рециклинг
-  // элемента в LazyColumn, поворот и process death (иначе пройденный квиз перерисовывается пустым).
+  // questionIndex -> selected option index. rememberSaveable so the answers survive the item being recycled in
+  // LazyColumn, a rotation and process death (otherwise a passed quiz is redrawn empty).
   val answers = rememberSaveable(
     saver = listSaver<SnapshotStateMap<Int, Int>, Int>(
       save = { map -> map.entries.flatMap { listOf(it.key, it.value) } },
@@ -88,9 +88,9 @@ fun QuizContent(
     ),
   ) { mutableStateMapOf<Int, Int>() }
 
-  // onAllAnswered должен сработать РОВНО раз за жизнь сохранённого состояния. rememberSaveable
-  // восстанавливает уже полный map после поворота/process death/рециклинга элемента в LazyColumn —
-  // без этого флага LaunchedEffect дёрнул бы колбэк повторно и промотал бы урок на лишний шаг.
+  // onAllAnswered must fire EXACTLY once per life of the saved state. rememberSaveable restores an already full map
+  // after a rotation/process death/the item being recycled in LazyColumn — without this flag LaunchedEffect would
+  // call the callback again and skip the lesson an extra step.
   val fired = rememberSaveable { mutableStateOf(false) }
   LaunchedEffect(answers.size) {
     if (!fired.value && questions.isNotEmpty() && answers.size == questions.size) {
@@ -116,17 +116,16 @@ fun QuizContent(
       )
       Spacer(Modifier.height(8.dp))
 
-      // Варианты показываем в перемешанном (но стабильном) порядке; в answers кладём ИСХОДНЫЙ
-      // индекс варианта — сверка с correctIndex и восстановление сохранённых ответов не зависят
-      // от порядка показа.
+      // The options are shown in a shuffled (but stable) order; answers stores the ORIGINAL option index — checking
+      // against correctIndex and restoring saved answers do not depend on the display order.
       val displayOrder = remember(question) {
         stableShuffledIndices(question.options.size, question.shuffleSeed())
       }
       displayOrder.forEach { i ->
         val option = question.options[i]
         val answered = selected != null
-        // correctIndex < 0 — правильный вариант не задан/битый (см. f646e64): не подсвечиваем
-        // ничего как «верное/неверное», чтобы не вводить в заблуждение ложным ключом.
+        // correctIndex < 0 — the right option is not set/broken (see f646e64): nothing is highlighted as "right/wrong",
+        // so as not to mislead with a false key.
         val hasKey = question.correctIndex >= 0
         val isCorrect = hasKey && i == question.correctIndex
         val isPicked = selected == i
@@ -137,8 +136,8 @@ fun QuizContent(
           isPicked -> MaterialTheme.colorScheme.outline
           else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
         }
-        // Полупрозрачная подложка отделяет вариант от ауроры (иначе тёмное на тёмном сливается);
-        // у отвеченных верный/неверный дополнительно подсвечены цветным wash'ем — усиливает фидбек.
+        // A translucent backing separates an option from the aurora (otherwise dark on dark merges); for answered ones
+        // right/wrong is additionally highlighted with a colored wash — it strengthens the feedback.
         val optionBg = when {
           answered && isCorrect -> CorrectGreen.copy(alpha = 0.12f)
           answered && hasKey && isPicked -> MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
@@ -190,8 +189,8 @@ fun QuizContent(
       }
     }
 
-    // Итог: счёт по вопросам с ключом + пересдача. «Пройти ещё раз» чистит только ответы:
-    // fired не трогаем, поэтому урок не продвинется второй раз — пересдача чисто для самопроверки.
+    // The result: the score over the questions with a key + a retake. "Take it again" clears only the answers: fired
+    // is not touched, so the lesson does not advance a second time — the retake is purely for self-checking.
     if (questions.isNotEmpty() && answers.size == questions.size) {
       val keyed = questions.count { it.correctIndex >= 0 }
       val correctCount = questions.withIndex()

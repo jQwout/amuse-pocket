@@ -2,8 +2,8 @@ package com.aiopenpocket.ui.home
 
 // @trace multi-chat-conversations-b3c93b
 //
-// Превью-каркас экрана Home для скриншот-тестов: те же карточки на фейковых данных, без
-// ViewModel/DI. Вынесено из HomeScreen.kt (паттерн ChatScreenPreviews).
+// The Home screen's preview frame for screenshot tests: the same cards on fake data, without ViewModel/DI.
+// Moved out of HomeScreen.kt (the ChatScreenPreviews pattern).
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -50,11 +50,11 @@ import com.aiopenpocket.ui.theme.ThemeMode
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 // ==================================================================================================
-// Превью экрана Home (скриншот-тесты). Тот же визуальный каркас (аврора/GlassCard/GlassSurface-нав),
-// что и в бою, собранный из тех же file-private карточек ([NewChatCard]/[AgentsEntryCard]/
-// [RecentChatCard]/[CourseCard]/[EmptyHint]/[HomeHero]/[SectionHeader]), но с фейковыми данными
-// вместо ViewModel — [HomeScreen] тянет обе VM через metroViewModel(), которому в Robolectric/
-// @Preview неоткуда взять DI-граф. Паттерн — как у ChatPreviewScaffold (ChatScreen.kt).
+// Home screen previews (screenshot tests). The same visual frame (aurora/GlassCard/GlassSurface navigation)
+// as in production, built from the same file-private cards ([NewChatCard]/[AgentsEntryCard]/
+// [RecentChatCard]/[CourseCard]/[EmptyHint]/[HomeHero]/[SectionHeader]), but with fake data instead of the
+// ViewModel — [HomeScreen] gets both VMs through metroViewModel(), which has no DI graph to take them from in
+// Robolectric/@Preview. The pattern is the same as ChatPreviewScaffold (ChatScreen.kt).
 // ==================================================================================================
 
 private fun previewConversation(id: String, title: String, updatedAt: Long) = Conversation(

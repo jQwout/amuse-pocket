@@ -32,9 +32,9 @@ class OnboardingViewModel(
     private val extractUserProfile: ExtractUserProfileUseCase,
 ) : ViewModel() {
 
-    // Стартовый выбор — текущий язык, а не «ru» по умолчанию: язык пишется в настройки сразу при
-    // выборе, и после перезапуска посреди мастера экран уже английский — а «Готово» записывало
-    // обратно русский из состояния по умолчанию.
+    // The initial choice is the current language, not "ru" by default: the language is written to the settings
+    // right when chosen, and after a restart in the middle of the wizard the screen is already English — while
+    // "Done" used to write back Russian from the default state.
     private val _state = MutableStateFlow(OnboardingUiState(selectedLanguage = AppLanguage.code))
     val state: StateFlow<OnboardingUiState> = _state.asStateFlow()
 
@@ -48,12 +48,12 @@ class OnboardingViewModel(
             OnboardingIntent.PreviousStep -> goToPreviousStep()
             is OnboardingIntent.SelectLanguage -> {
                 _state.update { it.copy(selectedLanguage = intent.code) }
-                // Сразу, а не в конце мастера: остальные шаги онбординга уже должны быть на этом языке.
+                // Right away, not at the end of the wizard: the rest of the onboarding steps must already be in this language.
                 viewModelScope.launch { userPreferencesRepository.setLanguage(intent.code) }
             }
 
-            // Мастер персону больше не спрашивает (см. OnboardingStep), но интент жив: его шлёт
-            // PersonaSelectionStep, если экран вернут, и через него же приезжает выбор из Настроек.
+            // The wizard no longer asks for the persona (see OnboardingStep), but the intent lives on: PersonaSelectionStep
+            // sends it if the screen comes back, and the choice from Settings arrives through it too.
             is OnboardingIntent.SelectPersona -> {
                 _state.update { it.copy(selectedPersonaId = intent.personaId) }
             }
@@ -147,7 +147,7 @@ class OnboardingViewModel(
         when (current.currentStep) {
             OnboardingStep.LANGUAGE -> goToStep(OnboardingStep.INTRO)
             OnboardingStep.INTRO -> goToStep(OnboardingStep.PROFILE)
-            // PROFILE — последний шаг: разбираем рассказ о себе и на этом настройку завершаем.
+            // PROFILE is the last step: parse the story about oneself and finish the setup on that.
             OnboardingStep.PROFILE -> extractProfileAndFinish()
         }
     }
@@ -161,9 +161,10 @@ class OnboardingViewModel(
     }
 
     /**
-     * Разбирает рассказ о себе и сразу завершает настройку: PROFILE — последний шаг мастера.
-     * Профиль сохраняется дважды подряд (здесь и в [completeOnboarding]) — так же, как до
-     * сокращения мастера: второй раз пишутся уже слитые поля, включая то, что человек ввёл ранее.
+     * Parses the story about oneself and finishes the setup right away: PROFILE is the wizard's last step.
+     * The profile is saved twice in a row (here and in [completeOnboarding]) — the same as before the wizard
+     * was shortened: the second time the already merged fields are written, including what the person entered
+     * earlier.
      */
     private fun extractProfileAndFinish() {
         if (extractionJob?.isActive == true) return
@@ -180,15 +181,15 @@ class OnboardingViewModel(
                 _state.update { it.mergeProfile(provided).copy(isExtracting = false) }
                 completeOnboarding()
             } catch (e: kotlinx.coroutines.CancellationException) {
-                // Экран покинут (навигация/пересоздание ViewModel) — не глотаем отмену, иначе она
-                // тратится на обновление state уже уничтожаемой VM вместо нормального распространения.
+                // The screen was left (navigation/the ViewModel recreated) — cancellation is not swallowed, otherwise it would
+                // be spent on updating the state of an already dying VM instead of propagating normally.
                 throw e
             } catch (e: Exception) {
-                // Без модели настройку не держим: нет ключа (магазинная сборка его не вшивает), нет
-                // сети или провайдер упал — а ввести ключ можно только в Настройках, которые открываются
-                // ПОСЛЕ онбординга. Раньше здесь был тупик: ошибка и та же кнопка «Готово» навсегда.
-                // Рассказ о себе сохраняем как есть — разбор по полям ничего не добавляет к тому, что
-                // модель и так прочтёт в «о себе», а имя агент узнает в разговоре.
+                // The setup is not held hostage to the model: no key (a store build does not bundle one), no network, or the
+                // provider is down — and a key can only be entered in Settings, which open AFTER onboarding. This
+                // used to be a dead end: an error and the same "Done" button forever. The story about oneself is
+                // saved as is — parsing it into fields adds nothing to what the model reads in "about me" anyway,
+                // and the agent learns the name in conversation.
                 android.util.Log.w("OnboardingViewModel", "profile extraction failed, saving raw text: ${e.message}")
                 _state.update {
                     it.copy(isExtracting = false, extraInfo = it.extraInfo.ifBlank { current.aboutMeText.trim() })

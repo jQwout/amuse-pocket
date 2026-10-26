@@ -57,8 +57,8 @@ fun ForceDirectedGraph(
   val posY = remember(graph) { FloatArray(nodes.size) }
   val velX = remember(graph) { FloatArray(nodes.size) }
   val velY = remember(graph) { FloatArray(nodes.size) }
-  // Силовые аккумуляторы переиспользуем между кадрами (обнуляем в начале прохода): иначе два
-  // FloatArray(N) аллоцировались бы на КАЖДЫЙ кадр (~60/сек в движении) — мусор в GC на UI-потоке.
+  // The force accumulators are reused between frames (zeroed at the start of a pass): otherwise two
+  // FloatArray(N) would be allocated on EVERY frame (~60/s in motion) — garbage for the GC on the UI thread.
   val forceX = remember(graph) { FloatArray(nodes.size) }
   val forceY = remember(graph) { FloatArray(nodes.size) }
 

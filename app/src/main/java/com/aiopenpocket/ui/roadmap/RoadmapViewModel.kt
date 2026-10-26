@@ -31,8 +31,8 @@ class RoadmapViewModel(
     userPreferencesRepository.roadmapProgress
       .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
-  /** Открытие уже идёт для этого levelId — игнорируем повторный тап, иначе двойной клик успевает
-   *  создать два дубля чата до того, как первый закоммитится (см. LibraryViewModel/AgentsViewModel). */
+  /** Opening is already in progress for this levelId — ignore the repeated tap, otherwise a double click manages to
+   *  create two duplicate chats before the first one commits (see LibraryViewModel/AgentsViewModel). */
   private val opening = mutableSetOf<String>()
 
   /**
@@ -45,8 +45,10 @@ class RoadmapViewModel(
       try {
         val level = ROADMAP_LEVELS.find { it.id == levelId } ?: return@launch
         val personaId = userPreferencesRepository.getDefaultPersonaId()
-        // JSON-урок (assets/lessons/{id}.json) драйвится чат-контроллером с шага 0 — приветствие НЕ постим,
-        // иначе оно собьёт счёт шагов в ChatViewModel.startOrResumeLesson. Свободные уроки (l2–l4) — постим.
+        // A JSON lesson (assets/lessons/{id}.json) is driven by the chat controller from step 0 — no greeting is posted:
+        // the controller publishes the lesson's first step itself (and back when the lesson cursor was derived from
+        // the message count in ChatViewModel.startOrResumeLesson, a greeting also threw the count off). Free
+        // lessons (l2–l4) do get one.
         val hasJsonLesson = lessonRepository.getLessonOrNull(level.id) != null
 
         val existing = conversationRepository.findLatestTutorialConversation(level.id)

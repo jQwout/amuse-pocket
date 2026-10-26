@@ -6,13 +6,14 @@ import com.aiopenpocket.i18n.tr
 
 object OnboardingContent {
   /**
-   * Первый экран, который человек видит вообще. Пишем максимально просто и БЕЗ терминов: ни
-   * «стриминга», ни «промпта», ни «препромпта», ни персон. Каждое из этих понятий разбирается
-   * дальше по «Пути агента», где под него подведена почва (стриминг — урок «Токены и скорость»,
-   * препромпт — «Как ИИ читает твой запрос»). Здесь термин только отпугнёт: человек может не знать
-   * даже, что такое чат.
+   * The very first screen a person sees at all. Written as simply as possible and WITHOUT terms: no
+   * "streaming", no "prompt", no "preprompt", no personas. Each of these concepts is covered later along the
+   * "Agent path", where the ground is prepared for it (streaming — the "Tokens and speed" lesson, the preprompt
+   * — "How AI reads your request"). Here a term would only scare people away: a person may not even know what
+   * a chat is.
    *
-   * Стриминг при этом никуда не делся — текст печатается по словам, и его ПЕРЕЖИВАЮТ, не называя.
+   * Streaming has not gone anywhere, though — the text prints word by word, and people EXPERIENCE it without
+   * it being named.
    */
   val INTRO_MARKDOWN: String get() = tr(INTRO_MARKDOWN_RU, INTRO_MARKDOWN_EN)
 

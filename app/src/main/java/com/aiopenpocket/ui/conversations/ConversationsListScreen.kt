@@ -65,11 +65,11 @@ fun ConversationsListScreen(
   val state by viewModel.state.collectAsState()
   val scope = rememberCoroutineScope()
 
-  // Удаление — через подтверждение: клик по корзине лишь намечает диалог к удалению, а сносит его
-  // явное «Удалить» в диалоге. Иначе один промах по корзине безвозвратно сносил чат.
+  // Deleting goes through a confirmation: a tap on the trash only marks the conversation for deletion, and an
+  // explicit "Delete" in the dialog removes it. Otherwise a single miss on the trash wiped a chat irreversibly.
   var pendingDelete by remember { mutableStateOf<Conversation?>(null) }
 
-  // Аврора-фон + стекло, как на вкладке «Чат».
+  // The aurora background + glass, as on the "Chat" tab.
   val glassState = rememberGlassState()
   AcademyCollapsingScaffold(
     title = "Чаты",
@@ -114,9 +114,9 @@ fun ConversationsListScreen(
         )
       }
     } else {
-      // Верхний отступ оставляем на колонке: строка тегов не прокручивается, заезжать под остров
-      // ей нечем. А вот список ниже получает нижний отступ через contentPadding и уходит под
-      // плавающий навбар — тогда стеклу есть что размывать.
+      // The top padding stays on the column: the tag row does not scroll, so it has nothing to slide under the
+      // island. The list below, though, gets its bottom padding through contentPadding and goes under the
+      // floating navbar — then the glass has something to blur.
       Column(modifier = Modifier.padding(top = padding.calculateTopPadding())) {
         if (state.allTags.isNotEmpty()) {
           LazyRow(
@@ -225,7 +225,7 @@ private fun ConversationItem(
           )
         }
       }
-      // Индикация фонового хода: спиннер — агент думает, точка — готово (tertiary) или ошибка (error).
+      // The background turn indicator: a spinner — the agent is thinking, a dot — done (tertiary) or an error (error).
       when (turnStatus) {
         is TurnStatus.Running -> CircularProgressIndicator(
           modifier = Modifier.size(16.dp),

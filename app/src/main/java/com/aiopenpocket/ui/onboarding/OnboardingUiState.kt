@@ -5,20 +5,21 @@ package com.aiopenpocket.ui.onboarding
 import com.aiopenpocket.i18n.tr
 
 /**
- * Шаги мастера первичной настройки — ровно три: выбрать язык, объяснить, кто я такой, попросить
- * рассказать о себе.
+ * The steps of the initial setup wizard — exactly three: choose a language, explain who I am, ask the person
+ * to tell about themselves.
  *
- * Чего здесь СОЗНАТЕЛЬНО нет и почему:
- * - **Персона.** На первом запуске человеку не с чем сравнивать — он не видел ни одного ответа.
- *   Остаётся дефолтной ([OnboardingUiState.selectedPersonaId]) и меняется в Настройках.
- * - **Итоговый экран про промпт/препромпт.** Это термины, а первый экран должен быть без них;
- *   промпт и препромпт разбирает урок «Как ИИ читает твой запрос», где под них подведена почва.
- * - **Квиз.** Проверять на первом запуске нечего: человек ещё ничего не изучал.
+ * What is DELIBERATELY not here and why:
+ * - **Persona.** On the first launch a person has nothing to compare with — they have not seen a single
+ *   answer. It stays the default ([OnboardingUiState.selectedPersonaId]) and is changed in Settings.
+ * - **A final screen about the prompt/preprompt.** Those are terms, and the first screen must do without them;
+ *   the prompt and the preprompt are covered by the "How AI reads your request" lesson, where the ground is
+ *   prepared for them.
+ * - **A quiz.** There is nothing to check on the first launch: the person has not studied anything yet.
  *
- * Композеблы `PersonaSelectionStep` и `WrapupStep` намеренно оставлены в дереве (и покрыты
- * скриншот-тестами напрямую) — к мастеру они больше не подключены, но готовы вернуться.
+ * The `PersonaSelectionStep` and `WrapupStep` composables are deliberately left in the tree (and covered by
+ * screenshot tests directly) — they are no longer wired into the wizard, but are ready to come back.
  *
- * Индикатор прогресса считается от `entries`, поэтому точки пересчитываются сами.
+ * The progress indicator is computed from `entries`, so the dots recount themselves.
  */
 enum class OnboardingStep {
   LANGUAGE,
@@ -33,7 +34,7 @@ data class OnboardingUiState(
   val isIntroStreaming: Boolean = false,
   val isIntroComplete: Boolean = false,
   val introAlreadyPlayed: Boolean = false,
-  /** Мастер её не спрашивает — уходит в настройки как есть (дефолт либо ранее сохранённая). */
+  /** The wizard does not ask for it — it goes to the settings as is (the default or the one saved earlier). */
   val selectedPersonaId: String = "sharp_partner",
   val aboutMeText: String = "",
   val isExtracting: Boolean = false,
@@ -56,7 +57,7 @@ data class OnboardingUiState(
 
   val primaryButtonLabel: String = when (currentStep) {
     OnboardingStep.LANGUAGE, OnboardingStep.INTRO -> tr("Далее", "Next")
-    // PROFILE теперь последний шаг: эта кнопка и завершает настройку.
+    // PROFILE is the last step now: this button also finishes the setup.
     OnboardingStep.PROFILE -> tr("Готово", "Done")
   }
 }

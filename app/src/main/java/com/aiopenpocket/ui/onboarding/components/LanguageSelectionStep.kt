@@ -78,7 +78,7 @@ fun LanguageSelectionStep(
       } else {
         Modifier
       }
-      // Disabled languages ("Скоро") stay inert — no onClick at all, same as the old
+      // Disabled languages ("Coming soon") stay inert — no onClick at all, same as the old
       // clickable(enabled = lang.enabled).
       val onLanguageClick: (() -> Unit)? = if (lang.enabled) {
         { onSelectLanguage(lang.code) }

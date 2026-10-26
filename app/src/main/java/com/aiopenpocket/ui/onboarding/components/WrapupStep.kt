@@ -48,8 +48,8 @@ fun WrapupStep(
     Text(
       text = "Как работает чат",
       style = MaterialTheme.typography.headlineSmall,
-      // Явный цвет, а не ambient LocalContentColor: без него заголовок наследует near-black
-      // вне корневого Surface (в т.ч. в скриншот-тесте) и тонет.
+      // An explicit color, not the ambient LocalContentColor: without it the heading inherits near-black outside
+      // the root Surface (including in the screenshot test) and drowns.
       color = MaterialTheme.colorScheme.onBackground,
     )
     Text(
@@ -78,7 +78,7 @@ fun WrapupStep(
 
 @Composable
 private fun AssistantBubble(text: String) {
-  // Тема-зависимый акцент: лайм на тёмной, оливка на светлой — читается на обеих подложках.
+  // A theme-dependent accent: lime on dark, olive on light — readable on both backgrounds.
   val accent = MaterialTheme.colorScheme.primary
   val shape = RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomEnd = 16.dp, bottomStart = 16.dp)
   Box(
@@ -86,7 +86,7 @@ private fun AssistantBubble(text: String) {
       .padding(bottom = 10.dp)
       .clip(shape)
       .background(MaterialTheme.colorScheme.surfaceVariant)
-      // Тонкая лаймовая грань отделяет карточку от ауроры — без неё тёмное на тёмном сливается.
+      // A thin lime edge separates the card from the aurora — without it dark on dark merges.
       .border(1.dp, accent.copy(alpha = 0.22f), shape)
       .padding(14.dp),
   ) {
@@ -98,7 +98,7 @@ private fun AssistantBubble(text: String) {
   }
 }
 
-// Ключевые слова (**...**) — лайм-чипы: цвет акцента + лёгкая заливка того же тона (подсветка).
+// Keywords (**...**) become lime chips: the accent color + a light fill of the same tone (a highlight).
 private fun renderChips(raw: String, accent: Color) = androidx.compose.ui.text.buildAnnotatedString {
   var i = 0
   while (i < raw.length) {

@@ -39,7 +39,7 @@ class ConversationsListViewModel(
         _state.update { it.copy(conversations = conversations, isLoading = false) }
       }
     }
-    // Бейджи фоновых ходов: «варится»/«готово»/«ошибка» у диалога в списке.
+    // Background turn badges: "cooking"/"done"/"error" on a conversation in the list.
     viewModelScope.launch {
       turnManager.badges.collect { statuses ->
         _state.update { it.copy(turnStatuses = statuses) }
@@ -52,17 +52,17 @@ class ConversationsListViewModel(
     _state.update { it.copy(selectedTag = if (it.selectedTag == tag) null else tag) }
   }
 
-  /** Защита от повторного тапа «Новый чат»: без неё быстрый двойной тап успевал пройти оба раза
-   *  до того, как первый вызов создаст диалог, и плодил два пустых «Новый чат» подряд. Доступ
-   *  только с главного потока (viewModelScope), поэтому обычного флага достаточно. */
+  /** A guard against a repeated "New chat" tap: without it a quick double tap managed to go through twice
+   *  before the first call created the conversation, spawning two empty "New chat" entries in a row. Accessed
+   *  only from the main thread (viewModelScope), so a plain flag is enough. */
   private var creatingConversation = false
 
   suspend fun createConversation(): String? {
     if (creatingConversation) return null
     creatingConversation = true
     try {
-      // Тап «Новый чат»: переиспользуем уже созданный пустой чат, если пользователь просто открывал
-      // его и не написал ничего, иначе каждый повторный тап плодил бы новый пустой «Новый чат».
+      // A "New chat" tap: reuse an already created empty chat if the user just opened it and wrote nothing,
+      // otherwise every repeated tap would spawn a new empty "New chat".
       conversationRepository.findReusableNewChat()?.let { return it.id }
       val personaId = userPreferencesRepository.getDefaultPersonaId()
       return conversationRepository.createConversation(tr("Новый чат", "New chat"), personaId)
@@ -72,9 +72,9 @@ class ConversationsListViewModel(
   }
 
   fun deleteConversation(id: String) {
-    // Удаление диалога с активным ходом — сперва гасим ход, потом фоновые heartbeat'ы этого диалога
-    // (у них нет FK на conversations, каскад до них не дойдёт — иначе периодическая WorkManager-задача
-    // жила бы вечно), потом удаляем строки БД.
+    // Deleting a conversation with an active turn: first the turn is cancelled, then this conversation's
+    // background heartbeats (they have no FK to conversations, the cascade will not reach them — otherwise a
+    // periodic WorkManager job would live forever), then the DB rows are deleted.
     turnManager.cancel(id)
     viewModelScope.launch {
       conversationHeartbeatCleanup.cancelForConversation(id)
@@ -82,7 +82,7 @@ class ConversationsListViewModel(
     }
   }
 
-  /** Переключает «избранное» для диалога — избранные всплывают в начало списка. */
+  /** Toggles "favorite" for a conversation — favorites rise to the top of the list. */
   fun toggleFavorite(id: String, isFavorite: Boolean) {
     viewModelScope.launch {
       conversationRepository.setFavorite(id, !isFavorite)
