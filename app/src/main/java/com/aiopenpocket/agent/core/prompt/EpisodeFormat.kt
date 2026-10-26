@@ -8,34 +8,34 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 /**
- * Эпизод памяти одной строкой для модели: `[инструмент действие] начало результата`.
+ * A memory episode as one line for the model: `[tool action] start of the result`.
  *
- * Эпизод хранит результат вызова инструмента ЦЕЛИКОМ (чтение файла — до 40 тыс. символов, ответ
- * хранилища — до 100 тыс.), а «Недавние действия» подставляются в КАЖДЫЙ системный промпт диалога.
- * Сырой результат значил, что один прочитанный файл ехал в каждый следующий ход, пока его не вытеснят
- * пять более свежих вызовов. Модели от события нужен сам факт — «будильник уже поставлен», «файл
- * прочитан» — а не содержимое: оно, если понадобится, читается заново. Поэтому обрезаем ПРИ
- * ПОКАЗЕ, а не при записи: в базе остаётся полный след для аудита.
+ * An episode stores the tool call's result WHOLE (a file read — up to 40k characters, a storage answer
+ * — up to 100k), while "Recent actions" are put into EVERY system prompt of the conversation. A raw
+ * result meant one read file rode along in every following turn until five fresher calls pushed it
+ * out. The model needs the fact of the event — "the alarm is already set", "the file was read" — not the
+ * content: if needed, that is read again. So it is cut ON DISPLAY, not on write: the database keeps
+ * the full trace for auditing.
  */
 object EpisodeFormat {
 
-  /** Сколько символов результата показываем модели: хватает на «готово/ошибка + суть». */
+  /** How many characters of the result the model sees: enough for "done/error + the gist". */
   const val OUTCOME_MAX_CHARS = 300
 
   private val WHITESPACE = Regex("\\s+")
 
   fun line(episode: Episode): String = "[${label(episode)}] ${shortOutcome(episode.outcome)}"
 
-  /** Результат в одну строку (переводы строк ломали бы список) и не длиннее [OUTCOME_MAX_CHARS]. */
+  /** The result on one line (line breaks would break the list) and no longer than [OUTCOME_MAX_CHARS]. */
   fun shortOutcome(outcome: String): String {
     val flat = outcome.replace(WHITESPACE, " ").trim()
     return if (flat.length <= OUTCOME_MAX_CHARS) flat else flat.take(OUTCOME_MAX_CHARS).trimEnd() + "…"
   }
 
   /**
-   * Имя инструмента и его `action` из payload эпизода: голый тип `tool_call` модели ничего не
-   * говорит — «что именно сделано» и есть полезная часть события. Нечитаемый payload — не повод
-   * терять строку, тогда метка — просто тип эпизода.
+   * The tool name and its `action` from the episode payload: the bare `tool_call` type tells the model
+   * nothing — "what exactly was done" is the useful part of the event. An unreadable payload is no
+   * reason to lose the line; then the label is just the episode type.
    */
   private fun label(episode: Episode): String {
     val payload = runCatching { Json.parseToJsonElement(episode.payload) as? JsonObject }.getOrNull()

@@ -39,18 +39,19 @@ import dev.zacsweers.metro.SingleIn
 enum class FireOutcome { DONE, RETRY }
 
 /**
- * Логика срабатывания heartbeat'а — отдельно от [HeartbeatWorker], чтобы тестироваться без
- * WorkManager. push — статичный пуш; agent — headless-ход [ReactLoopRunner] с безопасным подмножеством
- * тулз. Пуш и deep-link в диалог переиспользуют [TurnNotifier] (та же инфраструктура, что у фоновых
- * ходов); agent-ход (с задачей или «пульс» без неё) молчит, если агент ответил HEARTBEAT_OK.
+ * The logic of a heartbeat firing — separate from [HeartbeatWorker] so it can be tested without
+ * WorkManager. push is a static push; agent is a headless [ReactLoopRunner] turn with a safe subset of
+ * tools. The push and the deep link into the conversation reuse [TurnNotifier] (the same infrastructure
+ * as background turns); an agent turn (with a task or a "pulse" without one) stays silent if the agent
+ * answered HEARTBEAT_OK.
  *
- * Agent-режим, привязанный к preset/custom агенту (Task 22, `user-agent-builder-848153`): бежит
- * только для уже РЕЗОЛВЛЕННОГО и `[com.aiopenpocket.agent.core.agent.AgentDefinition.enabled]`
- * снапшота — архивированный/удалённый агент тихо Skip'ается, а не падает и не исполняется от чужого
- * имени. Инструменты — пересечение `AgentDefinition.toolNames` агента с [SAFE_TOOL_NAMES] (никогда
- * полный safe-набор, если у агента своя более узкая область), а сам ход обёрнут в
- * [TurnContextHolder], чтобы MemoryTools/FileTools внутри хода писали в namespace/песочницу ИМЕННО
- * этого агента, а не в общий/чужой.
+ * Agent mode bound to a preset/custom agent (Task 22, `user-agent-builder-848153`): it runs only for an
+ * already RESOLVED and `[com.aiopenpocket.agent.core.agent.AgentDefinition.enabled]` snapshot — an
+ * archived/deleted agent is quietly skipped, instead of failing or running under someone else's name.
+ * The tools are the intersection of the agent's `AgentDefinition.toolNames` with [SAFE_TOOL_NAMES]
+ * (never the full safe set if the agent has a narrower scope of its own), and the turn itself is
+ * wrapped in [TurnContextHolder] so that MemoryTools/FileTools inside it write to THIS agent's
+ * namespace/sandbox, not a shared or someone else's one.
  *
  * ## Typed plan-step heartbeats (Task 11 of the Structured Plan Engine)
  *
@@ -58,8 +59,8 @@ enum class FireOutcome { DONE, RETRY }
  * row [com.aiopenpocket.agent.core.plan.schedule.PlanScheduler] created) is routed to [firePlanStep]
  * instead of the generic push/agent dispatch below — design spec
  * `2026-07-12-structured-plan-engine-design.md` section 12.1: "HeartbeatWorker → HeartbeatRunner →
- * проверить agent и approved plan version → PlanRunner.resume(planId, stepId) → PlanExecutor →
- * PlanVerifier → progress/evidence → reschedule или terminal notification". This never runs an
+ * check the agent and the approved plan version → PlanRunner.resume(planId, stepId) → PlanExecutor →
+ * PlanVerifier → progress/evidence → reschedule or terminal notification". This never runs an
  * infinite foreground loop — one fire advances [planRunner] by at most one step (the default
  * `PlanRunBudget.maxStepsPerRun = 1`) and always finishes with [FireOutcome.DONE]; the NEXT due step
  * (if any) is a freshly re-armed heartbeat from [planScheduleSync], never a WorkManager retry of THIS
@@ -78,9 +79,9 @@ class HeartbeatRunner(
   private val planRepository: PlanRepository,
   private val planRunner: PlanRunner,
   private val planScheduleSync: PlanScheduleSync,
-  // Фоновый ход идёт к тому же вендору, что и обычный: раньше здесь стоял литерал LlmProvider.NIM,
-  // и после переключения на OpenRouter пользователь получал напоминалки, которые молча падают на
-  // пустом NIM-ключе (или уходят к вендору, от которого он ушёл осознанно).
+  // A background turn goes to the same vendor as a normal one: there used to be a literal
+  // LlmProvider.NIM here, and after switching to OpenRouter the user got reminders that silently failed
+  // on an empty NIM key (or went to the vendor they had deliberately left).
   private val selectedProvider: SelectedLlmProvider,
 ) {
 
@@ -100,9 +101,10 @@ class HeartbeatRunner(
   }
 
   private suspend fun firePush(hb: HeartbeatEntity): FireOutcome {
-    // Пуш с deep-link в диалог — через общий TurnNotifier (заголовок = имя напоминания, тап → тот же
-    // чат). Без POST_NOTIFICATIONS showAgentNotification внутри молча вернёт false; всё равно fired —
-    // напоминание отработало, отсутствие разрешения это вопрос настроек, а не сбой heartbeat'а.
+    // A push with a deep link into the conversation — through the shared TurnNotifier (title = the
+    // reminder's name, tap → the same chat). Without POST_NOTIFICATIONS showAgentNotification silently
+    // returns false inside; it still counts as fired — the reminder worked, and the missing permission
+    // is a settings matter, not a heartbeat failure.
     turnNotifier.turnFinished(hb.conversationId, hb.title, hb.message.orEmpty(), failed = false)
     record(hb, ok = true, result = hb.message)
     return FireOutcome.DONE
@@ -123,14 +125,16 @@ class HeartbeatRunner(
       append(agent?.systemPrompt ?: "Ты — полезный ассистент AI Open Pocket.")
       append("\n\nСейчас ты работаешь В ФОНЕ по плановому heartbeat — юзер тебя не вызывал. ")
       append("Отвечай кратко и по делу: твой ответ уйдёт сообщением в чат и пушем.")
-      // Право промолчать — для ЛЮБОГО фонового хода, не только «пульса» без задачи: раньше с задачей
-      // агент обязан был что-то написать, и «реши сам, стоит ли беспокоить» не работало вовсе.
-      // Оговорка про напоминания — чтобы «напомни выпить воды» не съедалось как «нечего сообщить».
+      // The right to stay silent — for ANY background turn, not only a "pulse" without a task: with a task
+      // the agent used to be obliged to write something, and "decide yourself whether to bother the
+      // user" did not work at all. The note about reminders is there so "remind me to drink water" is
+      // not swallowed as "nothing to report".
       append("\nЕсли сообщать нечего — ответь ровно $HEARTBEAT_OK: тогда юзер ничего не получит. ")
       append("Напоминание, о котором тебя просили, — это всегда «есть что сообщить».")
-      // Та же секция «Сейчас», что у чата (PrePromptAssembler) и плана: без неё фоновый ход не знает,
-      // который час, — ни «в 19:00» в задаче, ни «сегодня/через час» не пересчитать во время
-      // (calendar.start в Unix-мс, задержки), и «что важно прямо сейчас» в пульсе решается вслепую.
+      // The same "Now" section as the chat (PrePromptAssembler) and the plan have: without it a background
+      // turn does not know what time it is — it can neither convert "at 19:00" in the task nor
+      // "today/in an hour" into a time (calendar.start in Unix ms, delays), and "what matters right now"
+      // in a pulse is decided blindly.
       append("\n\n")
       append(CurrentMoment.section(System.currentTimeMillis()))
     }
@@ -162,7 +166,7 @@ class HeartbeatRunner(
       reactLoopRunner.run(
         hb.conversationId, messages, tools, selectedProvider(), BG_MAX_ITERATIONS, agent,
         interactiveApproval = false,
-      ) { /* фон: стриминг некому показывать */ }
+      ) { /* background: nobody to show the stream to */ }
     }
 
     if (result.state == AgentState.ERROR) {
@@ -173,7 +177,7 @@ class HeartbeatRunner(
     }
 
     val text = result.text.trim()
-    // HEARTBEAT_OK = агенту нечего сказать — полная тишина, с задачей или без (см. системный промпт).
+    // HEARTBEAT_OK = the agent has nothing to say — complete silence, with or without a task (see the system prompt).
     if (text.contains(HEARTBEAT_OK)) {
       record(hb, ok = true, result = null)
       return FireOutcome.DONE
@@ -201,7 +205,7 @@ class HeartbeatRunner(
    *   row when the plan left ACTIVE, but a WorkManager job already in flight when that cancel ran is
    *   a real race this check defends against);
    * - the plan's CURRENT approved version still matches [target]'s ([PLAN_VERSION_STALE] — design
-   *   spec section 12.1: "Если версия больше не approved, heartbeat не запускает старый шаг");
+   *   spec section 12.1: "If the version is no longer approved, the heartbeat does not run the old step");
    * - the bound agent (if any) still exists and is enabled — reuses [resolveGuardedAgent], the EXACT
    *   same Task 22 guard [fireAgent] uses, rather than a second copy of that check.
    *
@@ -230,8 +234,8 @@ class HeartbeatRunner(
         provider = selectedProvider(),
       )
     } catch (e: CancellationException) {
-      // CancellationException — наследник IllegalStateException: без этой ветки остановка воркера
-      // проглатывалась бы ниже и записывалась как «состояние изменилось».
+      // CancellationException extends IllegalStateException: without this branch stopping the worker would
+      // be swallowed below and recorded as "the state changed".
       throw e
     } catch (e: IllegalStateException) {
       Log.w(TAG, "heartbeat ${hb.id} plan step '${target.stepId}' attempt=$attempt refused: ${e.message}")
@@ -246,7 +250,7 @@ class HeartbeatRunner(
 
   /**
    * Records/notifies/reschedules after [firePlanStep] resumes one step (design spec section 12.1:
-   * "progress/evidence → reschedule или terminal notification"). Always returns [FireOutcome.DONE] —
+   * "progress/evidence → reschedule or terminal notification"). Always returns [FireOutcome.DONE] —
    * NEVER [FireOutcome.RETRY] — for every [PlanRunOutcome]: `PlanExecutor`/`PlanRunBudget` already own
    * the per-step retry budget, so a WorkManager-level retry here would be a second, conflicting retry
    * mechanism layered on top of that one. The next attempt (if the plan stays ACTIVE) is a freshly
@@ -263,11 +267,11 @@ class HeartbeatRunner(
    * [turnNotifier] tells them a plan step needs attention rather than failing silently forever.
    */
   private suspend fun handlePlanRunResult(hb: HeartbeatEntity, target: PlanHeartbeatTarget, result: PlanRunResult): FireOutcome {
-    // Ответ шага — в чат плана при ЛЮБОМ исходе, до пуша (тап по пушу должен открыть уже готовый
-    // ответ). Раньше фоновый путь не писал в чат ничего: после «Одобрить» план выполнялся здесь,
-    // карточка показывала «все шаги выполнены», а сам результат (меню, подборка) не сохранялся нигде.
-    // Сбой записи (диалог удалили прямо во время шага) не должен сорвать record/пересинхронизацию
-    // ниже: без sync следующий шаг плана так и не встал бы в расписание.
+    // The step's answer goes to the plan's chat on ANY outcome, before the push (tapping the push must
+    // open an already written answer). The background path used to write nothing to the chat: after
+    // "Approve" the plan ran here, the card said "all steps done", and the result itself (a menu, a
+    // selection) was saved nowhere. A write failure (the conversation was deleted mid-step) must not
+    // break the record/resync below: without the sync the plan's next step would never be scheduled.
     try {
       persistPlanStepOutputs(result.stepOutputs) { text, card ->
         conversationRepository.addMessage(hb.conversationId, "assistant", text, cardSpec = card)
@@ -296,8 +300,8 @@ class HeartbeatRunner(
         val after = planRepository.snapshot(target.planId)
         val stepBlocked = after?.stepStates?.find { it.stepId == target.stepId }?.status == StepStatus.BLOCKED
         if (stepBlocked) {
-          // blockedReason уже полная русская фраза с названием шага («Шаг «…» ждёт твоего решения…»):
-          // префикс «Шаг плана требует внимания:» дублировал бы её.
+          // blockedReason is already a full sentence with the step's title ('Step "…" is waiting for your
+          // decision…'): a "Plan step needs attention:" prefix would duplicate it.
           turnNotifier.turnFinished(hb.conversationId, hb.title, result.blockedReason ?: "Шаг плана требует внимания.", failed = false)
         }
         record(hb, ok = true, result = result.blockedReason)
@@ -351,7 +355,7 @@ class HeartbeatRunner(
   private suspend fun record(hb: HeartbeatEntity, ok: Boolean, result: String?) {
     val status = when {
       !ok -> "error"
-      hb.kind == "periodic" -> "scheduled" // периодика живёт дальше
+      hb.kind == "periodic" -> "scheduled" // a periodic one lives on
       else -> "fired"
     }
     heartbeatDao.recordRun(hb.id, status, System.currentTimeMillis(), result)
@@ -362,22 +366,23 @@ class HeartbeatRunner(
     const val BG_MAX_ITERATIONS = 5
     const val MAX_ATTEMPTS = 3
     /**
-     * Чтение + уведомления + storage_tool (per-agent изолирован в коде через TurnContextHolder — так
-     * же безопасен в фоне, как memory_tool) + srs_tool (локальная запись карточек в Room, как
-     * memory_tool; без него фоновые напоминания «Репетитора» не могли ни показать, ни отметить
-     * повторение). Исключены: email/файлы/alarm/сам heartbeat (самовоспроизводство)/render_card.
+     * Reading + notifications + storage_tool (isolated per agent in code through TurnContextHolder —
+     * as safe in the background as memory_tool) + srs_tool (a local write of cards to Room, like
+     * memory_tool; without it the "Tutor" background reminders could neither show nor mark a review).
+     * Excluded: email/files/alarm/heartbeat itself (self-replication)/render_card.
      *
-     * В фоне из этих тулов реально работают только действия READ и WRITE. calendar.delete_event и
-     * storage_tool.delete — DESTRUCTIVE: по полу [com.aiopenpocket.agent.core.policy.ExecutionPolicy]
-     * им нужно «Разрешить» от человека, а фоновый ход (`interactiveApproval = false`) спросить некого —
-     * ReactLoopRunner отказывает сразу, ничего не удаляя. Тулы в наборе оставлены ради их чтения и
-     * записи (список событий, создание события, заметки агента), не ради удаления.
+     * In the background only the READ and WRITE actions of these tools actually work.
+     * calendar.delete_event and storage_tool.delete are DESTRUCTIVE: by the
+     * [com.aiopenpocket.agent.core.policy.ExecutionPolicy] floor they need a human "Allow", and a
+     * background turn (`interactiveApproval = false`) has nobody to ask — ReactLoopRunner refuses right
+     * away, deleting nothing. The tools are in the set for their reading and writing (listing events,
+     * creating an event, the agent's notes), not for deleting.
      */
     val SAFE_TOOL_NAMES = setOf(
       "memory_tool", "database_query", "calendar", "step_counter", "notifications", "storage_tool", "srs_tool",
     )
 
-    /** Маркер «сообщать нечего»: такой ответ фонового agent-хода не пишется в чат и не пушится. */
+    /** The "nothing to report" marker: such an answer of a background agent turn is neither written to the chat nor pushed. */
     const val HEARTBEAT_OK = "HEARTBEAT_OK"
     val PULSE_PROMPT = """
       Это плановый heartbeat. Посмотри доступные данные (память, базу) и реши: есть ли

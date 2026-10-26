@@ -41,10 +41,10 @@ object ContextWindowBuilder {
   }
 
   /**
-   * То же промпт-окно, но из уже готовых частей (head/tail/счётчик из лимитированных SQL-выборок,
-   * см. ConversationRepository.getPromptWindowParts) — без загрузки всей истории в память.
-   * Части считаются уже отфильтрованными от пустых карточек. Когда диалог целиком помещается в
-   * head+tail, вся история приходит в [head], а [tail] пуст.
+   * The same prompt window, but from ready-made parts (head/tail/count from limited SQL queries, see
+   * ConversationRepository.getPromptWindowParts) — without loading the whole history into memory.
+   * The parts are considered already filtered of empty cards. When the whole conversation fits into
+   * head+tail, the entire history comes in [head], and [tail] is empty.
    */
   fun buildFromParts(
     head: List<Message>,
@@ -58,14 +58,15 @@ object ContextWindowBuilder {
       return Window(emptyList(), hasMiddleGap = false, middleMessageCount = 0)
     }
     val verbatim = (head + tail).map { it.toPromptMessage() }
-    // Бюджет токенов — ВСЕГДА, а не только когда диалог длиннее head+tail. Раньше короткий диалог
-    // (≤ 48 реплик) уходил целиком без проверки: пара вставленных простыней текста — и запрос
-    // превышал окно модели, провайдер отвечал 400, а пользователь видел «нет сети».
+    // The token budget applies ALWAYS, not only when the conversation is longer than head+tail. A short
+    // conversation (≤ 48 messages) used to go out whole without a check: a couple of pasted walls of
+    // text — and the request exceeded the model's window, the provider answered 400, and the user saw
+    // "no network".
     val kept = trimVerbatimToTokenBudget(verbatim, budgetTokens, headCount)
     val dropped = verbatim.size - kept.size
     val skipped = (totalPromptable - headCount - tailCount).coerceAtLeast(0)
-    // Выброшенные бюджетом реплики — тоже «середина», о которой модель должна знать: иначе она
-    // считает, что видит разговор целиком.
+    // Messages dropped by the budget are also a "middle" the model must know about: otherwise it thinks it
+    // sees the whole conversation.
     val middleCount = skipped + dropped
     return Window(
       verbatim = kept,
@@ -83,9 +84,9 @@ object ContextWindowBuilder {
     PrePromptAssembler.PromptMessage(role, contentForModel(), toolCallsJson)
 
   /**
-   * Ответ рефлексии хранится целиком — черновик, критика, итог: чат рисует все три фазы. Модели в
-   * следующих ходах нужен только итог; черновик с критикой утраивали бы сообщение в контексте и
-   * подсовывали бы отвергнутый вариант как сказанное.
+   * A reflection answer is stored whole — draft, critique, result: the chat renders all three phases.
+   * The model needs only the result in later turns; the draft with the critique would triple the
+   * message in the context and pass off a rejected variant as something that was said.
    */
   private fun Message.contentForModel(): String =
     if (role == "assistant" && content.contains(REFLECTION_FINAL_HEADING)) {
@@ -95,19 +96,19 @@ object ContextWindowBuilder {
     }
 
   /**
-   * Обрезает окно под [budgetTokens], выбрасывая реплики в порядке «чем меньше нужна, тем раньше»:
+   * Trims the window to [budgetTokens], dropping messages in "the less needed, the earlier" order:
    *
-   * 1. старая часть хвоста — между началом диалога и последними [protectedRecent] репликами,
-   *    от старых к новым;
-   * 2. начало диалога ([headCount] первых реплик) — с конца, так что первое сообщение (тема)
-   *    уходит последним из начала;
-   * 3. последние [protectedRecent] реплики, от старых к новым;
-   * 4. самую последнюю реплику — НИКОГДА: это текущее сообщение пользователя, без него ход теряет
-   *    смысл. Если она одна больше бюджета — уходит как есть (пусть лучше откажет провайдер, чем
-   *    модель ответит на пустоту).
+   * 1. the old part of the tail — between the start of the conversation and the last [protectedRecent]
+   *    messages, from old to new;
+   * 2. the start of the conversation (the first [headCount] messages) — from its end, so the very first
+   *    message (the topic) is the last of the head to go;
+   * 3. the last [protectedRecent] messages, from old to new;
+   * 4. the very last message — NEVER: it is the user's current message, and without it the turn loses
+   *    its meaning. If it alone is over the budget, it goes as is (better the provider refuses than the
+   *    model answers nothing).
    *
-   * Прежний алгоритм, обрезав хвост до «начало + одна реплика», следующим шагом выбрасывал именно
-   * эту одну — текущий вопрос, — сохраняя восемь реплик приветствия.
+   * The old algorithm, having trimmed the tail down to "head + one message", dropped exactly that one
+   * next — the current question — while keeping eight greeting messages.
    */
   internal fun trimVerbatimToTokenBudget(
     verbatim: List<PrePromptAssembler.PromptMessage>,
@@ -126,10 +127,10 @@ object ContextWindowBuilder {
 
     val last = verbatim.lastIndex
     val recentStart = maxOf(0, verbatim.size - protectedRecent)
-    val headEnd = minOf(headCount, recentStart) // голова — только то, что не входит в защищённый хвост
-    val dropOrder = (headEnd until recentStart) + // 1. старая часть хвоста
-      (headEnd - 1 downTo 0) + // 2. начало диалога, с конца
-      (recentStart until last) // 3. недавние, кроме самой последней
+    val headEnd = minOf(headCount, recentStart) // the head — only what is not part of the protected tail
+    val dropOrder = (headEnd until recentStart) + // 1. the old part of the tail
+      (headEnd - 1 downTo 0) + // 2. the start of the conversation, from its end
+      (recentStart until last) // 3. the recent ones, except the very last
     val dropped = HashSet<Int>()
     for (index in dropOrder) {
       if (total <= budgetTokens) break
@@ -141,8 +142,8 @@ object ContextWindowBuilder {
 }
 
 /**
- * Заголовок финальной части сохранённого ответа рефлексии (черновик + критика + итог). Живёт здесь, а не
- * в ReflectionOrchestrator: сборщику истории (слой prompt) нельзя зависеть от оркестраторов (слой loop),
- * а оркестратор ссылается на эту константу.
+ * Heading of the final part of a saved reflection answer (draft + critique + result). It lives here, not
+ * in ReflectionOrchestrator: the history builder (the prompt layer) must not depend on orchestrators
+ * (the loop layer), and the orchestrator references this constant.
  */
 const val REFLECTION_FINAL_HEADING = "\n\n---\n\n✨ **Итог**\n"

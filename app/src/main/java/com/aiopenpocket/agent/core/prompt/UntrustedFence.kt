@@ -3,41 +3,41 @@ package com.aiopenpocket.agent.core.prompt
 // @trace user-agent-builder-848153
 
 /**
- * Тэговый конверт вокруг недоверенных данных — и, что здесь единственно важно, обезвреживание таких
- * тэгов ВНУТРИ самих данных.
+ * A tag envelope around untrusted data — and, which is all that matters here, neutralizing such tags
+ * INSIDE the data itself.
  *
- * Промпт отделяет данные от инструкций тэгом (`<user_data>`, `<tool_output>`) и говорит модели, что
- * внутри — данные, а не команды. Держится это ровно до момента, когда содержимое само содержит
- * закрывающий тэг: текст после него читается уже как часть доверенной зоны.
+ * The prompt separates data from instructions with a tag (`<user_data>`, `<tool_output>`) and tells the
+ * model that what is inside is data, not commands. That holds exactly until the content itself contains
+ * the closing tag: the text after it is read as part of the trusted zone.
  *
- * Содержимое туда приходит извне (файлы, календарь) и — важнее — ОТМЫВАЕТСЯ через память: модель
- * прочитала недоверенный текст и сохранила его через `remember_fact`, после чего он подставляется в
- * системный промпт уже в качестве «факта пользователя».
+ * The content comes from outside (files, the calendar) and — more importantly — gets LAUNDERED through
+ * memory: the model read untrusted text and saved it with `remember_fact`, after which it is put into
+ * the system prompt as a "user fact".
  *
- * Обезвреживание жило только в [com.aiopenpocket.agent.loop.ReactLoopRunner] для `<tool_output>`;
- * `<user_data>` в [PrePromptAssembler] и в
- * [com.aiopenpocket.agent.core.plan.planner.PlanPromptBuilder] подставлялся сырьём. Общая точка
- * нужна именно поэтому: инвариант один, а мест, которые обязаны его соблюдать, несколько, и
- * расхождение между ними — это и есть дыра.
+ * Neutralization used to live only in [com.aiopenpocket.agent.loop.ReactLoopRunner] for `<tool_output>`;
+ * `<user_data>` in [PrePromptAssembler] and in
+ * [com.aiopenpocket.agent.core.plan.planner.PlanPromptBuilder] was inserted raw. That is exactly why a
+ * shared point is needed: there is one invariant, several places that must keep it, and a mismatch
+ * between them is the hole.
  */
 object UntrustedFence {
 
   /**
-   * [raw] с обезвреженными вхождениями `<tag`/`</tag`: они превращаются в `<_tag`/`</_tag`, поэтому
-   * закрыть или переоткрыть конверт изнутри нельзя. Регистр не важен — модель одинаково поймёт и
-   * `</USER_DATA>`.
+   * [raw] with occurrences of `<tag`/`</tag` neutralized: they become `<_tag`/`</_tag`, so the envelope
+   * cannot be closed or reopened from inside. Case does not matter — the model would understand
+   * `</USER_DATA>` just as well.
    *
-   * Текст ВОКРУГ тэга сохраняется: цель — обезоружить разметку, а не вырезать данные (факт всё ещё
-   * должен быть читаемым, иначе обезвреживание само по себе становится потерей памяти).
+   * The text AROUND the tag is kept: the goal is to disarm the markup, not to cut out data (the fact
+   * must still be readable, otherwise neutralization itself becomes memory loss).
    */
   fun neutralize(tag: String, raw: String): String =
     Regex("(?i)<(/?)${Regex.escape(tag)}").replace(raw) { m -> "<${m.groupValues[1]}_$tag" }
 
   /**
-   * [body] в конверте `<tag …>` / `</tag>`. [body] обязан быть уже пропущен через [neutralize] —
-   * функция сознательно не делает этого сама: вызывающий часто собирает тело из НЕСКОЛЬКИХ кусков
-   * (профиль, факты, эпизоды), каждый из которых обезвреживается на своём месте, а обезвреживание
-   * готовой склейки задним числом испортило бы уже добавленную вокруг разметку.
+   * [body] in a `<tag …>` / `</tag>` envelope. [body] must already have gone through [neutralize] — the
+   * function deliberately does not do it itself: the caller often assembles the body from SEVERAL pieces
+   * (profile, facts, episodes), each neutralized in its own place, and neutralizing the finished whole
+   * after the fact would spoil the markup already added around them.
    */
   fun wrap(tag: String, body: String, attributes: String = ""): String {
     val open = if (attributes.isBlank()) "<$tag>" else "<$tag $attributes>"

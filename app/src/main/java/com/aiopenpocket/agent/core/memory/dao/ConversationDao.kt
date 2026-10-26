@@ -13,12 +13,12 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ConversationDao {
   /**
-   * Все диалоги для списка чатов и графа памяти. Избранные — всегда в начале, дальше по свежести.
+   * All conversations for the chat list and the memory graph. Favorites always come first, then by
+   * freshness.
    *
-   * Тестовые диалоги конструктора (`ConversationRepository.BUILDER_TEST_TAG`) исключены: это
-   * черновое пространство, а не чат, который пользователь заводил. Обычно его убирает сам
-   * конструктор при закрытии, но если не успел (процесс убит посреди теста), «Тест агента»
-   * оставался в списке навсегда.
+   * The builder's test conversations (`ConversationRepository.BUILDER_TEST_TAG`) are excluded: that is
+   * scratch space, not a chat the user started. Normally the builder removes it on close, but if it did
+   * not manage to (the process was killed mid-test), "Agent test" stayed in the list forever.
    */
   @Query(
     "SELECT * FROM conversations " +
@@ -32,10 +32,10 @@ interface ConversationDao {
   suspend fun getById(id: String): ConversationEntity?
 
   /**
-   * Самый свежий чат, привязанный к мини-агенту [agentId]. Служебные диалоги (сейчас — тестовый чат
-   * конструктора, см. `ConversationRepository.BUILDER_TEST_TAG`) исключаются: они тоже привязаны к
-   * agentId, и без фильтра «Открыть чат» у только что собранного агента мог попасть в черновой
-   * тестовый диалог с его же тестовыми сообщениями.
+   * The freshest chat bound to the mini-agent [agentId]. System conversations (currently the builder's
+   * test chat, see `ConversationRepository.BUILDER_TEST_TAG`) are excluded: they are bound to the
+   * agentId too, and without the filter "Open chat" on a freshly built agent could land in the scratch
+   * test conversation with its own test messages.
    */
   @Query(
     "SELECT * FROM conversations WHERE agentId = :agentId " +
@@ -44,11 +44,11 @@ interface ConversationDao {
   )
   suspend fun findLatestByAgent(agentId: String, excludedTag: String): ConversationEntity?
 
-  /** Самый свежий обычный (не агентный, не туториал) чат — кандидат на переиспользование. */
+  /** The freshest plain (not an agent's, not a tutorial) chat — a candidate for reuse. */
   @Query("SELECT * FROM conversations WHERE agentId IS NULL AND isTutorial = 0 ORDER BY createdAt DESC LIMIT 1")
   suspend fun findLatestReusableNewChat(): ConversationEntity?
 
-  /** Существующий чат урока [title] (Roadmap/Library переиспользуют его вместо нового). */
+  /** The existing chat of lesson [title] (Roadmap/Library reuse it instead of creating a new one). */
   @Query("SELECT * FROM conversations WHERE title = :title AND isTutorial = 1 ORDER BY updatedAt DESC LIMIT 1")
   suspend fun findLatestTutorialByTitle(title: String): ConversationEntity?
 
@@ -61,16 +61,16 @@ interface ConversationDao {
   @Query("UPDATE conversations SET summary = :summary, updatedAt = :updatedAt WHERE id = :id")
   suspend fun updateSummary(id: String, summary: String, updatedAt: Long = System.currentTimeMillis())
 
-  /** Поднимает updatedAt диалога — вызывается при добавлении сообщения, чтобы порядок и «свежесть»
-   *  отражали реальную активность, а не только время создания/аннотации. */
+  /** Bumps the conversation's updatedAt — called when a message is added, so the order and "freshness"
+   *  reflect real activity, not only the creation/annotation time. */
   @Query("UPDATE conversations SET updatedAt = :updatedAt WHERE id = :id")
   suspend fun touch(id: String, updatedAt: Long = System.currentTimeMillis())
 
-  /** Переключает «избранное». updatedAt не трогаем: избранное — не активность, лишь закрепление. */
+  /** Toggles "favorite". updatedAt is not touched: a favorite is not activity, just pinning. */
   @Query("UPDATE conversations SET isFavorite = :favorite WHERE id = :id")
   suspend fun setFavorite(id: String, favorite: Boolean)
 
-  /** Персистит курсор урока. updatedAt не трогаем: продвижение шага — не «активность диалога». */
+  /** Persists the lesson cursor. updatedAt is not touched: advancing a step is not "conversation activity". */
   @Query("UPDATE conversations SET lessonStepIndex = :stepIndex, lessonFinished = :finished WHERE id = :id")
   suspend fun updateLessonCursor(id: String, stepIndex: Int, finished: Boolean)
 

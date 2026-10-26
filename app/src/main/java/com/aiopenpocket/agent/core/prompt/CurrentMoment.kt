@@ -9,23 +9,23 @@ import java.util.Locale
 import java.util.TimeZone
 
 /**
- * Секция «Сейчас» для системных промптов — одна на все: чат ([PrePromptAssembler]), планировщик
- * ([com.aiopenpocket.agent.core.plan.planner.PlanPromptBuilder]) и исполнитель шага плана
+ * The "Now" section for system prompts — one for all of them: the chat ([PrePromptAssembler]), the
+ * planner ([com.aiopenpocket.agent.core.plan.planner.PlanPromptBuilder]) and the plan step executor
  * ([com.aiopenpocket.agent.core.plan.execution.PlanExecutor]).
  *
- * Без текущего момента модель не может перевести «в 19:00» или «в пятницу» в задержку или дату: в
- * чате из-за этого любое «напомни» уходило в будильник (у него абсолютное время, у heartbeat —
- * относительное), а планировщик и шаг плана ставили расписание наугад. Формат — общий, иначе чат и
- * план понимали бы «сейчас» по-разному.
+ * Without the current moment the model cannot turn "at 19:00" or "on Friday" into a delay or a date: in
+ * the chat that made every "remind me" go to the alarm (it takes absolute time, heartbeat takes relative
+ * time), and the planner and plan steps scheduled at random. The format is shared, otherwise the chat
+ * and the plan would understand "now" differently.
  */
 object CurrentMoment {
 
   /**
-   * «Пятница, 25 июля 2026, 14:37 (Europe/Moscow, UTC+3).»
+   * «Пятница, 25 июля 2026, 14:37 (Europe/Moscow, UTC+3).» (Friday, July 25, 2026, 14:37 …)
    *
-   * День недели и год здесь не для красоты: без дня недели модель не разберёт «в пятницу», без года
-   * и месяца — «через 3 дня» на стыке месяцев, без пояса — любую абсолютную договорённость. Локаль
-   * жёстко русская, как и весь остальной промпт.
+   * The weekday and the year are not for looks: without the weekday the model cannot work out "on
+   * Friday", without the year and month — "in 3 days" across a month boundary, without the time zone —
+   * any absolute arrangement. The locale is hard-coded Russian, like the rest of the prompt.
    */
   fun format(nowMillis: Long, zone: TimeZone = TimeZone.getDefault()): String {
     val now = Date(nowMillis)
@@ -44,9 +44,8 @@ object CurrentMoment {
   }
 
   /**
-   * Готовая секция с заголовком: момент + правило «считай от него сам». Доверенная зона — её
-   * подставляет приложение, а не пользователь, поэтому вызывающие ставят её ВЫШЕ любых конвертов
-   * недоверенных данных.
+   * The ready section with a heading: the moment + the rule "count from it yourself". The trusted zone —
+   * the app puts it in, not the user, so callers place it ABOVE any envelopes of untrusted data.
    */
   fun section(nowMillis: Long, zone: TimeZone = TimeZone.getDefault()): String = buildString {
     appendLine("## Сейчас")

@@ -7,9 +7,8 @@ import android.service.voice.VoiceInteractionSession
 import android.service.voice.VoiceInteractionSessionService
 
 /**
- * Фабрика сессий помощника. Система биндит этот сервис и просит создать
- * сессию каждый раз, когда пользователь вызывает помощника
- * (долгое нажатие home, жест, кнопка питания и т.д.).
+ * The factory of assistant sessions. The system binds this service and asks it to create a session every
+ * time the user invokes the assistant (a long press on home, a gesture, the power button, etc.).
  */
 class AssistSessionService : VoiceInteractionSessionService() {
     override fun onNewSession(args: Bundle?): VoiceInteractionSession =

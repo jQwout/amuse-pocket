@@ -18,7 +18,7 @@ interface HeartbeatDao {
   @Query("SELECT * FROM heartbeats WHERE id = :id")
   suspend fun getById(id: String): HeartbeatEntity?
 
-  /** Живая карточка в чате подписывается на эту строку. */
+  /** The live card in the chat subscribes to this row. */
   @Query("SELECT * FROM heartbeats WHERE id = :id")
   fun observe(id: String): Flow<HeartbeatEntity?>
 
@@ -52,9 +52,9 @@ interface HeartbeatDao {
   @Query("UPDATE heartbeats SET status = :status WHERE id = :id")
   suspend fun setStatus(id: String, status: String)
 
-  // Не воскрешаем отменённую запись: если cancel() выставил 'cancelled', пока agent-ход выполнялся,
-  // record() по завершении не должен вернуть строку в 'scheduled'/'fired' (иначе фантом в списке
-  // активных и вечное «Ждёт» на карточке при уже отменённой WorkManager-задаче).
+  // A cancelled record is not resurrected: if cancel() set 'cancelled' while an agent turn was running,
+  // record() on completion must not bring the row back to 'scheduled'/'fired' (otherwise a phantom in the
+  // active list and an eternal "Waiting" on the card while the WorkManager job is already cancelled).
   @Query(
     "UPDATE heartbeats SET status = :status, lastRunAt = :lastRunAt, lastResult = :lastResult " +
       "WHERE id = :id AND status != 'cancelled'",

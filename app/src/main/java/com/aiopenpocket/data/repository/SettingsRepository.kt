@@ -13,13 +13,13 @@ import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
 
 /**
- * Ключи провайдеров (OpenRouter и Meta Model API) и выбор модели.
+ * Provider keys (OpenRouter and Meta Model API) and the model choice.
  *
- * Интерфейс (реализация — [EncryptedSettingsRepository]) не ради «абстракции на будущее», а потому
- * что единственная реализация принципиально не создаётся в юнит-тесте: она поднимает Android
- * Keystore, а в Robolectric его нет — `KeyStoreException: AndroidKeyStore not found` прилетает при
- * первом же обращении к prefs. Пока это был финальный класс, весь SettingsViewModel не мог быть
- * покрыт ни одним тестом.
+ * An interface (the implementation is [EncryptedSettingsRepository]) not for the sake of an
+ * "abstraction for the future", but because the only implementation fundamentally cannot be created
+ * in a unit test: it brings up the Android Keystore, and Robolectric has none — `KeyStoreException:
+ * AndroidKeyStore not found` comes on the very first access to the prefs. While this was a final class,
+ * not a single test could cover SettingsViewModel.
  */
 interface SettingsRepository {
 
@@ -28,12 +28,12 @@ interface SettingsRepository {
   fun setApiKey(provider: String, key: String)
 
   /**
-   * Конкретная модель Meta на маршруте [provider] (`LlmProvider.name`). "AUTO" — идти по priority из
-   * каталога.
+   * The specific Meta model on route [provider] (`LlmProvider.name`). "AUTO" — go by priority from the
+   * catalog.
    *
-   * У каждого маршрута свой выбор: id одной и той же модели у OpenRouter и у прямого Meta Model API
-   * разные («meta/muse-wonder» и «muse-wonder-1.0»). Общий выбор при вводе ключа Meta либо молча
-   * терялся бы, либо показывал бы в Настройках модель, которой цепочка не знает.
+   * Each route has its own choice: the same model has different ids on OpenRouter and on the direct
+   * Meta Model API ("meta/muse-wonder" and "muse-wonder-1.0"). A shared choice would either be silently
+   * lost when a Meta key is entered, or show a model in Settings the chain does not know.
    */
   fun getSelectedModel(provider: String = "OPENROUTER"): String
 
@@ -41,13 +41,13 @@ interface SettingsRepository {
 
   companion object {
     /**
-     * Имя файла EncryptedSharedPreferences. Константа, потому что оно дословно повторено в
-     * `res/xml/backup_rules.xml` и `res/xml/data_extraction_rules.xml` — файл ОБЯЗАН быть исключён из
-     * бэкапа: он зашифрован ключом из Android Keystore, а Keystore не бэкапится и не переносится, так
-     * что восстановленную копию расшифровать нечем и prefs бросают при первом же обращении (то есть
-     * при чтении API-ключа в LLM-цепочке — агент мёртв сразу после переезда).
+     * The EncryptedSharedPreferences file name. A constant because it is repeated verbatim in
+     * `res/xml/backup_rules.xml` and `res/xml/data_extraction_rules.xml` — the file MUST be excluded from
+     * backup: it is encrypted with a key from the Android Keystore, and the Keystore is neither backed up
+     * nor transferred, so a restored copy cannot be decrypted and the prefs throw on the very first
+     * access (i.e. when the API key is read in the LLM chain — the agent is dead right after a move).
      *
-     * XML не умеет ссылаться на Kotlin-константу, поэтому расхождение ловит `BackupRulesTest`.
+     * XML cannot reference a Kotlin constant, so `BackupRulesTest` catches a mismatch.
      */
     const val PREFS_NAME = "secure_settings"
   }
@@ -74,8 +74,8 @@ class EncryptedSettingsRepository(
       EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
       EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
     ).also { prefs ->
-      // NVIDIA NIM выпилен 25 окт 2026: его ключ и выбор провайдера больше никто не читает, но на
-      // обновлённом устройстве они так и лежали бы — живой ключ, о котором пользователь уже не знает.
+      // NVIDIA NIM was removed on Oct 25, 2026: nobody reads its key and provider choice any more, but on an
+      // updated device they would just stay there — a live key the user no longer knows about.
       if (prefs.contains(OBSOLETE_NVIDIA_KEY) || prefs.contains(OBSOLETE_PROVIDER)) {
         prefs.edit().remove(OBSOLETE_NVIDIA_KEY).remove(OBSOLETE_PROVIDER).apply()
       }
@@ -102,9 +102,9 @@ class EncryptedSettingsRepository(
   }
 
   /**
-   * OpenRouter — под прежним ключом: выбор, сделанный до появления второго маршрута, не теряется.
-   * Не `selected_provider` и не что-то с этим именем: такой ключ удаляется при каждом открытии prefs
-   * (наследство NIM, см. OBSOLETE_PROVIDER).
+   * OpenRouter keeps the old key: a choice made before the second route appeared is not lost.
+   * Not `selected_provider` or anything with that name: such a key is deleted every time the prefs are
+   * opened (a NIM legacy, see OBSOLETE_PROVIDER).
    */
   private fun selectedModelKey(provider: String): String =
     if (provider == "OPENROUTER") "selected_model" else "selected_model_$provider"

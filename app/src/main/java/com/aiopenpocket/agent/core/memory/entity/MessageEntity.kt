@@ -17,9 +17,9 @@ import androidx.room.PrimaryKey
       onDelete = ForeignKey.CASCADE,
     ),
   ],
-  // Составной индекс — ровно под горячий запрос окна чата (WHERE conversationId=? ORDER BY
-  // createdAt DESC LIMIT ?): seek по префиксу + обратный обход, O(limit) вместо сортировки всех
-  // строк диалога на каждый переэмит. Ведущая колонка покрывает и требование индекса под FK.
+  // A composite index made exactly for the hot chat window query (WHERE conversationId=? ORDER BY
+  // createdAt DESC LIMIT ?): a seek by prefix + a backward scan, O(limit) instead of sorting all the
+  // conversation's rows on every re-emit. The leading column also covers the FK index requirement.
   indices = [Index("conversationId", "createdAt")],
 )
 data class MessageEntity(

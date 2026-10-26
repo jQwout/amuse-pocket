@@ -7,17 +7,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 /**
- * Язык интерфейса на весь процесс.
+ * The interface language for the whole process.
  *
- * Интерфейс пишется по-русски прямо в коде экранов, без строковых ресурсов Android; английский
- * встаёт рядом с русским через [tr] — сначала на пути демо хакатона. Перевод всего приложения на
- * ресурсы был бы правильнее, но не по срокам, а пара «ru, en» в одном вызове не даёт строкам
- * разъехаться при правке.
+ * The interface is written in Russian right in the screens' code, without Android string resources;
+ * English sits next to Russian through [tr] — first on the hackathon demo path. Moving the whole app to
+ * resources would be more correct, but does not fit the schedule, and a "ru, en" pair in one call keeps
+ * the strings from drifting apart when edited.
  *
- * [code] — снапшот-состояние Compose: экран, прочитавший [tr], перерисуется при смене языка без
- * пересоздания активности. Источник правды — `UserPreferencesRepository.language`; сюда его зеркалят
- * [com.aiopenpocket.AiOpenPocketApp] (для фона: уведомления, подписи инструментов) и MainActivity (до
- * первого кадра, чтобы экран не мигнул русским).
+ * [code] is Compose snapshot state: a screen that read [tr] recomposes when the language changes,
+ * without recreating the activity. The source of truth is `UserPreferencesRepository.language`; it is
+ * mirrored here by [com.aiopenpocket.AiOpenPocketApp] (for the background: notifications, tool
+ * captions) and by MainActivity (before the first frame, so the screen does not flash Russian).
  */
 object AppLanguage {
   const val RU = "ru"
@@ -28,5 +28,5 @@ object AppLanguage {
   val isEnglish: Boolean get() = code == EN
 }
 
-/** Текст на языке интерфейса: [en], если выбран English, иначе [ru]. */
+/** Text in the interface language: [en] if English is selected, otherwise [ru]. */
 fun tr(ru: String, en: String): String = if (AppLanguage.isEnglish) en else ru

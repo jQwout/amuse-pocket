@@ -13,7 +13,7 @@ import kotlinx.serialization.json.intOrNull
 
 /**
  * A lesson loaded from `assets/lessons/{id}.json`. The lesson is a linear list of typed
- * [steps][LessonStep] driven by code; the LLM only assists on `text` steps ("Переспросить").
+ * [steps][LessonStep] driven by code; the LLM only assists on `text` steps ("Ask again").
  */
 @Serializable
 data class Lesson(
@@ -57,25 +57,26 @@ data class LessonStep(
   /** "image" step: accessibility text; used as caption fallback. */
   val alt: String = "",
   /**
-   * "image" step: промпт для Muse Image. Картинка рисуется, только если у шага нет своего ассета
-   * ([asset]/[imageKey]): бандл работает без сети и ничего не стоит. Нарисованная кешируется на
-   * диске — повторный проход урока её не перерисовывает. См. [LessonImageGenerator].
+   * "image" step: the prompt for Muse Image. The image is drawn only if the step has no asset of its own
+   * ([asset]/[imageKey]): the bundle works without the network and costs nothing. A drawn image is
+   * cached on disk — going through the lesson again does not redraw it. See [LessonImageGenerator].
    */
   val imagePrompt: String = "",
   /**
-   * "video" step: задание модели к ролику, который пользователь снимет или выберет ([instruction] —
-   * то, что видит он сам). Видео разбирает Muse Spark, ответ ложится в чат. См.
+   * "video" step: the task for the model about the clip the user films or picks ([instruction] is what
+   * the user sees). Muse Spark analyzes the video, the answer lands in the chat. See
    * [LessonChatController.postVideoAnswer].
    */
   val videoPrompt: String = "",
   /**
-   * "video" step: ролик-пример в assets (mp4) и его превью. С ними главная кнопка шага — «Показать
-   * на примере»: снимать своё на телефоне трудно (камера, разрешения, свет), а смысл урока — что
-   * модель видит в кадрах — виден и на готовом ролике. Своя съёмка остаётся вторым вариантом.
+   * "video" step: a sample clip in assets (mp4) and its preview. With them the step's main button is
+   * "Show me an example": filming your own on a phone is hard (camera, permissions, light), and the
+   * point of the lesson — what the model sees in the frames — shows on a ready-made clip too. Filming
+   * your own stays as the second option.
    */
   val sampleVideo: String = "",
   val samplePreview: String = "",
-  /** "animation" step: какую процедурную сцену показать (см. [LESSON_ANIMATION_SCENES]); подпись — [caption]. */
+  /** "animation" step: which procedural scene to show (see [LESSON_ANIMATION_SCENES]); the caption is [caption]. */
   val scene: String = "",
   /** "reveal" step: prompt shown first; tap reveals [answer]. */
   val question: String = "",
@@ -92,10 +93,10 @@ data class LessonStep(
   val template: String = "",
   val caseSensitive: Boolean = false,
   /**
-   * "fill" step: другие ответы, которые тоже засчитываются (без учёта регистра и пробелов по краям,
-   * как и [answer]). Пропуск по-русски заполняют по-разному — «конкретики», «деталей», «конкретика», —
-   * и раньше верный по смыслу ответ не проходил точное сравнение: у fill нет кнопки «Дальше», урок
-   * вставал. [answer] остаётся каноническим: его показывают после решения и после двух промахов.
+   * "fill" step: other answers that also count (case-insensitive and ignoring surrounding spaces, like
+   * [answer]). In Russian a gap gets filled in different ways — «конкретики», «деталей», «конкретика» —
+   * and an answer right in meaning used to fail the exact comparison: fill has no "Next" button, so the
+   * lesson got stuck. [answer] stays canonical: it is shown after solving and after two misses.
    */
   val answers: List<String> = emptyList(),
   /** "sort" / "match" step: instruction shown above the interactive items. */
@@ -117,7 +118,7 @@ data class LessonStep(
   val explain: String = "",
   /**
    * "input" / "challenge" steps (live-chat interaction) are NOT fully supported yet — for now they
-   * render as a static prompt with a "Дальше" button. These fields hold their authored text.
+   * render as a static prompt with a "Next" button. These fields hold their authored text.
    */
   val prompt: String = "",
   val hint: String = "",
@@ -158,8 +159,8 @@ fun LessonStep.scenarioCorrectIndex(): Int = (correct as? JsonPrimitive)?.intOrN
 data class LessonQuizQuestion(
   val q: String,
   val options: List<String> = emptyList(),
-  // -1, а не 0: при отсутствующем/битом correct не помечаем первый вариант как «правильный»
-  // (см. коммит f646e64, тот же класс бага для sort/scenario).
+  // -1, not 0: with a missing/broken correct the first option is not marked as "right"
+  // (see commit f646e64, the same class of bug for sort/scenario).
   val correct: Int = -1,
   val explain: String = "",
 )

@@ -12,9 +12,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Хранит выбранный режим темы (Светлая/Тёмная/Системная) и отдаёт его реактивно.
- * Не секрет — поэтому обычные SharedPreferences, а не EncryptedSharedPreferences
- * ([SettingsRepository]): не тянем инициализацию MasterKey на старте ради выбора темы.
+ * Stores the chosen theme mode (Light/Dark/System) and exposes it reactively. Not a secret — so plain
+ * SharedPreferences rather than EncryptedSharedPreferences ([SettingsRepository]): no need to pull the
+ * MasterKey initialization into startup for a theme choice.
  */
 @SingleIn(AppScope::class)
 @Inject
@@ -32,7 +32,7 @@ class ThemeRepository(
     _mode.value = value
   }
 
-  /** Строка → enum; неизвестное или отсутствующее значение деградирует в [ThemeMode.SYSTEM]. */
+  /** String → enum; an unknown or missing value degrades to [ThemeMode.SYSTEM]. */
   private fun readMode(): ThemeMode =
     prefs.getString(KEY, null)
       ?.let { name -> ThemeMode.entries.firstOrNull { it.name == name } }

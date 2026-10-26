@@ -14,11 +14,11 @@ import java.io.File
 data class AgentFile(val name: String, val sizeBytes: Long, val lastModified: Long)
 
 /**
- * Read-only список файлов ЛИЧНОЙ песочницы одного агента (`filesDir/agents/{agentId}`, Task 6) —
- * тот же per-agent каталог и тот же [sandboxRoot], что использует `FileTools`. Каждый агент видит
- * только свои файлы; старый общий `filesDir/agent` (plain chat, до Task 6) сюда не попадает и не
- * мигрируется — вне области задачи. Чтение напрямую по filesDir, НЕ через ToolExecutor: UI-слой не
- * ходит в agent-tool-слой.
+ * A read-only list of files in one agent's PRIVATE sandbox (`filesDir/agents/{agentId}`, Task 6) — the
+ * same per-agent directory and the same [sandboxRoot] that `FileTools` uses. Each agent sees only its
+ * own files; the old shared `filesDir/agent` (plain chat, before Task 6) does not get here and is not
+ * migrated — outside the task's scope. Read directly from filesDir, NOT through ToolExecutor: the UI
+ * layer does not call into the agent tool layer.
  */
 @SingleIn(AppScope::class)
 @Inject

@@ -13,7 +13,7 @@ data class PersonaInfo(
   val quotes: List<PersonaQuote>,
   val displayNameEn: String = displayNameRu,
 ) {
-  /** Имя на языке интерфейса; описание, перки и цитаты пока только по-русски. */
+  /** The name is in the interface language; the description, perks and quotes are Russian-only for now. */
   val displayName: String get() = tr(displayNameRu, displayNameEn)
 }
 

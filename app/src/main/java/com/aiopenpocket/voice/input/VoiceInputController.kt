@@ -39,8 +39,8 @@ class VoiceInputController(
   private val mainHandler = Handler(Looper.getMainLooper())
   private var recognizer: SpeechRecognizer? = null
 
-  // SpeechRecognizer.cancel() асинхронно доставляет onError(ERROR_CLIENT) для прерванной сессии.
-  // Этот флаг гасит ровно один такой «ложный» onError после ручной отмены, иначе UI мигнёт ошибкой.
+  // SpeechRecognizer.cancel() asynchronously delivers onError(ERROR_CLIENT) for the interrupted session.
+  // This flag swallows exactly one such "false" onError after a manual cancel, otherwise the UI flashes an error.
   private var canceling = false
 
   fun start(languageBcp47: String) {
@@ -74,7 +74,7 @@ class VoiceInputController(
     }
   }
 
-  /** Отмена записи: глушим распознавание без доставки результата (onResults не придёт) и сразу Idle. */
+  /** Cancels recording: stops recognition without delivering a result (onResults will not come) and goes Idle at once. */
   fun cancel() {
     runOnMain {
       canceling = true
@@ -107,15 +107,15 @@ class VoiceInputController(
   }
 
   /**
-   * Наш [com.aiopenpocket.voice.AssistRecognitionService] — заглушка: она нужна только для
-   * регистрации помощника и на любой запрос отвечает ERROR_RECOGNIZER_BUSY. Когда приложение
-   * становится помощником по умолчанию, система может сделать распознавателем по умолчанию и её —
-   * и голосовой ввод в чате молча ломался бы на «занято». Поэтому, если дефолт наш или его не
-   * прочитать, берём первый установленный распознаватель ЧУЖОГО пакета явно. Если дефолт чужой —
-   * null, работаем через него, как раньше; если чужих нет вовсе — тоже null (системный дефолт).
-   * Видимость чужих сервисов на Android 11+ даёт `<queries>` на RecognitionService в манифесте.
+   * Our [com.aiopenpocket.voice.AssistRecognitionService] is a stub: it is needed only to register the
+   * assistant and answers any request with ERROR_RECOGNIZER_BUSY. When the app becomes the default
+   * assistant, the system may make it the default recognizer too — and voice input in the chat would
+   * silently fail with "busy". So if the default is ours, or cannot be read, we explicitly take the
+   * first installed recognizer of ANOTHER package. If the default is someone else's — null, we work
+   * through it as before; if there are no others at all — null too (the system default). Visibility of
+   * other apps' services on Android 11+ comes from `<queries>` on RecognitionService in the manifest.
    */
-  @Suppress("DEPRECATION") // queryIntentServices с ResolveInfoFlags — только с API 33, minSdk ниже.
+  @Suppress("DEPRECATION") // queryIntentServices with ResolveInfoFlags is only available from API 33, and minSdk is lower.
   private fun externalRecognizerIfDefaultIsOurs(): ComponentName? {
     val ours = context.packageName
     val default = runCatching {
@@ -164,7 +164,7 @@ class VoiceInputController(
     }
 
     override fun onError(error: Int) {
-      // Гасим ложный onError, прилетевший вслед за ручной cancel() — состояние уже Idle.
+      // Swallow the false onError that arrived after a manual cancel() — the state is already Idle.
       if (canceling) {
         canceling = false
         _state.value = VoiceInputState.Idle
@@ -185,7 +185,7 @@ class VoiceInputController(
   }
 
   private companion object {
-    /** Settings.Secure.VOICE_RECOGNITION_SERVICE — скрытая константа, поэтому строкой. */
+    /** Settings.Secure.VOICE_RECOGNITION_SERVICE is a hidden constant, hence a string. */
     const val VOICE_RECOGNITION_SERVICE_SETTING = "voice_recognition_service"
   }
 }

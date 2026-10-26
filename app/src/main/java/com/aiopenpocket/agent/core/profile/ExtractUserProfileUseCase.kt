@@ -15,20 +15,22 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 /**
- * Доменная операция онбординга: из свободного рассказа пользователя о себе извлекает структурный
- * [UserProfile] силами LLM. Вынесена из OnboardingViewModel, чтобы презентация не знала про промпт,
- * формат вывода модели и хрупкости его парсинга (markdown-заборы, мусор вокруг JSON).
+ * An onboarding domain operation: extracts a structured [UserProfile] from the user's free-form story
+ * about themselves using the LLM. Moved out of OnboardingViewModel so presentation knows nothing about
+ * the prompt, the model's output format and the fragility of parsing it (markdown fences, garbage
+ * around the JSON).
  *
- * Контракт:
- * - бросает [IllegalStateException], если стрим модели завершился ошибкой и текста не пришло;
- * - возвращает `null`, если в ответе не удалось найти/разобрать JSON-объект (профиль не извлёкся);
- * - иначе — профиль с уже обрезанными (trim) полями.
+ * Contract:
+ * - throws [IllegalStateException] if the model's stream ended with an error and no text arrived;
+ * - returns `null` if no JSON object could be found/parsed in the answer (the profile was not
+ *   extracted);
+ * - otherwise a profile with already trimmed fields.
  */
 @Inject
 class ExtractUserProfileUseCase(
   private val llmClient: LlmClient,
-  // Рассказ о себе — самый личный текст в приложении, и он тоже обязан уходить выбранному
-  // вендору, а не тому, что стоял дефолтом в LlmClient.streamChat.
+  // The story about oneself is the most personal text in the app, and it too must go to the chosen
+  // vendor, not to whatever was the default in LlmClient.streamChat.
   private val selectedProvider: SelectedLlmProvider,
 ) {
 
@@ -41,15 +43,16 @@ class ExtractUserProfileUseCase(
       return null
     } ?: return null
 
-    // Поля читаем как строку-литерал примитива: модель часто возвращает age числом (30), хотя
-    // профиль хранит его строкой. JsonPrimitive.content даёт "30" и для числа, и для строки —
-    // строгий decode в data class здесь падал бы и молча терял весь профиль.
+    // Fields are read as a primitive's literal string: the model often returns age as a number (30),
+    // although the profile stores it as a string. JsonPrimitive.content gives "30" for both a number
+    // and a string — a strict decode into a data class would fail here and silently lose the whole
+    // profile.
     return UserProfile(
       name = obj.field("name"),
       preferredAddress = obj.field("preferredAddress"),
       age = obj.field("age").let(::validAgeOrBlank),
-      // lowercase: модель иногда отдаёт «Мужской» с заглавной — регистронезависимый матч не теряет
-      // валидный пол (множество хранит нижний регистр).
+      // lowercase: the model sometimes returns "Мужской" (Male) capitalized — a case-insensitive match does
+      // not lose a valid gender (the set stores lowercase).
       gender = obj.field("gender").lowercase().let { if (it in VALID_GENDERS) it else "" },
       religion = obj.field("religion"),
       extraInfo = obj.field("extraInfo"),
@@ -60,16 +63,16 @@ class ExtractUserProfileUseCase(
     (this[key] as? JsonPrimitive)?.takeUnless { it is JsonNull }?.content?.trim().orEmpty()
 
   /**
-   * Модель иногда путает возраст (упомянутого в рассказе третьего лица) или галлюцинирует число —
-   * отбрасываем неправдоподобные значения, а не сохраняем их в профиль, который потом попадает в
-   * каждый будущий системный промпт без дальнейшей проверки.
+   * The model sometimes mixes up the age (of a third person mentioned in the story) or hallucinates a
+   * number — implausible values are dropped rather than saved into a profile that later goes into
+   * every future system prompt with no further check.
    */
   private fun validAgeOrBlank(raw: String): String {
     val n = raw.toIntOrNull() ?: return raw
     return if (n in MIN_PLAUSIBLE_AGE..MAX_PLAUSIBLE_AGE) raw else ""
   }
 
-  /** Стримит ответ модели и склеивает текст. Если текста нет, но был error — пробрасываем его. */
+  /** Streams the model's answer and glues the text together. If there is no text but there was an error, it is rethrown. */
   private suspend fun collectExtractionText(userText: String): String {
     val buffer = StringBuilder()
     var errorMessage: String? = null
@@ -82,7 +85,7 @@ class ExtractUserProfileUseCase(
       provider = selectedProvider(),
     ).collect { event ->
       when (event) {
-        // Размышление модели — не профиль: черновой JSON в нём разобрался бы как готовый ответ.
+        // The model's thinking is not a profile: a draft JSON in it would parse as a finished answer.
         is StreamEvent.TextDelta -> if (!event.reasoning) buffer.append(event.content)
         is StreamEvent.Error -> errorMessage = event.message
         else -> Unit
@@ -107,9 +110,9 @@ private val VALID_GENDERS = setOf("", "мужской", "женский")
 private val FENCED_JSON = Regex("""```(?:json)?\s*([\s\S]+?)\s*```""")
 
 /**
- * Вырезает из «грязного» ответа модели один JSON-объект. Модели редко возвращают голый JSON:
- * бывает markdown-забор (```json … ```) или болтовня вокруг объекта. lenient-парсер это не спасает,
- * поэтому чистим до фигурных скобок здесь. `internal` — чтобы покрыть юнит-тестами.
+ * Cuts one JSON object out of the model's "dirty" answer. Models rarely return bare JSON: there may be a
+ * markdown fence (```json … ```) or chatter around the object. A lenient parser does not save that, so we
+ * clean up to the curly braces here. `internal` so it can be covered by unit tests.
  */
 internal fun stripToJsonObject(raw: String): String? {
   val s = raw.trim()
@@ -119,9 +122,9 @@ internal fun stripToJsonObject(raw: String): String? {
 }
 
 /**
- * Возвращает первый сбалансированный {…}-объект, начиная с первой `{`. В отличие от наивного
- * indexOf('{')..lastIndexOf('}') не цепляет хвостовую болтовню со скобками («…Надеюсь {это}»).
- * Скобки внутри строковых литералов игнорируются.
+ * Returns the first balanced {…} object, starting at the first `{`. Unlike the naive
+ * indexOf('{')..lastIndexOf('}') it does not catch trailing chatter with braces ("…I hope {this}").
+ * Braces inside string literals are ignored.
  */
 private fun firstBalancedObject(s: String): String? {
   val start = s.indexOf('{')
@@ -151,7 +154,7 @@ private fun firstBalancedObject(s: String): String? {
   return null
 }
 
-// Значения профиля — на языке интерфейса: их видит человек (профиль, препромпт), а не только модель.
+// Profile values are in the interface language: a person sees them (the profile, the preprompt), not only the model.
 private fun extractionSystemPrompt(): String =
   EXTRACTION_SYSTEM_PROMPT.replace("%LANG%", tr("на русском", "на английском (in English)"))
 

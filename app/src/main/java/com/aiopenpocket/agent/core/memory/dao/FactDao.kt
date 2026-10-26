@@ -18,11 +18,11 @@ interface FactDao {
   suspend fun deleteByKey(key: String)
 
   /**
-   * Вся память фактов, свежие первыми — источник для пословного поиска
+   * The whole fact memory, freshest first — the source for the word-by-word search
    * [com.aiopenpocket.agent.core.memory.repository.MemoryRepository.searchFacts].
    *
-   * Сопоставление сознательно НЕ здесь: `LIKE` в SQLite сворачивает регистр только для ASCII, так
-   * что «казань» не нашло бы «Казань». Отбор идёт в Kotlin — см. kdoc `rankByQuery`.
+   * Matching is deliberately NOT here: SQLite `LIKE` folds case only for ASCII, so "казань" would not
+   * find "Казань". Selection happens in Kotlin — see the kdoc of `rankByQuery`.
    */
   @Query("SELECT * FROM facts ORDER BY updatedAt DESC")
   suspend fun getAll(): List<FactEntity>

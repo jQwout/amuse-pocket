@@ -15,9 +15,9 @@ interface MessageDao {
   fun getByConversation(conversationId: String): Flow<List<MessageEntity>>
 
   /**
-   * Окно последних [limit] сообщений (для UI-пагинации): берём свежие в DESC и разворачиваем в ASC
-   * на стороне репозитория. Поток переэмитит при изменении таблицы, поэтому новые сообщения попадают
-   * в окно автоматически, а «подгрузка старых» — это просто увеличение [limit].
+   * A window of the last [limit] messages (for UI pagination): the freshest are taken in DESC and
+   * reversed to ASC in the repository. The flow re-emits when the table changes, so new messages get
+   * into the window automatically, and "load older" is simply a larger [limit].
    */
   @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY createdAt DESC LIMIT :limit")
   fun getByConversationWindow(conversationId: String, limit: Int): Flow<List<MessageEntity>>
@@ -28,10 +28,11 @@ interface MessageDao {
   @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY createdAt ASC")
   suspend fun getAllOrdered(conversationId: String): List<MessageEntity>
 
-  // --- «Промптовые» строки: с текстом либо tool-вызовами (карточки-пустышки LLM не отправляются).
-  // Фильтр в SQL повторяет прежний in-memory `content.isNotBlank() || toolCallsJson != null`,
-  // чтобы head/tail/счётчик промпт-окна собирались БЕЗ загрузки всей истории с диска на каждый ход.
-  // (TRIM SQLite не режет \n/\t — но такие «почти пустые» сообщения на практике не пишутся.)
+  // --- "Prompt" rows: with text or tool calls (empty placeholder cards are not sent to the LLM).
+  // The SQL filter repeats the old in-memory `content.isNotBlank() || toolCallsJson != null`, so that
+  // the head/tail/count of the prompt window are assembled WITHOUT loading the whole history from disk
+  // on every turn. (SQLite TRIM does not strip \n/\t — but such "almost empty" messages are not written
+  // in practice.)
 
   @Query(
     "SELECT COUNT(*) FROM messages WHERE conversationId = :conversationId " +
@@ -51,7 +52,7 @@ interface MessageDao {
   )
   suspend fun getLastPromptable(conversationId: String, limit: Int): List<MessageEntity>
 
-  // --- Реплики для фонового аннотатора (заголовок/резюме/теги): только текстовые user/assistant.
+  // --- Messages for the background annotator (title/summary/tags): text user/assistant only.
 
   @Query(
     "SELECT COUNT(*) FROM messages WHERE conversationId = :conversationId " +
@@ -68,7 +69,7 @@ interface MessageDao {
   @Insert(onConflict = OnConflictStrategy.REPLACE)
   suspend fun insert(message: MessageEntity)
 
-  /** Удаление одного сообщения (действие пользователя из чата, не «очистить диалог»). */
+  /** Deleting one message (a user action from the chat, not "clear the conversation"). */
   @Query("DELETE FROM messages WHERE id = :id")
   suspend fun deleteById(id: String)
 
