@@ -2,8 +2,8 @@ package com.aiopenpocket.ui.chat.components
 
 // @trace streaming-llm-chat-6595a1
 //
-// Композер чата: обычная строка ввода и полноэкранный режим. Вся работа с текстом идёт через
-// параметры-колбэки, состояние живёт на экране.
+// The chat composer: the normal input row and the full-screen mode. All text handling goes through
+// callback parameters; the state lives on the screen.
 
 import android.content.pm.PackageManager
 import android.Manifest
@@ -64,7 +64,7 @@ import com.aiopenpocket.ui.components.glass.GlassSurface
 import com.aiopenpocket.voice.input.VoiceInputState
 import kotlinx.coroutines.launch
 
-// internal: см. MessageBubble — нужен превью-каркасу (в т.ч. ChatInputStatesPreview).
+// internal: see MessageBubble — the preview frame needs it (including ChatInputStatesPreview).
 @Composable
 internal fun ChatInput(
     value: String,
@@ -103,17 +103,17 @@ internal fun ChatInput(
         }
     }
 
-    // Единая скруглённая рамка: сверху — текст, снизу — панель управления (как в макете). Blur/tint/
-    // блик-бордер — от GlassSurface; фиолетовый акцент-бордер оставлен поверх как второй, внутренний.
-    // Плавающее оформление как у навбара/шапки: боковые отступы + мягкая тень (рим — от GlassSurface).
+    // One rounded frame: text on top, the control panel below (as in the mockup). Blur/tint/the highlight
+    // border come from GlassSurface; the purple accent border stays on top as a second, inner one.
+    // Floating styling like the navbar/header: side paddings + a soft shadow (the rim comes from GlassSurface).
     val inputShape = RoundedCornerShape(24.dp)
     GlassSurface(
         state = glassState,
         shape = inputShape,
-        // Поле ввода — непрозрачное, в отличие от остальной обвязки. Здесь просвечивание мешает не
-        // эстетически, а функционально: сквозь полупрозрачную подложку читались сообщения ленты и
-        // мешались с набираемым текстом. Плюс это единственная поверхность, куда пользователь
-        // смотрит и печатает — ей положено быть спокойным фоном, а не витриной.
+        // The input field is opaque, unlike the rest of the chrome. Here showing through hurts not aesthetically
+        // but functionally: through a translucent backing the feed's messages were readable and mixed with
+        // the text being typed. Plus it is the only surface the user looks at and types into — it ought to
+        // be a calm background, not a shop window.
         plateAlpha = 1f,
         modifier = Modifier
             .fillMaxWidth()
@@ -142,14 +142,14 @@ internal fun ChatInput(
                 maxLines = 6,
                 decorationBox = { inner ->
                     if (value.isEmpty()) {
-                        // Плейсхолдер тонирован под акцент (как фиолетовая рамка), чтобы отличаться от текста.
+                        // The placeholder is tinted to the accent (like the purple frame) to stand apart from the text.
                         Text(placeholder, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f))
                     }
                     inner()
                 },
             )
             Spacer(Modifier.height(6.dp))
-            // Нижняя панель внутри рамки: слева — развернуть и микрофон, справа — очистить и отправить.
+            // The bottom panel inside the frame: expand and the microphone on the left, clear and send on the right.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -165,7 +165,7 @@ internal fun ChatInput(
                 Spacer(Modifier.width(4.dp))
                 MicButton(state = voiceState, onClick = ::handleMicTap, modifier = Modifier.size(36.dp))
                 Spacer(Modifier.weight(1f))
-                // Очистить поле — показываем только когда есть текст.
+                // Clear the field — shown only when there is text.
                 if (value.isNotBlank()) {
                     IconButton(onClick = { onValueChange("") }, modifier = Modifier.size(36.dp)) {
                         Icon(
@@ -178,17 +178,17 @@ internal fun ChatInput(
                     Spacer(Modifier.width(4.dp))
                 }
                 if (isLoading) {
-                    // Прогресс вокруг кнопки «стоп» — даёт пользователю возможность отменить ход.
+                    // The progress around the "stop" button — lets the user cancel the turn.
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp)) {
                         IconButton(onClick = onCancel) {
                             Icon(Icons.Default.Stop, contentDescription = "Остановить")
                         }
                     }
                 } else {
-                    // Кнопка-кружок: залита акцентом, когда есть что отправить; иначе приглушена (как в макете).
+                    // A round button: filled with the accent when there is something to send; dimmed otherwise (as in the mockup).
                     val canSend = value.isNotBlank()
                     IconButton(
-                        // Отправка сворачивает клавиатуру: снимаем фокус с поля -> IME скрывается.
+                        // Sending hides the keyboard: the field loses focus -> the IME hides.
                         onClick = { focusManager.clearFocus(); onSend() },
                         enabled = canSend,
                         modifier = Modifier
@@ -209,9 +209,9 @@ internal fun ChatInput(
 }
 
 /**
- * Полноэкранный режим набора (иконка «развернуть» в инлайновом вводе). Редактирует тот же текст,
- * что и [ChatInput]; «Свернуть» прячет режим без потери набранного, «Очистить» обнуляет, «Отправить»
- * шлёт и сворачивает.
+ * The full-screen typing mode (the "expand" icon in the inline input). It edits the same text as
+ * [ChatInput]; "Collapse" hides the mode without losing what was typed, "Clear" empties it, "Send" sends
+ * and collapses.
  */
 @Composable
 internal fun FullScreenComposer(
@@ -229,8 +229,8 @@ internal fun FullScreenComposer(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                // Композер — полноэкранный поверх Scaffold, поэтому сам учитывает статус-бар, навбар и
-                // клавиатуру. safeDrawingPadding = max(системные бары, IME), без двойного счёта навбара.
+                // The composer is full screen on top of the Scaffold, so it accounts for the status bar, the navbar and
+                // the keyboard itself. safeDrawingPadding = max(system bars, IME), without counting the navbar twice.
                 .safeDrawingPadding(),
         ) {
             Row(

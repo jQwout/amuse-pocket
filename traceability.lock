@@ -50,16 +50,16 @@
       "git": "ec20311"
     },
     "heartbeat-napominalki-agenta-5f0442": {
-      "hash": "0a6557610de8",
-      "git": "2464f21"
+      "hash": "8209963e85f5",
+      "git": "62b617f"
     },
     "kartinki-urokov-cherez-muse-image-fd6f8c": {
       "hash": "a4727163f7de",
       "git": "2464f21"
     },
     "mcp-tools-f77d9b": {
-      "hash": "58d4ec6b02f9",
-      "git": "2464f21"
+      "hash": "2512e9e78592",
+      "git": "62b617f"
     },
     "multi-agent-orchestration-27b8e3": {
       "hash": "4b7a254d3917",
@@ -82,12 +82,12 @@
       "git": "2464f21"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "41136a2eee9a",
-      "git": "2464f21"
+      "hash": "96741830899a",
+      "git": "62b617f"
     },
     "structured-plan-engine-907066": {
-      "hash": "7884717748c0",
-      "git": "2ba67e1"
+      "hash": "31a4acd4c6e4",
+      "git": "62b617f"
     },
     "swappable-persona-e5e65e": {
       "hash": "a5b3c636fd1a",
@@ -98,8 +98,8 @@
       "git": "2464f21"
     },
     "user-agent-builder-848153": {
-      "hash": "775f5f07de36",
-      "git": "2ba67e1"
+      "hash": "4bf0e2840a12",
+      "git": "62b617f"
     },
     "video-na-vhod-v-uroke-muse-spark-08ccdb": {
       "hash": "8574a653556a",

@@ -2,9 +2,9 @@ package com.aiopenpocket.ui.chat
 
 // @trace streaming-llm-chat-6595a1
 //
-// Превью экрана чата вынесены сюда из ChatScreen.kt: тот перевалил за две тысячи строк, и
-// каркас со стабами мешал читать боевой код. Здесь только визуальные каркасы на фейковых
-// данных — ни ViewModel, ни DI, ни сети. Их же рендерят скриншот-тесты.
+// The chat screen previews were moved here from ChatScreen.kt: it had grown past two thousand lines,
+// and the frame with stubs got in the way of reading the production code. Only visual frames on fake data
+// live here — no ViewModel, no DI, no network. Screenshot tests render the same ones.
 
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -82,13 +82,13 @@ import com.aiopenpocket.ui.theme.ThemeMode
 import com.aiopenpocket.voice.input.VoiceInputState
 
 // ==================================================================================================
-// Превью экрана чата (панель Android Studio / скриншот-тесты). Рендерят ВИЗУАЛЬНЫЙ каркас на фейковых
-// данных без ViewModel/DI/сети — тот же MyApplicationTheme и те же stateless-пузыри (MessageBubble/
-// StreamingBubble), что и в бою. Скролл-эффекты настоящего ChatScreen требуют рантайма и в превью
-// не участвуют — здесь смотрим именно КАК ВЫГЛЯДИТ чат в разных состояниях.
+// Chat screen previews (the Android Studio panel / screenshot tests). They render the VISUAL frame on fake
+// data without ViewModel/DI/network — the same MyApplicationTheme and the same stateless bubbles
+// (MessageBubble/StreamingBubble) as in production. The real ChatScreen's scroll effects need a runtime
+// and do not take part in previews — here we look at HOW the chat LOOKS in different states.
 // ==================================================================================================
 
-/** Фейковое сообщение для превью. id включает cardSpec, чтобы карточки-«пустышки» не совпадали ключами. */
+/** A fake message for previews. The id includes the cardSpec so placeholder cards do not share keys. */
 internal fun previewMessage(
     role: String,
     content: String,
@@ -104,11 +104,12 @@ internal fun previewMessage(
 )
 
 /**
- * Каркас чата для превью — та же раскладка, что и в боевом [ChatScreen]: аврора-слой-источник, лента
- * во весь экран под ПЛАВАЮЩИМИ стеклянными барами (таблетка-шапка сверху, композер снизу), высоты
- * баров меряются в contentPadding. Blur (Haze/RenderEffect) в @Preview не рендерится — на устройстве
- * бары матовые, здесь только tint. Композер — НАСТОЯЩИЙ [ChatInput] (не заглушка): его
- * rememberLauncherForActivityResult разблокирован фейковым [PreviewActivityResultRegistryOwner].
+ * The chat frame for previews — the same layout as the production [ChatScreen]: the aurora source layer,
+ * the feed across the whole screen under FLOATING glass bars (the header pill on top, the composer at the
+ * bottom), the bars' heights measured into contentPadding. Blur (Haze/RenderEffect) does not render in
+ * @Preview — on a device the bars are frosted, here only the tint. The composer is the REAL [ChatInput]
+ * (not a stub): its rememberLauncherForActivityResult is unblocked by the fake
+ * [PreviewActivityResultRegistryOwner].
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -124,8 +125,8 @@ internal fun ChatPreviewScaffold(
 ) {
     MyApplicationTheme(mode = ThemeMode.DARK) {
         val glassState = rememberGlassState()
-        // Та же схема мер, что в боевом ChatScreen: высоты плавающих баров → contentPadding ленты,
-        // чтобы крайние сообщения вставали у кромки бара, а не прятались под стеклом.
+        // The same measurement scheme as in the production ChatScreen: the floating bars' heights → the feed's
+        // contentPadding, so the edge messages stop at the bar's edge instead of hiding under the glass.
         val density = LocalDensity.current
         var topBarHeightPx by remember { mutableStateOf(0) }
         var bottomBarHeightPx by remember { mutableStateOf(0) }
@@ -133,7 +134,7 @@ internal fun ChatPreviewScaffold(
         val bottomPad = with(density) { bottomBarHeightPx.toDp() }
 
         Box(modifier = Modifier.fillMaxSize()) {
-            // Аурора — ОТДЕЛЬНЫЙ слой-источник для стекла (как в бою): её размывают бары.
+            // The aurora is a SEPARATE source layer for the glass (as in production): the bars blur it.
             Box(
                 modifier = Modifier
                     .matchParentSize()
@@ -141,7 +142,7 @@ internal fun ChatPreviewScaffold(
                     .glassSource(glassState),
             )
             Box(modifier = Modifier.fillMaxSize()) {
-                // Лента на весь экран: скроллится ПОД плавающими барами (за стеклом видны сообщения).
+                // The feed across the whole screen: it scrolls UNDER the floating bars (messages are visible behind the glass).
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
@@ -163,7 +164,7 @@ internal fun ChatPreviewScaffold(
                     }
                 }
 
-                // ВЕРХНИЙ плавающий бар: стеклянная «таблетка» шапки + стат-бар.
+                // The TOP floating bar: the header's glass "pill" + the stat bar.
                 Column(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
@@ -236,7 +237,7 @@ internal fun ChatPreviewScaffold(
                     }
                 }
 
-                // НИЖНИЙ плавающий бар: ошибка + режимы + композер (визуальная заглушка).
+                // The BOTTOM floating bar: error + modes + the composer (a visual stub).
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
@@ -266,8 +267,8 @@ internal fun ChatPreviewScaffold(
                             available = listOf(AgentMode.CHAT, AgentMode.PLAN, AgentMode.GOAL, AgentMode.REFLECT),
                             onSelect = {},
                         )
-                        // НАСТОЯЩИЙ ChatInput, а не заглушка — превью обязано показывать боевой компонент.
-                        // Провайдер подменяет ActivityResultRegistryOwner, иначе rememberLauncherForActivityResult падает.
+                        // The REAL ChatInput, not a stub — a preview must show the production component.
+                        // The provider swaps the ActivityResultRegistryOwner, otherwise rememberLauncherForActivityResult crashes.
                         CompositionLocalProvider(
                             LocalActivityResultRegistryOwner provides PreviewActivityResultRegistryOwner,
                         ) {
@@ -301,7 +302,7 @@ internal val previewChatMessages = listOf(
     previewMessage("assistant", "Готово — добавил утренние тренировки во все будни. Ещё что-нибудь?"),
 )
 
-/** Шаги урока с интерактивными карточками — общие для @Preview и скриншот-теста. */
+/** Lesson steps with interactive cards — shared by the @Preview and the screenshot test. */
 internal val previewLessonMessages = listOf(
     previewMessage("assistant", "Разберём, из чего состоит твой запрос к модели."),
     previewMessage(
@@ -376,9 +377,10 @@ private fun ChatScreenEmptyPreview() {
 }
 
 /**
- * Фейковый [ActivityResultRegistryOwner] для @Preview настоящего [ChatInput]: он дёргает
- * rememberLauncherForActivityResult (разрешение RECORD_AUDIO), а без owner'а падает в превью.
- * onLaunch — no-op: в превью кнопку никто не жмёт, регистрации лаунчера достаточно, чтобы не крешить.
+ * A fake [ActivityResultRegistryOwner] for the @Preview of the real [ChatInput]: it calls
+ * rememberLauncherForActivityResult (the RECORD_AUDIO permission), and without an owner it crashes in a
+ * preview. onLaunch is a no-op: nobody taps the button in a preview, registering the launcher is enough
+ * not to crash.
  */
 private val PreviewActivityResultRegistryOwner = object : ActivityResultRegistryOwner {
     override val activityResultRegistry: ActivityResultRegistry =
@@ -389,16 +391,16 @@ private val PreviewActivityResultRegistryOwner = object : ActivityResultRegistry
                 input: I,
                 options: ActivityOptionsCompat?,
             ) {
-                // no-op в превью
+                // a no-op in previews
             }
         }
 }
 
 /**
- * Тело превью РЕАЛЬНОГО [ChatInput] в трёх состояниях: пусто,
- * с текстом и «идёт ответ» (кнопка «стоп»). Launcher разрешений подменён
- * [PreviewActivityResultRegistryOwner], иначе @Preview/скриншот-тест падает. Blur (Haze/RenderEffect)
- * в превью не рендерится — бар матовый лишь на устройстве. `internal`, чтобы его же дёргал Roborazzi-тест.
+ * The preview body of the REAL [ChatInput] in three states: empty, with text and "answering" (the "stop"
+ * button). The permission launcher is swapped by [PreviewActivityResultRegistryOwner], otherwise the
+ * @Preview/screenshot test crashes. Blur (Haze/RenderEffect) does not render in previews — the bar is
+ * frosted only on a device. `internal` so the Roborazzi test can call it too.
  */
 @Composable
 internal fun ChatInputStatesPreview() {
@@ -413,7 +415,7 @@ internal fun ChatInputStatesPreview() {
                     .padding(vertical = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterVertically),
             ) {
-                // Пусто — плейсхолдер, кнопка отправки приглушена.
+                // Empty — the placeholder, the send button is dimmed.
                 ChatInput(
                     value = "",
                     onValueChange = {},
@@ -426,7 +428,7 @@ internal fun ChatInputStatesPreview() {
                     onVoiceToggle = {},
                     onPermissionDenied = {},
                 )
-                // С текстом — активная отправка + «очистить».
+                // With text — sending is active + "clear".
                 ChatInput(
                     value = "Составь план на неделю с утренним спортом",
                     onValueChange = {},
@@ -439,7 +441,7 @@ internal fun ChatInputStatesPreview() {
                     onVoiceToggle = {},
                     onPermissionDenied = {},
                 )
-                // Идёт ответ — кнопка «стоп» с прогресс-кольцом.
+                // Answering — the "stop" button with a progress ring.
                 ChatInput(
                     value = "",
                     onValueChange = {},

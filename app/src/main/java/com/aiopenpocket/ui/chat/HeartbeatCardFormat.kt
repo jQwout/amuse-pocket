@@ -10,8 +10,8 @@ import java.util.Locale
 import java.util.TimeZone
 
 /**
- * Читаемое расписание карточки reminder: "через N мин/ч N мин" (one_time) или "каждые N мин/ч" (periodic).
- * Сработавшее, отменённое или уже наступившее разовое — время срабатывания ("на 14:30"), а не "через 0 мин".
+ * A readable schedule for the reminder card: "in N min/h N min" (one_time) or "every N min/h" (periodic).
+ * A fired, cancelled or already due one-time reminder shows the fire time ("at 14:30"), not "in 0 min".
  */
 fun formatSchedule(
   hb: HeartbeatEntity,
@@ -24,8 +24,8 @@ fun formatSchedule(
   }
   val fireAt = hb.fireAt
   if (fireAt != null && (fireAt <= now || hb.status != "scheduled")) return formatFireTime(fireAt, now, zone)
-  // Округление ВВЕРХ: карточка рисуется через миллисекунды после постановки, и floor превращал свежее
-  // «через 2 минуты» в «через 1 мин». Ceil не врёт и в другую сторону — напоминание не раньше срока.
+  // Rounding UP: the card is drawn milliseconds after scheduling, and floor turned a fresh "in 2 minutes"
+  // into "in 1 min". Ceil does not lie the other way either — the reminder is never before its time.
   val leftMs = ((fireAt ?: now) - now).coerceAtLeast(0)
   val left = (leftMs + 59_999L) / 60_000L
   return when {
@@ -35,7 +35,7 @@ fun formatSchedule(
   }
 }
 
-/** "на 14:30" сегодня, "на 24.10 14:30" в другой день. SimpleDateFormat, а не java.time: minSdk 24 без desugaring. */
+/** "at 14:30" today, "at 24.10 14:30" on another day. SimpleDateFormat, not java.time: minSdk 24 without desugaring. */
 private fun formatFireTime(fireAt: Long, now: Long, zone: TimeZone): String {
   fun fmt(pattern: String) = SimpleDateFormat(pattern, Locale.ROOT).apply { timeZone = zone }
   val day = fmt("yyyyMMdd")
@@ -43,7 +43,7 @@ private fun formatFireTime(fireAt: Long, now: Long, zone: TimeZone): String {
   return tr("на ${fmt(pattern).format(Date(fireAt))}", "at ${fmt(pattern).format(Date(fireAt))}")
 }
 
-/** Человекочитаемый статус heartbeat'а для карточки. */
+/** A human-readable heartbeat status for the card. */
 fun formatStatus(hb: HeartbeatEntity): String = when (hb.status) {
   "fired" -> tr("Сработало", "Done")
   "cancelled" -> tr("Отменено", "Cancelled")

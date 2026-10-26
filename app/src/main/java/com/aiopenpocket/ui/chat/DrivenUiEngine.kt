@@ -29,13 +29,14 @@ sealed class DrivenUiCard {
     data class LessonCompleteCard(val title: String, val subtitle: String, val buttonLabel: String, val primaryAction: LessonPrimaryAction? = null) : DrivenUiCard()
     data class SwitchCard(val label: String, val description: String, val action: String, val initialOn: Boolean) : DrivenUiCard()
     data class NotificationPermissionCard(val title: String, val description: String, val buttonLabel: String) : DrivenUiCard()
-    /** Живая карточка heartbeat'а: содержимое подтягивается по [heartbeatId] из Room (см. [ReminderCardView]). */
+    /** A live heartbeat card: its content is pulled from Room by [heartbeatId] (see [ReminderCardView]). */
     data class ReminderCard(val heartbeatId: String) : DrivenUiCard()
-    /** [prompt] — imagePrompt шага урока: по нему кнопка «Нарисуй под меня» перерисует картинку. */
+    /** [prompt] is the lesson step's imagePrompt: the "Draw it for me" button redraws the image from it. */
     data class ImageCard(val asset: String, val url: String, val caption: String, val prompt: String = "") : DrivenUiCard()
     /**
-     * Шаг урока "video": [instruction] — что снять, [prompt] — задание модели к ролику, [sampleVideo] и
-     * [samplePreview] — ролик-пример из assets для кнопки «Показать на примере» (пусто — только своё видео).
+     * The "video" lesson step: [instruction] is what to film, [prompt] is the task for the model about the
+     * clip, [sampleVideo] and [samplePreview] are the sample clip from assets for the "Show me an example"
+     * button (empty — only your own video).
      */
     data class LessonVideoCard(
         val instruction: String,
@@ -43,15 +44,14 @@ sealed class DrivenUiCard {
         val sampleVideo: String = "",
         val samplePreview: String = "",
     ) : DrivenUiCard()
-    /** Шаг урока "animation": процедурная сцена [scene] (см. LESSON_ANIMATION_SCENES) с подписью. */
+    /** The "animation" lesson step: the procedural scene [scene] (see LESSON_ANIMATION_SCENES) with a caption. */
     data class LessonAnimationCard(val scene: String, val caption: String) : DrivenUiCard()
     data class RevealCard(val question: String, val answer: String) : DrivenUiCard()
     data class ConceptCard(val term: String, val definition: String, val example: String) : DrivenUiCard()
     data class ExampleCard(val label: String, val parts: List<ExamplePart>) : DrivenUiCard()
     /**
-     * Шаг "fill": [answer] — канонический ответ (его показывают после решения), [answers] — другие
-     * засчитываемые варианты. Проверку держим здесь, а не в композабле: это чистая логика, и её
-     * гоняет обычный JUnit.
+     * The "fill" step: [answer] is the canonical answer (shown after solving), [answers] are other accepted
+     * variants. The check lives here, not in the composable: it is pure logic, and plain JUnit runs it.
      */
     data class FillCard(
         val template: String,
@@ -60,10 +60,10 @@ sealed class DrivenUiCard {
         val answers: List<String> = emptyList(),
     ) : DrivenUiCard() {
         /**
-         * Засчитан ли ввод. Края и повторные пробелы не считаются; без [caseSensitive] не важны ни
-         * регистр, ни «ё»/«е» — на телефонной клавиатуре «ё» почти никто не набирает, и верный по
-         * смыслу ответ не должен вставать стеной. Пустой ввод не засчитывается никогда, даже если
-         * в ответах случайно оказалась пустая строка.
+         * Whether the input counts. Leading/trailing and repeated spaces do not matter; without
+         * [caseSensitive] neither case nor "ё"/"е" matters — almost nobody types "ё" on a phone keyboard,
+         * and an answer right in meaning must not hit a wall. Empty input never counts, even if an empty
+         * string accidentally got into the answers.
          */
         fun accepts(input: String): Boolean {
             val given = normalizeFill(input)
@@ -182,14 +182,14 @@ object DrivenUiEngine {
                 },
             )
             "lesson_complete" -> {
-                // primary_action — опциональный CTA (Task 23): сегодня его кладёт ТОЛЬКО
-                // LessonChatController.postCompletion для капстоуна agent_blueprint; обычные уроки
-                // этот ключ не передают вовсе, и карточка остаётся прежней (primaryAction = null).
+                // primary_action is an optional CTA (Task 23): today ONLY LessonChatController.postCompletion puts it
+                // in, for the agent_blueprint capstone; ordinary lessons do not pass this key at all, and the
+                // card stays as before (primaryAction = null).
                 val actionJson = p.optJSONObject("primary_action")
                 val actionType = actionJson?.optString("type", "").orEmpty()
                 if (actionJson != null && actionType !in KNOWN_LESSON_PRIMARY_ACTION_TYPES) {
-                    // Неизвестный тип отвергаем целиком (как "reminder" без heartbeat_id ниже), а не
-                    // молча игнорируем — битый/устаревший CTA не должен тихо пропадать из виду.
+                    // An unknown type is rejected entirely (like "reminder" without heartbeat_id below) rather than
+                    // silently ignored — a broken/outdated CTA must not quietly vanish from sight.
                     DrivenUiCard.ErrorCard(
                         tr(
                             "lesson_complete: неизвестный тип primary_action: '$actionType'",
@@ -268,7 +268,7 @@ object DrivenUiEngine {
                 template = p.optString("template", ""),
                 answer = p.optString("answer", ""),
                 caseSensitive = p.optBoolean("case_sensitive", false),
-                // Необязательный список: старые карточки и карточки от модели без него парсятся как раньше.
+                // An optional list: old cards and cards from the model without it parse as before.
                 answers = p.array("answers").toStringList().filter { it.isNotBlank() },
             )
             "sort" -> DrivenUiCard.SortCard(
@@ -381,7 +381,7 @@ fun DrivenUiCard.toMarkdown(): String = when (this) {
         appendLine("_[$buttonLabel]_")
     }.trim()
 
-    // Живая карточка: в markdown-режиме (виджеты отключены) статус БД не подтянуть — только заглушка.
+    // A live card: in markdown mode (widgets disabled) the DB status cannot be pulled in — only a placeholder.
     is DrivenUiCard.ReminderCard -> tr("⏰ _Напоминание (id=$heartbeatId)_", "⏰ _Reminder (id=$heartbeatId)_")
 
     is DrivenUiCard.ImageCard -> buildString {

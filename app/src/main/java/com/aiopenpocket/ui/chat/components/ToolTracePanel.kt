@@ -42,8 +42,8 @@ fun ToolTracePanel(
           is ToolResult.Success -> if (result.simulated) tr("имитация", "simulated") else tr("ок", "ok")
           is ToolResult.Error -> tr("ошибка", "error")
         }
-        // В trace.toolName лежит имя тула (memory_tool), действие — в аргументе action; на экран идёт
-        // общее человеческое имя вызова, как в баре подтверждения («Память: найти факты»).
+        // trace.toolName holds the tool name (memory_tool), and the action is in the action argument; the screen
+        // gets the shared human name of the call, as in the confirmation bar ("Memory: find facts").
         Text(
           text = "[${trace.iteration}] ${CapabilityNames.call(trace.toolName, trace.arguments)} → $resultText",
           style = MaterialTheme.typography.bodySmall,
@@ -60,7 +60,7 @@ private fun ToolTracePanelPreview() {
   MyApplicationTheme {
     ToolTracePanel(
       traces = listOf(
-        // Реальная форма вызова: имя тула + action в аргументах (не «search_memory» как имя функции).
+        // The real shape of the call: the tool name + action in the arguments (not "search_memory" as a function name).
         ToolTrace(1, "memory_tool", mapOf("action" to JsonPrimitive("search_memory")), ToolResult.Success("3 matches")),
         ToolTrace(2, "file_tool", mapOf("action" to JsonPrimitive("write_file")), ToolResult.Error("permission denied")),
       ),
