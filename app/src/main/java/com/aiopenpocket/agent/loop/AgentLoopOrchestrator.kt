@@ -23,9 +23,9 @@ import com.aiopenpocket.di.AppScope
  * the tool set and emits a terminal Completed/Error. The reasoning loop itself lives in
  * [ReactLoopRunner] so that multi-phase orchestrators ([ReflectionOrchestrator]) reuse the same engine.
  *
- * Поверх базового хода поддерживает [AgentMode.TUTOR] (разовый вопрос без инструментов, один ход);
- * [AgentMode.CHAT] — обычный цикл. Решение режима — чистая [resolveTurnExecutionPlan] (покрыта
- * AgentModeTest).
+ * On top of the basic turn it supports [AgentMode.TUTOR] (a one-off question without tools, a single
+ * turn); [AgentMode.CHAT] is the normal loop. The mode decision is the pure [resolveTurnExecutionPlan]
+ * (covered by AgentModeTest).
  *
  * Task 10 (structured-plan-engine-907066): [com.aiopenpocket.di.TurnModule]'s `TurnExecutor` dispatches
  * [AgentMode.PLAN]/[AgentMode.GOAL] to [StructuredPlanOrchestrator] instead, which runs the typed
@@ -56,13 +56,14 @@ class AgentLoopOrchestrator(
     systemPromptExtra: String? = null,
     executionMode: ExecutionMode = ExecutionMode.LIVE,
   ): Flow<AgentEvent> = agentTurnFlow(log, TAG, TurnTexts.TURN_FAILED) {
-    // Error-контракт (in-band Error, rethrow отмены, buffer+IO) — в agentTurnFlow.
-    // Контракт режима (CHAT/TUTOR) — чистое решение, покрыто AgentModeTest.
+    // The error contract (in-band Error, rethrowing cancellation, buffer+IO) lives in agentTurnFlow.
+    // The mode contract (CHAT/TUTOR) is a pure decision, covered by AgentModeTest.
     val turn = resolveTurnExecutionPlan(mode, ReactLoopRunner.MAX_ITERATIONS)
 
     val context = prePromptAssembler.assemble(conversationId, userMessage)
-    // Секция бюджета витков (и любая другая режимная добавка) собрана в resolveTurnExecutionPlan;
-    // systemPromptExtra — доверенный контекст хода (напр. текст текущего шага урока для tutor-вопроса).
+    // The iteration budget section (and any other mode-specific addition) is assembled in
+    // resolveTurnExecutionPlan; systemPromptExtra is trusted turn context (e.g. the current lesson
+    // step's text for a tutor question).
     val withSuffix = turn.systemPromptSuffix
       ?.let { context.systemPrompt + "\n\n" + it }
       ?: context.systemPrompt
@@ -76,8 +77,8 @@ class AgentLoopOrchestrator(
     // The caller persists the user message to DB before calling execute(),
     // so it's already included in context.history via ContextWindowBuilder.
 
-    // Гейт tutor-хода: модель только объясняет, инструменты не отдаём. Иначе — обычный набор:
-    // scoped для мини-агента, либо полный.
+    // The tutor-turn gate: the model only explains, it gets no tools. Otherwise the normal set: scoped
+    // for a mini-agent, or the full one.
     val tools = if (!turn.usesTools) {
       emptyList()
     } else {
@@ -108,8 +109,9 @@ class AgentLoopOrchestrator(
       send(AgentEvent.StateChanged(AgentState.FINISHED))
       send(AgentEvent.Completed(result))
       // After each reply, refresh the chat's title/summary/tags from the raw log (no-op if too short).
-      // Вне хода, а не здесь же после Completed: второй LLM-вызов держал бы ход (и его защиту) живым,
-      // а прежний runCatching глотал отмену — см. ConversationAnnotator.annotateInBackground.
+      // Outside the turn, not right here after Completed: a second LLM call would keep the turn (and
+      // its protection) alive, and the old runCatching swallowed cancellation — see
+      // ConversationAnnotator.annotateInBackground.
       conversationAnnotator.annotateInBackground(conversationId) {
         log.w(TAG, "annotate failed for $conversationId: ${it.message}")
       }
@@ -123,10 +125,10 @@ class AgentLoopOrchestrator(
 
 enum class AgentState { IDLE, STREAMING, EXECUTING_TOOL, FINISHED, ERROR }
 
-// История прошлых ходов реплеится как обычный текст user/assistant. Вызовы инструментов прошлых
-// ходов в чат-историю не пишутся (они живут в эпизодической памяти), поэтому tool_calls здесь не
-// восстанавливаем — внутри текущего хода они уже добавлены в messages напрямую. Общий хелпер для
-// всех оркестраторов (чат / супервизор / план-исполнитель).
+// The history of past turns is replayed as plain user/assistant text. Tool calls of past turns are
+// not written to the chat history (they live in episodic memory), so tool_calls are not restored
+// here — within the current turn they are already added to messages directly. A shared helper for
+// all orchestrators (chat / supervisor / plan executor).
 internal fun PrePromptAssembler.PromptMessage.toChatMessage(): ChatMessage =
   ChatMessage(role = role, content = content)
 
@@ -146,9 +148,9 @@ data class AgentResult(
   val promptTokensEstimate: Int = 0,
   val completionTokensEstimate: Int = 0,
   /**
-   * Цикл остановился, упёршись в лимит витков (а не потому что модель дала финальный ответ).
-   * [com.aiopenpocket.agent.core.plan.execution.PlanExecutor] читает это (вместе с
-   * [stoppedByToolBudget]) как `stoppedByBudget`, чтобы решить, нужна ли верификация шага плана.
+   * The loop stopped because it hit the iteration limit (not because the model gave a final answer).
+   * [com.aiopenpocket.agent.core.plan.execution.PlanExecutor] reads this (together with
+   * [stoppedByToolBudget]) as `stoppedByBudget` to decide whether a plan step needs verification.
    */
   val hitIterationLimit: Boolean = false,
   /**
@@ -184,13 +186,13 @@ sealed class AgentEvent {
   data class Completed(val result: AgentResult) : AgentEvent()
 
   /**
-   * Ход упал: [message] — для пользователя (баннер ошибки с «Повторить»).
+   * The turn failed: [message] is for the user (the error banner with "Retry").
    *
-   * [planStepOutputs] — только у GOAL-хода, где шаг плана завершился ошибкой
-   * ([com.aiopenpocket.agent.core.plan.model.PlanRunOutcome.FAILED]): что шаги этого запуска успели
-   * сказать, включая сам упавший шаг (например, шаг всё сделал, а сломалась проверка). `TurnManager`
-   * пишет их в чат ДО ошибки — раньше на foreground-пути ответ шага терялся, хотя фоновый heartbeat
-   * его сохраняет. У остальных ошибок список пуст.
+   * [planStepOutputs] — only for a GOAL turn whose plan step ended with an error
+   * ([com.aiopenpocket.agent.core.plan.model.PlanRunOutcome.FAILED]): what the steps of this run
+   * managed to say, including the failed step itself (e.g. the step did everything and the check
+   * broke). `TurnManager` writes them to the chat BEFORE the error — the step's answer used to be
+   * lost on the foreground path, although the background heartbeat keeps it. Empty for other errors.
    */
   data class Error(
     val message: String,

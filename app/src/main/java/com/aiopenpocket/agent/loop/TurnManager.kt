@@ -31,13 +31,15 @@ import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Ходы агента, отвязанные от жизненного цикла экрана: appScope-синглтон держит по TurnSession на
- * диалог, ход дорабатывает в фоне после ухода с экрана чата. Внутри диалога ходы сериализуются
- * (новый делает cancelAndJoin предыдущего — как прежний launchTurn во ViewModel), между диалогами
- * идут параллельно. Экран — только проектор: подписался на session(convId), отписался — ходу всё равно.
+ * Agent turns decoupled from the screen lifecycle: an appScope singleton keeps one TurnSession per
+ * conversation, and a turn keeps running in the background after the user leaves the chat screen.
+ * Within a conversation turns are serialized (a new one cancelAndJoins the previous, like the old
+ * launchTurn in the ViewModel); across conversations they run in parallel. The screen is only a
+ * projector: it subscribes to session(convId) and unsubscribes, and the turn does not care.
  *
- * Граница живучести — процесс: смерть процесса/смахивание из recents ход не переживает (осознанный
- * трейдофф вместо foreground-сервиса, см. спеку 2026-07-04-background-turns-design.md).
+ * The survival boundary is the process: a turn does not survive process death or a swipe from
+ * recents (a deliberate trade-off instead of a foreground service, see the spec
+ * 2026-07-04-background-turns-design.md).
  */
 class TurnManager(
   private val executor: TurnExecutor,
@@ -46,64 +48,66 @@ class TurnManager(
   private val notifier: TurnNotifier,
   private val lifeSupport: TurnLifeSupport,
   private val scope: CoroutineScope,
-  /** Монотонные часы для гейта стрима (SystemClock.uptimeMillis в проде, фейк в тестах). */
+  /** Monotonic clock for the stream gate (SystemClock.uptimeMillis in production, a fake in tests). */
   private val monotonicNowMs: () -> Long,
   /**
-   * Провайдер, выбранный пользователем в Настройках. Лямбда, а не значение — как [monotonicNowMs] и
-   * `apiKeyResolver`: читается заново на КАЖДЫЙ ход, поэтому переключение подхватывается со
-   * следующего же сообщения, без пересборки DI-графа.
+   * The provider in effect for the user's Settings (see activeLlmProvider). A lambda, not a value —
+   * like [monotonicNowMs] and `apiKeyResolver`: it is read again on EVERY turn, so a change is
+   * picked up from the very next message, without rebuilding the DI graph.
    *
-   * Без значения по умолчанию СОЗНАТЕЛЬНО (как toolApprovalCoordinator у ReactLoopRunner): `= {
-   * LlmProvider.NIM }` означало бы, что потерянный в DI аргумент молча возвращает всё приложение к
-   * NVIDIA и ничего при этом не падает.
+   * No default value ON PURPOSE (like toolApprovalCoordinator in ReactLoopRunner): `= {
+   * LlmProvider.NIM }` meant that an argument lost in DI silently sent the whole app back to
+   * NVIDIA without anything failing.
    */
   private val selectedProvider: () -> LlmProvider,
   private val log: AgentLog,
 ) {
 
-  /** Guard мапы сессий и подмены job — launchTurn может прилететь с любого потока. */
+  /** Guards the session map and job swaps — launchTurn can arrive from any thread. */
   private val mutex = Mutex()
 
   private val sessionsFlow = MutableStateFlow<Map<String, TurnSession>>(emptyMap())
 
   /**
-   * Отменённые, но ещё не доработавшие ходы по диалогам. Сериализацию ходов держал только
-   * `session.job`, а Stop/закрытие ошибки убирают сессию целиком: следующий ход заводил новую
-   * сессию без job и стартовал, не дождавшись остановки прошлого, — тот мог ещё дописывать ответ
-   * или результат инструмента в тот же диалог. Теперь каждый отменённый ход лежит здесь до своего
-   * фактического завершения, и новый ход диалога ждёт их всех (см. [startTurn]).
+   * Cancelled turns that have not finished yet, per conversation. Turn serialization used to rest on
+   * `session.job` alone, while Stop/closing an error removes the whole session: the next turn created
+   * a new session without a job and started without waiting for the previous one to stop — which
+   * could still be writing an answer or a tool result into the same conversation. Now every
+   * cancelled turn stays here until it actually finishes, and a new turn of the conversation waits
+   * for all of them (see [startTurn]).
    *
-   * Обычный `synchronized`, а не [mutex]: снимается из `invokeOnCompletion`, где suspend нельзя.
+   * Plain `synchronized`, not [mutex]: entries are removed from `invokeOnCompletion`, which cannot
+   * suspend.
    */
   private val dyingJobs = HashMap<String, MutableSet<Job>>()
 
   /**
-   * `systemPromptExtra` последнего хода по диалогам — для [retry]. Отдельной мапой, а не полем
-   * [TurnSession] (там остальной ретрай-контекст), только чтобы не трогать файл сессии в этом
-   * проходе; перезаписывается каждым ходом, поэтому устаревшее значение к ретраю не доезжает.
+   * `systemPromptExtra` of the last turn per conversation — for [retry]. A separate map rather than
+   * a field of [TurnSession] (where the rest of the retry context lives) only to avoid touching the
+   * session file in that pass; every turn overwrites it, so a stale value never reaches a retry.
    */
   private val lastSystemPromptExtra = ConcurrentHashMap<String, String>()
 
   init {
-    // Единственный подписчик: только менеджер владеет job-ами ходов и может их отменить.
+    // The only subscriber: only the manager owns turn jobs and can cancel them.
     lifeSupport.onProtectionLost { protectedIds -> scope.launch { failProtectedTurns(protectedIds) } }
   }
 
-  /** Активные и завершённые-непросмотренные сессии по conversationId (для бейджей списка). */
+  /** Active and finished-but-unseen sessions by conversationId (for the list badges). */
   val sessions: StateFlow<Map<String, TurnSession>> = sessionsFlow.asStateFlow()
 
   fun session(conversationId: String): Flow<TurnSession?> =
     sessionsFlow.map { it[conversationId] }.distinctUntilChanged()
 
   /**
-   * Запускает ход: пишет реплику пользователя в историю и гонит агентный цикл до конца.
-   * [executionMode] — LIVE (по умолчанию, обычный чат) или PREVIEW (builder-тест, Task 20) — не
-   * заводит параллельный вход: едет тем же трактом, что и обычная отправка.
+   * Starts a turn: writes the user's message into history and drives the agent loop to the end.
+   * [executionMode] — LIVE (the default, a normal chat) or PREVIEW (the builder test, Task 20) — does
+   * not create a parallel entry point: it rides the same path as a normal send.
    *
-   * [planId]/[budget] (Task 10, structured-plan-engine-907066) заменяют прежние
-   * `planApproved`/`goalMaxIterations`: [AgentMode.GOAL] читает [planId] (null = StructuredPlanOrchestrator
-   * сам резолвит план диалога) и многомерный [PlanRunBudget] вместо одного числа витков. Оба
-   * игнорируются CHAT/TUTOR/REFLECT.
+   * [planId]/[budget] (Task 10, structured-plan-engine-907066) replace the old
+   * `planApproved`/`goalMaxIterations`: [AgentMode.GOAL] reads [planId] (null = StructuredPlanOrchestrator
+   * resolves the conversation's plan itself) and a multi-dimensional [PlanRunBudget] instead of a single
+   * iteration count. Both are ignored by CHAT/TUTOR/REFLECT.
    */
   fun launchTurn(
     conversationId: String,
@@ -122,7 +126,7 @@ class TurnManager(
     }
   }
 
-  /** Останавливает ход и убирает сессию: для UI диалог возвращается в Idle, без ошибки. */
+  /** Stops the turn and removes the session: for the UI the conversation goes back to Idle, no error. */
   fun cancel(conversationId: String) {
     scope.launch {
       mutex.withLock {
@@ -134,11 +138,11 @@ class TurnManager(
   }
 
   /**
-   * Отменяет ход и ДОЖИДАЕТСЯ его фактической остановки, после чего забывает сессию. Отличается от
-   * [cancel] тем, что [cancel] возвращается сразу: вызывающему, который следом сносит сам диалог,
-   * этого мало — у `messages` внешний ключ на `conversations` с CASCADE, и удаление из-под ещё
-   * живого хода роняет запись ответа по constraint. Единственный такой вызывающий сегодня —
-   * уборка тестового диалога конструктора (`AgentBuilderTestViewModel.onCleared`).
+   * Cancels the turn and WAITS for it to actually stop, then forgets the session. Unlike [cancel],
+   * which returns at once: that is not enough for a caller that deletes the conversation right after —
+   * `messages` has a CASCADE foreign key to `conversations`, and deleting from under a still-running
+   * turn makes the answer write fail on the constraint. The only such caller today is the cleanup of
+   * the builder's test conversation (`AgentBuilderTestViewModel.onCleared`).
    */
   suspend fun cancelAndAwait(conversationId: String) {
     val job = mutex.withLock {
@@ -150,14 +154,14 @@ class TurnManager(
   }
 
   /**
-   * Повтор последнего хода после ошибки: реплика пользователя уже в истории, addMessage не повторяем.
-   * Повторяет и [TurnSession.lastExecutionMode] прошлой попытки — «Повторить» не должен переиграть
-   * PREVIEW-ход LIVE-ом (или наоборот).
+   * Retries the last turn after an error: the user's message is already in history, so addMessage is
+   * not repeated. It also repeats the previous attempt's [TurnSession.lastExecutionMode] — "Retry"
+   * must not replay a PREVIEW turn as LIVE (or the other way round).
    *
-   * Task 10 (structured-plan-engine-907066): повторяет [TurnSession.lastPlanId]/[TurnSession.lastBudget]
-   * как есть — никакой спецлогики больше не нужно (в отличие от прежнего жёсткого `planApproved=false`):
-   * approval теперь persisted-состояние PlanRepository, а не флаг хода, так что ретрай план-мода
-   * просто заново вызывает propose()/executeGoal() с теми же аргументами, что и оригинальный ход.
+   * Task 10 (structured-plan-engine-907066): repeats [TurnSession.lastPlanId]/[TurnSession.lastBudget]
+   * as is — no special logic is needed any more (unlike the old hard `planApproved=false`): approval is
+   * now persisted state in PlanRepository, not a turn flag, so a plan-mode retry simply calls
+   * propose()/executeGoal() again with the same arguments as the original turn.
    */
   fun retry(conversationId: String) {
     scope.launch {
@@ -166,15 +170,16 @@ class TurnManager(
       startTurn(
         conversationId, text, session.lastMode, session.lastPlanId, session.lastBudget,
         persistUserMessage = false,
-        // Контекст хода повторяется вместе с ним: вопрос посреди урока без текста текущего шага
-        // превращался при «Повторить» в вопрос без контекста — модель отвечала не про тот шаг.
+        // The turn's context is repeated with it: a question in the middle of a lesson without the
+        // current step's text turned into a context-free question on "Retry", and the model answered
+        // about the wrong step.
         systemPromptExtra = lastSystemPromptExtra[conversationId],
         executionMode = session.lastExecutionMode,
       )
     }
   }
 
-  /** Смена режима агента инвалидирует «Повторить» прошлого хода (иначе ретрай уйдёт в старый режим). */
+  /** Changing the agent mode invalidates the previous turn's "Retry" (or the retry would use the old mode). */
   fun invalidateRetry(conversationId: String) {
     val session = sessionsFlow.value[conversationId] ?: return
     session.lastUserText = null
@@ -188,13 +193,13 @@ class TurnManager(
     }
   }
 
-  /** Удалили сообщение, которое держит «Повторить», — гасим ретрай (см. deleteMessage до переезда). */
+  /** The message that holds "Retry" was deleted — cancel the retry (see deleteMessage before the move). */
   fun invalidateRetryFor(conversationId: String, messageId: String) {
     val session = sessionsFlow.value[conversationId] ?: return
     if (session.lastUserMessageId == messageId) invalidateRetry(conversationId)
   }
 
-  /** Интент ClearError: пользователь закрыл баннер ошибки — сессия с ошибкой больше не нужна. */
+  /** ClearError intent: the user closed the error banner — the failed session is no longer needed. */
   fun clearError(conversationId: String) {
     scope.launch {
       mutex.withLock {
@@ -210,15 +215,16 @@ class TurnManager(
   }
 
   /**
-   * Ход просмотрен (вход в диалог, либо ответ доехал до ленты) — чисто завершённую сессию убираем,
-   * чтобы бейдж «готово» в списке погас. Running/Failed/blank-error не трогаем: они ещё нужны
-   * экрану (индикация, ретрай).
+   * The turn was seen (the user opened the conversation, or the answer reached the feed) — a cleanly
+   * finished session is removed so that the "done" badge in the list goes out. Running/Failed/
+   * blank-error are left alone: the screen still needs them (progress, retry).
    *
-   * До Task 5 (structured-plan-engine-907066) сюда же входил `!status.planAwaitingApproval` — план,
-   * ждущий одобрения, держал сессию видимой, чтобы approval-бар не исчезал сам. Тот флаг убран
-   * из TurnStatus.Completed вместе с magic-message approvePlan; «ждёт ли решения план» теперь
-   * состояние PlanRepository (см. PlanCommands), а не этой сессии, так что markSeen её больше не
-   * особит — чисто завершённый ход (включая план-фазу без ошибки) убирается как обычно.
+   * Before Task 5 (structured-plan-engine-907066) this also checked `!status.planAwaitingApproval` —
+   * a plan waiting for approval kept the session visible so the approval bar would not disappear on
+   * its own. That flag was removed from TurnStatus.Completed together with the approvePlan magic
+   * message; "is the plan waiting for a decision" is now PlanRepository state (see PlanCommands), not
+   * this session's, so markSeen no longer special-cases it — a cleanly finished turn (including an
+   * error-free plan phase) is removed as usual.
    */
   fun markSeen(conversationId: String) {
     scope.launch {
@@ -233,7 +239,7 @@ class TurnManager(
     }
   }
 
-  /** Статусы ходов по диалогам — бейджи списка диалогов («варится» / «готово» / «ошибка»). */
+  /** Turn statuses per conversation — the conversation list badges ("cooking" / "done" / "error"). */
   @OptIn(ExperimentalCoroutinesApi::class)
   val badges: Flow<Map<String, TurnStatus>> = sessionsFlow.flatMapLatest { map ->
     if (map.isEmpty()) {
@@ -244,10 +250,9 @@ class TurnManager(
   }
 
   /**
-   * Единая точка старта (отправка/ретрай). Прошлый ход этого же диалога мог ещё
-   * выполнять инструмент или запись — гасим его и ждём внутри нового job, прежде чем стартовать
-   * (перенос семантики прежнего ChatViewModel.launchTurn, но с ключом-диалогом вместо одного
-   * глобального activeJob).
+   * The single start point (send/retry). The previous turn of the same conversation may still be
+   * running a tool or a write — cancel it and wait inside the new job before starting (the semantics
+   * of the old ChatViewModel.launchTurn, but keyed by conversation instead of one global activeJob).
    */
   internal suspend fun startTurn(
     conversationId: String,
@@ -259,28 +264,29 @@ class TurnManager(
     systemPromptExtra: String? = null,
     executionMode: ExecutionMode = ExecutionMode.LIVE,
   ) {
-    // Захват ДО мьютекса: acquire уходит в Android (старт сервиса), держать на нём мьютекс
-    // менеджера незачем — он сериализует только подмену job. Отказ системы не ошибка: ход просто
-    // пойдёт без защиты, ровно как до появления этой фичи.
+    // Acquired BEFORE the mutex: acquire calls into Android (starts a service), and there is no reason
+    // to hold the manager's mutex over it — the mutex only serializes job swaps. A refusal by the
+    // system is not an error: the turn simply runs unprotected, exactly as before this feature.
     val hasProtection = lifeSupport.acquire(conversationId)
     mutex.withLock {
       val session = sessionsFlow.value[conversationId] ?: TurnSession(conversationId, monotonicNowMs).also { created ->
         sessionsFlow.update { it + (conversationId to created) }
       }
-      // Гасим прошлый ход СРАЗУ под мьютексом, а join ждём уже внутри нового job. Иначе, если новый
-      // job отменят (Stop/clearError) раньше, чем он дойдёт до cancelAndJoin, прошлый ход остался бы
-      // недоотменённым и продолжил бы писать ответ в «остановленный» диалог.
+      // Cancel the previous turn RIGHT AWAY under the mutex, and join it inside the new job. Otherwise,
+      // if the new job were cancelled (Stop/clearError) before it reached cancelAndJoin, the previous
+      // turn would stay half-cancelled and keep writing its answer into a "stopped" conversation.
       session.job?.let { retire(conversationId, it) }
-      // Ждём ВСЕ недоработавшие ходы диалога, а не только job этой сессии: сессию мог снести Stop
-      // (тогда job здесь null), а прошлый ход мог сам быть отменён, пока ждал предыдущего.
+      // Wait for ALL unfinished turns of the conversation, not only this session's job: Stop may have
+      // removed the session (then job is null here), and the previous turn may itself have been
+      // cancelled while waiting for the one before it.
       val previous = dyingJobsOf(conversationId)
       session.job = scope.launch {
         try {
           previous.joinAll()
           runTurn(session, userText, mode, planId, budget, persistUserMessage, systemPromptExtra, executionMode)
         } finally {
-          // finally, а не хвост runTurn: отмена (Stop, новый ход) обязана отпустить защиту тоже,
-          // иначе сервис с уведомлением переживёт ход, ради которого поднимался.
+          // finally, not the tail of runTurn: a cancellation (Stop, a new turn) must release the protection
+          // too, or the service with its notification would outlive the turn it was started for.
           if (hasProtection) lifeSupport.release(conversationId)
         }
       }
@@ -288,13 +294,13 @@ class TurnManager(
   }
 
   /**
-   * Отменяет [job] и держит его в [dyingJobs] диалога, пока он фактически не завершится, — чтобы
-   * следующий ход этого диалога дождался его, даже если сессию уже убрали.
+   * Cancels [job] and keeps it in the conversation's [dyingJobs] until it actually finishes — so the
+   * next turn of this conversation waits for it even if the session is already gone.
    */
   private fun retire(conversationId: String, job: Job) {
     job.cancel()
     synchronized(dyingJobs) { dyingJobs.getOrPut(conversationId) { HashSet() }.add(job) }
-    // Для уже завершённого job обработчик вызывается сразу — запись тут же и снимается.
+    // For a job that has already finished the handler runs immediately — the entry is removed at once.
     job.invokeOnCompletion {
       synchronized(dyingJobs) {
         val jobs = dyingJobs[conversationId] ?: return@synchronized
@@ -308,10 +314,10 @@ class TurnManager(
     synchronized(dyingJobs) { dyingJobs[conversationId]?.toList().orEmpty() }
 
   /**
-   * Система отобрала защиту (таймаут shortService). Гейт на видимости — ключевой: foreground-процесс
-   * ОС не вытесняет, поэтому на экране защищать не от чего, и резать длинный GOAL-прогон там было бы
-   * вредом без причины. В фоне же альтернатива «оставить ход без защиты» означает тихую пропажу
-   * ответа, поэтому валим явно и с «Повторить».
+   * The system took the protection away (shortService timeout). The visibility gate is the key: the
+   * OS does not evict a foreground process, so on screen there is nothing to protect against, and
+   * cutting a long GOAL run there would do harm for no reason. In the background the alternative —
+   * leaving the turn unprotected — means a silently lost answer, so we fail explicitly, with "Retry".
    */
   private suspend fun failProtectedTurns(protectedIds: Set<String>) {
     if (foreground.isInForeground()) return
@@ -319,10 +325,10 @@ class TurnManager(
       protectedIds.forEach { convId ->
         val session = sessionsFlow.value[convId] ?: return@forEach
         if (session.status.value !is TurnStatus.Running) return@forEach
-        // cancelAndJoin, а не cancel: ход не держит этот мьютекс во время исполнения, поэтому между
-        // «увидел Running» и записью Failed он успевал бы дописать Completed вместе с ответом в БД —
-        // и мы затёрли бы валидный результат ошибкой ровно в момент, когда ход и так почти доехал.
-        // Ждём фактической остановки и перепроверяем статус.
+        // cancelAndJoin, not cancel: the turn does not hold this mutex while it runs, so between "saw
+        // Running" and writing Failed it could still write Completed together with its answer to the
+        // DB — and we would overwrite a valid result with an error right when the turn had almost
+        // made it. Wait for it to actually stop and check the status again.
         session.job?.cancelAndJoin()
         if (session.status.value !is TurnStatus.Running) return@forEach
         session.statusFlow.value =
@@ -357,7 +363,7 @@ class TurnManager(
     }
     try {
       if (persistUserMessage) {
-        // Новый ход — новая попытка: ретрай-контекст валиден только после успешного addMessage.
+        // A new turn is a new attempt: the retry context is valid only after a successful addMessage.
         session.lastUserText = null
         session.lastUserMessageId = null
         val userMsgId = persistence.addUserMessage(convId, userText)
@@ -366,16 +372,16 @@ class TurnManager(
       }
       collectTurnEvents(session, userText, mode, planId, budget, systemPromptExtra, executionMode)
     } catch (e: CancellationException) {
-      // Stop / новый ход: отмена — штатный путь.
+      // Stop / a new turn: cancellation is the normal path.
       throw e
     } catch (e: Exception) {
       log.e(TAG, "Agent turn error", e)
-      // Текст исключения (запись в Room, сбой сборки промпта) человеку ничего не скажет и бывает по-английски.
+      // The exception text (a Room write, a prompt assembly failure) tells a person nothing and is sometimes in English.
       finishFailed(session, TurnTexts.TURN_FAILED)
     }
   }
 
-  /** Проекция событий агентного цикла в сессию — прямой перенос веток из ChatViewModel.runAgent. */
+  /** Projects agent-loop events into the session — a direct port of the branches of ChatViewModel.runAgent. */
   private suspend fun collectTurnEvents(
     session: TurnSession,
     userText: String,
@@ -385,14 +391,13 @@ class TurnManager(
     systemPromptExtra: String? = null,
     executionMode: ExecutionMode = ExecutionMode.LIVE,
   ) {
-    // Провайдер берём из Настроек на каждый ход. Раньше здесь был жёстко прошитый NIM с пометкой
-    // «выпилим позже» — оставить его сейчас значило бы сделать селектор провайдера контролом
-    // без эффекта.
+    // The provider comes from Settings on every turn. There used to be a hard-wired NIM here marked
+    // "remove later" — keeping it would have made the provider choice a control without effect.
     val flow = executor.execute(session.conversationId, userText, selectedProvider(), mode, planId, budget, systemPromptExtra, executionMode)
     flow.collect { event ->
       when (event) {
         is AgentEvent.TextDelta ->
-          // Гейт частоты (~20 пуб/сек) — в StreamingTextBuffer; null = дельта скоплена молча.
+          // Rate gate (~20 publishes/s) lives in StreamingTextBuffer; null = the delta was buffered silently.
           session.streamBuffer.append(event.content)?.let { session.streamingTextFlow.value = it }
 
         is AgentEvent.ToolCompleted -> {
@@ -408,9 +413,9 @@ class TurnManager(
         is AgentEvent.Completed -> handleCompleted(session, event.result)
 
         is AgentEvent.Error -> {
-          // GOAL с упавшим шагом: сначала то, что шаги успели сказать (фоновый heartbeat пишет это
-          // и при FAILED), потом ошибка — баннер и «Повторить» остаются как у любой ошибки. Трейс —
-          // в панель инструментов, как у удачного запуска. У прочих ошибок список пуст.
+          // GOAL with a failed step: first what the steps managed to say (the background heartbeat writes
+          // it on FAILED too), then the error — the banner and "Retry" stay as for any error. The trace
+          // goes to the tools panel, as for a successful run. For other errors the list is empty.
           if (event.planStepOutputs.isNotEmpty()) {
             persistPlanStepOutputs(event.planStepOutputs) { text, card ->
               persistence.addAssistantMessage(session.conversationId, text, card)
@@ -421,29 +426,30 @@ class TurnManager(
         }
 
         is AgentEvent.StateChanged -> when (event.state) {
-          // Новый виток ReAct копит текст заново — чистим ТОЛЬКО буфер. Видимый пузырь НЕ гасим:
-          // между витками там стоит прогресс вызова инструмента, и его перезапишет первый TextDelta
-          // нового витка. Раньше здесь было ещё и обнуление пузыря (resetStreaming), из-за чего
-          // преамбула прошлого витка «затиралась в пустоту» — выглядело как «ответ пишется, потом
-          // исчезает» (виден только на ходах с инструментом: без него виток один, стирать нечего).
+          // A new ReAct iteration accumulates text from scratch — clear ONLY the buffer. Do NOT clear the
+          // visible bubble: between iterations it shows the tool-call progress, and the first TextDelta
+          // of the new iteration overwrites it. This used to also reset the bubble (resetStreaming),
+          // which "wiped" the previous iteration's preamble into nothing — it looked like "the answer
+          // is being written, then disappears" (only on turns with a tool: without one there is a single
+          // iteration and nothing to wipe).
           AgentState.STREAMING -> session.streamBuffer.reset()
-          // Агент ушёл исполнять инструмент: на месте пузыря показываем прогресс, а не преамбулу.
-          // Буфер чистим, чтобы поздний flush не вернул преамбулу поверх прогресса.
+          // The agent went off to run a tool: show progress in place of the bubble, not the preamble.
+          // Clear the buffer so a late flush does not bring the preamble back over the progress.
           AgentState.EXECUTING_TOOL -> {
             session.streamBuffer.reset()
             session.streamingTextFlow.value = TurnTexts.TOOL_PROGRESS
           }
-          // Стрим витка закончился (FINISHED и пр.): дофлашиваем хвост, не прошедший гейт частоты.
+          // The iteration's stream ended (FINISHED etc.): flush the tail that did not pass the rate gate.
           else -> session.streamBuffer.flush()?.let { session.streamingTextFlow.value = it }
         }
 
-        // Task 10 (structured-plan-engine-907066): PLAN/GOAL терминальные события StructuredPlanOrchestrator
-        // — свой текст, без resolveCompletedTurn (тот обслуживает только CHAT/REFLECT/TUTOR, которые
-        // сюда как AgentEvent.Completed приходят; PLAN/GOAL с этих режимов не приходят вовсе).
+        // Task 10 (structured-plan-engine-907066): PLAN/GOAL terminal events of StructuredPlanOrchestrator
+        // — their own text, without resolveCompletedTurn (that one serves only CHAT/REFLECT/TUTOR, which
+        // arrive here as AgentEvent.Completed; PLAN/GOAL never come from those modes).
         is AgentEvent.PlanProposed -> finishPlanMessage(session, TurnTexts.planProposedMessage(event.planId, event.version))
         is AgentEvent.PlanProgressed -> {
-          // Сначала сам ответ шага (ради него план и запускали), потом строка прогресса. Раньше
-          // писалась только строка прогресса, и результат шага пропадал целиком.
+          // First the step's own answer (the reason the plan was run), then the progress line. Only the
+          // progress line used to be written, and the step's result was lost entirely.
           persistPlanStepOutputs(event.result.stepOutputs) { text, card ->
             persistence.addAssistantMessage(session.conversationId, text, card)
           }
@@ -455,13 +461,14 @@ class TurnManager(
         }
         is AgentEvent.PlanBlocked -> finishPlanMessage(session, event.reason)
 
-        // Уточняем прогресс именем инструмента (EXECUTING_TOOL мгновением раньше показал общий текст).
+        // Refine the progress with the tool name (EXECUTING_TOOL showed a generic text a moment earlier).
         is AgentEvent.ToolStarted -> session.streamingTextFlow.value = TurnTexts.toolProgress(event.name, event.args)
 
-        // Бар approval'а ChatViewModel берёт из ToolApprovalCoordinator.pending (фильтруя по своему
-        // conversationId), а не из потока событий хода. Здесь — только пуш, если приложение свёрнуто:
-        // иначе запрос на удаление/отправку молча истёк бы отказом. Ветка явная, а не else: новое
-        // событие цикла обязано уронить компиляцию здесь, а не потеряться молча.
+        // ChatViewModel takes the approval bar from ToolApprovalCoordinator.pending (filtering by its own
+        // conversationId), not from the turn's event stream. Here we only push a notification when the
+        // app is in the background: otherwise a delete/send request would silently expire as a denial.
+        // The branch is explicit, not else: a new loop event must break compilation here, not get
+        // lost silently.
         is AgentEvent.ToolApprovalRequired -> if (!foreground.isInForeground()) {
           val title = runCatching { persistence.conversationTitle(session.conversationId) }.getOrNull()
           notifier.approvalNeeded(
@@ -479,11 +486,11 @@ class TurnManager(
     result: AgentResult,
   ) {
     val convId = session.conversationId
-    // Все решения (blank-ошибки, карточки) — в чистой политике; здесь только применяем: записать,
-    // обновить статус, уведомить. Этот путь (AgentEvent.Completed) обслуживает только CHAT/REFLECT/
-    // TUTOR: PLAN/GOAL теперь заканчиваются PlanProposed/PlanProgressed/PlanBlocked/Error (см.
-    // collectTurnEvents) — Task 15 (structured-plan-engine-907066) убрал mode-зависимые ветки из
-    // resolveCompletedTurn вместе со старым prompt-only PLAN/GOAL, так что mode ему больше не нужен.
+    // All decisions (blank errors, cards) live in a pure policy; here we only apply them: write,
+    // update the status, notify. This path (AgentEvent.Completed) serves only CHAT/REFLECT/TUTOR:
+    // PLAN/GOAL now end with PlanProposed/PlanProgressed/PlanBlocked/Error (see collectTurnEvents) —
+    // Task 15 (structured-plan-engine-907066) removed the mode-dependent branches from
+    // resolveCompletedTurn together with the old prompt-only PLAN/GOAL, so it no longer needs mode.
     val outcome = resolveCompletedTurn(result)
     val insertedId = if (outcome.responseText.isNotBlank() || outcome.cardSpecs.isNotEmpty()) {
       persistence.addAssistantMessage(convId, outcome.responseText, outcome.cardSpecs.firstOrNull())
@@ -495,15 +502,15 @@ class TurnManager(
     }
 
     session.toolTraceFlow.value = result.toolTrace
-    // streamingText НЕ сбрасываем: экран держит пузырь, пока сообщение не приедет в окно ленты
-    // (замена pendingHandoffId — «мигание» конца хода не возвращается).
+    // streamingText is NOT reset: the screen keeps the bubble until the message reaches the feed
+    // window (replaces pendingHandoffId — the end-of-turn "flicker" does not come back).
     session.statusFlow.value = TurnStatus.Completed(
       insertedMessageId = insertedId,
       responseTimeMs = System.currentTimeMillis() - session.responseStartTime,
       completionTokens = result.completionTokensEstimate,
       contextTokensUsed = result.promptTokensEstimate,
       error = outcome.blankError,
-      // «Повторить» — когда есть ошибка пустого ответа и в сессии остался текст пользователя.
+      // "Retry" — when there is a blank-answer error and the user's text is still in the session.
       canRetry = outcome.blankError != null && session.lastUserText != null,
     )
     notifyIfBackground(convId, preview = outcome.responseText.take(140).ifBlank { TurnTexts.TURN_DONE_FALLBACK }, failed = false)
@@ -516,8 +523,8 @@ class TurnManager(
    * and completes the session, mirroring [handleCompleted]'s own "insert, update status, notify"
    * bookkeeping. No token stats: a plan turn's LLM calls happen inside
    * `com.aiopenpocket.agent.core.plan.planner.PlanPlanner`/`com.aiopenpocket.agent.core.plan.execution.PlanExecutor`,
-   * not this loop, and are not surfaced here. [toolTrace] — трейс исполненных шагов (GOAL), чтобы
-   * панель инструментов показывала, что шаг реально вызывал; у PLAN/NeedsInfo он пуст. Always
+   * not this loop, and are not surfaced here. [toolTrace] — the trace of executed steps (GOAL), so
+   * the tools panel shows what a step actually called; it is empty for PLAN/NeedsInfo. Always
    * `canRetry = false` — unlike a blank/network error, there is nothing to retry: the user can just
    * send another PLAN/GOAL turn.
    */
@@ -541,7 +548,7 @@ class TurnManager(
     notifyIfBackground(session.conversationId, preview = message, failed = true)
   }
 
-  /** Пуш — только когда приложение реально в фоне; внутри приложения — бейджи списка диалогов. */
+  /** Push only when the app is really in the background; inside the app — the conversation list badges. */
   private suspend fun notifyIfBackground(conversationId: String, preview: String, failed: Boolean) {
     if (foreground.isInForeground()) return
     val title = runCatching { persistence.conversationTitle(conversationId) }.getOrNull()

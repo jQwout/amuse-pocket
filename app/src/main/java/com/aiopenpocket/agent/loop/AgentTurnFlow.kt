@@ -13,14 +13,15 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
 
 /**
- * Общий скелет хода оркестратора — единый error-контракт для всех: брошенное исключение (assemble,
- * сериализация, запись в БД) становится in-band [AgentEvent.Error], а не raw throw из flow;
- * отмена (Stop / новый ход) — штатный путь и пробрасывается для cancelAndJoin. Буфер безлимитный,
- * работа — на IO.
+ * The common skeleton of an orchestrator turn — one error contract for all of them: a thrown exception
+ * (assemble, serialization, a DB write) becomes an in-band [AgentEvent.Error] rather than a raw throw
+ * from the flow; cancellation (Stop / a new turn) is the normal path and is rethrown for cancelAndJoin.
+ * The buffer is unlimited, the work runs on IO.
  *
- * [exposeExceptionMessage] = false — в баннер всегда [defaultErrorMessage], а `e.message` только в
- * лог. Так у плановых ходов: там бросает сам движок (require/check в PlanRepository.saveProposal,
- * PlanExecutor и т.п.) с английской диагностикой и id планов — пользователю это ничего не говорит.
+ * [exposeExceptionMessage] = false — the banner always shows [defaultErrorMessage], and `e.message`
+ * goes only to the log. That is the case for plan turns: there the engine itself throws
+ * (require/check in PlanRepository.saveProposal, PlanExecutor etc.) with English diagnostics and plan
+ * ids — which tell the user nothing.
  */
 internal fun agentTurnFlow(
   log: AgentLog,

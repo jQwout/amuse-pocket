@@ -3,9 +3,9 @@ package com.aiopenpocket.agent.loop
 // @trace fonovye-hody-agenta-dde42d
 
 /**
- * Накопитель стрим-текста с гейтом частоты публикаций: toString() копирует весь накопленный текст,
- * чаще ~20 раз/сек глазу не нужно. Часы инъектируются (монотонные, см. TurnModule) — класс чистый
- * и тестируется без Android.
+ * Accumulates stream text with a publish-rate gate: toString() copies the whole accumulated text, and
+ * the eye needs no more than ~20 updates per second. The clock is injected (monotonic, see TurnModule)
+ * — the class is pure and is tested without Android.
  */
 class StreamingTextBuffer(
   private val nowMs: () -> Long,
@@ -14,7 +14,7 @@ class StreamingTextBuffer(
   private val builder = StringBuilder()
   private var lastPublishAt = 0L
 
-  /** Копит [delta]; возвращает снапшот для публикации, если гейт пропускает, иначе null. */
+  /** Accumulates [delta]; returns a snapshot to publish if the gate lets it through, null otherwise. */
   fun append(delta: String): String? {
     builder.append(delta)
     val now = nowMs()
@@ -23,7 +23,7 @@ class StreamingTextBuffer(
     return builder.toString()
   }
 
-  /** Хвост стрима, не прошедший гейт: снапшот, если есть накопленное, иначе null. */
+  /** The stream tail that did not pass the gate: a snapshot if anything accumulated, null otherwise. */
   fun flush(): String? = if (builder.isNotEmpty()) builder.toString() else null
 
   fun reset() {
@@ -32,7 +32,7 @@ class StreamingTextBuffer(
   }
 
   companion object {
-    /** Минимальный интервал публикации стрим-текста (~20 обновлений/сек). */
+    /** Minimum interval between stream text publishes (~20 updates per second). */
     const val DEFAULT_PUBLISH_INTERVAL_MS = 50L
   }
 }

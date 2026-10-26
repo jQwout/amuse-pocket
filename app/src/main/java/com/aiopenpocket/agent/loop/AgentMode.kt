@@ -4,14 +4,14 @@ package com.aiopenpocket.agent.loop
 // @trace structured-plan-engine-907066
 
 /**
- * Режим работы агента в чате (эфемерный UI-флаг, как plan-mode в Claude Code).
+ * The agent's mode in the chat (an ephemeral UI flag, like plan mode in Claude Code).
  *
- * - [CHAT] — обычный ReAct-цикл.
- * - [PLAN] — план по Structured Plan Engine: без инструментов, заканчивается persisted proposal'ом.
- * - [GOAL] — выполнение одобренного плана по шагам (Structured Plan Engine).
- * - [REFLECT] — черновик → критика → итог: отдельный оркестратор ([ReflectionOrchestrator]),
- *   а не гейт/петля поверх одного хода, поэтому [resolveTurnExecutionPlan] его не обрабатывает.
- * - [TUTOR] — разовый вопрос к LLM во время урока: без инструментов, ровно один ход.
+ * - [CHAT] — the normal ReAct loop.
+ * - [PLAN] — a plan via the Structured Plan Engine: no tools, ends with a persisted proposal.
+ * - [GOAL] — running an approved plan step by step (Structured Plan Engine).
+ * - [REFLECT] — draft → critique → result: a separate orchestrator ([ReflectionOrchestrator]), not a
+ *   gate/loop on top of one turn, so [resolveTurnExecutionPlan] does not handle it.
+ * - [TUTOR] — a one-off question to the LLM during a lesson: no tools, exactly one turn.
  *
  * Task 10 (structured-plan-engine-907066): [com.aiopenpocket.di.TurnModule]'s `TurnExecutor`
  * dispatches [PLAN]/[GOAL] to `com.aiopenpocket.agent.loop.StructuredPlanOrchestrator`
@@ -22,26 +22,27 @@ package com.aiopenpocket.agent.loop
  * (and the `prompts/modes` assets it depended on) — Structured Plan Engine is now the only
  * PLAN/GOAL implementation.
  *
- * Контракт режима (для [CHAT]/[TUTOR]): [resolveTurnExecutionPlan] (как выполнять ход) +
- * [resolveCompletedTurn] (что значит его результат).
+ * The mode contract (for [CHAT]/[TUTOR]): [resolveTurnExecutionPlan] (how to run a turn) +
+ * [resolveCompletedTurn] (what its result means).
  */
 enum class AgentMode { CHAT, PLAN, GOAL, REFLECT, TUTOR }
 
 /**
- * Как выполнять текущий ход агента: давать ли инструменты и сколько витков. Чистое решение,
- * выведенное из режима — вынесено из оркестратора, чтобы покрыть контракт гейта тестом.
+ * How to run the current agent turn: whether to give tools and how many iterations. A pure decision
+ * derived from the mode — moved out of the orchestrator so the gate contract can be covered by a test.
  */
 data class TurnExecutionPlan(
   val usesTools: Boolean,
   val maxIterations: Int,
-  /** Доверенная добавка к системному промпту (сейчас — только рамка tutor-хода). */
+  /** A trusted addition to the system prompt (currently only the tutor-turn frame). */
   val systemPromptSuffix: String? = null,
 )
 
 /**
- * Контракт CHAT/TUTOR в одном месте (PLAN/GOAL идут через Structured Plan Engine — см. kdoc [AgentMode]):
- * - CHAT — обычный цикл на [chatMaxIterations].
- * - TUTOR — разовый вопрос к LLM во время урока: БЕЗ инструментов, ровно один ход (только объясняет).
+ * The CHAT/TUTOR contract in one place (PLAN/GOAL go through the Structured Plan Engine — see the
+ * kdoc of [AgentMode]):
+ * - CHAT — the normal loop with [chatMaxIterations].
+ * - TUTOR — a one-off question to the LLM during a lesson: NO tools, exactly one turn (it only explains).
  */
 fun resolveTurnExecutionPlan(
   mode: AgentMode,

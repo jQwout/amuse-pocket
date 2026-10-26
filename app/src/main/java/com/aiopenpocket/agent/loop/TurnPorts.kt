@@ -11,14 +11,15 @@ import com.aiopenpocket.i18n.tr
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Порт исполнения хода — узкий шов между TurnManager и AgentLoopOrchestrator/ReflectionOrchestrator/
- * StructuredPlanOrchestrator, чтобы менеджер тестировался скриптовым фейком без LLM/Room.
+ * The turn execution port — a narrow seam between TurnManager and AgentLoopOrchestrator/
+ * ReflectionOrchestrator/StructuredPlanOrchestrator, so the manager can be tested with a scripted fake,
+ * without an LLM or Room.
  *
- * Task 10 (structured-plan-engine-907066): `planApproved`/`goalMaxIterations` убраны — approval
- * больше не per-turn флаг (см. PlanCommands), а [AgentMode.GOAL] бюджет теперь многомерный
- * [PlanRunBudget], а не один `goalMaxIterations`. [planId] — какой план исполняет GOAL (null =
- * StructuredPlanOrchestrator сам резолвит план диалога); [budget] используется только PLAN/GOAL-веткой
- * диспатча в TurnModule, CHAT/TUTOR/REFLECT его не читают.
+ * Task 10 (structured-plan-engine-907066): `planApproved`/`goalMaxIterations` are gone — approval is
+ * no longer a per-turn flag (see PlanCommands), and the [AgentMode.GOAL] budget is now the
+ * multi-dimensional [PlanRunBudget], not a single `goalMaxIterations`. [planId] is the plan GOAL runs
+ * (null = StructuredPlanOrchestrator resolves the conversation's plan itself); [budget] is used only by
+ * the PLAN/GOAL branch of the dispatch in TurnModule, CHAT/TUTOR/REFLECT do not read it.
  */
 fun interface TurnExecutor {
   fun execute(
@@ -28,58 +29,61 @@ fun interface TurnExecutor {
     mode: AgentMode,
     planId: String?,
     budget: PlanRunBudget,
-    /** Доверенная добавка к системному промпту для этого хода (напр. контекст текущего шага урока). */
+    /** A trusted addition to the system prompt for this turn (e.g. the context of the current lesson step). */
     systemPromptExtra: String?,
-    /** LIVE (по умолчанию у вызывающего TurnManager) или PREVIEW — см. ExecutionPolicy. */
+    /** LIVE (the default of the calling TurnManager) or PREVIEW — see ExecutionPolicy. */
     executionMode: ExecutionMode,
   ): Flow<AgentEvent>
 }
 
-/** То немногое из ConversationRepository, что нужно ходу: записать реплики и узнать заголовок. */
+/** The little of ConversationRepository that a turn needs: write messages and read the title. */
 interface TurnPersistence {
   suspend fun addUserMessage(conversationId: String, text: String): String
   suspend fun addAssistantMessage(conversationId: String, text: String, cardSpec: String?): String
   suspend fun conversationTitle(conversationId: String): String?
 }
 
-/** Приложение сейчас на экране? Гейт для пуша об окончании фонового хода. */
+/** Is the app on screen right now? The gate for the push about a background turn finishing. */
 fun interface ForegroundState {
   fun isInForeground(): Boolean
 }
 
-/** Показ уведомления «ход завершился, пока приложение в фоне». */
+/** Shows the "the turn finished while the app was in the background" notification. */
 fun interface TurnNotifier {
   fun turnFinished(conversationId: String, conversationTitle: String?, preview: String, failed: Boolean)
 
   /**
-   * Агенту нужно разрешение, а приложение свёрнуто. Удаление и отправка наружу всегда ждут «Разрешить»,
-   * и без пуша запрос молча истёк бы отказом через две минуты. По умолчанию — тот же пуш хода,
-   * ведущий в чат: там и висит полоса подтверждения.
+   * The agent needs permission while the app is minimized. Deleting and sending anything outside
+   * always wait for "Allow", and without a push the request would silently expire as a denial after
+   * two minutes. By default it is the same turn push, leading to the chat: that is where the
+   * confirmation bar is.
    */
   fun approvalNeeded(conversationId: String, conversationTitle: String?, action: String) =
     turnFinished(conversationId, conversationTitle, tr("Агенту нужно разрешение: $action. Открой чат, чтобы ответить.", "The agent needs your permission: $action. Open the chat to answer."), false)
 }
 
 /**
- * Защита хода от вытеснения процесса, пока приложение в фоне (спека
- * `docs/superpowers/specs/2026-07-28-turn-foreground-service-design.md`). Отдельный порт, а не
- * вызов Android напрямую, по той же причине, что [ForegroundState]/[TurnNotifier]: [TurnManager]
- * обязан тестироваться без Android.
+ * Protects a turn from process eviction while the app is in the background (spec
+ * `docs/superpowers/specs/2026-07-28-turn-foreground-service-design.md`). A separate port rather than
+ * a direct Android call for the same reason as [ForegroundState]/[TurnNotifier]: [TurnManager] must be
+ * testable without Android.
  */
 interface TurnLifeSupport {
   /**
-   * Просит защиту для [conversationId]. `false` — система отказала; типичный случай — старт хода,
-   * когда приложение уже в фоне (с API 31 стартовать foreground-сервис оттуда нельзя). Ход при
-   * этом всё равно исполняется, просто без гарантии — ровно как до появления этой фичи.
+   * Requests protection for [conversationId]. `false` — the system refused; the typical case is a turn
+   * starting while the app is already in the background (since API 31 a foreground service cannot be
+   * started from there). The turn still runs, just without the guarantee — exactly as before this
+   * feature.
    */
   suspend fun acquire(conversationId: String): Boolean
 
-  /** Идемпотентно снимает защиту. Вызывать ТОЛЬКО если [acquire] вернул `true`. */
+  /** Releases the protection idempotently. Call ONLY if [acquire] returned `true`. */
   fun release(conversationId: String)
 
   /**
-   * Регистрирует реакцию на «система отобрала защиту» (таймаут `shortService`). Аргумент —
-   * conversationId, которые на этот момент были защищены. Вызывается один раз, при сборке графа.
+   * Registers the reaction to "the system took the protection away" (the `shortService` timeout). The
+   * argument is the conversationIds that were protected at that moment. Called once, when the graph is
+   * built.
    */
   fun onProtectionLost(handler: (Set<String>) -> Unit)
 }

@@ -13,17 +13,17 @@ import com.aiopenpocket.i18n.tr
 import kotlinx.serialization.json.JsonElement
 
 /**
- * Все пользовательские тексты слоя ходов — единственное место. Логика на них только ССЫЛАЕТСЯ, не
- * порождает свои. Тексты — геттеры с [tr], а не const: язык интерфейса меняется на лету.
+ * Every user-facing text of the turn layer — in one place. Logic only REFERS to these, it never makes
+ * up its own. The texts are getters with [tr], not consts: the interface language changes on the fly.
  */
 object TurnTexts {
   val BLANK_REPLY_ERROR: String
     get() = tr("Модель вернула пустой ответ — попробуй ещё раз.", "The model returned an empty reply — try again.")
 
-  /** Превью пуша, когда ход завершился без текста (card-only ответ). */
+  /** Push preview when the turn finished without text (a card-only answer). */
   val TURN_DONE_FALLBACK: String get() = tr("Готово", "Done")
 
-  /** Ход не уложился в окно фоновой защиты (shortService, ~3 мин) при свёрнутом приложении. */
+  /** The turn did not fit into the background protection window (shortService, ~3 min) while the app was minimized. */
   val PROTECTION_EXPIRED: String
     get() = tr(
       "Ход не уложился в три минуты фоновой работы и был остановлен системой. Нажми «Повторить».",
@@ -31,24 +31,25 @@ object TurnTexts {
     )
 
   /**
-   * Прогресс в пузыре стрима, пока агент работает инструментом между витками ReAct. Без него
-   * преамбула прошлого витка гасла в пустоту на следующем витке (resetStreaming) и выглядела как
-   * «ответ пишется, потом затирается». [TOOL_PROGRESS] — общий (до того как известно имя),
-   * [toolProgress] — с именем инструмента.
+   * Progress in the stream bubble while the agent works with a tool between ReAct iterations. Without
+   * it the previous iteration's preamble faded into nothing on the next iteration (resetStreaming) and
+   * looked like "the answer is being written, then wiped". [TOOL_PROGRESS] is the generic one (before
+   * the name is known), [toolProgress] carries the tool name.
    */
   val TOOL_PROGRESS: String get() = tr("Использую инструмент…", "Using a tool…")
 
   fun toolProgress(toolName: String, arguments: Map<String, JsonElement> = emptyMap()): String =
     tr("Использую инструмент: ", "Using a tool: ") + "${CapabilityNames.call(toolName, arguments)}…"
 
-  /** Ход упал не по вине модели (запись в базу, неожиданное исключение): подробности — в лог. */
+  /** The turn failed for a reason other than the model (a DB write, an unexpected exception): details go to the log. */
   val TURN_FAILED: String get() = tr("Что-то пошло не так — попробуй ещё раз.", "Something went wrong — try again.")
 
   /**
-   * Хвост ответа, когда цикл упёрся в лимит шагов, а модель так и не дала итог. Без него в чат
-   * уходили преамбулы витков («сейчас посмотрю…») как будто это ответ, а при пустых преамбулах —
-   * «пустой ответ». Подсказка «попроси продолжить» — потому что продолжение и правда работает:
-   * результаты инструментов уже в эпизодической памяти диалога.
+   * The tail of the answer when the loop hit the step limit and the model never gave a result.
+   * Without it the iterations' preambles ("let me check…") went to the chat as if they were the
+   * answer, and with empty preambles — an "empty answer". The hint "ask me to continue" is there
+   * because continuing really works: the tool results are already in the conversation's episodic
+   * memory.
    */
   val ITERATION_LIMIT_NOTE: String
     get() = tr("_Остановился на лимите шагов — попроси продолжить._", "_Stopped at the step limit — ask me to continue._")
@@ -59,7 +60,7 @@ object TurnTexts {
    * `PlanRepository.observeByConversation` is what actually raises the approval bar
    * (`ChatUiState.pendingPlanApproval`); this text is only the chat-history record of the event.
    */
-  // Карточка плана стоит НАД полем ввода, то есть под этим сообщением — отсюда «ниже».
+  // The plan card sits ABOVE the input field, i.e. below this message — hence "below".
   fun planProposedMessage(planId: String, version: Int): String =
     tr(
       "📋 План предложен (версия $version). Проверь его в карточке ниже и одобри, чтобы начать выполнение.",
@@ -68,8 +69,8 @@ object TurnTexts {
 
   /**
    * Task 10: GOAL turn's [PlanRunResult] rendered as a plain assistant message — one branch per [PlanRunOutcome].
-   * Шаги называются по названиям ([PlanStepOutput.title]), не по id: раньше сюда попадало
-   * «Выполнено шагов: collect_limits». Сам ответ шага — отдельным сообщением ([planStepOutputMessage]).
+   * Steps are named by their titles ([PlanStepOutput.title]), not by ids: this used to show
+   * "Steps done: collect_limits". The step's own answer is a separate message ([planStepOutputMessage]).
    */
   fun planProgressMessage(result: PlanRunResult): String = when (result.outcome) {
     PlanRunOutcome.COMPLETED -> tr("✅ План выполнен: все шаги завершены.", "✅ Plan complete: all steps are done.")
@@ -85,7 +86,7 @@ object TurnTexts {
     PlanRunOutcome.CANCELLED -> tr("Выполнение плана отменено.", "Plan cancelled.")
   }
 
-  /** «Шаг «X» выполнен.» по шагам, которые в этом запуске дошли до COMPLETED; null — таких нет. */
+  /** 'Step "X" done.' for the steps that reached COMPLETED in this run; null if there are none. */
   private fun completedStepsLine(result: PlanRunResult): String? {
     val titles = result.stepOutputs.filter { it.status == StepStatus.COMPLETED }
       .map { tr("«${it.title}»", "“${it.title}”") }
@@ -97,9 +98,10 @@ object TurnTexts {
   }
 
   /**
-   * Ответ исполненного шага плана как сообщение ассистента: заголовок с названием шага (в фоне такие
-   * сообщения приходят без реплики пользователя — без заголовка непонятно, к чему они) и сам текст.
-   * Ответ из одних карточек остаётся без текста — как card-only ответ обычного хода.
+   * An executed plan step's answer as an assistant message: a heading with the step's title (in the
+   * background such messages arrive without a user message — without a heading it is unclear what
+   * they belong to) and the text itself. An answer made only of cards stays without text — like a
+   * card-only answer of a normal turn.
    */
   fun planStepOutputMessage(output: PlanStepOutput): String {
     val text = output.text.trim()
@@ -108,11 +110,12 @@ object TurnTexts {
 }
 
 /**
- * Пишет ответы исполненных шагов плана ([PlanRunResult.stepOutputs]) в чат: текст с первой карточкой,
- * остальные карточки — отдельными сообщениями, как [TurnManager] делает для обычного хода. Общая
- * для foreground-хода (TurnManager, через TurnPersistence) и фонового heartbeat'а (HeartbeatRunner,
- * через ConversationRepository) — у них разные порты записи, поэтому запись приходит лямбдой.
- * Шаги без текста и карточек пропускаются. Возвращает id последнего вставленного сообщения.
+ * Writes the answers of executed plan steps ([PlanRunResult.stepOutputs]) to the chat: the text with
+ * the first card, the remaining cards as separate messages, the way [TurnManager] does it for a normal
+ * turn. Shared by the foreground turn (TurnManager, via TurnPersistence) and the background heartbeat
+ * (HeartbeatRunner, via ConversationRepository) — they have different write ports, so the write comes
+ * in as a lambda. Steps without text and cards are skipped. Returns the id of the last inserted
+ * message.
  */
 internal suspend fun persistPlanStepOutputs(
   outputs: List<PlanStepOutput>,
@@ -126,54 +129,54 @@ internal suspend fun persistPlanStepOutputs(
   return lastId
 }
 
-/** Имя тула инлайн-карточек — общее для извлечения (здесь) и фильтра черновика в ReflectionOrchestrator. */
+/** Name of the inline-card tool — shared by the extraction (here) and the draft filter in ReflectionOrchestrator. */
 internal const val RENDER_CARD_TOOL = "render_card"
 
 /**
- * Что означает завершившийся ход. Второй полюс контракта режимов: [resolveTurnExecutionPlan]
- * решает, КАК выполнять ход, эта структура — ЧТО значит его результат.
+ * What a finished turn means. The other pole of the mode contract: [resolveTurnExecutionPlan]
+ * decides HOW to run a turn, this structure — WHAT its result means.
  */
 data class CompletedTurn(
-  /** Текст ассистентского сообщения для записи в БД (может быть пуст при card-only ответе). */
+  /** Text of the assistant message to write to the DB (may be empty for a card-only answer). */
   val responseText: String,
-  /** render_card-спеки из трейса — станут инлайн-карточками чата (первая — вместе с текстом). */
+  /** render_card specs from the trace — they become inline chat cards (the first one goes with the text). */
   val cardSpecs: List<String>,
   /**
-   * Ошибка «пустой ответ» для баннера (иначе null). Заодно единственный признак «есть что
-   * повторять»: TurnManager включает «Повторить» ровно когда blankError != null и в сессии остался
-   * текст пользователя — отдельного canRetry-поля нет, чтобы два флага не разъезжались.
+   * The "empty answer" error for the banner (null otherwise). It is also the only "there is something
+   * to retry" signal: TurnManager enables "Retry" exactly when blankError != null and the user's text
+   * is still in the session — there is no separate canRetry field, so two flags cannot drift apart.
    */
   val blankError: String?,
 )
 
 /**
- * Чистое решение по результату хода (симметрично [resolveTurnExecutionPlan], покрыто
- * TurnCompletionTest): blank-ошибки, извлечение render_card. Никакого I/O — TurnManager лишь
- * применяет решение.
+ * A pure decision on a turn's result (symmetric to [resolveTurnExecutionPlan], covered by
+ * TurnCompletionTest): blank errors, render_card extraction. No I/O — TurnManager only applies the
+ * decision.
  *
- * Применяется одинаково к CHAT/REFLECT/TUTOR. PLAN/GOAL турны Structured Plan Engine
- * ([StructuredPlanOrchestrator]) заканчиваются [AgentEvent.PlanProposed]/[AgentEvent.PlanProgressed]/
- * [AgentEvent.PlanBlocked]/[AgentEvent.Error] и сюда не попадают вовсе (см. kdoc [AgentMode]).
+ * Applies the same way to CHAT/REFLECT/TUTOR. PLAN/GOAL turns of the Structured Plan Engine
+ * ([StructuredPlanOrchestrator]) end with [AgentEvent.PlanProposed]/[AgentEvent.PlanProgressed]/
+ * [AgentEvent.PlanBlocked]/[AgentEvent.Error] and never get here (see the kdoc of [AgentMode]).
  *
- * Task 15 (structured-plan-engine-907066) убрал отсюда старый prompt-only NEED_INFO-гейт план-мода
- * и GOAL-фолбэк пустого ответа на лимите витков — обе механики принадлежали снятому prompt-only
- * PLAN/GOAL (значит, и параметры `mode`/`planApproved`, от которых они зависели), а не
- * CHAT/REFLECT/TUTOR, которые эта функция по-прежнему обслуживает без изменений в поведении.
+ * Task 15 (structured-plan-engine-907066) removed from here the old prompt-only NEED_INFO gate of plan
+ * mode and the GOAL fallback for an empty answer at the iteration limit — both belonged to the retired
+ * prompt-only PLAN/GOAL (and so did the `mode`/`planApproved` parameters they depended on), not to
+ * CHAT/REFLECT/TUTOR, which this function still serves with no change in behavior.
  *
- * До Task 5 (structured-plan-engine-907066) [CompletedTurn] нёс ещё и `planAwaitingApproval` — флаг
- * «показан непустой план, ждём решения», которым TurnManager поднимал per-turn approval-бар в чате.
- * Тот флаг убран: показан ли план и ждёт ли он решения — теперь состояние persisted AgentPlan в
- * PlanRepository (см. com.aiopenpocket.agent.core.plan.execution.PlanCommands), а не производная
- * одного хода.
+ * Before Task 5 (structured-plan-engine-907066) [CompletedTurn] also carried `planAwaitingApproval` —
+ * a "non-empty plan shown, waiting for a decision" flag TurnManager used to raise a per-turn approval
+ * bar in the chat. That flag is gone: whether a plan is shown and waiting for a decision is now the
+ * state of the persisted AgentPlan in PlanRepository (see
+ * com.aiopenpocket.agent.core.plan.execution.PlanCommands), not something derived from one turn.
  */
 fun resolveCompletedTurn(result: AgentResult): CompletedTurn {
   val cardSpecs = result.toolTrace
     .filter { it.toolName == RENDER_CARD_TOOL }
     .mapNotNull { (it.result as? ToolResult.Success)?.data }
 
-  // Лимит витков — видимый исход, а не тишина: раньше hitIterationLimit здесь не читался вовсе.
-  // stoppedByToolBudget — бюджет шага плана, в CHAT/REFLECT/TUTOR его нет; на всякий случай не
-  // выдаём его за лимит шагов чата.
+  // The iteration limit is a visible outcome, not silence: hitIterationLimit used not to be read here
+  // at all. stoppedByToolBudget is a plan step's budget, CHAT/REFLECT/TUTOR have none; just in case,
+  // it is not passed off as the chat's step limit.
   val responseText = if (result.hitIterationLimit && !result.stoppedByToolBudget) {
     listOf(result.text.trim(), TurnTexts.ITERATION_LIMIT_NOTE).filter { it.isNotEmpty() }.joinToString("\n\n")
   } else {
