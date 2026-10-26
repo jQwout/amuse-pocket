@@ -7,14 +7,14 @@ import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import com.aiopenpocket.agent.core.mcp.ToolResult
 
-/** Проверяет, выдано ли runtime-разрешение. */
+/** Checks whether a runtime permission is granted. */
 internal fun Context.hasPermission(permission: String): Boolean =
   ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
 
 /**
- * Возвращает [ToolResult.Error] с понятным сообщением, если разрешение не выдано,
- * иначе null. Инструменты исполняются в фоне и не могут сами показать системный
- * диалог — разрешение выдаётся пользователем заранее в Настройках → Интеграции.
+ * Returns a [ToolResult.Error] with a clear message if the permission is not granted, null otherwise.
+ * Tools run in the background and cannot show the system dialog themselves — the user grants the
+ * permission in advance in Settings → Integrations.
  */
 internal fun Context.requirePermission(permission: String, humanName: String): ToolResult.Error? =
   if (hasPermission(permission)) {

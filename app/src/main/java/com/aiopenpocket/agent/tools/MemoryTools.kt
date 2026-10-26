@@ -28,11 +28,11 @@ class MemoryTools(
 ) : Tool {
 
   /**
-   * Память — недоверенный источник, хотя таблица и своя: модель читает внешний текст (файл,
-   * календарь) и кладёт его сюда через `remember_fact`, после чего `search_memory`/`recall_episodes`
-   * отдают его обратно. Без этого флага память работала обходным каналом вокруг конверта
-   * `<tool_output trust="untrusted">`: FileTools/CalendarTool свой вывод помечают, а «тот же текст, но
-   * через факт» приезжал к модели уже без ограды.
+   * Memory is an untrusted source, even though the table is our own: the model reads external text
+   * (a file, the calendar) and puts it here through `remember_fact`, after which
+   * `search_memory`/`recall_episodes` hand it back. Without this flag memory was a side channel around
+   * the `<tool_output trust="untrusted">` envelope: FileTools/CalendarTool mark their output, while "the
+   * same text, but via a fact" reached the model without the fence.
    */
   override val returnsUntrustedContent = true
 
@@ -68,26 +68,27 @@ class MemoryTools(
   private suspend fun rememberFact(args: Map<String, JsonElement>): ToolResult {
     val key = args.string("key") ?: return missingArg("key")
     val value = args.string("value") ?: return missingArg("value")
-    // Изоляция памяти агента — IN CODE, а не промпт-инструкцией (Task 5): пока в ходе привязан
-    // агент со своим namespace, ключ ВСЕГДА уходит под него, что бы модель ни попросила. Без
-    // привязанного агента (обычный чат) поведение не меняется ни на йоту — это ЕДИНСТВЕННЫЙ путь,
-    // который обязан остаться глобальным.
+    // The agent's memory isolation lives IN CODE, not in a prompt instruction (Task 5): while an agent
+    // with its own namespace is bound to the turn, the key ALWAYS goes under that namespace, whatever
+    // the model asks for. Without a bound agent (a plain chat) the behavior does not change one bit —
+    // that is the ONLY path that must stay global.
     val agent = turnContextHolder.agent
     val storedKey = agent?.memoryPolicy?.namespace?.plus(key) ?: key
-    // Категорию для обычного чата задаёт пользователь (через модель) — недоверенный ввод, зажатый в
-    // allowlist. Для агента со своим namespace категория ПРИНУДИТЕЛЬНО general: profile/preference —
-    // это общий (shared) профиль пользователя, который агент может только читать (см.
-    // PrePromptAssembler.includeSharedProfile), а не дописывать туда через remember_fact.
+    // For a plain chat the category is set by the user (via the model) — untrusted input clamped to an
+    // allowlist. For an agent with its own namespace the category is FORCED to general:
+    // profile/preference is the user's shared profile, which an agent may only read (see
+    // PrePromptAssembler.includeSharedProfile), not append to through remember_fact.
     val category = if (agent != null) "general" else sanitizeCategory(args.string("category"))
-    // upsertFact, а НЕ saveFact: повторный remember_fact по тому же ключу обязан ОБНОВИТЬ факт.
-    // saveFact вставляет строку с новым UUID, а уникальности по `key` в схеме нет — «меня зовут X»,
-    // потом «вообще-то Y» оставляло в памяти оба, и в промпт уезжало противоречие (см. upsertFact).
+    // upsertFact, NOT saveFact: a repeated remember_fact with the same key must UPDATE the fact.
+    // saveFact inserts a row with a new UUID, and the schema has no uniqueness on `key` — "my name is
+    // X", then "actually Y" left both in memory, and a contradiction went into the prompt (see
+    // upsertFact).
     val id = memoryRepository.upsertFact(storedKey, value, category)
       ?: return ToolResult.Success("Fact cleared: $storedKey")
     return ToolResult.Success("Fact saved: $storedKey = $value (id=$id)")
   }
 
-  /** Только эти категории модель может присваивать фактам. Прочее сводится к general. */
+  /** The only categories the model may assign to facts. Anything else becomes general. */
   private fun sanitizeCategory(raw: String?): String =
     when (raw?.trim()?.lowercase()) {
       "profile" -> "profile"
@@ -97,9 +98,9 @@ class MemoryTools(
 
   private suspend fun searchMemory(args: Map<String, JsonElement>): ToolResult {
     val query = args.string("query") ?: return missingArg("query")
-    // Тот же гейт, что в rememberFact: с bound-агентом поиск не выходит за его namespace — на
-    // уровне DAO/WHERE (MemoryRepository.searchFactsInNamespace), а не постфильтром результата
-    // модели. Обычный чат (agent == null) ищет глобально, как и раньше.
+    // The same gate as in rememberFact: with a bound agent the search does not leave its namespace — at
+    // the DAO/WHERE level (MemoryRepository.searchFactsInNamespace), not by post-filtering the model's
+    // results. A plain chat (agent == null) searches globally, as before.
     val namespace = turnContextHolder.agent?.memoryPolicy?.namespace
     val facts = if (namespace != null) {
       memoryRepository.searchFactsInNamespace(namespace, query)
@@ -114,15 +115,16 @@ class MemoryTools(
   }
 
   /**
-   * Журнал вызовов инструментов ТЕКУЩЕГО диалога за окно [range]. Раньше — журнал всех диалогов и
-   * всех агентов целиком и без потолка: агент бюджета видел чтения файлов из чужих чатов, а один
-   * прочитанный файл (до 40 тыс. символов) приезжал в ответ дословно. Теперь — свой диалог (агент в
-   * своём чате видит свою историю, обычный чат — свою), не больше [EPISODES_MAX] событий, каждое
-   * обрезано так же, как в «Недавних действиях» системного промпта ([EpisodeFormat]).
+   * The tool call log of the CURRENT conversation within the [range] window. It used to be the log of
+   * all conversations and all agents, whole and without a ceiling: the budget agent saw file reads from
+   * other chats, and one read file (up to 40k characters) came back verbatim. Now it is the own
+   * conversation (an agent in its chat sees its history, a plain chat sees its own), no more than
+   * [EPISODES_MAX] events, each truncated the same way as in the "Recent actions" of the system prompt
+   * ([EpisodeFormat]).
    */
   private suspend fun recallEpisodes(args: Map<String, JsonElement>): ToolResult {
     val range = args.string("range")
-    // Без диалога (вызов вне хода) не отдаём ничего, а не «всё подряд»: скоуп обязан быть закрытым.
+    // Without a conversation (a call outside a turn) return nothing rather than "everything": the scope must be closed.
     val conversationId = turnContextHolder.conversationId
       ?: return ToolResult.Success("No episodes found for range '${range ?: "default"}'")
     val dayMillis = 24L * 60 * 60 * 1000
@@ -130,7 +132,7 @@ class MemoryTools(
     val startOfToday = startOfTodayMillis()
     val (since, until) = when (range) {
       "today" -> startOfToday to Long.MAX_VALUE
-      // Вчера — это календарное окно [начало вчера, начало сегодня), а не последние 24 часа.
+      // Yesterday is the calendar window [start of yesterday, start of today), not the last 24 hours.
       "yesterday" -> (startOfToday - dayMillis) to startOfToday
       "last_week" -> (now - 7 * dayMillis) to Long.MAX_VALUE
       else -> (now - dayMillis) to Long.MAX_VALUE
@@ -147,7 +149,7 @@ class MemoryTools(
   }
 
   private companion object {
-    /** Потолок событий в одном ответе `recall_episodes`: дальше — уже не память, а лог. */
+    /** Ceiling of events in one `recall_episodes` answer: beyond that it is a log, not memory. */
     const val EPISODES_MAX = 20
   }
 }

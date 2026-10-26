@@ -27,24 +27,24 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 /**
- * Напоминалки и heartbeat агента. mode=push — статичный пуш в назначенное время;
- * mode=agent — фоновое пробуждение агента (с задачей из prompt или дефолтным «пульсом»,
- * где агент сам решает, писать ли юзеру — HEARTBEAT_OK = молчать). Источник правды — Room
- * (heartbeats); фактическое планирование/отмена WorkManager-задачи вынесены в
+ * The agent's reminders and heartbeats. mode=push is a static push at the set time; mode=agent is a
+ * background wake-up of the agent (with a task from the prompt or the default "pulse", where the agent
+ * itself decides whether to write to the user — HEARTBEAT_OK = stay silent). The source of truth is
+ * Room (heartbeats); the actual scheduling/cancelling of the WorkManager job moved to
  * [HeartbeatScheduler] (Task 11 of the Structured Plan Engine) — this class only ever builds/persists
  * the [HeartbeatEntity] and asks [HeartbeatScheduler] to arm/cancel it, never touches `WorkManager`
  * directly itself anymore.
  *
  * This class remains the LLM-facing GENERIC scheduler only — it never accepts a `planId`/
  * `planVersion`/`stepId` argument from the model (design spec `2026-07-12-structured-plan-engine-design.md`
- * section 12.1: "LLM не передаёт произвольные planId/version/stepId напрямую в HeartbeatTool"). A
+ * section 12.1: "the LLM does not pass arbitrary planId/version/stepId directly to HeartbeatTool"). A
  * typed [com.aiopenpocket.agent.core.memory.entity.HeartbeatTargetType.PLAN_STEP] heartbeat is only
  * ever created by [com.aiopenpocket.agent.core.plan.schedule.PlanScheduler], which calls
  * [HeartbeatScheduler] directly and never goes through this tool's `execute`.
  *
- * `schedule` привязывает heartbeat к текущему [turnContextHolder]'у агенту (`agentId`) и сразу же
- * отклоняет его (Task 22, `user-agent-builder-848153`), если этот агент архивирован/ещё не
- * опубликован — иначе он бы просто молча Skip'ался при каждом срабатывании в
+ * `schedule` binds the heartbeat to the agent of the current [turnContextHolder] (`agentId`) and
+ * rejects it right away (Task 22, `user-agent-builder-848153`) if that agent is archived or not yet
+ * published — otherwise it would just be silently skipped on every firing in
  * [com.aiopenpocket.agent.workers.HeartbeatRunner].
  */
 @Inject
@@ -158,10 +158,10 @@ class HeartbeatTool(
   }
 
   /**
-   * Отмена — только своего: агент из ростера или конструктора не трогает чужие напоминания, а шаги
-   * плана (planId) ведёт план-движок — их отменяют в карточке плана, иначе план ждал бы шага,
-   * которого больше нет. Обычный чат (агента нет) — это сам пользователь, ему доступны все его
-   * напоминания, кроме плановых.
+   * Cancel only your own: an agent from the roster or the builder does not touch other reminders, and
+   * plan steps (planId) are run by the plan engine — they are cancelled in the plan card, otherwise the
+   * plan would wait for a step that no longer exists. A plain chat (no agent) is the user themselves,
+   * and all their reminders are available to it, except plan ones.
    */
   private suspend fun cancel(args: Map<String, JsonElement>): ToolResult {
     val id = args.string("heartbeat_id") ?: return missingArg("heartbeat_id")

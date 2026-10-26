@@ -26,14 +26,15 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * "Approval without an answer = deny" (never a hang, never an exception) is enforced by
  * [awaitApproval]'s own [timeoutMs] — the turn asked, nobody answered, move on. A cancelled ENCLOSING
- * run (TurnManager `cancel()`, «Стоп») needs nothing extra: cancelling the coroutine that is suspended
+ * run (TurnManager `cancel()`, "Stop") needs nothing extra: cancelling the coroutine that is suspended
  * inside [awaitApproval] throws [kotlinx.coroutines.CancellationException] through it as normal
  * structured-concurrency teardown — the `finally` below still runs and removes the bookkeeping, it just
  * doesn't force a `false` value into a deferred nobody will read.
  *
- * [denyAllPending]/[cancelRun] — готовые рычаги «отклонить всё сразу», но в продакшене их сейчас
- * никто не зовёт (только тесты): сигнала «приложение ушло в фон» нет, а уход в фон и не должен
- * отклонять запрос — ход продолжает жить, и пользователь может вернуться и ответить до таймаута.
+ * [denyAllPending]/[cancelRun] are ready-made "deny everything at once" levers, but nothing in
+ * production calls them today (only tests): there is no "the app went to the background" signal, and
+ * going to the background should not deny a request anyway — the turn keeps living, and the user can
+ * come back and answer before the timeout.
  */
 @SingleIn(AppScope::class)
 @Inject

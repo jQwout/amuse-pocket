@@ -35,10 +35,11 @@ class ExternalFilesTool(
   // callers without per-call arguments (e.g. episodic-memory logging in ReactLoopRunner); riskFor is
   // what the policy gate actually uses.
   //
-  // write_file — DESTRUCTIVE, а не WRITE, как у file_tool: file_tool пишет в песочницу самого агента,
-  // а здесь документ ПОЛЬЗОВАТЕЛЯ, и режим "wt" (см. writeFile) сначала обнуляет его целиком. Прежнего
-  // содержимого после вызова нет нигде — это необратимая перезапись чужих данных, значит, по полу
-  // ExecutionPolicy она ждёт «Разрешить» в чате и запрещена в фоне.
+  // write_file is DESTRUCTIVE, not WRITE as in file_tool: file_tool writes into the agent's own
+  // sandbox, while here it is the USER's document, and the "wt" mode (see writeFile) first truncates it
+  // entirely. The previous content exists nowhere after the call — an irreversible overwrite of someone
+  // else's data, so by the ExecutionPolicy floor it waits for "Allow" in the chat and is forbidden in
+  // the background.
   override val riskClass = RiskClass.DESTRUCTIVE
 
   override fun riskFor(arguments: Map<String, JsonElement>): RiskClass = when (arguments.string("action")) {
@@ -127,21 +128,21 @@ class ExternalFilesTool(
       ToolResult.Success(stream.bufferedReader().readText())
     } ?: ToolResult.Error("Cannot open input stream for URI")
   } catch (e: CancellationException) {
-    // Отмена хода — не ошибка ввода-вывода: пробрасываем, чтобы ToolExecutor остановил цикл.
+    // Cancelling the turn is not an I/O error: rethrow it so ToolExecutor stops the loop.
     throw e
   } catch (e: Exception) {
     ToolResult.Error("Read error: ${e.message}")
   }
 
   private fun writeFile(uri: Uri, content: String): ToolResult = try {
-    // Режим "wt" усекает файл; "w" на части DocumentsProvider не обрезает
-    // и оставляет хвост старого содержимого при перезаписи более коротким текстом.
+    // The "wt" mode truncates the file; "w" does not truncate on some DocumentsProviders
+    // and leaves a tail of the old content when overwriting with shorter text.
     context.contentResolver.openOutputStream(uri, "wt")?.use { stream ->
       stream.write(content.toByteArray())
       ToolResult.Success("File written successfully")
     } ?: ToolResult.Error("Cannot open output stream for URI")
   } catch (e: CancellationException) {
-    // Отмена хода — не ошибка ввода-вывода: пробрасываем, чтобы ToolExecutor остановил цикл.
+    // Cancelling the turn is not an I/O error: rethrow it so ToolExecutor stops the loop.
     throw e
   } catch (e: Exception) {
     ToolResult.Error("Write error: ${e.message}")
@@ -156,7 +157,7 @@ class ExternalFilesTool(
     }
     ToolResult.Success(children.joinToString("\n"))
   } catch (e: CancellationException) {
-    // Отмена хода — не ошибка ввода-вывода: пробрасываем, чтобы ToolExecutor остановил цикл.
+    // Cancelling the turn is not an I/O error: rethrow it so ToolExecutor stops the loop.
     throw e
   } catch (e: Exception) {
     ToolResult.Error("List error: ${e.message}")

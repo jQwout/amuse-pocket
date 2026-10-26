@@ -27,11 +27,12 @@ val GENERAL_CARD_TEMPLATES = setOf(
 )
 
 /**
- * Шаблоны, которые модели больше НЕ предлагаются: у `switch` нет ни одного действия (обработчик в
- * ChatScreen пустой — тумблер ничего не переключал), у `weather_card` нет источника погоды (модель
- * выдумывала прогноз). Парсеры в DrivenUiEngine остаются, чтобы старые сообщения рисовались. В
+ * Templates that are NO LONGER offered to the model: `switch` has no action at all (the handler in
+ * ChatScreen is empty — the toggle switched nothing), and `weather_card` has no weather source (the
+ * model made up the forecast). The parsers in DrivenUiEngine stay so old messages still render. They
+ * also stay in
  * [AgentValidator.KNOWN_WIDGET_TEMPLATES][com.aiopenpocket.agent.core.agent.AgentValidator.KNOWN_WIDGET_TEMPLATES]
- * они пока остаются, чтобы уже сохранённый агент с ними в allowlist не перестал публиковаться.
+ * for now, so an already saved agent with them in its allowlist does not stop publishing.
  */
 val RETIRED_CARD_TEMPLATES = setOf("switch", "weather_card")
 

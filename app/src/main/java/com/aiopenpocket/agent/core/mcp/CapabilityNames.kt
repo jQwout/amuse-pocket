@@ -7,24 +7,25 @@ import com.aiopenpocket.i18n.tr
 import kotlinx.serialization.json.JsonElement
 
 /**
- * Единственный источник человеческих имён для инструментов, их действий и встроенных навыков.
- * Сырые id (`memory_tool`, `search_memory`, `budget`) — контракт с моделью, пользователю они ничего
- * не говорят. Раньше каждый экран переводил их сам: чипы «Умеет» и конструктор — каждый своим
- * словарём (одно и то же звалось то «Словарь», то «Словарь (SRS)»), а бар подтверждения, журнал
- * вызовов и экран агента показывали id как есть, моноширинным шрифтом.
+ * The single source of human-readable names for tools, their actions and built-in skills. Raw ids
+ * (`memory_tool`, `search_memory`, `budget`) are a contract with the model and tell the user nothing.
+ * Every screen used to translate them on its own: the "Can do" chips and the builder each with its own
+ * dictionary (the same thing was called "Dictionary" in one and "Dictionary (SRS)" in the other), while
+ * the confirmation bar, the call log and the agent screen showed ids as is, in a monospace font.
  *
- * Лежит рядом с [Tool], а не в ui: подпись «Использую инструмент: …» в пузыре собирает слой цикла
- * агента, а он в ui не ходит. Чистый Kotlin — проверяется обычным JUnit.
+ * It lives next to [Tool], not in ui: the "Using tool: …" caption in the bubble is assembled by the
+ * agent loop layer, which does not depend on ui. Pure Kotlin — tested with plain JUnit.
  *
- * Ничего не бросает и никогда не отдаёт пустую строку: незнакомое имя (тул из более новой версии
- * приложения, чужой навык) превращается в читаемую подпись из самого id.
+ * Never throws and never returns an empty string: an unknown name (a tool from a newer app version,
+ * someone else's skill) becomes a readable caption made from the id itself.
  *
- * Каждое имя хранится парой «русский — английский», язык выбирается в момент вызова ([tr]), а не при
- * инициализации словарей: иначе подписи застыли бы на языке первого обращения.
+ * Every name is stored as a "Russian — English" pair, and the language is picked at call time ([tr]),
+ * not when the dictionaries are initialized: otherwise captions would freeze in the language of the
+ * first access.
  */
 object CapabilityNames {
 
-  /** Имена тулов из [com.aiopenpocket.agent.core.agent.AgentValidator.KNOWN_TOOL_NAMES]: id → (ru, en). */
+  /** Tool names from [com.aiopenpocket.agent.core.agent.AgentValidator.KNOWN_TOOL_NAMES]: id → (ru, en). */
   private val TOOLS: Map<String, Pair<String, String>> = mapOf(
     "memory_tool" to ("Память" to "Memory"),
     "storage_tool" to ("Хранилище агента" to "Agent storage"),
@@ -43,7 +44,7 @@ object CapabilityNames {
     "database_query" to ("Запросы к базе" to "Database queries"),
   )
 
-  /** Общие действия файловых тулов (песочница агента и внешние файлы). Объявлены до [ACTIONS] — порядок инициализации. */
+  /** Shared actions of the file tools (agent sandbox and external files). Declared before [ACTIONS] — initialization order. */
   private val FILE_ACTIONS: Map<String, Pair<String, String>> = mapOf(
     "read_file" to ("прочитать файл" to "read a file"),
     "write_file" to ("записать файл" to "write a file"),
@@ -51,8 +52,8 @@ object CapabilityNames {
   )
 
   /**
-   * Действия внутри тулов — значение аргумента `action`, то есть то, что модель реально просит
-   * сделать. По тулу, а не одним списком: `read_file`/`list` есть у нескольких тулов сразу.
+   * Actions inside tools — the value of the `action` argument, i.e. what the model actually asks to
+   * do. Per tool, not one list: `read_file`/`list` exist in several tools at once.
    */
   private val ACTIONS: Map<String, Map<String, Pair<String, String>>> = mapOf(
     "memory_tool" to mapOf(
@@ -97,7 +98,7 @@ object CapabilityNames {
     "step_counter" to mapOf("snapshot" to ("узнать шаги" to "get steps")),
   )
 
-  /** Названия встроенных навыков ([com.aiopenpocket.agent.core.agent.AgentValidator.KNOWN_SKILL_IDS]). */
+  /** Names of built-in skills ([com.aiopenpocket.agent.core.agent.AgentValidator.KNOWN_SKILL_IDS]). */
   private val SKILLS: Map<String, Pair<String, String>> = mapOf(
     "budget" to ("Бюджет" to "Budget"),
     "diary" to ("Дневник" to "Diary"),
@@ -107,12 +108,12 @@ object CapabilityNames {
 
   private const val LOAD_SKILL = "load_skill"
 
-  /** Есть ли у тула своё имя — чипам «Умеет» незнакомый тул лучше пропустить, чем подписать по id. */
+  /** Whether a tool has its own name — the "Can do" chips should rather skip an unknown tool than label it by id. */
   fun isKnownTool(name: String): Boolean = name in TOOLS
 
   /**
-   * Короткое имя тула: «Память», «Будильник». Понимает и имя действия, если кто-то передал его как
-   * имя функции (`search_memory` → «Память: найти факты»).
+   * A tool's short name: "Memory", "Alarm". Also understands an action name if someone passed it as a
+   * function name (`search_memory` → "Memory: find facts").
    */
   fun tool(name: String): String {
     TOOLS[name]?.let { return it.localized() }
@@ -123,9 +124,9 @@ object CapabilityNames {
   }
 
   /**
-   * Подпись одного вызова — для бара подтверждения и журнала вызовов: тул плюс действие, если оно
-   * известно («Календарь: удалить событие»). Незнакомое действие не показываем вовсе — лучше просто
-   * «Календарь», чем сырой id после двоеточия.
+   * The caption of one call — for the confirmation bar and the call log: the tool plus the action, if
+   * known ("Calendar: delete event"). An unknown action is not shown at all — plain "Calendar" is better
+   * than a raw id after a colon.
    */
   fun call(name: String, arguments: Map<String, JsonElement>): String {
     val tool = tool(name)
@@ -140,15 +141,15 @@ object CapabilityNames {
   }
 
   /**
-   * Название встроенного навыка. Свои навыки пользователя живут в Room под его же названием — их
-   * подставляет экран, у которого есть доступ к базе; сюда они попадают только как запасной вариант.
+   * Name of a built-in skill. The user's own skills live in Room under their own titles — the screen
+   * that has database access substitutes those; they get here only as a fallback.
    */
   fun skill(id: String): String = SKILLS[id]?.localized() ?: humanize(id, fallback = tr("Навык", "Skill"))
 
-  /** Пара (ru, en) на языке интерфейса — выбор в момент вызова, не при инициализации словаря. */
+  /** The (ru, en) pair in the interface language — picked at call time, not when the dictionary is initialized. */
   private fun Pair<String, String>.localized(): String = tr(first, second)
 
-  /** `weather_api` → «Weather api»: читаемо, без подчёркиваний; пустой id — общее слово. */
+  /** `weather_api` → "Weather api": readable, no underscores; an empty id gives a generic word. */
   private fun humanize(raw: String, fallback: String): String {
     val words = raw.replace('_', ' ').replace('-', ' ').trim().replace(Regex("\\s+"), " ")
     return if (words.isEmpty()) fallback else words.replaceFirstChar { it.uppercaseChar() }
