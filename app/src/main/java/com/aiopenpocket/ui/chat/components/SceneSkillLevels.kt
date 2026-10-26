@@ -39,10 +39,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import java.util.Locale
 
-/** Навык: строка каталога (уровень 1), инструкция по load_skill (уровень 2) и данные, которые читают инструментом (уровень 3). */
+/** A skill: the catalog line (level 1), the instruction via load_skill (level 2) and the data read with a tool (level 3). */
 private class Skill(val id: String, val name: String, val brief: String, val instruction: String, val resource: String, val tokens: Int)
 
-// Те же паки, что в приложении. Размеры в токенах — пример для наглядности, не замер.
+// The same packs as in the app. The sizes in tokens are an example for clarity, not a measurement.
 private val SKILLS = listOf(
     Skill("budget", "Бюджет", "учёт трат", "Каждую трату — фактом в память: дата, сумма, на что. Итог за месяц — карточкой.", "траты за месяц", 500),
     Skill("diary", "Дневник", "записи дня", "Одна запись в день с датой. Не толкуй и не советуй без просьбы — это пространство человека.", "записи недели", 800),
@@ -59,21 +59,21 @@ private fun fmt(n: Int) = String.format(Locale.forLanguageTag("ru"), "%,d", n)
 private fun Int.has(i: Int) = (this and (1 shl i)) != 0
 
 /**
- * «Навыки по требованию»: в окне всегда лежит только каталог — четыре строки почти даром. Тап по
- * навыку грузит его инструкцию, внутри можно дочитать данные — шкала окна растёт по кусочку.
- * «Загрузить всё сразу» переполняет окно: видно, почему навыки раскрывают постепенно.
+ * "Skills on demand": only the catalog always sits in the window — four lines, almost free. A tap on a skill
+ * loads its instruction, inside it the data can be read further — the window scale grows bit by bit. "Load
+ * everything at once" overflows the window: it shows why skills are disclosed gradually.
  */
 @Composable
 internal fun SkillLevelsScene() {
-    var loaded by rememberSaveable { mutableIntStateOf(0) } // биты: чьи инструкции в окне (уровень 2)
-    var read by rememberSaveable { mutableIntStateOf(0) } // биты: чьи данные прочитаны (уровень 3)
+    var loaded by rememberSaveable { mutableIntStateOf(0) } // bits: whose instructions are in the window (level 2)
+    var read by rememberSaveable { mutableIntStateOf(0) } // bits: whose data has been read (level 3)
     val used = SKILLS.size * CATALOG_LINE +
         SKILLS.indices.sumOf { (if (loaded.has(it)) SKILLS[it].tokens else 0) + (if (read.has(it)) RESOURCE_TOKENS else 0) }
     val over = used > WINDOW
     val primary = MaterialTheme.colorScheme.primary
     val error = MaterialTheme.colorScheme.error
 
-    // Шкала и кнопки — сверху: раскрытые навыки растут вниз и ничего не сдвигают из-под пальца.
+    // The scale and the buttons are on top: expanded skills grow downwards and do not move anything from under the finger.
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Задача: «хочу записывать траты». Тапни нужный навык.", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         val fill by animateFloatAsState((used.toFloat() / WINDOW).coerceAtMost(1f), tween(500), label = "skillMeter")
@@ -152,7 +152,7 @@ private fun SkillRow(skill: Skill, loaded: Boolean, read: Boolean, onLoad: () ->
                     color = primary,
                 )
                 Text(skill.instruction, style = MaterialTheme.typography.bodySmall, color = SceneInk)
-                // Уровень 3: данные навыка читаются обычным инструментом — и только по кнопке, когда до них дошло дело.
+                // Level 3: a skill's data is read with an ordinary tool — and only by a button, when it comes to that.
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(40.dp)) {
                     Text("Уровень 3 ·", style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace), color = primary)
                     if (read) {

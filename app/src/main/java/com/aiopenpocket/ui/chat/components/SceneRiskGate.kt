@@ -34,18 +34,18 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-/** Один вызов: инструмент, действие, класс риска (индекс в [RISKS]) и что вышло при «Разрешить»/«Отклонить». */
+/** One call: the tool, the action, the risk class (an index in [RISKS]) and what came of "Allow"/"Decline". */
 private class GateCall(val tool: String, val action: String, val risk: Int, val allowed: String, val denied: String)
 
-// Четыре класса из урока. Сцена играет правило приложения по умолчанию, без хуков: чтение и запись
-// идут молча, а «покидает устройство» и «может удалить необратимо» ждут твоего «ок».
+// The four classes from the lesson. The scene plays the app's default rule, without hooks: reading and writing
+// go silently, while "leaves the device" and "may delete irreversibly" wait for your "ok".
 private val RISKS = listOf("только чтение", "изменяет данные", "покидает устройство", "может удалить необратимо")
 
-/** С этого класса ([RISKS]) вызов ждёт «ок» — так же, как по умолчанию в чате приложения. */
+/** From this class ([RISKS]) on, a call waits for an "ok" — the same as by default in the app's chat. */
 private const val ASK_FROM_RISK = 2
 
-// «Напоминания» встречаются дважды: тот же инструмент, но риск у вызовов разный. Инструменты и
-// действия — настоящие (в приложении нет «заметок», а почта лишь открывает черновик).
+// "Reminders" appears twice: the same tool, but the calls have different risk. The tools and actions are real
+// (the app has no "notes", and mail only opens a draft).
 private val CALLS = listOf(
     GateCall("календарь", "показать события", 0, "", ""),
     GateCall("напоминания", "показать список", 0, "", ""),
@@ -55,10 +55,9 @@ private val CALLS = listOf(
 )
 
 /**
- * «Полоса подтверждения»: вызовы агента приходят по одному и сами раскладываются по дорожкам —
- * чтение и запись проходят молча, отправка наружу и удаление замирают и ждут твоего «Разрешить» или
- * «Отклонить». Видно, что риск считают по каждому вызову: «напоминания» молча показывают список, но
- * «отменить напоминание» спросит.
+ * "The confirmation bar": the agent's calls arrive one at a time and sort themselves into lanes — reading and
+ * writing pass silently, sending outside and deleting freeze and wait for your "Allow" or "Decline". It shows
+ * that risk is assessed per call: "reminders" silently shows the list, but "cancel a reminder" will ask.
  */
 @Composable
 internal fun RiskGateScene() {
@@ -124,7 +123,7 @@ internal fun RiskGateScene() {
                 minLines = 3,
             )
         }
-        // Полоса подтверждения — как внизу чата. Место под неё занято всегда, чтобы кнопка ниже не прыгала.
+        // The confirmation bar — as at the bottom of the chat. Its space is always taken so the button below does not jump.
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(48.dp)) {
             if (pending) {
                 OutlinedButton(onClick = { deniedMask = deniedMask or currentBit }, modifier = Modifier.weight(1f)) { Text("Отклонить", color = error) }
@@ -162,7 +161,7 @@ private fun CallChip(call: GateCall, mark: String, newest: Boolean) {
         2 -> ScenePalette[1]
         else -> MaterialTheme.colorScheme.error.copy(alpha = 0.3f).compositeOver(Color.White)
     }
-    // Появляется въездом сверху — вызов «прилетает» в свою дорожку.
+    // It appears by sliding in from the top — the call "flies" into its lane.
     val appear = remember { MutableTransitionState(false).apply { targetState = true } }
     AnimatedVisibility(visibleState = appear, enter = fadeIn() + slideInVertically { -it }) {
         Row(

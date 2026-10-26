@@ -34,10 +34,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-/** Характер для чипа: короткое имя, его инструкция модели и два ответа — без профиля и с профилем. */
+/** A character for a chip: a short name, its instruction to the model and two answers — without a profile and with one. */
 private class PersonaVoice(val name: String, val instruction: String, val plain: String, val withProfile: String)
 
-// Имена и тон — из настоящего каталога персон приложения; сами ответы — пример, как звучал бы каждый характер.
+// The names and the tone come from the app's real persona catalog; the answers themselves are an example of how each character would sound.
 private val VOICES = listOf(
     PersonaVoice(
         name = "Дворецкий",
@@ -62,9 +62,10 @@ private val VOICES = listOf(
 private const val SAMPLE_PROFILE = "Саша, любит бегать"
 
 /**
- * «Персона и профиль»: вопрос один и тот же, а пользователь переключает характер и профиль. Над ответом
- * видно, что модель читает перед ним, — меняется только эта инструкция, и ответ звучит иначе.
- * Модель та же: персона и профиль — просто текст, который она получает каждый раз.
+ * "Persona and profile": the question is always the same, while the user switches the character and the
+ * profile. Above the answer you can see what the model reads before it — only this instruction changes, and
+ * the answer sounds different. The model is the same: the persona and the profile are just text it gets every
+ * time.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -97,7 +98,7 @@ internal fun PersonaSwitchScene() {
                 modifier = Modifier.alpha(profileAlpha),
             )
         }
-        // Пузырь одной ширины и высоты при любом ответе: чипы и переключатель под ним не сдвигаются.
+        // A bubble of the same width and height for any answer: the chips and the toggle under it do not move.
         Crossfade(targetState = if (useProfile) voice.withProfile else voice.plain, animationSpec = tween(250), label = "answer") { answer ->
             PersonaBubble(text = answer, fromUser = false)
         }

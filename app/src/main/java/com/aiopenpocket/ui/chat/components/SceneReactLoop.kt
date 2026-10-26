@@ -40,15 +40,15 @@ import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 
-/** Один такт примера из урока: фаза цикла (0 думаю, 1 действую, 2 наблюдаю, 3 ответ), текст и номер круга. */
+/** One beat of the lesson's example: the loop phase (0 think, 1 act, 2 observe, 3 answer), the text and the round number. */
 private data class ReactBeat(val phase: Int, val text: String, val round: Int)
 
 private val PHASES = listOf("Думаю", "Действую", "Наблюдаю")
 private const val ANSWER = 3
 
-// Тот же пример, что в тексте урока: напомнить за час до встречи с Максом. Раньше тут были «заметки» и
-// «погода» — таких инструментов в приложении нет, и ученик не мог повторить пример в чате. Календарь и
-// напоминания есть у любого чата, так что пример воспроизводится как есть.
+// The same example as in the lesson's text: a reminder an hour before the meeting with Max. There used to be
+// "notes" and "weather" here — the app has no such tools, and the learner could not repeat the example in the
+// chat. Any chat has the calendar and reminders, so the example reproduces as is.
 private val BEATS = listOf(
     ReactBeat(0, "Не знаю, когда встреча, — гляну в календарь", 1),
     ReactBeat(1, "Инструмент «Календарь»: показать события", 1),
@@ -60,12 +60,13 @@ private val BEATS = listOf(
     ReactBeat(ANSWER, "Напомню завтра в 14:00 — за час до встречи с Максом", 3),
 )
 
-// Фазы по кругу: «Думаю» сверху, «Действую» справа снизу, «Наблюдаю» слева снизу.
+// The phases in a circle: "Thinking" on top, "Acting" bottom right, "Observing" bottom left.
 private val ANGLES = listOf(-90f, 30f, 150f)
 
 /**
- * «Цикл ReAct»: пользователь сам ведёт агента по кругу кнопкой. Точка бежит от фазы к фазе, текущая
- * фаза подсвечена, под кругом — что агент делает прямо сейчас. Три витка — и ответ.
+ * "The ReAct loop": the user leads the agent around the circle with a button. A dot runs from phase to phase,
+ * the current phase is highlighted, and under the circle is what the agent is doing right now. Three rounds —
+ * and an answer.
  */
 @Composable
 internal fun ReactLoopScene() {
@@ -92,7 +93,7 @@ internal fun ReactLoopScene() {
             )
             drawCircle(primary.copy(alpha = 0.22f), radius, center, style = Stroke(width = 3.dp.toPx()))
 
-            // Точка бежит по дуге от прошлой фазы к текущей — видно, что это круг, а не список.
+            // The dot runs along an arc from the previous phase to the current one — it shows this is a circle, not a list.
             if (beat != null && beat.phase < ANSWER && previousPhase != null) {
                 val from = ANGLES[previousPhase]
                 var to = ANGLES[beat.phase]
@@ -127,7 +128,7 @@ internal fun ReactLoopScene() {
             }
 
             val roundText = measurer.measure(
-                // «виток» — слово урока для одного круга цикла (им же меряют лимиты).
+                // "round" is the lesson's word for one turn of the loop (the limits are measured in it too).
                 if (beat == null) "старт" else "виток ${beat.round}",
                 TextStyle(fontSize = 13.sp, color = SceneInk.copy(alpha = 0.6f)),
             )

@@ -46,7 +46,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
-/** Звено цепочки агента: что это и что оно делает в этой просьбе. */
+/** A link of the agent's chain: what it is and what it does in this request. */
 private class AgentLink(val title: String, val role: String)
 
 private val AGENT_LINKS = listOf(
@@ -55,20 +55,20 @@ private val AGENT_LINKS = listOf(
     AgentLink("Результат", "в телефоне"),
 )
 
-// Именно «будильник»: на «напомни» приложение ставит уведомление-напоминание, а не будильник, и сцена
-// с панелью «Будильники» учила бы не тому, что ученик потом увидит в чате.
+// Specifically an "alarm": for "remind me" the app sets a reminder notification, not an alarm, and a scene with
+// an "Alarms" panel would teach something other than what the learner will later see in the chat.
 private const val REMINDER_REQUEST = "Поставь будильник на завтра, 9:00 — позвонить маме"
 
-// Ход сцены: ничего → модель думает → инструмент работает → готово.
+// The scene's course: nothing → the model thinks → the tool works → done.
 private const val STEP_IDLE = 0
 private const val STEP_MODEL = 1
 private const val STEP_TOOL = 2
 private const val STEP_DONE = 3
 
 /**
- * «Чат или агент»: одна и та же просьба уходит то чату, то агенту. Чат вежливо отвечает словами — и
- * панель «Будильники» остаётся пустой. Агент проводит просьбу по цепочке модель → инструмент → результат,
- * и будильник появляется на самом деле: чат говорит, агент действует.
+ * "Chat or agent": the same request goes now to a chat, now to an agent. The chat politely answers in words —
+ * and the "Alarms" panel stays empty. The agent carries the request along the chain model → tool → result,
+ * and the alarm really appears: the chat talks, the agent acts.
  */
 @Composable
 internal fun ChatVsAgentScene() {
@@ -98,7 +98,7 @@ internal fun ChatVsAgentScene() {
             if (value != agent) {
                 agent = value
                 step = STEP_IDLE
-                run = 0 // отменяет прогон, начатый в другом режиме
+                run = 0 // cancels a run started in the other mode
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -106,7 +106,7 @@ internal fun ChatVsAgentScene() {
                 if (index > 0) {
                     Text("→", color = SceneInk.copy(alpha = 0.5f), textAlign = TextAlign.Center, modifier = Modifier.width(16.dp))
                 }
-                // У чата есть только модель: инструмента и результата в мире у него нет вовсе.
+                // The chat has only the model: it has no tool and no result in the world at all.
                 val available = agent || index == 0
                 LinkPill(link = link, lit = available && step >= index + 1, available = available, modifier = Modifier.weight(1f))
             }

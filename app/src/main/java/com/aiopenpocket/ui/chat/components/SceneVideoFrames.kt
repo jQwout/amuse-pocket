@@ -45,14 +45,14 @@ import com.aiopenpocket.i18n.tr
 import kotlin.math.PI
 import kotlin.math.sin
 
-// Ролик сцены: 4 секунды, чашку поднимают на 0,3 секунды. Ровно столько, чтобы при 1–2 кадрах в
-// секунду подъём проскочил между кадрами, а при 4 — попал в кадр.
+// The scene's clip: 4 seconds, the cup is lifted for 0.3 seconds. Exactly enough that at 1–2 frames per second
+// the lift slips between frames, and at 4 it gets into a frame.
 private const val CLIP_SECONDS = 4f
 private const val LIFT_START = 1.55f
 private const val LIFT_END = 1.85f
-/** Проигрываем вдвое медленнее: 0,3 секунды подъёма на телефоне иначе не успеваешь заметить. */
+/** Played twice as slowly: otherwise the 0.3 seconds of the lift are too quick to notice on a phone. */
 private const val SLOWDOWN = 2
-/** Иллюстративно: у настоящих моделей цена кадра своя, важен порядок — каждый кадр это сотни токенов. */
+/** Illustrative: real models have their own price per frame; what matters is the order of magnitude — every frame is hundreds of tokens. */
 private const val TOKENS_PER_FRAME = 256
 private val FPS_OPTIONS = listOf(1, 2, 4)
 
@@ -63,10 +63,10 @@ private val LiftBand = Color(0xFFF2994A)
 private val Caught = Color(0xFF2E7D32)
 
 /**
- * «Как модель видит»: ролик идёт по кругу, а пользователь выбирает, сколько кадров в секунду модель
- * берёт. Главное — шкала времени под роликом: оранжевая полоса — когда подняли чашку, чёрточки —
- * когда модель берёт кадр. Если ни одна чёрточка не попала в полосу, для модели подъёма не было.
- * Мало кадров — дёшево, но быстрое проскакивает; много — заметно, но дороже.
+ * "How a model sees": the clip loops, and the user picks how many frames per second the model takes. The main
+ * thing is the timeline under the clip: the orange bar is when the cup was lifted, the ticks are when the model
+ * takes a frame. If no tick falls into the bar, there was no lift for the model. Few frames — cheap, but
+ * something fast slips through; many — noticed, but more expensive.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -139,7 +139,7 @@ internal fun VideoFramesScene() {
     }
 }
 
-/** Шкала 0–4 с: полоса подъёма, чёрточки кадров модели и бегущая отметка «сейчас». */
+/** The 0–4 s scale: the lift bar, the model's frame ticks and the running "now" mark. */
 @Composable
 private fun Timeline(time: Float, frames: List<Float>, primary: Color, modifier: Modifier) {
     val measurer = rememberTextMeasurer()
@@ -149,7 +149,7 @@ private fun Timeline(time: Float, frames: List<Float>, primary: Color, modifier:
         fun x(t: Float) = left + (right - left) * (t / CLIP_SECONDS)
         val lineY = size.height * 0.55f
 
-        // Полоса «чашку подняли» и подпись над ней.
+        // The "cup lifted" bar and the caption above it.
         drawRoundRect(
             color = LiftBand.copy(alpha = 0.85f),
             topLeft = Offset(x(LIFT_START), lineY - 9.dp.toPx()),
@@ -161,7 +161,7 @@ private fun Timeline(time: Float, frames: List<Float>, primary: Color, modifier:
 
         drawLine(SceneInk.copy(alpha = 0.35f), Offset(left, lineY), Offset(right, lineY), strokeWidth = 2.dp.toPx())
 
-        // Чёрточки кадров: зелёные, если попали в подъём.
+        // Frame ticks: green if they hit the lift.
         frames.forEach { t ->
             val inLift = t in LIFT_START..LIFT_END
             drawLine(
@@ -172,13 +172,13 @@ private fun Timeline(time: Float, frames: List<Float>, primary: Color, modifier:
             )
         }
 
-        // Секунды под шкалой.
+        // The seconds under the scale.
         (0..CLIP_SECONDS.toInt()).forEach { s ->
             val label = measurer.measure(tr("${s}с", "${s}s"), TextStyle(fontSize = 10.sp, color = SceneInk.copy(alpha = 0.55f)))
             drawText(label, topLeft = Offset(x(s.toFloat()) - label.size.width / 2, lineY + 15.dp.toPx()))
         }
 
-        // Где сейчас ролик.
+        // Where the clip is now.
         drawCircle(SceneInk, radius = 5.dp.toPx(), center = Offset(x(time), lineY))
     }
 }
@@ -194,7 +194,7 @@ private fun CupFrame(time: Float, modifier: Modifier, highlight: Boolean = false
     ) {
         val tableY = size.height * 0.78f
         drawRect(Table, topLeft = Offset(0f, tableY), size = Size(size.width, size.height - tableY))
-        // Окно на стене — чтобы кадр читался как комната, а не как схема.
+        // A window on the wall — so the frame reads as a room, not a diagram.
         drawRect(
             Color(0xFFCFE3F3),
             topLeft = Offset(size.width * 0.08f, size.height * 0.12f),
@@ -205,7 +205,7 @@ private fun CupFrame(time: Float, modifier: Modifier, highlight: Boolean = false
         val cupH = size.height * 0.26f
         val x = size.width * 0.5f - cupW / 2
         val y = tableY - cupH - lift * size.height * 0.45f
-        // Тень остаётся на столе — по ней видно, что чашку именно подняли, а не перерисовали выше.
+        // The shadow stays on the table — it shows that the cup was really lifted, not redrawn higher.
         if (lift > 0f) {
             drawOval(
                 Color.Black.copy(alpha = 0.18f * (1f - lift * 0.5f)),
@@ -226,7 +226,7 @@ private fun CupFrame(time: Float, modifier: Modifier, highlight: Boolean = false
     }
 }
 
-/** 0 — чашка на столе, 1 — поднята выше всего; плавно вверх и вниз внутри окна подъёма. */
+/** 0 — the cup is on the table, 1 — lifted highest; smoothly up and down within the lift window. */
 private fun liftAmount(t: Float): Float {
     if (t !in LIFT_START..LIFT_END) return 0f
     val p = (t - LIFT_START) / (LIFT_END - LIFT_START)

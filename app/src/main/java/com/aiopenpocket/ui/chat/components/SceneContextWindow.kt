@@ -36,7 +36,7 @@ import androidx.compose.ui.unit.dp
 
 private data class Line(val fromUser: Boolean, val text: String)
 
-// Переписка сцены. Имя звучит в самом первом сообщении — и к последнему вопросу уже не помещается в окно.
+// The scene's conversation. The name is said in the very first message — and by the last question it no longer fits in the window.
 private val CHAT = listOf(
     Line(true, "Привет! Меня зовут Ваня"),
     Line(false, "Привет, Ваня!"),
@@ -47,13 +47,14 @@ private val CHAT = listOf(
     Line(true, "Спасибо! А как меня зовут?"),
 )
 
-/** Сколько сообщений влезает в окно сцены. Настоящее окно — это токены, а не штуки; принцип тот же. */
+/** How many messages fit in the scene's window. A real window is tokens, not pieces; the principle is the same. */
 private const val WINDOW = 4
 
 /**
- * «Окно контекста»: пользователь листает переписку, и старые сообщения уезжают за край окна — модель
- * их больше не видит. Последний вопрос — «как меня зовут?». Без долгой памяти модель имя уже потеряла;
- * переключатель кладёт его фактом в окно, и ответ меняется на глазах.
+ * "Context window": the user scrolls through the conversation, and old messages slide past the edge of the
+ * window — the model no longer sees them. The last question is "what is my name?". Without long-term memory
+ * the model has already lost the name; a toggle puts it into the window as a fact, and the answer changes
+ * before your eyes.
  */
 @Composable
 internal fun ContextWindowScene() {

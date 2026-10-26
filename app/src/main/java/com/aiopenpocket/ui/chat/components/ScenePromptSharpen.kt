@@ -42,8 +42,9 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 
 /**
- * Деталь просьбы: подпись чипа, что она дописывает в запрос, о чём модель без неё гадает,
- * кусок ответа «наугад» и кусок ответа, когда деталь названа (пустой — кусок просто исчезает).
+ * A detail of the request: the chip's label, what it adds to the request, what the model guesses about without
+ * it, the piece of the "guessed" answer and the piece of the answer when the detail is named (empty — the piece
+ * just disappears).
  */
 private class AskDetail(val chip: String, val addition: String, val guess: String, val guessed: String, val exact: String)
 
@@ -59,9 +60,9 @@ private val ASK_DETAILS = listOf(
 )
 
 /**
- * «Как просить»: пользователь начинает с размытого «напиши поздравление» и чипами дописывает детали.
- * Серым в ответе — то, что модель угадала сама; каждая названная деталь заменяет догадку точным куском,
- * и шкала точности заполняется. Каждая деталь в просьбе — минус одна догадка модели.
+ * "How to ask": the user starts with a vague "write a greeting" and adds details with chips. Gray in the answer
+ * is what the model guessed by itself; every named detail replaces a guess with a precise piece, and the
+ * precision scale fills up. Every detail in the request is one guess fewer for the model.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -88,7 +89,7 @@ internal fun PromptSharpenScene() {
     val guesses = ASK_DETAILS.indices.filterNot(::isOn).map { ASK_DETAILS[it].guess }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // Запрос растёт на глазах, но место под две строки занято заранее — чипы под ним не прыгают.
+        // The request grows before your eyes, but space for two lines is taken in advance — the chips under it do not jump.
         Box(
             modifier = Modifier
                 .fillMaxWidth()

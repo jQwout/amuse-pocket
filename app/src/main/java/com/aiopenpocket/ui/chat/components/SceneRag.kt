@@ -40,7 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
-// Маленькая «база»: памятка сотрудника, уже порезанная на куски.
+// A small "knowledge base": an employee handbook, already cut into chunks.
 private val CHUNKS = listOf(
     "Отчёт за квартал сдаём до 5-го числа следующего месяца.",
     "Кофемашина — на третьем этаже, капсулы у ресепшена.",
@@ -50,7 +50,7 @@ private val CHUNKS = listOf(
     "Отчёты отправляют руководителю отдела на почту.",
 )
 
-/** Вопрос, похожесть каждого куска на него (иллюстративно — как вышло бы у эмбеддингов) и ответ по двум лучшим. */
+/** A question, each chunk's similarity to it (illustrative — as embeddings would give) and the answer from the two best. */
 private class RagQuestion(val text: String, val scores: List<Float>, val answer: String)
 
 private val QUESTIONS = listOf(
@@ -74,15 +74,14 @@ private val QUESTIONS = listOf(
 private const val TOP_K = 2
 
 /**
- * «RAG»: пользователь выбирает вопрос, база на глазах считает похожесть каждого куска, два лучших
- * уезжают в пакет для модели — и только потом появляется ответ, собранный по ним. Сначала найти,
- * потом ответить.
+ * "RAG": the user picks a question, the base computes each chunk's similarity before your eyes, the two best go
+ * into the package for the model — and only then does an answer built from them appear. First find, then answer.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun RagScene() {
     var selected by rememberSaveable { mutableIntStateOf(-1) }
-    // 0 — ищем, 1 — куски в пакете, 2 — ответ готов.
+    // 0 — searching, 1 — the chunks are in the package, 2 — the answer is ready.
     var phase by remember { mutableIntStateOf(0) }
     val search = remember { Animatable(0f) }
     LaunchedEffect(selected) {

@@ -51,12 +51,12 @@ import androidx.compose.ui.unit.sp
 import java.util.Locale
 import kotlin.math.roundToInt
 
-/** Сутки пролетают за 7 секунд — успеваешь проследить, но не заскучать. */
+/** A day flies by in 7 seconds — enough to follow, not enough to get bored. */
 private const val DAY_MS = 7000
-/** Единственный за день повод заговорить: в 14:00 в задачах появляется дедлайн на завтра. */
+/** The only reason to speak up in the day: at 14:00 a deadline for tomorrow appears in the tasks. */
 private const val DEADLINE_AT = 14
 
-/** Задача крона: час, подпись на шкале и текст пуша. Те же примеры, что в уроке: отчёт в 9, «позвони маме» в 18. */
+/** A cron task: the hour, the label on the scale and the push text. The same examples as in the lesson: a report at 9, "call mom" at 18. */
 private class CronJob(val hour: Int, val tag: String, val push: String)
 private val CRON = listOf(CronJob(9, "отчёт", "«Время отчёта»"), CronJob(18, "маме", "«Позвони маме»"))
 
@@ -66,9 +66,9 @@ private fun wakes(every: Int) = (every until 24 step every).toList()
 private fun hhmm(hour: Int) = String.format(Locale.US, "%02d:00", hour)
 
 /**
- * «Heartbeat и cron»: пользователь запускает сутки на быстрой перемотке. Cron срабатывает строго по
- * часам, heartbeat будит агента каждые N часов (ползунок), и тот почти всегда молчит — HEARTBEAT_OK.
- * Заговорит он один раз, когда появится повод. Счётчики показывают: пробуждений много, пушей — мало.
+ * "Heartbeat and cron": the user runs a day in fast forward. Cron fires strictly on the clock, heartbeat wakes
+ * the agent every N hours (a slider), and it is almost always silent — HEARTBEAT_OK. It speaks up once, when
+ * there is a reason. The counters show: many wake-ups, few pushes.
  */
 @Composable
 internal fun DayClockScene() {
@@ -108,7 +108,7 @@ internal fun DayClockScene() {
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White).padding(10.dp),
         ) {
             Text("Журнал агента · ${hhmm(time.toInt().coerceAtMost(24))}", style = MaterialTheme.typography.labelMedium, color = SceneInk.copy(alpha = 0.6f))
-            // Три строки зарезервированы всегда: журнал растёт, а карточка — нет.
+            // Three lines are always reserved: the log grows, the card does not.
             (0 until 3).forEach { row ->
                 val event = events.getOrNull(row)
                 Text(
@@ -158,7 +158,7 @@ internal fun DayClockScene() {
     }
 }
 
-/** Шкала суток: сверху задачи крона, на линии — ночь и бегущее «сейчас», снизу — пробуждения heartbeat. */
+/** The day's scale: cron tasks on top, the night and the running "now" on the line, heartbeat wake-ups below. */
 @Composable
 private fun DayTrack(time: Float, wakeHours: List<Int>, speakAt: Int, modifier: Modifier) {
     val measurer = rememberTextMeasurer()
@@ -173,7 +173,7 @@ private fun DayTrack(time: Float, wakeHours: List<Int>, speakAt: Int, modifier: 
         val beatY = 72.dp.toPx()
         val band = 8.dp.toPx()
 
-        // Ночь — до 7:00 и после 22:00: видно, что heartbeat будит агента и тогда, но человек не слышит ни звука.
+        // The night is before 7:00 and after 22:00: it shows that heartbeat wakes the agent then too, but the person does not hear a sound.
         val night = Color(0xFF8E9AC4).copy(alpha = 0.35f)
         drawRect(night, topLeft = Offset(x(0f), lineY - band), size = Size(x(7f) - x(0f), band * 2))
         drawRect(night, topLeft = Offset(x(22f), lineY - band), size = Size(x(24f) - x(22f), band * 2))
@@ -183,7 +183,7 @@ private fun DayTrack(time: Float, wakeHours: List<Int>, speakAt: Int, modifier: 
             drawText(label, topLeft = Offset(x(h.toFloat()) - label.size.width / 2, beatY + 12.dp.toPx()))
         }
 
-        // Дедлайн появляется в 14:00 — пунктир от верха до линии.
+        // The deadline appears at 14:00 — a dashed line from the top down to the line.
         if (time >= DEADLINE_AT) {
             drawLine(
                 color = error,
@@ -207,7 +207,7 @@ private fun DayTrack(time: Float, wakeHours: List<Int>, speakAt: Int, modifier: 
             drawText(tag, topLeft = Offset(c.x - tag.size.width / 2, 0f))
         }
 
-        // Пробуждения: пустой кружок — ещё впереди, серый — проснулся и промолчал, крупный — заговорил.
+        // Wake-ups: an empty circle — still ahead, gray — woke up and stayed silent, large — spoke up.
         val r = 5.dp.toPx()
         wakeHours.forEach { h ->
             val c = Offset(x(h.toFloat()), beatY)

@@ -45,10 +45,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
-/** Шаг на дорожке: что сделано, что исполнитель сказал при этом и не сорвался ли шаг. */
+/** A step on the track: what was done, what the executor said while doing it and whether the step failed. */
 private class WfMove(val title: String, val note: String, val failed: Boolean = false)
 
-// Пример из урока: прислали фото документа — распознать, перевести, сделать выжимку.
+// The lesson's example: a photo of a document came in — recognize it, translate it, make a summary.
 private val RAIL_MOVES = listOf(
     WfMove("Распознать текст", "шаг 1 по сценарию — распознаю"),
     WfMove("Перевести", "шаг 2 по сценарию — перевожу"),
@@ -57,7 +57,7 @@ private val RAIL_MOVES = listOf(
 private val RAIL_SURPRISE = listOf(
     WfMove("Распознать текст", "вместо текста каша, а шага «повернуть фото» в сценарии нет", failed = true),
 )
-// Агент каждый раз проговаривает выбор: что видит и какой шаг берёт следующим.
+// Every time the agent talks through its choice: what it sees and which step it takes next.
 private val AGENT_MOVES = listOf(
     WfMove("Распознать текст", "сначала нужен текст — выбираю «распознать»"),
     WfMove("Перевести", "текст есть — выбираю «перевести»"),
@@ -71,13 +71,14 @@ private val AGENT_SURPRISE = listOf(
     WfMove("Сделать выжимку", "перевод готов — выбираю «выжимку». Цель достигнута, стоп"),
 )
 
-/** Больше всего шагов — у агента с сюрпризом: под них и держим место, чтобы кнопки не прыгали. */
+/** The agent with a surprise has the most steps: space is kept for them so the buttons do not jump. */
 private const val WF_MAX_ROWS = 5
 
 /**
- * «Воркфлоу и агент»: одна задача из урока — фото документа → перевод и выжимка — на двух вкладках.
- * Рельсы воркфлоу видны ещё до запуска, а шаги агента появляются по ходу: он выбирает их сам.
- * «Сюрприз» подсовывает перевёрнутое фото: рельсы встают, агент сам вставляет «повернуть» — ценой лишних решений.
+ * "Workflow and agent": one task from the lesson — a document photo → a translation and a summary — on two
+ * tabs. The workflow's rails are visible before the run, while the agent's steps appear along the way: it
+ * picks them itself. "Surprise" slips in an upside-down photo: the rails stop, while the agent inserts "rotate"
+ * on its own — at the cost of extra decisions.
  */
 @Composable
 internal fun WorkflowVsAgentScene() {
@@ -91,7 +92,7 @@ internal fun WorkflowVsAgentScene() {
         !surprise -> AGENT_MOVES
         else -> AGENT_SURPRISE
     }
-    // Смена вкладки повторяет тот же прогон на другой: одна задача, два исполнителя — сравнивать удобно.
+    // Switching the tab repeats the same run on the other one: one task, two executors — easy to compare.
     LaunchedEffect(agent, surprise, runs) {
         shown = 0
         if (runs == 0) return@LaunchedEffect
@@ -126,7 +127,7 @@ internal fun WorkflowVsAgentScene() {
                 }
                 moves.take(shown).forEachIndexed { index, move -> WfRow(index + 1, move.title, reached = true, failed = move.failed) }
             } else {
-                // Рельсы видны целиком ещё до запуска: маршрут известен наперёд — в этом и суть.
+                // The rails are visible in full before the run: the route is known in advance — that is the whole point.
                 RAIL_MOVES.forEachIndexed { index, move ->
                     val reached = index < shown
                     WfRow(index + 1, move.title, reached = reached, failed = reached && moves[index].failed)

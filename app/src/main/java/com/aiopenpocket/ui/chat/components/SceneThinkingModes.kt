@@ -44,10 +44,10 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Один прогон: время и токены (пример, не замер), ответ, вердикт и короткая оценка для таблицы. */
+/** One run: time and tokens (an example, not a measurement), the answer, the verdict and a short rating for the table. */
 private class ThinkRun(val seconds: Int, val tokens: Int, val answer: String, val verdict: String, val mark: String, val good: Boolean)
 
-/** Вопрос и насколько длинные у него размышления (доля ширины полосы): простому думать почти не о чем. */
+/** A question and how long its thinking is (a share of the bar's width): a simple one has almost nothing to think about. */
 private class ThinkAsk(val chip: String, val text: String, val depth: Float, val runs: List<ThinkRun>)
 
 private val ASKS = listOf(
@@ -75,21 +75,21 @@ private val MODES = listOf(
     "Contemplating" to "несколько рассуждений параллельно",
 )
 
-/** Длины трёх параллельных рассуждений Contemplating относительно одного — разные, как у разных агентов. */
+/** The lengths of Contemplating's three parallel reasonings relative to one — different, as with different agents. */
 private val LANES = listOf(0.8f, 1f, 0.65f)
 
 /**
- * «Режимы Muse Spark»: пользователь выбирает вопрос и режим и жмёт «Спросить». Instant отвечает сразу,
- * Thinking сначала растит длинную полосу размышлений, Contemplating — три параллельных, которые сходятся
- * в один ответ. Таблица копит время и токены: на простом вопросе думать незачем, на сложном — окупается.
+ * "Muse Spark modes": the user picks a question and a mode and taps "Ask". Instant answers right away, Thinking
+ * first grows a long bar of thinking, Contemplating three parallel ones that converge into one answer. The
+ * table accumulates time and tokens: on a simple question there is no point in thinking, on a hard one it pays off.
  */
 @Composable
 internal fun ThinkingModesScene() {
     var askIndex by rememberSaveable { mutableIntStateOf(0) }
     var mode by rememberSaveable { mutableIntStateOf(0) }
-    var ran by rememberSaveable { mutableIntStateOf(0) } // бит askIndex*3+mode — этот прогон уже был
-    var shown by rememberSaveable { mutableIntStateOf(-1) } // какой прогон сейчас на полосах, -1 — никакой
-    var finished by rememberSaveable { mutableIntStateOf(-1) } // какой прогон уже доиграл до ответа
+    var ran by rememberSaveable { mutableIntStateOf(0) } // bit askIndex*3+mode — this run has already happened
+    var shown by rememberSaveable { mutableIntStateOf(-1) } // which run is on the bars now, -1 — none
+    var finished by rememberSaveable { mutableIntStateOf(-1) } // which run has already played out to the answer
     var runId by remember { mutableIntStateOf(0) }
     val progress = remember { Animatable(0f) }
     LaunchedEffect(runId) {
@@ -104,7 +104,7 @@ internal fun ThinkingModesScene() {
     val running = progress.isRunning
     val ask = ASKS[askIndex]
     val done = shown >= 0 && finished == shown
-    // Пока анимация не стартовала, полосы пустые: иначе на кадр мелькнул бы прошлый прогон.
+    // Until the animation starts, the bars are empty: otherwise the previous run would flash for a frame.
     val p = when {
         shown < 0 -> 0f
         done -> 1f
@@ -116,7 +116,7 @@ internal fun ThinkingModesScene() {
     val measurer = rememberTextMeasurer()
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // Режимы — переключатель приложения Meta AI; через API, как в этом приложении, Muse Spark думает всегда.
+        // The modes are a switch of the Meta AI app; through the API, as in this app, Muse Spark always thinks.
         Text("Режимы Muse Spark в Meta AI: выбери, сколько думать", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             ASKS.forEachIndexed { index, item ->
@@ -158,7 +158,7 @@ internal fun ThinkingModesScene() {
                     drawLine(SceneInk.copy(alpha = 0.3f), start, Offset(barX, y), strokeWidth = 1.5.dp.toPx())
                     drawRoundRect(color, barTop, Size(length.coerceAtLeast(1f), 12.dp.toPx()), CornerRadius(6.dp.toPx()))
                     drawRoundRect(SceneInk.copy(alpha = 0.25f), barTop, Size(length.coerceAtLeast(1f), 12.dp.toPx()), CornerRadius(6.dp.toPx()), style = Stroke(1.dp.toPx()))
-                    // Когда размышления кончились, каждая полоса тянется к одной точке — ответу.
+                    // When the thinking is over, each bar stretches to one point — the answer.
                     if (merge > 0f) {
                         val from = Offset(barX + maxLen * depth * factors[i], y)
                         drawLine(primary.copy(alpha = 0.7f), from, lerp(from, finish, merge), strokeWidth = 2.dp.toPx())

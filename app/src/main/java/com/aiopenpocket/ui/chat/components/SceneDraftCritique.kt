@@ -48,10 +48,10 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Кусок черновика; [note] — номер замечания критики, которое в него целит (null — к куску претензий нет). */
+/** A piece of the draft; [note] is the number of the critique remark aimed at it (null — no complaints about this piece). */
 private class DraftPiece(val text: String, val note: Int? = null)
 
-// Запрос из сценария урока — вежливый отказ инвестору. В черновике нарочно три типичных огреха.
+// The request from the lesson's scenario — a polite refusal to an investor. The draft has three typical flaws on purpose.
 private val DRAFT = listOf(
     DraftPiece("Здравствуйте! "),
     DraftPiece("Спасибо за письмо, мы очень-очень внимательно прочитали всё, что вы прислали. ", note = 0),
@@ -61,7 +61,7 @@ private val DRAFT = listOf(
 private const val REWRITTEN = "Здравствуйте! Спасибо за предложение. Сейчас мы не привлекаем инвестиции — " +
     "команда занята запуском. Будем рады вернуться к разговору весной."
 
-// Те же виды слабых мест, что называет урок: лишнее, упущенное, неясное. Пункт чек-листа — на каждое.
+// The same kinds of weak spots the lesson names: superfluous, missing, unclear. A checklist item for each.
 private val NOTES = listOf("Лишнее: вода, письмо раздуто", "Упущено: нет причины — звучит резко", "Неясно: когда это «потом»?")
 private val CHECKS = listOf("коротко", "с причиной", "ясно")
 private val MARKS = listOf(ScenePalette[4], ScenePalette[1], ScenePalette[3])
@@ -69,13 +69,14 @@ private val REFLECTION_PHASES = listOf("Черновик", "Критика", "И
 private val FixedGreen = Color(0xFF2E7D32)
 
 /**
- * «Рефлексия»: пользователь сам ведёт агента по трём проходам. «Критика» подсвечивает слабые места
- * прямо в черновике и пишет к ним короткие замечания, «Переписать» ставит на место итог — и чек-лист
- * зеленеет. Счётчик вызовов модели растёт с каждым проходом: качество куплено двумя лишними вызовами.
+ * "Reflection": the user leads the agent through three passes themselves. "Critique" highlights the weak
+ * spots right in the draft and writes short remarks about them, "Rewrite" puts the result in place — and the
+ * checklist turns green. The model call counter grows with each pass: the quality is bought with two extra
+ * calls.
  */
 @Composable
 internal fun DraftCritiqueScene() {
-    // 0 — черновик, 1 — критика, 2 — итог.
+    // 0 — draft, 1 — critique, 2 — result.
     var phase by rememberSaveable { mutableIntStateOf(0) }
     val primary = MaterialTheme.colorScheme.primary
     val error = MaterialTheme.colorScheme.error
@@ -111,14 +112,14 @@ internal fun DraftCritiqueScene() {
                 minLines = 5,
             )
         }
-        // Замечания видны только после критики, но место под них занято всегда — кнопки не прыгают.
+        // The remarks are visible only after the critique, but their space is always taken — the buttons do not jump.
         Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.alpha(notesAlpha)) {
             NOTES.forEachIndexed { index, note -> NoteRow(number = index + 1, text = note, mark = MARKS[index], fixed = phase == 2) }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
             CHECKS.forEach { label -> CheckChip(label = label, phase = phase, error = error, modifier = Modifier.weight(1f)) }
         }
-        // Две кнопки на своих местах: левая после итога превращается в «Сначала», но не сдвигается.
+        // Two buttons in their places: after the result the left one turns into "Start over" but does not move.
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(onClick = { phase = if (phase == 2) 0 else 1 }, enabled = phase != 1, modifier = Modifier.weight(1f)) {
                 Text(if (phase == 2) "Сначала" else "Критика")
@@ -146,7 +147,7 @@ private fun draftText(marked: Boolean, numberColor: Color): AnnotatedString = bu
             return@forEach
         }
         withStyle(SpanStyle(background = MARKS[note], textDecoration = TextDecoration.Underline)) { append(piece.text.trimEnd()) }
-        // Номер замечания прямо у фразы — видно, к чему именно претензия.
+        // The remark's number right at the phrase — it shows exactly what the complaint is about.
         withStyle(SpanStyle(color = numberColor, fontWeight = FontWeight.Bold, fontSize = 10.sp, baselineShift = BaselineShift.Superscript)) {
             append("${note + 1}")
         }
@@ -177,7 +178,7 @@ private fun NoteRow(number: Int, text: String, mark: Color, fixed: Boolean) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(22.dp).clip(CircleShape).background(mark)) {
             Text("$number", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = SceneInk)
         }
-        // После переписывания замечание зачёркнуто — оно учтено в итоге.
+        // After the rewrite the remark is crossed out — it is taken into account in the result.
         Text(text, style = MaterialTheme.typography.bodySmall, textDecoration = if (fixed) TextDecoration.LineThrough else null)
     }
 }

@@ -38,10 +38,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import java.util.Locale
 
-/** Скрытый слой пакета: как он зовётся, кусочек его текста и сколько примерно токенов он весит. */
+/** A hidden layer of the package: what it is called, a piece of its text and roughly how many tokens it weighs. */
 private class PackLayer(val name: String, val sample: String, val tokens: Int)
 
-// Пример из урока: Саша не ест мясо. Токены — порядок величины для примера, а не замер настоящего пакета.
+// The lesson's example: Sasha does not eat meat. The tokens are an order of magnitude for the example, not a measurement of a real package.
 private val PACK_LAYERS = listOf(
     PackLayer("Правила", "Ты — карманный агент, отвечай по-русски…", 600),
     PackLayer("Персона", "Тон: тёплый, по-человечески", 150),
@@ -56,9 +56,9 @@ private const val PROFILE_LAYER = 2
 private const val MEMORY_LAYER = 3
 
 /**
- * «Что видит модель»: пользователь написал два слова и включает слои, которые приложение незаметно
- * кладёт перед ними, — правила, персону, профиль, память, историю. Пакет растёт, счётчик токенов
- * улетает в сотни раз выше, а ответ из «мимо» становится точным: модель читает куда больше, чем ты набрал.
+ * "What the model sees": the user wrote two words and switches on the layers the app quietly puts before them —
+ * rules, persona, profile, memory, history. The package grows, the token counter goes hundreds of times higher,
+ * and the answer goes from "off the mark" to precise: the model reads far more than you typed.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -161,5 +161,5 @@ private fun PackRow(name: String, text: String, tokens: Int, fill: Color) {
     }
 }
 
-/** 1755 → «1 755»: неразрывный пробел между тысячами, как пишут по-русски. */
+/** 1755 → "1 755": a non-breaking space between thousands, as written in Russian. */
 private fun formatTokens(value: Int): String = String.format(Locale.US, "%,d", value).replace(',', ' ')

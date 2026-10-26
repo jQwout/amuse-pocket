@@ -47,19 +47,20 @@ import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.chat.DrivenUiCard
 import java.io.File
 
-/** Папка в cacheDir, куда камера пишет ролик для урока. Её же чистит ChatViewModel после разбора. */
+/** The folder in cacheDir where the camera writes the lesson's clip. ChatViewModel cleans it up after the analysis. */
 internal const val LESSON_VIDEO_DIR = "lesson_videos"
 
-/** Так Coil и наш [bundledAssetPath] узнают файл из assets APK (ролик-пример и его превью). */
+/** How Coil and our [bundledAssetPath] recognize a file from the APK's assets (the sample clip and its preview). */
 private const val ANDROID_ASSET_PREFIX = "file:///android_asset/"
 
 /**
- * Шаг урока "video": отдать Muse Spark ролик-пример из assets (если у шага он есть — это главная
- * кнопка), снять свой камерой или выбрать из галереи.
+ * The "video" lesson step: hand Muse Spark the sample clip from assets (if the step has one, that is the main
+ * button), film your own with the camera or pick one from the gallery.
  *
- * Камера пишет в свой файл в cacheDir через FileProvider, а не в галерею: снятое для урока не
- * должно оседать в фотоплёнке, и после разбора его удаляют. Пока модель смотрит, вместо кнопок —
- * «Смотрю видео…»: разбор идёт десятки секунд, и повторная отправка стоила бы ещё одного вызова.
+ * The camera writes into its own file in cacheDir through a FileProvider, not into the gallery: what is
+ * filmed for a lesson must not settle in the camera roll, and it is deleted after the analysis. While the
+ * model is watching, "Watching the video…" replaces the buttons: the analysis takes tens of seconds, and
+ * sending again would cost one more call.
  */
 @Composable
 internal fun LessonVideoCardView(
@@ -68,7 +69,7 @@ internal fun LessonVideoCardView(
     onVideoChosen: (Uri) -> Unit,
 ) {
     val context = LocalContext.current
-    // rememberSaveable: камера — отдельная активность, и наш процесс может пересоздаться, пока она открыта.
+    // rememberSaveable: the camera is a separate activity, and our process may be recreated while it is open.
     var pendingCapture by rememberSaveable { mutableStateOf<String?>(null) }
     var cameraMissing by rememberSaveable { mutableStateOf(false) }
     val capture = rememberLauncherForActivityResult(ShortVideoCapture()) { saved ->
@@ -112,8 +113,8 @@ internal fun LessonVideoCardView(
                 Text(tr("Смотрю видео…", "Watching the video…"), style = MaterialTheme.typography.bodyMedium)
             }
         } else if (card.sampleVideo.isNotBlank()) {
-            // Главное действие — один тап по готовому ролику: съёмка на телефоне — это камера,
-            // разрешения и свет, а смысл шага виден и без неё. Своё видео — вторым рядом.
+            // The main action is one tap on a ready clip: filming on a phone means the camera, permissions and light,
+            // while the point of the step is visible without it. Your own video goes in the second row.
             Button(
                 onClick = { onVideoChosen(Uri.parse(ANDROID_ASSET_PREFIX + card.sampleVideo)) },
                 modifier = Modifier.fillMaxWidth(),
@@ -148,13 +149,13 @@ internal fun LessonVideoCardView(
     }
 }
 
-/** Путь ассета внутри APK, если [this] указывает на ролик-пример урока, иначе null. */
+/** The asset's path inside the APK if [this] points to the lesson's sample clip, otherwise null. */
 internal fun Uri.bundledAssetPath(): String? =
     toString().takeIf { it.startsWith(ANDROID_ASSET_PREFIX) }?.removePrefix(ANDROID_ASSET_PREFIX)
 
 /**
- * Системная камера с ограничениями: до 10 секунд и в низком качестве. Модели этого хватает, а
- * ролик остаётся лёгким — его целиком везут провайдеру в base64.
+ * The system camera with limits: up to 10 seconds and in low quality. That is enough for the model, and the
+ * clip stays light — it goes to the provider whole, in base64.
  */
 private class ShortVideoCapture : ActivityResultContracts.CaptureVideo() {
     override fun createIntent(context: Context, input: Uri): Intent =
