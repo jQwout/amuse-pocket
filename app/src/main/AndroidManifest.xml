@@ -15,7 +15,7 @@
         android:name="android.hardware.sensor.stepcounter"
         android:required="false" />
 
-    <!-- Чтобы SpeechRecognizer находил системный recognition-сервис на Android 11+. -->
+    <!-- So that SpeechRecognizer finds the system recognition service on Android 11+. -->
     <queries>
         <intent>
             <action android:name="android.speech.RecognitionService" />
@@ -46,8 +46,8 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Позволяет выбрать приложение как "цифрового помощника" и
-                 запускает экран при вызове ассистента (ACTION_ASSIST). -->
+            <!-- Lets the app be chosen as the "digital assistant" and
+                 opens the screen when the assistant is invoked (ACTION_ASSIST). -->
             <intent-filter>
                 <action android:name="android.intent.action.ASSIST" />
 
@@ -55,7 +55,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Камера пишет ролик для урока в наш cacheDir (не в галерею) — ей нужен content-URI на файл. -->
+        <!-- The camera writes the lesson clip into our cacheDir (not the gallery) — it needs a content URI for the file. -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -66,7 +66,7 @@
                 android:resource="@xml/lesson_file_paths" />
         </provider>
 
-        <!-- Регистрация приложения как системного голосового помощника. -->
+        <!-- Registers the app as the system voice assistant. -->
         <service
             android:name="com.aiopenpocket.voice.AssistInteractionService"
             android:exported="true"
@@ -100,7 +100,7 @@
                 android:resource="@xml/recognition_service" />
         </service>
 
-        <!-- Живёт только пока идёт ход агента; поднимается из AndroidTurnLifeSupport. -->
+        <!-- Lives only while an agent turn is running; started from AndroidTurnLifeSupport. -->
         <service
             android:name="com.aiopenpocket.agent.core.notification.TurnForegroundService"
             android:exported="false"

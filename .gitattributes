@@ -1,15 +1,14 @@
-# Единые переносы строк. Без этого файла поведение зависело от локального
-# core.autocrlf у каждого разработчика, и git на каждую операцию предупреждал
-# «LF will be replaced by CRLF». Теперь правило живёт в репозитории: в индексе
-# и в рабочей копии — LF.
+# One line-ending rule for everyone. Without this file the behavior depended on each
+# developer's local core.autocrlf, and git warned "LF will be replaced by CRLF" on every
+# operation. Now the rule lives in the repository: LF in the index and in the working copy.
 * text=auto eol=lf
 
-# Windows-скрипты обязаны остаться с CRLF, иначе cmd их не выполнит.
+# Windows scripts must keep CRLF, otherwise cmd will not run them.
 *.bat text eol=crlf
 *.cmd text eol=crlf
 
-# Бинарники git не должен трогать нормализацией переносов. Критично для
-# скриншот-эталонов Roborazzi: любая правка байтов ломает их сравнение.
+# Git must not touch binaries with line-ending normalization. Critical for the Roborazzi
+# screenshot baselines: any change of bytes breaks their comparison.
 *.png binary
 *.jpg binary
 *.jpeg binary

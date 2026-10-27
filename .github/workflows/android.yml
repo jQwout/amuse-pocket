@@ -1,6 +1,6 @@
-# Сборка и юнит-тесты на каждый push и PR: локально полный набор (~1000 тестов, Robolectric и
-# Roborazzi) гоняется редко, а сабмишн обещает тесты — пусть их держит зелёными CI.
-# Ключей здесь нет: секретный плагин берёт плейсхолдеры из .env.example, и ни один тест в сеть не ходит.
+# Build and unit tests on every push and PR: locally the full suite (~1000 tests, Robolectric and
+# Roborazzi) runs rarely, and the submission promises tests — so CI keeps them green.
+# No keys here: the secrets plugin takes the placeholders from .env.example, and no test goes to the network.
 name: Android CI
 
 on:
@@ -31,7 +31,7 @@ jobs:
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug --stacktrace
 
-      # Roborazzi в verify-режиме сверяет скриншоты с эталонами из app/src/test/screenshots.
+      # Roborazzi in verify mode compares screenshots with the baselines in app/src/test/screenshots.
       - name: Unit tests (JVM, Robolectric, Roborazzi verify)
         run: ./gradlew :app:testDebugUnitTest -Proborazzi.test.verify=true --stacktrace
 

@@ -1,16 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Правила автобэкапа для Android 11 и старше (API < 31). На 31+ действует data_extraction_rules.xml —
-   держать оба файла в согласии обязательно: minSdk проекта 24, так что этот путь живой, а не легаси.
+   Auto backup rules for Android 11 and older (API < 31). On 31+ data_extraction_rules.xml is in effect —
+   keeping both files in agreement is mandatory: the project's minSdk is 24, so this path is alive, not legacy.
 
-   Комментарий-заготовка от AS утверждал обратное («ignored for devices older than API 31») — это про
-   ДРУГОЙ файл. Здесь всё наоборот: этот работает как раз до 31.
+   The template comment from Android Studio claimed the opposite ("ignored for devices older than API 31") —
+   that is about the OTHER file. Here it is the other way round: this one works exactly below 31.
 
-   Почему исключено — подробное обоснование в data_extraction_rules.xml. Коротко:
-   - secure_settings.xml: EncryptedSharedPreferences, ключ живёт в Keystore и не бэкапится, поэтому
-     восстановленный файл нечем расшифровать и приложение падает при первом чтении API-ключа;
-   - ai_open_pocket_db: вся переписка и память агента открытым текстом — не для облака Google.
-     (Здесь, в отличие от API 31+, отдельного канала device-transfer нет, так что исключение общее.)
-   - agent/, agents/, lesson_images/: файлы агента и картинки «под меня» — та же приватность, что и база.
+   Why things are excluded is explained in detail in data_extraction_rules.xml. In short:
+   - secure_settings.xml: EncryptedSharedPreferences, the key lives in the Keystore and is not backed up, so
+     a restored file cannot be decrypted and the app fails on the first read of the API key;
+   - ai_open_pocket_db: all the conversations and the agent's memory in plain text — not for Google's cloud.
+     (Here, unlike API 31+, there is no separate device-transfer channel, so the exclusion is shared.)
+   - agent/, agents/, lesson_images/: the agent's files and the "for me" images — the same privacy as the
+     database.
 -->
 <full-backup-content>
     <exclude domain="sharedpref" path="secure_settings.xml"/>
