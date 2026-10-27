@@ -247,10 +247,10 @@ val ROADMAP_LEVELS = listOf(
   // "ok"), and hooks add their own rules on top of it.
   RoadmapLevel(
     "tool_approval_and_limits",
-    "Подтверждение инструментов",
+    "Подтверждение и границы инструментов",
     "Какие действия агент делает сам, а какие только с твоего «ок»: классы риска, оценка по каждому вызову, правило по умолчанию и хуки.",
     Icons.Default.Shield,
-    titleEn = "Tool approval",
+    titleEn = "Tool approval and limits",
     descriptionEn = "Which actions an agent takes on its own and which only with your “OK”: risk classes, per-call assessment, the default rule and hooks.",
   ),
   // Hooks and the builder come BEFORE the modes: the practice of plan mode, goal mode and plans happens on your own
@@ -325,12 +325,35 @@ val ROADMAP_LEVELS = listOf(
   ),
   RoadmapLevel(
     "agent_blueprint",
-    "Капстоун: спроектируй агента",
+    "Капстоун: спроектируй своего агента",
     "Финал курса: чеклист из пяти вопросов — цель, инструменты, паттерн, память, проверка.",
     Icons.Default.Architecture,
-    titleEn = "Capstone: design an agent",
+    titleEn = "Capstone: design your own agent",
     descriptionEn = "The course finale: a five-question checklist — goal, tools, pattern, memory, testing.",
   ),
 )
+
+/**
+ * A lesson that is in the library but not on the path, so [ROADMAP_LEVELS] has no entry for it. The ONE place
+ * its names live: the Library card and the list of chats both read it. The Russian title is the lesson JSON's
+ * own and a test keeps them equal; the English texts have no JSON to come from (there is no English copy).
+ */
+internal class LibraryOnlyLesson(val titleRu: String, val titleEn: String, val descriptionEn: String)
+
+internal val LIBRARY_ONLY_LESSONS: Map<String, LibraryOnlyLesson> = mapOf(
+  "rag" to LibraryOnlyLesson(
+    titleRu = "RAG: ответы по твоей базе",
+    titleEn = "RAG: answers from your own data",
+    descriptionEn = "Why the model doesn't know your files, and how finding the right pieces before it answers fixes that.",
+  ),
+)
+
+/**
+ * The name of a lesson in the interface language by its id (`what_is_agent` -> "What AI is and what an agent
+ * is"), or null if the id is not a lesson the app knows.
+ */
+fun lessonDisplayTitle(lessonId: String): String? =
+  ROADMAP_LEVELS.find { it.id == lessonId }?.title
+    ?: LIBRARY_ONLY_LESSONS[lessonId]?.let { tr(it.titleRu, it.titleEn) }
 
 enum class LevelStatus { LOCKED, CURRENT, COMPLETED }

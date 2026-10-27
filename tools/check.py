@@ -88,7 +88,8 @@ def rel(path):
 
 
 def read(path):
-    return io.open(str(path), encoding="utf-8", errors="replace").read()
+    with io.open(str(path), encoding="utf-8", errors="replace") as f:
+        return f.read()
 
 
 def git(*args, **kwargs):
@@ -369,6 +370,382 @@ def check_english_demo_path(report):
                    % (pairs, len(TR_EN_EXEMPT)))
 
 
+# ---------------------------------------------------------------- T6c: Russian that never went through tr()
+# @trace screen-text-check-7c6d09
+#
+# T6 only reads the English side of a tr() pair, so a string that skipped tr() altogether is invisible to
+# it: the check was green (650 pairs, all English) while whole screens of the demo path were Russian under
+# an English interface. T6c reads the other half: a Russian literal standing where Compose draws it.
+#
+# What counts as "where Compose draws it" is a list, not a guess:
+#   - the named arguments text, contentDescription, label, placeholder, title, supportingText, headline
+#     of any call;
+#   - the first positional argument of Text(, Button(, TextButton(, OutlinedButton(.
+# Inside such an argument a literal counts when it is the value itself or one of its branches
+# ("..." , if (c) "..." else "...", x ?: "...", "..." + y, a string template). A literal inside a nested
+# call does not: tr("ru", "en") is exactly that call, and its Russian first argument is the normal Russian
+# side of the pair. Comments and KDoc are not code, so the lexer drops them.
+#
+# What this does NOT see, said here so a green line is not read as more than it is: a Russian string held
+# in a val/list/data table and passed on by name (Text(LABEL)), the body of an ordinary lambda, a call
+# other than tr() that builds the text (String.format("...", n)). It is a net for the direct form, which
+# is how the 184 literals of 2026-10-27 were written; the device-tester on an English interface is the
+# net for the rest.
+
+SCREEN_ARG_NAMES = ("text", "contentDescription", "label", "placeholder", "title", "supportingText",
+                    "headline")
+SCREEN_CALLS = ("Text", "Button", "TextButton", "OutlinedButton")
+
+# *Previews.kt hold the @Preview fixtures: sample chats, sample agents, sample plans. They exist for
+# Android Studio and the Roborazzi baselines and are never composed for a user, so their Russian sample
+# data is not screen text. Skipped by name, here, not silently.
+SCREEN_RU_SKIP_SUFFIX = "Previews.kt"
+
+# Files where Russian screen text is allowed to stay, by path, with the reason. Not a folder, not a
+# pattern: one line per file, so adding a file is a decision that shows up in review.
+SCREEN_RU_EXEMPT = {
+}
+
+# A scene of a lesson that exists only in Russian is listed with the lesson id instead of a free reason:
+# the exemption is tied to a fact the check can read, assets/lessons/en/<id>.json. The day that file
+# appears the exemption stops applying on its own and the scene's Russian turns the check red -- an
+# English lesson with a Russian scene is the very bug this check was written for.
+_SCENES = "app/src/main/java/com/aiopenpocket/ui/chat/components/"
+SCREEN_RU_LESSON_ONLY = {
+    _SCENES + "SceneAgentAssembler.kt": "build_your_agent",
+    _SCENES + "SceneArenaSwarm.kt": "arena_and_swarm",
+    _SCENES + "SceneChainRouter.kt": "chaining_and_routing",
+    _SCENES + "SceneConfidentWrong.kt": "hallucinations",
+    _SCENES + "SceneContextBudget.kt": "context_engineering",
+    _SCENES + "SceneContextWindow.kt": "memory_and_context",
+    _SCENES + "SceneDataFlow.kt": "privacy_and_reliability",
+    _SCENES + "SceneDayClock.kt": "heartbeat_and_cron",
+    _SCENES + "SceneDraftCritique.kt": "reflection",
+    _SCENES + "SceneGoalLoop.kt": "goal_mode",
+    _SCENES + "SceneHookTimeline.kt": "hooks_and_lifecycle",
+    _SCENES + "SceneImageReasoning.kt": "muse_image_draws",
+    _SCENES + "SceneOpenWeights.kt": "open_weights_and_api",
+    _SCENES + "ScenePlanGate.kt": "plan_mode",
+    _SCENES + "SceneRag.kt": "rag",
+    _SCENES + "SceneReactLoop.kt": "react_loop",
+    _SCENES + "SceneRiskGate.kt": "tool_approval_and_limits",
+    _SCENES + "SceneSkillLevels.kt": "agent_skills",
+    _SCENES + "SceneStepEvidence.kt": "structured_plans",
+    _SCENES + "SceneThinkingModes.kt": "muse_spark_modes",
+    _SCENES + "SceneToolCall.kt": "agent_tools",
+    _SCENES + "SceneWorkflowVsAgent.kt": "workflow_and_agent",
+}
+
+# After one of these a "(" is a plain parenthesis, not a call; after anything else that is an identifier
+# it is a call, and the arguments of a call are not the value of the expression.
+KT_KEYWORDS_BEFORE_VALUE = {"else", "return", "in", "is", "as", "to", "and", "or", "yield"}
+# The "(" after these holds a condition: compared against, never shown.
+KT_CONDITION_KEYWORDS = {"if", "when", "while", "for"}
+# Lambdas whose last expression is the value, so a string in them is the screen text itself.
+KT_VALUE_LAMBDAS = {"ifBlank", "ifEmpty", "let", "run", "takeIf", "takeUnless"}
+
+KT_PARAMETER_MODIFIERS = {"val", "var", "private", "internal", "public", "protected", "override",
+                          "vararg", "noinline", "crossinline"}
+
+KtToken = collections.namedtuple("KtToken", "kind value pos")
+
+_KT_ID = re.compile(r"[A-Za-z_][A-Za-z_0-9]*|`[^`\n]*`")
+_KT_NUM = re.compile(r"[0-9][0-9_]*(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?[fFLuU]*")
+_KT_OP = re.compile(r"===|!==|==|!=|<=|>=|\+=|-=|\*=|/=|%=|->|\?:|::|\.\.<|\.\.|&&|\|\||\S")
+_KT_CHAR = re.compile(r"'(?:\\u[0-9a-fA-F]{4}|\\.|[^\\'\n])'")
+
+
+def kotlin_tokens(src):
+    """Just enough of a Kotlin lexer for T6c: identifiers, operators and string literals with their
+    literal text, with comments dropped. A template expression (${...}) is lexed as code between a
+    tpl_open and a tpl_close token, so a string nested in one is still found."""
+    toks, n = [], len(src)
+
+    def lex_string(i, raw):
+        quote = '"""' if raw else '"'
+        start, i = i, i + len(quote)
+        slot = len(toks)
+        toks.append(None)
+        parts = []
+        while i < n:
+            c = src[i]
+            if raw and src.startswith('"""', i):
+                j = i
+                while j < n and src[j] == '"':
+                    j += 1
+                parts.append('"' * (j - i - 3))
+                i = j
+                break
+            if not raw and c == '"':
+                i += 1
+                break
+            if not raw and c == "\n":
+                break  # an unterminated string: stop here rather than swallow the rest of the file
+            if not raw and c == "\\":
+                parts.append(src[i:i + 2])
+                i += 2
+                continue
+            if c == "$" and src.startswith("{", i + 1):
+                toks.append(KtToken("tpl_open", "${", i))
+                i = lex(i + 2, True)
+                toks.append(KtToken("tpl_close", "}", i))
+                continue
+            parts.append(c)
+            i += 1
+        toks[slot] = KtToken("str", "".join(parts), start)
+        return i
+
+    def lex(i, in_template):
+        depth = 0
+        while i < n:
+            c = src[i]
+            if c.isspace():
+                i += 1
+            elif src.startswith("//", i):
+                j = src.find("\n", i)
+                i = n if j < 0 else j
+            elif src.startswith("/*", i):
+                level, i = 1, i + 2
+                while i < n and level:
+                    if src.startswith("/*", i):
+                        level, i = level + 1, i + 2
+                    elif src.startswith("*/", i):
+                        level, i = level - 1, i + 2
+                    else:
+                        i += 1
+            elif src.startswith('"""', i):
+                i = lex_string(i, True)
+            elif c == '"':
+                i = lex_string(i, False)
+            elif c == "'":
+                m = _KT_CHAR.match(src, i)
+                i = m.end() if m else i + 1
+            else:
+                if in_template and c == "}":
+                    if depth == 0:
+                        return i + 1
+                    depth -= 1
+                elif in_template and c == "{":
+                    depth += 1
+                for kind, rx in (("id", _KT_ID), ("num", _KT_NUM), ("op", _KT_OP)):
+                    m = rx.match(src, i)
+                    if m:
+                        toks.append(KtToken(kind, m.group(0), i))
+                        i = m.end()
+                        break
+        return i
+
+    lex(0, False)
+    return toks
+
+
+def _is_op(tok, *values):
+    return tok is not None and tok.kind == "op" and tok.value in values
+
+
+def _bracket_pairs(toks):
+    """open index -> close index for ( [ { and ${ }. An unbalanced file does not crash the scan: a
+    closer with nothing open is ignored."""
+    pairs, stack = {}, []
+    for k, t in enumerate(toks):
+        if t.kind == "tpl_open" or _is_op(t, "(", "[", "{"):
+            stack.append(k)
+        elif t.kind == "tpl_close" or _is_op(t, ")", "]", "}"):
+            if stack:
+                pairs[stack.pop()] = k
+    return pairs
+
+
+def _paren_owner(toks, pairs, close_index):
+    """The identifier before the "(" that this ")" closes: `if` for `if (c) { ... }`."""
+    for open_index, close in pairs.items():
+        if close == close_index and open_index > 0 and toks[open_index - 1].kind == "id":
+            return toks[open_index - 1].value
+    return None
+
+
+def _value_strings(toks, pairs, a, b):
+    """The Russian string tokens in toks[a:b] that are the value of that expression (see the T6c note
+    above for what is and is not the value)."""
+    out, k = [], a
+    while k < b:
+        t = toks[k]
+        prev = toks[k - 1] if k > a else None
+        if t.kind == "str":
+            following = toks[k + 1] if k + 1 < len(toks) else None
+            # `"da" -> ...` in a when() is a condition that is compared against, not something shown
+            if CYRILLIC.search(t.value) and not _is_op(following, "->"):
+                out.append(t)
+        elif _is_op(t, "(") and k in pairs:
+            if prev is not None and prev.kind == "id" and prev.value in KT_CONDITION_KEYWORDS:
+                k = pairs[k]
+            elif prev is not None and ((prev.kind == "id" and prev.value not in KT_KEYWORDS_BEFORE_VALUE)
+                                       or _is_op(prev, ")", "]")):
+                k = pairs[k]  # a call; tr("ru", "en") lands here, which is the point
+        elif _is_op(t, "[") and k in pairs:
+            k = pairs[k]
+        elif _is_op(t, "{") and k in pairs:
+            branch = prev is not None and (
+                (prev.kind == "id" and (prev.value == "else" or prev.value in KT_VALUE_LAMBDAS))
+                or _is_op(prev, "->")
+                or (_is_op(prev, ")") and _paren_owner(toks, pairs, k - 1) in KT_CONDITION_KEYWORDS))
+            if not branch:
+                k = pairs[k]  # a lambda or a block of statements
+        k += 1
+    return out
+
+
+def _preview_spans(toks, pairs):
+    """(start, end) source offsets of the body of every function annotated @Preview*: sample data for
+    Android Studio and the Roborazzi baselines, never composed for a user. It is the same reason as for
+    the *Previews.kt files, for the previews that sit next to their screen."""
+    spans = []
+    for k, t in enumerate(toks):
+        if not (_is_op(t, "@") and k + 1 < len(toks) and toks[k + 1].kind == "id"
+                and toks[k + 1].value.startswith("Preview")):
+            continue
+        fun = next((j for j in range(k + 2, min(k + 40, len(toks)))
+                    if toks[j].kind == "id" and toks[j].value == "fun"), None)
+        if fun is None:
+            continue
+        params = next((j for j in range(fun, min(fun + 6, len(toks))) if _is_op(toks[j], "(")), None)
+        if params is None or params not in pairs:
+            continue
+        body = next((j for j in range(pairs[params], min(pairs[params] + 8, len(toks)))
+                     if _is_op(toks[j], "{")), None)
+        if body is not None and body in pairs:
+            spans.append((toks[body].pos, toks[pairs[body]].pos))
+    return spans
+
+
+def screen_cyrillic_literals(src):
+    """(offset, text) of every Russian literal standing in a screen position in this Kotlin source."""
+    toks = kotlin_tokens(src)
+    pairs = _bracket_pairs(toks)
+    previews = _preview_spans(toks, pairs)
+    hits = {}
+    for open_index, close_index in pairs.items():
+        if not _is_op(toks[open_index], "(") or open_index == 0:
+            continue
+        callee = toks[open_index - 1]
+        if callee.kind != "id" or callee.value in KT_CONDITION_KEYWORDS:
+            continue
+        # split the arguments at the commas that sit directly in this call
+        args, start, k = [], open_index + 1, open_index + 1
+        while k < close_index:
+            if toks[k].kind == "tpl_open" or _is_op(toks[k], "(", "[", "{"):
+                k = pairs.get(k, k)
+            elif _is_op(toks[k], ","):
+                args.append((start, k))
+                start = k + 1
+            k += 1
+        if start < close_index:
+            args.append((start, close_index))
+        for position, (a, b) in enumerate(args):
+            while a < b and toks[a].kind == "id" and toks[a].value in KT_PARAMETER_MODIFIERS:
+                a += 1  # `val`, `private` ... in front of a constructor parameter
+            if b - a >= 2 and toks[a].kind == "id" and _is_op(toks[a + 1], "="):
+                if toks[a].value in SCREEN_ARG_NAMES:
+                    for s in _value_strings(toks, pairs, a + 2, b):
+                        hits[s.pos] = s.value
+            elif b - a >= 4 and toks[a].kind == "id" and _is_op(toks[a + 1], ":"):
+                # a declaration `title: String = "..."`: the default of a text parameter is shown the
+                # moment a caller leaves it out
+                eq, k = None, a + 2
+                while k < b:
+                    if toks[k].kind == "tpl_open" or _is_op(toks[k], "(", "[", "{"):
+                        k = pairs.get(k, k)
+                    elif _is_op(toks[k], "="):
+                        eq = k
+                        break
+                    k += 1
+                if eq is not None and toks[a].value in SCREEN_ARG_NAMES:
+                    for s in _value_strings(toks, pairs, eq + 1, b):
+                        hits[s.pos] = s.value
+            elif position == 0 and callee.value in SCREEN_CALLS:
+                for s in _value_strings(toks, pairs, a, b):
+                    hits[s.pos] = s.value
+    return [(pos, hits[pos]) for pos in sorted(hits)
+            if not any(start <= pos <= end for start, end in previews)]
+
+
+def scene_function_of_lesson(lesson_id):
+    """The Compose function that draws the animation step of a lesson, found the way the app finds it:
+    the scene id in the lesson's JSON, then the dispatcher in LessonAnimationScenes.kt."""
+    lesson = LESSONS / (lesson_id + ".json")
+    dispatcher = JAVA / "com" / "aiopenpocket" / "ui" / "chat" / "components" / "LessonAnimationScenes.kt"
+    if not lesson.exists() or not dispatcher.exists():
+        return None
+    try:
+        steps = json.loads(read(lesson)).get("steps", [])
+    except ValueError:
+        return None
+    scene = next((s.get("scene") for s in steps if s.get("type") == "animation"), None)
+    m = re.search(r'"%s"\s*->\s*(\w+)\(' % re.escape(str(scene)), read(dispatcher))
+    return m.group(1) if m else None
+
+
+def lesson_only_exemption(path, lesson_id):
+    """(reason, problem) of a scene-file exemption. problem is None while the exemption holds. It holds
+    only on three facts the check reads itself: the lesson exists, it has no English copy, and this very
+    file draws that lesson's scene. Lose any of them and the exemption is void."""
+    reason = ("lesson %s exists only in Russian; the exemption ends when assets/lessons/en/%s.json appears"
+              % (lesson_id, lesson_id))
+    if not (LESSONS / (lesson_id + ".json")).exists():
+        return reason, "there is no lesson %s, so the exemption names nothing" % lesson_id
+    if (LESSONS / "en" / (lesson_id + ".json")).exists():
+        return reason, ("lesson %s now has an English copy (assets/lessons/en/%s.json): its scene has to "
+                        "be English too" % (lesson_id, lesson_id))
+    function = scene_function_of_lesson(lesson_id)
+    full = ROOT / path
+    if not function or not full.exists() or not re.search(r"\bfun\s+%s\b" % re.escape(function), read(full)):
+        return reason, "this file does not draw the scene of lesson %s (%s)" % (lesson_id, function or "?")
+    return reason, None
+
+
+def check_screen_russian(report):
+    """T6c: no Russian literal where Compose draws it, unless the file is named in the exemptions."""
+    exemptions = {path: (why, None) for path, why in SCREEN_RU_EXEMPT.items()}
+    for path, lesson_id in SCREEN_RU_LESSON_ONLY.items():
+        exemptions[path] = lesson_only_exemption(path, lesson_id)
+
+    scanned, covered, bad, voided, used = 0, 0, [], {}, set()
+    for path in sorted(JAVA.rglob("*.kt")):
+        if path.name.endswith(SCREEN_RU_SKIP_SUFFIX):
+            continue
+        scanned += 1
+        text = read(path)
+        hits = screen_cyrillic_literals(text)
+        if not hits:
+            continue
+        name = rel(path)
+        why, problem = exemptions.get(name, (None, "no exemption"))
+        if name in exemptions:
+            used.add(name)
+        if why and problem is None:
+            covered += len(hits)
+            continue
+        if problem and name in exemptions:
+            voided[name] = problem
+        for pos, literal in hits:
+            bad.append("%s:%d %s" % (name, text.count("\n", 0, pos) + 1, literal.strip()[:60]))
+    stale = ["%s: no Russian screen literal left, remove the exemption" % p
+             for p in sorted(set(exemptions) - used)]
+
+    if not scanned:
+        report.add("T6c", "FAIL", "No Kotlin file found, so nothing was checked")
+    elif bad:
+        details = ["%s: exemption void, %s" % (p, why) for p, why in sorted(voided.items())] + bad
+        report.add("T6c", "FAIL", "Russian text that never went through tr() in %d screen position(s): "
+                   "an English interface shows it as it is" % len(bad), details[:15])
+    elif stale:
+        report.add("T6c", "WARN", "No loose Russian on screen, but %d exemption(s) in check.py match nothing"
+                   % len(stale), stale)
+    else:
+        report.add("T6c", "PASS", "No Russian literal in a screen position outside tr() in %d files; "
+                   "%d literals sit in %d named exemptions" % (scanned, covered, len(used)))
+
+
 def check_english_lessons(report):
     """T6b: the lessons of the demo path exist in English and step for step match the original."""
     details = []
@@ -584,6 +961,7 @@ def main():
     guarded(report, "T4", check_secrets, report)
     guarded(report, "T6", check_english_demo_path, report)
     guarded(report, "T6b", check_english_lessons, report)
+    guarded(report, "T6c", check_screen_russian, report)
 
     if args.fast or args.full:
         built = guarded(report, "T1", check_build, report, full=args.full)

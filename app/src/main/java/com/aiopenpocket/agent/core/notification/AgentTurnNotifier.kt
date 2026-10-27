@@ -8,6 +8,7 @@ import android.content.Intent
 import com.aiopenpocket.MainActivity
 import com.aiopenpocket.agent.loop.TurnNotifier
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.i18n.tr
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -37,7 +38,7 @@ class AgentTurnNotifier(private val application: Application) : TurnNotifier {
     )
     showAgentNotification(
       context = application,
-      title = if (failed) "Ход не удался" else (conversationTitle ?: "Агент ответил"),
+      title = if (failed) tr("Ход не удался", "The turn failed") else (conversationTitle ?: tr("Агент ответил", "The agent replied")),
       message = preview,
       notificationId = conversationId.hashCode(),
       contentIntent = contentIntent,

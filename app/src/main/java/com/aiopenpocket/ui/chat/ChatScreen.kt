@@ -702,30 +702,14 @@ fun ChatScreen(
                 }
 
                 if (state.error != null) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = state.error!!,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.weight(1f),
-                        )
-                        if (state.canRetry) {
-                            TextButton(onClick = { viewModel.handleIntent(ChatIntent.RetryRequest) }) {
-                                Icon(
-                                    imageVector = Icons.Default.Refresh,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                                Spacer(Modifier.size(4.dp))
-                                Text(tr("Повторить", "Retry"))
-                            }
-                        }
-                    }
+                    ChatErrorLine(
+                        text = state.error!!,
+                        onRetry = if (state.canRetry) ({ viewModel.handleIntent(ChatIntent.RetryRequest) }) else null,
+                    )
                 }
+                // The lesson step's own problem (no Meta key, an unreadable clip): a line of its own, with no "Retry"
+                // (the step's card has its own buttons), and it leaves with the step, not with the turn's error.
+                state.lessonStepProblem?.let { ChatErrorLine(text = it, onRetry = null) }
 
                 // A recognition error is a soft self-dismissing hint, not a hanging error banner.
                 val voiceError = state.voiceError
@@ -986,3 +970,31 @@ fun ChatScreen(
     }
 }
 
+
+/** A red line under the feed; with [onRetry] it also carries the "Retry" button of the failed turn. */
+@Composable
+private fun ChatErrorLine(text: String, onRetry: (() -> Unit)?) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = text,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.weight(1f),
+        )
+        if (onRetry != null) {
+            TextButton(onClick = onRetry) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.size(4.dp))
+                Text(tr("Повторить", "Retry"))
+            }
+        }
+    }
+}

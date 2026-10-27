@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.glass.GlassSurface
 import com.aiopenpocket.ui.components.glass.auroraBackground
 import com.aiopenpocket.ui.components.glass.glassSource
@@ -73,7 +74,7 @@ fun PersonaSelectionStep(
               ) {
                 Icon(
                   imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                  contentDescription = "Назад",
+                  contentDescription = tr("Назад", "Back"),
                 )
               }
             },
@@ -106,7 +107,7 @@ fun PersonaSelectionStep(
                 onClick = onBack,
                 modifier = Modifier.testTag("onboarding_back"),
               ) {
-                Text("Назад")
+                Text(tr("Назад", "Back"))
               }
               Button(
                 onClick = onApply,
@@ -124,7 +125,7 @@ fun PersonaSelectionStep(
                     strokeWidth = 2.dp,
                   )
                 }
-                Text("Применить")
+                Text(tr("Применить", "Apply"))
               }
             }
           }
@@ -138,11 +139,14 @@ fun PersonaSelectionStep(
       ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
           Text(
-            text = "Выбери характер помощника",
+            text = tr("Выбери характер помощника", "Pick your assistant's character"),
             style = MaterialTheme.typography.headlineSmall,
           )
           Text(
-            text = "Настрой стиль общения своего ИИ для комфортного обучения.",
+            text = tr(
+              "Настрой стиль общения своего ИИ для комфортного обучения.",
+              "Tune how your AI talks to you so that learning feels comfortable.",
+            ),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp),

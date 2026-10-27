@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
@@ -46,10 +47,10 @@ private fun MemoryGraphContent(
   Scaffold(
     topBar = {
       TopAppBar(
-        title = { Text("Граф памяти") },
+        title = { Text(tr("Граф памяти", "Memory graph")) },
         navigationIcon = {
           IconButton(onClick = onNavigateBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = tr("Назад", "Back"))
           }
         },
         colors = TopAppBarDefaults.topAppBarColors(
@@ -61,7 +62,10 @@ private fun MemoryGraphContent(
     Box(modifier = Modifier.fillMaxSize().padding(padding)) {
       if (state.graph.nodes.isEmpty()) {
         Text(
-          "Память появится по мере общения: у чатов набегут теги, и тут соберётся граф.",
+          tr(
+            "Память появится по мере общения: у чатов набегут теги, и тут соберётся граф.",
+            "Memory builds up as you chat: your chats collect tags, and the graph forms here.",
+          ),
           modifier = Modifier.align(Alignment.Center).padding(32.dp),
           style = MaterialTheme.typography.bodyLarge,
           color = MaterialTheme.colorScheme.onSurfaceVariant,

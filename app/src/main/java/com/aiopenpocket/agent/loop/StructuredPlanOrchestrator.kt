@@ -25,6 +25,7 @@ import com.aiopenpocket.agent.core.plan.planner.PlanPlanner
 import com.aiopenpocket.agent.core.plan.planner.PlanProposalResult
 import com.aiopenpocket.agent.core.plan.template.PlanTemplateRegistry
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.i18n.tr
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import java.util.UUID
@@ -234,7 +235,7 @@ class StructuredPlanOrchestrator @Inject constructor(
       // heartbeat пишет его в чат и при FAILED.
       send(
         AgentEvent.Error(
-          result.blockedReason ?: "Выполнение шага плана завершилось ошибкой.",
+          result.blockedReason ?: tr("Выполнение шага плана завершилось ошибкой.", "A plan step failed."),
           planStepOutputs = result.stepOutputs,
         ),
       )
@@ -306,17 +307,26 @@ class StructuredPlanOrchestrator @Inject constructor(
     private const val TAG = "StructuredPlan"
 
     /** Что видит пользователь, когда план от модели не прошёл [com.aiopenpocket.agent.core.plan.validation.PlanValidator]. */
-    internal const val INVALID_PLAN_MESSAGE =
-      "Модель составила план с ошибками — попробуй ещё раз или уточни задачу."
+    // Геттеры, не const: tr читает язык интерфейса в момент показа.
+    internal val INVALID_PLAN_MESSAGE: String
+      get() = tr(
+        "Модель составила план с ошибками — попробуй ещё раз или уточни задачу.",
+        "The model drafted a plan with errors — try again or make the task clearer.",
+      )
 
     /**
      * Баннер, когда ход упал исключением (а не типизированным результатом): движок бросает
      * require/check с английской диагностикой — она уходит в лог (см. agentTurnFlow), не сюда.
      */
-    internal const val PROPOSE_FAILED_MESSAGE = "Не получилось составить план — попробуй ещё раз."
-    internal const val GOAL_FAILED_MESSAGE = "Не получилось выполнить шаг плана — попробуй ещё раз."
-    private const val GOAL_RUN_REFUSED_MESSAGE =
-      "Не получилось выполнить шаг: план изменился во время запуска. Попробуй ещё раз."
+    internal val PROPOSE_FAILED_MESSAGE: String
+      get() = tr("Не получилось составить план — попробуй ещё раз.", "Couldn't draft the plan — try again.")
+    internal val GOAL_FAILED_MESSAGE: String
+      get() = tr("Не получилось выполнить шаг плана — попробуй ещё раз.", "Couldn't run the plan step — try again.")
+    private val GOAL_RUN_REFUSED_MESSAGE: String
+      get() = tr(
+        "Не получилось выполнить шаг: план изменился во время запуска. Попробуй ещё раз.",
+        "Couldn't run the step: the plan changed during the run. Try again.",
+      )
     private val TERMINAL_PLAN_STATUSES = setOf(PlanStatus.COMPLETED, PlanStatus.CANCELLED, PlanStatus.FAILED)
   }
 }
