@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.glass.glassCardSurface
 
 /**
@@ -233,7 +234,7 @@ internal fun SelectorSheetContent(
           if (isSelected) {
             Icon(
               imageVector = Icons.Default.Check,
-              contentDescription = "Выбрано",
+              contentDescription = tr("Выбрано", "Selected"),
               tint = MaterialTheme.colorScheme.primary,
               modifier = Modifier.size(20.dp),
             )
@@ -259,7 +260,7 @@ internal fun PersonaSelectorCard(
   modifier: Modifier = Modifier,
 ) {
   SettingsSelectorRow(
-    label = "ТЕКУЩАЯ РОЛЬ",
+    label = tr("ТЕКУЩАЯ РОЛЬ", "CURRENT PERSONA"),
     value = displayName ?: personaId,
     icon = Icons.Default.Psychology,
     onClick = onClick,

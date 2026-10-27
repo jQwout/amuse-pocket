@@ -74,7 +74,7 @@ internal fun SettingsInfoCard(modifier: Modifier = Modifier) {
       )
       Spacer(modifier = Modifier.height(4.dp))
       Text(
-        text = "Конфигурация окружения и ключей доступа",
+        text = tr("Конфигурация окружения и ключей доступа", "Environment and access key setup"),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurface,
       )
@@ -279,7 +279,10 @@ internal fun ChatFontSizeCard(
         .testTag("settings_chat_font_preview"),
     ) {
       MarkdownText(
-        text = "Пример текста ответа — так агент будет выглядеть в чате.",
+        text = tr(
+          "Пример текста ответа — так агент будет выглядеть в чате.",
+          "Sample reply text — this is how the agent will look in the chat.",
+        ),
         compact = true,
         fontScale = selected.scale,
       )
@@ -320,12 +323,12 @@ internal fun GoalIterationsCard(
         .padding(horizontal = 16.dp),
     ) {
       Text(
-        text = "Гоал-мод: лимит витков",
+        text = tr("Гоал-мод: лимит витков", "Goal mode: round limit"),
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurface,
       )
       Text(
-        text = "Сколько кругов петли агент сделает к цели",
+        text = tr("Сколько кругов петли агент сделает к цели", "How many loop rounds the agent makes toward the goal"),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
@@ -333,7 +336,7 @@ internal fun GoalIterationsCard(
     IconButton(onClick = { onChange(value - 1) }, enabled = value > 1) {
       Icon(
         imageVector = Icons.Default.Remove,
-        contentDescription = "Меньше",
+        contentDescription = tr("Меньше", "Fewer"),
         tint = MaterialTheme.colorScheme.onSurface,
       )
     }
@@ -346,7 +349,7 @@ internal fun GoalIterationsCard(
     IconButton(onClick = { onChange(value + 1) }, enabled = value < 10) {
       Icon(
         imageVector = Icons.Default.Add,
-        contentDescription = "Больше",
+        contentDescription = tr("Больше", "More"),
         tint = MaterialTheme.colorScheme.onSurface,
       )
     }
@@ -375,13 +378,13 @@ internal fun LlmUsageCard(
     if (usage == null || usage.calls == 0) {
       Column {
         Text(
-          text = "Пока не о чем отчитываться",
+          text = tr("Пока не о чем отчитываться", "Nothing to report yet"),
           style = MaterialTheme.typography.bodyLarge,
           color = MaterialTheme.colorScheme.onSurface,
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-          text = "Счётчик заполняется по мере разговоров с агентом.",
+          text = tr("Счётчик заполняется по мере разговоров с агентом.", "The counter fills up as you talk with the agent."),
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -390,30 +393,34 @@ internal fun LlmUsageCard(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-      UsageRow(label = "Вызовов модели", value = usage.calls.toString())
+      UsageRow(label = tr("Вызовов модели", "Model calls"), value = usage.calls.toString())
       UsageRow(
-        label = "Токенов",
-        value = "${formatTokens(usage.promptTokens)} вход / ${formatTokens(usage.completionTokens)} выход",
+        label = tr("Токенов", "Tokens"),
+        value = "${formatTokens(usage.promptTokens)} ${tr("вход", "in")} / " +
+          "${formatTokens(usage.completionTokens)} ${tr("выход", "out")}",
       )
       UsageRow(
-        label = "Стоимость",
+        label = tr("Стоимость", "Cost"),
         // An empty string instead of zero: zero would mean "free", while the honest answer is "not named".
         value = usage.costUsd?.let { "$" + String.format(Locale.US, "%.4f", it) }
-          ?: "провайдер не называет",
+          ?: tr("провайдер не называет", "not reported by the provider"),
       )
       if (usage.backgroundCalls > 0) {
         UsageRow(
-          label = "Из них в фоне",
-          value = "${usage.backgroundCalls} · ${formatTokens(usage.backgroundTokens)} токенов",
+          label = tr("Из них в фоне", "Of these, in the background"),
+          value = "${usage.backgroundCalls} · ${formatTokens(usage.backgroundTokens)} ${tr("токенов", "tokens")}",
         )
       }
       if (usage.estimatedCalls > 0) {
-        UsageRow(label = "Посчитано оценкой", value = "${usage.estimatedCalls} из ${usage.calls}")
+        UsageRow(
+          label = tr("Посчитано оценкой", "Estimated"),
+          value = "${usage.estimatedCalls} ${tr("из", "of")} ${usage.calls}",
+        )
       }
       if (usage.byModel.isNotEmpty()) {
         Spacer(modifier = Modifier.height(2.dp))
         Text(
-          text = "ПО МОДЕЛЯМ",
+          text = tr("ПО МОДЕЛЯМ", "BY MODEL"),
           style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.primary,
         )

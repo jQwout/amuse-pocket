@@ -46,6 +46,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.glass.glassCardSurface
 
 @Composable
@@ -81,8 +82,8 @@ internal fun IntegrationsSection(modifier: Modifier = Modifier) {
   ) {
     IntegrationRow(
       icon = Icons.Default.Event,
-      title = "Календарь",
-      subtitle = "Чтение и создание событий",
+      title = tr("Календарь", "Calendar"),
+      subtitle = tr("Чтение и создание событий", "Reading and creating events"),
       granted = calendarGranted,
       onRequest = {
         calendarLauncher.launch(
@@ -92,18 +93,18 @@ internal fun IntegrationsSection(modifier: Modifier = Modifier) {
     )
     IntegrationRow(
       icon = Icons.Default.Alarm,
-      title = "Будильник",
-      subtitle = "Установка через системные часы",
+      title = tr("Будильник", "Alarm clock"),
+      subtitle = tr("Установка через системные часы", "Set through the system clock"),
       granted = true,
-      grantedLabel = "Активно",
+      grantedLabel = tr("Активно", "Active"),
       onRequest = null,
     )
     IntegrationRow(
       icon = Icons.Default.Email,
-      title = "Почта",
-      subtitle = "Составление и отправка письма",
+      title = tr("Почта", "Mail"),
+      subtitle = tr("Составление и отправка письма", "Composing and sending an email"),
       granted = true,
-      grantedLabel = "Без разрешения",
+      grantedLabel = tr("Без разрешения", "No permission needed"),
       onRequest = null,
     )
   }
@@ -116,7 +117,7 @@ private fun IntegrationRow(
   subtitle: String,
   granted: Boolean,
   onRequest: (() -> Unit)?,
-  grantedLabel: String = "Разрешено",
+  grantedLabel: String = tr("Разрешено", "Allowed"),
 ) {
   Row(
     modifier = Modifier
@@ -166,9 +167,9 @@ private fun IntegrationRow(
         ),
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
       ) {
-        Text(text = "Разрешить", style = MaterialTheme.typography.labelLarge)
+        Text(text = tr("Разрешить", "Allow"), style = MaterialTheme.typography.labelLarge)
       }
-      else -> StatusChip(text = "Не разрешено", granted = false)
+      else -> StatusChip(text = tr("Не разрешено", "Not allowed"), granted = false)
     }
   }
 }
