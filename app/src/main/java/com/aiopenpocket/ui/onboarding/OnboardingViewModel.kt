@@ -103,7 +103,7 @@ class OnboardingViewModel(
         if (current.introAlreadyPlayed) {
             _state.update {
                 it.copy(
-                    introStreamingText = OnboardingContent.INTRO_MARKDOWN.trim(),
+                    introStreamingText = OnboardingContent.INTRO_TEXT.trim(),
                     isIntroStreaming = false,
                     isIntroComplete = true,
                 )
@@ -113,7 +113,7 @@ class OnboardingViewModel(
 
         introJob?.cancel()
         introJob = viewModelScope.launch {
-            val fullText = OnboardingContent.INTRO_MARKDOWN.trim()
+            val fullText = OnboardingContent.INTRO_TEXT.trim()
             _state.update {
                 it.copy(
                     introStreamingText = "",

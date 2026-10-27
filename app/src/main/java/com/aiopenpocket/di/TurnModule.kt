@@ -17,6 +17,7 @@ import com.aiopenpocket.agent.core.llm.SelectedLlmProvider
 import com.aiopenpocket.agent.loop.TurnManager
 import com.aiopenpocket.agent.loop.TurnNotifier
 import com.aiopenpocket.agent.loop.TurnPersistence
+import com.aiopenpocket.ui.conversations.displayTitle
 import dev.zacsweers.metro.BindingContainer
 import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.Provides
@@ -67,8 +68,10 @@ object TurnModule {
     override suspend fun addAssistantMessage(conversationId: String, text: String, cardSpec: String?): String =
       repository.addMessage(conversationId, "assistant", text, cardSpec = cardSpec)
 
+    // The title goes into a push notification, so it is the display title: a lesson chat is stored under the
+    // lesson id (how_model_sees) and the notification must name the lesson instead.
     override suspend fun conversationTitle(conversationId: String): String? =
-      repository.getConversation(conversationId)?.title
+      repository.getConversation(conversationId)?.displayTitle()
   }
 
   @Provides

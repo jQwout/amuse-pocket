@@ -146,7 +146,7 @@ internal fun PromptLayersScene() {
                 )
                 !knowsTaste -> tr(
                     "Без профиля и памяти модель не знает про мясо — совет мимо",
-                    "Without the profile and memory the model knows nothing about the meat — the advice misses",
+                    "Without the profile and memory the model knows nothing about the meat — the advice misses the mark",
                 )
                 else -> tr(
                     "Каждый слой — текст, который модель читает вместе с твоим вопросом",
