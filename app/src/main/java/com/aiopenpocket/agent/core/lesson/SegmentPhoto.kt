@@ -29,6 +29,19 @@ class PreparedPhoto(
   val mimeType: String get() = "image/jpeg"
 }
 
+/**
+ * Camera originals: ChatViewModel deletes the file right after the analysis, so what is still there after an hour was
+ * orphaned (the process died, the screen closed mid-call). They are full-size photos, possibly of the learner.
+ */
+internal const val CAMERA_ORIGINAL_MAX_AGE_MS = 60L * 60 * 1000
+
+/**
+ * The compressed copies the result cards show. A private photo must not stay on the phone for good just because a
+ * card once showed it: a day, and at most five. An older card then says "the photo is gone" and keeps its frames.
+ */
+internal const val RESULT_COPY_MAX_AGE_MS = 24L * 60 * 60 * 1000
+internal const val RESULT_COPY_KEEP = 5
+
 /** The longest side sent to SAM. More buys nothing for outlining objects and only slows the upload. */
 internal const val SEGMENT_MAX_SIDE = 1280
 internal const val SEGMENT_JPEG_QUALITY = 85
@@ -145,3 +158,18 @@ private fun readOrientation(open: () -> InputStream?): Int =
   } catch (e: Exception) {
     ExifInterface.ORIENTATION_NORMAL
   }
+
+/**
+ * Deletes the files of [dir] that are older than [maxAgeMs] (by last-modified, against [now]) and, of the rest, all
+ * but the [keepNewest] newest. Returns how many went. A missing folder is nothing to sweep, not an error; folders
+ * inside it are left alone.
+ */
+internal fun sweepPhotoFolder(dir: File, now: Long, maxAgeMs: Long, keepNewest: Int = Int.MAX_VALUE): Int {
+  val files = dir.listFiles { f -> f.isFile }?.sortedByDescending { it.lastModified() } ?: return 0
+  var deleted = 0
+  files.forEachIndexed { index, file ->
+    val tooOld = now - file.lastModified() > maxAgeMs
+    if ((tooOld || index >= keepNewest) && file.delete()) deleted++
+  }
+  return deleted
+}

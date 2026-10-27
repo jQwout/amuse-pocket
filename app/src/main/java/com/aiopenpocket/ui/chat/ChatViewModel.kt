@@ -14,9 +14,13 @@ import com.aiopenpocket.agent.core.agent.displayName
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.lesson.LessonChatController
 import com.aiopenpocket.agent.core.lesson.LessonRepository
+import com.aiopenpocket.agent.core.lesson.CAMERA_ORIGINAL_MAX_AGE_MS
 import com.aiopenpocket.agent.core.lesson.PreparedPhoto
+import com.aiopenpocket.agent.core.lesson.RESULT_COPY_KEEP
+import com.aiopenpocket.agent.core.lesson.RESULT_COPY_MAX_AGE_MS
 import com.aiopenpocket.agent.core.lesson.aboutMeFrom
 import com.aiopenpocket.agent.core.lesson.prepareSegmentPhoto
+import com.aiopenpocket.agent.core.lesson.sweepPhotoFolder
 import com.aiopenpocket.agent.core.llm.SegmentationFailure
 import com.aiopenpocket.agent.core.memory.dao.HeartbeatDao
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
@@ -123,6 +127,9 @@ class ChatViewModel(
     private var lessonBusy = false
 
     init {
+        // The lesson's SAM step leaves photos in cacheDir (camera originals, compressed copies for the result cards).
+        // Whatever is old goes whenever a chat opens, so a learner's photo does not stay for good.
+        viewModelScope.launch(Dispatchers.IO) { sweepLessonPhotos() }
         // The goal-mode iteration limit from settings — kept in the state to be passed to the orchestrator.
         viewModelScope.launch {
             userPreferencesRepository.goalModeMaxIterations.collect { n ->
@@ -677,8 +684,12 @@ class ChatViewModel(
      * compressed copy stays only if the card was posted, because the card shows it.
      */
     private fun segmentLessonPhoto(cardPrompt: String, concept: String, photo: android.net.Uri) {
-        val convId = currentConversationId() ?: return
-        if (cardPrompt.isBlank() || cardPrompt in _state.value.segmentingPrompts) return
+        val convId = currentConversationId()
+        if (convId == null || cardPrompt.isBlank() || cardPrompt in _state.value.segmentingPrompts) {
+            // Nothing will analyse this photo, and a file our own camera just wrote must not be left behind.
+            viewModelScope.launch(Dispatchers.IO) { deleteOwnPhotoCapture(photo) }
+            return
+        }
         _state.update {
             it.copy(segmentingPrompts = it.segmentingPrompts + cardPrompt, error = null, canRetry = false)
         }
@@ -709,6 +720,7 @@ class ChatViewModel(
                     deleteOwnPhotoCapture(photo)
                     // A card that was not posted has no use for its picture.
                     if (!posted) copy?.delete()
+                    sweepLessonPhotos()
                 }
                 _state.update { it.copy(segmentingPrompts = it.segmentingPrompts - cardPrompt) }
             }
@@ -726,6 +738,13 @@ class ChatViewModel(
             outputDir = java.io.File(context.cacheDir, LESSON_SEGMENT_DIR),
             name = "segment-${System.currentTimeMillis()}.jpg",
         )
+    }
+
+    /** Old photos of the SAM step go: orphaned camera originals after an hour, result-card copies after a day (and beyond the newest five). */
+    private fun sweepLessonPhotos() {
+        val now = System.currentTimeMillis()
+        sweepPhotoFolder(java.io.File(context.cacheDir, LESSON_PHOTO_DIR), now, CAMERA_ORIGINAL_MAX_AGE_MS)
+        sweepPhotoFolder(java.io.File(context.cacheDir, LESSON_SEGMENT_DIR), now, RESULT_COPY_MAX_AGE_MS, RESULT_COPY_KEEP)
     }
 
     /** Deletes a photo taken with the camera for a lesson: it is ours and lives in cacheDir. Gallery photos are not touched. */

@@ -292,6 +292,29 @@ class LessonAssetsValidationTest {
     assertTrue(errors.joinToString("\n"), errors.isEmpty())
   }
 
+  /**
+   * A lesson whose steps send the learner's PHOTO to a provider has to say so in its privacy paragraph. In how_model_sees
+   * the paragraph spoke of the video only, and it sits right after the step that sends a photo to Meta.
+   */
+  @Test
+  fun `a lesson with a photo step says in its privacy paragraph that photos leave the phone`() {
+    val errors = buildList {
+      parsedLessons().forEach { (file, lesson) ->
+        val segmentAt = lesson.steps.indexOfFirst { it.type == "segment" }
+        if (segmentAt < 0) return@forEach
+        val privacy = lesson.steps.drop(segmentAt + 1)
+          .filter { it.type == "text" }
+          .firstOrNull { it.text.contains("приватност", ignoreCase = true) || it.text.contains("privacy", ignoreCase = true) }
+        when {
+          privacy == null -> add("${label(file)}: после шага segment нет абзаца о приватности")
+          !(privacy.text.contains("фото", ignoreCase = true) || privacy.text.contains("photo", ignoreCase = true)) ->
+            add("${label(file)}: абзац о приватности не упоминает фото, а шаг segment отправляет фото в Meta")
+        }
+      }
+    }
+    assertTrue(errors.joinToString("\n"), errors.isEmpty())
+  }
+
   // --- Task 23: agent_blueprint (the AI Academy capstone) bridges into the agent builder ---
 
   /**
