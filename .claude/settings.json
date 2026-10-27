@@ -10,5 +10,40 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(python tools/check.py *)",
+      "PowerShell(python tools/check.py *)",
+      "Bash(./gradlew *)",
+      "PowerShell(.\\gradlew.bat *)",
+      "Bash(traxer *)",
+      "PowerShell(traxer *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ],
+    "ask": [
+      "Bash(git push origin main*)",
+      "PowerShell(git push origin main*)",
+      "Bash(git push * main*)",
+      "PowerShell(git push * main*)",
+      "Bash(git push --force*)",
+      "PowerShell(git push --force*)",
+      "Bash(git filter-repo *)",
+      "PowerShell(git filter-repo *)",
+      "Bash(git filter-branch *)",
+      "PowerShell(git filter-branch *)",
+      "Bash(gh repo edit*)",
+      "PowerShell(gh repo edit*)",
+      "Bash(gh release *)",
+      "PowerShell(gh release *)"
+    ]
+  },
+  "worktree": {
+    "baseRef": "head"
   }
 }
