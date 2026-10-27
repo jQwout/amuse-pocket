@@ -1,26 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Правила извлечения данных для Android 12+ (API 31+). Для более старых — backup_rules.xml, его надо
-   править СИНХРОННО: minSdk проекта 24, так что оба файла реально работают.
+   Data extraction rules for Android 12+ (API 31+). For older versions it is backup_rules.xml, which must be
+   edited IN SYNC: the project's minSdk is 24, so both files really are in effect.
 
-   Два разных повода что-то исключить, и путать их не надо:
+   Two different reasons to exclude something, and they must not be confused:
 
-   1. secure_settings.xml — это КОРРЕКТНОСТЬ, а не приватность. Файл принадлежит
-      EncryptedSharedPreferences (SettingsRepository) и зашифрован ключом из Android Keystore, а
-      Keystore не бэкапится и не переносится НИКОГДА. Восстановленный на другом устройстве файл
-      расшифровать нечем, и EncryptedSharedPreferences.create бросает на первом же обращении.
-      Обращение это — чтение API-ключа в LLM-цепочке, то есть агент оказывался мёртв сразу после
-      переезда, и лечилось это только «стереть данные». Исключаем из ОБОИХ каналов.
+   1. secure_settings.xml is about CORRECTNESS, not privacy. The file belongs to
+      EncryptedSharedPreferences (SettingsRepository) and is encrypted with a key from the Android Keystore,
+      and the Keystore is NEVER backed up or transferred. A file restored on another device cannot be
+      decrypted, and EncryptedSharedPreferences.create throws on the very first access. That access is the
+      API key read in the LLM chain, so the agent was dead right after a move, and only "clear data" cured
+      it. Excluded from BOTH channels.
 
-   2. База ai_open_pocket_db — это ПРИВАТНОСТЬ. В ней вся история чатов и вся память агента, в
-      открытом виде. Для приложения с локальным AI отправлять её в облачный бэкап Google неуместно,
-      поэтому cloud-backup её не забирает. А device-transfer (прямой перенос на новое устройство,
-      который инициирует сам пользователь) — сохраняет: данные не уходят на чужие серверы, и переезд
-      не стоит пользователю всей переписки.
+   2. The ai_open_pocket_db database is about PRIVACY. It holds the whole chat history and all of the
+      agent's memory, in plain text. For an app with a local AI, sending it to Google's cloud backup is out
+      of place, so cloud-backup does not take it. Device-transfer (a direct move to a new device that the
+      user starts themselves) keeps it: the data does not go to someone else's servers, and a move does
+      not cost the user all their conversations.
 
-   3. Файлы агента — та же ПРИВАТНОСТЬ, что и база, и правило то же (облако — нет, перенос — да):
-      - agent/ и agents/ — песочницы file_tool (plain chat и личные папки агентов): заметки, дневник,
-        выгрузки, всё, что агент записал о пользователе;
-      - lesson_images/ — картинки уроков, в том числе «Нарисуй под меня», нарисованные по «о себе».
+   3. The agent's files are the same PRIVACY as the database, with the same rule (cloud — no, transfer — yes):
+      - agent/ and agents/ are the file_tool sandboxes (plain chat and agents' own folders): notes, a diary,
+        exports, everything the agent wrote down about the user;
+      - lesson_images/ are lesson images, including "Draw it for me" ones drawn from "about me".
 -->
 <data-extraction-rules>
     <cloud-backup>
