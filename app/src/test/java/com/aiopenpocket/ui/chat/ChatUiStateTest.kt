@@ -46,35 +46,63 @@ class ChatUiStateTest {
   }
 
   /**
-   * F5: on the "segment" step without a Meta key a red "This step needs a Meta Model API key" is set as the
-   * chat's error. It sat under the privacy paragraph, the quiz and the "Lesson complete" card because nothing
-   * cleared it when the learner moved on. Moving the lesson cursor must take the step's failure with it.
+   * F5: on the "segment" step without a Meta key a red "This step needs a Meta Model API key" stayed under the
+   * privacy paragraph, the quiz and the "Lesson complete" card, because nothing took it away when the learner
+   * moved on. A step's problem has its own slot and the lesson cursor takes it along.
    */
   @Test
-  fun lessonCursorMoveClearsTheErrorOfTheStepItLeft() {
+  fun lessonCursorMoveClearsTheProblemOfTheStepItLeft() {
     val onSegmentStep = ChatUiState(
       lessonMode = true,
       lessonStepIndex = 14,
-      error = "This step needs a Meta Model API key",
-      canRetry = true,
+      lessonStepProblem = "This step needs a Meta Model API key",
     )
 
     val next = onSegmentStep.withLessonCursor(stepIndex = 15)
 
     assertEquals(15, next.lessonStepIndex)
-    assertNull(next.error)
-    assertFalse(next.canRetry)
+    assertNull(next.lessonStepProblem)
     assertFalse(next.lessonFinished)
   }
 
+  /**
+   * A question asked mid-lesson whose turn failed is still unanswered after "Next", and "Retry" is the only way
+   * back to it. The turn's error is not the step's to clear: the turn session re-derives it on every change of the
+   * message list, so a clear here would be undone a moment later or not, depending on delivery order.
+   */
   @Test
-  fun finishingTheLessonClearsTheErrorToo() {
-    val last = ChatUiState(lessonMode = true, lessonStepIndex = 20, error = "old problem")
+  fun lessonCursorMoveLeavesTheFailedTurnAndItsRetryAlone() {
+    val state = ChatUiState(
+      lessonMode = true,
+      lessonStepIndex = 3,
+      error = "The model did not answer",
+      canRetry = true,
+      lessonStepProblem = "This step needs a Meta Model API key",
+    )
+
+    val next = state.withLessonCursor(stepIndex = 4)
+
+    assertEquals("The model did not answer", next.error)
+    assertTrue(next.canRetry)
+    assertNull(next.lessonStepProblem)
+  }
+
+  @Test
+  fun finishingTheLessonClearsTheStepProblemAndKeepsTheTurnError() {
+    val last = ChatUiState(
+      lessonMode = true,
+      lessonStepIndex = 20,
+      error = "turn failed",
+      canRetry = true,
+      lessonStepProblem = "old step problem",
+    )
 
     val done = last.withLessonCursor(finished = true)
 
     assertTrue(done.lessonFinished)
     assertEquals(20, done.lessonStepIndex) // the index stays: only the completion card is added
-    assertNull(done.error)
+    assertNull(done.lessonStepProblem)
+    assertEquals("turn failed", done.error)
+    assertTrue(done.canRetry)
   }
 }
