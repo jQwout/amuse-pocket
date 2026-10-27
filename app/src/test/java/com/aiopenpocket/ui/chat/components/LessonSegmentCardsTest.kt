@@ -137,6 +137,25 @@ class LessonSegmentCardsTest {
     composeTestRule.onNodeWithText("Show an example").assertIsEnabled()
   }
 
+  /**
+   * «чашка» is the first thing a learner on the Russian screen types. SAM is asked in English: the call would cost
+   * money and come back empty, so the buttons stay locked and the card says why — and what to type instead.
+   */
+  @Test
+  fun `a word in another language locks the buttons and says to type it in English`() {
+    renderInput()
+
+    composeTestRule.onNode(hasSetTextAction()).performTextReplacement("чашка")
+
+    composeTestRule.onNodeWithText("Show an example").assertIsNotEnabled()
+    composeTestRule.onNodeWithText("Take my own").assertIsNotEnabled()
+    composeTestRule.onNodeWithText("From gallery").assertIsNotEnabled()
+    composeTestRule.onNodeWithText("SAM understands the thing in English", substring = true).assertExists()
+    // Typing the English word unlocks them again.
+    composeTestRule.onNode(hasSetTextAction()).performTextReplacement("cup")
+    composeTestRule.onNodeWithText("Show an example").assertIsEnabled()
+  }
+
   @Test
   fun `while SAM works the buttons give way to the progress line`() {
     renderInput(analyzing = true)

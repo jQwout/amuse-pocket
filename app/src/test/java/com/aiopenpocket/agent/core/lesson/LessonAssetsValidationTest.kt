@@ -170,13 +170,12 @@ class LessonAssetsValidationTest {
             "segment" -> {
               if (step.instruction.isBlank()) err("пустой instruction — непонятно, что делать")
               // The default prompt goes to SAM as is when the learner does not edit it, so it must pass the very
-              // check the client applies: one noun phrase, no list and no command. A prompt the client rejects
-              // would make the step's main button a guaranteed error.
+              // check the client applies: one noun phrase in English (Latin letters, so a Russian word fails too),
+              // no list and no command. A prompt the client rejects would make the step's main button a
+              // guaranteed error — in the Russian lesson as well: SAM is asked in English.
               SegmentationConcept.problemOf(step.segmentPrompt)?.let {
                 err("segmentPrompt «${step.segmentPrompt}» не годится как понятие для SAM: $it")
               }
-              // And English: SAM is asked in English, in the Russian lesson too.
-              if (!step.segmentPrompt.all { it in ' '..'~' }) err("segmentPrompt: только английский (ASCII), SAM понимает понятие по-английски")
               // The "Show an example" button with a broken path would turn the step's main path into an error.
               if (step.sampleImage.isNotBlank() && !File(assetsDir, step.sampleImage).isFile) {
                 err("фото-пример не найдено: ${step.sampleImage}")

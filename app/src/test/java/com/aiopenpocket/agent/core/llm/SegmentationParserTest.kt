@@ -258,6 +258,17 @@ class SegmentationParserTest {
     assertEquals(listOf("ignored_field"), result.diagnostics.map { it.code })
   }
 
+  /** A diagnostic echoes what it choked on, and that is the model's text: only the first few characters go into it. */
+  @Test
+  fun `a diagnostic does not echo a long value`() {
+    val junk = "A woman in a red coat holds a child on a beach at dusk"
+    val result = SegmentationParser.parse("<0f>0<|box;x1=$junk;y1=0;x2=3;y2=3;w=10;h=10|><|mask;x=0;y=0;data=4,4,!!!!!ab|>")
+
+    val message = result.errors.single().message
+    assertTrue(message, message.contains("A woman"))
+    assertTrue("echoed more than it should: $message", !message.contains("child"))
+  }
+
   @Test
   fun `whitespace around keys and values is trimmed and empty fields are skipped`() {
     val record = parseOk("<0f>0<|box; x1 = 0 ;y1=0;;x2=3;y2=3;w=10;h=10;|><|mask;x=0;y=0;data=4,4,!!!!!ab|>").single()

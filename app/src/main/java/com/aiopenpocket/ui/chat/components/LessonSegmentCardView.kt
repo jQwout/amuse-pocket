@@ -46,6 +46,7 @@ import coil.request.ImageRequest
 import com.aiopenpocket.agent.core.llm.SegmentationConcept
 import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.chat.DrivenUiCard
+import com.aiopenpocket.ui.chat.conceptProblemText
 import com.aiopenpocket.ui.settings.MetaKeyHint
 import java.io.File
 
@@ -125,10 +126,11 @@ internal fun LessonSegmentCardView(
             label = { Text(tr("Что найти (по-английски)", "What to find (in English)")) },
             supportingText = {
                 Text(
+                    // An empty field gets the plain hint, not a scolding; anything else the check objects to is explained.
                     if (problem == null || concept.isBlank()) {
                         tr("Одно понятие: cup, yellow bus. Без запятых.", "One thing: cup, yellow bus. No commas.")
                     } else {
-                        tr("Одно понятие, без запятых и команд.", "One thing only — no commas or commands.")
+                        conceptProblemText(problem)
                     },
                 )
             },

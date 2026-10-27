@@ -11,8 +11,14 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
+import io.ktor.utils.io.ByteChannel
+import io.ktor.utils.io.writeStringUtf8
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
@@ -31,11 +37,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowLog
 import kotlin.random.Random
 
 /**
- * The SAM client against a fake Ktor engine and recorded-style answers. No live call: the owner's budget is
- * zero, and a SAM call costs money and needs billing set up at Meta.
+ * The SAM client against a fake Ktor engine. The request body and the answers are WRITTEN FROM Meta's documentation
+ * (dev.meta.ai/docs/sam/segmenting and the cookbook), not recorded from a live response: no call was ever made, the
+ * owner's budget is zero, and a SAM call costs money and needs billing set up at Meta. So these tests pin what the
+ * client does with the documented shapes; whether Meta's real answers match them is not established here.
  *
  * Robolectric — because of `android.util.Base64` and `Log` inside the client, as in the neighbouring client tests.
  */
@@ -69,7 +78,7 @@ class SegmentationClientTest {
     return data("""{"type":"response.completed","response":{"id":"r","status":"completed"$withUsage}}""")
   }
 
-  /** The real shape: deltas, then content_part.done — and NO response.output_text.done, as Meta's cookbook warns. */
+  /** The documented shape: deltas, then content_part.done — and NO response.output_text.done, as Meta's cookbook warns. */
   private fun streamOf(text: String, usage: String? = """{"images_processed":1}""") =
     delta(text.take(20)) + delta(text.drop(20)) + partDone(text) + completed(usage)
 
@@ -104,7 +113,7 @@ class SegmentationClientTest {
     // With a DOT: "sam-3-1" on Meta's marketing page is a typo that the API does not know.
     assertEquals("sam-3.1", sent["model"]!!.jsonPrimitive.content)
     assertTrue(sent["stream"]!!.jsonPrimitive.boolean)
-    // store:false — otherwise a large inline picture runs into 413.
+    // store:false — the learner's photo must not stay on Meta's side (as documented; not verified with a live call).
     assertFalse(sent["store"]!!.jsonPrimitive.boolean)
     val metadata = sent["metadata"]!!.jsonObject
     assertEquals("one_bit", metadata["mask_encoding"]!!.jsonPrimitive.content)
@@ -207,7 +216,8 @@ class SegmentationClientTest {
     var calls = 0
     val sam = client { calls++; sse(streamOf(record)) }
 
-    for (bad in listOf("", "   ", "cup, plate", "cup;plate", "a\nb", "<|box|>", "x".repeat(65))) {
+    // «чашка» is the first thing a learner on the Russian screen types: it must not cost a call.
+    for (bad in listOf("", "   ", "cup, plate", "cup;plate", "a\nb", "<|box|>", "x".repeat(65), "чашка", "cup!", "café", "杯子", "cup.")) {
       val result = sam.segment(bad, jpeg, "image/jpeg")
       assertEquals("'$bad'", SegmentationFailure.BAD_CONCEPT, (result as SegmentationResult.Failed).reason)
     }
@@ -287,12 +297,15 @@ class SegmentationClientTest {
   fun `server errors are retried and then reported`() = runTest {
     for (status in listOf(500, 503, 504)) {
       val calls = AtomicInteger()
-      val sam = client { calls.incrementAndGet(); respond("", HttpStatusCode.fromValue(status)) }
+      val usage = RecordingUsage()
+      val sam = client(usage) { calls.incrementAndGet(); respond("", HttpStatusCode.fromValue(status)) }
 
       val result = sam.segment("cup", jpeg, "image/jpeg")
 
       assertEquals("HTTP $status", SegmentationFailure.SERVER, (result as SegmentationResult.Failed).reason)
       assertEquals("HTTP $status", SegmentationClient.MAX_ATTEMPTS, calls.get())
+      // Meta rejected every try: nothing was processed, nothing is billed.
+      assertTrue("HTTP $status", usage.calls.isEmpty())
     }
   }
 
@@ -338,16 +351,22 @@ class SegmentationClientTest {
     }
   }
 
-  /** Without response.completed, an empty lane would be a guess dressed up as "found nothing". */
+  /**
+   * Without response.completed, an empty lane would be a guess dressed up as "found nothing". But the HTTP 200 came:
+   * Meta took the picture, so the call is on the learner's bill and must be on the spend card — as an estimate.
+   */
   @Test
-  fun `a stream that ends without completed is incomplete, not nothing found`() = runTest {
+  fun `a stream that ends without completed is incomplete, not nothing found, and is still billed`() = runTest {
     val usage = RecordingUsage()
     val sam = client(usage) { sse(delta(record)) }
 
     val result = sam.segment("cup", jpeg, "image/jpeg")
 
     assertEquals(SegmentationFailure.INCOMPLETE, (result as SegmentationResult.Failed).reason)
-    assertTrue(usage.calls.isEmpty())
+    val call = usage.calls.single()
+    assertEquals(0.0025, call.costUsd!!, 1e-12)
+    assertTrue("the picture count never arrived, so the row is an estimate", call.estimated)
+    assertEquals(LlmProvider.META, call.provider)
   }
 
   @Test
@@ -361,13 +380,110 @@ class SegmentationClientTest {
     }
   }
 
-  /** Text with no record in it is not the documented empty answer: it is something we cannot read. */
+  /**
+   * Text with no record in it is not the documented empty answer: it is something we cannot read. The call was
+   * processed all the same — the stream even said how many pictures — so it is billed and recorded, as measured.
+   */
   @Test
-  fun `prose without any record is a bad response, not nothing found`() = runTest {
+  fun `prose without any record is a bad response, not nothing found, and is still billed`() = runTest {
     val usage = RecordingUsage()
     val result = client(usage) { sse(delta("I cannot do that.") + completed()) }.segment("cup", jpeg, "image/jpeg")
 
     assertEquals(SegmentationFailure.BAD_RESPONSE, (result as SegmentationResult.Failed).reason)
+    val call = usage.calls.single()
+    assertEquals(0.0025, call.costUsd!!, 1e-12)
+    assertFalse("images_processed came in the stream: this one is measured", call.estimated)
+  }
+
+  /** The model's prose can describe a private photo: logcat and the result get the length, never the text. */
+  @Test
+  fun `the model's prose is not logged and not carried in the failure`() = runTest {
+    ShadowLog.clear()
+    val prose = "A woman in a red coat holds a child on a beach at dusk."
+
+    val result = client { sse(delta(prose) + completed()) }.segment("cup", jpeg, "image/jpeg") as SegmentationResult.Failed
+
+    assertFalse(result.detail.orEmpty().contains("woman"))
+    val logged = ShadowLog.getLogs().joinToString("\n") { it.msg.orEmpty() }
+    assertFalse("prose leaked into logcat: $logged", logged.contains("woman") || logged.contains("beach"))
+    assertTrue("the length is logged instead: $logged", logged.contains("${prose.length} chars"))
+  }
+
+  /** A connection that breaks while the answer is read: Meta had the picture, so the call is recorded (as an estimate). */
+  @Test
+  fun `a connection that breaks after the 200 is a network failure that is still billed`() = runTest {
+    val usage = RecordingUsage()
+    val sam = client(usage) {
+      val channel = ByteChannel(autoFlush = true)
+      channel.writeStringUtf8(delta(record.take(20)))
+      channel.close(java.io.IOException("connection reset"))
+      respond(channel, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "text/event-stream"))
+    }
+
+    val result = sam.segment("cup", jpeg, "image/jpeg")
+
+    assertEquals(SegmentationFailure.NETWORK, (result as SegmentationResult.Failed).reason)
+    val call = usage.calls.single()
+    assertEquals(0.0025, call.costUsd!!, 1e-12)
+    assertTrue(call.estimated)
+  }
+
+  /** The answer was whole before the line dropped: nothing is lost, and the call is billed as measured. */
+  @Test
+  fun `a drop after response completed does not spoil a finished answer`() = runTest {
+    val usage = RecordingUsage()
+    val sam = client(usage) {
+      val channel = ByteChannel(autoFlush = true)
+      channel.writeStringUtf8(streamOf(record))
+      // The line drops only after the client has read everything that was sent.
+      CoroutineScope(Dispatchers.Default).launch {
+        while (channel.availableForRead > 0) delay(10)
+        delay(100)
+        channel.close(java.io.IOException("connection reset"))
+      }
+      respond(channel, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "text/event-stream"))
+    }
+
+    val result = sam.segment("cup", jpeg, "image/jpeg")
+
+    assertEquals(1, (result as SegmentationResult.Success).records.size)
+    assertFalse(usage.calls.single().estimated)
+  }
+
+  /** A cancel (the learner leaves the screen) after the 200 does not un-bill the picture either. */
+  @Test
+  fun `a cancel after the 200 still records the call`() = runTest {
+    val usage = RecordingUsage()
+    val channel = ByteChannel(autoFlush = true)
+    val reached = CompletableDeferred<Unit>()
+    val sam = client(usage) {
+      channel.writeStringUtf8(delta(record.take(20)))
+      reached.complete(Unit)
+      respond(channel, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "text/event-stream"))
+    }
+    var result: SegmentationResult? = null
+    val job = launch { result = sam.segment("cup", jpeg, "image/jpeg") }
+
+    reached.await()
+    // Real time on a real dispatcher: wait until the client has read what was written and sits waiting for more.
+    withContext(Dispatchers.Default) {
+      while (channel.availableForRead > 0) delay(10)
+      delay(100)
+    }
+    job.cancelAndJoin()
+
+    assertNull(result)
+    assertEquals(1, usage.calls.size)
+    assertTrue(usage.calls.single().estimated)
+  }
+
+  /** Meta said the work did not complete: an error event is not a billed picture (a judgment about the schema, see the KDoc). */
+  @Test
+  fun `an error event in the stream is not recorded`() = runTest {
+    val usage = RecordingUsage()
+
+    client(usage) { sse(data("""{"type":"error","error":{"message":"content policy"}}""")) }.segment("cup", jpeg, "image/jpeg")
+
     assertTrue(usage.calls.isEmpty())
   }
 
@@ -431,5 +547,19 @@ class SegmentationClientTest {
     assertEquals(SegmentationConcept.Problem.TOO_LONG, SegmentationConcept.problemOf("a".repeat(65)))
     assertNull(SegmentationConcept.normalize("cup, plate"))
     assertEquals("cup", SegmentationConcept.normalize(" cup "))
+  }
+
+  /** Latin letters, digits, space, hyphen and apostrophe are an English noun phrase; anything else is not. */
+  @Test
+  fun `only an English-looking phrase passes`() {
+    assertEquals(SegmentationConcept.Problem.NOT_ENGLISH, SegmentationConcept.problemOf("чашка"))
+    assertEquals(SegmentationConcept.Problem.NOT_ENGLISH, SegmentationConcept.problemOf("cup чашка"))
+    assertEquals(SegmentationConcept.Problem.NOT_ENGLISH, SegmentationConcept.problemOf("café"))
+    assertEquals(SegmentationConcept.Problem.NOT_ENGLISH, SegmentationConcept.problemOf("cup!"))
+    for (fine in listOf("cup", "yellow school bus", "T-shirt", "person's hand", "tv 2", "Laptop")) {
+      assertNull("'$fine' is English", SegmentationConcept.problemOf(fine))
+    }
+    // A phone keyboard types the typographic apostrophe; it goes out as the plain one.
+    assertEquals("person's hand", SegmentationConcept.normalize("person\u2019s hand"))
   }
 }
