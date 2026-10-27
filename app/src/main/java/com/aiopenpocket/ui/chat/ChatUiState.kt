@@ -107,18 +107,31 @@ data class ChatUiState(
   val analyzingVideoPrompts: Set<String> = emptySet(),
   /** "segment" steps whose photos SAM is outlining right now (by the card's default prompt). While not empty, "Next" is hidden. */
   val segmentingPrompts: Set<String> = emptySet(),
+  /**
+   * What went wrong on the lesson's CURRENT step: no Meta key for the "segment" step, a clip the model could not
+   * read, a picture that did not redraw. It has its own slot, apart from [error], because the two have different
+   * owners. [error] is the failed turn's: it is re-derived from the turn session on every change of the message
+   * list, and its "Retry" belongs to that turn. A step problem belongs to the step: it is set by the step's
+   * action and goes away only when the step is tried again or the lesson moves on ([withLessonCursor]).
+   * Sharing one slot made each owner's write undo the other's, depending on which flow was delivered last.
+   */
+  val lessonStepProblem: String? = null,
 ) {
   /**
-   * The lesson cursor moved: the next step was shown, or the completion card. [error] and [canRetry] go with
-   * it. The failures a lesson step reports (no Meta key on the "segment" step, a clip the model could not
-   * read) are about THAT step and sit in one chat-wide slot, drawn under the feed; left there, "This step
-   * needs a Meta Model API key" stayed under the privacy paragraph, under the quiz and under the "Lesson
-   * complete" card, long after the step it was about.
+   * The lesson cursor moved: the next step was shown, or the completion card. The step's problem
+   * ([lessonStepProblem]) goes with the step it was about; left drawn, "This step needs a Meta Model API key"
+   * stayed under the privacy paragraph, under the quiz and under the "Lesson complete" card.
+   *
+   * The failed turn's [error] and its [canRetry] are NOT touched. A question asked mid-lesson that failed is
+   * still unanswered after "Next", and "Retry" is the only way back to it; the session re-derives [error] on
+   * every change of the message list anyway, so clearing it here would be undone a moment later or not,
+   * depending on delivery order.
    */
   fun withLessonCursor(
     stepIndex: Int = lessonStepIndex,
     finished: Boolean = lessonFinished,
-  ): ChatUiState = copy(lessonStepIndex = stepIndex, lessonFinished = finished, error = null, canRetry = false)
+  ): ChatUiState =
+    copy(lessonStepIndex = stepIndex, lessonFinished = finished, lessonStepProblem = null)
 
   companion object {
     /**
