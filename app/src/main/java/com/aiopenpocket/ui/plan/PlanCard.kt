@@ -36,21 +36,22 @@ import com.aiopenpocket.agent.core.plan.model.PlanStatus
 import com.aiopenpocket.agent.core.plan.model.PlanStep
 import com.aiopenpocket.agent.core.plan.model.StepStatus
 import com.aiopenpocket.agent.core.plan.model.VerifierType
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.util.formatRelativeDate
 import kotlinx.coroutines.flow.Flow
 
-/** Russian label for a whole-plan [PlanStatus] — shared by [PlanCard], the plan list/detail screens, and `AgentDetailScreen`'s Планы section. */
+/** Label (in the interface language) for a whole-plan [PlanStatus] — shared by [PlanCard], the plan list/detail screens, and `AgentDetailScreen`'s Планы section. */
 fun planStatusLabel(status: PlanStatus): String = when (status) {
-  PlanStatus.DRAFT -> "Черновик"
-  PlanStatus.NEEDS_INFO -> "Нужна информация"
-  PlanStatus.AWAITING_APPROVAL -> "Ждёт подтверждения"
-  PlanStatus.ACTIVE -> "Выполняется"
-  PlanStatus.PAUSED -> "На паузе"
-  PlanStatus.NEEDS_REVISION -> "Нужна правка"
-  PlanStatus.COMPLETED -> "Завершён"
-  PlanStatus.CANCELLED -> "Отменён"
-  PlanStatus.FAILED -> "Ошибка"
+  PlanStatus.DRAFT -> tr("Черновик", "Draft")
+  PlanStatus.NEEDS_INFO -> tr("Нужна информация", "Needs information")
+  PlanStatus.AWAITING_APPROVAL -> tr("Ждёт подтверждения", "Awaiting approval")
+  PlanStatus.ACTIVE -> tr("Выполняется", "In progress")
+  PlanStatus.PAUSED -> tr("На паузе", "Paused")
+  PlanStatus.NEEDS_REVISION -> tr("Нужна правка", "Needs changes")
+  PlanStatus.COMPLETED -> tr("Завершён", "Completed")
+  PlanStatus.CANCELLED -> tr("Отменён", "Cancelled")
+  PlanStatus.FAILED -> tr("Ошибка", "Failed")
 }
 
 /**
@@ -88,16 +89,16 @@ private val StatusRed = StatusPair(Color(0xFFE53935), Color(0xFFC62828))
 @Composable
 private fun statusTone(pair: StatusPair): Color = if (LocalThemeIsDark.current) pair.onDark else pair.onLight
 
-/** Russian label for a per-step [StepStatus] — used by [PlanCard]'s progress branch and the plan detail timeline. */
+/** Label (in the interface language) for a per-step [StepStatus] — used by [PlanCard]'s progress branch and the plan detail timeline. */
 fun stepStatusLabel(status: StepStatus): String = when (status) {
-  StepStatus.PENDING -> "Ожидает"
-  StepStatus.READY -> "Готов к запуску"
-  StepStatus.EXECUTING -> "Выполняется"
-  StepStatus.VERIFYING -> "Проверка"
-  StepStatus.BLOCKED -> "Заблокирован"
-  StepStatus.COMPLETED -> "Завершён"
-  StepStatus.FAILED -> "Ошибка"
-  StepStatus.SKIPPED -> "Пропущен"
+  StepStatus.PENDING -> tr("Ожидает", "Waiting")
+  StepStatus.READY -> tr("Готов к запуску", "Ready to run")
+  StepStatus.EXECUTING -> tr("Выполняется", "In progress")
+  StepStatus.VERIFYING -> tr("Проверка", "Verifying")
+  StepStatus.BLOCKED -> tr("Заблокирован", "Blocked")
+  StepStatus.COMPLETED -> tr("Завершён", "Completed")
+  StepStatus.FAILED -> tr("Ошибка", "Failed")
+  StepStatus.SKIPPED -> tr("Пропущен", "Skipped")
 }
 
 /** Accent color for a [StepStatus] badge — mirrors [planStatusColor]'s palette conventions (и её theme-aware primary). */
@@ -110,10 +111,10 @@ fun stepStatusColor(status: StepStatus): Color = when (status) {
   StepStatus.FAILED -> statusTone(StatusRed)
 }
 
-/** Russian label for [PlanHorizon]. */
+/** Label (in the interface language) for [PlanHorizon]. */
 fun planHorizonLabel(horizon: PlanHorizon): String = when (horizon) {
-  PlanHorizon.SINGLE_RUN -> "Разовая задача"
-  PlanHorizon.PROGRAM -> "Программа"
+  PlanHorizon.SINGLE_RUN -> tr("Разовая задача", "One-off task")
+  PlanHorizon.PROGRAM -> tr("Программа", "Ongoing program")
 }
 
 private val TERMINAL_STEP_STATUSES = setOf(StepStatus.COMPLETED, StepStatus.SKIPPED)
@@ -209,7 +210,7 @@ fun PlanCard(
           onClick = { onOpenDetail(planId) },
           modifier = Modifier.testTag("plan_open_detail"),
         ) {
-          Text(text = "Открыть →", style = MaterialTheme.typography.labelMedium)
+          Text(text = tr("Открыть →", "Open →"), style = MaterialTheme.typography.labelMedium)
         }
       }
       Spacer(Modifier.height(8.dp))
@@ -217,7 +218,7 @@ fun PlanCard(
         PlanStatus.AWAITING_APPROVAL -> ProposalPreview(snap, onApprove, onRequestChanges)
         PlanStatus.ACTIVE, PlanStatus.PAUSED -> ProgressView(snap, onPause, onResume, onCancel, onConfirmStep)
         else -> Text(
-          text = "Статус: ${planStatusLabel(snap.plan.status)}",
+          text = tr("Статус: ${planStatusLabel(snap.plan.status)}", "Status: ${planStatusLabel(snap.plan.status)}"),
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
         )
@@ -238,7 +239,7 @@ private fun ProposalPreview(
   val previewCount = STEP_PREVIEW_LIMIT.coerceAtMost(steps.size)
   Column {
     Text(
-      text = "Шаги (${steps.size}):",
+      text = tr("Шаги (${steps.size}):", "Steps (${steps.size}):"),
       style = MaterialTheme.typography.labelMedium,
       color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
     )
@@ -253,7 +254,7 @@ private fun ProposalPreview(
     }
     if (steps.size > previewCount) {
       Text(
-        text = "…и ещё ${steps.size - previewCount}",
+        text = tr("…и ещё ${steps.size - previewCount}", "…and ${steps.size - previewCount} more"),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
       )
@@ -262,7 +263,10 @@ private fun ProposalPreview(
     if (snap.version.criteria.isNotEmpty()) {
       Spacer(Modifier.height(4.dp))
       Text(
-        text = "Критериев: ${snap.version.criteria.size} (обязательных: $requiredCriteria)",
+        text = tr(
+          "Критериев: ${snap.version.criteria.size} (обязательных: $requiredCriteria)",
+          "Criteria: ${snap.version.criteria.size} (required: $requiredCriteria)",
+        ),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
       )
@@ -272,7 +276,7 @@ private fun ProposalPreview(
       value = feedback,
       onValueChange = { feedback = it },
       modifier = Modifier.fillMaxWidth(),
-      placeholder = { Text("Что поправить? (необязательно)", style = MaterialTheme.typography.bodySmall) },
+      placeholder = { Text(tr("Что поправить? (необязательно)", "What should change? (optional)"), style = MaterialTheme.typography.bodySmall) },
       textStyle = MaterialTheme.typography.bodySmall,
       singleLine = true,
     )
@@ -282,13 +286,13 @@ private fun ProposalPreview(
         onClick = { onRequestChanges(snap.plan.id, snap.version.version, feedback) },
         modifier = Modifier.weight(1f).testTag("plan_request_changes"),
       ) {
-        Text("Попросить правки")
+        Text(tr("Попросить правки", "Request changes"))
       }
       Button(
         onClick = { onApprove(snap.plan.id, snap.version.version) },
         modifier = Modifier.weight(1f).testTag("plan_approve"),
       ) {
-        Text("Одобрить")
+        Text(tr("Одобрить", "Approve"))
       }
     }
   }
@@ -308,7 +312,11 @@ private fun ProgressView(
 
   Column {
     Text(
-      text = if (current != null) "Текущий шаг: ${current.title}" else "Все шаги выполнены",
+      text = if (current != null) {
+        tr("Текущий шаг: ${current.title}", "Current step: ${current.title}")
+      } else {
+        tr("Все шаги выполнены", "All steps are done")
+      },
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurface,
       maxLines = 2,
@@ -321,7 +329,7 @@ private fun ProgressView(
     )
     Spacer(Modifier.height(4.dp))
     Text(
-      text = "$completed/$total шагов",
+      text = tr("$completed/$total шагов", "$completed/$total steps"),
       style = MaterialTheme.typography.labelSmall,
       color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
     )
@@ -329,7 +337,7 @@ private fun ProgressView(
       val dueAt = snap.nextDueAtFor(current.id)
       if (dueAt != null) {
         Text(
-          text = "Следующий срок: ${formatRelativeDate(dueAt)}",
+          text = tr("Следующий срок: ${formatRelativeDate(dueAt)}", "Next due: ${formatRelativeDate(dueAt)}"),
           style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
         )
@@ -342,7 +350,10 @@ private fun ProgressView(
     if (awaitingConfirmation != null) {
       Spacer(Modifier.height(8.dp))
       Text(
-        text = "Шаг ждёт твоего подтверждения: ${awaitingConfirmation.title}",
+        text = tr(
+          "Шаг ждёт твоего подтверждения: ${awaitingConfirmation.title}",
+          "This step is waiting for your confirmation: ${awaitingConfirmation.title}",
+        ),
         style = MaterialTheme.typography.bodySmall,
         color = stepStatusColor(StepStatus.BLOCKED),
         maxLines = 2,
@@ -353,7 +364,7 @@ private fun ProgressView(
         onClick = { onConfirmStep(snap.plan.id, awaitingConfirmation.id) },
         modifier = Modifier.fillMaxWidth().testTag("plan_confirm_step"),
       ) {
-        Text("Подтвердить шаг")
+        Text(tr("Подтвердить шаг", "Confirm step"))
       }
     }
     Spacer(Modifier.height(8.dp))
@@ -363,21 +374,21 @@ private fun ProgressView(
           onClick = { onPause(snap.plan.id) },
           modifier = Modifier.weight(1f).testTag("plan_pause"),
         ) {
-          Text("Пауза")
+          Text(tr("Пауза", "Pause"))
         }
       } else {
         OutlinedButton(
           onClick = { onResume(snap.plan.id) },
           modifier = Modifier.weight(1f).testTag("plan_resume"),
         ) {
-          Text("Продолжить")
+          Text(tr("Продолжить", "Resume"))
         }
       }
       OutlinedButton(
         onClick = { onCancel(snap.plan.id) },
         modifier = Modifier.weight(1f).testTag("plan_cancel"),
       ) {
-        Text("Отменить")
+        Text(tr("Отменить", "Cancel"))
       }
     }
   }

@@ -31,6 +31,7 @@ import com.aiopenpocket.agent.loop.TurnContextHolder
 import com.aiopenpocket.agent.loop.TurnNotifier
 import com.aiopenpocket.agent.loop.persistPlanStepOutputs
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.i18n.tr
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import dev.zacsweers.metro.Inject
@@ -283,17 +284,19 @@ class HeartbeatRunner(
     }
     when (result.outcome) {
       PlanRunOutcome.COMPLETED -> {
-        turnNotifier.turnFinished(hb.conversationId, hb.title, "План выполнен.", failed = false)
-        record(hb, ok = true, result = "План завершён.")
+        turnNotifier.turnFinished(hb.conversationId, hb.title, tr("План выполнен.", "The plan is done."), failed = false)
+        record(hb, ok = true, result = tr("План завершён.", "Plan completed."))
         planScheduleSync.cancel(target.planId)
       }
       PlanRunOutcome.FAILED -> {
-        turnNotifier.turnFinished(hb.conversationId, hb.title, result.blockedReason ?: "Шаг плана завершился с ошибкой.", failed = true)
+        turnNotifier.turnFinished(
+          hb.conversationId, hb.title, result.blockedReason ?: tr("Шаг плана завершился с ошибкой.", "A plan step failed."), failed = true,
+        )
         record(hb, ok = false, result = result.blockedReason)
         planScheduleSync.cancel(target.planId)
       }
       PlanRunOutcome.CANCELLED -> {
-        record(hb, ok = true, result = result.blockedReason ?: "План отменён.")
+        record(hb, ok = true, result = result.blockedReason ?: tr("План отменён.", "The plan was cancelled."))
         planScheduleSync.cancel(target.planId)
       }
       PlanRunOutcome.PARTIAL -> {
@@ -302,7 +305,9 @@ class HeartbeatRunner(
         if (stepBlocked) {
           // blockedReason is already a full sentence with the step's title ('Step "…" is waiting for your
           // decision…'): a "Plan step needs attention:" prefix would duplicate it.
-          turnNotifier.turnFinished(hb.conversationId, hb.title, result.blockedReason ?: "Шаг плана требует внимания.", failed = false)
+          turnNotifier.turnFinished(
+            hb.conversationId, hb.title, result.blockedReason ?: tr("Шаг плана требует внимания.", "A plan step needs your attention."), failed = false,
+          )
         }
         record(hb, ok = true, result = result.blockedReason)
         if (after != null && after.plan.status == PlanStatus.ACTIVE) {
@@ -389,11 +394,19 @@ class HeartbeatRunner(
       что-то полезное или срочное для юзера прямо сейчас? Если есть — коротко сообщи.
       Если нет — ответь ровно: HEARTBEAT_OK
     """.trimIndent()
-    private const val AGENT_NOT_FOUND = "Агент, к которому привязано напоминание, больше не существует."
-    private const val AGENT_NOT_PUBLISHED = "Агент архивирован или ещё не опубликован — напоминание пропущено."
-    private const val PLAN_NOT_FOUND = "План, на который ссылается heartbeat, больше не существует."
-    private const val PLAN_NOT_ACTIVE = "План сейчас не активен (на паузе/завершён/отменён) — шаг не запущен."
-    private const val PLAN_VERSION_STALE = "Одобрена новая версия плана — старый шаг heartbeat'а больше не актуален."
-    private const val PLAN_RUN_ERROR = "Не удалось выполнить шаг плана — состояние изменилось во время запуска."
+    // Why a run was skipped: shown as the run result on the scheduled-tasks screen. Getters, not const:
+    // tr reads the interface language when the reason is written down.
+    private val AGENT_NOT_FOUND: String
+      get() = tr("Агент, к которому привязано напоминание, больше не существует.", "The agent this reminder is tied to no longer exists.")
+    private val AGENT_NOT_PUBLISHED: String
+      get() = tr("Агент архивирован или ещё не опубликован — напоминание пропущено.", "The agent is archived or not published yet — reminder skipped.")
+    private val PLAN_NOT_FOUND: String
+      get() = tr("План, на который ссылается heartbeat, больше не существует.", "The plan this heartbeat refers to no longer exists.")
+    private val PLAN_NOT_ACTIVE: String
+      get() = tr("План сейчас не активен (на паузе/завершён/отменён) — шаг не запущен.", "The plan isn't active right now (paused, completed or cancelled) — step not run.")
+    private val PLAN_VERSION_STALE: String
+      get() = tr("Одобрена новая версия плана — старый шаг heartbeat'а больше не актуален.", "A new version of the plan was approved — this heartbeat step is out of date.")
+    private val PLAN_RUN_ERROR: String
+      get() = tr("Не удалось выполнить шаг плана — состояние изменилось во время запуска.", "Couldn't run the plan step — the state changed during the run.")
   }
 }

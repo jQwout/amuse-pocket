@@ -59,6 +59,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.glass.GlassState
 import com.aiopenpocket.ui.components.glass.GlassSurface
 import com.aiopenpocket.voice.input.VoiceInputState
@@ -73,7 +74,7 @@ internal fun ChatInput(
     onCancel: () -> Unit,
     isLoading: Boolean,
     glassState: GlassState,
-    placeholder: String = "Сообщение...",
+    placeholder: String = tr("Сообщение...", "Message..."),
     onExpand: () -> Unit,
     voiceState: VoiceInputState,
     onVoiceToggle: () -> Unit,
@@ -157,7 +158,7 @@ internal fun ChatInput(
                 IconButton(onClick = onExpand, modifier = Modifier.size(36.dp)) {
                     Icon(
                         Icons.Default.OpenInFull,
-                        contentDescription = "Развернуть",
+                        contentDescription = tr("Развернуть", "Expand"),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp),
                     )
@@ -170,7 +171,7 @@ internal fun ChatInput(
                     IconButton(onClick = { onValueChange("") }, modifier = Modifier.size(36.dp)) {
                         Icon(
                             Icons.Default.Close,
-                            contentDescription = "Очистить",
+                            contentDescription = tr("Очистить", "Clear"),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(20.dp),
                         )
@@ -181,7 +182,7 @@ internal fun ChatInput(
                     // The progress around the "stop" button — lets the user cancel the turn.
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp)) {
                         IconButton(onClick = onCancel) {
-                            Icon(Icons.Default.Stop, contentDescription = "Остановить")
+                            Icon(Icons.Default.Stop, contentDescription = tr("Остановить", "Stop"))
                         }
                     }
                 } else {
@@ -198,7 +199,7 @@ internal fun ChatInput(
                     ) {
                         Icon(
                             Icons.AutoMirrored.Default.Send,
-                            contentDescription = "Отправить",
+                            contentDescription = tr("Отправить", "Send"),
                             tint = if (canSend) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -242,11 +243,11 @@ internal fun FullScreenComposer(
                 TextButton(onClick = onCollapse) {
                     Icon(Icons.Default.CloseFullscreen, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Свернуть")
+                    Text(tr("Свернуть", "Collapse"))
                 }
                 Spacer(Modifier.weight(1f))
                 TextButton(onClick = onClear, enabled = value.isNotEmpty()) {
-                    Text("Очистить")
+                    Text(tr("Очистить", "Clear"))
                 }
             }
             OutlinedTextField(
@@ -256,7 +257,7 @@ internal fun FullScreenComposer(
                     .weight(1f)
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("Напишите сообщение...") },
+                placeholder = { Text(tr("Напишите сообщение...", "Write a message...")) },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Color.Transparent,
                     unfocusedBorderColor = Color.Transparent,
@@ -269,7 +270,7 @@ internal fun FullScreenComposer(
                 horizontalArrangement = Arrangement.End,
             ) {
                 Button(onClick = { focusManager.clearFocus(); onSend() }, enabled = value.isNotBlank()) {
-                    Text("Отправить")
+                    Text(tr("Отправить", "Send"))
                     Spacer(Modifier.width(8.dp))
                     Icon(Icons.AutoMirrored.Default.Send, contentDescription = null, modifier = Modifier.size(18.dp))
                 }

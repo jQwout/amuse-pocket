@@ -147,7 +147,14 @@ private fun TokensScene() {
         val done = split.value >= total
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Text(
-                text = if (done) "${RU_TOKENS.size} токенов против ${EN_TOKENS.size} — а мысль одна" else " ",
+                text = if (done) {
+                    tr(
+                        "${RU_TOKENS.size} токенов против ${EN_TOKENS.size} — а мысль одна",
+                        "${RU_TOKENS.size} tokens against ${EN_TOKENS.size} — for one and the same thought",
+                    )
+                } else {
+                    " "
+                },
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
@@ -155,7 +162,7 @@ private fun TokensScene() {
             TextButton(onClick = { run++ }, enabled = done) {
                 Icon(Icons.Default.Replay, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(4.dp))
-                Text("Ещё раз")
+                Text(tr("Ещё раз", "Again"))
             }
         }
     }
@@ -169,7 +176,7 @@ private fun TokenRow(label: String, tokens: List<String>, splitCount: Int) {
             Text(label, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.width(8.dp))
             Text(
-                text = "токенов: $splitCount",
+                text = tr("токенов: $splitCount", "tokens: $splitCount"),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.outline,
             )
@@ -210,17 +217,22 @@ private fun TokenChip(token: String, split: Boolean, color: Color) {
 // --- "Temperature": next-word probability bars and a slider ---
 
 /** Continuation options and their "raw" scores. The numbers are illustrative: a real model has thousands of options. */
+private class NextWord(private val ru: String, private val en: String, val score: Float) {
+    /** Picked at display time: NEXT_WORDS is built once, and a tr() in the initializer would freeze the language. */
+    val word: String get() = tr(ru, en)
+}
+
 private val NEXT_WORDS = listOf(
-    "бодрость" to 2.2f,
-    "привычка" to 1.6f,
-    "ритуал" to 1.3f,
-    "удовольствие" to 0.9f,
-    "необходимость" to 0.6f,
-    "искусство" to -0.2f,
+    NextWord("бодрость", "energy", 2.2f),
+    NextWord("привычка", "a habit", 1.6f),
+    NextWord("ритуал", "a ritual", 1.3f),
+    NextWord("удовольствие", "a pleasure", 0.9f),
+    NextWord("необходимость", "a necessity", 0.6f),
+    NextWord("искусство", "an art", -0.2f),
 )
 
 private fun probabilities(temperature: Float): List<Float> {
-    val scaled = NEXT_WORDS.map { exp((it.second / temperature).toDouble()) }
+    val scaled = NEXT_WORDS.map { exp((it.score / temperature).toDouble()) }
     val sum = scaled.sum()
     return scaled.map { (it / sum).toFloat() }
 }
@@ -233,27 +245,31 @@ private fun TemperatureScene() {
     val probs = probabilities(temperature)
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        val pickedWord = picked?.let { NEXT_WORDS[it].word } ?: "…"
         Text(
-            text = "Кофе утром — это ${picked?.let { NEXT_WORDS[it].first } ?: "…"}",
+            text = tr("Кофе утром — это $pickedWord", "Morning coffee is $pickedWord"),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
         )
-        NEXT_WORDS.forEachIndexed { index, (word, _) ->
-            ProbabilityBar(word = word, probability = probs[index], highlighted = picked == index)
+        NEXT_WORDS.forEachIndexed { index, next ->
+            ProbabilityBar(word = next.word, probability = probs[index], highlighted = picked == index)
         }
         Spacer(Modifier.height(4.dp))
         // Two lines, one each, rather than one glued line: the glued one wrapped on a narrow screen only for some
         // values, and the slider jumped down right under the finger.
         Text(
-            text = "Температура: ${String.format(Locale.US, "%.1f", temperature)}",
+            text = tr(
+                "Температура: ${String.format(Locale.US, "%.1f", temperature)}",
+                "Temperature: ${String.format(Locale.US, "%.1f", temperature)}",
+            ),
             style = MaterialTheme.typography.labelLarge,
             maxLines = 1,
         )
         Text(
             text = when {
-                temperature < 0.5f -> "почти всегда самое вероятное"
-                temperature > 1.4f -> "смелые, неожиданные слова"
-                else -> "обычный разброс"
+                temperature < 0.5f -> tr("почти всегда самое вероятное", "almost always the most likely word")
+                temperature > 1.4f -> tr("смелые, неожиданные слова", "bold, unexpected words")
+                else -> tr("обычный разброс", "a normal spread")
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.outline,
@@ -268,16 +284,20 @@ private fun TemperatureScene() {
             OutlinedButton(onClick = {
                 val index = sample(probs)
                 picked = index
-                history.add(0, NEXT_WORDS[index].first)
+                history.add(0, NEXT_WORDS[index].word)
                 if (history.size > 6) history.removeAt(history.lastIndex)
             }) {
                 Icon(Icons.Default.Casino, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Вытянуть слово")
+                Text(tr("Вытянуть слово", "Draw a word"))
             }
             Spacer(Modifier.width(10.dp))
             Text(
-                text = if (history.isEmpty()) "Тяни несколько раз — и сдвинь ползунок" else history.joinToString(", "),
+                text = if (history.isEmpty()) {
+                    tr("Тяни несколько раз — и сдвинь ползунок", "Draw a few times — then move the slider")
+                } else {
+                    history.joinToString(", ")
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.outline,
                 maxLines = 3,

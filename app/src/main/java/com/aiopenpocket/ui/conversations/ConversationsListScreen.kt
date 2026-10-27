@@ -72,19 +72,19 @@ fun ConversationsListScreen(
   // The aurora background + glass, as on the "Chat" tab.
   val glassState = rememberGlassState()
   AcademyCollapsingScaffold(
-    title = "Чаты",
+    title = tr("Чаты", "Chats"),
     glassState = glassState,
     navigationIcon = {
       IconButton(onClick = onNavigateBack) {
         Icon(
           Icons.AutoMirrored.Filled.ArrowBack,
-          contentDescription = "Назад",
+          contentDescription = tr("Назад", "Back"),
         )
       }
     },
     actions = {
       IconButton(onClick = onNavigateToGraph) {
-        Icon(Icons.Default.Share, contentDescription = "Граф памяти")
+        Icon(Icons.Default.Share, contentDescription = tr("Граф памяти", "Memory graph"))
       }
     },
     floatingActionButton = {
@@ -108,7 +108,7 @@ fun ConversationsListScreen(
         contentAlignment = Alignment.Center,
       ) {
         Text(
-          "Чатов пока нет. Нажми «+», чтобы начать.",
+          tr("Чатов пока нет. Нажми «+», чтобы начать.", "No chats yet. Tap “+” to start."),
           style = MaterialTheme.typography.bodyLarge,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -139,7 +139,7 @@ fun ConversationsListScreen(
             contentAlignment = Alignment.Center,
           ) {
             Text(
-              "Нет чатов с тегом «${state.selectedTag}».",
+              tr("Нет чатов с тегом «${state.selectedTag}».", "No chats tagged “${state.selectedTag}”."),
               style = MaterialTheme.typography.bodyLarge,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -167,19 +167,27 @@ fun ConversationsListScreen(
     if (toDelete != null) {
       AlertDialog(
         onDismissRequest = { pendingDelete = null },
-        title = { Text("Удалить чат?") },
-        text = { Text("«${toDelete.title}» и вся переписка будут удалены без возможности восстановления.") },
+        title = { Text(tr("Удалить чат?", "Delete this chat?")) },
+        text = {
+          val name = toDelete.displayTitle()
+          Text(
+            tr(
+              "«$name» и вся переписка будут удалены без возможности восстановления.",
+              "“$name” and the whole conversation will be deleted for good.",
+            ),
+          )
+        },
         confirmButton = {
           TextButton(onClick = {
             viewModel.deleteConversation(toDelete.id)
             pendingDelete = null
           }) {
-            Text("Удалить", color = MaterialTheme.colorScheme.error)
+            Text(tr("Удалить", "Delete"), color = MaterialTheme.colorScheme.error)
           }
         },
         dismissButton = {
           TextButton(onClick = { pendingDelete = null }) {
-            Text("Отмена")
+            Text(tr("Отмена", "Cancel"))
           }
         },
       )
@@ -209,7 +217,7 @@ private fun ConversationItem(
     ) {
       Column(modifier = Modifier.weight(1f)) {
         Text(
-          conversation.title,
+          conversation.displayTitle(),
           style = MaterialTheme.typography.titleMedium,
         )
         Text(
@@ -250,7 +258,11 @@ private fun ConversationItem(
       IconButton(onClick = onToggleFavorite) {
         Icon(
           imageVector = if (conversation.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
-          contentDescription = if (conversation.isFavorite) "Убрать из избранного" else "В избранное",
+          contentDescription = if (conversation.isFavorite) {
+            tr("Убрать из избранного", "Remove from favorites")
+          } else {
+            tr("В избранное", "Add to favorites")
+          },
           tint = if (conversation.isFavorite) {
             MaterialTheme.colorScheme.primary
           } else {
@@ -259,7 +271,7 @@ private fun ConversationItem(
         )
       }
       IconButton(onClick = onDelete) {
-        Icon(Icons.Default.Delete, contentDescription = "Удалить")
+        Icon(Icons.Default.Delete, contentDescription = tr("Удалить", "Delete"))
       }
     }
   }

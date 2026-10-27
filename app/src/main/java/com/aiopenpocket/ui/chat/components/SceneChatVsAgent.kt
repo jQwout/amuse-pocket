@@ -44,20 +44,31 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 import kotlinx.coroutines.delay
 
-/** A link of the agent's chain: what it is and what it does in this request. */
-private class AgentLink(val title: String, val role: String)
+/**
+ * A link of the agent's chain: what it is and what it does in this request. A ru/en pair picked at display
+ * time: AGENT_LINKS is built once, and a tr() in its initializer would freeze the language.
+ */
+private class AgentLink(
+    private val titleRu: String, private val titleEn: String,
+    private val roleRu: String, private val roleEn: String,
+) {
+    val title: String get() = tr(titleRu, titleEn)
+    val role: String get() = tr(roleRu, roleEn)
+}
 
 private val AGENT_LINKS = listOf(
-    AgentLink("Модель", "решает"),
-    AgentLink("Инструмент", "будильник"),
-    AgentLink("Результат", "в телефоне"),
+    AgentLink("Модель", "Model", "решает", "decides"),
+    AgentLink("Инструмент", "Tool", "будильник", "alarm"),
+    AgentLink("Результат", "Result", "в телефоне", "on the phone"),
 )
 
 // Specifically an "alarm": for "remind me" the app sets a reminder notification, not an alarm, and a scene with
 // an "Alarms" panel would teach something other than what the learner will later see in the chat.
-private const val REMINDER_REQUEST = "Поставь будильник на завтра, 9:00 — позвонить маме"
+private val REMINDER_REQUEST: String
+    get() = tr("Поставь будильник на завтра, 9:00 — позвонить маме", "Set an alarm for tomorrow, 9:00 — call Mom")
 
 // The scene's course: nothing → the model thinks → the tool works → done.
 private const val STEP_IDLE = 0
@@ -93,7 +104,7 @@ internal fun ChatVsAgentScene() {
     val primary = MaterialTheme.colorScheme.primary
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Просьба: «$REMINDER_REQUEST»", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(tr("Просьба: «$REMINDER_REQUEST»", "Request: “$REMINDER_REQUEST”"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         ModeToggle(agent = agent) { value ->
             if (value != agent) {
                 agent = value
@@ -120,9 +131,12 @@ internal fun ChatVsAgentScene() {
         ) {
             Text(
                 text = when {
-                    !done -> "Ответ появится здесь"
-                    agent -> "Готово: будильник на 9:00 — «Позвонить маме»"
-                    else -> "Хорошо! Поставь будильник на 9:00 и не забудь позвонить маме 🙂"
+                    !done -> tr("Ответ появится здесь", "The answer will appear here")
+                    agent -> tr("Готово: будильник на 9:00 — «Позвонить маме»", "Done: alarm for 9:00 — “Call Mom”")
+                    else -> tr(
+                        "Хорошо! Поставь будильник на 9:00 и не забудь позвонить маме 🙂",
+                        "Sure! Set an alarm for 9:00 and don't forget to call Mom 🙂",
+                    )
                 },
                 color = SceneInk.copy(alpha = if (done) 1f else 0.45f),
                 style = MaterialTheme.typography.bodyMedium,
@@ -137,29 +151,46 @@ internal fun ChatVsAgentScene() {
                 .border(2.dp, if (alarmSet) primary else Color.Transparent, RoundedCornerShape(12.dp))
                 .padding(horizontal = 10.dp, vertical = 6.dp),
         ) {
-            Text("Будильники", style = MaterialTheme.typography.labelMedium, color = SceneInk, fontWeight = FontWeight.SemiBold)
+            Text(tr("Будильники", "Alarms"), style = MaterialTheme.typography.labelMedium, color = SceneInk, fontWeight = FontWeight.SemiBold)
             Crossfade(targetState = alarmSet, animationSpec = tween(300), label = "alarm") { set ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(32.dp)) {
                     if (set) {
                         Icon(Icons.Default.Alarm, contentDescription = null, tint = primary, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("09:00, завтра — Позвонить маме", color = SceneInk, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                        Text(tr("09:00, завтра — Позвонить маме", "09:00, tomorrow — Call Mom"), color = SceneInk, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                     } else {
-                        Text("пусто", color = SceneInk.copy(alpha = 0.45f), style = MaterialTheme.typography.bodyMedium)
+                        Text(tr("пусто", "empty"), color = SceneInk.copy(alpha = 0.45f), style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
         }
         Button(onClick = { run++ }, enabled = step == STEP_IDLE || done, modifier = Modifier.fillMaxWidth()) {
-            Text(if (done) "Ещё раз" else if (agent) "Отправить агенту" else "Отправить чату")
+            Text(
+                if (done) {
+                    tr("Ещё раз", "Again")
+                } else if (agent) {
+                    tr("Отправить агенту", "Send to the agent")
+                } else {
+                    tr("Отправить чату", "Send to the chat")
+                },
+            )
         }
         Text(
             text = when {
-                done && triedChat && triedAgent -> "Чат говорит, агент действует — через инструменты"
-                done && agent -> "Модель решила, инструмент сделал: будильник стоит на самом деле"
-                done -> "Чат ответил словами — а будильника нет. Помнить придётся тебе"
-                agent -> "Теперь та же просьба — агенту"
-                else -> "Отправь просьбу чату, потом переключись на агента"
+                done && triedChat && triedAgent -> tr(
+                    "Чат говорит, агент действует — через инструменты",
+                    "The chat talks, the agent acts — through tools",
+                )
+                done && agent -> tr(
+                    "Модель решила, инструмент сделал: будильник стоит на самом деле",
+                    "The model decided, the tool did it: the alarm is really set",
+                )
+                done -> tr(
+                    "Чат ответил словами — а будильника нет. Помнить придётся тебе",
+                    "The chat answered in words — and there is no alarm. You will have to remember it yourself",
+                )
+                agent -> tr("Теперь та же просьба — агенту", "Now the same request — to the agent")
+                else -> tr("Отправь просьбу чату, потом переключись на агента", "Send the request to the chat, then switch to the agent")
             },
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
@@ -173,7 +204,7 @@ private fun ModeToggle(agent: Boolean, onSelect: (Boolean) -> Unit) {
     val primary = MaterialTheme.colorScheme.primary
     val shape = RoundedCornerShape(20.dp)
     Row(modifier = Modifier.fillMaxWidth().height(40.dp).clip(shape).border(1.5.dp, primary, shape)) {
-        listOf("Чат" to false, "Агент" to true).forEach { (label, value) ->
+        listOf(tr("Чат", "Chat") to false, tr("Агент", "Agent") to true).forEach { (label, value) ->
             val selected = agent == value
             Box(
                 contentAlignment = Alignment.Center,

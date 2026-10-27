@@ -581,7 +581,7 @@ class ChatViewModel(
         val convId = currentConversationId() ?: return
         if (imagePrompt.isBlank() || imagePrompt in _state.value.personalizingImagePrompts) return
         _state.update {
-            it.copy(personalizingImagePrompts = it.personalizingImagePrompts + imagePrompt, error = null, canRetry = false)
+            it.copy(personalizingImagePrompts = it.personalizingImagePrompts + imagePrompt, error = null, canRetry = false, lessonStepProblem = null)
         }
         viewModelScope.launch {
             val problem = try {
@@ -603,7 +603,8 @@ class ChatViewModel(
             } finally {
                 _state.update { it.copy(personalizingImagePrompts = it.personalizingImagePrompts - imagePrompt) }
             }
-            if (problem != null) _state.update { it.copy(error = problem, canRetry = false) }
+            // The step's own slot, not the chat-wide error: see ChatUiState.lessonStepProblem.
+            if (problem != null) _state.update { it.copy(lessonStepProblem = problem) }
         }
     }
 
@@ -619,7 +620,7 @@ class ChatViewModel(
         val convId = currentConversationId() ?: return
         if (videoPrompt.isBlank() || videoPrompt in _state.value.analyzingVideoPrompts) return
         _state.update {
-            it.copy(analyzingVideoPrompts = it.analyzingVideoPrompts + videoPrompt, error = null, canRetry = false)
+            it.copy(analyzingVideoPrompts = it.analyzingVideoPrompts + videoPrompt, error = null, canRetry = false, lessonStepProblem = null)
         }
         viewModelScope.launch {
             val problem = try {
@@ -640,7 +641,8 @@ class ChatViewModel(
                 withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) { deleteOwnCapture(video) }
                 _state.update { it.copy(analyzingVideoPrompts = it.analyzingVideoPrompts - videoPrompt) }
             }
-            if (problem != null) _state.update { it.copy(error = problem, canRetry = false) }
+            // The step's own slot, not the chat-wide error: see ChatUiState.lessonStepProblem.
+            if (problem != null) _state.update { it.copy(lessonStepProblem = problem) }
         }
     }
 
@@ -691,7 +693,7 @@ class ChatViewModel(
             return
         }
         _state.update {
-            it.copy(segmentingPrompts = it.segmentingPrompts + cardPrompt, error = null, canRetry = false)
+            it.copy(segmentingPrompts = it.segmentingPrompts + cardPrompt, error = null, canRetry = false, lessonStepProblem = null)
         }
         viewModelScope.launch {
             var copy: java.io.File? = null
@@ -724,7 +726,8 @@ class ChatViewModel(
                 }
                 _state.update { it.copy(segmentingPrompts = it.segmentingPrompts - cardPrompt) }
             }
-            if (problem != null) _state.update { it.copy(error = problem, canRetry = false) }
+            // The step's own slot, not the chat-wide error: see ChatUiState.lessonStepProblem.
+            if (problem != null) _state.update { it.copy(lessonStepProblem = problem) }
         }
     }
 
@@ -771,11 +774,11 @@ class ChatViewModel(
                     lessonChatController.postStep(convId, lesson, s.lessonStepIndex)
                     val newIndex = s.lessonStepIndex + 1
                     conversationRepository.updateLessonCursor(convId, stepIndex = newIndex, finished = false)
-                    _state.update { it.copy(lessonStepIndex = newIndex) }
+                    _state.update { it.withLessonCursor(stepIndex = newIndex) }
                 } else {
                     lessonChatController.postCompletion(convId, lesson)
                     conversationRepository.updateLessonCursor(convId, stepIndex = s.lessonStepIndex, finished = true)
-                    _state.update { it.copy(lessonFinished = true) }
+                    _state.update { it.withLessonCursor(finished = true) }
                 }
             } finally {
                 lessonBusy = false

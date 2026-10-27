@@ -36,21 +36,33 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 import java.util.Locale
 
-/** A hidden layer of the package: what it is called, a piece of its text and roughly how many tokens it weighs. */
-private class PackLayer(val name: String, val sample: String, val tokens: Int)
+/**
+ * A hidden layer of the package: what it is called, a piece of its text and roughly how many tokens it weighs.
+ * The texts are ru/en pairs picked at display time: PACK_LAYERS is built once, and a tr() in its initializer
+ * would freeze the language.
+ */
+private class PackLayer(
+    private val nameRu: String, private val nameEn: String,
+    private val sampleRu: String, private val sampleEn: String,
+    val tokens: Int,
+) {
+    val name: String get() = tr(nameRu, nameEn)
+    val sample: String get() = tr(sampleRu, sampleEn)
+}
 
 // The lesson's example: Sasha does not eat meat. The tokens are an order of magnitude for the example, not a measurement of a real package.
 private val PACK_LAYERS = listOf(
-    PackLayer("Правила", "Ты — карманный агент, отвечай по-русски…", 600),
-    PackLayer("Персона", "Тон: тёплый, по-человечески", 150),
-    PackLayer("Профиль", "Саша, не ест мясо", 60),
-    PackLayer("Память", "Саше понравилась паста с грибами", 90),
-    PackLayer("История", "Вчерашний разговор: 12 сообщений", 850),
+    PackLayer("Правила", "Rules", "Ты — карманный агент, отвечай по-русски…", "You are a pocket agent, answer in English…", 600),
+    PackLayer("Персона", "Persona", "Тон: тёплый, по-человечески", "Tone: warm, like a person", 150),
+    PackLayer("Профиль", "Profile", "Саша, не ест мясо", "Sasha doesn't eat meat", 60),
+    PackLayer("Память", "Memory", "Саше понравилась паста с грибами", "Sasha liked the mushroom pasta", 90),
+    PackLayer("История", "History", "Вчерашний разговор: 12 сообщений", "Yesterday's conversation: 12 messages", 850),
 )
 
-private const val USER_PROMPT = "Посоветуй ужин"
+private val USER_PROMPT: String get() = tr("Посоветуй ужин", "Suggest dinner ideas")
 private const val USER_PROMPT_TOKENS = 5
 private const val PROFILE_LAYER = 2
 private const val MEMORY_LAYER = 3
@@ -71,15 +83,17 @@ internal fun PromptLayersScene() {
     val knowsTaste = isOn(PROFILE_LAYER) || isOn(MEMORY_LAYER)
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Ты пишешь: «$USER_PROMPT». Что приложение добавит от себя?", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(
+            tr("Ты пишешь: «$USER_PROMPT». Что приложение добавит от себя?", "You write: “$USER_PROMPT”. What will the app add on its own?"),
+            style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             PACK_LAYERS.forEachIndexed { index, layer ->
                 FilterChip(selected = isOn(index), onClick = { mask = mask xor (1 shl index) }, label = { Text(layer.name) })
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            TokenTally(label = "ты написал", tokens = USER_PROMPT_TOKENS, modifier = Modifier.weight(1f))
-            TokenTally(label = "модель читает", tokens = shownTotal, modifier = Modifier.weight(1f))
+            TokenTally(label = tr("ты написал, токенов", "tokens you wrote"), tokens = USER_PROMPT_TOKENS, modifier = Modifier.weight(1f))
+            TokenTally(label = tr("модель читает, токенов", "tokens the model reads"), tokens = shownTotal, modifier = Modifier.weight(1f))
         }
         Column(
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -90,13 +104,13 @@ internal fun PromptLayersScene() {
                 .background(primary.copy(alpha = 0.05f))
                 .padding(8.dp),
         ) {
-            Text("Что видит модель", style = MaterialTheme.typography.labelMedium, color = primary, fontWeight = FontWeight.SemiBold)
+            Text(tr("Что видит модель", "What the model sees"), style = MaterialTheme.typography.labelMedium, color = primary, fontWeight = FontWeight.SemiBold)
             PACK_LAYERS.forEachIndexed { index, layer ->
                 AnimatedVisibility(visible = isOn(index), enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
                     PackRow(name = layer.name, text = layer.sample, tokens = layer.tokens, fill = ScenePalette[(index + 1) % ScenePalette.size])
                 }
             }
-            PackRow(name = "Ты", text = USER_PROMPT, tokens = USER_PROMPT_TOKENS, fill = ScenePalette[0])
+            PackRow(name = tr("Ты", "You"), text = USER_PROMPT, tokens = USER_PROMPT_TOKENS, fill = ScenePalette[0])
         }
         Box(
             modifier = Modifier
@@ -108,9 +122,12 @@ internal fun PromptLayersScene() {
         ) {
             Text(
                 text = when {
-                    isOn(MEMORY_LAYER) -> "Ответ: паста с грибами — тебе она понравилась в прошлый раз"
-                    isOn(PROFILE_LAYER) -> "Ответ: овощное карри — сытно и без мяса"
-                    else -> "Ответ: курица с рисом — быстро и сытно"
+                    isOn(MEMORY_LAYER) -> tr(
+                        "Ответ: паста с грибами — тебе она понравилась в прошлый раз",
+                        "Answer: mushroom pasta — you liked it last time",
+                    )
+                    isOn(PROFILE_LAYER) -> tr("Ответ: овощное карри — сытно и без мяса", "Answer: vegetable curry — filling and meat-free")
+                    else -> tr("Ответ: курица с рисом — быстро и сытно", "Answer: chicken with rice — quick and filling")
                 },
                 color = SceneInk,
                 style = MaterialTheme.typography.bodyMedium,
@@ -119,10 +136,22 @@ internal fun PromptLayersScene() {
         }
         Text(
             text = when {
-                mask == 0 -> "Модель видит только два слова — и не знает, что Саша не ест мясо"
-                mask == (1 shl PACK_LAYERS.size) - 1 -> "Ты написал ~$USER_PROMPT_TOKENS токенов, а модель прочитала ~${formatTokens(total)}: остальное добавило приложение"
-                !knowsTaste -> "Без профиля и памяти модель не знает про мясо — совет мимо"
-                else -> "Каждый слой — текст, который модель читает вместе с твоим вопросом"
+                mask == 0 -> tr(
+                    "Модель видит только два слова — и не знает, что Саша не ест мясо",
+                    "The model sees only your request — and doesn't know that Sasha doesn't eat meat",
+                )
+                mask == (1 shl PACK_LAYERS.size) - 1 -> tr(
+                    "Ты написал ~$USER_PROMPT_TOKENS токенов, а модель прочитала ~${formatTokens(total)}: остальное добавило приложение",
+                    "You wrote ~$USER_PROMPT_TOKENS tokens, the model read ~${formatTokens(total)}: the app added the rest",
+                )
+                !knowsTaste -> tr(
+                    "Без профиля и памяти модель не знает про мясо — совет мимо",
+                    "Without the profile and memory the model knows nothing about the meat — the advice misses the mark",
+                )
+                else -> tr(
+                    "Каждый слой — текст, который модель читает вместе с твоим вопросом",
+                    "Every layer is text the model reads together with your question",
+                )
             },
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
@@ -141,7 +170,7 @@ private fun TokenTally(label: String, tokens: Int, modifier: Modifier) {
             .padding(vertical = 6.dp),
     ) {
         Text("~${formatTokens(tokens)}", color = SceneInk, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1)
-        Text("$label, токенов", color = SceneInk.copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall, maxLines = 1)
+        Text(label, color = SceneInk.copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }
 }
 
@@ -161,5 +190,8 @@ private fun PackRow(name: String, text: String, tokens: Int, fill: Color) {
     }
 }
 
-/** 1755 → "1 755": a non-breaking space between thousands, as written in Russian. */
-private fun formatTokens(value: Int): String = String.format(Locale.US, "%,d", value).replace(',', ' ')
+/** 1755 → "1 755" in Russian (a non-breaking space between thousands), "1,755" in English. */
+private fun formatTokens(value: Int): String {
+    val grouped = String.format(Locale.US, "%,d", value)
+    return tr(grouped.replace(',', '\u00a0'), grouped)
+}
