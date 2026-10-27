@@ -15,9 +15,9 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
- * Рефкаунт проверяем через реальный Robolectric-Application: сервис поднимается один раз на первом
- * ходе и гаснет на последнем. Настоящее поведение FGS (выживание процесса, системный onTimeout,
- * отложенный показ уведомления) Robolectric не воспроизводит — это на устройство.
+ * The refcount is checked through a real Robolectric Application: the service starts once on the first
+ * turn and goes away on the last one. The real FGS behavior (process survival, the system onTimeout,
+ * deferred notification display) is not reproduced by Robolectric — that is for a device.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -47,7 +47,7 @@ class AndroidTurnLifeSupportTest {
     val lifeSupport = AndroidTurnLifeSupport(application)
     lifeSupport.acquire("c1")
     lifeSupport.acquire("c2")
-    startedServiceName() // снимаем запись о старте
+    startedServiceName() // drop the record of the start
 
     lifeSupport.release("c1")
     assertNull("остался ещё один защищённый ход", stoppedServiceName())
@@ -60,7 +60,7 @@ class AndroidTurnLifeSupportTest {
   fun `повторный acquire того же диалога считается, а не схлопывается`() = runTest {
     val lifeSupport = AndroidTurnLifeSupport(application)
     lifeSupport.acquire("c1")
-    lifeSupport.acquire("c1") // новый ход того же чата поверх отменяемого старого
+    lifeSupport.acquire("c1") // a new turn of the same chat on top of the old one being cancelled
     startedServiceName()
 
     lifeSupport.release("c1")
@@ -82,7 +82,7 @@ class AndroidTurnLifeSupportTest {
     TurnForegroundService.onSystemTimeout?.invoke()
 
     assertEquals(setOf("c1", "c2"), reported)
-    // Счётчики обнулены: сервис система уже забрала, и следующий ход обязан поднять его заново.
+    // The counters are reset: the system has already taken the service, and the next turn must start it again.
     lifeSupport.acquire("c3")
     assertEquals(TurnForegroundService::class.java.name, startedServiceName())
   }

@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-/** Покрывает [stripToJsonObject] — чистку «грязного» вывода LLM до голого JSON-объекта. */
+/** Covers [stripToJsonObject] — cleaning "dirty" LLM output down to a bare JSON object. */
 class ExtractUserProfileUseCaseTest {
 
   @Test
@@ -33,7 +33,7 @@ class ExtractUserProfileUseCaseTest {
 
   @Test
   fun `nested braces keep the outermost object intact`() {
-    // lastIndexOf('}') должен взять закрывающую скобку ВНЕШНЕГО объекта, а не вложенного.
+    // lastIndexOf('}') must take the closing brace of the OUTER object, not of a nested one.
     val raw = "болтовня {\"a\":\"1\",\"b\":{\"c\":\"2\"}} ещё болтовня"
     assertEquals("""{"a":"1","b":{"c":"2"}}""", stripToJsonObject(raw))
   }
@@ -46,7 +46,7 @@ class ExtractUserProfileUseCaseTest {
 
   @Test
   fun `trailing prose with extra braces keeps only the first balanced object`() {
-    // Наивный lastIndexOf('}') захватил бы и хвостовые скобки «{это}» → битый JSON.
+    // A naive lastIndexOf('}') would also grab the trailing braces of «{это}» → broken JSON.
     val raw = "Профиль: {\"name\":\"Иван\"}. Надеюсь {это} поможет!"
     assertEquals("""{"name":"Иван"}""", stripToJsonObject(raw))
   }

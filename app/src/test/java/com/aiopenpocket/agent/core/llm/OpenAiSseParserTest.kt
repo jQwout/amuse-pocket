@@ -44,7 +44,7 @@ class OpenAiSseParserTest {
 
     val events = parse(sse)
 
-    // Битый чанк пропущен: никаких Error, текст до и после дошёл, ход не оборван.
+    // The broken chunk is skipped: no Error, the text before and after arrived, the turn is not cut off.
     assertTrue("parse error must not surface as a stream Error", events.none { it is StreamEvent.Error })
     val text = events.filterIsInstance<StreamEvent.TextDelta>().joinToString("") { it.content }
     assertEquals("beforeafter", text)
@@ -117,7 +117,7 @@ class OpenAiSseParserTest {
 
   @Test
   fun `reasoning_content is used as the answer when content stays empty`() = runTest {
-    // Reasoning-модель (deepseek-v4-flash) уложила всё в reasoning_content, content так и не пришёл.
+    // A reasoning model (deepseek-v4-flash) put everything into reasoning_content, and content never came.
     val sse = """
       data: {"choices":[{"delta":{"reasoning_content":"Думаю над "}}]}
       data: {"choices":[{"delta":{"reasoning_content":"ответом."}}]}
@@ -127,15 +127,15 @@ class OpenAiSseParserTest {
 
     val events = parse(sse)
 
-    // Без фолбэка тут был бы пустой ответ; теперь отдаём накопленное размышление — с пометкой, что
-    // это мысли, а не ответ, и с флагом reasoning для тех, кто ждёт JSON.
+    // Without a fallback this would be an empty answer; now we return the accumulated reasoning — marked as
+    // thoughts rather than an answer, and with the reasoning flag for those who expect JSON.
     val deltas = events.filterIsInstance<StreamEvent.TextDelta>()
     assertEquals(REASONING_ONLY_PREFIX + "Думаю над ответом.", deltas.joinToString("") { it.content })
     assertTrue("размышление обязано быть помечено", deltas.all { it.reasoning })
     assertEquals("stop", (events.last() as StreamEvent.Finish).reason)
   }
 
-  // --- finish_reason "length": ответ обрезан по max_tokens ----------------------------------------
+  // --- finish_reason "length": the answer is cut off at max_tokens --------------------------------------
 
   @Test
   fun `length with only reasoning is an error, not a fake answer`() = runTest {
@@ -193,7 +193,7 @@ class OpenAiSseParserTest {
 
     val events = parse(sse)
 
-    // Есть настоящий content — размышление не подмешиваем в ответ.
+    // There is real content — the reasoning is not mixed into the answer.
     val text = events.filterIsInstance<StreamEvent.TextDelta>().joinToString("") { it.content }
     assertEquals("Привет!", text)
   }
@@ -215,9 +215,9 @@ class OpenAiSseParserTest {
   }
 
   /**
-   * Живой пропуск: usage приезжает ОТДЕЛЬНЫМ финальным чанком, у которого `choices` пуст. Разбор
-   * начинался со строки `choices.firstOrNull() ?: continue`, то есть ровно этот чанк выбрасывался —
-   * и расход хода был неизвестен, хотя провайдер его прислал.
+   * A live gap: usage arrives in a SEPARATE final chunk whose `choices` is empty. Parsing started with the
+   * line `choices.firstOrNull() ?: continue`, so exactly this chunk was thrown away — and the turn's
+   * spending was unknown, although the provider had sent it.
    */
   @Test
   fun `usage arrives in a final chunk with empty choices and is captured`() = runTest {
@@ -234,14 +234,14 @@ class OpenAiSseParserTest {
     assertEquals(1200, usage?.promptTokens)
     assertEquals(48, usage?.completionTokens)
     assertEquals(0.00031, usage?.cost ?: 0.0, 1e-9)
-    // Пустой choices не ломает остальной разбор: текст и finish дошли как обычно.
+    // An empty choices does not break the rest of the parsing: the text and finish arrived as usual.
     assertEquals("Привет", events.filterIsInstance<StreamEvent.TextDelta>().joinToString("") { it.content })
     assertEquals("stop", (events.last() as StreamEvent.Finish).reason)
   }
 
   /**
-   * Провайдер, не приславший usage, обязан отличаться от приславшего нули: ноль токенов — это
-   * утверждение о бесплатном ходе, а `null` — честное «не знаем», по которому вызывающий берёт оценку.
+   * A provider that sent no usage must differ from one that sent zeros: zero tokens is a claim that the
+   * turn was free, while `null` is an honest "we don't know", on which the caller takes an estimate.
    */
   @Test
   fun `a stream without usage yields null, not zeroes`() = runTest {

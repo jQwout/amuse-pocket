@@ -79,7 +79,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class HeartbeatRunnerTest {
 
-  /** Что «выбрано в Настройках» на момент фонового хода. */
+  /** What is "chosen in Settings" at the time of the background turn. */
   private var selectedProvider = LlmProvider.OPENROUTER
 
   private class FakeLlm(private val events: List<StreamEvent>) : LlmClient {
@@ -88,7 +88,7 @@ class HeartbeatRunnerTest {
      * the caller's mutable list retroactively changing what a prior call "saw". */
     val calls = mutableListOf<List<ChatMessage>>()
 
-    /** К какому вендору ушёл фоновый ход. */
+    /** Which vendor the background turn went to. */
     val providers = mutableListOf<LlmProvider>()
 
     override fun streamChat(
@@ -180,8 +180,8 @@ class HeartbeatRunnerTest {
     db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
     notifier = FakeNotifier()
     userAgentRepository = UserAgentRepository(db, db.userAgentDao(), AgentHookRepository(db.agentHookDao()))
-    // FK: MessageEntity.conversationId -> ConversationEntity.id. Диалог должен существовать ДО
-    // того, как ConversationRepository.addMessage попытается в него что-то записать.
+    // FK: MessageEntity.conversationId -> ConversationEntity.id. The conversation must exist BEFORE
+    // ConversationRepository.addMessage tries to write anything into it.
     db.conversationDao().insert(ConversationEntity(id = "conv1", title = "T"))
   }
 
@@ -338,7 +338,7 @@ class HeartbeatRunnerTest {
     val runner = runner(emptyList())
     assertEquals(FireOutcome.DONE, runner.handleFire("hb1", attempt = 0))
     assertEquals("fired", db.heartbeatDao().getById("hb1")?.status)
-    // Пуш ушёл через общий нотифаер, с заголовком напоминания и deep-link в его диалог.
+    // The push went out through the shared notifier, with the reminder's title and a deep link into its conversation.
     assertEquals("T", notifier.calls.single().title)
     assertEquals("conv1", notifier.calls.single().conversationId)
   }
@@ -351,13 +351,13 @@ class HeartbeatRunnerTest {
     val messages = db.messageDao().getAllOrdered("conv1")
     assertTrue(messages.any { it.role == "assistant" && it.content.contains("задач 3") })
     assertEquals("Всё в порядке, задач 3.", db.heartbeatDao().getById("hb1")?.lastResult)
-    assertTrue(notifier.calls.single().preview.contains("задач 3")) // ответ ушёл и пушем
+    assertTrue(notifier.calls.single().preview.contains("задач 3")) // the answer went out as a push too
   }
 
   /**
-   * Фоновый ход обязан идти к тому же вендору, что и обычный. Раньше здесь стоял литерал
-   * LlmProvider.NIM: после переключения на OpenRouter напоминалки продолжали бы ходить к NVIDIA —
-   * то есть тихо падать на пустом ключе или уносить данные вендору, от которого пользователь ушёл.
+   * A background turn must go to the same vendor as an ordinary one. There used to be a literal
+   * LlmProvider.NIM here: after switching to OpenRouter, reminders would keep going to NVIDIA — that is,
+   * quietly fail on an empty key or carry data to a vendor the user had left.
    */
   @Test
   fun `agent mode goes to the provider selected in settings`() = runTest {
@@ -378,12 +378,12 @@ class HeartbeatRunnerTest {
     assertEquals(FireOutcome.DONE, runner.handleFire("hb1", attempt = 0))
     assertTrue(db.messageDao().getAllOrdered("conv1").isEmpty())
     assertEquals("fired", db.heartbeatDao().getById("hb1")?.status)
-    assertTrue(notifier.calls.isEmpty()) // HEARTBEAT_OK = полная тишина, пуша тоже нет
+    assertTrue(notifier.calls.isEmpty()) // HEARTBEAT_OK = complete silence, no push either
   }
 
   @Test
   fun `agent mode with a task can stay silent too - HEARTBEAT_OK means nothing to report`() = runTest {
-    // Раньше молчать разрешалось только «пульсу» без задачи: с задачей HEARTBEAT_OK уходил в чат и пушем.
+    // Silence used to be allowed only for a "pulse" without a task: with a task HEARTBEAT_OK went to the chat and as a push.
     db.heartbeatDao().insert(hb(mode = "agent", prompt = "проверь, есть ли просроченные задачи"))
     val doubles = runnerWithRegistry(
       listOf(StreamEvent.TextDelta("HEARTBEAT_OK"), StreamEvent.Finish("stop")),
@@ -395,7 +395,7 @@ class HeartbeatRunnerTest {
     assertTrue(db.messageDao().getAllOrdered("conv1").isEmpty())
     assertTrue(notifier.calls.isEmpty())
     assertEquals("fired", db.heartbeatDao().getById("hb1")?.status)
-    // И право промолчать агенту действительно объявлено — не только «пульсу».
+    // And the right to stay silent really is declared to the agent — not only to the "pulse".
     assertTrue(doubles.llm.calls.single().first().content!!.contains(HeartbeatRunner.HEARTBEAT_OK))
   }
 
@@ -572,8 +572,9 @@ class HeartbeatRunnerTest {
 
   @Test
   fun `background run denies a DESTRUCTIVE call even with no hooks, while WRITE still runs`() = runTest {
-    // Пол ExecutionPolicy: DESTRUCTIVE/EXTERNAL всегда ждут «Разрешить», а в фоне спросить некого.
-    // calendar и storage_tool в SAFE_TOOL_NAMES ради чтения/записи — их удаление здесь не выполняется.
+    // The ExecutionPolicy floor: DESTRUCTIVE/EXTERNAL always wait for "Allow", and in the background there is
+    // no one to ask. calendar and storage_tool are in SAFE_TOOL_NAMES for reading/writing — deleting with them
+    // does not run here.
     val calendar = CountingTool("calendar", RiskClass.DESTRUCTIVE)
     val notifications = CountingTool("notifications", RiskClass.WRITE)
     val registry = ToolRegistry(setOf(calendar, notifications))
@@ -632,8 +633,8 @@ class HeartbeatRunnerTest {
 
   @Test
   fun `typed plan-step heartbeat writes the step's answer into the plan's chat`() = runTest {
-    // Сценарий аудита: «составь меню на неделю» → Одобрить → шаг исполняется ЗДЕСЬ, в фоне. Раньше
-    // карточка писала «все шаги выполнены», пуш — «План выполнен.», а самого меню не было нигде.
+    // The audit scenario: "make a menu for the week" → Approve → the step runs HERE, in the background. The
+    // card used to say "all steps completed", the push "Plan completed.", and the menu itself was nowhere.
     val (runner, _, planRepository, _) = runnerWithRegistry(
       listOf(StreamEvent.TextDelta("Понедельник: гречка с овощами"), StreamEvent.Finish("stop")),
       ToolRegistry(emptySet()),
@@ -647,7 +648,7 @@ class HeartbeatRunnerTest {
     val assistant = db.messageDao().getAllOrdered("conv1").filter { it.role == "assistant" }
     assertEquals(1, assistant.size)
     assertTrue(assistant.single().content.contains("Понедельник: гречка с овощами"))
-    assertTrue(assistant.single().content.contains("Title step-1")) // заголовок — название шага
+    assertTrue(assistant.single().content.contains("Title step-1")) // the title is the step's name
     assertEquals("План выполнен.", notifier.calls.single().preview)
   }
 

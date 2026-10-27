@@ -41,7 +41,7 @@ class HeartbeatToolTest {
   @Before
   fun setUp() {
     context = ApplicationProvider.getApplicationContext()
-    // POST_NOTIFICATIONS: Robolectric по умолчанию НЕ выдаёт runtime-разрешение — выдаём явно.
+    // POST_NOTIFICATIONS: by default Robolectric does NOT grant the runtime permission — we grant it explicitly.
     shadowOf(context as Application).grantPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
     WorkManagerTestInitHelper.initializeTestWorkManager(context)
     db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
@@ -133,7 +133,7 @@ class HeartbeatToolTest {
     assertEquals("cancelled", db.heartbeatDao().getById(id)?.status)
   }
 
-  /** Агент не видит и не отменяет напоминания другого агента: у каждого из ростера свои. */
+  /** An agent neither sees nor cancels another agent's reminders: every roster agent has its own. */
   @Test
   fun `an agent cannot cancel or list another agent's heartbeat`() = runTest {
     holder.set("conv1", testAgent("tasks"))

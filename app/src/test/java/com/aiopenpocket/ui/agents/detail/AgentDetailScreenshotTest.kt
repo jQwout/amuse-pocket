@@ -17,10 +17,10 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Скриншот-эталоны полноэкранного [AgentDetailScreen] (Task 21) — новый baseline, сменяющий
- * удалённые эталоны старой инспектор-шторки (`agent_inspector_*_glass.png`, deleted alongside
- * `AgentInspectorSheet`/`AgentInspectorViewModel`). Рендерит [AgentDetailPreviewScaffold] — тот же
- * визуальный каркас, что и в бою, с фиксированным (не через ViewModel) [AgentDetailState].
+ * Screenshot baselines of the full-screen [AgentDetailScreen] (Task 21) — a new baseline replacing the
+ * deleted baselines of the old inspector sheet (`agent_inspector_*_glass.png`, deleted alongside
+ * `AgentInspectorSheet`/`AgentInspectorViewModel`). Renders [AgentDetailPreviewScaffold] — the same
+ * visual frame as in production, with a fixed (not via a ViewModel) [AgentDetailState].
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -39,9 +39,9 @@ class AgentDetailScreenshotTest {
   }
 
   /**
-   * Длинный (>40 строк) препромпт по умолчанию развёрнут (см. бриф Task 21) — эталон снят ДО клика,
-   * доказывая, что весь текст сразу в потоке скролла, а свёртка — явное действие пользователя, не
-   * дефолт.
+   * A long (>40 lines) system prompt is expanded by default (see the Task 21 brief) — the baseline is taken
+   * BEFORE the click, proving that the whole text is in the scroll flow at once and collapsing is an
+   * explicit user action, not the default.
    */
   @Test
   fun agent_detail_long_prompt_expanded_by_default_glass() {
@@ -62,7 +62,7 @@ class AgentDetailScreenshotTest {
       .captureRoboImage(filePath = "src/test/screenshots/agent_detail_long_prompt_collapsed_glass.png")
   }
 
-  /** Фокус на секции «Инструменты» (рестайл под макет) — она ниже сгиба, полноэкранный кадр её не ловит. */
+  /** A focus on the "Tools" section (restyled to the mockup) — it is below the fold, a full-screen frame does not catch it. */
   @Test
   fun agent_detail_tools_section() {
     composeTestRule.setContent {
@@ -72,7 +72,7 @@ class AgentDetailScreenshotTest {
       .captureRoboImage(filePath = "src/test/screenshots/agent_detail_tools_section.png")
   }
 
-  /** Фокус на секции «Препромпт» (рестайл: header + карточка + инлайн-шеврон). */
+  /** A focus on the "System prompt" section (restyle: header + card + inline chevron). */
   @Test
   fun agent_detail_prompt_section() {
     composeTestRule.setContent { PromptSectionPreview() }
@@ -80,7 +80,7 @@ class AgentDetailScreenshotTest {
       .captureRoboImage(filePath = "src/test/screenshots/agent_detail_prompt_section.png")
   }
 
-  /** Фокус на секции «Heartbeat» (рестайл: header + строки title/лайм-расписание/описание). */
+  /** A focus on the "Heartbeat" section (restyle: header + rows of title/lime schedule/description). */
   @Test
   fun agent_detail_heartbeat_section() {
     composeTestRule.setContent { HeartbeatSectionPreview() }
@@ -88,7 +88,7 @@ class AgentDetailScreenshotTest {
       .captureRoboImage(filePath = "src/test/screenshots/agent_detail_heartbeat_section.png")
   }
 
-  /** Фокус на стат-плитках (рестайл: uppercase-метка сверху, крупное значение снизу). */
+  /** A focus on the stat tiles (restyle: an uppercase label on top, a large value below). */
   @Test
   fun agent_detail_stat_tiles() {
     composeTestRule.setContent { StatTilesPreview() }
@@ -96,7 +96,7 @@ class AgentDetailScreenshotTest {
       .captureRoboImage(filePath = "src/test/screenshots/agent_detail_stat_tiles.png")
   }
 
-  /** Фокус на секции «Хуки» (рестайл: сводная карточка «N из M включены», сворачиваемая). */
+  /** A focus on the "Hooks" section (restyle: a collapsible summary card "N of M enabled"). */
   @Test
   fun agent_detail_hooks_section() {
     composeTestRule.setContent { HooksSectionPreview() }

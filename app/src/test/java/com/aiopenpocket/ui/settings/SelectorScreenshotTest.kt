@@ -28,10 +28,10 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Эталоны селекторов настроек. До этого вёрстка выбора не была прикрыта ничем, а выглядела она
- * разнородно: «Модель»/«Тема» открывали стоковый `DropdownMenu` (плоская непрозрачная панель поверх
- * авроры), «Персона» — стеклянный лист. Теперь у всех трёх одна строка и один лист, и эти два
- * эталона это фиксируют.
+ * Baselines of the settings selectors. Before this the choice layout was not covered by anything, and it
+ * looked inconsistent: "Model"/"Theme" opened a stock `DropdownMenu` (a flat opaque panel over the
+ * aurora), "Persona" a glass sheet. Now all three have one row and one sheet, and these two baselines pin
+ * that down.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -40,7 +40,7 @@ class SelectorScreenshotTest {
 
   @get:Rule val composeTestRule = createComposeRule()
 
-  /** Все три строки рядом — доказательство, что они одной формы, а не «примерно похожи». */
+  /** All three rows side by side — proof that they have one shape, not "roughly similar" ones. */
   @Test
   fun settings_selector_rows_dark() {
     composeTestRule.setContent {
@@ -83,8 +83,8 @@ class SelectorScreenshotTest {
   }
 
   /**
-   * Содержимое листа выбора. Снимаем [SelectorSheetContent], а не [SelectorSheet]: сам
-   * `ModalBottomSheet` — popup-окно, и `onRoot()` его не захватывает.
+   * The content of the choice sheet. We capture [SelectorSheetContent], not [SelectorSheet]: the
+   * `ModalBottomSheet` itself is a popup window, and `onRoot()` does not capture it.
    */
   @Test
   fun settings_selector_sheet_dark() {
@@ -112,9 +112,9 @@ class SelectorScreenshotTest {
   }
 
   /**
-   * Дубли в списке не должны ронять лист. Список моделей приходит из каталога стороннего сервиса,
-   * а `LazyColumn` с `key = { it }` на двух одинаковых строках бросает IllegalArgumentException —
-   * то есть настройки переставали бы открываться из-за чужих данных.
+   * Duplicates in the list must not crash the sheet. The model list comes from a third-party service's
+   * catalog, and a `LazyColumn` with `key = { it }` throws IllegalArgumentException on two equal rows —
+   * that is, the settings would stop opening because of someone else's data.
    */
   @Test
   fun duplicate_options_do_not_crash_the_sheet() {

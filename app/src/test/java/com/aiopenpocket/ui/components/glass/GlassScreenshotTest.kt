@@ -56,8 +56,8 @@ class GlassScreenshotTest {
   }
 
   /**
-   * Тот же кадр в светлой теме — исполняемое доказательство переключения: бумажная база,
-   * аврора погашена (пустой список пятен), тинты карточек флипнуты в тёмные.
+   * The same frame in the light theme — executable proof of the switch: a paper base, the aurora turned
+   * off (an empty list of blobs), the card tints flipped to dark.
    */
   @Test fun glass_components_light() {
     composeTestRule.setContent {

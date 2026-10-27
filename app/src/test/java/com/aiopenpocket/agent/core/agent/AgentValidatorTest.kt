@@ -85,8 +85,8 @@ class AgentValidatorTest {
 
   @Test
   fun `a blank icon is allowed - it is decorative, not a blocker`() {
-    // iconFor отдаёт дефолтный значок на неизвестный/пустой ключ, поэтому пустая иконка не мешает
-    // агенту работать. Раньше правило blank_icon_key запрещало публикацию из-за картинки.
+    // iconFor returns the default icon for an unknown/empty key, so an empty icon does not stop the agent
+    // from working. The blank_icon_key rule used to block publishing over a picture.
     assertTrue(validator.validate(validDefinition().copy(iconKey = "")).isEmpty())
   }
 

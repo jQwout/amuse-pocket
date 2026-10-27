@@ -52,9 +52,9 @@ class AgentDefinitionTest {
   }
 
   /**
-   * Пресеты отдают ТОЛЬКО Чат и Рефлексию. Планирование (План/Цель) — привилегия агентов, которых
-   * пользователь собрал сам и явно включил им режимы: раньше полный набор выдавался каждому пресету
-   * одной общей строкой, и Напоминалки с Дневником предлагали целевой режим без всякого смысла.
+   * Presets offer ONLY Chat and Reflection. Planning (Plan/Goal) is a privilege of agents the user built
+   * themselves and explicitly enabled the modes for: the full set used to be handed to every preset in one
+   * shared line, and Reminders and Diary offered goal mode for no reason at all.
    */
   @Test
   fun `toDefinition gives presets chat and reflect only, never planning modes`() {

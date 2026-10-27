@@ -18,13 +18,13 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Учёт расхода: что клиент СПРАШИВАЕТ у провайдера и что кладёт в учёт по итогу вызова.
+ * Spending accounting: what the client ASKS the provider for and what it records as the result of a call.
  *
- * Ради этих чисел учёт и заводился — по ним считаются тарифы, — поэтому проверяется не «метод
- * вызвался», а содержимое записи: замер провайдера должен доезжать дословно, а его молчание —
- * превращаться в честно помеченную оценку, а не в тихий ноль.
+ * These numbers are why accounting was set up in the first place — pricing is calculated from them — so
+ * what is checked is not "the method was called" but the content of the record: the provider's measurement
+ * must arrive verbatim, and its silence must become an honestly labeled estimate, not a quiet zero.
  *
- * Robolectric — из-за `android.util.Log` внутри клиента, как и в соседних тестах клиента.
+ * Robolectric — because of `android.util.Log` inside the client, as in the neighboring client tests.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -50,7 +50,7 @@ class OpenAiCompatClientUsageTest {
     data: [DONE]
   """.trimIndent()
 
-  /** HTTP 200, но ни текста, ни тул-вызова — деградировавшая модель. Промпт при этом оплачен. */
+  /** HTTP 200, but neither text nor a tool call — a degraded model. The prompt has been paid for, though. */
   private val emptySse = """
     data: {"choices":[{"delta":{"role":"assistant"},"finish_reason":null}]}
     data: {"choices":[{"delta":{},"finish_reason":"stop"}]}
@@ -107,15 +107,15 @@ class OpenAiCompatClientUsageTest {
 
     val usage = recorder.recorded.single()
     assertTrue("оценка обязана быть помечена оценкой", usage.estimated)
-    // Ноль означал бы «ход был бесплатным» — оценка обязана дать положительное число.
+    // Zero would mean "the turn was free" — the estimate must give a positive number.
     assertTrue("промпт оценивается по телу запроса", usage.promptTokens > 0)
     assertTrue("ответ оценивается по длине дельт", usage.completionTokens > 0)
     assertNull("цену никто не называл — придумывать её нельзя", usage.costUsd)
   }
 
   /**
-   * Пустой ответ уводит цепочку к следующей модели, но промпт уже улетел и оплачен. Пропускать такие
-   * попытки — прятать самую обидную статью расхода: деньги за молчание.
+   * An empty answer sends the chain to the next model, but the prompt has already gone out and been paid
+   * for. Skipping such attempts would hide the most galling spending item: money for silence.
    */
   @Test
   fun `an empty 200 attempt is still recorded`() = runTest {
@@ -139,7 +139,7 @@ class OpenAiCompatClientUsageTest {
     )
   }
 
-  /** `usage: {"include": true}` — расширение OpenRouter: без него цену в долларах он не назовёт. */
+  /** `usage: {"include": true}` is an OpenRouter extension: without it, it will not name the price in dollars. */
   @Test
   fun `the OpenRouter usage field asks for the price`() = runTest {
     val bodies = mutableListOf<String>()

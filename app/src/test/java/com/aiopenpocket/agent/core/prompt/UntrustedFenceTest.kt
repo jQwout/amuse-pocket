@@ -8,14 +8,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Инвариант «недоверенные данные не могут закрыть свой конверт».
+ * The invariant "untrusted data cannot close its own envelope".
  *
- * Тэговый конверт (`<user_data>`, `<tool_output>`) отделяет данные от инструкций, но держится он
- * ровно до тех пор, пока сами данные не содержат закрывающий тэг. Содержимое туда попадает извне
- * (файл, календарь) и, что важнее, ОТМЫВАЕТСЯ через память: модель прочитала недоверенный текст
- * и положила его в `remember_fact` — дальше он уже приходит как «факт» и подставляется в системный
- * промпт. [ReactLoopRunner] обезвреживал такой текст для `<tool_output>`, а `PrePromptAssembler` для
- * `<user_data>` — нет; эта общая точка убирает расхождение.
+ * A tag envelope (`<user_data>`, `<tool_output>`) separates data from instructions, but it holds only as
+ * long as the data itself does not contain the closing tag. The content comes from outside (a file, the
+ * calendar) and, more importantly, gets LAUNDERED through memory: the model read untrusted text and put it
+ * into `remember_fact` — from then on it arrives as a "fact" and is inserted into the system prompt.
+ * [ReactLoopRunner] defused such text for `<tool_output>`, but `PrePromptAssembler` did not for
+ * `<user_data>`; this shared point removes the mismatch.
  */
 class UntrustedFenceTest {
 

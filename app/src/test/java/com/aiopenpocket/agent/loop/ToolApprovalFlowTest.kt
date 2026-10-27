@@ -160,10 +160,10 @@ class ToolApprovalFlowTest {
     val coordinator = ToolApprovalCoordinator()
     val runner = runner(ScriptedLlm(toolCallThenStop("fake_tool")), toolRegistry, coordinator)
 
-    // Dispatchers.Default, а не виртуальные часы runTest: пока тело теста ждёт публикации запроса,
-    // runTest перематывает время вперёд и 120-секундный таймаут approval-а срабатывает мгновенно —
-    // ход отказывался ждать ещё до resolve(), и оба теста ниже проверяли бы таймаут вместо решения
-    // пользователя (deny-тест так и проходил — по неверной причине). Здесь нужны реальные часы.
+    // Dispatchers.Default, not runTest's virtual clock: while the test body waits for the request to be
+    // published, runTest winds time forward and the 120-second approval timeout fires instantly — the turn
+    // gave up waiting even before resolve(), and both tests below would check the timeout instead of the
+    // user's decision (the deny test did pass that way — for the wrong reason). A real clock is needed here.
     val resultDeferred = async(Dispatchers.Default) {
       runner.run(
         conversationId = "c1",
@@ -195,10 +195,10 @@ class ToolApprovalFlowTest {
     val coordinator = ToolApprovalCoordinator()
     val runner = runner(ScriptedLlm(toolCallThenStop("fake_tool")), toolRegistry, coordinator)
 
-    // Dispatchers.Default, а не виртуальные часы runTest: пока тело теста ждёт публикации запроса,
-    // runTest перематывает время вперёд и 120-секундный таймаут approval-а срабатывает мгновенно —
-    // ход отказывался ждать ещё до resolve(), и оба теста ниже проверяли бы таймаут вместо решения
-    // пользователя (deny-тест так и проходил — по неверной причине). Здесь нужны реальные часы.
+    // Dispatchers.Default, not runTest's virtual clock: while the test body waits for the request to be
+    // published, runTest winds time forward and the 120-second approval timeout fires instantly — the turn
+    // gave up waiting even before resolve(), and both tests below would check the timeout instead of the
+    // user's decision (the deny test did pass that way — for the wrong reason). A real clock is needed here.
     val resultDeferred = async(Dispatchers.Default) {
       runner.run(
         conversationId = "c1",
@@ -247,15 +247,15 @@ class ToolApprovalFlowTest {
     val coordinator = ToolApprovalCoordinator()
     val runner = runner(ScriptedLlm(toolCallThenStop("calendar")), toolRegistry, coordinator)
 
-    // Реальные часы по той же причине, что и в тестах выше: виртуальное время runTest мгновенно
-    // «дождалось» бы двухминутного таймаута approval-а.
+    // A real clock for the same reason as in the tests above: runTest's virtual time would instantly
+    // "wait out" the two-minute approval timeout.
     val resultDeferred = async(Dispatchers.Default) {
       runner.run(
         conversationId = "c1",
         messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
         tools = toolRegistry.getAllSchemas(),
         provider = LlmProvider.OPENROUTER,
-        agent = null, // обычный чат: ни агента, ни хуков — пол обязан сработать сам
+        agent = null, // a plain chat: no agent, no hooks — the floor must work on its own
       ) { }
     }
 

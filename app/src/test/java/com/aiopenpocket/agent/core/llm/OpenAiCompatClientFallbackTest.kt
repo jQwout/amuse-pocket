@@ -16,19 +16,21 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Контракт фолбэка [OpenAiCompatClient]: какой ответ считается поводом взять следующую модель цепочки.
+ * The [OpenAiCompatClient] fallback contract: which response counts as a reason to take the next model in
+ * the chain.
  *
- * Живой баг (2026-07-13): NIM отдал HTTP 200 и закрыл стрим, не прислав ни content, ни tool-call, ни
- * reasoning (`textChars=0 toolCalls=0 finish=stop`). Клиент считал это успехом и завершал ход пустотой,
- * хотя ниже по цепочке ждали пять живых моделей — пользователь видел пустое сообщение.
+ * A live bug (2026-07-13): NIM returned HTTP 200 and closed the stream without sending any content,
+ * tool call or reasoning (`textChars=0 toolCalls=0 finish=stop`). The client treated it as success and
+ * ended the turn with nothing, although five live models were waiting further down the chain — the user
+ * saw an empty message.
  *
- * Robolectric — ради `android.util.Log` внутри клиента (в чистом JUnit он бросает not-mocked).
+ * Robolectric — for the sake of `android.util.Log` inside the client (in plain JUnit it throws not-mocked).
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class OpenAiCompatClientFallbackTest {
 
-  /** Ответ ровно как у сломавшегося deepseek-v4-flash: role-чанк, finish и ничего больше. */
+  /** A response exactly like the broken deepseek-v4-flash one: a role chunk, finish and nothing else. */
   private val emptySse = """
     data: {"choices":[{"delta":{"role":"assistant"},"finish_reason":null}]}
     data: {"choices":[{"delta":{},"finish_reason":"stop"}]}
@@ -48,7 +50,7 @@ class OpenAiCompatClientFallbackTest {
     apiKeyResolver = { "test-key" },
   )
 
-  /** Обе модели живут на одном endpoint, поэтому движок различает их по полю `model` в теле запроса. */
+  /** Both models live on one endpoint, so the engine tells them apart by the `model` field in the request body. */
   private fun engineFor(bodyByModel: Map<String, String>, calls: MutableList<String>) = MockEngine { request ->
     val body = (request.body as TextContent).text
     val model = bodyByModel.keys.first { body.contains("\"model\":\"$it\"") }
@@ -76,7 +78,7 @@ class OpenAiCompatClientFallbackTest {
 
     val events = client.streamChat(emptyList(), emptyList(), LlmProvider.OPENROUTER).toList()
 
-    // Пустой 200 — не ответ: ход обязан доехать до следующей модели, а не закончиться пустотой.
+    // An empty 200 is not an answer: the turn must reach the next model, not end with nothing.
     assertEquals(listOf("empty-model", "good-model"), calls)
     val text = events.filterIsInstance<StreamEvent.TextDelta>().joinToString("") { it.content }
     assertEquals("Привет", text)
@@ -93,7 +95,7 @@ class OpenAiCompatClientFallbackTest {
 
     client.streamChat(emptyList(), emptyList(), LlmProvider.OPENROUTER).toList()
 
-    // Инвариант: получив реальный ответ, дальше по цепочке не идём (иначе склеим два ответа в один).
+    // Invariant: once a real answer arrives, we do not go further down the chain (or we would glue two answers into one).
     assertEquals(listOf("good-model"), calls)
   }
 
@@ -113,7 +115,7 @@ class OpenAiCompatClientFallbackTest {
 
     val events = client.streamChat(emptyList(), emptyList(), LlmProvider.OPENROUTER).toList()
 
-    // Отказ в самом запросе получит и следующая модель — гонять цепочку незачем.
+    // The next model would get a refusal of the request itself too — no point running the chain.
     assertEquals(listOf("rejecting-model"), calls)
     val error = events.single() as StreamEvent.Error
     assertEquals("400", error.code)
@@ -149,7 +151,7 @@ class OpenAiCompatClientFallbackTest {
 
     val events = client.streamChat(emptyList(), emptyList(), LlmProvider.OPENROUTER).toList()
 
-    // Цепочка исчерпана — пользователь должен увидеть ошибку, а не немой экран.
+    // The chain is exhausted — the user must see an error, not a silent screen.
     assertEquals(listOf("empty-1", "empty-2"), calls)
     assertTrue("исчерпанная цепочка обязана дать Error", events.any { it is StreamEvent.Error })
   }

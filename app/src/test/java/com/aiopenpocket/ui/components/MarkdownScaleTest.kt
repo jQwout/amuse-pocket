@@ -33,7 +33,7 @@ class MarkdownScaleTest {
 
   @Test
   fun `em-relative lineHeight is left as-is, not multiplied`() {
-    // lineHeight в em масштабируется автоматически вместе с fontSize — второй раз множить нельзя.
+    // lineHeight in em scales automatically together with fontSize — it must not be multiplied a second time.
     val base = TextStyle(fontSize = 14.sp, lineHeight = 1.4.em)
     val scaled = base.scaledBy(1.3f)
     assertEquals(18.2f, scaled.fontSize.value, 0.001f)

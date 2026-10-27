@@ -20,10 +20,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Клиент Muse Image: что уходит провайдеру и что считается картинкой.
+ * The Muse Image client: what goes to the provider and what counts as an image.
  *
- * Главное здесь — что клиент никогда не бросает и не шлёт лишнего: картинка в уроке необязательна,
- * а неизвестный параметр у строгого провайдера превращает её в 400.
+ * The main thing here is that the client never throws and never sends anything extra: an image in a
+ * lesson is optional, and an unknown parameter turns it into a 400 at a strict provider.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -65,11 +65,11 @@ class ImageGenClientTest {
     assertEquals("image/png", image?.mediaType)
     assertEquals(ImageGenClient.OPENROUTER_IMAGES_URL, url)
     assertEquals("Bearer sk-test", auth)
-    // Ровно два поля: у meta/muse-image на OpenRouter нет ни одного объявленного параметра.
+    // Exactly two fields: meta/muse-image on OpenRouter has no declared parameters at all.
     assertEquals("""{"model":"meta/muse-image","prompt":"a red panda"}""", body)
   }
 
-  /** Без ключа запрос гарантированно получит 401 — его не должно быть вовсе. */
+  /** Without a key the request is guaranteed to get a 401 — it must not be sent at all. */
   @Test
   fun `no key means no request`() = runTest {
     var calls = 0
@@ -96,7 +96,7 @@ class ImageGenClientTest {
     assertNull(ImageGenClient(json("""не json"""), { "k" }, NoOpLlmUsageRecorder).generate("p"))
   }
 
-  /** Картинка — платный вызов: она должна попасть в ту же карточку расхода, что и ходы чата. */
+  /** An image is a paid call: it must land in the same spending card as the chat turns. */
   @Test
   fun `a generated image is recorded with the provider's cost`() = runTest {
     val usage = RecordingUsage()

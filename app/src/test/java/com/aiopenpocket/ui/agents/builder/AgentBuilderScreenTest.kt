@@ -100,10 +100,10 @@ class AgentBuilderScreenTest {
   // --- Next / identity ---------------------------------------------------------------------------
 
   /**
-   * Валидация «по кнопке»: на невалидном шаге «Далее» остаётся НАЖИМАЕМОЙ — она и есть триггер
-   * проверки. Раньше кнопка гасла, и вместе с ошибками, показанными сразу на пустом черновике, это
-   * давало мёртвый экран: нажать нечего, а чего от тебя хотят — непонятно. Сам отказ и показ ошибок
-   * живут во ViewModel (`nextStep` поднимает `showErrors`) — см. AgentBuilderViewModelTest.
+   * Validation "on the button": on an invalid step "Next" stays CLICKABLE — it is the very trigger of the
+   * check. The button used to go disabled, and together with errors shown right away on an empty draft
+   * that made a dead screen: nothing to press, and no clue what is wanted from you. The refusal itself and
+   * showing the errors live in the ViewModel (`nextStep` raises `showErrors`) — see AgentBuilderViewModelTest.
    */
   @Test
   fun next_stays_pressable_on_an_invalid_step() {
@@ -135,7 +135,7 @@ class AgentBuilderScreenTest {
     )
   }
 
-  /** До нажатия «Далее» инлайн-ошибки молчат: свежий черновик не встречает пользователя красным. */
+  /** Before "Next" is pressed the inline errors stay quiet: a fresh draft does not greet the user in red. */
   @Test
   fun step_errors_are_hidden_before_next_is_pressed() {
     render(state = blankIdentityState(showErrors = false))
@@ -143,7 +143,7 @@ class AgentBuilderScreenTest {
     composeTestRule.onNodeWithText("Имя агента не может быть пустым").assertDoesNotExist()
   }
 
-  /** После нажатия «Далее» (ViewModel поднял showErrors) те же ошибки показаны. */
+  /** After "Next" is pressed (the ViewModel raised showErrors) the same errors are shown. */
   @Test
   fun step_errors_appear_once_next_was_pressed() {
     render(state = blankIdentityState(showErrors = true))
@@ -152,9 +152,9 @@ class AgentBuilderScreenTest {
   }
 
   /**
-   * Эталон стеклянной обвязки визарда (Liquid Glass): полотно шага занимает ВЕСЬ экран, а заголовок
-   * с прогрессом и «Назад/Далее» — плавающие острова поверх него. До этого у конструктора не было
-   * ни одного скриншот-теста, поэтому его вёрстка вообще ничем не была прикрыта.
+   * The baseline of the wizard's glass chrome (Liquid Glass): the step's canvas takes the WHOLE screen, and
+   * the header with progress and "Back/Next" are floating islands over it. Before this the builder had not a
+   * single screenshot test, so its layout was not covered by anything at all.
    */
   @Test
   fun builder_glass_chrome_screenshot() {
@@ -236,7 +236,7 @@ class AgentBuilderScreenTest {
     composeTestRule.onNodeWithTag("agent_builder_publish").assertIsEnabled()
   }
 
-  /** Сразу после публикации публиковать нечего: «Опубликовать изменения» под «Агент опубликован» не нужна. */
+  /** Right after publishing there is nothing to publish: "Publish changes" is not needed under "Agent published". */
   @Test
   fun publish_button_is_hidden_right_after_publishing() {
     val draft = validDraft().copy(status = AgentStatus.PUBLISHED)
@@ -253,7 +253,7 @@ class AgentBuilderScreenTest {
     composeTestRule.onNodeWithTag("agent_builder_publish").assertDoesNotExist()
   }
 
-  /** Пробный прогон ничего не выполняет по-настоящему — трасса не должна выдавать имитацию за «ок». */
+  /** A trial run does not really execute anything — the trace must not pass off the imitation as "ok". */
   @Test
   fun simulated_call_reads_as_imitation_in_the_test_trace() {
     val state = AgentBuilderUiState(draft = validDraft(), step = BuilderStep.TEST, isLoading = false)
@@ -286,8 +286,8 @@ class AgentBuilderScreenTest {
     )
 
     // calendar: DESTRUCTIVE risk, in the default (non-"Advanced tools") set - must gate on consent.
-    // performScrollTo обязателен: «Календарь» девятый в списке и лежит НИЖЕ сгиба, а клик по узлу за
-    // пределами вьюпорта молча промахивается (диалог не открывался, а тест винил продуктовый код).
+    // performScrollTo is required: "Calendar" is ninth in the list and lies BELOW the fold, and a click on a
+    // node outside the viewport silently misses (the dialog did not open, and the test blamed product code).
     composeTestRule.onNodeWithTag("agent_builder_tool_calendar").performScrollTo().performClick()
     composeTestRule.onNodeWithText("Включить «Календарь»?").assertExists()
     assertEquals("must not update the draft before the dialog is answered", 0, updateCalls)
@@ -385,7 +385,7 @@ class AgentBuilderScreenTest {
   /**
    * An authored custom skill must be listed with a way to delete it. Without that row the only
    * evidence of a custom skill was its id in `skillIds`, which no control could reach — so a
-   * mistyped one blocked «Далее»/«Опубликовать» with no way out but abandoning the draft.
+   * mistyped one blocked "Next"/"Publish" with no way out but abandoning the draft.
    */
   @Test
   fun capabilities_step_lists_an_authored_custom_skill_and_offers_to_delete_it() {
@@ -401,7 +401,7 @@ class AgentBuilderScreenTest {
     composeTestRule.onNodeWithContentDescription("Удалить навык").assertExists()
   }
 
-  /** The memory rail moved onto «Возможности» (design spec 11.2) and now names the real namespace. */
+  /** The memory rail moved onto "Capabilities" (design spec 11.2) and now names the real namespace. */
   @Test
   fun capabilities_step_shows_the_agents_own_memory_namespace() {
     render(state = capabilitiesState(validDraft(id = "agent-mem-1")), availableSkillIds = setOf("budget"))
@@ -452,7 +452,7 @@ class AgentBuilderScreenTest {
     )
 
     composeTestRule.onNodeWithTag("agent_builder_tool_trace").assertExists()
-    // Журнал зовёт тул по-человечески, сырой id `calendar` на экран не попадает.
+    // The log calls the tool by its human name; the raw id `calendar` does not reach the screen.
     composeTestRule.onNodeWithText("Календарь", substring = true).assertExists()
     composeTestRule.onNodeWithText("calendar", substring = true).assertDoesNotExist()
   }
@@ -470,8 +470,9 @@ class AgentBuilderScreenTest {
   }
 
   /**
-   * Хук «Требовать подтверждение» ставит вызов на ожидание и в тестовом прогоне. Без бара на шаге
-   * «Проверка» ответить было негде, и ход молча висел две минуты до таймаута координатора.
+   * The "Require approval" hook puts the call on hold in a test run too. Without the bar on the "Test"
+   * step there was nowhere to answer, and the turn silently hung for two minutes until the coordinator's
+   * timeout.
    */
   @Test
   fun test_step_shows_the_tool_approval_bar_and_forwards_the_answer() {
@@ -490,13 +491,13 @@ class AgentBuilderScreenTest {
     )
 
     composeTestRule.onNodeWithText("Агенту нужно разрешение").assertExists()
-    // Бар называет тул так же, как конструктор, а не сырым `calendar`.
+    // The bar names the tool the same way the builder does, not as the raw `calendar`.
     composeTestRule.onNodeWithText("Календарь").assertExists()
     composeTestRule.onNodeWithText("Отклонить").performScrollTo().performClick()
     assertEquals(false, answer)
   }
 
-  /** После успешной публикации — подтверждение и переход в чат агента. */
+  /** After a successful publish — a confirmation and a jump to the agent's chat. */
   @Test
   fun test_step_confirms_a_publish_and_offers_to_open_the_chat() {
     var openChatClicks = 0

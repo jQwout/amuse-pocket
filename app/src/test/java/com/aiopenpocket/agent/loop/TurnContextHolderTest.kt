@@ -53,8 +53,8 @@ class TurnContextHolderTest {
     assertEquals("reminders", holder.agentId)
   }
 
-  // Гарантия против гонки: TurnManager гоняет ходы разных диалогов параллельно. Каждый ход в своей
-  // обёртке contextElement должен видеть СВОЙ conversationId/agent, даже перескочив на другой поток.
+  // A guarantee against a race: TurnManager runs turns of different conversations in parallel. Each turn
+  // in its own contextElement wrapper must see ITS OWN conversationId/agent, even after hopping to another thread.
   @Test
   fun `contextElement isolates concurrent turns`() = runTest {
     val holder = TurnContextHolder()
@@ -63,13 +63,13 @@ class TurnContextHolderTest {
     val results = listOf("A" to budget, "B" to diary).map { (conv, agentDef) ->
       async(Dispatchers.Default) {
         withContext(holder.contextElement(conv, agentDef)) {
-          yield() // спровоцировать возможный перескок потока внутри хода
+          yield() // provoke a possible thread hop inside the turn
           holder.conversationId to holder.agent?.id
         }
       }
     }.awaitAll()
     assertEquals(listOf("A" to "budget", "B" to "diary"), results)
-    assertNull(holder.conversationId) // вне обёртки контекст снова пуст
+    assertNull(holder.conversationId) // outside the wrapper the context is empty again
     assertNull(holder.agent)
   }
 }

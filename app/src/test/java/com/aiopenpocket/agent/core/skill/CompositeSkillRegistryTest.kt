@@ -69,11 +69,11 @@ class CompositeSkillRegistryTest {
   fun setUp() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
-      // Прямой исполнитель (запрос выполняется на вызывающем потоке), а не пул Room. Иначе suspend-DAO
-      // уходит на чужой поток, тестовый диспетчер runTest остаётся без работы и промотывает ВИРТУАЛЬНОЕ
-      // время вперёд — а `attemptLoadSkill` ниже гоняет настоящий ToolExecutor, у которого теперь есть
-      // withTimeoutOrNull(TOOL_TIMEOUT_MS). Тул отрабатывал за микросекунды реального времени и всё
-      // равно получал таймаут: 30 виртуальных секунд «проходили», пока Room работал на своём потоке.
+      // A direct executor (the query runs on the calling thread), not Room's pool. Otherwise the suspend DAO
+      // goes to another thread, runTest's test dispatcher is left without work and skips VIRTUAL time
+      // forward — and `attemptLoadSkill` below drives the real ToolExecutor, which now has
+      // withTimeoutOrNull(TOOL_TIMEOUT_MS). The tool finished in microseconds of real time and still got a
+      // timeout: 30 virtual seconds "passed" while Room worked on its own thread.
       .setQueryExecutor(Runnable::run)
       .setTransactionExecutor(Runnable::run)
       .allowMainThreadQueries()

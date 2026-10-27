@@ -33,7 +33,7 @@ class ThemeRepositoryTest {
   @Test fun persistsAcrossInstances() {
     clearPrefs()
     ThemeRepository(context).setMode(ThemeMode.LIGHT)
-    // Новый инстанс читает уже сохранённое значение из prefs.
+    // A new instance reads the already saved value from prefs.
     assertEquals(ThemeMode.LIGHT, ThemeRepository(context).mode.value)
   }
 

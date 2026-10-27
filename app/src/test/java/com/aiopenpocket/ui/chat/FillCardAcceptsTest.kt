@@ -11,10 +11,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Проверка ответа fill-шага. Раньше засчитывалось только точное слово из `answer`, и верный по смыслу
- * ответ («деталей» вместо «конкретики») запирал ученика в уроке: у fill нет кнопки «Дальше».
+ * Checking a fill step's answer. Only the exact word from `answer` used to count, and an answer right in
+ * meaning («деталей» instead of «конкретики») locked the learner in the lesson: fill has no "Next" button.
  */
-// Robolectric — ради реального org.json в тестах парсинга карточки (на голом JVM он заглушка).
+// Robolectric — for the real org.json in the card parsing tests (on a bare JVM it is a stub).
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class FillCardAcceptsTest {

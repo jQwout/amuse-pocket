@@ -26,7 +26,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** TurnManager тестируется на скриптовых фейках портов: без LLM, без Room, без Android. */
+/** TurnManager is tested on scripted fakes of its ports: no LLM, no Room, no Android. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TurnManagerTest {
 
@@ -48,13 +48,13 @@ class TurnManagerTest {
       val systemPromptExtra: String? = null,
     )
 
-    /** Провайдеры, с которыми менеджер звал исполнителя, — по одному на ход. */
+    /** The providers the manager called the executor with — one per turn. */
     val providers = mutableListOf<LlmProvider>()
 
     val calls = mutableListOf<Call>()
     var cancelledCollections = 0
 
-    /** Скрипт хода: по вызову отдаёт flow событий. По умолчанию — мгновенный пустой финиш. */
+    /** The turn script: returns a flow of events per call. By default an instant empty finish. */
     var script: (Call) -> Flow<AgentEvent> = { flowOf(AgentEvent.Completed(finished(""))) }
 
     override fun execute(
@@ -106,7 +106,7 @@ class TurnManagerTest {
   }
 
   private class FakeLifeSupport : TurnLifeSupport {
-    /** false — система отказала в защите (типичный случай: старт из фона). */
+    /** false — the system refused protection (the typical case: a start from the background). */
     var grant = true
     val acquired = mutableListOf<String>()
     val released = mutableListOf<String>()
@@ -125,7 +125,7 @@ class TurnManagerTest {
       this.handler = handler
     }
 
-    /** Имитирует системный onTimeout сервиса. */
+    /** Simulates the service's system onTimeout. */
     fun loseProtection(ids: Set<String>) = handler?.invoke(ids)
   }
 
@@ -135,12 +135,12 @@ class TurnManagerTest {
   private val lifeSupport = FakeLifeSupport()
   private var inForeground = true
 
-  /** Что «выбрано в Настройках» на момент хода: тест меняет это между ходами. */
+  /** What is "chosen in Settings" at the time of the turn: the test changes it between turns. */
   private var selectedProvider = LlmProvider.OPENROUTER
 
-  // Скоуп менеджера на UnconfinedTestDispatcher(testScheduler): ходы исполняются жадно на том же
-  // виртуальном планировщике, что и тест, — advanceUntilIdle() догоняет любые задержки. Job берём
-  // от backgroundScope, чтобы «вечные» ходы (awaitCancellation) гасились по завершении теста.
+  // The manager's scope is on UnconfinedTestDispatcher(testScheduler): turns run eagerly on the same
+  // virtual scheduler as the test — advanceUntilIdle() catches up with any delays. The Job is taken
+  // from backgroundScope so that "eternal" turns (awaitCancellation) are killed when the test ends.
   private fun TestScope.manager() = TurnManager(
     executor = executor,
     persistence = persistence,
@@ -248,8 +248,8 @@ class TurnManagerTest {
 
   @Test
   fun `во время работы инструмента пузырь показывает прогресс, а не преамбулу`() = runTest {
-    // Ход с инструментом: преамбула первого витка, затем EXECUTING_TOOL + ToolStarted, и застываем
-    // на исполнении инструмента. Проверяем ровно то, что видит пользователь в этот момент.
+    // A turn with a tool: the first round's preamble, then EXECUTING_TOOL + ToolStarted, and we freeze on
+    // the tool's execution. We check exactly what the user sees at that moment.
     executor.script = {
       flow {
         emit(AgentEvent.StateChanged(AgentState.STREAMING))
@@ -264,9 +264,9 @@ class TurnManagerTest {
     m.launchTurn("c1", "найди мои заметки", AgentMode.CHAT)
     advanceUntilIdle()
 
-    // Регрессия: раньше в этот момент оставалась преамбула (а на следующем витке гасла в пустоту —
-    // «ответ пишется, потом затирается»). Теперь на месте пузыря — прогресс с именем инструмента
-    // (человеческим, из CapabilityNames, а не сырым id).
+    // Regression: the preamble used to stay at this moment (and on the next round it faded into nothing —
+    // "the answer is being written, then gets wiped"). Now the bubble's place holds progress with the
+    // tool's name (the human one, from CapabilityNames, not the raw id).
     val shown = m.sessions.value.getValue("c1").streamingText.value
     assertTrue("ожидали прогресс инструмента, а пузырь показывал: '$shown'", shown.startsWith("Использую инструмент"))
     assertTrue("ожидали имя инструмента, а пузырь показывал: '$shown'", shown.contains(CapabilityNames.call("search_files", emptyMap())))
@@ -306,7 +306,8 @@ class TurnManagerTest {
 
   @Test
   fun `Error упавшего GOAL-шага пишет его ответ в чат и остаётся ошибкой с canRetry`() = runTest {
-    // Раньше FAILED на foreground-пути нёс только текст ошибки: ответ шага (фон его сохраняет) терялся.
+    // FAILED on the foreground path used to carry only the error text: the step's answer (the background
+    // path saves it) was lost.
     val output = com.aiopenpocket.agent.core.plan.execution.PlanStepOutput(
       stepId = "menu",
       title = "Составить меню",
@@ -351,7 +352,7 @@ class TurnManagerTest {
   }
 
   /**
-   * Task 10 (structured-plan-engine-907066): TurnManager.approvePlan (magic-message «Одобряю план,
+   * Task 10 (structured-plan-engine-907066): TurnManager.approvePlan (the magic message «Одобряю план,
    * выполни его по шагам.» triggering a tool-using turn) is gone — approval is now a typed
    * PlanCommands.approve(planId, version) call that never touches TurnManager at all (see
    * ChatViewModel.approvePlanCommand / PlanApprovalTest). What remains TurnManager's job is that
@@ -390,10 +391,10 @@ class TurnManagerTest {
 
   @Test
   fun `после Stop следующий ход ждёт, пока остановленный доработает`() = runTest {
-    // Остановленный ход дописывает что-то уже после отмены (NonCancellable-хвост записи). Раньше
-    // Stop убирал сессию вместе с job, и новый ход стартовал сразу — параллельно с этим хвостом.
-    // Хвост держим воротами, а не delay: ходы живут в backgroundScope, а advanceUntilIdle не двигает
-    // виртуальное время ради фоновых задач — delay в хвосте не истёк бы никогда.
+    // The stopped turn writes something after cancellation (the NonCancellable tail of the write). Stop used
+    // to remove the session together with the job, and a new turn started at once — in parallel with that
+    // tail. The tail is held by a gate, not a delay: turns live in backgroundScope, and advanceUntilIdle
+    // does not move virtual time for background tasks — a delay in the tail would never expire.
     val order = mutableListOf<String>()
     val tailGate = kotlinx.coroutines.CompletableDeferred<Unit>()
     executor.script = { call ->
@@ -442,7 +443,7 @@ class TurnManagerTest {
     advanceUntilIdle()
 
     val assistant = persistence.rows.single { it.role == "assistant" }
-    assertTrue(assistant.content.contains("2")) // версия
+    assertTrue(assistant.content.contains("2")) // version
     val status = m.sessions.value.getValue("c1").status.value as TurnStatus.Completed
     assertNull(status.error)
     assertTrue(!status.canRetry)
@@ -471,7 +472,8 @@ class TurnManagerTest {
 
   @Test
   fun `PlanProgressed пишет ответ шага и его карточки до строки прогресса`() = runTest {
-    // Раньше в чат шла только строка прогресса: сам ответ шага («меню на неделю») не сохранялся нигде.
+    // Only the progress line used to go to the chat: the step's answer itself ("a menu for the week") was
+    // saved nowhere.
     val output = com.aiopenpocket.agent.core.plan.execution.PlanStepOutput(
       stepId = "menu",
       title = "Составить меню",
@@ -498,7 +500,7 @@ class TurnManagerTest {
     assertTrue(assistant[0].content.contains("Составить меню") && assistant[0].content.contains("Понедельник: гречка"))
     assertEquals("card-1", assistant[0].cardSpec)
     assertEquals("" to "card-2", assistant[1].content to assistant[1].cardSpec)
-    // Строка прогресса — по названию шага, без id.
+    // The progress line is by the step's title, without the id.
     assertEquals("Шаг «Составить меню» выполнен. Продолжу следующим запуском.", assistant[2].content)
     val status = m.sessions.value.getValue("c1").status.value as TurnStatus.Completed
     assertEquals(assistant[2].id, status.insertedMessageId)
@@ -589,24 +591,24 @@ class TurnManagerTest {
 
     m.markSeen("c1")
     advanceUntilIdle()
-    assertTrue(m.sessions.value.containsKey("c1")) // Running не трогаем
+    assertTrue(m.sessions.value.containsKey("c1")) // Running is left alone
 
     executor.script = { flowOf(AgentEvent.Completed(finished("готово"))) }
     m.launchTurn("c1", "ещё вопрос", AgentMode.CHAT)
     advanceUntilIdle()
     m.markSeen("c1")
     advanceUntilIdle()
-    assertNull(m.sessions.value["c1"]) // чистое Completed — убрали
+    assertNull(m.sessions.value["c1"]) // a clean Completed — removed
 
-    // Task 5 (structured-plan-engine-907066): «ждёт ли план решения» больше не поле TurnStatus.Completed
-    // этой сессии (см. TurnManager.markSeen kdoc) — оно состояние PlanRepository. Чисто завершённая
-    // план-фаза больше не держит сессию особняком от CHAT и тоже убирается markSeen.
+    // Task 5 (structured-plan-engine-907066): "does the plan await a decision" is no longer a field of this
+    // session's TurnStatus.Completed (see the TurnManager.markSeen kdoc) — it is PlanRepository state. A
+    // cleanly completed plan phase no longer keeps the session apart from CHAT and is removed by markSeen too.
     executor.script = { flowOf(AgentEvent.Completed(finished("1. план"))) }
     m.launchTurn("c1", "сделай X", AgentMode.PLAN)
     advanceUntilIdle()
     m.markSeen("c1")
     advanceUntilIdle()
-    assertNull(m.sessions.value["c1"]) // чисто завершённая план-фаза тоже убирается
+    assertNull(m.sessions.value["c1"]) // a cleanly completed plan phase is removed too
   }
 
   @Test
@@ -621,7 +623,7 @@ class TurnManagerTest {
     m.launchTurn("b", "вопрос", AgentMode.CHAT)
     advanceUntilIdle()
 
-    // badges — производный Flow: сессии уже наполнены, поэтому первая же эмиссия несёт оба статуса.
+    // badges is a derived Flow: the sessions are already filled, so the very first emission carries both statuses.
     val snapshot = m.badges.first()
 
     assertTrue(snapshot["a"] is TurnStatus.Running)
@@ -662,7 +664,7 @@ class TurnManagerTest {
     assertEquals("сеть упала", shown.preview)
   }
 
-  // --- Защита хода на время исполнения (spec 2026-07-28-turn-foreground-service-design) ---------
+  // --- Protecting the turn while it runs (spec 2026-07-28-turn-foreground-service-design) --------------
 
   @Test
   fun `ход берёт защиту перед стартом и отпускает после завершения`() = runTest {

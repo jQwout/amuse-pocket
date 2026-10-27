@@ -10,12 +10,11 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
- * Сид-каталог OpenRouter РЕАЛЬНО парсится из ассетов.
+ * The OpenRouter seed catalog REALLY parses from the assets.
  *
- * Загрузчик по устройству отказывает молча: опечатка в JSON — и `load()` возвращает fallback из
- * одной модели, залогировав warning, который никто не читает. Со стороны это выглядит как «в
- * Настройках почему-то одна модель», а не как сломанный файл. Здесь эта тишина становится красным
- * тестом.
+ * By design the loader fails silently: a typo in the JSON — and `load()` returns a one-model fallback,
+ * having logged a warning nobody reads. From the outside it looks like "for some reason Settings has one
+ * model", not like a broken file. Here that silence becomes a red test.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -33,8 +32,8 @@ class ModelCatalogLoaderTest {
   }
 
   /**
-   * У OpenRouter id модели всегда `вендор/модель` — без префикса запрос уходит в 404, а фолбэк
-   * по цепочке молча спрячет это за следующей моделью.
+   * On OpenRouter a model id is always `vendor/model` — without the prefix the request goes to a 404, and
+   * the fallback along the chain silently hides it behind the next model.
    */
   @Test
   fun `OpenRouter model ids are vendor-prefixed`() {
@@ -42,20 +41,20 @@ class ModelCatalogLoaderTest {
     assertEquals(emptyList<String>(), bad)
   }
 
-  /** Каталог без единой tools-модели оставил бы агента без инструментов — это не конфигурация, это баг. */
+  /** A catalog without a single tools model would leave the agent without tools — that is not configuration, it is a bug. */
   @Test
   fun `seed offers tool-capable models`() {
     assertTrue(loader.loadOpenRouterSeed().models.any { it.supportsTools })
   }
 
-  /** Сид — первый запуск и офлайн: чужая модель в нём была бы выбором, который цепочка молча отбросит. */
+  /** The seed is the first launch and offline: a foreign model in it would be a choice the chain silently drops. */
   @Test
   fun `seed holds only Meta models`() {
     val foreign = loader.loadOpenRouterSeed().models.map { it.name }.filterNot(::isMetaModel)
     assertEquals(emptyList<String>(), foreign)
   }
 
-  /** Каталог прямого Meta Model API так же молча упал бы на fallback из одной модели при опечатке. */
+  /** The direct Meta Model API catalog would fall back to a one-model fallback just as silently on a typo. */
   @Test
   fun `Meta catalog parses, is sorted and points at the direct API`() {
     val catalog = loader.loadMeta()
@@ -65,8 +64,8 @@ class ModelCatalogLoaderTest {
   }
 
   /**
-   * У прямого API id без префикса вендора — «meta/muse-spark-1.3» это имя на OpenRouter. Каждая модель
-   * с function calling, и ни одной contributor-версии: на их данных Meta обучается.
+   * On the direct API ids have no vendor prefix — "meta/muse-spark-1.3" is the name on OpenRouter. Every
+   * model has function calling, and there is not a single contributor version: Meta trains on their data.
    */
   @Test
   fun `Meta catalog holds direct-API ids with tools and no contributor models`() {
@@ -76,7 +75,7 @@ class ModelCatalogLoaderTest {
     assertEquals(emptyList<String>(), models.map { it.name }.filter(::trainsOnUserData))
   }
 
-  /** Модель без цены в прайсе — и расход на маршруте Meta молча остаётся без денег. */
+  /** A model without a price in the price list — and spending on the Meta route silently stays without money. */
   @Test
   fun `every Meta catalog model has a list price`() {
     val unpriced = loader.loadMeta().models.map { it.name }

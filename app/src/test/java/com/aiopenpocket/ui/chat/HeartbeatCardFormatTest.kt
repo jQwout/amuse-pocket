@@ -18,7 +18,7 @@ class HeartbeatCardFormatTest {
 
   private val utc = java.util.TimeZone.getTimeZone("UTC")
 
-  /** Сработавшее или просроченное разовое напоминание показывает время, а не «через 0 мин». */
+  /** A fired or overdue one-time reminder shows the time, not "in 0 min". */
   @Test
   fun `due or finished one-time shows the fire time`() {
     val fireAt = 14 * 3_600_000L + 30 * 60_000L // 01.01.1970 14:30 UTC
@@ -40,7 +40,7 @@ class HeartbeatCardFormatTest {
     assertEquals("через 1 ч 30 мин", formatSchedule(hb(fireAt = 90 * 60_000L), now))
   }
 
-  /** Карточка рисуется спустя миллисекунды после постановки — свежее «через 2 минуты» не должно стать «через 1 мин». */
+  /** The card is drawn milliseconds after scheduling — a fresh "in 2 minutes" must not become "in 1 min". */
   @Test
   fun `fresh reminder rounds up to the requested minutes`() {
     val now = 1_000_000L

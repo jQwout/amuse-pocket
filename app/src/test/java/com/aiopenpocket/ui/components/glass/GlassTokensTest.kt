@@ -11,8 +11,8 @@ import org.junit.Test
 class GlassTokensTest {
 
   @Test fun strongTintIsMoreOpaqueThanLight() {
-    // StrongTint/LightTint теперь @Composable-геттеры (зависят от темы) — проверяем сырые
-    // per-theme константы в обеих темах.
+    // StrongTint/LightTint are now @Composable getters (they depend on the theme) — we check the raw
+    // per-theme constants in both themes.
     assertTrue(GlassTokens.StrongTintDark.alpha > GlassTokens.LightTintDark.alpha)
     assertTrue(GlassTokens.StrongTintLight.alpha > GlassTokens.LightTintLight.alpha)
   }

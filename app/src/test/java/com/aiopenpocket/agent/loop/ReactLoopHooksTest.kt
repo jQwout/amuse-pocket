@@ -253,7 +253,7 @@ class ReactLoopHooksTest {
     // Iter 2: [system, ephemeral(fresh), assistant(tool_calls), tool] - size 4, NOT 5. If iter 1's
     // ephemeral had leaked (not removed), it would still be sitting at index 1 and this iteration's
     // fresh insert would push the count to 5 instead of 4 - the exact accumulation bug the brief warns
-    // about ("messages мутируется in-place... разрыв пары даёт HTTP 400").
+    // about ("messages is mutated in place... breaking the pair gives HTTP 400").
     assertEquals(4, secondCallMessages.size)
     assertEquals("system", secondCallMessages[1].role)
     assertTrue(secondCallMessages[1].content.orEmpty().contains("EPHEMERAL_MARKER"))

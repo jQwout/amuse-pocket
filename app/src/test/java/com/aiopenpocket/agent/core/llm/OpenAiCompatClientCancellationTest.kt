@@ -20,14 +20,14 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Отмена хода — не «провайдер упал». В Kotlin `CancellationException` наследует `Exception`, поэтому
- * общий `catch (e: Exception)` вокруг попытки провайдера ловит и её тоже: нажатие Stop (или новый ход,
- * гасящий предыдущий через `TurnManager.startTurn`) превращалось в «эта модель не ответила, берём
- * следующую» и прогоняло ОСТАВШУЮСЯ ЦЕПОЧКУ, заканчивая всё `StreamEvent.Error("All providers failed")`
- * — из уже отменённого flow.
+ * Cancelling a turn is not "the provider failed". In Kotlin `CancellationException` extends `Exception`,
+ * so the general `catch (e: Exception)` around a provider attempt catches it too: pressing Stop (or a new
+ * turn that kills the previous one through `TurnManager.startTurn`) turned into "this model did not answer,
+ * take the next one" and ran THE REST OF THE CHAIN, ending everything with
+ * `StreamEvent.Error("All providers failed")` — from an already cancelled flow.
  *
- * Эталон обработки — рядом, в [com.aiopenpocket.agent.core.mcp.ToolExecutor]: там `CancellationException`
- * перехватывается ПЕРВЫМ и пробрасывается. Здесь фиксируем тот же контракт для транспорта.
+ * The reference handling is right next door, in [com.aiopenpocket.agent.core.mcp.ToolExecutor]: there
+ * `CancellationException` is caught FIRST and rethrown. Here we pin the same contract for the transport.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -40,10 +40,10 @@ class OpenAiCompatClientCancellationTest {
   """.trimIndent()
 
   /**
-   * Счётчик обращений к ключу = счётчик ПОПЫТОК провайдеров: `apiKeyResolver()` — первое, что делает
-   * итерация цикла, и единственная её часть, которая не приостанавливается (а значит выполняется даже
-   * в уже отменённой корутине, где следующий за ней suspend-вызов сразу бросит). Именно поэтому он и
-   * показывает, дошёл ли цикл до следующих моделей после отмены.
+   * The key access counter = the counter of provider ATTEMPTS: `apiKeyResolver()` is the first thing a loop
+   * iteration does, and the only part of it that does not suspend (and so runs even in an already cancelled
+   * coroutine, where the suspend call after it throws at once). That is exactly why it shows whether the
+   * loop reached the next models after cancellation.
    */
   private fun config(model: String, attempts: AtomicInteger) = ProviderConfig(
     name = LlmProvider.OPENROUTER,
@@ -66,8 +66,8 @@ class OpenAiCompatClientCancellationTest {
   fun `cancelling the collector aborts the run instead of walking the rest of the chain`() = runTest {
     val attempts = AtomicInteger(0)
     val firstCallEntered = CompletableDeferred<Unit>()
-    // Первая модель «висит» на живом соединении, пока её не отменят, — состояние, в котором юзер и
-    // жмёт Stop. Ждём НЕзавершаемый Deferred, а не delay(): виртуальное время runTest промотало бы delay.
+    // The first model "hangs" on a live connection until it is cancelled — the state in which the user
+    // presses Stop. We wait on a NEVER-completing Deferred, not delay(): runTest's virtual time would skip delay.
     val neverCompletes = CompletableDeferred<Unit>()
     val engine = MockEngine {
       firstCallEntered.complete(Unit)
@@ -82,7 +82,7 @@ class OpenAiCompatClientCancellationTest {
     firstCallEntered.await()
     job.cancelAndJoin()
 
-    // Ровно одна попытка: отмена обязана вынести цикл наружу, а не быть засчитанной как отказ модели.
+    // Exactly one attempt: cancellation must take the loop out, not be counted as a model's failure.
     assertEquals(1, attempts.get())
   }
 
@@ -92,8 +92,8 @@ class OpenAiCompatClientCancellationTest {
     val engine = MockEngine { throw CancellationException("stream cancelled") }
     val client = clientOf(listOf("cancelled-model", "second-model"), attempts, engine)
 
-    // Ловим руками, а не assertThrows: отмена прилетает из движка, сам тестовый job при этом не
-    // отменяется, поэтому перехват здесь безопасен и не ломает scope runTest.
+    // Caught by hand, not with assertThrows: the cancellation comes from the engine, and the test job itself
+    // is not cancelled, so catching it here is safe and does not break the runTest scope.
     val thrown = try {
       client.streamChat(emptyList(), emptyList(), LlmProvider.OPENROUTER).toList()
       null
@@ -105,7 +105,7 @@ class OpenAiCompatClientCancellationTest {
       "отмена обязана дойти до вызывающего, а не превратиться в событие: $thrown",
       thrown is CancellationException,
     )
-    // И, разумеется, не должна быть засчитана как «модель не ответила».
+    // And, of course, it must not be counted as "the model did not answer".
     assertEquals(1, attempts.get())
   }
 

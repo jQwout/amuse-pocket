@@ -14,10 +14,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Курсор урока (какой шаг показан) должен жить на диалоге как явное состояние, а НЕ выводиться из
- * числа assistant-сообщений. Иначе свободный вопрос к LLM во время урока (лишний assistant-ответ)
- * сдвигает курсор и урок «перепрыгивает» шаги. Этот тест фиксирует независимость курсора от
- * количества сообщений.
+ * The lesson cursor (which step is shown) must live on the conversation as explicit state, NOT be derived
+ * from the number of assistant messages. Otherwise a free question to the LLM during a lesson (an extra
+ * assistant answer) shifts the cursor and the lesson "jumps over" steps. This test pins the cursor's
+ * independence from the message count.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -43,7 +43,7 @@ class LessonCursorPersistenceTest {
     val id = repo.createConversation(title = "Урок", isTutorial = true)
     repo.updateLessonCursor(id, stepIndex = 3, finished = false)
 
-    // Свободные вопросы во время урока добавляют assistant-сообщения — курсор от них не зависит.
+    // Free questions during a lesson add assistant messages — the cursor does not depend on them.
     repeat(5) { repo.addMessage(id, "assistant", "ответ на вопрос") }
 
     val loaded = repo.getConversation(id)

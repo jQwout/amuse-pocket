@@ -24,9 +24,9 @@ import org.robolectric.annotation.Config
 import java.util.concurrent.TimeUnit
 
 /**
- * `work_manager.cancel_work` отменяет только задачи, созданные этим же тулом (тег `id:<work_id>`).
- * Раньше он принимал любое уникальное имя — и модель могла снести напоминание `heartbeat_<id>` в
- * обход HeartbeatTool: строка в Room осталась бы «scheduled», а пуш так и не пришёл бы.
+ * `work_manager.cancel_work` cancels only tasks created by this same tool (the `id:<work_id>` tag). It
+ * used to accept any unique name — and the model could wipe out a `heartbeat_<id>` reminder bypassing
+ * HeartbeatTool: the row in Room would stay "scheduled", and the push would never come.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])

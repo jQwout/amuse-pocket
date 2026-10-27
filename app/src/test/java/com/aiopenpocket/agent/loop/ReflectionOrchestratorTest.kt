@@ -56,12 +56,12 @@ import org.robolectric.annotation.Config
 import com.aiopenpocket.testing.testDataStore
 
 /**
- * Проверяет гейт пустого финала REFLECT (находка код-ревью): revise без текста и без карточки должен
- * дать терминальную ошибку + «Повторить», а не персиститься тремя декоративными заголовками
- * ✍/🔍/✨, которые делают transcript непустым и обошли бы blank-гейт resolveCompletedTurn.
+ * Checks the REFLECT empty-final gate (a code review finding): a revise with no text and no card must give
+ * a terminal error + "Retry", not be persisted as three decorative headers ✍/🔍/✨, which make the
+ * transcript non-empty and would get past the blank gate of resolveCompletedTurn.
  *
- * Настоящий [ReactLoopRunner] + [PrePromptAssembler] на in-memory Room; LLM — скриптовый фейк,
- * отдающий по одному потоку на вызов (draft → critique → revise).
+ * A real [ReactLoopRunner] + [PrePromptAssembler] on in-memory Room; the LLM is a scripted fake that
+ * returns one stream per call (draft → critique → revise).
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -73,12 +73,12 @@ class ReflectionOrchestratorTest {
     override fun e(tag: String, message: String, error: Throwable?) {}
   }
 
-  /** Отдаёт по одному скрипту событий на каждый streamChat: [0]=draft, [1]=critique, [2]=revise. */
+  /** Returns one event script per streamChat call: [0]=draft, [1]=critique, [2]=revise. */
   private class ScriptedLlm(private val perCall: List<List<StreamEvent>>) : LlmClient {
     var calls = 0
       private set
 
-    /** Снимок сообщений и имён тулов на каждый вызов — чтобы проверить, что увидела фаза правки. */
+    /** A snapshot of the messages and tool names on every call — to check what the revise phase saw. */
     val seenMessages = mutableListOf<List<ChatMessage>>()
     val seenToolNames = mutableListOf<List<String>>()
 
@@ -95,7 +95,7 @@ class ReflectionOrchestratorTest {
     }
   }
 
-  /** Пишущий тул со счётчиком: доказывает, сколько раз действие выполнилось ПО-НАСТОЯЩЕМУ. */
+  /** A writing tool with a counter: proves how many times the action REALLY ran. */
   private class CountingWriteTool(override val name: String) : Tool {
     override val description = "write tool $name"
     override val schema = toolSchema(name, description) {}
@@ -171,7 +171,7 @@ class ReflectionOrchestratorTest {
 
   @Test
   fun `пустой финал revise даёт Error и НЕ Completed`() = runTest {
-    // draft и critique непусты, но revise возвращает пустоту — realistic «правка ничего не дала».
+    // draft and critique are non-empty, but revise returns nothing — a realistic "the revision gave nothing".
     val llm = ScriptedLlm(listOf(textThenStop("черновой ответ"), textThenStop("критика"), justStop))
 
     val events = orchestrator(llm).executeNim("c1", "вопрос").toList()
@@ -194,11 +194,11 @@ class ReflectionOrchestratorTest {
 
   @Test
   fun `REFLECT не обходит scoped allowlist кастомного агента - чужой тул отклоняется в draft- и revise-фазах`() = runTest {
-    // Реестр знает ТРИ тула (memory_tool + sms + email), но агент разрешает только memory_tool — до
-    // фикса ReflectionOrchestrator отдавал draft/revise ПОЛНЫЙ registry.getAllSchemas() без учёта
-    // agent, так что sms/email прошли бы как «доступные». Именно это и должен резать scoped tools +
-    // agent-гейт — оба тула вне toolNames агента, и каждый должен быть отклонён НЕЗАВИСИМО в своей
-    // фазе (sms в draft, email в revise), а не только в первой встреченной.
+    // The registry knows THREE tools (memory_tool + sms + email), but the agent allows only memory_tool —
+    // before the fix ReflectionOrchestrator gave draft/revise the FULL registry.getAllSchemas() regardless
+    // of the agent, so sms/email would pass as "available". That is exactly what scoped tools + the agent
+    // gate must cut — both tools are outside the agent's toolNames, and each must be rejected
+    // INDEPENDENTLY in its own phase (sms in draft, email in revise), not only in the first one met.
     val toolRegistry = ToolRegistry(setOf(FakeTool("memory_tool"), FakeTool("sms"), FakeTool("email")))
     val userAgentRepository = UserAgentRepository(db, db.userAgentDao(), agentHookRepository())
     val agent = AgentDefinition(
@@ -221,10 +221,11 @@ class ReflectionOrchestratorTest {
     userAgentRepository.publish(agent.id)
     db.conversationDao().insert(ConversationEntity(id = "c1", title = "T", agentId = agent.id))
 
-    // Черновик «галлюцинирует» вызов sms, а финальная правка — email: ОБА тула вне allowlist агента
-    // (только memory_tool). Скриптовый LLM в тесте не смотрит на переданные ему схемы (как и любая
-    // модель может унаследовать имя тула из истории или просто ошибиться) — именно поэтому проверка
-    // обязана быть в рантайме цикла КАЖДОЙ фазы отдельно, а не только в том, что модели показали в draft.
+    // The draft "hallucinates" an sms call and the final revise an email one: BOTH tools are outside the
+    // agent's allowlist (memory_tool only). The scripted LLM in the test ignores the schemas passed to it
+    // (just as any model may inherit a tool name from the history or simply make a mistake) — which is
+    // exactly why the check must be in the loop's runtime of EACH phase separately, not only in what the
+    // model was shown in draft.
     val llm = ScriptedLlm(
       listOf(
         listOf(StreamEvent.ToolCall("call-1", "sms", emptyMap()), StreamEvent.Finish("tool_calls")),
@@ -241,22 +242,22 @@ class ReflectionOrchestratorTest {
     val smsError = smsCall.result as? ToolResult.Error
     assertEquals("Tool 'sms' is not available in this context.", smsError?.message)
 
-    // Тот же гейт, но во ВТОРОЙ фазе (revise) — до фикса ReflectionOrchestrator scoped ровно draft, а
-    // revise получал бы полный registry, так что этот вызов остался бы незамеченным regression'ом.
+    // The same gate, but in the SECOND phase (revise) — before the fix ReflectionOrchestrator scoped only
+    // draft, and revise would get the full registry, so this call would have gone unnoticed as a regression.
     val emailCall = events.filterIsInstance<AgentEvent.ToolCompleted>().single { it.name == "email" }
     val emailError = emailCall.result as? ToolResult.Error
     assertEquals("Tool 'email' is not available in this context.", emailError?.message)
 
-    // Галлюцинация тула — не фатальная ошибка цикла; ход всё равно доходит до Completed.
+    // A hallucinated tool is not a fatal loop error; the turn still reaches Completed.
     assertTrue(events.filterIsInstance<AgentEvent.Completed>().isNotEmpty())
   }
 
   @Test
   fun `REFLECT ход устанавливает контекст агента для memory_tool - remember_fact уходит в его namespace`() = runTest {
-    // Task 5: до фикса ReflectionOrchestrator не оборачивал draft/revise в
-    // turnContextHolder.contextElement(...), так что memory_tool внутри REFLECT-хода видел бы
-    // holder.agent == null (глобальное пространство имён) даже для агента со своим namespace — тот
-    // же класс дыры, что и REFLECT tool-scope до фикса в Task 4, но для памяти, а не allowlist тулов.
+    // Task 5: before the fix ReflectionOrchestrator did not wrap draft/revise in
+    // turnContextHolder.contextElement(...), so memory_tool inside a REFLECT turn would see
+    // holder.agent == null (the global namespace) even for an agent with its own namespace — the same
+    // class of hole as the REFLECT tool scope before the fix in Task 4, but for memory, not the tool allowlist.
     val turnContextHolder = TurnContextHolder()
     val memoryRepository = MemoryRepository(db.factDao(), db.episodeDao())
     val memoryTools = MemoryTools(memoryRepository, turnContextHolder)
@@ -284,7 +285,7 @@ class ReflectionOrchestratorTest {
 
     val llm = ScriptedLlm(
       listOf(
-        // DRAFT итерация 1: модель вызывает remember_fact прямо в ходе черновика.
+        // DRAFT iteration 1: the model calls remember_fact right during the draft.
         listOf(
           StreamEvent.ToolCall(
             "call-1",
@@ -297,7 +298,7 @@ class ReflectionOrchestratorTest {
           ),
           StreamEvent.Finish("tool_calls"),
         ),
-        // DRAFT итерация 2: финальный текст черновика (без него цикл продолжал бы крутиться).
+        // DRAFT iteration 2: the final draft text (without it the loop would keep spinning).
         textThenStop("черновой ответ"),
         textThenStop("критика"),
         textThenStop("Итоговый ответ"),
@@ -309,14 +310,14 @@ class ReflectionOrchestratorTest {
     val saved = db.factDao().getByKey("agent:my-agent:note")
     assertEquals("secret", saved?.value)
     assertEquals("general", saved?.category)
-    // Без namespace ключ вообще не создаётся — не осталось «утечки» в глобальное пространство.
+    // Without the namespace the key is not created at all — no "leak" into the global space remains.
     assertNull(db.factDao().getByKey("note"))
   }
 
   @Test
   fun `правка не повторяет действия черновика - получает только тулы чтения и список уже сделанного`() = runTest {
-    // Черновик в LIVE реально выполняет пишущий тул; раньше правка получала тот же набор тулов и
-    // инструкцию «вызови нужный инструмент заново» — и действие выполнялось второй раз.
+    // The draft in LIVE really runs the writing tool; the revise used to get the same tool set and the
+    // instruction "call the needed tool again" — and the action ran a second time.
     val writeTool = CountingWriteTool("notes")
     val toolRegistry = ToolRegistry(setOf(writeTool, FakeTool("lookup")))
     val llm = ScriptedLlm(
@@ -324,7 +325,7 @@ class ReflectionOrchestratorTest {
         listOf(StreamEvent.ToolCall("call-1", "notes", emptyMap()), StreamEvent.Finish("tool_calls")),
         textThenStop("черновой ответ"),
         textThenStop("критика"),
-        // Правка «по старой привычке» зовёт тот же пишущий тул ещё раз.
+        // The revise calls the same writing tool once more "out of old habit".
         listOf(StreamEvent.ToolCall("call-2", "notes", emptyMap()), StreamEvent.Finish("tool_calls")),
         textThenStop("Итоговый ответ"),
       ),
@@ -336,7 +337,7 @@ class ReflectionOrchestratorTest {
     val reviseCall = events.filterIsInstance<AgentEvent.ToolCompleted>().last { it.name == "notes" }
     assertEquals("Tool 'notes' is not available in this context.", (reviseCall.result as? ToolResult.Error)?.message)
 
-    // Вызов №3 (0-based) — первый виток правки: пишущего тула в его схемах нет, тул чтения есть.
+    // Call #3 (0-based) is the first round of the revise: its schemas have no writing tool, the read tool is there.
     assertEquals(listOf("lookup"), llm.seenToolNames[3])
     val reviseInstruction = llm.seenMessages[3].last { it.role == "user" }.content.orEmpty()
     assertTrue("правке сказано, что черновик уже сделал", reviseInstruction.contains("- notes — успешно"))
@@ -344,9 +345,9 @@ class ReflectionOrchestratorTest {
   }
 
   /**
-   * Провайдер в этих тестах не участвует — проверяется механика, а не адресат запроса. Хелперы,
-   * чтобы `LlmProvider.OPENROUTER` не повторялся в каждом вызове и не создавал впечатление, будто выбор
-   * вендора здесь что-то значит.
+   * The provider plays no part in these tests — the mechanics are checked, not the request's addressee.
+   * Helpers, so that `LlmProvider.OPENROUTER` is not repeated in every call and does not give the
+   * impression that the choice of vendor means anything here.
    */
   private fun ReflectionOrchestrator.executeNim(conversationId: String, message: String) =
     execute(conversationId, message, LlmProvider.OPENROUTER)

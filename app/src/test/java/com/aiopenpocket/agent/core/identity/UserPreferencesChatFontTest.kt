@@ -12,8 +12,8 @@ import org.robolectric.annotation.Config
 import com.aiopenpocket.testing.testDataStore
 
 /**
- * Round-trip выбранного пресета шрифта чата через реальный DataStore (Robolectric) — как хранят
- * остальные user-настройки. Пустой store и мусорное значение обязаны давать [ChatFontScale.DEFAULT].
+ * A round trip of the chosen chat font preset through a real DataStore (Robolectric) — the way the other
+ * user settings are stored. An empty store and a garbage value must give [ChatFontScale.DEFAULT].
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -23,7 +23,7 @@ class UserPreferencesChatFontTest {
 
   @Test
   fun `default is MEDIUM before anything is stored`() = runTest {
-    // Свежий Robolectric-контекст: ключ ещё не писали.
+    // A fresh Robolectric context: the key has not been written yet.
     assertEquals(ChatFontScale.MEDIUM, repo.getChatFontScale())
   }
 

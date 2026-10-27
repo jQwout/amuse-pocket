@@ -24,11 +24,12 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Аннотация диалога уходит ВЫБРАННОМУ вендору.
+ * The conversation annotation goes to the CHOSEN vendor.
  *
- * Из двух мест, что молча ехали на дефолт `LlmProvider.NIM`, это было опаснее: аннотация идёт после
- * КАЖДОЙ реплики, а её тело — дословный кусок переписки. Дефолт убран, так что «забыл прокинуть»
- * теперь не компилируется, — но от «прокинул литерал» компилятор не спасает.
+ * Of the two places that silently went to the default `LlmProvider.NIM`, this one was more dangerous: the
+ * annotation runs after EVERY message, and its body is a verbatim piece of the conversation. The default is
+ * gone, so "forgot to pass it" no longer compiles — but the compiler does not save you from "passed a
+ * literal".
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])

@@ -7,9 +7,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * «Нарисуй под меня»: что из профиля уходит провайдеру картинок и как из этого собирается промпт.
+ * "Draw it for me": what from the profile goes to the image provider and how the prompt is built from it.
  *
- * Главное здесь — приватность: провайдер получает «о себе» и язык, и больше ничего из профиля.
+ * The main thing here is privacy: the provider gets "about me" and the language, and nothing else from
+ * the profile.
  */
 class LessonImagePersonalizationTest {
 
@@ -25,7 +26,7 @@ class LessonImagePersonalizationTest {
     fact("user.extra_info", "  Пеку хлеб, вожу дочку на плавание, работаю бухгалтером  "),
   )
 
-  /** Имя, возраст, пол и вероисповедание провайдеру картинок не нужны — уходит только «о себе». */
+  /** Name, age, gender and religion are not needed by the image provider — only "about me" goes out. */
   @Test
   fun `only the about-me text leaves the profile`() {
     val aboutMe = aboutMeFrom(profile)
@@ -53,7 +54,7 @@ class LessonImagePersonalizationTest {
     assertTrue(prompt, prompt.contains("Keep the same idea and composition"))
   }
 
-  /** Длинная автобиография кадр точнее не делает, а личного увозит больше. */
+  /** A long autobiography does not make the frame more precise, it only carries away more personal data. */
   @Test
   fun `a long about-me text is cut`() {
     val prompt = personalizedImagePrompt("A robot.", "а".repeat(1000), "ru")

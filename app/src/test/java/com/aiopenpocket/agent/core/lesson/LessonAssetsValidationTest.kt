@@ -17,37 +17,37 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Контрактный линт уроков в assets/lessons. Битый урок в рантайме НЕ падает, а молча исчезает
- * (LessonRepository.getLessonOrNull глотает ошибку парса: урок пропадает из Библиотеки, уровень
- * роадмапа деградирует в легаси-чат), а «зависающий» шаг оставляет пользователя без кнопки
- * «Дальше» навсегда. Поэтому валим сборку здесь.
+ * A contract lint of the lessons in assets/lessons. A broken lesson does NOT crash at runtime, it silently
+ * disappears (LessonRepository.getLessonOrNull swallows the parse error: the lesson vanishes from the
+ * Library, the roadmap level degrades into a legacy chat), and a "stuck" step leaves the user without the
+ * "Next" button forever. So we fail the build here.
  *
- * Правила выведены из кода и должны меняться вместе с ним:
- *  - типы шагов и рендер карточек — LessonChatController.postStep / DrivenUiEngine;
- *  - какие шаги идут по кнопке «Дальше» — ChatScreen (needsManualAdvance);
- *  - строгость парсинга — LessonRepository (Json { ignoreUnknownKeys = true }).
+ * The rules are derived from the code and must change together with it:
+ *  - step types and card rendering — LessonChatController.postStep / DrivenUiEngine;
+ *  - which steps advance by the "Next" button — ChatScreen (needsManualAdvance);
+ *  - parsing strictness — LessonRepository (Json { ignoreUnknownKeys = true }).
  */
 class LessonAssetsValidationTest {
 
-  // Тот же конфиг, что в LessonRepository — иначе линт проверял бы не то, что видит приложение.
+  // The same config as in LessonRepository — otherwise the lint would check something other than what the app sees.
   private val json = Json { ignoreUnknownKeys = true }
 
-  // Юнит-тесты Gradle запускаются из директории модуля (app/); запасной путь — корень проекта.
+  // Gradle unit tests run from the module directory (app/); the fallback path is the project root.
   private val assetsDir: File = sequenceOf(File("src/main/assets"), File("app/src/main/assets"))
     .firstOrNull { it.isDirectory }
     ?: error("Не нашёл src/main/assets; рабочая директория: ${File(".").absolutePath}")
 
   private val lessonsDir = File(assetsDir, "lessons")
 
-  /** Русские уроки — оригиналы: каждый урок есть по-русски, на них ссылаются каталоги. */
+  /** Russian lessons are the originals: every lesson exists in Russian, and the catalogs refer to them. */
   private val lessonFiles: List<File> = lessonsDir
     .listFiles { f -> f.extension == "json" }
     ?.sortedBy { it.name }
     .orEmpty()
 
   /**
-   * Английские копии (assets/lessons/en, их первыми читает LessonRepository при английском
-   * интерфейсе). Линтуются теми же правилами, что и русские, и ещё сверяются с оригиналом.
+   * The English copies (assets/lessons/en, LessonRepository reads them first with the English interface).
+   * They are linted by the same rules as the Russian ones and also checked against the original.
    */
   private val enLessonFiles: List<File> = File(lessonsDir, AppLanguage.EN)
     .listFiles { f -> f.extension == "json" }
@@ -56,10 +56,10 @@ class LessonAssetsValidationTest {
 
   private val allLessonFiles: List<File> = lessonFiles + enLessonFiles
 
-  /** Имя файла в сообщениях: `meta_models.json` или `en/meta_models.json` — чтобы копии не путались с оригиналами. */
+  /** The file name in messages: `meta_models.json` or `en/meta_models.json` — so copies are not confused with originals. */
   private fun label(file: File): String = file.relativeTo(lessonsDir).invariantSeparatorsPath
 
-  /** Уроки, которые распарсились; ошибки парса проверяет отдельный тест. */
+  /** The lessons that parsed; parse errors are checked by a separate test. */
   private fun parsedLessons(files: List<File> = allLessonFiles): List<Pair<File, Lesson>> = files.mapNotNull { file ->
     runCatching { file to json.decodeFromString(Lesson.serializer(), file.readText()) }.getOrNull()
   }
@@ -105,7 +105,7 @@ class LessonAssetsValidationTest {
     val ids = lessonFiles.map { it.nameWithoutExtension }.toSet()
     val referenced = LIBRARY_LESSON_IDS.toSet() + ROADMAP_LEVELS.map { it.id }
     val missingFiles = referenced - ids
-    // l1_welcome не в библиотеке (это онбординг), но в роадмапе — поэтому сироты считаем от общего множества.
+    // l1_welcome is not in the library (it is onboarding) but is in the roadmap — so orphans are counted from the union.
     val orphanFiles = ids - referenced
     val errors = buildList {
       missingFiles.forEach { add("'$it' есть в каталоге (Library/Roadmap), но assets/lessons/$it.json отсутствует") }
@@ -142,9 +142,9 @@ class LessonAssetsValidationTest {
                 asset.isBlank() && step.url.isBlank() && step.imagePrompt.isBlank() ->
                   err("нет ни asset/imageKey, ни url, ни imagePrompt — карточка «Нет изображения»")
               }
-              // Скрипт предгенерации (tools/lesson-images) ищет промпт в файле дословно и вписывает
-              // перед ним asset: кавычка или обратный слеш поменяли бы запись в JSON. А по-английски
-              // модель рисует точнее — поэтому печатный ASCII.
+              // The pregeneration script (tools/lesson-images) looks for the prompt in the file verbatim and writes
+              // asset in front of it: a quote or a backslash would change the JSON entry. And in English the
+              // model draws more precisely — hence printable ASCII.
               if (step.imagePrompt.isNotBlank() && !step.imagePrompt.all { it in ' '..'~' && it != '"' && it != '\\' }) {
                 err("imagePrompt: только печатный ASCII без кавычек и обратных слешей")
               }
@@ -157,7 +157,7 @@ class LessonAssetsValidationTest {
             "video" -> {
               if (step.instruction.isBlank()) err("пустой instruction — непонятно, что снимать")
               if (step.videoPrompt.isBlank()) err("пустой videoPrompt — модели нечего делать с роликом")
-              // Кнопка «Показать на примере» с битым путём уронила бы главный путь шага в ошибку.
+              // A "Show an example" button with a broken path would turn the step's main path into an error.
               for (sample in listOf(step.sampleVideo, step.samplePreview)) {
                 if (sample.isNotBlank() && !File(assetsDir, sample).isFile) err("ролик-пример не найден: $sample")
               }
@@ -176,12 +176,12 @@ class LessonAssetsValidationTest {
             "example" -> if (step.parts.isEmpty() || step.parts.all { it.text.isBlank() }) err("пустые parts")
 
             "fill" -> {
-              // FillCard.accepts: пустой ввод не засчитывается никогда — пустой answer нерешаем без
-              // подсказки, а после двух промахов карточка показала бы пустое «Правильно: «»».
+              // FillCard.accepts: empty input is never accepted — an empty answer is unsolvable without a hint, and
+              // after two misses the card would show an empty "Correct: «»".
               if (step.answer.isBlank()) err("пустой answer — шаг нерешаем, урок зависнет")
               if (!step.template.contains("___")) err("в template нет '___' — непонятно, что вписывать")
-              // Пустую строку в answers рендер отбросит молча — значит, автор думал, что вариант
-              // засчитывается, а он нет. Лучше упасть здесь.
+              // The renderer silently drops an empty string in answers — so the author thought the variant counts
+              // when it does not. Better to fail here.
               step.answers.forEachIndexed { ai, alt ->
                 if (alt.isBlank()) err("answers[$ai]: пустая строка — такой вариант не засчитается")
               }
@@ -207,20 +207,20 @@ class LessonAssetsValidationTest {
             }
 
             "scenario" -> {
-              // ScenarioCardView без вариантов не кликается, а кнопки «Дальше» у scenario нет.
+              // ScenarioCardView without options cannot be clicked, and scenario has no "Next" button.
               if (step.options.isEmpty()) err("нет options — нечего тапнуть, урок зависнет")
-              // scenarioCorrectIndex() = тот же декод, что и у рендерера: -1 при отсутствии/битом ключе.
+              // scenarioCorrectIndex() = the same decoding as the renderer's: -1 for a missing/broken key.
               if (step.scenarioCorrectIndex() !in step.options.indices) {
                 err("correct=${step.correct} вне 0..${step.options.size - 1}")
               }
             }
 
-            // input/challenge (живой ввод) не поддержаны, пока lesson-mode прячет поле ввода:
-            // они рендерятся статичным текстом и обещают взаимодействие, которого нет.
+            // input/challenge (live input) are not supported while lesson mode hides the input field:
+            // they render as static text and promise interaction that is not there.
             "input", "challenge" ->
               err("тип пока не поддержан: lesson-mode скрывает ввод; используй text с честной практикой")
 
-            // Setup-шаги онбординга: чат-контроллер их не умеет (рендерит пустой текст без кнопки).
+            // Onboarding setup steps: the chat controller cannot handle them (it renders empty text without a button).
             "language", "persona", "profile" ->
               if (lesson.id != "l1_welcome") err("setup-тип допустим только в l1_welcome — в чат-уроке он зависнет")
 
@@ -233,10 +233,10 @@ class LessonAssetsValidationTest {
   }
 
   /**
-   * Все «карточки с выбором варианта», которые рендерер тасует: quiz-вопросы и scenario-шаги
-   * уроков плюс хардкодные квизы роадмапа/онбординга. Один обход — чтобы новый тип шага с
-   * вариантами нельзя было завести мимо option-level линтов ниже (иначе они молча его пропустят).
-   * Каждый элемент: (место, варианты, 0-based индекс правильного).
+   * All the "pick an option" cards the renderer shuffles: quiz questions and scenario steps of lessons plus
+   * the hardcoded roadmap/onboarding quizzes. One traversal — so a new step type with options cannot be
+   * added past the option-level lints below (they would silently skip it otherwise).
+   * Each element: (place, options, 0-based index of the right one).
    */
   private fun optionSets(): List<Triple<String, List<String>, Int>> = buildList {
     parsedLessons().forEach { (file, lesson) ->
@@ -252,10 +252,10 @@ class LessonAssetsValidationTest {
   }
 
   /**
-   * Рендер перемешивает варианты (stableShuffledIndices), но длину он не спрячет: в авторском
-   * контенте правильный ответ был кратно длиннее дистракторов, и квиз решался правилом «жми самую
-   * длинную кнопку» без чтения. Порог мягкий: дистракторам можно быть и длиннее правильного,
-   * запрещён только явный перекос в его пользу.
+   * The renderer shuffles the options (stableShuffledIndices), but it cannot hide length: in the authored
+   * content the right answer was several times longer than the distractors, and the quiz was solved by the
+   * rule "press the longest button" without reading. The threshold is soft: distractors may be longer than
+   * the right answer, only a clear skew in its favor is banned.
    */
   private fun lengthGiveaway(options: List<String>, correct: Int): String? {
     if (options.size < 2 || correct !in options.indices) return null
@@ -280,12 +280,12 @@ class LessonAssetsValidationTest {
 
   /**
    * `LessonChatController.postCompletion` reads `lesson.steps.lastOrNull()?.primaryAction` to decide
-   * whether the completion card gets the «Открыть конструктор» CTA (see DrivenUiEngineTest for the
+   * whether the completion card gets the "Open the builder" CTA (see DrivenUiEngineTest for the
    * card-parsing side). Here we lint the SOURCE of that data: the capstone asset itself.
    */
   @Test
   fun `capstone lesson's final step carries a valid primary_action`() {
-    // Все языковые копии капстоуна: английская без CTA потеряла бы мост в конструктор.
+    // All language copies of the capstone: an English one without the CTA would lose the bridge to the builder.
     val capstones = parsedLessons().filter { (f, _) -> f.nameWithoutExtension == "agent_blueprint" }
     assertTrue("agent_blueprint.json не найден среди распарсенных уроков", capstones.isNotEmpty())
     capstones.forEach { (file, lesson) ->
@@ -320,14 +320,15 @@ class LessonAssetsValidationTest {
     assertTrue(errors.joinToString("\n"), errors.isEmpty())
   }
 
-  // --- Английские копии уроков (assets/lessons/en) ---
+  // --- English copies of the lessons (assets/lessons/en) ---
 
   /**
-   * Перевод меняет только текст. Шаги, их типы, сцены, ассеты и ключи ответов у копии те же, что у
-   * русского оригинала: иначе английский урок тихо разъедется с русским (другой правильный вариант,
-   * пропавшая картинка, лишний шаг), а курсор урока — номер шага — перестанет значить одно и то же
-   * при смене языка посреди урока. imagePrompt тоже общий: по нему ищется уже нарисованная картинка.
-   * videoPrompt переводить можно — он уходит модели, а не в разметку.
+   * Translation changes only the text. The copy's steps, their types, scenes, assets and answer keys are the
+   * same as the Russian original's: otherwise the English lesson would quietly drift from the Russian one
+   * (a different right option, a missing image, an extra step), and the lesson cursor — the step number —
+   * would stop meaning the same thing when the language changes mid-lesson. imagePrompt is shared too: it
+   * is the key for finding an already drawn image. videoPrompt may be translated — it goes to the model,
+   * not into the markup.
    */
   @Test
   fun `english lessons mirror their russian originals`() {

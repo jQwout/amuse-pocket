@@ -5,10 +5,10 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Картинки уроков рисуются в двух местах: заранее скриптом `tools/lesson-images/pregenerate.py`
- * (они едут в сборке) и на телефоне [LessonImageGenerator] (для шагов без ассета). Стиль промпта у
- * них обязан совпадать дословно — иначе в одном уроке окажутся картинки из разных книжек, и
- * заметно это станет только глазами на устройстве.
+ * Lesson images are drawn in two places: ahead of time by the `tools/lesson-images/pregenerate.py` script
+ * (they ship in the build) and on the phone by [LessonImageGenerator] (for steps without an asset). Their
+ * prompt style must match verbatim — otherwise one lesson ends up with images from different books, and
+ * that only becomes noticeable by eye on a device.
  */
 class LessonImageStyleSyncTest {
 
