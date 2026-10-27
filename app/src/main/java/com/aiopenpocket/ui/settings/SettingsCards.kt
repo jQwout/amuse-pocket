@@ -425,17 +425,30 @@ internal fun LlmUsageCard(
           color = MaterialTheme.colorScheme.primary,
         )
         // Three rows, not the whole list: OpenRouter has hundreds of models, and a tail of one-off calls answers
-        // none of the questions people look here for.
-        usage.byModel.take(3).forEach { model ->
+        // none of the questions people look here for. Models billed per picture are added on top: they have no
+        // tokens to rank by, and they are money spent.
+        modelUsageRows(usage.byModel).forEach { model ->
           UsageRow(
             label = model.model.substringAfterLast('/'),
-            value = "${model.calls} · ${formatTokens(model.tokens)}",
+            value = modelUsageValue(model),
           )
         }
       }
     }
   }
 }
+
+/** The rows of "BY MODEL": the top three by tokens (the list arrives ranked), and every per-picture model on top of them. */
+internal fun modelUsageRows(byModel: List<UsageSummary.ModelUsage>): List<UsageSummary.ModelUsage> =
+  byModel.filterNot { it.billedPerPicture }.take(3) + byModel.filter { it.billedPerPicture }.take(3)
+
+/** Calls and tokens; for a model billed per picture, calls and dollars — it has no tokens to show. */
+internal fun modelUsageValue(model: UsageSummary.ModelUsage): String =
+  if (model.billedPerPicture) {
+    "${model.calls} · $" + String.format(Locale.US, "%.4f", model.costUsd)
+  } else {
+    "${model.calls} · ${formatTokens(model.tokens)}"
+  }
 
 @Composable
 private fun UsageRow(label: String, value: String) {

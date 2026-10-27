@@ -73,5 +73,11 @@ data class UsageSummary(
     val calls: Int,
     val tokens: Long,
     val costUsd: Double?,
-  )
+  ) {
+    /**
+     * Billed per picture, not per token (SAM): no tokens, but money. Ranked by tokens such a row is always last, and
+     * the card shows only the top few — the one call in a fresh demo that actually cost money would not be on it.
+     */
+    val billedPerPicture: Boolean get() = tokens == 0L && (costUsd ?: 0.0) > 0.0
+  }
 }
