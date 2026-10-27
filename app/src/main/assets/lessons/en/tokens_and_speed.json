@@ -1,0 +1,31 @@
+{
+  "id": "tokens_and_speed",
+  "title": "Tokens and speed",
+  "description": "What a token is, input vs. output tokens, and why one answer is fast while another is slow and expensive.",
+  "iconKey": "speed",
+  "steps": [
+    { "type": "text", "text": "Ever notice that one answer pops up instantly while another types out for ages — and “costs” more, too? Let's work out why. Almost all of it comes down to one thing — tokens." },
+    { "type": "image", "asset": "lessons/images/generated/tokens_and_speed-63c5d106a6.webp", "imagePrompt": "A sentence made of colorful puzzle pieces of different sizes flows through a small coin-operated machine, and each piece drops a tiny coin as it passes through.", "caption": "The model reads and writes in pieces, and every piece costs money" },
+    { "type": "text", "text": "A model sees any text not as letters and not as words, but as tokens. A token is a piece: roughly a word or part of a word, sometimes just a punctuation mark. Reading and writing, the model works in exactly these pieces." },
+    { "type": "text", "text": "A rough rule: in English, one token ≈ ¾ of a word. A short, common word is about one token, while a long or rare one splits into several pieces. Spaces and commas count too." },
+    { "type": "text", "text": "A subtlety almost nobody knows: Russian text breaks into more tokens than an English text with the same meaning. Models are trained more on English, so they “know” English words whole, while Russian ones more often get cut into parts. The upshot: the same thought is usually “heavier” in tokens in Russian." },
+    { "type": "animation", "scene": "tokens", "caption": "A sample split: every model has its own vocabulary, but Russian almost always breaks into smaller pieces" },
+    { "type": "text", "text": "Tokens come in two kinds, and it matters. Input tokens are everything that goes into the model: the pre-prompt, the conversation history and your message. Output tokens are what the model generates in reply." },
+    { "type": "text", "text": "Both count. The longer the chat (input tokens) and the longer the answer (output tokens), the longer the request takes and the more it costs." },
+    { "type": "fill", "template": "The pre-prompt, the history and your message are input tokens, and the model's reply is made of ___ tokens.", "answer": "output", "answers": ["outputs", "output tokens", "generated", "outgoing"], "caseSensitive": false },
+    { "type": "reveal", "question": "What about images — are they tokens too?", "answer": "Yes. When you attach a photo, the model turns it into tokens — a picture “costs” input tokens, sometimes quite a lot. So an attached image makes the request heavier, too." },
+    { "type": "text", "text": "Remember the lesson “How AI reads your request”: the model doesn't remember the past, so with every request we put the whole history back in. And the whole history is input tokens. That's why a long chat gets more expensive with every message: the bundle grows. But it can't grow forever: a model has a limit — the context window. How the app copes with it is covered in the lesson “Memory and context.”" },
+    { "type": "text", "text": "Now, speed. An answer is born one output token at a time: the model adds a piece, then the next, then the next. So a long answer physically takes longer to type — it simply has more tokens." },
+    { "type": "reveal", "question": "Why does an answer appear word by word instead of all at once?", "answer": "Because that's how it's born — one token at a time. That's streaming: you see the answer while the model is still writing it." },
+    { "type": "text", "text": "What else affects speed. A big model computes slower than a small one. Some models also think before they answer — the lesson on Muse Spark covers them. And there's the provider's load right now: if many requests are in the queue, the answer arrives later." },
+    { "type": "text", "text": "What to do about it in practice. Want it faster and cheaper? Don't drag a giant chat around: start a new conversation for a new topic. And ask for just the amount you need: “in three bullet points” will print faster than “tell me everything.”" },
+    { "type": "text", "text": "Practice. After the lesson, ask me a very short question in the regular chat first (“what's 2+2”), then a big one (“lay out a plan for the week, point by point”). Notice how much longer the second one takes to type — that's output tokens at work. Then start a new chat: the first request in it feels lighter, because there's no history yet and few input tokens." },
+    { "type": "text", "text": "In short. A model works in tokens — pieces of text. Input tokens are the whole bundle going in (history included), output tokens are the answer. The more of either, the slower and pricier. A long answer types slowly because it's born one token at a time. And a chat's history can't grow forever — a model's window has a limit." },
+    { "type": "quiz", "questions": [
+      { "q": "What is a token?", "options": ["A piece of text: a word or part of a word", "Exactly one character of text", "A whole sentence at a time"], "correct": 0, "explain": "The model sees text in tokens — roughly a word or part of a word." },
+      { "q": "How are input tokens different from output tokens?", "options": ["Input goes into the model, output is what it generates", "They're the same thing, just seen from two sides", "Input is counted in letters, output in words"], "correct": 0, "explain": "Input is the pre-prompt + history + message; output is the model's answer." },
+      { "q": "Why does a long chat get pricier with every message?", "options": ["The whole history goes into the input tokens again each time", "The provider raises the rate for long conversations", "Each message gets harder and harder to encrypt"], "correct": 0, "explain": "The model doesn't remember the past — we resend the history, and all of it counts as input tokens." },
+      { "q": "Why does a long answer type out slower than a short one?", "options": ["It's born one token at a time, and it has more of them", "The provider holds long answers back on purpose", "A long answer is first checked in full"], "correct": 0, "explain": "An answer is written one token at a time: more tokens, more time." }
+    ] }
+  ]
+}
