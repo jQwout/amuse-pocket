@@ -108,6 +108,18 @@ data class ChatUiState(
   /** "segment" steps whose photos SAM is outlining right now (by the card's default prompt). While not empty, "Next" is hidden. */
   val segmentingPrompts: Set<String> = emptySet(),
 ) {
+  /**
+   * The lesson cursor moved: the next step was shown, or the completion card. [error] and [canRetry] go with
+   * it. The failures a lesson step reports (no Meta key on the "segment" step, a clip the model could not
+   * read) are about THAT step and sit in one chat-wide slot, drawn under the feed; left there, "This step
+   * needs a Meta Model API key" stayed under the privacy paragraph, under the quiz and under the "Lesson
+   * complete" card, long after the step it was about.
+   */
+  fun withLessonCursor(
+    stepIndex: Int = lessonStepIndex,
+    finished: Boolean = lessonFinished,
+  ): ChatUiState = copy(lessonStepIndex = stepIndex, lessonFinished = finished, error = null, canRetry = false)
+
   companion object {
     /**
      * A fresh state for conversation [id]: the conversation fields are reset, but the pref-derived ones

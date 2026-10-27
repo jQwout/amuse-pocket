@@ -771,11 +771,11 @@ class ChatViewModel(
                     lessonChatController.postStep(convId, lesson, s.lessonStepIndex)
                     val newIndex = s.lessonStepIndex + 1
                     conversationRepository.updateLessonCursor(convId, stepIndex = newIndex, finished = false)
-                    _state.update { it.copy(lessonStepIndex = newIndex) }
+                    _state.update { it.withLessonCursor(stepIndex = newIndex) }
                 } else {
                     lessonChatController.postCompletion(convId, lesson)
                     conversationRepository.updateLessonCursor(convId, stepIndex = s.lessonStepIndex, finished = true)
-                    _state.update { it.copy(lessonFinished = true) }
+                    _state.update { it.withLessonCursor(finished = true) }
                 }
             } finally {
                 lessonBusy = false
