@@ -747,15 +747,23 @@ def check_screen_russian(report):
 
 
 def check_english_lessons(report):
-    """T6b: the lessons of the demo path exist in English and step for step match the original."""
+    """T6b: every lesson that HAS an English copy matches its original step for step, and the
+    lessons of the demo path have a copy at all.
+
+    Checking only the demo path was the earlier mistake. On 27 Oct 2026 this graded exactly the
+    three lessons that were already translated and said nothing about the twenty-seven that were
+    not, so it stayed green while an English reader hit Russian at the first lesson of the Path.
+    A check whose scope is "the part already done" cannot fail where it matters."""
     details = []
+    en_dir = LESSONS / "en"
+    translated = sorted(p.name[:-len(".json")] for p in en_dir.glob("*.json")) if en_dir.is_dir() else []
     for name in DEMO_PATH_LESSONS:
-        ru_path, en_path = LESSONS / (name + ".json"), LESSONS / "en" / (name + ".json")
-        if not ru_path.exists():
-            details.append("%s: the Russian original is gone" % rel(ru_path))
-            continue
-        if not en_path.exists():
+        if name not in translated:
             details.append("%s: no English copy, so the demo path falls back to Russian" % name)
+    for name in translated:
+        ru_path, en_path = LESSONS / (name + ".json"), en_dir / (name + ".json")
+        if not ru_path.exists():
+            details.append("%s: an English copy with no Russian original" % name)
             continue
         try:
             ru, en = json.loads(read(ru_path)), json.loads(read(en_path))
@@ -774,10 +782,10 @@ def check_english_lessons(report):
             if CYRILLIC.search(str(en.get(field, ""))):
                 details.append("%s: the English copy's %s is Russian" % (name, field))
     if details:
-        report.add("T6b", "FAIL", "The English lessons of the demo path do not match the originals", details[:15])
+        report.add("T6b", "FAIL", "An English lesson does not match its Russian original", details[:15])
     else:
-        report.add("T6b", "PASS", "All %d demo-path lessons have an English copy of the same shape"
-                   % len(DEMO_PATH_LESSONS))
+        report.add("T6b", "PASS", "All %d translated lessons mirror their originals step for step; "
+                   "the %d demo-path lessons have a copy" % (len(translated), len(DEMO_PATH_LESSONS)))
 
 
 def check_meta_route(report):
