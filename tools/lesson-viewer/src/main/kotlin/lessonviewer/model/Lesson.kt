@@ -4,12 +4,12 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
 /**
- * Калька формата `app/src/main/assets/lessons/<id>.json`. Модель СОЗНАТЕЛЬНО продублирована, а не
- * подтянута из :app — см. решение 2.1 спеки. Расхождение ловится [lessonviewer.AllLessonsParseTest].
+ * A copy of the `app/src/main/assets/lessons/<id>.json` format. The model is DELIBERATELY duplicated, not
+ * pulled in from :app — see decision 2.1 of the spec. A mismatch is caught by [lessonviewer.AllLessonsParseTest].
  *
- * Осторожно с KDoc: последовательность «слэш-звёздочка» внутри блочного комментария открывает
- * ВЛОЖЕННЫЙ комментарий (Kotlin их поддерживает), и внешний остаётся незакрытым. Поэтому пути с
- * масками пишем без звёздочки после слэша.
+ * Careful with KDoc: the "slash-asterisk" sequence inside a block comment opens a NESTED comment (Kotlin
+ * supports them), and the outer one stays unclosed. So paths with masks are written without an asterisk
+ * after a slash.
  */
 @Serializable
 data class Lesson(
@@ -19,11 +19,11 @@ data class Lesson(
   val steps: List<LessonStep> = emptyList(),
 )
 
-/** Плоский шаг: дискриминатор [type], все остальные поля опциональны — как в :app. */
+/** A flat step: the [type] discriminator, all other fields optional — as in :app. */
 @Serializable
 data class LessonStep(
   val type: String = "",
-  // text и служебные
+  // text and service steps
   val text: String = "",
   val note: String = "",
   // quiz
@@ -54,10 +54,10 @@ data class LessonStep(
   val situation: String = "",
   val q: String = "",
   val options: List<String> = emptyList(),
-  /** Полиморфно: у "sort" — массив индексов, у "scenario" — одно число. Разбор — в LessonAnswers. */
+  /** Polymorphic: "sort" has an array of indices, "scenario" a single number. Parsing is in LessonAnswers. */
   val correct: JsonElement? = null,
   val explain: String = "",
-  // input / challenge — в уроках пока не встречаются, поля держим, чтобы не падать
+  // input / challenge — not used in lessons yet; the fields are kept so as not to fail
   val prompt: String = "",
   val hint: String = "",
   val task: String = "",
@@ -67,7 +67,7 @@ data class LessonStep(
 data class QuizQuestion(
   val q: String = "",
   val options: List<String> = emptyList(),
-  /** -1, а не 0: при отсутствующем/битом ключе НЕ помечаем первый вариант правильным. */
+  /** -1, not 0: with a missing/broken key the first option is NOT marked as correct. */
   val correct: Int = -1,
   val explain: String = "",
 )
@@ -85,7 +85,7 @@ data class MatchPair(
   val def: String = "",
 )
 
-/** Типы, которые вьюер умеет рисовать. Незнакомый тип рисуется красной плашкой, а не пропускается. */
+/** The types the viewer can draw. An unknown type is drawn as a red plate, not skipped. */
 val KNOWN_STEP_TYPES: Set<String> = setOf(
   "text", "quiz", "scenario", "reveal", "image", "concept",
   "match", "sort", "fill", "example",

@@ -18,13 +18,13 @@ import lessonviewer.ui.ErrorPlate
 import java.io.File
 
 /**
- * Картинка шага "image". Пути в уроках отсчитываются от `app/src/main/assets`, поэтому [assetsRoot] —
- * родитель каталога уроков. Поле `url` (сетевой фолбэк) не поддерживается намеренно: вьюер работает
- * с диском, а не с сетью.
+ * The picture of an "image" step. Paths in lessons are counted from `app/src/main/assets`, so [assetsRoot]
+ * is the parent of the lessons directory. The `url` field (a network fallback) is deliberately not
+ * supported: the viewer works with the disk, not the network.
  */
 @Composable
 fun ImageStepView(step: LessonStep, assetsRoot: File?) {
-  // imageKey — сокращение для картинки под lessons/images с расширением .svg.
+  // imageKey is a shorthand for a picture under lessons/images with the .svg extension.
   val relative = when {
     step.imageKey.isNotBlank() -> "lessons/images/${step.imageKey}.svg"
     step.asset.isNotBlank() -> step.asset

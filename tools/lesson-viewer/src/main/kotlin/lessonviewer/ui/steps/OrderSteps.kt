@@ -24,8 +24,8 @@ fun SortStepView(step: LessonStep) {
         Text("${i + 1}. $item", style = MaterialTheme.typography.bodyMedium)
       }
     } else {
-      // Порядок не восстанавливается — показываем авторский и честно говорим об этом,
-      // а не выдумываем «правильный».
+      // The order cannot be restored — we show the author's order and say so honestly,
+      // instead of making up the "correct" one.
       step.items.forEach { Text("· $it", style = MaterialTheme.typography.bodyMedium) }
       ErrorPlate("`correct` не полная перестановка — показан авторский порядок: ${step.correct}")
     }
