@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.memory.model.Message
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
@@ -65,15 +66,15 @@ private fun MemoryPageContent(
   Scaffold(
     topBar = {
       TopAppBar(
-        title = { Text(state.title.ifBlank { "Память" }) },
+        title = { Text(state.title.ifBlank { tr("Память", "Memory") }) },
         navigationIcon = {
           IconButton(onClick = onNavigateBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = tr("Назад", "Back"))
           }
         },
         actions = {
           IconButton(onClick = onOpenChat) {
-            Icon(Icons.Default.Edit, contentDescription = "Открыть чат")
+            Icon(Icons.Default.Edit, contentDescription = tr("Открыть чат", "Open chat"))
           }
         },
         colors = TopAppBarDefaults.topAppBarColors(
@@ -99,7 +100,7 @@ private fun MemoryPageContent(
           )
         }
       }
-      item { Text("Сообщения", style = MaterialTheme.typography.titleSmall) }
+      item { Text(tr("Сообщения", "Messages"), style = MaterialTheme.typography.titleSmall) }
       items(state.messages, key = { it.id }) { message -> MessageRow(message) }
     }
   }
@@ -113,7 +114,7 @@ private fun SummaryCard(summary: String) {
   ) {
     Column(modifier = Modifier.padding(16.dp)) {
       Text(
-        "Краткое содержание",
+        tr("Краткое содержание", "Summary"),
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
@@ -128,7 +129,7 @@ private fun MessageRow(message: Message) {
   Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
     Column {
       Text(
-        if (isUser) "Вы" else "Агент",
+        if (isUser) tr("Вы", "You") else tr("Агент", "Agent"),
         style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.Bold,
         color = if (isUser) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary,

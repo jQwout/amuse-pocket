@@ -333,4 +333,20 @@ val ROADMAP_LEVELS = listOf(
   ),
 )
 
+/**
+ * Lessons that are in the library but not on the path. Their name is repeated here, as a ru/en pair, for the
+ * places that have no lesson JSON at hand; the Russian one is the JSON's own title and a test keeps them equal.
+ */
+private val LIBRARY_ONLY_LESSON_TITLES: Map<String, Pair<String, String>> = mapOf(
+  "rag" to Pair("RAG: ответы по твоей базе", "RAG: answers from your own data"),
+)
+
+/**
+ * The name of a lesson in the interface language by its id (`what_is_agent` -> "What AI is and what an agent
+ * is"), or null if the id is not a lesson the app knows.
+ */
+fun lessonDisplayTitle(lessonId: String): String? =
+  ROADMAP_LEVELS.find { it.id == lessonId }?.title
+    ?: LIBRARY_ONLY_LESSON_TITLES[lessonId]?.let { (ru, en) -> tr(ru, en) }
+
 enum class LevelStatus { LOCKED, CURRENT, COMPLETED }

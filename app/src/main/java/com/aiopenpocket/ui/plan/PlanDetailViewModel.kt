@@ -15,6 +15,7 @@ import com.aiopenpocket.agent.core.plan.model.PlanStatus
 import com.aiopenpocket.agent.core.plan.model.StepStatus
 import com.aiopenpocket.agent.core.plan.persistence.PlanRepository
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.i18n.tr
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
@@ -176,7 +177,12 @@ class PlanDetailViewModel(
 
   companion object {
     private const val TAG = "PlanDetailViewModel"
-    internal const val ACTION_FAILED_MESSAGE = "Не получилось — состояние плана только что изменилось. Попробуй ещё раз."
+    // A getter, not a const: tr() reads the interface language at the moment the message is shown.
+    internal val ACTION_FAILED_MESSAGE: String
+      get() = tr(
+        "Не получилось — состояние плана только что изменилось. Попробуй ещё раз.",
+        "That did not work — the plan has just changed. Try again.",
+      )
   }
 }
 
@@ -192,7 +198,9 @@ internal fun displayEvidenceSummary(evidence: PlanEvidence, criteriaById: Map<St
   val criterion = evidence.criterionId?.let(criteriaById::get)
   return when (evidence.source) {
     EvidenceSource.TOOL_RESULT, EvidenceSource.MEMORY_FACT ->
-      criterion?.let { "подтверждён критерий «${it.description}»" } ?: evidence.summary
+      criterion?.let {
+        tr("подтверждён критерий «${it.description}»", "criterion confirmed: “${it.description}”")
+      } ?: evidence.summary
     EvidenceSource.USER_CONFIRMATION, EvidenceSource.MODEL_ASSESSMENT -> evidence.summary
   }
 }

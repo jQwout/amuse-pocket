@@ -126,7 +126,7 @@ fun LanguageSelectionStep(
             )
             !lang.enabled -> Icon(
               Icons.Default.Lock,
-              contentDescription = "Недоступно",
+              contentDescription = tr("Недоступно", "Unavailable"),
               tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
               modifier = Modifier.size(18.dp),
             )

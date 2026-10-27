@@ -40,14 +40,12 @@ import com.aiopenpocket.agent.core.plan.model.PlanEventType
 import com.aiopenpocket.agent.core.plan.model.PlanHorizon
 import com.aiopenpocket.agent.core.plan.model.PlanStatus
 import com.aiopenpocket.agent.core.plan.model.StepStatus
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
 import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.components.glass.rememberGlassState
-import com.aiopenpocket.ui.theme.MyApplicationTheme
-import com.aiopenpocket.ui.theme.ThemeMode
 import com.aiopenpocket.ui.util.formatRelativeDate
 import dev.zacsweers.metrox.viewmodel.metroViewModel
-import kotlinx.serialization.json.JsonObject
 
 /**
  * Full-screen plan detail (Task 12, design spec section 15: "отдельная detail view с timeline
@@ -71,11 +69,11 @@ fun PlanDetailScreen(
 ) {
   val glassState = rememberGlassState()
   AcademyCollapsingScaffold(
-    title = "План",
+    title = tr("План", "Plan"),
     glassState = glassState,
     navigationIcon = {
       IconButton(onClick = onNavigateBack) {
-        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = tr("Назад", "Back"))
       }
     },
   ) { padding ->
@@ -88,7 +86,7 @@ fun PlanDetailScreen(
     if (state.notFound || state.objective == null) {
       Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
         Text(
-          text = "План не найден",
+          text = tr("План не найден", "Plan not found"),
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
         )
@@ -176,17 +174,17 @@ private fun ActionsRow(
   Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
     if (state.canPause) {
       OutlinedButton(onClick = onPause, modifier = Modifier.weight(1f).testTag("plan_pause")) {
-        Text("Пауза")
+        Text(tr("Пауза", "Pause"))
       }
     }
     if (state.canResume) {
       OutlinedButton(onClick = onResume, modifier = Modifier.weight(1f).testTag("plan_resume")) {
-        Text("Продолжить")
+        Text(tr("Продолжить", "Resume"))
       }
     }
     if (state.canCancel) {
       OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f).testTag("plan_cancel")) {
-        Text("Отменить")
+        Text(tr("Отменить", "Cancel"))
       }
     }
   }
@@ -196,13 +194,13 @@ private fun ActionsRow(
 private fun AssumptionsConstraintsSection(state: PlanDetailState, modifier: Modifier = Modifier) {
   Column(modifier = modifier.fillMaxWidth()) {
     if (state.assumptions.isNotEmpty()) {
-      SectionLabel("Предположения")
+      SectionLabel(tr("Предположения", "Assumptions"))
       Spacer(Modifier.height(6.dp))
       state.assumptions.forEach { BulletLine(it) }
       Spacer(Modifier.height(12.dp))
     }
     if (state.constraints.isNotEmpty()) {
-      SectionLabel("Ограничения")
+      SectionLabel(tr("Ограничения", "Constraints"))
       Spacer(Modifier.height(6.dp))
       state.constraints.forEach { BulletLine(it) }
     }
@@ -222,10 +220,10 @@ private fun BulletLine(text: String, modifier: Modifier = Modifier) {
 @Composable
 private fun CriteriaSection(criteria: List<PlanCriterionRow>, modifier: Modifier = Modifier) {
   Column(modifier = modifier.fillMaxWidth()) {
-    SectionLabel("Критерии выполнения")
+    SectionLabel(tr("Критерии выполнения", "Success criteria"))
     Spacer(Modifier.height(8.dp))
     if (criteria.isEmpty()) {
-      EmptyStateCard("критериев не задано")
+      EmptyStateCard(tr("критериев не задано", "no criteria set"))
     } else {
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         criteria.forEach { row -> CriterionRow(row) }
@@ -244,7 +242,7 @@ private fun CriterionRow(row: PlanCriterionRow, modifier: Modifier = Modifier) {
       val tint = if (row.satisfied) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
       Icon(
         imageVector = if (row.satisfied) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
-        contentDescription = if (row.satisfied) "Подтверждено" else "Не подтверждено",
+        contentDescription = if (row.satisfied) tr("Подтверждено", "Confirmed") else tr("Не подтверждено", "Not confirmed"),
         tint = tint,
         modifier = Modifier.padding(end = 10.dp),
       )
@@ -255,7 +253,7 @@ private fun CriterionRow(row: PlanCriterionRow, modifier: Modifier = Modifier) {
           color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
-          text = if (row.required) "Обязательный" else "Необязательный",
+          text = if (row.required) tr("Обязательный", "Required") else tr("Необязательный", "Optional"),
           style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
         )
@@ -267,10 +265,10 @@ private fun CriterionRow(row: PlanCriterionRow, modifier: Modifier = Modifier) {
 @Composable
 private fun StepsSection(steps: List<PlanStepRow>, horizon: PlanHorizon?, modifier: Modifier = Modifier) {
   Column(modifier = modifier.fillMaxWidth()) {
-    SectionLabel("Шаги")
+    SectionLabel(tr("Шаги", "Steps"))
     Spacer(Modifier.height(8.dp))
     if (steps.isEmpty()) {
-      EmptyStateCard("шагов не задано")
+      EmptyStateCard(tr("шагов не задано", "no steps set"))
     } else {
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         steps.forEachIndexed { index, row -> StepRow(index + 1, row, showDueDate = horizon == PlanHorizon.PROGRAM) }
@@ -300,20 +298,23 @@ private fun StepRow(number: Int, row: PlanStepRow, showDueDate: Boolean, modifie
       }
       Spacer(Modifier.height(6.dp))
       Text(
-        text = "Попыток: ${row.attempts}",
+        text = tr("Попыток: ${row.attempts}", "Attempts: ${row.attempts}"),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
       )
       if (row.lastEvidenceSummary != null) {
         Text(
-          text = "Последний результат: ${row.lastEvidenceSummary}",
+          text = tr("Последний результат: ${row.lastEvidenceSummary}", "Last result: ${row.lastEvidenceSummary}"),
           style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
         )
       }
       if (showDueDate && row.nextDueAt != null) {
         Text(
-          text = "Следующий срок: ${formatRelativeDate(row.nextDueAt)}",
+          text = tr(
+            "Следующий срок: ${formatRelativeDate(row.nextDueAt)}",
+            "Next due: ${formatRelativeDate(row.nextDueAt)}",
+          ),
           style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.primary,
         )
@@ -339,10 +340,10 @@ private fun StepStatusBadgeView(status: StepStatus, modifier: Modifier = Modifie
 @Composable
 private fun EventsSection(events: List<PlanEvent>, modifier: Modifier = Modifier) {
   Column(modifier = modifier.fillMaxWidth()) {
-    SectionLabel("События")
+    SectionLabel(tr("События", "Events"))
     Spacer(Modifier.height(8.dp))
     if (events.isEmpty()) {
-      EmptyStateCard("событий пока нет")
+      EmptyStateCard(tr("событий пока нет", "no events yet"))
     } else {
       Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         events.forEach { event -> EventLine(event) }
@@ -368,18 +369,18 @@ private fun EventLine(event: PlanEvent, modifier: Modifier = Modifier) {
 }
 
 private fun planEventLabel(type: PlanEventType): String = when (type) {
-  PlanEventType.CREATED -> "План создан"
-  PlanEventType.PROPOSED -> "Предложена версия"
-  PlanEventType.APPROVED -> "План одобрен"
-  PlanEventType.REVISION_REQUESTED -> "Запрошены правки"
-  PlanEventType.STEP_STARTED -> "Шаг начат"
-  PlanEventType.STEP_VERIFIED -> "Шаг проверен"
-  PlanEventType.STEP_BLOCKED -> "Шаг заблокирован"
-  PlanEventType.PLAN_PAUSED -> "План поставлен на паузу"
-  PlanEventType.PLAN_RESUMED -> "План возобновлён"
-  PlanEventType.PLAN_COMPLETED -> "План завершён"
-  PlanEventType.PLAN_CANCELLED -> "План отменён"
-  PlanEventType.ERROR -> "Ошибка"
+  PlanEventType.CREATED -> tr("План создан", "Plan created")
+  PlanEventType.PROPOSED -> tr("Предложена версия", "Version proposed")
+  PlanEventType.APPROVED -> tr("План одобрен", "Plan approved")
+  PlanEventType.REVISION_REQUESTED -> tr("Запрошены правки", "Changes requested")
+  PlanEventType.STEP_STARTED -> tr("Шаг начат", "Step started")
+  PlanEventType.STEP_VERIFIED -> tr("Шаг проверен", "Step verified")
+  PlanEventType.STEP_BLOCKED -> tr("Шаг заблокирован", "Step blocked")
+  PlanEventType.PLAN_PAUSED -> tr("План поставлен на паузу", "Plan paused")
+  PlanEventType.PLAN_RESUMED -> tr("План возобновлён", "Plan resumed")
+  PlanEventType.PLAN_COMPLETED -> tr("План завершён", "Plan completed")
+  PlanEventType.PLAN_CANCELLED -> tr("План отменён", "Plan cancelled")
+  PlanEventType.ERROR -> tr("Ошибка", "Error")
 }
 
 @Composable
@@ -420,76 +421,4 @@ fun PlanDetailRoute(
     onCancel = viewModel::cancel,
     onNavigateBack = onNavigateBack,
   )
-}
-
-// ==================================================================================================
-// Превью экрана (скриншот-тесты) — фиксированный state, без реального ViewModel.
-// ==================================================================================================
-
-private const val PREVIEW_FIXED_TIMESTAMP = 1_700_000_000_000L
-
-internal fun samplePlanDetailState(): PlanDetailState = PlanDetailState(
-  isLoading = false,
-  planId = "plan-1",
-  agentId = "budget",
-  conversationId = "conv-1",
-  objective = "Составить бюджет на месяц и отслеживать траты по категориям",
-  assumptions = listOf("Пользователь готов делиться суммами трат"),
-  constraints = listOf("Не отправлять деньги, только советовать"),
-  horizon = PlanHorizon.PROGRAM,
-  status = PlanStatus.ACTIVE,
-  version = 2,
-  steps = listOf(
-    PlanStepRow(
-      id = "step-1",
-      title = "Собрать расходы за месяц",
-      instruction = "Прочитать сохранённые траты из памяти агента",
-      dependsOn = emptySet(),
-      status = StepStatus.COMPLETED,
-      attempts = 1,
-      nextDueAt = null,
-      lastEvidenceSummary = "Найдено 42 траты за месяц",
-    ),
-    PlanStepRow(
-      id = "step-2",
-      title = "Напомнить проверить бюджет",
-      instruction = "Раз в неделю спрашивать о тратах",
-      dependsOn = setOf("step-1"),
-      status = StepStatus.EXECUTING,
-      attempts = 0,
-      nextDueAt = PREVIEW_FIXED_TIMESTAMP,
-      lastEvidenceSummary = null,
-    ),
-  ),
-  criteria = listOf(
-    PlanCriterionRow(id = "criterion-1", description = "Бюджет сохранён в памяти агента", required = true, satisfied = true),
-    PlanCriterionRow(id = "criterion-2", description = "Пользователь подтвердил лимиты", required = false, satisfied = false),
-  ),
-  events = listOf(
-    PlanEvent(
-      id = "evt-2",
-      planId = "plan-1",
-      version = 2,
-      stepId = null,
-      type = PlanEventType.APPROVED,
-      payload = JsonObject(emptyMap()),
-      createdAt = PREVIEW_FIXED_TIMESTAMP,
-    ),
-    PlanEvent(
-      id = "evt-1",
-      planId = "plan-1",
-      version = null,
-      stepId = null,
-      type = PlanEventType.CREATED,
-      payload = JsonObject(emptyMap()),
-      createdAt = PREVIEW_FIXED_TIMESTAMP - 1_000,
-    ),
-  ),
-)
-
-@Composable
-internal fun PlanDetailPreviewScaffold(state: PlanDetailState = samplePlanDetailState()) {
-  MyApplicationTheme(mode = ThemeMode.DARK) {
-    PlanDetailScreen(state = state, onPause = {}, onResume = {}, onCancel = {}, onNavigateBack = {})
-  }
 }

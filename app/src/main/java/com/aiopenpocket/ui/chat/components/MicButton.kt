@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.voice.input.VoiceInputState
 
 @Composable
@@ -40,17 +41,17 @@ fun MicButton(
   val (icon, description, tint) = when (state) {
     is VoiceInputState.Listening -> Triple(
       Icons.Filled.Mic,
-      "Остановить запись",
+      tr("Остановить запись", "Stop recording"),
       MaterialTheme.colorScheme.error,
     )
     is VoiceInputState.Error -> Triple(
       Icons.Filled.MicOff,
-      "Ошибка распознавания",
+      tr("Ошибка распознавания", "Speech recognition error"),
       MaterialTheme.colorScheme.error,
     )
     VoiceInputState.Idle -> Triple(
       Icons.Filled.Mic,
-      "Голосовой ввод",
+      tr("Голосовой ввод", "Voice input"),
       MaterialTheme.colorScheme.onSurfaceVariant,
     )
   }

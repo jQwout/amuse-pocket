@@ -40,23 +40,61 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 
 /**
  * A detail of the request: the chip's label, what it adds to the request, what the model guesses about without
  * it, the piece of the "guessed" answer and the piece of the answer when the detail is named (empty — the piece
  * just disappears).
  */
-private class AskDetail(val chip: String, val addition: String, val guess: String, val guessed: String, val exact: String)
+private class AskDetail(
+    private val chipRu: String, private val chipEn: String,
+    private val additionRu: String, private val additionEn: String,
+    private val guessRu: String, private val guessEn: String,
+    private val guessedRu: String, private val guessedEn: String,
+    private val exactRu: String, private val exactEn: String,
+) {
+    // A ru/en pair picked at display time: ASK_DETAILS is built once, and a tr() in its initializer would
+    // freeze the language.
+    val chip: String get() = tr(chipRu, chipEn)
+    val addition: String get() = tr(additionRu, additionEn)
+    val guess: String get() = tr(guessRu, guessEn)
+    val guessed: String get() = tr(guessedRu, guessedEn)
+    val exact: String get() = tr(exactRu, exactEn)
+}
 
 private val ASK_DETAILS = listOf(
-    AskDetail("кому: маме", " маме", "кому", "Дорогой друг!", "Мама!"),
-    AskDetail("повод: день рождения", " с днём рождения", "повод", "Поздравляю с праздником!", "С днём рождения!"),
     AskDetail(
-        "тон: с юмором", ", с юмором", "тон",
-        "Желаю счастья, здоровья и успехов во всех начинаниях.",
-        "Пусть поводов улыбнуться будет больше, чем дел в календаре!",
+        chipRu = "кому: маме", chipEn = "to: Mom",
+        additionRu = " маме", additionEn = " for Mom",
+        guessRu = "кому", guessEn = "who to",
+        guessedRu = "Дорогой друг!", guessedEn = "Dear friend!",
+        exactRu = "Мама!", exactEn = "Mom!",
     ),
-    AskDetail("длина: коротко", ", коротко", "длина","Пусть каждый день приносит радость, а все мечты сбываются!", ""),
+    AskDetail(
+        chipRu = "повод: день рождения", chipEn = "occasion: birthday",
+        additionRu = " с днём рождения", additionEn = " for her birthday",
+        guessRu = "повод", guessEn = "occasion",
+        guessedRu = "Поздравляю с праздником!", guessedEn = "Congratulations on the holiday!",
+        exactRu = "С днём рождения!", exactEn = "Happy birthday!",
+    ),
+    AskDetail(
+        chipRu = "тон: с юмором", chipEn = "tone: funny",
+        additionRu = ", с юмором", additionEn = ", with humor",
+        guessRu = "тон", guessEn = "tone",
+        guessedRu = "Желаю счастья, здоровья и успехов во всех начинаниях.",
+        guessedEn = "Wishing you happiness, health and success in all your endeavours.",
+        exactRu = "Пусть поводов улыбнуться будет больше, чем дел в календаре!",
+        exactEn = "May you have more reasons to smile than things in your calendar!",
+    ),
+    AskDetail(
+        chipRu = "длина: коротко", chipEn = "length: short",
+        additionRu = ", коротко", additionEn = ", keep it short",
+        guessRu = "длина", guessEn = "length",
+        guessedRu = "Пусть каждый день приносит радость, а все мечты сбываются!",
+        guessedEn = "May every day bring joy and every dream come true!",
+        exactRu = "", exactEn = "",
+    ),
 )
 
 /**
@@ -72,7 +110,7 @@ internal fun PromptSharpenScene() {
     val count = ASK_DETAILS.indices.count(::isOn)
     val precision by animateFloatAsState(count.toFloat() / ASK_DETAILS.size, tween(350), label = "precision")
     val primary = MaterialTheme.colorScheme.primary
-    val request = "Напиши поздравление" + ASK_DETAILS.indices.filter(::isOn).joinToString("") { ASK_DETAILS[it].addition }
+    val request = tr("Напиши поздравление", "Write a greeting") + ASK_DETAILS.indices.filter(::isOn).joinToString("") { ASK_DETAILS[it].addition }
     val answer = buildAnnotatedString {
         ASK_DETAILS.forEachIndexed { index, detail ->
             val piece = if (isOn(index)) detail.exact else detail.guessed
@@ -97,7 +135,7 @@ internal fun PromptSharpenScene() {
                 .background(ScenePalette[0])
                 .padding(horizontal = 10.dp, vertical = 6.dp),
         ) {
-            Text("«$request»", color = SceneInk, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, minLines = 2)
+            Text(tr("«$request»", "“$request”"), color = SceneInk, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, minLines = 2)
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             ASK_DETAILS.forEachIndexed { index, detail ->
@@ -105,7 +143,7 @@ internal fun PromptSharpenScene() {
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Text("Точность", style = MaterialTheme.typography.labelLarge, modifier = Modifier.width(76.dp))
+            Text(tr("Точность", "Precision"), style = MaterialTheme.typography.labelLarge, modifier = Modifier.width(76.dp))
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -133,7 +171,14 @@ internal fun PromptSharpenScene() {
         ) {
             Text(answer, style = MaterialTheme.typography.bodyMedium, minLines = 5)
             Text(
-                text = if (guesses.isEmpty()) "Гадать не о чем — всё сказано" else "Серым — догадки: ${guesses.joinToString(", ")}",
+                text = if (guesses.isEmpty()) {
+                    tr("Гадать не о чем — всё сказано", "Nothing left to guess — everything is said")
+                } else {
+                    tr(
+                        "Серым — догадки: ${guesses.joinToString(", ")}",
+                        "Grey marks guesses: ${guesses.joinToString(", ")}",
+                    )
+                },
                 color = SceneInk.copy(alpha = 0.6f),
                 style = MaterialTheme.typography.labelMedium,
                 maxLines = 1,
@@ -142,9 +187,12 @@ internal fun PromptSharpenScene() {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = when (count) {
-                    0 -> "Модель гадает о четырёх вещах — добавляй детали"
-                    ASK_DETAILS.size -> "Четыре детали — ноль догадок: ответ точно в цель"
-                    else -> "Каждая деталь убирает догадку — осталось ${ASK_DETAILS.size - count}"
+                    0 -> tr("Модель гадает о четырёх вещах — добавляй детали", "The model is guessing four things — add details")
+                    ASK_DETAILS.size -> tr("Четыре детали — ноль догадок: ответ точно в цель", "Four details, zero guesses: the answer is spot on")
+                    else -> tr(
+                        "Каждая деталь убирает догадку — осталось ${ASK_DETAILS.size - count}",
+                        "Each detail removes a guess — ${ASK_DETAILS.size - count} left",
+                    )
                 },
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
@@ -154,7 +202,7 @@ internal fun PromptSharpenScene() {
             TextButton(onClick = { mask = 0 }, enabled = count > 0) {
                 Icon(Icons.Default.Replay, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(4.dp))
-                Text("Сначала")
+                Text(tr("Сначала", "Start over"))
             }
         }
     }

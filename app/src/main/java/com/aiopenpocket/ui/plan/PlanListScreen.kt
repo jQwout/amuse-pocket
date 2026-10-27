@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.plan.model.PlanStatus
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
 import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.components.glass.rememberGlassState
@@ -56,11 +57,11 @@ fun PlanListScreen(
 ) {
   val glassState = rememberGlassState()
   AcademyCollapsingScaffold(
-    title = "Планы",
+    title = tr("Планы", "Plans"),
     glassState = glassState,
     navigationIcon = {
       IconButton(onClick = onNavigateBack) {
-        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = tr("Назад", "Back"))
       }
     },
   ) { padding ->
@@ -84,16 +85,16 @@ fun PlanListScreen(
         return@AcademyCollapsingScaffold
       }
       if (total == 0) {
-        EmptyStateCard("у этого агента ещё нет планов")
+        EmptyStateCard(tr("у этого агента ещё нет планов", "this agent has no plans yet"))
         return@AcademyCollapsingScaffold
       }
       CountsRow(state)
       Spacer(Modifier.height(20.dp))
-      PlanListSection(title = "Активные", rows = state.active, onOpenPlan = onOpenPlan)
+      PlanListSection(title = tr("Активные", "Active"), rows = state.active, onOpenPlan = onOpenPlan)
       Spacer(Modifier.height(24.dp))
-      PlanListSection(title = "На паузе", rows = state.paused, onOpenPlan = onOpenPlan)
+      PlanListSection(title = tr("На паузе", "Paused"), rows = state.paused, onOpenPlan = onOpenPlan)
       Spacer(Modifier.height(24.dp))
-      PlanListSection(title = "Завершённые", rows = state.completed, onOpenPlan = onOpenPlan)
+      PlanListSection(title = tr("Завершённые", "Completed"), rows = state.completed, onOpenPlan = onOpenPlan)
     }
   }
 }
@@ -101,9 +102,9 @@ fun PlanListScreen(
 @Composable
 private fun CountsRow(state: PlanListState, modifier: Modifier = Modifier) {
   Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-    CountTile(label = "Активные", count = state.active.size, modifier = Modifier.weight(1f))
-    CountTile(label = "На паузе", count = state.paused.size, modifier = Modifier.weight(1f))
-    CountTile(label = "Завершённые", count = state.completed.size, modifier = Modifier.weight(1f))
+    CountTile(label = tr("Активные", "Active"), count = state.active.size, modifier = Modifier.weight(1f))
+    CountTile(label = tr("На паузе", "Paused"), count = state.paused.size, modifier = Modifier.weight(1f))
+    CountTile(label = tr("Завершённые", "Completed"), count = state.completed.size, modifier = Modifier.weight(1f))
   }
 }
 
@@ -154,7 +155,7 @@ private fun PlanListRowCard(row: PlanListRow, onClick: () -> Unit, modifier: Mod
           overflow = TextOverflow.Ellipsis,
         )
         Text(
-          text = "${row.stepsCompleted}/${row.stepsTotal} шагов",
+          text = tr("${row.stepsCompleted}/${row.stepsTotal} шагов", "${row.stepsCompleted}/${row.stepsTotal} steps"),
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
         )
