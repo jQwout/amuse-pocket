@@ -6,16 +6,16 @@
       "git": "661d682"
     },
     "agent-memory-05e545": {
-      "hash": "50fd34a16bba",
-      "git": "67954f1"
+      "hash": "d040412d2bba",
+      "git": "48d4078"
     },
     "agent-skills-7189cc": {
       "hash": "e3296460a332",
       "git": "0f1e9a5"
     },
     "ai-academy-onboarding-5d51bb": {
-      "hash": "3d49634d1aca",
-      "git": "e1a7149"
+      "hash": "e007b2871bdc",
+      "git": "48d4078"
     },
     "app-settings-beb470": {
       "hash": "6b0da2dbdb50",
@@ -38,12 +38,12 @@
       "git": "cba9e00"
     },
     "english-ui-on-the-demo-path-223241": {
-      "hash": "9ce23ab2cb65",
-      "git": "20975d3"
+      "hash": "7a67e074bd95",
+      "git": "48d4078"
     },
     "fonovye-hody-agenta-dde42d": {
-      "hash": "b80b82df30de",
-      "git": "67954f1"
+      "hash": "d2f3c70773b9",
+      "git": "48d4078"
     },
     "glass-design-system-21a3fe": {
       "hash": "d3e1b8e389cc",
@@ -66,36 +66,40 @@
       "git": "ec20311"
     },
     "multi-chat-conversations-b3c93b": {
-      "hash": "946239621f09",
-      "git": "67954f1"
+      "hash": "e9b4323a7c39",
+      "git": "48d4078"
     },
     "protsedurnye-animatsii-v-urokah-68b2bf": {
-      "hash": "5d8b1279c77b",
-      "git": "cba9e00"
+      "hash": "e8d2e088f4a9",
+      "git": "48d4078"
     },
     "rezhim-refleksii-fca3c4": {
       "hash": "8376cc2d3890",
       "git": "67954f1"
     },
     "sam-segmentation-boxes-in-a-lesson-c3ea52": {
-      "hash": "5d1636c7fee5",
-      "git": "9ec1885"
+      "hash": "c5f9834f1ac3",
+      "git": "48d4078"
+    },
+    "screen-text-check-7c6d09": {
+      "hash": "6a29477df825",
+      "git": "48d4078"
     },
     "smena-temy-svetlaya-temnaya-sistemnaya-palitra-lime-ink-paper-005bc6": {
       "hash": "7ee4a6ccfd2f",
       "git": "295896f"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "1769d1b15bdc",
-      "git": "cba9e00"
+      "hash": "6c17563c9d9c",
+      "git": "48d4078"
     },
     "structured-plan-engine-907066": {
-      "hash": "b81c56ed4210",
-      "git": "cba9e00"
+      "hash": "3a1df9ddbafb",
+      "git": "48d4078"
     },
     "swappable-persona-e5e65e": {
-      "hash": "05c566d41f2e",
-      "git": "cf3f900"
+      "hash": "11aaa5d19303",
+      "git": "48d4078"
     },
     "uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2": {
       "hash": "67476ef4c5c4",
@@ -110,8 +114,8 @@
       "git": "cba9e00"
     },
     "voice-input-1a0dfd": {
-      "hash": "1b1086b54d9c",
-      "git": "2464f21"
+      "hash": "453672d36dab",
+      "git": "48d4078"
     },
     "vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53": {
       "hash": "e0a0303d7009",
