@@ -64,17 +64,17 @@ private val VOICES = listOf(
         nameRu = "Компаньон", nameEn = "Companion",
         instructionRu = "тепло, по-человечески", instructionEn = "warm, like a person",
         plainRu = "Ох, вариантов куча! Уютный фильм или звонок другу — что ближе? 🙂",
-        plainEn = "Oh, so many options! A cosy movie or a call to a friend — which sounds better? 🙂",
+        plainEn = "Oh, so many options! A cozy movie or a call to a friend — which sounds better? 🙂",
         withProfileRu = "Саша, может, лёгкая пробежка на закате? 🙂 А потом чай и сериал!",
         withProfileEn = "Sasha, how about an easy run at sunset? 🙂 And then tea and a show!",
     ),
     PersonaVoice(
         nameRu = "Коуч", nameEn = "Coach",
-        instructionRu = "прямо, без сахара", instructionEn = "straight, no sugar",
+        instructionRu = "прямо, без сахара", instructionEn = "straight, no sugar-coating",
         plainRu = "Сначала дела на завтра. Потом что угодно, кроме ленты в телефоне.",
         plainEn = "Tomorrow's tasks first. Then anything but the feed on your phone.",
         withProfileRu = "Ты же бегаешь, Саша. Пять километров — и без отговорок.",
-        withProfileEn = "You run, Sasha. Five kilometres — and no excuses.",
+        withProfileEn = "You run, Sasha. Five kilometers — and no excuses.",
     ),
 )
 

@@ -93,20 +93,33 @@ class ConversationDisplayTitleTest {
     assertTrue("Russian names under the English interface: $bad", bad.isEmpty())
   }
 
+  private fun jsonTitle(file: File): String =
+    Json.parseToJsonElement(file.readText()).jsonObject.getValue("title").jsonPrimitive.content
+
   /**
-   * The library-only lessons repeat their Russian name in RoadmapLevels (there is no JSON at hand there); this
-   * keeps the copy equal to the lesson's own title so the two cannot drift apart unnoticed.
+   * The name in the list of chats must be the name on the lesson itself. The Path and the list read their own
+   * copy of the name (RoadmapLevels), the lesson JSON carries another, and the two had drifted: the capstone was
+   * "design an agent" in the list and "design your own agent" at the top of the lesson, in the demo video.
+   * The lesson JSON is the source of the text, so the list is held to it, in every language the lesson exists in.
    */
   @Test
-  fun `a lesson that is not on the path carries the title of its JSON`() {
-    AppLanguage.code = AppLanguage.RU
-    val onThePath = ROADMAP_LEVELS.map { it.id }.toSet()
-    val libraryOnly = lessonIds.filter { it !in onThePath }
-    assertTrue("expected at least one library-only lesson (rag)", libraryOnly.isNotEmpty())
-    for (id in libraryOnly) {
-      val jsonTitle = Json.parseToJsonElement(File(lessonsDir, "$id.json").readText())
-        .jsonObject.getValue("title").jsonPrimitive.content
-      assertEquals(jsonTitle, lessonDisplayTitle(id))
+  fun `the name in the list is the title of the lesson itself, for every lesson`() {
+    assertTrue("no lessons found", lessonIds.isNotEmpty())
+    for (id in lessonIds) {
+      AppLanguage.code = AppLanguage.RU
+      assertEquals("$id in Russian", jsonTitle(File(lessonsDir, "$id.json")), chat(id, tutorial = true).displayTitle())
+
+      val english = File(File(lessonsDir, AppLanguage.EN), "$id.json")
+      if (english.isFile) {
+        AppLanguage.code = AppLanguage.EN
+        assertEquals("$id in English", jsonTitle(english), chat(id, tutorial = true).displayTitle())
+      }
     }
+  }
+
+  @Test
+  fun `the Path levels are lessons that exist, so the list can name every one of them`() {
+    val missing = ROADMAP_LEVELS.map { it.id }.filter { it !in lessonIds }
+    assertTrue("Path levels without a lesson JSON: $missing", missing.isEmpty())
   }
 }

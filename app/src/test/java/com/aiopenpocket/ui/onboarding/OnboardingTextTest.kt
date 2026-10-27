@@ -54,7 +54,7 @@ class OnboardingTextTest {
   fun `the intro text has no markdown markers, in either language`() {
     for (language in listOf(AppLanguage.EN, AppLanguage.RU)) {
       AppLanguage.code = language
-      val intro = OnboardingContent.INTRO_MARKDOWN
+      val intro = OnboardingContent.INTRO_TEXT
       assertFalse("asterisks in the $language intro", intro.contains("*"))
       assertFalse("underscore emphasis in the $language intro", Regex("(^|\\s)_\\w").containsMatchIn(intro))
     }

@@ -41,7 +41,7 @@ import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.util.formatRelativeDate
 import kotlinx.coroutines.flow.Flow
 
-/** Russian label for a whole-plan [PlanStatus] — shared by [PlanCard], the plan list/detail screens, and `AgentDetailScreen`'s Планы section. */
+/** Label (in the interface language) for a whole-plan [PlanStatus] — shared by [PlanCard], the plan list/detail screens, and `AgentDetailScreen`'s Планы section. */
 fun planStatusLabel(status: PlanStatus): String = when (status) {
   PlanStatus.DRAFT -> tr("Черновик", "Draft")
   PlanStatus.NEEDS_INFO -> tr("Нужна информация", "Needs information")
@@ -89,7 +89,7 @@ private val StatusRed = StatusPair(Color(0xFFE53935), Color(0xFFC62828))
 @Composable
 private fun statusTone(pair: StatusPair): Color = if (LocalThemeIsDark.current) pair.onDark else pair.onLight
 
-/** Russian label for a per-step [StepStatus] — used by [PlanCard]'s progress branch and the plan detail timeline. */
+/** Label (in the interface language) for a per-step [StepStatus] — used by [PlanCard]'s progress branch and the plan detail timeline. */
 fun stepStatusLabel(status: StepStatus): String = when (status) {
   StepStatus.PENDING -> tr("Ожидает", "Waiting")
   StepStatus.READY -> tr("Готов к запуску", "Ready to run")
@@ -111,7 +111,7 @@ fun stepStatusColor(status: StepStatus): Color = when (status) {
   StepStatus.FAILED -> statusTone(StatusRed)
 }
 
-/** Russian label for [PlanHorizon]. */
+/** Label (in the interface language) for [PlanHorizon]. */
 fun planHorizonLabel(horizon: PlanHorizon): String = when (horizon) {
   PlanHorizon.SINGLE_RUN -> tr("Разовая задача", "One-off task")
   PlanHorizon.PROGRAM -> tr("Программа", "Ongoing program")

@@ -83,7 +83,7 @@ private val ASK_DETAILS = listOf(
         additionRu = ", с юмором", additionEn = ", with humor",
         guessRu = "тон", guessEn = "tone",
         guessedRu = "Желаю счастья, здоровья и успехов во всех начинаниях.",
-        guessedEn = "Wishing you happiness, health and success in all your endeavours.",
+        guessedEn = "Wishing you happiness, health and success in all your endeavors.",
         exactRu = "Пусть поводов улыбнуться будет больше, чем дел в календаре!",
         exactEn = "May you have more reasons to smile than things in your calendar!",
     ),
@@ -176,7 +176,7 @@ internal fun PromptSharpenScene() {
                 } else {
                     tr(
                         "Серым — догадки: ${guesses.joinToString(", ")}",
-                        "Grey marks guesses: ${guesses.joinToString(", ")}",
+                        "Gray marks guesses: ${guesses.joinToString(", ")}",
                     )
                 },
                 color = SceneInk.copy(alpha = 0.6f),

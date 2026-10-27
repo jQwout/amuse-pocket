@@ -185,28 +185,17 @@ private fun LibraryCard(
 }
 
 /**
- * English texts of the cards for lessons that are not on the path (the rest come from [ROADMAP_LEVELS]). Data
- * only: the language is picked in [displayTitle]/[displayDescription] at display time.
- */
-private val LIBRARY_ONLY_EN: Map<String, Pair<String, String>> = mapOf(
-  "rag" to Pair(
-    "RAG: answers from your own data",
-    "Why the model doesn't know your files, and how finding the right pieces before it answers fixes that.",
-  ),
-)
-
-/**
  * The card's title in the interface language. In Russian — from the lesson's JSON, as before. Not all lessons
  * are translated into English yet, so the English one comes from the path catalog — it exists for every lesson.
  */
 private fun LibraryLesson.displayTitle(): String {
-  val en = ROADMAP_LEVELS.find { it.id == id }?.titleEn ?: LIBRARY_ONLY_EN[id]?.first ?: return title
+  val en = ROADMAP_LEVELS.find { it.id == id }?.titleEn ?: LIBRARY_ONLY_LESSONS[id]?.titleEn ?: return title
   return tr(title, en)
 }
 
 /** The card's description in the interface language — by the same rule as [displayTitle]. */
 private fun LibraryLesson.displayDescription(): String {
-  val en = ROADMAP_LEVELS.find { it.id == id }?.descriptionEn ?: LIBRARY_ONLY_EN[id]?.second ?: return description
+  val en = ROADMAP_LEVELS.find { it.id == id }?.descriptionEn ?: LIBRARY_ONLY_LESSONS[id]?.descriptionEn ?: return description
   return tr(description, en)
 }
 
