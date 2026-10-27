@@ -107,11 +107,21 @@ Kotlin, Jetpack Compose, Metro DI, Ktor (SSE streaming), Room, WorkManager. ~49k
 
 ### Before / during the hackathon
 
-*Обязательный раздел: судьи должны различить вклад, иначе дисквалификация. Заполнять по факту, с датами и диапазоном коммитов.*
+*Обязательный раздел: судьи должны различить вклад, иначе дисквалификация. Черновик от оркестратора 27 окт, цифры из git; формулировки — за владельцем.*
 
-**Before the hackathon** *(up to Oct 26)* — the platform existed: the agent loop, the builder, the on-device tools, the lesson engine, the first pass of Meta-model integration through OpenRouter, and an English interface for the demo path with three lessons translated (Oct 26, commit `3b3ca8d`; the rest of the course was Russian-only).
+**Before the hackathon** *(up to Oct 26)* — the platform existed: the agent loop, the builder, the on-device tools, the lesson engine, Meta models through OpenRouter (Oct 24, `b83db81`), lesson images by Muse Image (`c17a968`, `85979eb`), the video-input lesson on Muse Spark (`682649c`), an interactive scene in every lesson and the four Meta-model lessons (Oct 25, `ff190fd`), NVIDIA NIM removed so the whole app runs on Muse (`197306c`), **the direct Meta Model API route with the key entered by the user** (Oct 26, `256dd03`), and the English interface on the demo path with three lessons translated (Oct 26, `3b3ca8d`; the rest of the course stayed Russian).
 
-**Built during the hackathon** *(Oct 27 – Nov 4, commits `<первый>`..`<последний>`)* — *(заполнять по ходу, с датами и коммитами — только то, что сделано с 27 окт: Meta Model API напрямую (ключ вводится в Настройках), SAM 3.1 в уроке «Как модель видит», Voice Transcribe — если успеем, перевод остального курса — если успеем, …)*
+**Built during the hackathon** *(Oct 27 – Nov 4, commits `0f1e9a5`..)* — as of Oct 27, 26 commits: the Settings and Scheduled-tasks screens fully in English (`5530793`, `657c1e2`), every source comment and tool README translated, `DrivenUiCardViews`/`SettingsCards`/`RoadmapScreen` split up, dead code and manifest lint cleared, and a criteria-driven orchestrator with one check command over the whole project — build, 1091 unit tests, traceability, key scans of the sources and of the built APK, the English side of every `tr()` pair (`d8a8f7a`, `e92d7d6`, `20b1c0d`).
+
+> **Внимание, решение за владельцем.** По состоянию на 27 окт в окне нет ни одной
+> пользовательской возможности, которую судья увидел бы в демо: окно — это перевод двух экранов,
+> перевод комментариев, рефакторинг и внутренний оркестратор. Вся продуктовая часть на моделях Meta
+> (включая прямой Meta Model API, главный аргумент Stage 1) закоммичена 23–26 окт, то есть **до**
+> окна, и даты видны в git. Гайд обещает немедленную дисквалификацию, если вклад в окне не
+> различить, а сценарий ролика сейчас показывает ровно то, что сделано до 27 окт. Нужна заметная
+> продуктовая работа в окне 28 окт — 4 ноя: кандидаты — SAM 3.1 и Voice Transcribe через прямой
+> Meta Model API (обещаны в заявке), перевод остального курса на английский, агенты, которые видят
+> и рисуют. Выбор — за владельцем, это про подачу, а не про код.
 
 ### What's next
 
