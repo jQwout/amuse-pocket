@@ -2,6 +2,7 @@ package com.aiopenpocket.ui.chat
 
 // @trace sam-segmentation-boxes-in-a-lesson-c3ea52
 
+import com.aiopenpocket.agent.core.llm.SegmentationConcept
 import com.aiopenpocket.agent.core.llm.SegmentationFailure
 import com.aiopenpocket.i18n.tr
 
@@ -56,5 +57,29 @@ internal fun segmentationProblemText(reason: SegmentationFailure): String = when
   SegmentationFailure.BAD_RESPONSE, SegmentationFailure.INCOMPLETE, SegmentationFailure.REFUSED -> tr(
     "Модель ответила так, что приложение не смогло прочитать. Попробуй ещё раз или другое слово.",
     "The model's answer couldn't be read. Try again, or try another word.",
+  )
+}
+
+/**
+ * What is wrong with the word the learner typed, said on the card BEFORE any call is made (the buttons are locked
+ * meanwhile). The sentences explain instead of forbidding: the most natural thing for a learner on the Russian
+ * screen is to type «чашка», and the reason it does not work — SAM is asked in English — is the useful part.
+ */
+internal fun conceptProblemText(problem: SegmentationConcept.Problem): String = when (problem) {
+  SegmentationConcept.Problem.EMPTY -> tr(
+    "Напиши, что найти: слово или короткую фразу по-английски, например cup.",
+    "Type what to find: a word or a short phrase in English, for example cup.",
+  )
+  SegmentationConcept.Problem.LIST, SegmentationConcept.Problem.RESERVED_CHARACTERS -> tr(
+    "Одно понятие, без запятых и команд.",
+    "One thing only — no commas or commands.",
+  )
+  SegmentationConcept.Problem.TOO_LONG -> tr(
+    "Слишком длинно: хватит короткой фразы, например yellow school bus.",
+    "Too long: a short phrase is enough, for example yellow school bus.",
+  )
+  SegmentationConcept.Problem.NOT_ENGLISH -> tr(
+    "SAM понимает понятие по-английски: набери, например, cup вместо «чашка». Латиницей, без знаков препинания.",
+    "SAM understands the thing in English, so type it that way — for example cup. Plain Latin letters, no punctuation.",
   )
 }

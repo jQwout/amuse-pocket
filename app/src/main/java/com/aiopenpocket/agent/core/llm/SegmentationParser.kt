@@ -161,13 +161,13 @@ object SegmentationParser {
       if (close < 0) throw Malformed("the frame marker is not closed")
       val fields = line.substring(1, close).split(';')
       val frame = FRAME_INDEX.matchEntire(fields[0])?.groupValues?.get(1)?.toLongOrNull()
-        ?: throw Malformed("bad frame marker '${fields[0]}'")
+        ?: throw Malformed("bad frame marker '${clip(fields[0])}'")
       // Images only: a record of any other frame belongs to a video response.
       if (frame != 0L) throw Malformed("frame $frame in an image response, expected 0")
       fields.drop(1).forEach { f ->
         val key = f.substringBefore('=').trim()
         if (key.isNotEmpty()) {
-          markerWarnings += Warning("ignored_field:frame:$key", "ignored_field", "ignored field '$key' of the frame marker")
+          markerWarnings += Warning("ignored_field:frame:$key", "ignored_field", "ignored field '${clip(key)}' of the frame marker")
         }
       }
       pos = close + 1
@@ -193,7 +193,7 @@ object SegmentationParser {
         pos = end + 2
 
         val name = body.substringBefore(';')
-        if (!TOKEN_NAME.matches(name)) throw Malformed("bad token name '$name'")
+        if (!TOKEN_NAME.matches(name)) throw Malformed("bad token name '${clip(name)}'")
         val fields = readFields(body.substringAfter(';', ""))
         when (name) {
           "box" -> {
@@ -204,7 +204,7 @@ object SegmentationParser {
             maskCount++
             mask = readMask(fields, pending)
           }
-          else -> pending += Warning("ignored_token:$name", "ignored_token", "ignored token '$name'")
+          else -> pending += Warning("ignored_token:$name", "ignored_token", "ignored token '${clip(name)}'")
         }
       }
       if (boxCount != 1) throw Malformed("object $id has $boxCount box tokens, expected exactly one")
@@ -283,10 +283,10 @@ object SegmentationParser {
       val values = LinkedHashMap<String, String?>()
       for ((key, value) in fields) {
         if (key == "c") continue
-        if (key in values) throw Malformed("$token token repeats '$key'")
+        if (key in values) throw Malformed("$token token repeats '${clip(key)}'")
         values[key] = value
         if (key !in known) {
-          pending += Warning("ignored_field:$token:$key", "ignored_field", "ignored field '$key' of the $token token")
+          pending += Warning("ignored_field:$token:$key", "ignored_field", "ignored field '${clip(key)}' of the $token token")
         }
       }
       return values
@@ -312,12 +312,12 @@ object SegmentationParser {
 
     private fun signedInt(token: String, key: String, values: Map<String, String?>): Int {
       val raw = values[key] ?: throw Malformed("$token token has no '$key'")
-      return parseSigned(raw) ?: throw Malformed("$token '$key' is not an integer: '$raw'")
+      return parseSigned(raw) ?: throw Malformed("$token '$key' is not an integer: '${clip(raw)}'")
     }
 
     private fun unsignedInt(token: String, key: String, values: Map<String, String?>): Int {
       val raw = values[key] ?: throw Malformed("$token token has no '$key'")
-      return parseUnsigned(raw) ?: throw Malformed("$token '$key' is not an unsigned integer: '$raw'")
+      return parseUnsigned(raw) ?: throw Malformed("$token '$key' is not an unsigned integer: '${clip(raw)}'")
     }
 
     private fun warnOnce(warning: Warning) {
@@ -340,6 +340,14 @@ object SegmentationParser {
   private val BOX_KEYS = setOf("x1", "y1", "x2", "y2", "w", "h")
   private val MASK_KEYS = setOf("x", "y", "data")
   private const val PAYLOAD_FORBIDDEN = ",;<>|\"\\"
+
+  /**
+   * A diagnostic echoes what it choked on, and what it choked on is the model's text — which can describe a private
+   * photo — so only the first few characters go into a message that ends up in logcat.
+   */
+  private fun clip(raw: String): String = if (raw.length <= CLIP_AT) raw else raw.take(CLIP_AT) + "…"
+
+  private const val CLIP_AT = 24
 
   private fun parseSigned(raw: String): Int? = if (SIGNED.matches(raw)) raw.toIntOrNull() else null
 

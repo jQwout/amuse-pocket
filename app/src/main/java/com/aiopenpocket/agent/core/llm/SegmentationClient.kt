@@ -18,7 +18,9 @@ import io.ktor.http.contentType
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.readUTF8Line
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -94,11 +96,18 @@ sealed interface SegmentationResult {
  * Does NOT throw (except on cancellation): every failure is a [SegmentationResult.Failed] and a line in
  * the log. The log never carries the key or the picture.
  *
- * **Spend.** SAM is billed per picture, not per token: $0.0025 each. A finished call is recorded as
+ * **Spend.** SAM is billed per picture, not per token: $0.0025 each. A call is recorded as
  * `usage.images_processed` × that price; when no usage came, one call counts as one picture and the row
  * is marked estimated. NOT checked against a live response — nobody has made a paid call (zero budget),
  * so the exact place of `images_processed` in `response.completed` follows Meta's schema as it was read.
- * A failed call records nothing. A zero-match answer IS recorded: it was processed and billed.
+ *
+ * What is recorded follows ONE rule: did Meta accept the picture? Once an HTTP 2xx came, it did, and the call
+ * is recorded whatever happens next — a zero-match answer, an answer we cannot read, a stream that ends
+ * without `response.completed`, a connection that breaks while reading, even a cancel by the learner. The
+ * last three are recorded as estimates, because the picture count never arrived. Nothing is recorded when
+ * Meta rejected the request (a non-2xx status, retried or not) or when no response came at all: nothing was
+ * processed. A stream that carries an `error`/`failed`/refusal event is not recorded either — Meta said the
+ * work did not complete — which is a judgment about the schema, not something seen in a live answer.
  */
 class SegmentationClient(
   engine: HttpClientEngine,
@@ -187,7 +196,17 @@ class SegmentationClient(
         Log.w(TAG, "Segmentation failed: HTTP $status ${text.replace("\n", " ").take(300)}")
         return@execute failureFor(status, response.headers[HttpHeaders.RetryAfter])
       }
-      val stream = consumeResponsesSse(response.body<ByteReadChannel>(), json)
+      // From here on the picture was accepted: a read that breaks, or is cancelled, is still a billed call.
+      val stream = try {
+        consumeResponsesSse(response.body<ByteReadChannel>(), json)
+      } catch (e: CancellationException) {
+        withContext(NonCancellable) { recordUsage(null) }
+        throw e
+      } catch (e: Exception) {
+        Log.w(TAG, "Segmentation stream broke after HTTP $status: ${e.message}")
+        recordUsage(null)
+        return@execute Attempt.Done(SegmentationResult.Failed(SegmentationFailure.NETWORK, e.message))
+      }
       Attempt.Done(finish(phrase, stream))
     }
 
@@ -215,20 +234,24 @@ class SegmentationClient(
       return SegmentationResult.Failed(SegmentationFailure.REFUSED, it)
     }
     if (!stream.completed) {
-      // Without response.completed, "no records" would be a guess dressed up as "found nothing".
+      // Without response.completed, "no records" would be a guess dressed up as "found nothing". The HTTP 2xx
+      // already came, though: the picture was accepted, so the call is recorded (as an estimate).
       Log.w(TAG, "Segmentation stream ended without response.completed")
+      recordUsage(stream.imagesProcessed)
       return SegmentationResult.Failed(SegmentationFailure.INCOMPLETE)
     }
     val text = stream.text
     val parsed = SegmentationParser.parse(text)
     parsed.diagnostics.forEach { Log.w(TAG, "${it.severity} ${it.code} line ${it.line}: ${it.message}") }
     // An empty answer is the documented "zero matches". Text with no record in it at all is not.
-    if (parsed.records.isEmpty() && text.isNotBlank()) {
-      Log.w(TAG, "No SAM records in the answer: ${text.take(200)}")
-      return SegmentationResult.Failed(SegmentationFailure.BAD_RESPONSE, text.take(200))
-    }
-    // The call was processed and billed, whether or not anything was found.
+    // The call was processed and billed whether or not anything was found, and whether or not we can read it.
     recordUsage(stream.imagesProcessed)
+    if (parsed.records.isEmpty() && text.isNotBlank()) {
+      // The length and the fact, not the text: the model's prose can describe a private photo, and logcat is not
+      // the place for it.
+      Log.w(TAG, "No SAM records in the answer (${text.length} chars of text)")
+      return SegmentationResult.Failed(SegmentationFailure.BAD_RESPONSE, "no records in ${text.length} chars of text")
+    }
     return SegmentationResult.Success(phrase, parsed.records, parsed.diagnostics)
   }
 
@@ -267,7 +290,8 @@ class SegmentationClient(
       }
     }
     put("stream", true)
-    // Without it a large inline picture runs into a 413 on the stored copy.
+    // The learner's photo must not stay on Meta's side after the call: store:false asks the API not to keep the
+    // request. How Meta honors it is not verified (no live call); the lesson's privacy text must not promise more.
     put("store", false)
     putJsonObject("metadata") {
       // Stage 1 draws boxes only; one_bit is the smaller mask encoding and the one stage 2 will decode.
@@ -315,7 +339,11 @@ class SegmentationClient(
 object SegmentationConcept {
   const val MAX_LENGTH = 64
 
-  enum class Problem { EMPTY, LIST, RESERVED_CHARACTERS, TOO_LONG }
+  /**
+   * [NOT_ENGLISH]: anything but Latin letters, digits, space, hyphen and apostrophe. SAM is asked in English, and a
+   * Russian «чашка» sails through every other check, costs a call and comes back as "nothing found".
+   */
+  enum class Problem { EMPTY, LIST, RESERVED_CHARACTERS, TOO_LONG, NOT_ENGLISH }
 
   fun problemOf(raw: String): Problem? {
     val text = raw.trim()
@@ -325,13 +353,18 @@ object SegmentationConcept {
       text.any { it == '<' || it == '>' || it == '|' } -> Problem.RESERVED_CHARACTERS
       text.any { it == ',' || it == ';' || it == '\n' || it == '\r' } -> Problem.LIST
       text.length > MAX_LENGTH -> Problem.TOO_LONG
+      !text.all { isEnglishConceptChar(it) } -> Problem.NOT_ENGLISH
       else -> null
     }
   }
 
+  // A typographic apostrophe is what a phone keyboard types in "person's"; it is sent as the plain one.
+  private fun isEnglishConceptChar(c: Char): Boolean =
+    c in 'a'..'z' || c in 'A'..'Z' || c in '0'..'9' || c == ' ' || c == '\t' || c == '-' || c == '\'' || c == '\u2019'
+
   /** The phrase as it will be sent (whitespace collapsed), or `null` when [problemOf] objects to it. */
   fun normalize(raw: String): String? =
-    if (problemOf(raw) == null) raw.trim().replace(Regex("\\s+"), " ") else null
+    if (problemOf(raw) == null) raw.trim().replace(Regex("\\s+"), " ").replace('\u2019', '\'') else null
 }
 
 /** The result of reading one Responses stream to its end. */
@@ -365,8 +398,15 @@ internal suspend fun consumeResponsesSse(channel: ByteReadChannel, json: Json): 
       continue
     }
     reader.accept(event)
+    // response.completed is the last word: whatever the line does after it (a reset, a trailing [DONE]) cannot
+    // change the answer, and must not be able to turn a finished call into a failed one.
+    if (reader.isCompleted) break
   }
-  return reader.result()
+  val result = reader.result()
+  // A channel closed WITH a cause reads as "closed for read" and ends the loop quietly, so a dropped connection
+  // would look like a short answer. If the call never completed, that is a transport failure, not an incomplete one.
+  channel.closedCause?.let { if (!result.completed) throw it }
+  return result
 }
 
 internal class ResponsesStreamReader {
@@ -376,6 +416,8 @@ internal class ResponsesStreamReader {
   private var completed = false
   private var imagesProcessed: Int? = null
   private var failure: String? = null
+
+  val isCompleted: Boolean get() = completed
 
   fun accept(event: JsonObject) {
     when (val type = event.string("type")) {

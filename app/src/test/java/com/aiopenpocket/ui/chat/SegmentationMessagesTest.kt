@@ -2,6 +2,7 @@ package com.aiopenpocket.ui.chat
 
 // @trace sam-segmentation-boxes-in-a-lesson-c3ea52
 
+import com.aiopenpocket.agent.core.llm.SegmentationConcept
 import com.aiopenpocket.agent.core.llm.SegmentationFailure
 import com.aiopenpocket.i18n.AppLanguage
 import org.junit.After
@@ -45,6 +46,32 @@ class SegmentationMessagesTest {
     assertTrue(segmentationProblemText(SegmentationFailure.NO_MODEL_ACCESS).contains("sam-3.1"))
     // A bad word is retyped on the card.
     assertTrue(segmentationProblemText(SegmentationFailure.BAD_CONCEPT).contains("one thing"))
+  }
+
+  /** The word typed on the card: each problem is explained in both languages, and a Russian word is told why it fails. */
+  @Test
+  fun `every problem with the typed word is explained, in both languages`() {
+    for (problem in SegmentationConcept.Problem.values()) {
+      AppLanguage.code = AppLanguage.RU
+      val ru = conceptProblemText(problem)
+      AppLanguage.code = AppLanguage.EN
+      val en = conceptProblemText(problem)
+
+      assertTrue("$problem has no Russian text", ru.isNotBlank() && cyrillic.containsMatchIn(ru))
+      assertTrue("$problem has no English text", en.isNotBlank())
+      assertFalse("$problem: Russian on the English side: $en", cyrillic.containsMatchIn(en))
+    }
+  }
+
+  /** The sentence must explain, not just forbid: SAM understands English, and an example shows what to type. */
+  @Test
+  fun `a non-English word is told why and given an example`() {
+    AppLanguage.code = AppLanguage.EN
+    val en = conceptProblemText(SegmentationConcept.Problem.NOT_ENGLISH)
+    assertTrue(en, en.contains("English") && en.contains("cup"))
+    AppLanguage.code = AppLanguage.RU
+    val ru = conceptProblemText(SegmentationConcept.Problem.NOT_ENGLISH)
+    assertTrue(ru, ru.contains("по-английски") && ru.contains("cup") && ru.contains("чашка"))
   }
 
   @Test
