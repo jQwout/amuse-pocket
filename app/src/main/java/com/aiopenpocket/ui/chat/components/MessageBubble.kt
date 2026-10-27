@@ -67,6 +67,8 @@ internal fun MessageBubble(
     onPersonalizeImage: (DrivenUiCard.ImageCard) -> Unit = {},
     analyzingVideos: Set<String> = emptySet(),
     onLessonVideo: (String, android.net.Uri) -> Unit = { _, _ -> },
+    segmentingPrompts: Set<String> = emptySet(),
+    onLessonSegment: (String, String, android.net.Uri) -> Unit = { _, _, _ -> },
 ) {
     // The action panel (delete) opens on a TAP on the bubble, not a long press: the long press is taken by
     // text selection (the SelectionContainer inside MarkdownText), and the tap handler does not conflict with it.
@@ -156,6 +158,8 @@ internal fun MessageBubble(
                     onPersonalizeImage = onPersonalizeImage,
                     analyzingVideos = analyzingVideos,
                     onLessonVideo = onLessonVideo,
+                    segmentingPrompts = segmentingPrompts,
+                    onLessonSegment = onLessonSegment,
                 )
             } else {
                 MarkdownText(text = displayText, compact = true, selectable = true, fontScale = fontScale)

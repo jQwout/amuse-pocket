@@ -5,6 +5,7 @@ package com.aiopenpocket.agent.core.lesson
 // @trace kartinki-urokov-cherez-muse-image-fd6f8c
 // @trace video-na-vhod-v-uroke-muse-spark-08ccdb
 // @trace protsedurnye-animatsii-v-urokah-68b2bf
+// @trace sam-segmentation-boxes-in-a-lesson-c3ea52
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
@@ -28,7 +29,7 @@ data class Lesson(
 
 /**
  * One step. [type] is the discriminator:
- * "text" | "language" | "persona" | "profile" | "quiz" | "image" | "video" | "animation" |
+ * "text" | "language" | "persona" | "profile" | "quiz" | "image" | "video" | "segment" | "animation" |
  * "reveal" | "concept" | "example" | "fill" | "sort" | "match" | "scenario".
  * Unused fields stay at their defaults — kept flat so JSON parses without polymorphic setup.
  */
@@ -76,6 +77,19 @@ data class LessonStep(
    */
   val sampleVideo: String = "",
   val samplePreview: String = "",
+  /**
+   * "segment" step: the DEFAULT thing SAM 3.1 looks for in the learner's photo, shown in a field they can
+   * change — ONE noun phrase in English («cup», «yellow school bus»); SAM does not take lists or commands.
+   * [instruction] is what the learner reads. SAM draws a box round every match, and the answer lands in
+   * the chat under the step. See [LessonChatController.postSegmentation].
+   */
+  val segmentPrompt: String = "",
+  /**
+   * "segment" step: a sample photo in assets for the "Show on an example" button — the same reasoning as
+   * [sampleVideo]: taking a photo is a camera and permissions, while the point of the step shows on a
+   * ready-made picture in one tap.
+   */
+  val sampleImage: String = "",
   /** "animation" step: which procedural scene to show (see [LESSON_ANIMATION_SCENES]); the caption is [caption]. */
   val scene: String = "",
   /** "reveal" step: prompt shown first; tap reveals [answer]. */

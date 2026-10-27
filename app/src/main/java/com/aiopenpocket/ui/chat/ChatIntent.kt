@@ -72,6 +72,12 @@ sealed class ChatIntent {
   /** The "video" lesson step: the user filmed or picked a clip [video] — hand it to Muse Spark with [videoPrompt]. */
   data class AnalyzeLessonVideo(val videoPrompt: String, val video: android.net.Uri) : ChatIntent()
 
+  /**
+   * The "segment" lesson step: the learner chose a photo [photo] — hand it to SAM 3.1 to outline [concept].
+   * [cardPrompt] is the card's default prompt: it keys the card's "looking…" state, like [AnalyzeLessonVideo].
+   */
+  data class SegmentLessonPhoto(val cardPrompt: String, val concept: String, val photo: android.net.Uri) : ChatIntent()
+
   /** Lesson: a free question to the LLM right during the lesson (the "Ask" button). */
   data class AskDuringLesson(val text: String) : ChatIntent()
 

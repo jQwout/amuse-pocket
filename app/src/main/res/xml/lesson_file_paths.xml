@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Only the lesson clips folder: the camera gets exactly this cacheDir directory, not the whole cache. -->
+<!-- Only the lesson clip and photo folders: the camera gets exactly these cacheDir directories, not the whole cache. -->
 <paths>
     <cache-path name="lesson_videos" path="lesson_videos/" />
+    <cache-path name="lesson_photos" path="lesson_photos/" />
 </paths>

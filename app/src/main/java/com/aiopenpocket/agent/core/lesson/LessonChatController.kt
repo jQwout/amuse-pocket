@@ -5,8 +5,12 @@ package com.aiopenpocket.agent.core.lesson
 // @trace kartinki-urokov-cherez-muse-image-fd6f8c
 // @trace video-na-vhod-v-uroke-muse-spark-08ccdb
 // @trace protsedurnye-animatsii-v-urokah-68b2bf
+// @trace sam-segmentation-boxes-in-a-lesson-c3ea52
 
 import android.net.Uri
+import com.aiopenpocket.agent.core.llm.SegmentationClient
+import com.aiopenpocket.agent.core.llm.SegmentationFailure
+import com.aiopenpocket.agent.core.llm.SegmentationResult
 import com.aiopenpocket.agent.core.llm.VideoUnderstandingClient
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.di.AppScope
@@ -37,6 +41,7 @@ class LessonChatController(
   private val conversationRepository: ConversationRepository,
   private val imageGenerator: LessonImageGenerator,
   private val videoClient: VideoUnderstandingClient,
+  private val segmentationClient: SegmentationClient,
 ) {
 
   /**
@@ -57,6 +62,33 @@ class LessonChatController(
     val answer = videoClient.describe(instruction, video, mimeType) ?: return false
     conversationRepository.addMessage(conversationId, "assistant", answer)
     return true
+  }
+
+  /**
+   * Whether the "segment" step can run at all: SAM needs a Meta Model API key. Asked BEFORE the photo is
+   * prepared, so a learner without a key gets the explanation at once instead of after a pointless decode.
+   */
+  fun segmentationReady(): Boolean = segmentationClient.isConfigured()
+
+  /**
+   * SAM 3.1 outlines [concept] in [photo]; the boxes land in the chat as a result card under the step.
+   * The lesson cursor does not move, as with [postVideoAnswer].
+   *
+   * Returns `null` when the card was posted, otherwise why it was not (no key, no billing, no network…).
+   * Zero matches is NOT a failure: the card is posted and says that nothing was found — an empty answer
+   * is a normal answer of this model, and "try another word" is part of what the step teaches.
+   */
+  suspend fun postSegmentation(conversationId: String, concept: String, photo: PreparedPhoto): SegmentationFailure? {
+    val result = segmentationClient.segment(concept, photo.bytes, photo.mimeType)
+    if (result is SegmentationResult.Failed) return result.reason
+    val found = result as SegmentationResult.Success
+    conversationRepository.addMessage(
+      conversationId,
+      "assistant",
+      "",
+      cardSpec = buildSegmentResultCardSpec(found, photo),
+    )
+    return null
   }
 
   /**
@@ -116,6 +148,7 @@ class LessonChatController(
       "quiz" -> buildQuizCardSpec(step)
       "image" -> buildImageCardSpec(step)
       "video" -> buildVideoCardSpec(step)
+      "segment" -> buildSegmentCardSpec(step)
       "animation" -> buildAnimationCardSpec(step)
       "reveal" -> buildRevealCardSpec(step)
       "concept" -> buildConceptCardSpec(step)
@@ -229,6 +262,43 @@ class LessonChatController(
     return JSONObject().put("template", "lesson_video").put("params", params).toString()
   }
 
+  /** "segment": what to do (the user sees it), the default thing to find, and the sample photo for one-tap. */
+  private fun buildSegmentCardSpec(step: LessonStep): String {
+    val params = JSONObject()
+      .put("instruction", step.instruction)
+      .put("segment_prompt", step.segmentPrompt)
+      .put("sample_image", step.sampleImage)
+    return JSONObject().put("template", "lesson_segment").put("params", params).toString()
+  }
+
+  /**
+   * The result card: the photo that was sent, in the grid SAM answered in, and a box per match. Each box
+   * keeps the `w`/`h` the model reported — the drawing scales by those, not by what we believe we sent.
+   *
+   * Masks are NOT stored here: a raw payload is tens of kilobytes per object, and what to do with masks
+   * is stage 2. At most [MAX_RESULT_BOXES] boxes are kept; `total` still says how many there were.
+   */
+  private fun buildSegmentResultCardSpec(found: SegmentationResult.Success, photo: PreparedPhoto): String {
+    val boxes = JSONArray()
+    found.records.take(MAX_RESULT_BOXES).forEach { record ->
+      val box = record.box
+      val json = JSONObject()
+        .put("id", record.id)
+        .put("x1", box.x1).put("y1", box.y1).put("x2", box.x2).put("y2", box.y2)
+        .put("w", box.width).put("h", box.height)
+      box.confidence?.let { json.put("c", it) }
+      boxes.put(json)
+    }
+    val params = JSONObject()
+      .put("image_url", Uri.fromFile(photo.file).toString())
+      .put("image_w", photo.width)
+      .put("image_h", photo.height)
+      .put("concept", found.concept)
+      .put("total", found.records.size)
+      .put("boxes", boxes)
+    return JSONObject().put("template", "lesson_segment_result").put("params", params).toString()
+  }
+
   // imageKey is the short form: lessons/images/{key}.svg. An explicit asset takes priority.
   private fun LessonStep.bundledImageAsset(): String =
     asset.ifBlank { imageKey.takeIf { it.isNotBlank() }?.let { "lessons/images/$it.svg" } ?: "" }
@@ -314,5 +384,8 @@ class LessonChatController(
 
   private companion object {
     const val STEP_IMAGE_WAIT_MS = 20_000L
+
+    /** A crowd photo can return hundreds of objects; a card with that many frames is unreadable. */
+    const val MAX_RESULT_BOXES = 50
   }
 }

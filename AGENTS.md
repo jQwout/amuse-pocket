@@ -21,8 +21,8 @@ step order, and one step produces exactly one assistant message that carries a c
 not run the lesson flow. A side question asked during a lesson is a one-shot `TUTOR` turn (no
 tools, one iteration).
 - Step contract: `agent/core/lesson/Lesson.kt`. Step types are `text`, `language`, `persona`,
-  `profile`, `quiz`, `image`, `video`, `animation`, `reveal`, `concept`, `example`, `fill`, `sort`, `match`
-  and `scenario`. The fields are flat, with no polymorphic JSON.
+  `profile`, `quiz`, `image`, `video`, `segment`, `animation`, `reveal`, `concept`, `example`, `fill`, `sort`,
+  `match` and `scenario`. The fields are flat, with no polymorphic JSON.
 - Each lesson has exactly one `animation` step: an interactive Compose scene in
   `ui/chat/components/Scene*.kt`, dispatched by `ui/chat/components/LessonAnimationScenes.kt`. Valid
   scene ids are listed in `LESSON_ANIMATION_SCENES` (`agent/core/lesson/LessonAnimationScenes.kt`).
@@ -34,6 +34,12 @@ tools, one iteration).
 - Video: `how_model_sees` has a `video` step. Muse Spark watches a bundled sample
   (`assets/lessons/videos/`) or a clip the learner records (`LessonChatController.postVideoAnswer` →
   `VideoUnderstandingClient`).
+- Segment: `how_model_sees` also has a `segment` step. SAM 3.1 outlines the thing the learner names
+  (one English noun phrase) in a photo: the bundled sample, the camera or the gallery
+  (`LessonChatController.postSegmentation` → `SegmentationClient`). SAM answers in text, not JSON:
+  `SegmentationParser` reads the boxes, and the app draws them over the photo (`lesson_segment_result`
+  card). It needs a Meta Model API key from Settings; without one the card says so and the step is
+  skipped with «Next». Masks are parsed but kept raw and not decoded.
 - Learning path: `ui/roadmap/RoadmapScreen.kt`, levels in `ui/roadmap/RoadmapLevels.kt`.
   `ROADMAP_LEVELS` has 30 levels, starting with the onboarding lesson `l1_welcome`. Library:
   `ui/roadmap/LibraryViewModel.kt` (`LIBRARY_LESSON_IDS`).
@@ -59,8 +65,10 @@ Persona prompts are in `assets/personas/*.md` (7 personas), listed in `agent/cor
   `OpenAiCompatClient` streams SSE over Ktor. It moves to the next model only if no answer content
   has been emitted yet. On 401/402/403 (a problem with the key) it stops the chain.
 - **Other clients.** `ImageGenClient` calls Muse Image (`meta/muse-image`, `POST /api/v1/images`).
-  `VideoUnderstandingClient` calls Muse Spark with a base64 `video_url`. Neither one streams or
-  falls back. Token and cost usage per call goes to Room through `LlmUsageRecorder`; Settings shows
+  `VideoUnderstandingClient` calls Muse Spark with a base64 `video_url`. `SegmentationClient` calls
+  SAM 3.1 on the direct Meta Model API (`POST https://api.meta.ai/v1/responses`, model `sam-3.1`, the
+  Meta key only, billed per picture). None of them falls back to another model, and only SAM
+  streams (the client assembles the stream itself). Token and cost usage per call goes to Room through `LlmUsageRecorder`; Settings shows
   the weekly total.
 - **API key.** Set `OPENROUTER_API_KEY` in `.env` at the repo root (template: `.env.example`).
   The Secrets Gradle Plugin copies `.env` keys into `BuildConfig`; `ignoreList` in

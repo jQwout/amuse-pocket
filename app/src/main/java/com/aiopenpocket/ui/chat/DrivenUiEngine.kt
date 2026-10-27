@@ -2,6 +2,7 @@ package com.aiopenpocket.ui.chat
 
 // @trace driven-ui-cards-0418d0
 // @trace user-agent-builder-848153
+// @trace sam-segmentation-boxes-in-a-lesson-c3ea52
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
@@ -9,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import com.aiopenpocket.agent.core.llm.SegmentBox
 import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.roadmap.QuizQuestion
 import org.json.JSONArray
@@ -43,6 +45,29 @@ sealed class DrivenUiCard {
         val prompt: String,
         val sampleVideo: String = "",
         val samplePreview: String = "",
+    ) : DrivenUiCard()
+    /**
+     * The "segment" lesson step: [instruction] is what to do, [prompt] is the DEFAULT thing for SAM to find (an
+     * English noun phrase, editable on the card), [sampleImage] is the bundled photo for the one-tap button
+     * (empty — only your own photo).
+     */
+    data class LessonSegmentCard(
+        val instruction: String,
+        val prompt: String,
+        val sampleImage: String = "",
+    ) : DrivenUiCard()
+    /**
+     * SAM's answer to a "segment" step: the photo at [imageUrl] ([imageWidth] x [imageHeight] is the grid that was
+     * sent) and a frame per match in [boxes]. [total] can exceed `boxes.size`: the card keeps the first few.
+     * An empty [boxes] is a normal answer — "nothing found" — not an error.
+     */
+    data class LessonSegmentResultCard(
+        val imageUrl: String,
+        val imageWidth: Int,
+        val imageHeight: Int,
+        val concept: String,
+        val total: Int,
+        val boxes: List<SegmentResultBox>,
     ) : DrivenUiCard()
     /** The "animation" lesson step: the procedural scene [scene] (see LESSON_ANIMATION_SCENES) with a caption. */
     data class LessonAnimationCard(val scene: String, val caption: String) : DrivenUiCard()
@@ -87,6 +112,8 @@ data class WeatherDay(val dayName: String, val temp: String, val text: String, v
 data class FormField(val name: String, val label: String, val placeholder: String, val type: String, var value: String = "")
 data class ExamplePart(val text: String, val role: String, val note: String)
 data class MatchPair(val term: String, val def: String)
+/** One frame of a `lesson_segment_result` card: SAM's object id and its box (with the picture size it was drawn on). */
+data class SegmentResultBox(val id: String, val box: SegmentBox)
 /** `lesson_complete` card's optional CTA (Task 23) — see [DrivenUiCard.LessonCompleteCard]. */
 data class LessonPrimaryAction(val type: String, val label: String)
 
@@ -245,6 +272,36 @@ object DrivenUiEngine {
                 sampleVideo = p.optString("sample_video", ""),
                 samplePreview = p.optString("sample_preview", ""),
             )
+            "lesson_segment" -> DrivenUiCard.LessonSegmentCard(
+                instruction = p.optString("instruction", ""),
+                prompt = p.optString("segment_prompt", ""),
+                sampleImage = p.optString("sample_image", ""),
+            )
+            "lesson_segment_result" -> {
+                // A box with no picture size cannot be scaled (and would divide by zero), so it is dropped.
+                val boxes = p.array("boxes").mapObjects {
+                    SegmentResultBox(
+                        id = it.optString("id", ""),
+                        box = SegmentBox(
+                            x1 = it.optInt("x1", 0),
+                            y1 = it.optInt("y1", 0),
+                            x2 = it.optInt("x2", 0),
+                            y2 = it.optInt("y2", 0),
+                            width = it.optInt("w", 0),
+                            height = it.optInt("h", 0),
+                            confidence = if (it.has("c")) it.optDouble("c") else null,
+                        ),
+                    )
+                }.filter { it.box.width > 0 && it.box.height > 0 }
+                DrivenUiCard.LessonSegmentResultCard(
+                    imageUrl = p.optString("image_url", ""),
+                    imageWidth = p.optInt("image_w", 0),
+                    imageHeight = p.optInt("image_h", 0),
+                    concept = p.optString("concept", ""),
+                    total = p.optInt("total", boxes.size),
+                    boxes = boxes,
+                )
+            }
             "reveal" -> DrivenUiCard.RevealCard(
                 question = p.optString("question", ""),
                 answer = p.optString("answer", ""),
@@ -391,6 +448,11 @@ fun DrivenUiCard.toMarkdown(): String = when (this) {
     }.trim()
 
     is DrivenUiCard.LessonVideoCard -> "🎥 ${instruction.ifBlank { tr("Сними короткое видео", "Film a short video") }}"
+
+    is DrivenUiCard.LessonSegmentCard -> "🔍 ${instruction.ifBlank { tr("Найди предмет на фото", "Find an object in a photo") }}"
+
+    is DrivenUiCard.LessonSegmentResultCard ->
+        "🔍 " + tr("«$concept»: найдено $total", "“$concept”: $total found")
 
     is DrivenUiCard.LessonAnimationCard -> "🎬 ${caption.ifBlank { tr("Анимация урока", "Lesson animation") }}"
 
