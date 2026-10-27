@@ -129,15 +129,16 @@ fun SettingsScreen(
   var showThemeSheet by remember { mutableStateOf(false) }
   val themeSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   // The theme sheet lives outside the scrolling column, so the label↔enum mapping is lifted here (it used to
-  // be declared right at the selector). The order is fixed — a LinkedHashMap.
-  val themeLabels = remember {
+  // be declared right at the selector). The order is fixed — a LinkedHashMap. Keyed on the language: the
+  // labels are built once, and switching the language must rebuild them.
+  val themeLabels = remember(AppLanguage.code) {
     linkedMapOf(
-      ThemeMode.LIGHT to "Светлая",
-      ThemeMode.DARK to "Тёмная",
-      ThemeMode.SYSTEM to "Системная",
+      ThemeMode.LIGHT to tr("Светлая", "Light"),
+      ThemeMode.DARK to tr("Тёмная", "Dark"),
+      ThemeMode.SYSTEM to tr("Системная", "System"),
     )
   }
-  val themeByLabel = remember { themeLabels.entries.associate { (mode, label) -> label to mode } }
+  val themeByLabel = remember(themeLabels) { themeLabels.entries.associate { (mode, label) -> label to mode } }
   var showLanguageSheet by remember { mutableStateOf(false) }
   val languageSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   // Language names — each in its own language, so the choice can be found whatever the current one is.
@@ -312,12 +313,12 @@ fun SettingsScreen(
 
       SettingsSectionHeader(
         icon = Icons.Default.Palette,
-        title = "ТЕМА",
+        title = tr("ТЕМА", "THEME"),
         modifier = Modifier.padding(horizontal = 20.dp),
       )
       Spacer(modifier = Modifier.height(12.dp))
       SelectorCard(
-        label = "ОФОРМЛЕНИЕ",
+        label = tr("ОФОРМЛЕНИЕ", "APPEARANCE"),
         selected = themeLabels.getValue(state.themeMode),
         icon = Icons.Default.Palette,
         onClick = { showThemeSheet = true },
@@ -346,7 +347,7 @@ fun SettingsScreen(
 
       SettingsSectionHeader(
         icon = Icons.Default.Psychology,
-        title = "ПЕРСОНА",
+        title = tr("ПЕРСОНА", "PERSONA"),
         modifier = Modifier.padding(horizontal = 20.dp),
       )
       Spacer(modifier = Modifier.height(12.dp))
@@ -361,7 +362,7 @@ fun SettingsScreen(
 
       SettingsSectionHeader(
         icon = Icons.Default.Flag,
-        title = "РЕЖИМЫ АГЕНТА",
+        title = tr("РЕЖИМЫ АГЕНТА", "AGENT MODES"),
         modifier = Modifier.padding(horizontal = 20.dp),
       )
       Spacer(modifier = Modifier.height(12.dp))
@@ -375,7 +376,7 @@ fun SettingsScreen(
 
       SettingsSectionHeader(
         icon = Icons.Default.FormatSize,
-        title = "РАЗМЕР ТЕКСТА",
+        title = tr("РАЗМЕР ТЕКСТА", "TEXT SIZE"),
         modifier = Modifier.padding(horizontal = 20.dp),
       )
       Spacer(modifier = Modifier.height(12.dp))
@@ -389,7 +390,7 @@ fun SettingsScreen(
 
       SettingsSectionHeader(
         icon = Icons.Default.TaskAlt,
-        title = "ЗАДАЧИ",
+        title = tr("ЗАДАЧИ", "TASKS"),
         modifier = Modifier.padding(horizontal = 20.dp),
       )
       Spacer(modifier = Modifier.height(12.dp))
@@ -415,7 +416,7 @@ fun SettingsScreen(
         )
         Spacer(modifier = Modifier.size(12.dp))
         Text(
-          text = "Запланированные задачи",
+          text = tr("Запланированные задачи", "Scheduled tasks"),
           style = MaterialTheme.typography.bodyLarge,
         )
       }
@@ -424,7 +425,7 @@ fun SettingsScreen(
 
       SettingsSectionHeader(
         icon = Icons.Default.Insights,
-        title = "РАСХОД ЗА НЕДЕЛЮ",
+        title = tr("РАСХОД ЗА НЕДЕЛЮ", "USAGE THIS WEEK"),
         modifier = Modifier.padding(horizontal = 20.dp),
       )
       Spacer(modifier = Modifier.height(12.dp))
@@ -437,7 +438,7 @@ fun SettingsScreen(
 
       SettingsSectionHeader(
         icon = Icons.Default.Apps,
-        title = "ИНТЕГРАЦИИ",
+        title = tr("ИНТЕГРАЦИИ", "INTEGRATIONS"),
         modifier = Modifier.padding(horizontal = 20.dp),
       )
       Spacer(modifier = Modifier.height(12.dp))
@@ -485,8 +486,8 @@ fun SettingsScreen(
 
   if (showThemeSheet) {
     SelectorSheet(
-      title = "Оформление",
-      subtitle = "Системная подхватывает настройку телефона.",
+      title = tr("Оформление", "Appearance"),
+      subtitle = tr("Системная подхватывает настройку телефона.", "System follows the phone setting."),
       options = themeLabels.values.toList(),
       selected = themeLabels.getValue(state.themeMode),
       sheetState = themeSheetState,
@@ -511,13 +512,16 @@ fun SettingsScreen(
           .padding(bottom = 32.dp),
       ) {
         Text(
-          text = "Выбор персоны",
+          text = tr("Выбор персоны", "Choose a persona"),
           style = MaterialTheme.typography.titleLarge,
           color = MaterialTheme.colorScheme.onSurface,
           modifier = Modifier.padding(start = 20.dp, end = 20.dp),
         )
         Text(
-          text = "Выбери напарника — у каждого свой характер, статы и манера",
+          text = tr(
+            "Выбери напарника — у каждого свой характер, статы и манера",
+            "Pick a partner — each has their own character, stats and manner",
+          ),
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp),

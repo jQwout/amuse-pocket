@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
 import com.aiopenpocket.agent.core.persona.PersonaInfo
 import com.aiopenpocket.agent.core.persona.PersonaQuote
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.agent.core.persona.PersonaStats
 import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.theme.MyApplicationTheme
@@ -103,7 +104,7 @@ fun PersonaCard(
       ) {
         Icon(
           imageVector = Icons.Default.Check,
-          contentDescription = "Выбрано",
+          contentDescription = tr("Выбрано", "Selected"),
           tint = MaterialTheme.colorScheme.onPrimary,
           modifier = Modifier.padding(2.dp),
         )
@@ -115,12 +116,12 @@ fun PersonaCard(
 @Composable
 private fun StatsBlock(stats: PersonaStats) {
   Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-    StatRow("Болтливость", stats.talkativeness)
-    StatRow("Скептицизм", stats.skepticism)
-    StatRow("Критика", stats.criticism)
-    StatRow("Проактивность", stats.proactivity)
-    StatRow("Юмор", stats.humor)
-    StatRow("Эмпатия", stats.empathy)
+    StatRow(tr("Болтливость", "Talkativeness"), stats.talkativeness)
+    StatRow(tr("Скептицизм", "Skepticism"), stats.skepticism)
+    StatRow(tr("Критика", "Criticism"), stats.criticism)
+    StatRow(tr("Проактивность", "Proactivity"), stats.proactivity)
+    StatRow(tr("Юмор", "Humor"), stats.humor)
+    StatRow(tr("Эмпатия", "Empathy"), stats.empathy)
   }
 }
 
@@ -208,7 +209,7 @@ private fun QuoteRow(quote: PersonaQuote) {
       .padding(horizontal = 12.dp, vertical = 8.dp),
   ) {
     Text(
-      text = "Ты: ${quote.situation}",
+      text = "${tr("Ты", "You")}: ${quote.situation}",
       style = MaterialTheme.typography.labelSmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
