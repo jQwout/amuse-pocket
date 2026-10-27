@@ -8,11 +8,8 @@ package com.aiopenpocket.ui.chat.components
 // Separated from DrivenUiEngine.kt, which kept the card model and JSON parsing.
 
 import com.aiopenpocket.ui.chat.DrivenUiCard
-import android.provider.Settings
-import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.Icons
