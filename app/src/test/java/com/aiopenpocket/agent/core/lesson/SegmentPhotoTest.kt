@@ -7,7 +7,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.media.ExifInterface
+import androidx.exifinterface.media.ExifInterface
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -23,6 +23,8 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
+import java.util.zip.CRC32
 
 /**
  * The photo that goes to SAM. SAM answers in the pixels of the picture it received, so the boxes are only right if
@@ -91,27 +93,56 @@ class SegmentPhotoTest {
 
   // --- the real pipeline ---
 
-  /** A [w] x [h] JPEG: blue, a red block in the stored top-left corner, a green one in the stored top-right. */
-  private fun markedJpeg(w: Int, h: Int, orientation: Int?): ByteArray {
+  /** A [w] x [h] picture: blue, a red block in the stored top-left corner, a green one in the stored top-right. */
+  private fun markedBitmap(w: Int, h: Int): Bitmap {
     val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
     canvas.drawColor(Color.BLUE)
     canvas.drawRect(0f, 0f, BLOCK.toFloat(), BLOCK.toFloat(), Paint().apply { color = Color.RED })
     canvas.drawRect((w - BLOCK).toFloat(), 0f, w.toFloat(), BLOCK.toFloat(), Paint().apply { color = Color.GREEN })
+    return bitmap
+  }
+
+  private fun markedJpeg(w: Int, h: Int, orientation: Int?): ByteArray {
     val out = ByteArrayOutputStream()
-    check(bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out))
+    check(markedBitmap(w, h).compress(Bitmap.CompressFormat.JPEG, 95, out))
     val jpeg = out.toByteArray()
     return if (orientation == null) jpeg else withExifOrientation(jpeg, orientation)
   }
 
-  /** Inserts the smallest valid EXIF block (one IFD entry, tag 0x0112) right after the JPEG's SOI marker. */
+  private fun markedPng(w: Int, h: Int, orientation: Int): ByteArray {
+    val out = ByteArrayOutputStream()
+    check(markedBitmap(w, h).compress(Bitmap.CompressFormat.PNG, 100, out))
+    return withPngExifOrientation(out.toByteArray(), orientation)
+  }
+
+  /** The smallest valid TIFF block with one IFD entry: Orientation (tag 0x0112). */
+  private fun exifTiff(orientation: Int): ByteArray = byteArrayOf(
+    'M'.code.toByte(), 'M'.code.toByte(), 0, 0x2A, 0, 0, 0, 8, // big-endian, 42, IFD0 at offset 8
+    0, 1, // one entry
+    0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, orientation.toByte(), 0, 0, // Orientation, SHORT, count 1, the value
+    0, 0, 0, 0, // no next IFD
+  )
+
+  /**
+   * Inserts a PNG `eXIf` chunk right after the IHDR chunk. A PNG carries its orientation there, not in a JPEG APP1
+   * segment: this is the kind of file a gallery hands over that an EXIF reader limited to JPEG would miss.
+   */
+  private fun withPngExifOrientation(png: ByteArray, orientation: Int): ByteArray {
+    val type = "eXIf".toByteArray(Charsets.US_ASCII)
+    val data = exifTiff(orientation)
+    val crc = CRC32().apply { update(type); update(data) }.value
+    val chunk = ByteBuffer.allocate(4 + type.size + data.size + 4)
+      .putInt(data.size).put(type).put(data).putInt(crc.toInt())
+      .array()
+    // 8-byte signature, then IHDR: 4 length + 4 type + 13 data + 4 CRC.
+    val afterHeader = 8 + 25
+    return png.copyOfRange(0, afterHeader) + chunk + png.copyOfRange(afterHeader, png.size)
+  }
+
+  /** Inserts the smallest valid EXIF block right after the JPEG's SOI marker. */
   private fun withExifOrientation(jpeg: ByteArray, orientation: Int): ByteArray {
-    val tiff = byteArrayOf(
-      'M'.code.toByte(), 'M'.code.toByte(), 0, 0x2A, 0, 0, 0, 8, // big-endian, 42, IFD0 at offset 8
-      0, 1, // one entry
-      0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, orientation.toByte(), 0, 0, // Orientation, SHORT, count 1, the value
-      0, 0, 0, 0, // no next IFD
-    )
+    val tiff = exifTiff(orientation)
     val payload = "Exif".toByteArray(Charsets.US_ASCII) + byteArrayOf(0, 0) + tiff
     val length = payload.size + 2
     val app1 = byteArrayOf(0xFF.toByte(), 0xE1.toByte(), (length shr 8).toByte(), length.toByte()) + payload
@@ -153,23 +184,32 @@ class SegmentPhotoTest {
   )
 
   @Test
-  fun `the photo comes out upright for every orientation tag`() {
+  fun `the photo comes out upright for every orientation tag`() = assertUprightForEveryOrientation("JPEG") { markedJpeg(STORED_W, STORED_H, it) }
+
+  /**
+   * A PNG (or WebP, HEIC) from the gallery keeps its orientation outside a JPEG APP1 segment. An EXIF reader that only
+   * understands JPEG — the platform's, on older Android — leaves such a photo sideways, and the boxes with it.
+   */
+  @Test
+  fun `a PNG with an orientation tag comes out upright too`() = assertUprightForEveryOrientation("PNG") { markedPng(STORED_W, STORED_H, it) }
+
+  private fun assertUprightForEveryOrientation(format: String, make: (orientation: Int) -> ByteArray) {
     for ((orientation, corners) in landing) {
-      val photo = prepare(markedJpeg(STORED_W, STORED_H, orientation))!!
+      val photo = prepare(make(orientation))!!
       val bitmap = BitmapFactory.decodeByteArray(photo.bytes, 0, photo.bytes.size)
 
       val swapped = orientation >= 5
-      assertEquals("orientation $orientation: width", if (swapped) STORED_H else STORED_W, photo.width)
-      assertEquals("orientation $orientation: height", if (swapped) STORED_W else STORED_H, photo.height)
+      assertEquals("$format orientation $orientation: width", if (swapped) STORED_H else STORED_W, photo.width)
+      assertEquals("$format orientation $orientation: height", if (swapped) STORED_W else STORED_H, photo.height)
       // The recorded size is the size of the pixels that are actually sent — the grid SAM's boxes are in.
-      assertEquals("orientation $orientation: bitmap width", photo.width, bitmap.width)
-      assertEquals("orientation $orientation: bitmap height", photo.height, bitmap.height)
+      assertEquals("$format orientation $orientation: bitmap width", photo.width, bitmap.width)
+      assertEquals("$format orientation $orientation: bitmap height", photo.height, bitmap.height)
       val (red, green) = corners
-      assertTrue("orientation $orientation: red block should be at $red", isRed(colorAt(bitmap, red)))
-      assertTrue("orientation $orientation: green block should be at $green", isGreen(colorAt(bitmap, green)))
+      assertTrue("$format orientation $orientation: red block should be at $red", isRed(colorAt(bitmap, red)))
+      assertTrue("$format orientation $orientation: green block should be at $green", isGreen(colorAt(bitmap, green)))
       // Mirror and rotation bugs show up as the markers swapping places: the other two corners stay blue.
       for (other in Corner.values().filter { it != red && it != green }) {
-        assertTrue("orientation $orientation: $other should be blue", isBlue(colorAt(bitmap, other)))
+        assertTrue("$format orientation $orientation: $other should be blue", isBlue(colorAt(bitmap, other)))
       }
     }
   }
