@@ -7,7 +7,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
-import android.media.ExifInterface
+import androidx.exifinterface.media.ExifInterface
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
@@ -150,7 +150,14 @@ internal fun prepareSegmentPhoto(open: () -> InputStream?, outputDir: File, name
   return PreparedPhoto(file, bytes, width, height)
 }
 
-/** The EXIF orientation, or "normal" when there is no tag or the source is not a JPEG. */
+/**
+ * The EXIF orientation, or "normal" when there is no tag or the source carries no EXIF.
+ *
+ * androidx's ExifInterface, not the platform's: what the platform class can parse depends on the Android version (the
+ * app supports API 24 and up), and a rotated HEIC, WebP or PNG from the gallery that it cannot read arrives sideways —
+ * and the boxes with it. androidx reads them all on every API level. (The JVM tests cannot show the difference: the
+ * platform class of the Android versions Robolectric has here reads the PNG too.)
+ */
 private fun readOrientation(open: () -> InputStream?): Int =
   try {
     open()?.use { ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) }
