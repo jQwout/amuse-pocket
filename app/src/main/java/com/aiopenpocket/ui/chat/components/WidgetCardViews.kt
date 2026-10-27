@@ -8,7 +8,6 @@ package com.aiopenpocket.ui.chat.components
 import com.aiopenpocket.ui.chat.DrivenUiCard
 import com.aiopenpocket.ui.chat.FormField
 import com.aiopenpocket.ui.chat.TodoItem
-import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
