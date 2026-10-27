@@ -105,6 +105,8 @@ data class ChatUiState(
   val personalizingImagePrompts: Set<String> = emptySet(),
   /** "video" steps whose clips the model is watching right now (by videoPrompt). While not empty, "Next" is hidden. */
   val analyzingVideoPrompts: Set<String> = emptySet(),
+  /** "segment" steps whose photos SAM is outlining right now (by the card's default prompt). While not empty, "Next" is hidden. */
+  val segmentingPrompts: Set<String> = emptySet(),
 ) {
   companion object {
     /**

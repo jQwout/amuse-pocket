@@ -3,6 +3,7 @@ package com.aiopenpocket.ui.chat
 // @trace streaming-llm-chat-6595a1
 // @trace user-agent-builder-848153
 // @trace structured-plan-engine-907066
+// @trace sam-segmentation-boxes-in-a-lesson-c3ea52
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
@@ -13,7 +14,14 @@ import com.aiopenpocket.agent.core.agent.displayName
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.lesson.LessonChatController
 import com.aiopenpocket.agent.core.lesson.LessonRepository
+import com.aiopenpocket.agent.core.lesson.CAMERA_ORIGINAL_MAX_AGE_MS
+import com.aiopenpocket.agent.core.lesson.PreparedPhoto
+import com.aiopenpocket.agent.core.lesson.RESULT_COPY_KEEP
+import com.aiopenpocket.agent.core.lesson.RESULT_COPY_MAX_AGE_MS
 import com.aiopenpocket.agent.core.lesson.aboutMeFrom
+import com.aiopenpocket.agent.core.lesson.prepareSegmentPhoto
+import com.aiopenpocket.agent.core.lesson.sweepPhotoFolder
+import com.aiopenpocket.agent.core.llm.SegmentationFailure
 import com.aiopenpocket.agent.core.memory.dao.HeartbeatDao
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
@@ -30,6 +38,8 @@ import com.aiopenpocket.agent.loop.TurnStatus
 import com.aiopenpocket.agent.tools.HeartbeatTool
 import com.aiopenpocket.di.AppScope
 import com.aiopenpocket.i18n.tr
+import com.aiopenpocket.ui.chat.components.LESSON_PHOTO_DIR
+import com.aiopenpocket.ui.chat.components.LESSON_SEGMENT_DIR
 import com.aiopenpocket.ui.chat.components.bundledAssetPath
 import com.aiopenpocket.voice.input.VoiceInputController
 import com.aiopenpocket.voice.input.VoiceInputState
@@ -117,6 +127,9 @@ class ChatViewModel(
     private var lessonBusy = false
 
     init {
+        // The lesson's SAM step leaves photos in cacheDir (camera originals, compressed copies for the result cards).
+        // Whatever is old goes whenever a chat opens, so a learner's photo does not stay for good.
+        viewModelScope.launch(Dispatchers.IO) { sweepLessonPhotos() }
         // The goal-mode iteration limit from settings — kept in the state to be passed to the orchestrator.
         viewModelScope.launch {
             userPreferencesRepository.goalModeMaxIterations.collect { n ->
@@ -414,6 +427,7 @@ class ChatViewModel(
             is ChatIntent.CompleteLessonQuiz -> completeLessonQuiz()
             is ChatIntent.PersonalizeLessonImage -> personalizeLessonImage(intent.imagePrompt, intent.caption)
             is ChatIntent.AnalyzeLessonVideo -> analyzeLessonVideo(intent.videoPrompt, intent.video)
+            is ChatIntent.SegmentLessonPhoto -> segmentLessonPhoto(intent.cardPrompt, intent.concept, intent.photo)
             is ChatIntent.AskDuringLesson -> askDuringLesson(intent.text)
             is ChatIntent.ApproveToolCall -> resolveToolApproval(approved = true)
             is ChatIntent.DenyToolCall -> resolveToolApproval(approved = false)
@@ -657,6 +671,87 @@ class ChatViewModel(
         if (video.authority != "${context.packageName}.fileprovider") return
         val name = video.lastPathSegment ?: return
         java.io.File(java.io.File(context.cacheDir, com.aiopenpocket.ui.chat.components.LESSON_VIDEO_DIR), name).delete()
+    }
+
+    /**
+     * The "segment" lesson step: the learner's photo -> SAM 3.1 -> a result card with frames under the step
+     * (LessonChatController.postSegmentation).
+     *
+     * The key is checked FIRST: without a Meta key there is no point in decoding a photo, and "add a key in
+     * Settings, or skip the step" is the one thing the learner can act on. The photo is prepared off the main
+     * thread (decode, EXIF rotation, shrink — see prepareSegmentPhoto). A photo taken with our camera (it sits
+     * in cacheDir) is deleted on any outcome; one from the gallery is not ours and is not touched. The
+     * compressed copy stays only if the card was posted, because the card shows it.
+     */
+    private fun segmentLessonPhoto(cardPrompt: String, concept: String, photo: android.net.Uri) {
+        val convId = currentConversationId()
+        if (convId == null || cardPrompt.isBlank() || cardPrompt in _state.value.segmentingPrompts) {
+            // Nothing will analyse this photo, and a file our own camera just wrote must not be left behind.
+            viewModelScope.launch(Dispatchers.IO) { deleteOwnPhotoCapture(photo) }
+            return
+        }
+        _state.update {
+            it.copy(segmentingPrompts = it.segmentingPrompts + cardPrompt, error = null, canRetry = false)
+        }
+        viewModelScope.launch {
+            var copy: java.io.File? = null
+            var posted = false
+            val problem = try {
+                if (!lessonChatController.segmentationReady()) {
+                    segmentationProblemText(SegmentationFailure.NO_KEY)
+                } else {
+                    val ready = withContext(Dispatchers.IO) { prepareLessonPhoto(photo) }
+                    copy = ready?.file
+                    if (ready == null) {
+                        tr("Не получилось открыть фото — выбери другое.", "Couldn't open the photo — pick another one.")
+                    } else {
+                        val failure = lessonChatController.postSegmentation(convId, concept, ready)
+                        posted = failure == null
+                        failure?.let(::segmentationProblemText)
+                    }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("ChatViewModel", "lesson segmentation failed", e)
+                tr("Не получилось обвести объекты. Попробуй ещё раз.", "Couldn't outline the objects. Try again.")
+            } finally {
+                withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
+                    deleteOwnPhotoCapture(photo)
+                    // A card that was not posted has no use for its picture.
+                    if (!posted) copy?.delete()
+                    sweepLessonPhotos()
+                }
+                _state.update { it.copy(segmentingPrompts = it.segmentingPrompts - cardPrompt) }
+            }
+            if (problem != null) _state.update { it.copy(error = problem, canRetry = false) }
+        }
+    }
+
+    /** The photo as the JPEG that goes to SAM, or null when it cannot be opened or is not a picture. Blocking: call on IO. */
+    private fun prepareLessonPhoto(photo: android.net.Uri): PreparedPhoto? {
+        val asset = photo.bundledAssetPath()
+        val resolver = context.contentResolver
+        return prepareSegmentPhoto(
+            // A source that cannot be opened (a revoked gallery URI, a missing asset) is "no photo", not a crash.
+            open = { runCatching { if (asset != null) context.assets.open(asset) else resolver.openInputStream(photo) }.getOrNull() },
+            outputDir = java.io.File(context.cacheDir, LESSON_SEGMENT_DIR),
+            name = "segment-${System.currentTimeMillis()}.jpg",
+        )
+    }
+
+    /** Old photos of the SAM step go: orphaned camera originals after an hour, result-card copies after a day (and beyond the newest five). */
+    private fun sweepLessonPhotos() {
+        val now = System.currentTimeMillis()
+        sweepPhotoFolder(java.io.File(context.cacheDir, LESSON_PHOTO_DIR), now, CAMERA_ORIGINAL_MAX_AGE_MS)
+        sweepPhotoFolder(java.io.File(context.cacheDir, LESSON_SEGMENT_DIR), now, RESULT_COPY_MAX_AGE_MS, RESULT_COPY_KEEP)
+    }
+
+    /** Deletes a photo taken with the camera for a lesson: it is ours and lives in cacheDir. Gallery photos are not touched. */
+    private fun deleteOwnPhotoCapture(photo: android.net.Uri) {
+        if (photo.authority != "${context.packageName}.fileprovider") return
+        val name = photo.lastPathSegment ?: return
+        java.io.File(java.io.File(context.cacheDir, LESSON_PHOTO_DIR), name).delete()
     }
 
     /**

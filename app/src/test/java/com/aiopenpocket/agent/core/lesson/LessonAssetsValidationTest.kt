@@ -3,6 +3,7 @@ package com.aiopenpocket.agent.core.lesson
 // @trace uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2
 // @trace english-ui-on-the-demo-path-223241
 
+import com.aiopenpocket.agent.core.llm.SegmentationConcept
 import com.aiopenpocket.agent.core.llm.VideoUnderstandingClient
 import com.aiopenpocket.i18n.AppLanguage
 import com.aiopenpocket.ui.roadmap.LIBRARY_LESSON_IDS
@@ -166,6 +167,21 @@ class LessonAssetsValidationTest {
               }
             }
 
+            "segment" -> {
+              if (step.instruction.isBlank()) err("пустой instruction — непонятно, что делать")
+              // The default prompt goes to SAM as is when the learner does not edit it, so it must pass the very
+              // check the client applies: one noun phrase in English (Latin letters, so a Russian word fails too),
+              // no list and no command. A prompt the client rejects would make the step's main button a
+              // guaranteed error — in the Russian lesson as well: SAM is asked in English.
+              SegmentationConcept.problemOf(step.segmentPrompt)?.let {
+                err("segmentPrompt «${step.segmentPrompt}» не годится как понятие для SAM: $it")
+              }
+              // The "Show an example" button with a broken path would turn the step's main path into an error.
+              if (step.sampleImage.isNotBlank() && !File(assetsDir, step.sampleImage).isFile) {
+                err("фото-пример не найдено: ${step.sampleImage}")
+              }
+            }
+
             "reveal" -> {
               if (step.question.isBlank()) err("пустой question")
               if (step.answer.isBlank()) err("пустой answer — кнопка раскроет пустоту")
@@ -276,6 +292,29 @@ class LessonAssetsValidationTest {
     assertTrue(errors.joinToString("\n"), errors.isEmpty())
   }
 
+  /**
+   * A lesson whose steps send the learner's PHOTO to a provider has to say so in its privacy paragraph. In how_model_sees
+   * the paragraph spoke of the video only, and it sits right after the step that sends a photo to Meta.
+   */
+  @Test
+  fun `a lesson with a photo step says in its privacy paragraph that photos leave the phone`() {
+    val errors = buildList {
+      parsedLessons().forEach { (file, lesson) ->
+        val segmentAt = lesson.steps.indexOfFirst { it.type == "segment" }
+        if (segmentAt < 0) return@forEach
+        val privacy = lesson.steps.drop(segmentAt + 1)
+          .filter { it.type == "text" }
+          .firstOrNull { it.text.contains("приватност", ignoreCase = true) || it.text.contains("privacy", ignoreCase = true) }
+        when {
+          privacy == null -> add("${label(file)}: после шага segment нет абзаца о приватности")
+          !(privacy.text.contains("фото", ignoreCase = true) || privacy.text.contains("photo", ignoreCase = true)) ->
+            add("${label(file)}: абзац о приватности не упоминает фото, а шаг segment отправляет фото в Meta")
+        }
+      }
+    }
+    assertTrue(errors.joinToString("\n"), errors.isEmpty())
+  }
+
   // --- Task 23: agent_blueprint (the AI Academy capstone) bridges into the agent builder ---
 
   /**
@@ -361,6 +400,9 @@ class LessonAssetsValidationTest {
             Triple("imagePrompt", e.imagePrompt, r.imagePrompt),
             Triple("sampleVideo", e.sampleVideo, r.sampleVideo),
             Triple("samplePreview", e.samplePreview, r.samplePreview),
+            // The SAM prompt is English in both languages and goes to the model verbatim.
+            Triple("segmentPrompt", e.segmentPrompt, r.segmentPrompt),
+            Triple("sampleImage", e.sampleImage, r.sampleImage),
           )
           shared.forEach { (field, mine, original) ->
             if (mine != original) err("$field='$mine', в оригинале '$original'")

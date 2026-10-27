@@ -18,8 +18,8 @@
       "git": "e1a7149"
     },
     "app-settings-beb470": {
-      "hash": "9c5a119432a2",
-      "git": "cf3f900"
+      "hash": "6b0da2dbdb50",
+      "git": "20975d3"
     },
     "background-tasks-15a34a": {
       "hash": "97e03df3b5ca",
@@ -34,12 +34,12 @@
       "git": "98161c0"
     },
     "driven-ui-cards-0418d0": {
-      "hash": "7bd8a66b3bbc",
-      "git": "6923ec5"
+      "hash": "4840bdee77cc",
+      "git": "cba9e00"
     },
     "english-ui-on-the-demo-path-223241": {
-      "hash": "4234cd6525e4",
-      "git": "67954f1"
+      "hash": "9ce23ab2cb65",
+      "git": "20975d3"
     },
     "fonovye-hody-agenta-dde42d": {
       "hash": "b80b82df30de",
@@ -70,48 +70,52 @@
       "git": "67954f1"
     },
     "protsedurnye-animatsii-v-urokah-68b2bf": {
-      "hash": "7e3b6ec1af0a",
-      "git": "322be74"
+      "hash": "5d8b1279c77b",
+      "git": "cba9e00"
     },
     "rezhim-refleksii-fca3c4": {
       "hash": "8376cc2d3890",
       "git": "67954f1"
+    },
+    "sam-segmentation-boxes-in-a-lesson-c3ea52": {
+      "hash": "5d1636c7fee5",
+      "git": "9ec1885"
     },
     "smena-temy-svetlaya-temnaya-sistemnaya-palitra-lime-ink-paper-005bc6": {
       "hash": "7ee4a6ccfd2f",
       "git": "295896f"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "cf5a74c8bd4b",
-      "git": "67954f1"
+      "hash": "1769d1b15bdc",
+      "git": "cba9e00"
     },
     "structured-plan-engine-907066": {
-      "hash": "b89b0715a66f",
-      "git": "ea123f3"
+      "hash": "b81c56ed4210",
+      "git": "cba9e00"
     },
     "swappable-persona-e5e65e": {
       "hash": "05c566d41f2e",
       "git": "cf3f900"
     },
     "uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2": {
-      "hash": "b9f09fff7954",
-      "git": "67954f1"
+      "hash": "67476ef4c5c4",
+      "git": "cba9e00"
     },
     "user-agent-builder-848153": {
-      "hash": "bff49edeb84c",
-      "git": "67954f1"
+      "hash": "c9239f4ed6a4",
+      "git": "cba9e00"
     },
     "video-na-vhod-v-uroke-muse-spark-08ccdb": {
-      "hash": "ce50bbf0745a",
-      "git": "322be74"
+      "hash": "5b7f70575627",
+      "git": "cba9e00"
     },
     "voice-input-1a0dfd": {
       "hash": "1b1086b54d9c",
       "git": "2464f21"
     },
     "vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53": {
-      "hash": "c46a184d7fc9",
-      "git": "cf3f900"
+      "hash": "e0a0303d7009",
+      "git": "20975d3"
     },
     "yazykovoy-agent-repetitor-s-intervalnymi-povtoreniyami-4a9360": {
       "hash": "74722c84ed79",
