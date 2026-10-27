@@ -26,9 +26,9 @@ class ProviderFallbackChainTest {
   }
 
   /**
-   * Выбор модели в Настройках действует: выбранная идёт первой, остальные — фолбэком. Прежняя
-   * проверка `it.name == LlmProvider.NIM` однажды молча возвращала пользователя OpenRouter к
-   * дефолтной модели, хотя в Настройках он видел выбранную.
+   * The model choice in Settings takes effect: the chosen one goes first, the rest as fallback. The old
+   * check `it.name == LlmProvider.NIM` once silently sent an OpenRouter user back to the default model,
+   * although Settings showed them the chosen one.
    */
   @Test
   fun `preferred model goes first, the rest stay as fallbacks`() {
@@ -39,14 +39,14 @@ class ProviderFallbackChainTest {
     )
   }
 
-  /** "AUTO" — сентинел настроек «не выбирал вручную», а не имя модели: порядок остаётся по priority. */
+  /** "AUTO" is the settings sentinel for "not chosen by hand", not a model name: the order stays by priority. */
   @Test
   fun `AUTO sentinel is not treated as a model name`() {
     val chain = chainOf(config("model-1"), config("model-2"), preferred = "AUTO")
     assertEquals(listOf("model-1", "model-2"), chain.resolve(LlmProvider.OPENROUTER).map { it.model })
   }
 
-  /** Модель, которой нет в каталоге (снята или осталась от прошлой версии), не ломает порядок. */
+  /** A model missing from the catalog (withdrawn or left over from a previous version) does not break the order. */
   @Test
   fun `preferred model missing from the catalog is ignored`() {
     val chain = chainOf(config("model-1"), config("model-2"), preferred = "anthropic/claude-sonnet-5")
@@ -54,8 +54,8 @@ class ProviderFallbackChainTest {
   }
 
   /**
-   * Без потолка один неверный ключ означал бы попытку на каждую модель каталога подряд на каждый ход:
-   * телефон греется, пользователь ждёт, а ответ всё равно будет «не вышло».
+   * Without a ceiling one wrong key would mean an attempt on every catalog model in a row on every turn:
+   * the phone heats up, the user waits, and the answer is still "did not work".
    */
   @Test
   fun `the attempt chain is capped`() {
@@ -63,7 +63,7 @@ class ProviderFallbackChainTest {
     assertEquals(5, huge.resolve(LlmProvider.OPENROUTER).size)
   }
 
-  /** Потолок не должен отрезать ВЫБРАННУЮ модель, даже если в каталоге она двухсотая. */
+  /** The ceiling must not cut off the CHOSEN model, even if it is the two-hundredth in the catalog. */
   @Test
   fun `a preferred model beyond the cap still goes first`() {
     val huge = chainOf(*(1..300).map { config("vendor/model-$it") }.toTypedArray(), preferred = "vendor/model-200")
@@ -73,9 +73,9 @@ class ProviderFallbackChainTest {
   }
 
   /**
-   * Гейт «только модели с function calling» стоит здесь, а не только в сборке конфигов: через
-   * resolve проходит каждый способ построить цепочку — живой каталог, правленый руками ассет и кеш,
-   * записанный прошлой версией приложения.
+   * The "function-calling models only" gate stands here, not only in config assembly: every way of building
+   * the chain goes through resolve — the live catalog, a hand-edited asset and a cache written by a previous
+   * version of the app.
    */
   @Test
   fun `models without tool support never enter the chain`() {
@@ -83,7 +83,7 @@ class ProviderFallbackChainTest {
     assertEquals(listOf("with-tools"), chain.resolve(LlmProvider.OPENROUTER).map { it.model })
   }
 
-  /** Даже если пользователь выбрал такую модель раньше (каталог с тех пор изменился). */
+  /** Even if the user chose such a model earlier (the catalog has changed since). */
   @Test
   fun `a preferred model without tool support is not resurrected`() {
     val chain = chainOf(config("no-tools", supportsTools = false), config("with-tools"), preferred = "no-tools")
@@ -91,8 +91,8 @@ class ProviderFallbackChainTest {
   }
 
   /**
-   * Кеш, записанный версией без фильтра, ещё может держать contributor-модель, а пользователь — иметь
-   * её выбранной. В цепочку она не попадает ни так, ни так.
+   * A cache written by a version without the filter may still hold a contributor model, and the user may
+   * have it chosen. It does not get into the chain either way.
    */
   @Test
   fun `a model that trains on user data never enters the chain, even when preferred`() {

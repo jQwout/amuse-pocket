@@ -17,7 +17,7 @@ class ChatFontScaleTest {
     assertEquals(ChatFontScale.DEFAULT, ChatFontScale.fromName(null))
     assertEquals(ChatFontScale.DEFAULT, ChatFontScale.fromName(""))
     assertEquals(ChatFontScale.DEFAULT, ChatFontScale.fromName("HUGE"))
-    assertEquals(ChatFontScale.DEFAULT, ChatFontScale.fromName("medium")) // регистр значим
+    assertEquals(ChatFontScale.DEFAULT, ChatFontScale.fromName("medium")) // case matters
   }
 
   @Test

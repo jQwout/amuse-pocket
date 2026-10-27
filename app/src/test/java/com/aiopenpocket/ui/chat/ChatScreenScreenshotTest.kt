@@ -14,9 +14,9 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Рендерит превью-каркас чата ([ChatPreviewScaffold]) в PNG (Roborazzi) — чтобы «как выглядит чат»
- * можно было увидеть без запуска приложения и зафиксировать в скриншот-тестах. Записать эталоны:
- * `gradlew :app:testDebugUnitTest -Proborazzi.test.record=true`; сверять — обычным прогоном теста.
+ * Renders the chat preview frame ([ChatPreviewScaffold]) to PNG (Roborazzi) — so that "what the chat
+ * looks like" can be seen without launching the app and pinned in screenshot tests. To record baselines:
+ * `gradlew :app:testDebugUnitTest -Proborazzi.test.record=true`; to compare — an ordinary test run.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -62,7 +62,7 @@ class ChatScreenScreenshotTest {
     composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/chat_streaming.png")
   }
 
-  /** Настоящий [ChatInput] (не заглушка) в трёх состояниях: пусто / с текстом / идёт ответ. */
+  /** The real [ChatInput] (not a stub) in three states: empty / with text / an answer in progress. */
   @Test
   fun chat_input_states_screenshot() {
     composeTestRule.setContent {

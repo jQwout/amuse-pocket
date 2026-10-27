@@ -30,8 +30,9 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Кеш картинок уроков. Каждая генерация стоит денег и десятков секунд, поэтому главное — не рисовать
- * одно и то же дважды: ни при повторном показе, ни при одновременном запросе предзагрузки и шага.
+ * The lesson image cache. Every generation costs money and tens of seconds, so the main thing is never to
+ * draw the same thing twice: neither on a repeated show nor on a simultaneous request from preloading and
+ * the step.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -78,7 +79,7 @@ class LessonImageGeneratorTest {
     assertEquals(1, calls.get())
   }
 
-  /** Сбой не должен оставить ни битого файла, ни «запомненного» провала: следующий показ пробует снова. */
+  /** A failure must leave neither a broken file nor a "remembered" failure: the next show tries again. */
   @Test
   fun `a failed generation leaves nothing behind and is retried next time`() = runTest {
     val generator = generator(failFirst = 1)
@@ -91,7 +92,7 @@ class LessonImageGeneratorTest {
     assertEquals(2, calls.get())
   }
 
-  /** Без общего стиля каждый шаг выглядел бы как из другой книжки, а модель рисовала бы кривые буквы. */
+  /** Without a shared style every step would look like it came from a different book, and the model would draw crooked letters. */
   @Test
   fun `every prompt carries the shared lesson style`() = runTest {
     generator().imageFor("робот читает книгу")
@@ -113,7 +114,7 @@ class LessonImageGeneratorTest {
     assertEquals(2, calls.get())
   }
 
-  /** Предзагрузка урока и показ шага могут попросить один кадр одновременно — платим один раз. */
+  /** Lesson preloading and showing a step may ask for the same frame at once — we pay once. */
   @Test
   fun `concurrent requests for one prompt generate it once`() = runTest {
     val generator = generator(latencyMs = 200)

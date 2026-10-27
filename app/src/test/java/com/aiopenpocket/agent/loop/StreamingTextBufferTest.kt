@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-/** Гейт частоты публикаций стрим-текста (~20/сек): копим всё, публикуем не чаще интервала. */
+/** The publish rate gate for streamed text (~20/sec): accumulate everything, publish no more often than the interval. */
 class StreamingTextBufferTest {
 
   private var now = 100_000L

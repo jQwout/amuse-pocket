@@ -12,7 +12,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Тул, который «висит» ровно [hangMs] виртуальных миллисекунд. */
+/** A tool that "hangs" for exactly [hangMs] virtual milliseconds. */
 private class SlowTool(private val hangMs: Long) : Tool {
   override val name = "slow_tool"
   override val description = "виснет"
@@ -26,7 +26,7 @@ private class SlowTool(private val hangMs: Long) : Tool {
   }
 }
 
-/** Тул, который висит НАВСЕГДА и при этом глотает отмену, как это делали тулы до фикса. */
+/** A tool that hangs FOREVER and swallows cancellation too, as tools did before the fix. */
 private class UncancellableTool : Tool {
   override val name = "stuck_tool"
   override val description = "виснет навсегда"
@@ -41,12 +41,12 @@ private class UncancellableTool : Tool {
 }
 
 /**
- * У выполнения инструмента должен быть потолок по времени.
+ * Running a tool must have a time ceiling.
  *
- * [ToolExecutor] звал `tool.execute` без таймаута, а тулы ходят в ContentResolver, Room и системные
- * сервисы — любой залипший вызов держал ход агента бесконечно: стрим не завершался, статус оставался
- * Running, и вывести из этого мог только внешний cancel всего хода. Тул, который не ответил за
- * отведённое время, обязан вернуть модели ошибку, а не остановить ход.
+ * [ToolExecutor] called `tool.execute` without a timeout, and tools go to ContentResolver, Room and system
+ * services — any stuck call held the agent's turn forever: the stream did not end, the status stayed
+ * Running, and only an external cancel of the whole turn could get out of it. A tool that did not answer in
+ * the allotted time must return an error to the model, not stop the turn.
  */
 class ToolExecutorTimeoutTest {
 

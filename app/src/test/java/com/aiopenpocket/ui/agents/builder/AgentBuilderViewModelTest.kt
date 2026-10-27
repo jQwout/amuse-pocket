@@ -73,15 +73,15 @@ class AgentBuilderViewModelTest {
     val context = ApplicationProvider.getApplicationContext<Context>()
     db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
       .allowMainThreadQueries()
-      // Room по умолчанию исполняет запросы на СВОИХ реальных executor'ах, за которыми виртуальные
-      // часы runTest не следят: advanceUntilIdle() возвращался бы раньше, чем автосейв/publish
-      // успели записать, и тест читал бы пустую базу. Сажаем Room на тот же тестовый диспетчер.
+      // By default Room runs queries on ITS OWN real executors, which runTest's virtual clock does not
+      // track: advanceUntilIdle() would return before autosave/publish had written, and the test would
+      // read an empty database. We put Room on the same test dispatcher.
       .setQueryExecutor(testDispatcher.asExecutor())
       .setTransactionExecutor(testDispatcher.asExecutor())
       .build()
-    // Клок — заодно точка отказа для теста «автосейв упал»: db.close() для этого больше не годится,
-    // Room переоткрывает in-memory базу и запись молча проходит в новую пустую (проверено). Бросок
-    // из clock() внутри withTransaction — детерминированный сбой ровно того вызова, что нас волнует.
+    // The clock doubles as the failure point for the "autosave failed" test: db.close() no longer works for
+    // that, Room reopens the in-memory database and the write silently goes into a new empty one (checked).
+    // A throw from clock() inside withTransaction is a deterministic failure of exactly the call we care about.
     userAgentRepository = UserAgentRepository(db, db.userAgentDao(), AgentHookRepository(db.agentHookDao())) {
       if (failSaves) error("disk on fire") else ticks++
     }
@@ -144,12 +144,12 @@ class AgentBuilderViewModelTest {
     assertEquals(state.draft.toolNames, stored?.toolNames)
   }
 
-  // --- start: повторный вызов (поворот экрана) ------------------------------------------------------
+  // --- start: a repeated call (screen rotation) -------------------------------------------------------
 
   /**
-   * Маршрут зовёт start из LaunchedEffect, который перезапускается при повороте экрана, а ViewModel
-   * его переживает. Раньше повтор заводил новый пустой черновик с новым id на первом шаге — и под
-   * каждый id тестовый шаг создавал ещё один чат «Тест агента».
+   * The route calls start from a LaunchedEffect, which restarts on screen rotation, while the ViewModel
+   * survives it. A repeat used to create a new empty draft with a new id on the first step — and for every
+   * id the test step created one more «Тест агента» chat.
    */
   @Test
   fun `a repeated start for a new draft keeps the same draft and step`() = runTest(testDispatcher) {
@@ -168,7 +168,7 @@ class AgentBuilderViewModelTest {
     assertEquals("правки на месте", "Тестовый агент", vm.state.value.draft.name)
   }
 
-  /** То же для маршрута редактирования: повторный loadExisting отбрасывал на первый шаг. */
+  /** The same for the edit route: a repeated loadExisting threw you back to the first step. */
   @Test
   fun `a repeated start on the edit route does not jump back to the first step`() = runTest(testDispatcher) {
     vm.newDraft()
@@ -292,7 +292,7 @@ class AgentBuilderViewModelTest {
     assertTrue("успех публикации должен быть виден", vm.state.value.justPublished)
   }
 
-  /** Плашка «Опубликовано» гаснет на первой же правке — дальше на экране уже неопубликованное. */
+  /** The "Published" badge goes away on the very first edit — from then on the screen shows unpublished content. */
   @Test
   fun `an edit after publish clears the published confirmation`() = runTest(testDispatcher) {
     vm.newDraft()
@@ -414,9 +414,9 @@ class AgentBuilderViewModelTest {
   // --- custom skills: authored in the wizard, actually persisted -------------------------------------
 
   /**
-   * The «Свой навык» editor used to hand only the skill's ID to the draft and drop its body, so
+   * The "Custom skill" editor used to hand only the skill's ID to the draft and drop its body, so
    * nothing ever wrote a `user_skills` row: validation then reported `unknown_skill`, which blocked
-   * both «Далее» and «Опубликовать», and no control could clear it again. The whole draft must
+   * both "Next" and "Publish", and no control could clear it again. The whole draft must
    * survive an autosave, validate, publish, and come back on reload.
    */
   @Test
@@ -523,13 +523,13 @@ class AgentBuilderViewModelTest {
     assertTrue(agentResolver.observeRoster().first().any { it.id == id })
   }
 
-  // --- валидация «по кнопке» (showErrors) --------------------------------------------------------
+  // --- validation "on the button" (showErrors) -----------------------------------------------------
 
   /**
-   * Отказ «Далее» не молчит: он поднимает [AgentBuilderUiState.showErrors], и только после этого шаг
-   * рисует инлайн-ошибки. До первого нажатия свежий черновик не встречает пользователя красным —
-   * ради этого флаг и заведён. Рендер по флагу проверяется в AgentBuilderScreenTest; здесь — сам
-   * переход.
+   * A "Next" refusal is not silent: it raises [AgentBuilderUiState.showErrors], and only after that does
+   * the step draw inline errors. Before the first press a fresh draft does not greet the user in red —
+   * that is what the flag exists for. Rendering by the flag is checked in AgentBuilderScreenTest; here,
+   * the transition itself.
    */
   @Test
   fun `nextStep on an invalid step refuses, stays put and raises showErrors`() = runTest(testDispatcher) {
@@ -545,11 +545,11 @@ class AgentBuilderViewModelTest {
     assertTrue("и они действительно есть", vm.state.value.errors.isNotEmpty())
   }
 
-  /** Успешный переход уводит на следующий шаг и гасит флаг — на новом шаге начинаем с чистого листа. */
+  /** A successful transition moves to the next step and clears the flag — the new step starts from a clean slate. */
   @Test
   fun `nextStep on a valid step advances and clears showErrors`() = runTest(testDispatcher) {
     vm.newDraft()
-    vm.nextStep() // упёрлись, флаг поднят
+    vm.nextStep() // stuck, the flag is raised
     fillValidFields()
     advanceUntilIdle()
     assertTrue(vm.state.value.showErrors)
@@ -562,11 +562,11 @@ class AgentBuilderViewModelTest {
   }
 
   /**
-   * Назад никогда не блокируется и тоже гасит флаг — иначе предыдущий шаг встречал бы пользователя
-   * красным из-за чужой ошибки.
+   * Back is never blocked and clears the flag too — otherwise the previous step would greet the user in
+   * red because of another step's error.
    *
-   * Шаг ломаем ЯВНО: [fillValidFields] заполняет в том числе системный промпт, поэтому «Инструкции»
-   * сами по себе валидны и отказа бы не случилось.
+   * The step is broken EXPLICITLY: [fillValidFields] fills in the system prompt among other things, so
+   * "Instructions" is valid on its own and there would be no refusal.
    */
   @Test
   fun `previousStep clears showErrors`() = runTest(testDispatcher) {
@@ -576,7 +576,7 @@ class AgentBuilderViewModelTest {
     assertTrue("IDENTITY валиден -> уходим на INSTRUCTIONS", vm.nextStep())
     assertEquals(BuilderStep.INSTRUCTIONS, vm.state.value.step)
 
-    vm.updateDraft { it.copy(systemPrompt = "") } // ломаем текущий шаг
+    vm.updateDraft { it.copy(systemPrompt = "") } // break the current step
     advanceUntilIdle()
     assertFalse("пустой промпт -> уйти нельзя", vm.nextStep())
     assertTrue(vm.state.value.showErrors)

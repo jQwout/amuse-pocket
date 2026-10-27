@@ -42,7 +42,7 @@ import com.aiopenpocket.testing.testDataStore
 
 /**
  * [AgentsViewModel] round-tripped through a real (in-memory) Room database, mirroring
- * `AgentBuilderViewModelTest` — proves the Task 21 roster split («Шаблоны»/«Мои агенты») against
+ * `AgentBuilderViewModelTest` — proves the Task 21 roster split ("Templates"/"My agents") against
  * [com.aiopenpocket.agent.core.agent.AgentResolver.observeRoster]'s real published/draft/archived
  * semantics, and [AgentsViewModel.openAgentChat]'s create-or-reuse behavior against the real
  * [ConversationRepository].
@@ -65,8 +65,8 @@ class AgentsViewModelTest {
     val context = ApplicationProvider.getApplicationContext<Context>()
     db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
       .allowMainThreadQueries()
-      // Room по умолчанию исполняет запросы на СВОИХ реальных executor'ах, за которыми виртуальные
-      // часы runTest не следят: тест читал бы состояние раньше, чем ViewModel успел его получить.
+      // By default Room runs queries on ITS OWN real executors, which runTest's virtual clock does not
+      // track: the test would read the state before the ViewModel had received it.
       .setQueryExecutor(testDispatcher.asExecutor())
       .setTransactionExecutor(testDispatcher.asExecutor())
       .build()
@@ -130,8 +130,8 @@ class AgentsViewModelTest {
   }
 
   /**
-   * A draft is not startable, so it stays out of «Мои агенты» — but it must still be listed
-   * SOMEWHERE, or an agent whose wizard was closed before «Опубликовать» is written to Room by
+   * A draft is not startable, so it stays out of "My agents" — but it must still be listed
+   * SOMEWHERE, or an agent whose wizard was closed before "Publish" is written to Room by
    * autosave and then shown by nothing at all. Archived agents stay invisible in both sections.
    */
   @Test
@@ -148,7 +148,7 @@ class AgentsViewModelTest {
   }
 
   /**
-   * Editing a published agent must not drop it out of «Мои агенты». Autosave used to force the row
+   * Editing a published agent must not drop it out of "My agents". Autosave used to force the row
    * back to DRAFT on every keystroke, so a user who typed one character and backed out lost the
    * agent from the roster entirely.
    */
@@ -169,10 +169,10 @@ class AgentsViewModelTest {
   // --- Open chat ---------------------------------------------------------------------------------
 
   /**
-   * Ждёт onReady по-настоящему, а не advanceUntilIdle(): openAgentChat читает персону из
-   * UserPreferencesRepository, то есть из DataStore, а тот живёт на СВОЁМ Dispatchers.IO — за ним
-   * виртуальные часы runTest не следят (executor'ы, в отличие от Room, ему не подменить), и
-   * advanceUntilIdle() возвращался бы раньше, чем колбэк успевал сработать.
+   * Waits for onReady for real, not with advanceUntilIdle(): openAgentChat reads the persona from
+   * UserPreferencesRepository, that is, from DataStore, which lives on ITS OWN Dispatchers.IO — runTest's
+   * virtual clock does not track it (unlike Room, its executors cannot be swapped), and
+   * advanceUntilIdle() would return before the callback had fired.
    */
   private suspend fun awaitReady(timeoutMs: Long = 5_000, get: () -> String?): String =
     withContext(Dispatchers.Default) {
@@ -196,7 +196,7 @@ class AgentsViewModelTest {
 
   /**
    * The builder's TEST step creates a conversation bound to the SAME agentId, so without the
-   * service tag «Открыть чат» would hand the user the builder's scratch chat — test messages and
+   * service tag "Open chat" would hand the user the builder's scratch chat — test messages and
    * all — instead of a fresh one.
    */
   @Test
@@ -216,8 +216,8 @@ class AgentsViewModelTest {
   }
 
   /**
-   * Тестовый диалог конструктора, который не успели убрать (процесс убит посреди проверки), не должен
-   * висеть в списке чатов: это черновое пространство, а не чат пользователя.
+   * A builder test conversation that was not cleaned up in time (the process was killed mid-check) must
+   * not hang in the chat list: it is a scratch space, not the user's chat.
    */
   @Test
   fun `a leftover builder test conversation is not listed among conversations`() = runTest(testDispatcher) {

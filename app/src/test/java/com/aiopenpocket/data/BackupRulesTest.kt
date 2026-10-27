@@ -10,16 +10,17 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Правила бэкапа ссылаются на имена файлов ЛИТЕРАЛАМИ — XML не умеет читать Kotlin-константу. Значит
- * переименование БД или файла настроек молча выключит исключение, и никто этого не заметит до
- * первого восстановления на новом устройстве. Этот тест и есть недостающая связь.
+ * The backup rules refer to file names as LITERALS — XML cannot read a Kotlin constant. So renaming the
+ * database or the settings file silently turns the exclusion off, and nobody notices until the first
+ * restore on a new device. This test is the missing link.
  *
- * Что именно должно быть исключено и почему — в комментариях самих XML. Коротко: `secure_settings`
- * зашифрован ключом из Keystore, который не бэкапится (восстановленная копия = гарантированный краш
- * при чтении API-ключа), а в базе лежит вся переписка и память агента открытым текстом.
+ * What exactly must be excluded and why is in the comments of the XML files themselves. In short:
+ * `secure_settings` is encrypted with a Keystore key that is not backed up (a restored copy = a guaranteed
+ * crash on reading the API key), and the database holds all the conversations and the agent's memory in
+ * plain text.
  *
- * Оба файла проверяются вместе: minSdk 24, поэтому работает и `backup_rules.xml` (API < 31), и
- * `data_extraction_rules.xml` (31+) — расхождение между ними так же опасно, как их отсутствие.
+ * Both files are checked together: minSdk is 24, so both `backup_rules.xml` (API < 31) and
+ * `data_extraction_rules.xml` (31+) are in effect — a mismatch between them is as dangerous as their absence.
  */
 class BackupRulesTest {
 
@@ -66,9 +67,10 @@ class BackupRulesTest {
   }
 
   /**
-   * Песочницы file_tool и картинки уроков («Нарисуй под меня» рисуется по «о себе») — такие же
-   * личные данные, как база. Имена папок агента берём из [sandboxRoot], чтобы переименование не
-   * выключило исключение молча; `lesson_images` — приватная константа генератора, поэтому литералом.
+   * The file_tool sandboxes and the lesson images ("Draw it for me" is drawn from "about me") are personal
+   * data just like the database. The agent folder names are taken from [sandboxRoot] so that a rename does
+   * not silently turn the exclusion off; `lesson_images` is a private constant of the generator, hence a
+   * literal.
    */
   @Test
   fun `agent files and lesson images are excluded from cloud backup on every API`() {
@@ -86,8 +88,8 @@ class BackupRulesTest {
 
   @Test
   fun `the encrypted settings exclusion also covers device transfer`() {
-    // Keystore не переносится и при прямой миграции устройство-в-устройство, поэтому одного
-    // cloud-backup мало: без этой ветки переезд на новый телефон давал бы тот же краш.
+    // The Keystore is not transferred even in a direct device-to-device migration, so cloud-backup alone is
+    // not enough: without this branch moving to a new phone would give the same crash.
     val transferSection = modernRules.substringAfter("<device-transfer>").substringBefore("</device-transfer>")
     assertTrue(
       "${SettingsRepository.PREFS_NAME} не исключён из device-transfer",

@@ -17,8 +17,8 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
- * Из фона Android не пускает startActivity — тул не должен рапортовать «открыто», когда на деле
- * ничего не открылось: в фоне вместо запуска уходит уведомление с тем же интентом.
+ * Android does not allow startActivity from the background — the tool must not report "opened" when
+ * nothing actually opened: in the background a notification with the same intent goes out instead.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])

@@ -30,14 +30,14 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Шаг-картинка с `imagePrompt`: откуда берётся картинка и что происходит, когда нарисовать не вышло.
+ * An image step with `imagePrompt`: where the image comes from and what happens when drawing fails.
  *
- * Контракт урока «1 шаг = ровно 1 сообщение ассистента» должен держаться при любом исходе генерации —
- * иначе курсор урока разъедется с историей.
+ * The lesson contract "1 step = exactly 1 assistant message" must hold for any generation outcome —
+ * otherwise the lesson cursor drifts away from the history.
  *
- * `runBlocking`, а не `runTest`: шаг ждёт картинку под `withTimeoutOrNull`, а генерация идёт на
- * настоящем IO. Виртуальное время `runTest` промотало бы таймаут мгновенно, пока запрос ещё в пути,
- * и тест проверял бы фолбэк вместо картинки.
+ * `runBlocking`, not `runTest`: the step waits for the image under `withTimeoutOrNull`, and generation runs
+ * on real IO. The virtual time of `runTest` would skip the timeout instantly while the request is still in
+ * flight, and the test would check the fallback instead of the image.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -100,7 +100,7 @@ class LessonChatControllerImageTest {
     assertEquals(1, calls.get())
   }
 
-  /** Бандл работает без сети и ничего не стоит — при нём рисовать незачем. */
+  /** The bundled asset works offline and costs nothing — with it there is no reason to draw. */
   @Test
   fun `a bundled asset wins and nothing is generated`() = runBlocking {
     val id = repo.createConversation(title = "Урок", isTutorial = true)
@@ -124,7 +124,7 @@ class LessonChatControllerImageTest {
     assertEquals("https://example.com/x.png", postedParams(id).getString("url"))
   }
 
-  /** Промпт едет в карточку, иначе кнопке «Нарисуй под меня» нечего перерисовывать. */
+  /** The prompt goes into the card, otherwise the "Draw it for me" button has nothing to redraw. */
   @Test
   fun `an illustration step carries its prompt for draw-it-for-me`() = runBlocking {
     val id = repo.createConversation(title = "Урок", isTutorial = true)
@@ -145,8 +145,8 @@ class LessonChatControllerImageTest {
   }
 
   /**
-   * Картинка «под меня» — отдельное сообщение под шагом, нарисованное по промпту шага и «о себе».
-   * У неё нет своего промпта, а значит и кнопки: перерисовывать перерисованное незачем.
+   * The "for me" image is a separate message under the step, drawn from the step's prompt and "about me".
+   * It has no prompt of its own and therefore no button: there is no point redrawing a redrawn image.
    */
   @Test
   fun `draw-it-for-me posts a personalized picture as its own card`() = runBlocking {
@@ -174,7 +174,7 @@ class LessonChatControllerImageTest {
     assertTrue(repo.getAllMessages(id).isEmpty())
   }
 
-  /** Предзагрузка рисует заранее, и показ шага берёт картинку из кеша без нового запроса. */
+  /** Preloading draws ahead of time, and showing the step takes the image from the cache without a new request. */
   @Test
   fun `prefetched images make showing the step free`() = runBlocking {
     val id = repo.createConversation(title = "Урок", isTutorial = true)
@@ -197,8 +197,8 @@ class LessonChatControllerImageTest {
   }
 
   /**
-   * Не картинка, но тот же путь «шаг → cardSpec»: принятые варианты fill-шага должны доехать до
-   * карточки, иначе ученик с верным синонимом снова застрянет. Пустые варианты отбрасываются ещё здесь.
+   * Not an image, but the same "step → cardSpec" path: a fill step's accepted variants must reach the card,
+   * otherwise a learner with a correct synonym gets stuck again. Empty variants are dropped already here.
    */
   @Test
   fun `a fill step carries its accepted answers into the card`() = runBlocking {

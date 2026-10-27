@@ -6,12 +6,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Два предиката, на которых держится «всё на Muse»: какой ключ OpenRouter считать настоящим и какую
- * модель пускать в выбор и в цепочку.
+ * The two predicates "everything on Muse" rests on: which OpenRouter key counts as real and which model is
+ * let into the picker and the chain.
  */
 class LlmProviderTest {
 
-  /** Плейсхолдер из `.env.example` — не ключ: уйди он в запрос, вместо предупреждения в Настройках был бы 401. */
+  /** The placeholder from `.env.example` is not a key: if it went into a request, there would be a 401 instead of a warning in Settings. */
   @Test
   fun `placeholder and blank build keys are treated as no key`() {
     assertEquals("", bundledOpenRouterKey(""))
@@ -23,7 +23,7 @@ class LlmProviderTest {
   fun `only Meta models pass the Muse gate`() {
     assertTrue(isMetaModel("meta/muse-spark-1.3"))
     assertTrue(isMetaModel("meta/muse-wonder"))
-    // Llama на OpenRouter обслуживают сторонние хостеры, а не Meta.
+    // Llama on OpenRouter is served by third-party hosts, not by Meta.
     assertFalse(isMetaModel("meta-llama/llama-4-maverick"))
     assertFalse(isMetaModel("anthropic/claude-sonnet-5"))
     assertFalse(isMetaModel(""))

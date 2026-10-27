@@ -7,14 +7,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Контракт CHAT/TUTOR-ходов ([resolveTurnExecutionPlan]). PLAN/GOAL идут через Structured Plan
- * Engine ([StructuredPlanOrchestrator]) и никогда не доходят до этой функции — их собственная
- * маршрутизация покрыта `com.aiopenpocket.di.TurnModule`'s dispatch (см. [AgentMode] kdoc) и
+ * The contract of CHAT/TUTOR turns ([resolveTurnExecutionPlan]). PLAN/GOAL go through the Structured Plan
+ * Engine ([StructuredPlanOrchestrator]) and never reach this function — their own routing is covered by
+ * the dispatch of `com.aiopenpocket.di.TurnModule` (see the [AgentMode] kdoc) and
  * `StructuredPlanOrchestratorTest`/`PlanRunnerTest`/`PlanPlannerTest`.
  *
- * Task 15 (structured-plan-engine-907066) убрал отсюда тесты старого prompt-only план-гейта и
- * гоал-петли ([resolveTurnExecutionPlan] больше не принимает `planApproved`/`goalMaxIterations` и не
- * выбирает `PromptMode` — обе механики принадлежали снятому PLAN/GOAL prompt-контракту).
+ * Task 15 (structured-plan-engine-907066) removed from here the tests of the old prompt-only plan gate and
+ * goal loop ([resolveTurnExecutionPlan] no longer takes `planApproved`/`goalMaxIterations` and does not pick
+ * a `PromptMode` — both mechanisms belonged to the withdrawn PLAN/GOAL prompt contract).
  */
 class AgentModeTest {
 
@@ -32,8 +32,8 @@ class AgentModeTest {
 
   @Test
   fun tutor_blocksToolsSingleIterationWithTutorSuffix() {
-    // Вопрос к LLM во время урока: репетитор только ОБЪЯСНЯЕТ — никаких инструментов, один виток,
-    // и рамка «объясни и остановись, не продолжай урок».
+    // A question to the LLM during a lesson: the tutor only EXPLAINS — no tools, one round, and the frame
+    // "explain and stop, do not continue the lesson".
     val turn = plan(AgentMode.TUTOR)
     assertFalse("tutor-ход только объясняет — инструменты отключены", turn.usesTools)
     assertEquals(1, turn.maxIterations)

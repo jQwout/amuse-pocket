@@ -76,16 +76,16 @@ class ContextWindowBuilderTest {
     assertEquals(2, window.verbatim.size)
   }
 
-  // --- бюджет токенов -----------------------------------------------------------------------------
+  // --- token budget -------------------------------------------------------------------------------
 
-  /** 300 символов ≈ 100 токенов по LlmContextConfig.estimateTokens (chars / 3). */
+  /** 300 characters ≈ 100 tokens by LlmContextConfig.estimateTokens (chars / 3). */
   private fun bulky(i: Int) = PrePromptAssembler.PromptMessage("user", "m$i:" + "x".repeat(300 - "m$i:".length), null)
 
   private fun ids(messages: List<PrePromptAssembler.PromptMessage>) = messages.map { it.content.substringBefore(':') }
 
   @Test
   fun `token budget applies even when the dialog fits into head plus tail`() {
-    // Раньше диалог ≤ head+tail (48 реплик) уходил целиком без проверки бюджета.
+    // A conversation ≤ head+tail (48 messages) used to go out whole without a budget check.
     val messages = (1..10).map { msg("user", "m$it:" + "x".repeat(300)) }
 
     val window = ContextWindowBuilder.buildFromParts(
@@ -109,8 +109,8 @@ class ContextWindowBuilderTest {
 
   @Test
   fun `head plus the current message - the current message survives`() {
-    // Ровно сценарий старого бага: голова из 8 реплик + текущий вопрос, всё сверх бюджета. Старый
-    // алгоритм выбрасывал именно текущий вопрос.
+    // Exactly the old bug's scenario: a head of 8 messages + the current question, all over budget. The old
+    // algorithm threw out precisely the current question.
     val messages = (1..9).map { bulky(it) }
 
     val trimmed = ContextWindowBuilder.trimVerbatimToTokenBudget(messages, budgetTokens = 450, headCount = 8)
@@ -120,20 +120,20 @@ class ContextWindowBuilderTest {
 
   @Test
   fun `older tail goes first, then head, and only then the most recent messages`() {
-    // 12 реплик по ~100 токенов: голова 0..1, старый хвост 2..5, защищённые недавние 6..11.
+    // 12 messages of ~100 tokens: head 0..1, old tail 2..5, protected recent ones 6..11.
     val messages = (0..11).map { bulky(it) }
 
-    // Нужно выбросить 4 — уходит старый хвост, голова и недавние целы.
+    // 4 must be thrown out — the old tail goes, the head and the recent ones stay.
     assertEquals(
       listOf("m0", "m1", "m6", "m7", "m8", "m9", "m10", "m11"),
       ids(ContextWindowBuilder.trimVerbatimToTokenBudget(messages, budgetTokens = 800, headCount = 2, protectedRecent = 6)),
     )
-    // Нужно выбросить 6 — голова уходит раньше недавних.
+    // 6 must be thrown out — the head goes before the recent ones.
     assertEquals(
       listOf("m6", "m7", "m8", "m9", "m10", "m11"),
       ids(ContextWindowBuilder.trimVerbatimToTokenBudget(messages, budgetTokens = 600, headCount = 2, protectedRecent = 6)),
     )
-    // Дальше — недавние от старых к новым; последняя остаётся.
+    // After that — the recent ones from oldest to newest; the last one stays.
     assertEquals(
       listOf("m9", "m10", "m11"),
       ids(ContextWindowBuilder.trimVerbatimToTokenBudget(messages, budgetTokens = 300, headCount = 2, protectedRecent = 6)),

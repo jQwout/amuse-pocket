@@ -14,11 +14,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Рассказ пользователя о себе уходит ВЫБРАННОМУ вендору.
+ * The user's story about themselves goes to the CHOSEN vendor.
  *
- * Здесь был живой баг: вызов не передавал провайдера и молча ехал на дефолт `LlmProvider.NIM` из
- * `LlmClient.streamChat`. Дефолт убран, так что «забыл прокинуть» теперь не компилируется, — но от
- * «прокинул литерал» компилятор не спасает, поэтому проверяем поведением.
+ * There was a live bug here: the call did not pass the provider and silently went to the default
+ * `LlmProvider.NIM` from `LlmClient.streamChat`. The default is gone, so "forgot to pass it" no longer
+ * compiles — but the compiler does not save you from "passed a literal", so we check by behavior.
  */
 class ExtractUserProfileProviderTest {
 

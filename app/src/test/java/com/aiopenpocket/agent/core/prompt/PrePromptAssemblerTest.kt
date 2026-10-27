@@ -50,8 +50,8 @@ import com.aiopenpocket.testing.testDataStore
  * [PrePromptAssembler] Task 6 coverage: the compact `<plan_data>` section
  * ([com.aiopenpocket.agent.core.plan.context.PlanContextProvider]) appears exactly for a
  * plan-bound conversation with an APPROVED plan, and is entirely absent otherwise — a plain chat's
- * system prompt is unaffected by this task (see [PrePromptAssembler.assemble]'s own comment: "diалог
- * без плана НЕ получает эту секцию вообще"). Real in-memory Room throughout, mirroring
+ * system prompt is unaffected by this task (see [PrePromptAssembler.assemble]'s own comment: "A
+ * conversation without a plan does NOT get this section at all"). Real in-memory Room throughout, mirroring
  * [com.aiopenpocket.agent.loop.ReflectionOrchestratorTest]'s own [PrePromptAssembler] object graph —
  * no hand-rolled fakes for the repositories.
  *
@@ -239,7 +239,7 @@ class PrePromptAssemblerTest {
 
     val result = assembler.assemble("c1", "привет")
 
-    // Раньше здесь был ВЕСЬ каталог — и совет вызвать load_skill, которого у агента нет.
+    // The WHOLE catalog used to be here — along with advice to call load_skill, which the agent does not have.
     assertFalse(result.systemPrompt.contains("## Доступные навыки"))
     assertFalse(result.systemPrompt.contains("- budget:"))
   }
@@ -250,7 +250,7 @@ class PrePromptAssemblerTest {
   fun `a recent tool episode is shown as an action label plus a short outcome, not the raw output`() = runTest {
     db.conversationDao().insert(ConversationEntity(id = "c1", title = "T"))
     val memory = MemoryRepository(db.factDao(), db.episodeDao())
-    // Прочитанный файл на 40 тыс. символов раньше ехал целиком в каждый следующий системный промпт.
+    // A read file of 40k characters used to ride whole in every following system prompt.
     memory.saveEpisode(
       type = "tool_call",
       payload = """{"id":"1","name":"file_tool","risk":"READ","arguments":{"action":"read","path":"a.txt"}}""",

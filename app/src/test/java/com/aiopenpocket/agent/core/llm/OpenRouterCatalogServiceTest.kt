@@ -22,12 +22,12 @@ import org.robolectric.annotation.Config
 import java.io.File
 
 /**
- * Разбор живого каталога OpenRouter: что попадает в выбор, в каком порядке и что происходит, когда
- * сеть отказывает.
+ * Parsing the live OpenRouter catalog: what gets into the picker, in what order, and what happens when the
+ * network fails.
  *
- * Молчаливые режимы здесь опаснее громких: модель без `tools` не падает, а просто перестаёт звать
- * инструменты (агент «тупеет»), а перезапись рабочего кеша пустым ответом оставила бы пользователя
- * с пустым селектором до следующих суток.
+ * The silent failure modes here are more dangerous than the loud ones: a model without `tools` does not
+ * crash, it simply stops calling tools (the agent "gets dumber"), and overwriting the working cache with an
+ * empty response would leave the user with an empty picker until the next day.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -81,8 +81,8 @@ class OpenRouterCatalogServiceTest {
   }
 
   /**
-   * Приложение работает только на моделях Meta. meta-llama/ — не Meta как провайдер: Llama на OpenRouter
-   * обслуживают сторонние хостеры, и запрос ушёл бы им.
+   * The app works only on Meta's models. meta-llama/ is not Meta as a provider: Llama on OpenRouter is
+   * served by third-party hosts, and the request would go to them.
    */
   @Test
   fun `only meta models reach the catalog`() = runTest {
@@ -95,7 +95,7 @@ class OpenRouterCatalogServiceTest {
     assertEquals(listOf("meta/t-muse"), catalog?.models?.map { it.name })
   }
 
-  /** Модель, не принимающая текст (например, чисто image-to-image), в чате бесполезна. */
+  /** A model that does not take text (for example, pure image-to-image) is useless in a chat. */
   @Test
   fun `models that cannot take text are dropped`() = runTest {
     val catalog = service(
@@ -106,7 +106,7 @@ class OpenRouterCatalogServiceTest {
     assertEquals(listOf("meta/t-text"), catalog?.models?.map { it.name })
   }
 
-  /** Contributor-версия приходит в том же списке, с tools и текстом — отличает её только суффикс. */
+  /** The contributor version comes in the same list, with tools and text — only the suffix tells it apart. */
   @Test
   fun `models that train on user data never reach the catalog`() = runTest {
     val catalog = service(
@@ -117,7 +117,7 @@ class OpenRouterCatalogServiceTest {
     assertEquals(listOf("meta/muse-spark-1.3"), catalog?.models?.map { it.name })
   }
 
-  /** Курируемый сид — сверху; всё остальное — новые выше. */
+  /** The curated seed goes on top; everything else is newest first. */
   @Test
   fun `seeded models come first, the rest by creation date descending`() = runTest {
     val seeded = loader.loadOpenRouterSeed().models.first().name
@@ -157,9 +157,9 @@ class OpenRouterCatalogServiceTest {
   }
 
   /**
-   * Дубли id — краш LazyColumn на одинаковых ключах в списке выбора, причём записанный в кеш: он
-   * пережил бы перезапуск, и пользователь не смог бы открыть селектор, чтобы выбрать другую модель.
-   * Пустой id — конфиг, который всегда даст 400 и сожжёт одну из пяти попыток цепочки.
+   * Duplicate ids crash LazyColumn on equal keys in the picker list, and once written to the cache the
+   * crash would survive a restart, and the user could not open the picker to choose another model.
+   * An empty id is a config that always gives a 400 and burns one of the chain's five attempts.
    */
   @Test
   fun `duplicate and blank ids are dropped`() = runTest {
@@ -172,7 +172,7 @@ class OpenRouterCatalogServiceTest {
     assertEquals(listOf("meta/t-dup"), catalog?.models?.map { it.name })
   }
 
-  /** Тело ошибки OpenRouter (`{"error":{...}}`) разбирается в пустой список — рабочий кеш должен уцелеть. */
+  /** An OpenRouter error body (`{"error":{...}}`) parses into an empty list — the working cache must survive. */
   @Test
   fun `an HTTP error never touches the cache`() = runTest {
     service(model("meta/t-cached")).refresh(now = 1_000L)
@@ -183,8 +183,8 @@ class OpenRouterCatalogServiceTest {
   }
 
   /**
-   * Битый кеш читается как «кеша нет», а НЕ удаляется. Удаление превращало любое пересечение чтения
-   * с записью в потерю каталога: read зовётся на каждом ходе агента, write — из фонового обновления.
+   * A broken cache reads as "no cache" and is NOT deleted. Deleting turned any overlap of a read with a
+   * write into a lost catalog: read is called on every agent turn, write from the background refresh.
    */
   @Test
   fun `a corrupted cache falls back to the seed without deleting the file`() = runTest {
@@ -214,7 +214,7 @@ class OpenRouterCatalogServiceTest {
     assertEquals(listOf("meta/t-cached"), loader.loadOpenRouter().models.map { it.name })
   }
 
-  /** Ответ разобрался, но ни одной пригодной модели: перезаписать рабочий кеш пустотой нельзя. */
+  /** The response parsed, but there is not a single usable model: the working cache must not be overwritten with nothing. */
   @Test
   fun `an all-filtered response does not wipe the cache`() = runTest {
     service(model("meta/t-cached")).refresh(now = 1_000L)
@@ -246,7 +246,7 @@ class OpenRouterCatalogServiceTest {
     assertTrue(snapshot.authoritative)
   }
 
-  /** Без кеша и без сети пользователь всё равно должен увидеть список — сид из ассетов. */
+  /** Without a cache and without a network the user must still see a list — the seed from the assets. */
   @Test
   fun `no cache and no network falls back to the seeded catalog`() = runTest {
     val failing = OpenRouterCatalogService(cache, loader, MockEngine { respondError(HttpStatusCode.BadGateway) })
@@ -255,8 +255,8 @@ class OpenRouterCatalogServiceTest {
 
     assertNotNull(snapshot.catalog.models.firstOrNull())
     assertEquals(loader.loadOpenRouterSeed().models.map { it.name }, snapshot.catalog.models.map { it.name })
-    // Сид — не список провайдера: по нему нельзя судить, что модель снята, и Настройки на этом
-    // основании не должны сбрасывать выбор пользователя.
+    // The seed is not the provider's list: it cannot tell that a model was withdrawn, and Settings must not
+    // reset the user's choice on that basis.
     assertFalse("сид не авторитетен", snapshot.authoritative)
   }
 }

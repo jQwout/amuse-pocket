@@ -210,7 +210,7 @@ class AgentDetailViewModelTest {
     assertEquals(listOf("custom-skill-1"), state.skills.map { it.id })
     assertTrue(state.skills.single().available)
     assertEquals("Тестовый кастомный навык", state.skills.single().description)
-    // На экран идёт название своего навыка из Room, а не его id.
+    // The screen gets the custom skill's name from Room, not its id.
     assertEquals("Мой навык", state.skills.single().title)
     assertEquals(listOf("hook1"), state.hooks.map { it.hook.id })
     assertEquals(listOf("run1"), state.hooks.single().recentRuns.map { it.id })
@@ -284,9 +284,9 @@ class AgentDetailViewModelTest {
   }
 
   /**
-   * «Включить» republish'ит агента: без его собственных навыков в `publish(skills = …)` валидатор
-   * видел id навыка ни встроенным, ни своим (`unknown_skill`) — включение падало, а успешное
-   * стёрло бы сами навыки, потому что publish заменяет их переданным набором целиком.
+   * "Turn on" republishes the agent: without its own skills in `publish(skills = …)` the validator saw the
+   * skill id as neither built-in nor custom (`unknown_skill`) — turning on failed, and a successful one would
+   * have wiped the skills themselves, because publish replaces them with the passed set entirely.
    */
   @Test
   fun `toggleEnabled re-enables an agent with its own custom skill and keeps the skill`() = runTest(testDispatcher) {
@@ -318,7 +318,7 @@ class AgentDetailViewModelTest {
     assertEquals(listOf("own-skill-1"), userSkillRepository.getForAgent(id).map { it.id })
   }
 
-  /** «Дублировать» своего агента с навыком: копия получает свой экземпляр навыка, а не пустоту. */
+  /** "Duplicate" of a custom agent with a skill: the copy gets its own instance of the skill, not nothing. */
   @Test
   fun `duplicate keeps the copied custom skills`() = runTest(testDispatcher) {
     val id = "dup-source"
@@ -339,8 +339,8 @@ class AgentDetailViewModelTest {
     vm.select(id)
     vm.state.first { it.definition != null }
 
-    // Ждём сам колбэк, а не advanceUntilIdle: Room пишет на своих потоках, их планировщик теста не
-    // видит, и на медленной CI-машине копия ещё не была готова (локально успевала).
+    // We wait for the callback itself, not advanceUntilIdle: Room writes on its own threads, the test
+    // scheduler does not see them, and on a slow CI machine the copy was not ready yet (locally it made it).
     val cloned = CompletableDeferred<String>()
     vm.duplicate { cloned.complete(it) }
     val clone = cloned.await()
@@ -366,7 +366,7 @@ class AgentDetailViewModelTest {
     assertFalse(state.canArchive)
   }
 
-  // --- Планы section (Task 12, structured-plan-engine-907066) ----------------------------------------
+  // --- Plans section (Task 12, structured-plan-engine-907066) ----------------------------------------
 
   private suspend fun insertConversation(id: String) {
     db.conversationDao().insert(ConversationEntity(id = id, title = "Test conversation $id"))

@@ -49,12 +49,12 @@ import java.io.File
 import com.aiopenpocket.testing.testDataStore
 
 /**
- * [SettingsViewModel] — логика выбора модели: что показывается в списке моделей, что уходит в
- * хранилище и когда.
+ * [SettingsViewModel] — the model choice logic: what is shown in the model list, what goes to storage
+ * and when.
  *
- * Тесты ждут состояние (`state.first { ... }` под таймаутом), а не `advanceUntilIdle`: ViewModel
- * сознательно уходит на `Dispatchers.IO` (prefs поднимают Keystore, каталог OpenRouter — сотни
- * моделей), а реальную работу на IO виртуальный планировщик `runTest` не отслеживает.
+ * The tests wait for state (`state.first { ... }` under a timeout), not `advanceUntilIdle`: the ViewModel
+ * deliberately goes to `Dispatchers.IO` (prefs bring up the Keystore, the OpenRouter catalog has hundreds
+ * of models), and `runTest`'s virtual scheduler does not track real work on IO.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -69,10 +69,10 @@ class SettingsViewModelTest {
   private lateinit var settings: FakeSettingsRepository
 
   /**
-   * ViewModel'и создаются через store, чтобы `@After` вызвал `onCleared` и погасил `viewModelScope`.
-   * Без этого корутины ViewModel переживают собственный тест: продолжают писать в prefs и в кеш
-   * каталога уже после `resetMain()` — то есть ровно тот механизм «падает не тот тест, который
-   * виноват», ради которого в этом же коммите изолирован DataStore.
+   * ViewModels are created through a store so that `@After` calls `onCleared` and cancels `viewModelScope`.
+   * Without that the ViewModel's coroutines outlive their own test: they keep writing to prefs and to the
+   * catalog cache after `resetMain()` — that is, exactly the "the wrong test fails, not the guilty one"
+   * mechanism for which DataStore is isolated in this same commit.
    */
   private val viewModelStore = ViewModelStore()
 
@@ -90,11 +90,11 @@ class SettingsViewModelTest {
     File(application.filesDir, "openrouter_models.json").delete()
   }
 
-  /** In-memory замена [SettingsRepository]: настоящая поднимает Android Keystore, которого в JVM нет. */
+  /** An in-memory replacement for [SettingsRepository]: the real one brings up the Android Keystore, which the JVM does not have. */
   private class FakeSettingsRepository : SettingsRepository {
     val values = mutableMapOf<String, String>()
 
-    /** Сколько раз что-либо ЗАПИСЫВАЛИ — «сохраняется только по кнопке» проверяется этим. */
+    /** How many times anything was WRITTEN — "saved only on the button" is checked with this. */
     var writes = 0
       private set
 
@@ -112,7 +112,7 @@ class SettingsViewModelTest {
       values[modelKey(provider)] = model
     }
 
-    /** Выбор OpenRouter — под "model", как до второго маршрута: на нём стоят проверки ниже. */
+    /** The OpenRouter choice is under "model", as before the second route: the checks below rely on it. */
     private fun modelKey(provider: String) = if (provider == "OPENROUTER") "model" else "model_$provider"
   }
 
@@ -142,9 +142,9 @@ class SettingsViewModelTest {
   private var viewModelSeq = 0
 
   /**
-   * Расход в этих тестах не проверяется — они про ключ и каталог моделей. Пустые
-   * сводки вместо Room: поднимать базу ради четырёх нулей значило бы привязать тесты настроек к
-   * схеме БД, которая до релиза пересоздаётся разрушительно.
+   * Spending is not checked in these tests — they are about the key and the model catalog. Empty
+   * summaries instead of Room: bringing up the database for four zeros would tie the settings tests to a
+   * database schema that is recreated destructively until the release.
    */
   private val emptyTotals =
     LlmUsageTotals(calls = 0, promptTokens = 0, completionTokens = 0, costUsd = null, estimatedCalls = 0)
@@ -168,9 +168,9 @@ class SettingsViewModelTest {
       themeRepository = ThemeRepository(application),
       llmUsageDao = usageDao,
     )
-    // Кладём в store, чтобы его clear() в @After позвал onCleared и отменил viewModelScope.
-    // Ключ свой на каждый экземпляр: под общим ключом второй ViewModel в одном тесте не попал бы
-    // в store вовсе — и его viewModelScope пережил бы тест.
+    // Put into the store so that its clear() in @After calls onCleared and cancels viewModelScope.
+    // Each instance gets its own key: under a shared key the second ViewModel in one test would not get
+    // into the store at all — and its viewModelScope would outlive the test.
     ViewModelProvider(
       viewModelStore,
       object : ViewModelProvider.Factory {
@@ -182,9 +182,9 @@ class SettingsViewModelTest {
   }
 
   /**
-   * Ждём состояние в РЕАЛЬНОМ времени: `runTest` подменяет время на виртуальное, и обычный
-   * `withTimeout` внутри него срабатывает мгновенно, не дав работе на `Dispatchers.IO` (которую
-   * планировщик теста не отслеживает) вообще случиться.
+   * We wait for state in REAL time: `runTest` replaces time with virtual time, and an ordinary
+   * `withTimeout` inside it fires instantly, without letting the work on `Dispatchers.IO` (which the test
+   * scheduler does not track) happen at all.
    */
   private suspend fun SettingsViewModel.await(
     timeoutMs: Long = 10_000,
@@ -214,8 +214,8 @@ class SettingsViewModelTest {
     vm.updateModel("meta/one")
     vm.updateOpenRouterKey("sk-test")
     vm.save()
-    // Запись ушла на IO (Keystore шифрует на вызывающем потоке), поэтому ждём подтверждения:
-    // флаг saved взводится только после реальной записи.
+    // The write went to IO (the Keystore encrypts on the calling thread), so we wait for confirmation:
+    // the saved flag is raised only after a real write.
     vm.await { it.saved }
 
     assertEquals("meta/one", settings.values["model"])
@@ -223,8 +223,8 @@ class SettingsViewModelTest {
   }
 
   /**
-   * Приложение работает на Muse: модели других вендоров из живого каталога в выбор не попадают —
-   * цепочка их всё равно отбросит, и показать их значило бы предложить выбор, который не сработает.
+   * The app works on Muse: models of other vendors from the live catalog do not get into the picker —
+   * the chain would drop them anyway, and showing them would offer a choice that does not work.
    */
   @Test
   fun `в выборе только модели Meta`() = runTest {
@@ -235,8 +235,8 @@ class SettingsViewModelTest {
   }
 
   /**
-   * Ключ Meta переводит запросы на прямой Meta Model API — и список моделей вместе с ними: иначе в
-   * Настройках выбирались бы id OpenRouter, которых цепочка Meta не знает.
+   * The Meta key moves requests to the direct Meta Model API — and the model list along with them:
+   * otherwise Settings would offer OpenRouter ids that the Meta chain does not know.
    */
   @Test
   fun `с ключом Meta в выборе модели каталога Meta`() = runTest {
@@ -250,8 +250,9 @@ class SettingsViewModelTest {
   }
 
   /**
-   * У маршрутов свой выбор модели: модель, выбранная при ключе Meta, не затирает выбор OpenRouter —
-   * он понадобится, если ключ Meta уберут. Ключ из буфера сохраняется без пробелов по краям.
+   * Each route has its own model choice: a model chosen with the Meta key does not overwrite the OpenRouter
+   * choice — it will be needed if the Meta key is removed. A key from the clipboard is saved without
+   * surrounding spaces.
    */
   @Test
   fun `выбор модели Meta сохраняется отдельно от OpenRouter`() = runTest {
@@ -270,12 +271,12 @@ class SettingsViewModelTest {
   }
 
   /**
-   * Нет сети и нет кеша — каталог падает на сид из ассетов, и по нему НЕЛЬЗЯ судить, что модель
-   * снята с обслуживания. Иначе первый же запуск в офлайне молча сбрасывал бы выбор пользователя.
+   * No network and no cache — the catalog falls back to the seed from the assets, and it CANNOT tell that
+   * a model was withdrawn. Otherwise the very first offline launch would silently reset the user's choice.
    *
-   * Проверять здесь нечего «положительного»: на офлайн-пути список ПОСЛЕ обновления совпадает со
-   * списком ДО него (оба — сид). Поэтому сначала ждём доказательства, что обновление реально
-   * состоялось (движок дошёл до запроса), и только потом проверяем, что сброса не случилось.
+   * There is nothing "positive" to check here: on the offline path the list AFTER the refresh matches the
+   * list BEFORE it (both are the seed). So we first wait for proof that the refresh really happened (the
+   * engine reached the request), and only then check that no reset took place.
    */
   @Test
   fun `сид из ассетов не сбрасывает выбранную модель`() = runTest {
@@ -300,8 +301,8 @@ class SettingsViewModelTest {
   }
 
   /**
-   * OpenRouter регулярно снимает модели. Настройки не должны показывать снятую модель выбранной:
-   * `save()` записал бы её обратно, а цепочка провайдеров молча ушла бы на первую по priority.
+   * OpenRouter regularly withdraws models. Settings must not show a withdrawn model as chosen: `save()`
+   * would write it back, and the provider chain would silently go to the first one by priority.
    */
   @Test
   fun `выбранная модель, исчезнувшая из каталога, сбрасывается на AUTO`() = runTest {
@@ -313,7 +314,7 @@ class SettingsViewModelTest {
     assertEquals("AUTO", state.selectedModel)
   }
 
-  /** Та же модель, которая в каталоге есть, обновлением не трогается. */
+  /** The same model that is in the catalog is not touched by the refresh. */
   @Test
   fun `существующая модель переживает обновление каталога`() = runTest {
     settings.values["model"] = "meta/alive"
@@ -325,11 +326,11 @@ class SettingsViewModelTest {
   }
 
   /**
-   * Сводка расхода доезжает до экрана в том же виде, в каком её посчитала база.
+   * The spending summary reaches the screen in the same form in which the database computed it.
    *
-   * Проверяются именно ЧИСЛА, а не факт «что-то загрузилось»: по ним считаются тарифы, и
-   * перепутанные местами вход и выход (вход дороже выхода в разы у одних моделей и наоборот у
-   * других) дали бы правдоподобную, но неверную цену — ошибку, которую нечем заметить глазами.
+   * What is checked is the NUMBERS, not the fact that "something loaded": pricing is calculated from them,
+   * and input and output swapped (input is several times pricier than output for some models and the other
+   * way round for others) would give a plausible but wrong price — an error there is no way to spot by eye.
    */
   @Test
   fun `недельная сводка расхода доезжает в состояние экрана`() = runTest {
@@ -368,8 +369,8 @@ class SettingsViewModelTest {
     assertEquals(2_000L, usage.completionTokens)
     assertEquals(42_000L, usage.totalTokens)
     assertEquals(3, usage.estimatedCalls)
-    // Фон — подмножество общего счёта, и показывается отдельной строкой: пользователь этих вызовов
-    // не заказывал, и именно их доля отвечает на «почему расход растёт, когда я ничего не делаю».
+    // Background is a subset of the total and is shown on a separate line: the user did not order these
+    // calls, and it is their share that answers "why does spending grow when I do nothing".
     assertEquals(4, usage.backgroundCalls)
     assertEquals(8_200L, usage.backgroundTokens)
     assertEquals("meta/alive", usage.byModel.single().model)

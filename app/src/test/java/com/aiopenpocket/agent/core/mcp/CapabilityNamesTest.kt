@@ -8,14 +8,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Общий словарь имён: у каждого тула и встроенного навыка есть своё русское имя, а незнакомое имя
- * превращается в читаемую подпись — без падения и без пустой строки.
+ * The shared name dictionary: every tool and built-in skill has its own Russian name, and an unknown name
+ * turns into a readable label — without a crash and without an empty string.
  */
 class CapabilityNamesTest {
 
   @Test
   fun `every known tool has its own name`() {
-    // Новый тул без имени здесь упадёт — иначе он появился бы в чипах и баре под сырым id.
+    // A new tool without a name fails here — otherwise it would show up in the chips and the bar under its raw id.
     AgentValidator.KNOWN_TOOL_NAMES.forEach { name ->
       assertTrue("$name: нет имени", CapabilityNames.isKnownTool(name))
       assertFalse("$name: имя совпадает с id", CapabilityNames.tool(name).contains('_'))

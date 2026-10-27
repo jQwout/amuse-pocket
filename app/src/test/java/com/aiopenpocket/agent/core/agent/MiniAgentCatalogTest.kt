@@ -15,7 +15,7 @@ class MiniAgentCatalogTest {
 
   @Test
   fun `heartbeat supersedes work_manager in scoped agents`() {
-    // heartbeat — надстройка над work_manager; в скоупе агентов старый тул больше не нужен.
+    // heartbeat is built on top of work_manager; the agents' scope no longer needs the old tool.
     for (agent in MiniAgentCatalog.all) {
       assertTrue("agent ${agent.id} still scopes work_manager", "work_manager" !in agent.toolNames)
     }

@@ -195,8 +195,8 @@ class FileToolsSandboxTest {
   }
 
   /**
-   * Абсолютный путь в СВОЙ sandbox пишет ровно в этот файл, а не пересаживается внутрь вложенными
-   * папками. Только на Linux (как на Android): на Windows-JVM абсолютный путь несёт '\' и отклоняется.
+   * An absolute path into ITS OWN sandbox writes exactly to that file instead of being re-rooted inside as
+   * nested folders. Only on Linux (as on Android): on a Windows JVM an absolute path carries '\' and is rejected.
    */
   @Test
   fun `an absolute path into the agent's own sandbox writes exactly there`() = runTest {
@@ -210,7 +210,7 @@ class FileToolsSandboxTest {
     assertEquals("mine", own.readText())
   }
 
-  /** Короткий «/notes.txt» — привычка моделей — по-прежнему считается от корня sandbox. */
+  /** A short "/notes.txt" — a habit of models — still counts from the sandbox root. */
   @Test
   fun `a short leading-slash path still counts from the sandbox root`() = runTest {
     holder.set("conv-a", agent("agent-a"))

@@ -8,7 +8,7 @@ class LessonQuestionTest {
 
   @Test
   fun `card step context is extracted from card fields, not the empty content`() {
-    // Карточка concept публикуется с content="" — контекст надо собрать из term/definition.
+    // The concept card is posted with content="" — the context has to be built from term/definition.
     val step = LessonStep(type = "concept", term = "Эмбеддинг", definition = "числа, ловящие смысл")
     val ctx = LessonQuestion.stepContext(lessonTitle = "RAG", step = step)
     assertTrue("несёт тему урока", ctx.contains("RAG"))

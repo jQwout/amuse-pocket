@@ -96,7 +96,7 @@ class MemoryToolsNamespaceTest {
     val saved = db.factDao().getByKey("agent:my-agent:note")
     assertEquals("secret", saved?.value)
     assertEquals("general", saved?.category)
-    // Ключ БЕЗ пространства имён не создаётся — вся запись целиком под namespace агента.
+    // A key WITHOUT a namespace is not created — the whole record is under the agent's namespace.
     assertNull(db.factDao().getByKey("note"))
   }
 
@@ -108,12 +108,12 @@ class MemoryToolsNamespaceTest {
     holder.set("conv-mine", agent("my-agent"))
     tool.execute(remember("note", "my-secret"))
 
-    // Прямой запрос по чужому namespace как строке поиска не должен вытащить чужой секрет.
+    // A direct query with someone else's namespace as the search string must not pull out someone else's secret.
     val crossNamespaceSearch = tool.execute(search("agent:other:")).toString()
     assertFalse(crossNamespaceSearch.contains("other-secret"))
 
-    // Обычный поиск по своему же ключу видит СВОЙ факт и не видит чужой, даже если оба
-    // совпадают по тексту запроса.
+    // An ordinary search by its own key sees ITS OWN fact and not someone else's, even if both match the
+    // query text.
     val ownSearch = tool.execute(search("note")).toString()
     assertTrue(ownSearch.contains("my-secret"))
     assertFalse(ownSearch.contains("other-secret"))
@@ -158,8 +158,8 @@ class MemoryToolsNamespaceTest {
     holder.set("conv-b", null)
     tool.execute(remember("note", "plain-fact"))
 
-    // Плоский чат (без агента) НЕ получил нового скоупа — видит и свой факт, и (как и раньше)
-    // остальные ключи глобально. Именно этот путь задача обязана оставить нетронутым.
+    // A plain chat (no agent) did NOT get a new scope — it sees its own fact and (as before) the other keys
+    // globally. This is exactly the path the task must leave untouched.
     val result = tool.execute(search("note")).toString()
     assertTrue(result.contains("plain-fact"))
     assertTrue(result.contains("agent-secret"))
@@ -175,7 +175,7 @@ class MemoryToolsNamespaceTest {
     assertEquals(listOf("mine-secret"), scoped.map { it.value })
   }
 
-  // --- recall_episodes: только свой диалог, с потолком ----------------------------------------------
+  // --- recall_episodes: only its own conversation, with a ceiling -----------------------------------------
 
   private fun toolCallPayload(name: String, action: String) =
     """{"id":"1","name":"$name","risk":"READ","arguments":{"action":"$action"}}"""

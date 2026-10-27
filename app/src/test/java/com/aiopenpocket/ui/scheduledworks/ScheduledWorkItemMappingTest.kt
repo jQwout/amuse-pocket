@@ -22,7 +22,7 @@ class ScheduledWorkItemMappingTest {
 
   @Test
   fun `work without work_manager tags is not shown`() {
-    // Напоминание HeartbeatScheduler: unique work без наших тегов, только авто-тег класса воркера.
+    // A HeartbeatScheduler reminder: unique work without our tags, only the worker class's auto tag.
     assertNull(info(setOf("com.aiopenpocket.agent.workers.HeartbeatWorker")).toScheduledWorkItem())
   }
 

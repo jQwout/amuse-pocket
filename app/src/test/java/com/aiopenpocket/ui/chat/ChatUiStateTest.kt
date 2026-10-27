@@ -7,10 +7,10 @@ import org.junit.Test
 class ChatUiStateTest {
 
   /**
-   * Регрессия: смена размера шрифта чата «не работала», потому что [ChatUiState.resetFor]
-   * (вызывается при каждом входе в диалог) пересоздавал состояние с дефолтами, затирая
-   * pref-производные поля. Их кладёт реактивный коллектор из DataStore, а он на неизменном
-   * значении не переэмитит — значит resetFor обязан их СОХРАНЯТЬ.
+   * Regression: changing the chat font size "did not work", because [ChatUiState.resetFor] (called on every
+   * entry into a conversation) recreated the state with defaults, wiping the pref-derived fields. They are
+   * set by a reactive collector from DataStore, which does not re-emit an unchanged value — so resetFor
+   * must KEEP them.
    */
   @Test
   fun resetForPreservesSettingsDerivedFields() {
@@ -23,11 +23,11 @@ class ChatUiStateTest {
     val reset = ChatUiState.resetFor("new", prev.chatFontScale, prev.goalMaxIterations)
 
     assertEquals("new", reset.conversationId)
-    assertEquals(ChatFontScale.LARGE, reset.chatFontScale) // не сброшено в MEDIUM
-    assertEquals(7, reset.goalMaxIterations)               // не сброшено в 3
+    assertEquals(ChatFontScale.LARGE, reset.chatFontScale) // not reset to MEDIUM
+    assertEquals(7, reset.goalMaxIterations)               // not reset to 3
   }
 
-  /** Разговорное состояние при этом действительно чистится (не переносим лишнего). */
+  /** The conversation state really is cleared at the same time (we do not carry over anything extra). */
   @Test
   fun resetForClearsConversationState() {
     val prev = ChatUiState(

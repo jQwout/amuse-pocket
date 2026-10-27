@@ -5,8 +5,9 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Активити экспортирована: id диалога из чужого интента не должен доехать до `navigate("chat/$id")`
- * ни с «/», ни в каком-либо формате, кроме UUID, которым ConversationRepository и создаёт диалоги.
+ * The activity is exported: a conversation id from someone else's intent must not reach
+ * `navigate("chat/$id")` with a "/" or in any format other than a UUID, which is what ConversationRepository
+ * creates conversations with.
  */
 class MainActivityIntentTest {
 

@@ -14,11 +14,11 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Скриншот-эталон glass-рестайла чата (Task 4, Plan B): аврора-фон, [GlassSurface] на неподвижной
- * обвязке (топбар + инпут-пилюля), [glassSource] на ленте сообщений. Пузыри ([MessageBubble],
- * [StreamingBubble]) — БЕЗ изменений (сохранён цвет user/assistant, никакого blur внутри LazyColumn
- * items — перф-критичный экран). Рендерим тот же [ChatPreviewScaffold], что и
- * [ChatScreenScreenshotTest], — теперь он несёт актуальный glass-каркас.
+ * The screenshot baseline of the chat's glass restyle (Task 4, Plan B): the aurora background,
+ * [GlassSurface] on the fixed chrome (top bar + input pill), [glassSource] on the message feed. The bubbles
+ * ([MessageBubble], [StreamingBubble]) are UNCHANGED (the user/assistant colors are kept, no blur inside
+ * LazyColumn items — a performance-critical screen). We render the same [ChatPreviewScaffold] as
+ * [ChatScreenScreenshotTest] — it now carries the current glass frame.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

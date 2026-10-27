@@ -21,8 +21,8 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Скриншот-эталон стеклянной нижней навигации: [AcademyBottomNav] поверх ауроры
- * ([Modifier.auroraBackground]), чтобы у стекла было что тонировать/размывать.
+ * The screenshot baseline of the glass bottom navigation: [AcademyBottomNav] over the aurora
+ * ([Modifier.auroraBackground]), so the glass has something to tint/blur.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

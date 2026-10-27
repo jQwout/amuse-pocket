@@ -183,8 +183,8 @@ class HookEngineTest {
 
   @Test
   fun `an exhausted budget never fails open - DENY, REQUIRE_APPROVAL and STOP still apply`() {
-    // Регрессия: раньше matched() делал break на исчерпанном бюджете, и после 50 срабатываний (их
-    // легко набрать LOG-хуком на каждый вызов) запрет агента на тул просто переставал действовать.
+    // Regression: matched() used to break on an exhausted budget, and after 50 firings (easy to reach with a
+    // LOG hook on every call) the agent's ban on a tool simply stopped working.
     val deny = listOf(hook(id = "d", event = HookEvent.BEFORE_TOOL, actionType = HookActionType.DENY))
     val approval = listOf(hook(id = "r", event = HookEvent.BEFORE_TOOL, actionType = HookActionType.REQUIRE_APPROVAL))
     val stop = listOf(hook(id = "s", event = HookEvent.BEFORE_TOOL, actionType = HookActionType.STOP))

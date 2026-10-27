@@ -12,11 +12,11 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Скриншот-эталон рестайла Home: аврора-фон, [GlassCard] на карточках, стеклянная нижняя нав
- * ([AcademyBottomNav] с подключённым [glassState]). [HomeScreen] сам тянет обе ViewModel через
- * metroViewModel(), которому в Robolectric неоткуда взять DI-граф, поэтому рендерим
- * [HomePreviewScaffold] — тот же визуальный каркас на фейковых данных (см. паттерн
- * ChatPreviewScaffold в ChatScreen.kt).
+ * The screenshot baseline of the Home restyle: the aurora background, [GlassCard] on the cards, the glass
+ * bottom nav ([AcademyBottomNav] with [glassState] connected). [HomeScreen] pulls both ViewModels itself
+ * through metroViewModel(), which has no DI graph to take in Robolectric, so we render
+ * [HomePreviewScaffold] — the same visual frame on fake data (see the ChatPreviewScaffold pattern in
+ * ChatScreen.kt).
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

@@ -25,8 +25,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Чат урока хранит id урока в title: по нему урок находится при повторном входе. Вопрос посреди
- * урока — обычный ход с аннотацией после ответа, и она переписывала title темой разговора.
+ * A lesson chat keeps the lesson id in its title: that is how the lesson is found on re-entry. A question
+ * in the middle of a lesson is an ordinary turn with an annotation after the answer, and the annotation
+ * overwrote the title with the topic of the conversation.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -72,7 +73,7 @@ class ConversationAnnotatorTutorialTest {
 
     assertEquals("tokens", repository.getConversation(conversationId)?.title)
     assertEquals(0, llm.calls)
-    // Урок по-прежнему находится по своему id.
+    // The lesson is still found by its id.
     assertNotNull(repository.findLatestTutorialConversation("tokens"))
   }
 

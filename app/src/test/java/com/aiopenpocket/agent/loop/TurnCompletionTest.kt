@@ -6,16 +6,16 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Контракт результата хода: blank-ошибки, извлечение render_card.
+ * The turn result contract: blank errors, render_card extraction.
  *
- * Task 15 (structured-plan-engine-907066) убрал отсюда тесты NEED_INFO-гейта план-мода и
- * GOAL-фолбэка пустого ответа на лимите витков — обе механики принадлежали снятому prompt-only
- * PLAN/GOAL (см. TurnCompletion.kt kdoc); [resolveCompletedTurn] больше не принимает `mode`/
- * `planApproved` и обслуживает CHAT/REFLECT/TUTOR одинаково, без специальных случаев.
+ * Task 15 (structured-plan-engine-907066) removed from here the tests of the plan mode's NEED_INFO gate
+ * and of the GOAL fallback for an empty answer at the round limit — both mechanisms belonged to the
+ * withdrawn prompt-only PLAN/GOAL (see the TurnCompletion.kt kdoc); [resolveCompletedTurn] no longer takes
+ * `mode`/`planApproved` and serves CHAT/REFLECT/TUTOR the same way, without special cases.
  *
- * До Task 5 (structured-plan-engine-907066) [CompletedTurn] нёс ещё `planAwaitingApproval` — с тех
- * пор убран (см. TurnCompletion.kt kdoc): показан ли план и ждёт ли решения, теперь состояние
- * PlanRepository, а не производная одного хода.
+ * Before Task 5 (structured-plan-engine-907066) [CompletedTurn] also carried `planAwaitingApproval` — it
+ * has been removed since (see the TurnCompletion.kt kdoc): whether a plan is shown and awaits a decision
+ * is now PlanRepository state, not a derivative of one turn.
  */
 class TurnCompletionTest {
 
@@ -47,8 +47,8 @@ class TurnCompletionTest {
 
   @Test
   fun `пустой ответ — blank-ошибка`() {
-    // canRetry-решение живёт в TurnManager (blankError != null && есть текст пользователя),
-    // покрыто TurnManagerTest; здесь — только чистая политика: пустой ответ → blank-ошибка.
+    // The canRetry decision lives in TurnManager (blankError != null && there is user text),
+    // covered by TurnManagerTest; here only the pure policy: an empty answer → a blank error.
     val out = resolveCompletedTurn(result(""))
     assertEquals(TurnTexts.BLANK_REPLY_ERROR, out.blankError)
   }
@@ -62,7 +62,7 @@ class TurnCompletionTest {
 
   @Test
   fun `лимит шагов без текста — не «пустой ответ», а пометка о лимите`() {
-    // Раньше: последний виток — только tool_call, преамбул нет, и пользователь видел «пустой ответ».
+    // Before: the last round is only a tool_call, there are no preambles, and the user saw an "empty answer".
     val out = resolveCompletedTurn(result("").copy(hitIterationLimit = true, iterations = 10))
     assertEquals(TurnTexts.ITERATION_LIMIT_NOTE, out.responseText)
     assertNull(out.blankError)

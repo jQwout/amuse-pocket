@@ -19,15 +19,16 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
- * Потолки на объём у `file_tool`.
+ * Size ceilings in `file_tool`.
  *
- * `read_file` отдавал `file.readText()` целиком, а `search_files` вызывал `readText()` НА КАЖДОМ файле
- * песочницы — без проверки размера. Файл туда пишет сам агент, так что размер ничем не ограничен: это
- * и скачок памяти, и мгновенное раздувание контекста LLM. Соседний `database_query` ровно поэтому
- * режет выдачу на 200 строках и честно помечает усечение — здесь потолка не было вообще.
+ * `read_file` returned `file.readText()` whole, and `search_files` called `readText()` ON EVERY file in
+ * the sandbox — without a size check. The agent writes the files there itself, so their size is not
+ * limited by anything: that means both a memory spike and an instant blow-up of the LLM context. The
+ * neighboring `database_query` cuts its output at 200 rows and honestly marks the truncation for exactly
+ * this reason — here there was no ceiling at all.
  *
- * Важное свойство усечения: оно должно быть ВИДИМЫМ. Молча укороченный файл модель прочитает как
- * полный и сделает вывод по половине данных.
+ * An important property of truncation: it must be VISIBLE. A silently shortened file is read by the model
+ * as complete, and it draws conclusions from half the data.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -78,9 +79,9 @@ class FileToolsLimitsTest {
 
   @Test
   fun `search_files does not read oversized files into memory`() = runTest {
-    // В огромном файле игла ЕСТЬ — и он всё равно не должен попасть в совпадения: его содержимое не
-    // читалось. Он попадёт в отдельную сноску о пропуске (см. следующий тест), поэтому проверяем не
-    // отсутствие имени в тексте целиком, а то, что он не выдан за найденное совпадение.
+    // The needle IS in the huge file — and it still must not get into the matches: its content was not read.
+    // It goes into a separate note about skipped files (see the next test), so we check not that its name
+    // is absent from the whole text, but that it is not passed off as a found match.
     sandboxFile("huge.bin", "x".repeat((FileTools.MAX_SEARCH_FILE_BYTES * 2).toInt()) + "игла")
     sandboxFile("small.txt", "игла")
 
@@ -111,12 +112,12 @@ class FileToolsLimitsTest {
     assertTrue(result.toString().contains("заметки.txt"))
   }
 
-  // --- Потолок числа совпадений действует на ОБА пути поиска ------------------------------------
+  // --- The match count ceiling applies to BOTH search paths ------------------------------------------
 
   @Test
   fun `matches found by name are capped too, not just matches found by content`() = runTest {
-    // Совпадение по имени не требует читать файл, поэтому у него отдельная ветка — и именно она
-    // обходила проверку потолка: агент, насыпавший в песочницу тысячу файлов, получал их все.
+    // A name match does not need to read the file, so it has a separate branch — and exactly that branch
+    // bypassed the ceiling check: an agent that piled a thousand files into the sandbox got them all.
     repeat(FileTools.MAX_SEARCH_RESULTS + 50) { i -> sandboxFile("заметка-$i.txt", "тело") }
 
     val result = tool.execute(args("action" to "search_files", "query" to "заметка"))
@@ -136,7 +137,7 @@ class FileToolsLimitsTest {
 
   @Test
   fun `the skipped-by-size note cannot itself grow without bound`() = runTest {
-    // Обратная крайность: «называем пропущенное явно» не должно превращаться в выгрузку тысячи имён.
+    // The opposite extreme: "name what was skipped explicitly" must not turn into a dump of a thousand names.
     val big = "x".repeat((FileTools.MAX_SEARCH_FILE_BYTES + 1024).toInt())
     repeat(40) { i -> sandboxFile("огромный-$i.bin", big) }
     sandboxFile("small.txt", "игла")

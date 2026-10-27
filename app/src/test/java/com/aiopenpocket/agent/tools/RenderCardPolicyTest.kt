@@ -119,7 +119,7 @@ class RenderCardPolicyTest {
     )
   }
 
-  /** switch (пустой обработчик) и weather_card (нет источника погоды) модели больше не предлагаются. */
+  /** switch (an empty handler) and weather_card (no weather source) are no longer offered to the model. */
   @Test
   fun `retired templates are not offered and a bound agent cannot render them`() = runTest {
     assertTrue(RETIRED_CARD_TEMPLATES.intersect(GENERAL_CARD_TEMPLATES + LESSON_CARD_TEMPLATES).isEmpty())

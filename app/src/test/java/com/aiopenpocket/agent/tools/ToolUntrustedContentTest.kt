@@ -18,14 +18,14 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * `returnsUntrustedContent` решает, попадёт ли вывод тула в конверт `<tool_output trust="untrusted">`
- * ([com.aiopenpocket.agent.loop.ReactLoopRunner.toolMessageContent]) — то есть прочтёт модель встроенные
- * туда инструкции как данные или как команды.
+ * `returnsUntrustedContent` decides whether a tool's output goes into the `<tool_output trust="untrusted">`
+ * envelope ([com.aiopenpocket.agent.loop.ReactLoopRunner.toolMessageContent]) — that is, whether the model
+ * reads instructions embedded there as data or as commands.
  *
- * `memory_tool` этот флаг не ставил, и это открывало обход всего механизма: FileTools/
- * CalendarTool честно помечают свой вывод недоверенным, но модель может прочитать такой текст и
- * положить его в `remember_fact` — после чего `search_memory`/`recall_episodes` возвращают ровно тот
- * же внешний текст уже БЕЗ конверта. Память оказывалась каналом отмывки вокруг ограды.
+ * `memory_tool` did not set this flag, and that opened a bypass of the whole mechanism: FileTools/
+ * CalendarTool honestly mark their output as untrusted, but the model can read such text and put it into
+ * `remember_fact` — after which `search_memory`/`recall_episodes` return exactly the same external text
+ * WITHOUT the envelope. Memory became a laundering channel around the fence.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -57,7 +57,7 @@ class ToolUntrustedContentTest {
 
   @Test
   fun `the tools that read outside the app stay marked untrusted`() {
-    // Регресс-страховка для уже помеченных: снятие флага здесь молча снимает ограду в ReactLoopRunner.
+    // A regression guard for the already marked ones: removing the flag here silently removes the fence in ReactLoopRunner.
     assertTrue("file_tool", fileTools.returnsUntrustedContent)
     assertTrue("database_query", databaseQueryTool.returnsUntrustedContent)
   }

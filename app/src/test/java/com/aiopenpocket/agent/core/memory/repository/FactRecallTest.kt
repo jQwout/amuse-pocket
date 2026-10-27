@@ -21,17 +21,17 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Две отдельные поломки долговременной памяти, из-за которых она молча деградировала тем сильнее, чем
- * дольше ей пользуются:
+ * Two separate breakages of long-term memory, because of which it silently degraded the more it was used:
  *
- * 1. **Запись.** `remember_fact` шёл в `saveFact`, а тот делает INSERT с НОВЫМ UUID в первичном ключе;
- *    индекс по `key` не уникальный. Поэтому «меня зовут X» → «вообще-то Y» клало ДВЕ строки, обе
- *    попадали в промпт через `getFactsByCategory`/`getByKeyPrefix`, а `getByKey` (LIMIT 1 без ORDER BY)
- *    возвращал произвольную — на практике старую. Агент помнил противоречие и предпочитал устаревшее.
+ * 1. **Writing.** `remember_fact` went to `saveFact`, which does an INSERT with a NEW UUID in the primary
+ *    key; the index on `key` is not unique. So "my name is X" → "actually, Y" stored TWO rows, both got
+ *    into the prompt through `getFactsByCategory`/`getByKeyPrefix`, and `getByKey` (LIMIT 1 without
+ *    ORDER BY) returned an arbitrary one — in practice the old one. The agent remembered a contradiction
+ *    and preferred the outdated fact.
  *
- * 2. **Чтение.** `PrePromptAssembler` звал `searchFacts(currentMessage)`, а DAO подставлял это в
- *    `LIKE '%…%'` ЦЕЛИКОМ. Совпасть могло только сообщение, целиком являющееся подстрокой факта, —
- *    то есть на любой живой фразе секция «Релевантные факты» была пуста.
+ * 2. **Reading.** `PrePromptAssembler` called `searchFacts(currentMessage)`, and the DAO put it into
+ *    `LIKE '%…%'` AS A WHOLE. Only a message that was entirely a substring of a fact could match — that
+ *    is, on any real phrase the "Relevant facts" section was empty.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -59,7 +59,7 @@ class FactRecallTest {
     "category" to JsonPrimitive("profile"),
   )
 
-  // --- 1. Запись: повторный remember_fact обновляет факт, а не плодит дубликаты ------------------
+  // --- 1. Writing: a repeated remember_fact updates the fact instead of breeding duplicates -----------
 
   @Test
   fun `remembering the same key twice keeps exactly one fact`() = runTest {
@@ -87,7 +87,7 @@ class FactRecallTest {
     assertEquals(2, repository.getFactsByCategory("profile").size)
   }
 
-  // --- 2. Чтение: поиск идёт по словам запроса, а не по фразе целиком ----------------------------
+  // --- 2. Reading: the search goes by the words of the query, not by the whole phrase ----------------
 
   @Test
   fun `a natural-language question finds a fact matching one of its words`() = runTest {
@@ -110,7 +110,7 @@ class FactRecallTest {
     repository.saveFact("user.city", "Казань", "profile")
     repository.saveFact("user.pet", "кот", "profile")
 
-    // "я", "в", "и" — шум: если их пускать в LIKE, они совпадут почти со всем подряд.
+    // "я", "в", "и" are noise: let into LIKE, they would match almost everything.
     val found = repository.searchFacts("я в и")
 
     assertTrue("шумовые слова вытащили всю память: $found", found.isEmpty())
@@ -126,11 +126,11 @@ class FactRecallTest {
     assertEquals(listOf("agent:budget:limit"), found.map { it.key })
   }
 
-  // --- 3. Русский: стоп-слова и падежи -----------------------------------------------------------
+  // --- 3. Russian: stop words and cases -------------------------------------------------------------
 
   @Test
   fun `question words do not eat the token cap, inflected words are stemmed`() {
-    // «как», «мою» раньше проходили фильтр длины и занимали места в потолке из восьми слов.
+    // «как», «мою» used to pass the length filter and take places in the eight-word ceiling.
     assertEquals(listOf("зову", "сест"), repository.tokenize("Как зовут мою сестру?"))
   }
 
@@ -138,7 +138,7 @@ class FactRecallTest {
   fun `a different case of the same word still matches`() = runTest {
     repository.saveFact("user.relative", "сестра Аня", "profile")
 
-    // «сестру» в вопросе и «сестра» в факте как подстроки не совпадают — совпадает основа «сест».
+    // «сестру» in the question and «сестра» in the fact do not match as substrings — the stem «сест» does.
     val found = repository.searchFacts("как зовут мою сестру")
 
     assertEquals(listOf("user.relative"), found.map { it.key })
@@ -149,11 +149,11 @@ class FactRecallTest {
     assertEquals(listOf("2026"), repository.tokenize("2026"))
   }
 
-  // --- 4. Промпт: маленькая память целиком ---------------------------------------------------------
+  // --- 4. Prompt: a small memory goes in whole -------------------------------------------------------
 
   @Test
   fun `small memory goes into the prompt whole, even when no word matches`() = runTest {
-    // Английский ключ, русский вопрос: пословно не совпадает ничего, а факт нужен.
+    // An English key, a Russian question: nothing matches word by word, yet the fact is needed.
     repository.saveFact("family.sister", "Аня", "general")
 
     val facts = repository.factsForPrompt(namespace = null, message = "как зовут мою сестру", limit = 5)
