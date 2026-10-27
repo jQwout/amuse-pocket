@@ -24,6 +24,7 @@ or the device-tester has to look at, because a static scan cannot decide it.
 
 import argparse
 import collections
+import hashlib
 import json
 import io
 import os
@@ -157,6 +158,34 @@ def key_mask(value):
     return value[:8].decode("ascii", errors="replace") + "*" * 8
 
 
+def key_fingerprint(value):
+    # Names a key without giving it away: a SHA-256 prefix cannot be turned back into a key. It is what
+    # lets T4a tell the key .env bundles on purpose from any other key in the artifact.
+    if not isinstance(value, bytes):
+        value = value.encode("utf-8", errors="replace")
+    return hashlib.sha256(value).hexdigest()[:12]
+
+
+def env_key_fingerprints():
+    """The keys of the local .env, by fingerprint. The debug build bundles OPENROUTER_API_KEY into
+    BuildConfig on purpose (see app/build.gradle.kts and the README), so the artifact is expected to
+    carry it; that is also why checkReleaseSecrets exists for release. .env is gitignored and may be
+    absent (a fresh clone, CI) -- then nothing is expected and every key in the APK is a finding."""
+    path = ROOT / ".env"
+    if not path.exists():
+        return {}
+    out = {}
+    for line in read(path).splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        value = value.strip().strip('"').strip("'")
+        if value:
+            out[key_fingerprint(value)] = name.strip()
+    return out
+
+
 def find_keys(data):
     """Every distinct (kind, value) in the bytes. A needle check first: `in` runs over megabytes at
     memory speed, a regex does not."""
@@ -213,12 +242,22 @@ def check_secrets(report):
 
 
 def check_apk_keys(report):
-    """T4a: the artifact is what a judge can unpack, so the keys are looked for inside it, not in
-    the sources that produced it."""
+    """T4a: the artifact is what a judge can unpack, so the keys are looked for inside it, not in the
+    sources that produced it.
+
+    One key is expected here and must not read as a finding: the debug build copies .env into
+    BuildConfig by design, so the dev's own OpenRouter key is in the dex. Everything else is a FAIL --
+    a key from another provider, a key hardcoded in the sources, or a stale one. That is not a
+    hypothetical: a committed debug APK with a Google key from an earlier era is exactly why this
+    repository could not simply be made public (docs/meta-hackathon-submission.md, section 4).
+
+    So the artifact is compared against .env by fingerprint, never by value. No .env (a fresh clone,
+    CI) means nothing is expected and every key found is a finding."""
     if not APK.exists():
         report.add("T4a", "FAIL", "No APK after a successful build, so nothing was scanned", [rel(APK)])
         return
-    found, scanned = {}, 0
+    expected = env_key_fingerprints()
+    found, bundled, scanned = {}, {}, 0
     try:
         with zipfile.ZipFile(str(APK)) as zf:
             for info in zf.infolist():
@@ -227,17 +266,27 @@ def check_apk_keys(report):
                 data = zf.read(info)
                 scanned += 1
                 for kind, value in find_keys(data):
-                    found.setdefault((info.filename, kind, key_mask(value)), None)
+                    name = expected.get(key_fingerprint(value))
+                    if name:
+                        bundled.setdefault(name, set()).add(info.filename)
+                    else:
+                        found.setdefault((info.filename, kind, key_mask(value)), None)
     except (zipfile.BadZipFile, OSError) as e:
         report.add("T4a", "FAIL", "The APK could not be read, so it was not scanned", ["%s: %s" % (rel(APK), e)])
         return
+
+    note = ["%s from .env, bundled into BuildConfig by the debug build, in %s"
+            % (name, ", ".join(sorted(where))) for name, where in sorted(bundled.items())]
+    if note:
+        note.append("this debug APK therefore carries a live key: do not commit it or hand it to anyone")
     if not scanned:
         report.add("T4a", "FAIL", "The APK holds no entries, so the scan proves nothing", [rel(APK)])
     elif found:
-        report.add("T4a", "FAIL", "Provider keys inside the debug APK",
-                   ["%s: %s %s" % (f, k, v) for f, k, v in sorted(found)][:15])
+        report.add("T4a", "FAIL", "Keys inside the debug APK that .env does not account for",
+                   ["%s: %s %s" % (f, k, v) for f, k, v in sorted(found)][:15] + note)
     else:
-        report.add("T4a", "PASS", "No provider key in any of the %d entries of the debug APK" % scanned)
+        report.add("T4a", "PASS", "No unaccounted key in any of the %d entries of the debug APK" % scanned,
+                   note)
 
 
 def check_traxer(report):
