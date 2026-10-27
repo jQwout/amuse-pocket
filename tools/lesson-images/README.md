@@ -1,16 +1,16 @@
-# Картинки уроков
+# Lesson images
 
-Рисует иллюстрации к урокам через Muse Image и кладёт их в сборку, чтобы урок показывал
-картинку без сети, бесплатно и на любом провайдере.
+Draws lesson illustrations with Muse Image and puts them into the build, so a lesson shows its picture
+offline, for free and on any provider.
 
-## Запуск
+## Running
 
-Сначала посмотреть, что будет нарисовано и сколько это стоит:
+First see what will be drawn and how much it costs:
 
     python tools/lesson-images/pregenerate.py --dry-run
 
-Нарисовать (нужен ключ OpenRouter и Pillow: `pip install pillow`). Вместо `sk-or-...` —
-свой настоящий ключ.
+Draw (needs an OpenRouter key and Pillow: `pip install pillow`). Replace `sk-or-...` with your own real
+key.
 
 PowerShell (Windows):
 
@@ -20,31 +20,30 @@ bash / Git Bash:
 
     OPENROUTER_API_KEY=sk-or-... python tools/lesson-images/pregenerate.py
 
-Только отдельные уроки — добавь `--only rag plan_mode`.
+Only some lessons — add `--only rag plan_mode`.
 
-## Что делает
+## What it does
 
-Берёт шаги `{"type": "image"}`, у которых есть `imagePrompt`, но нет `asset`/`imageKey`.
-Для каждого:
+Takes the `{"type": "image"}` steps that have an `imagePrompt` but no `asset`/`imageKey`. For each one:
 
-1. просит у `meta/muse-image` картинку по промпту и общему стилю уроков;
-2. ужимает её в WebP шириной до 1280 px и кладёт в
-   `app/src/main/assets/lessons/images/generated/<урок>-<хеш промпта>.webp`;
-3. вписывает в шаг урока `"asset": "lessons/images/generated/…"`.
+1. asks `meta/muse-image` for a picture from the prompt and the shared lesson style;
+2. shrinks it to a WebP up to 1280 px wide and puts it into
+   `app/src/main/assets/lessons/images/generated/<lesson>-<prompt hash>.webp`;
+3. writes `"asset": "lessons/images/generated/…"` into the lesson step.
 
-JSON урока правится как текст, а не пересобирается: ручное форматирование и переводы строк
-остаются как были. Поэтому промпт — печатный ASCII без кавычек и обратных слешей, это
-проверяет `LessonAssetsValidationTest`.
+The lesson JSON is edited as text, not re-serialized: manual formatting and line breaks stay as they
+were. That is why the prompt is printable ASCII without quotes or backslashes, which
+`LessonAssetsValidationTest` checks.
 
-Шаги, у которых `asset` уже есть, скрипт не трогает. Если прошлый запуск нарисовал картинку,
-но не успел вписать её в урок, файл переиспользуется без новой генерации.
+The script does not touch steps that already have an `asset`. If a previous run drew a picture but did
+not get to write it into the lesson, the file is reused without a new generation.
 
-## Как это связано с приложением
+## How it connects to the app
 
-У шага с ассетом приложение показывает картинку из сборки и ничего не рисует. Рисование на
-телефоне (`LessonImageGenerator`) остаётся для шагов без ассета и работает, только когда
-провайдером выбран OpenRouter.
+For a step with an asset the app shows the picture from the build and draws nothing. Drawing on the
+phone (`LessonImageGenerator`) remains for steps without an asset and works only when an OpenRouter key
+is set, whichever route the chat itself uses.
 
-Стиль промпта (`STYLE` в скрипте) обязан дословно совпадать с `LESSON_IMAGE_STYLE` в
-`LessonImageGenerator.kt`, иначе картинки из сборки и с телефона разъедутся по стилю. Это
-проверяет `LessonImageStyleSyncTest`.
+The prompt style (`STYLE` in the script) must match `LESSON_IMAGE_STYLE` in `LessonImageGenerator.kt`
+verbatim, otherwise the pictures from the build and from the phone drift apart in style. This is
+checked by `LessonImageStyleSyncTest`.

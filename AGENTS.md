@@ -34,8 +34,9 @@ tools, one iteration).
 - Video: `how_model_sees` has a `video` step. Muse Spark watches a bundled sample
   (`assets/lessons/videos/`) or a clip the learner records (`LessonChatController.postVideoAnswer` →
   `VideoUnderstandingClient`).
-- Learning path: `ui/roadmap/RoadmapScreen.kt`. `ROADMAP_LEVELS` has 30 levels, starting with the
-  onboarding lesson `l1_welcome`. Library: `ui/roadmap/LibraryViewModel.kt` (`LIBRARY_LESSON_IDS`).
+- Learning path: `ui/roadmap/RoadmapScreen.kt`, levels in `ui/roadmap/RoadmapLevels.kt`.
+  `ROADMAP_LEVELS` has 30 levels, starting with the onboarding lesson `l1_welcome`. Library:
+  `ui/roadmap/LibraryViewModel.kt` (`LIBRARY_LESSON_IDS`).
   The final lesson, `agent_blueprint`, ends with a button that opens the agent builder.
 - Desktop proofreading tool for lesson JSON: `./gradlew -p tools/lesson-viewer run`.
 
@@ -260,7 +261,7 @@ Never strip `@trace` markers while refactoring.
 | `di/AgentToolsModule.kt`, `agent/core/mcp/CapabilityNames.kt` | Tool registration, human names |
 | `agent/core/lesson/LessonChatController.kt`, `agent/core/lesson/Lesson.kt` | Lesson driver, step contract |
 | `ui/chat/ChatViewModel.kt`, `ui/chat/DrivenUiEngine.kt` | Chat state, card rendering |
-| `ui/roadmap/RoadmapScreen.kt`, `ui/roadmap/LibraryViewModel.kt` | Learning path, library |
+| `ui/roadmap/RoadmapScreen.kt`, `ui/roadmap/RoadmapLevels.kt`, `ui/roadmap/LibraryViewModel.kt` | Learning path, library |
 | `agent/core/agent/MiniAgent.kt`, `agent/core/agent/AgentResolver.kt` | Presets, agent resolution |
 | `data/database/AppDatabase.kt`, `di/DatabaseBindings.kt` | Room schema and builder |
 | `tools/lesson-images/pregenerate.py` | Pre-generates lesson images with Muse Image |

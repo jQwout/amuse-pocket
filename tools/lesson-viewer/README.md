@@ -1,47 +1,49 @@
-# Читалка уроков
+# Lesson viewer
 
-Смотреть контент уроков из `app/src/main/assets/lessons/` на десктопе, не собирая приложение.
+Read the lesson content from `app/src/main/assets/lessons/` on the desktop, without building the app.
 
-## Запуск
+## Running
 
     ./gradlew -p tools/lesson-viewer run
 
-Другой каталог уроков:
+Another lessons directory:
 
-    ./gradlew -p tools/lesson-viewer run -Dlessons.dir=<путь>
+    ./gradlew -p tools/lesson-viewer run -Dlessons.dir=<path>
 
-Правишь JSON урока → кнопка «Перечитать» в окне. Пересобирать не нужно.
+Edit a lesson's JSON → the «Перечитать» (reload) button in the window. No rebuild needed.
 
-## Что показывает
+## What it shows
 
-Слева список уроков (по имени файла), справа — весь урок одной прокруткой: каждый шаг
-карточкой с плашкой `#номер · тип`. Шаги, у которых есть правильный ответ (quiz, scenario,
-sort, match, fill), показаны **сразу с ответом** — это читалка для вычитки, а не тренажёр.
+On the left, the list of lessons in the order of the learning path (as in the app), followed by the
+lessons outside the path; on the right, the whole lesson in one scroll: every step as a card with a
+`#number · type` label. Steps that have a correct answer (quiz, scenario, sort, match, fill) are shown
+**with the answer filled in** — this is a reader for proofreading, not a trainer.
 
-То, что в приложении молча превращается в пустоту, здесь рисуется красной плашкой:
-неизвестный тип шага, битый `correct`, отсутствующая картинка, неразбирающийся урок.
+What the app silently turns into nothing is drawn here as a red plate: an unknown step type, a broken
+`correct`, a missing image, a lesson that does not parse.
 
-## Чего тут нет
+## What is not here
 
-Это читалка КОНТЕНТА, а не превью внешнего вида: ни glass, ни настоящих
-карточек из приложения, ни интерактива, ни LLM, ни прогресса. Чтобы увидеть, как шаг
-выглядит на телефоне, нужен общий с `:app` модуль — отдельный разговор.
+This is a CONTENT reader, not a preview of the look: no glass, no real cards from the app, no
+interactivity, no LLM, no progress. Seeing how a step looks on the phone needs a module shared with
+`:app` — a separate conversation.
 
-## Устройство
+## How it is built
 
-Самостоятельная Gradle-сборка: её нет в корневом `settings.gradle.kts`, она не зависит от
-`:app` и не входит в traxer. Android Studio её не индексирует.
+A standalone Gradle build: it is not in the root `settings.gradle.kts`, it does not depend on `:app`
+and is not part of traxer. Android Studio does not index it.
 
-Модели уроков продублированы намеренно — расхождение с приложением ловит
-`AllLessonsParseTest` (падает, если в уроке появился тип шага, которого вьюер не знает).
+The lesson models are duplicated on purpose — a mismatch with the app is caught by
+`AllLessonsParseTest` (it fails if a lesson gets a step type the viewer does not know).
 
-Тесты:
+Tests:
 
     ./gradlew -p tools/lesson-viewer test
 
-- `AllLessonsParseTest` — все уроки разбираются, все типы шагов известны
-- `LessonAnswersTest` — разбор правильных ответов, включая битые ключи
-- `LessonImagesLoadTest` — все картинки уроков существуют и разбираются
+- `AllLessonsParseTest` — all lessons parse, all step types are known
+- `LessonAnswersTest` — parsing of the correct answers, including broken keys
+- `LessonImagesLoadTest` — all lesson images exist and parse
+- `RoadmapOrderTest` — the lesson order matches `ROADMAP_LEVELS` in the app
 
-Дизайн: `docs/superpowers/specs/2026-07-25-lesson-viewer-design.md`
-План: `docs/superpowers/plans/2026-07-25-lesson-viewer.md`
+Design: `docs/superpowers/specs/2026-07-25-lesson-viewer-design.md`
+Plan: `docs/superpowers/plans/2026-07-25-lesson-viewer.md`
