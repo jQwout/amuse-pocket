@@ -56,6 +56,7 @@ import com.aiopenpocket.agent.loop.AgentState
 import com.aiopenpocket.agent.loop.ToolTrace
 import com.aiopenpocket.agent.loop.TurnContextHolder
 import com.aiopenpocket.data.database.AppDatabase
+import com.aiopenpocket.i18n.AppLanguage
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -415,6 +416,45 @@ class PlanRunnerTest {
     assertEquals(PlanRunOutcome.PARTIAL, result.outcome)
     assertEquals(PlanRunner.PLAN_PAUSED_REASON, result.blockedReason)
     assertEquals(0, stepRunner.calledStepIds.size)
+  }
+
+  /**
+   * [PlanRunResult.blockedReason] is shown to the person as it is (the chat, the push, the reminder card), so it
+   * has to come out in the interface language. It used to be bare Russian under an English wrapper.
+   */
+  @Test
+  fun `the stop reason of a PAUSED plan follows the interface language`() = runTest {
+    val snapshot = approvedSnapshot(steps = listOf(step()))
+    repository.pause(snapshot.plan.id)
+    val runner = planRunner()
+    try {
+      AppLanguage.code = AppLanguage.EN
+      assertEquals(
+        "The plan is paused — resume it on the plan card.",
+        runner.runNim(request(snapshot.plan.id)).blockedReason,
+      )
+      AppLanguage.code = AppLanguage.RU
+      assertEquals(
+        "План на паузе — продолжи его в карточке плана.",
+        runner.runNim(request(snapshot.plan.id)).blockedReason,
+      )
+    } finally {
+      AppLanguage.code = AppLanguage.RU
+    }
+  }
+
+  @Test
+  fun `the stop reason of a plan awaiting approval is English under the English interface`() = runTest {
+    insertConversation()
+    repository.saveProposal(plan(), version())
+    val runner = planRunner()
+    try {
+      AppLanguage.code = AppLanguage.EN
+      val reason = runner.runNim(request("plan-1")).blockedReason
+      assertEquals("The plan is waiting for your approval — tap “Approve” on the plan card.", reason)
+    } finally {
+      AppLanguage.code = AppLanguage.RU
+    }
   }
 
   @Test
