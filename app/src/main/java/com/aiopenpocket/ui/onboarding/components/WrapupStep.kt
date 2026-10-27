@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 
 /**
@@ -36,8 +37,8 @@ fun WrapupStep(
   preferredAddress: String,
   modifier: Modifier = Modifier,
 ) {
-  val personaName = PersonaCatalog.findById(personaId)?.displayName ?: "ассистент"
-  val who = preferredAddress.ifBlank { name }.ifBlank { "тебя" }
+  val personaName = PersonaCatalog.findById(personaId)?.displayName ?: tr("ассистент", "assistant")
+  val who = preferredAddress.ifBlank { name }.ifBlank { tr("тебя", "you") }
 
   Column(
     modifier = modifier
@@ -46,32 +47,49 @@ fun WrapupStep(
       .padding(24.dp),
   ) {
     Text(
-      text = "Как работает чат",
+      text = tr("Как работает чат", "How the chat works"),
       style = MaterialTheme.typography.headlineSmall,
       // An explicit color, not the ambient LocalContentColor: without it the heading inherits near-black outside
       // the root Surface (including in the screenshot test) and drowns.
       color = MaterialTheme.colorScheme.onBackground,
     )
     Text(
-      text = "Прежде чем начать — пара слов о том, что происходит «под капотом».",
+      text = tr(
+        "Прежде чем начать — пара слов о том, что происходит «под капотом».",
+        "Before we start — a few words about what happens “under the hood”.",
+      ),
       style = MaterialTheme.typography.bodyMedium,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
       modifier = Modifier.padding(top = 4.dp, bottom = 20.dp),
     )
 
     AssistantBubble(
-      "Когда ты пишешь сообщение — это **промпт**. Именно он уходит модели, и на него она отвечает.",
+      tr(
+        "Когда ты пишешь сообщение — это **промпт**. Именно он уходит модели, и на него она отвечает.",
+        "When you write a message, that is the **prompt**. It is what goes to the model, and the model answers it.",
+      ),
     )
     AssistantBubble(
-      "Но перед каждым твоим сообщением я незаметно получаю **препромпт** — скрытую инструкцию. Она и делает меня «мной».",
+      tr(
+        "Но перед каждым твоим сообщением я незаметно получаю **препромпт** — скрытую инструкцию. Она и делает меня «мной».",
+        "But before each of your messages I quietly receive a **pre-prompt** — a hidden instruction. It is what makes me “me”.",
+      ),
     )
     AssistantBubble(
-      "Препромпт состоит из двух частей:\n\n" +
-        "• **Личность ассистента** — ты выбрал «$personaName». От неё зависит мой тон.\n" +
-        "• **Информация о тебе** — то, как обращаться к $who, и твой профиль. Поэтому я отвечаю лично тебе.",
+      tr(
+        "Препромпт состоит из двух частей:\n\n" +
+          "• **Личность ассистента** — ты выбрал «$personaName». От неё зависит мой тон.\n" +
+          "• **Информация о тебе** — то, как обращаться к $who, и твой профиль. Поэтому я отвечаю лично тебе.",
+        "The pre-prompt has two parts:\n\n" +
+          "• **The assistant's personality** — you picked “$personaName”. My tone depends on it.\n" +
+          "• **Information about you** — how to address $who, and your profile. That is why I answer you personally.",
+      ),
     )
     AssistantBubble(
-      "Промпт ты видишь, препромпт — нет. Но именно их сумма уходит модели каждый раз. Готов? Поехали 🚀",
+      tr(
+        "Промпт ты видишь, препромпт — нет. Но именно их сумма уходит модели каждый раз. Готов? Поехали 🚀",
+        "You see the prompt, you don't see the pre-prompt. But it is their sum that goes to the model every time. Ready? Let's go 🚀",
+      ),
     )
   }
 }
