@@ -240,8 +240,11 @@ Never strip `@trace` markers while refactoring.
 
 ## Conventions
 
-- **UI language is Russian**, addressing the user informally as «ты». Onboarding offers English, but
-  the option is disabled. Write new user-visible strings in Russian, in the same voice.
+- **UI language is Russian and English.** Onboarding lets the user pick, the option works, and English
+  is the path the hackathon judges walk. Every user-visible string goes through `tr(ru, en)`
+  (`i18n/AppLanguage.kt`): a bare literal on a screen reaches an English reader in Russian, which is
+  how a whole screen stayed Russian under a green check until 27 Oct 2026. Russian addresses the user
+  informally as «ты» — keep that voice, and write the English side as English, not as a calque of it.
 - **Comments explain why**, not what. Most are in Russian; some KDoc is in English. Edit files with
   Russian text using an editor or tool that preserves UTF-8, not ad-hoc `sed`/`perl` byte edits.
 - **Database, pre-release.** `AppDatabase` is schema version 11 with 18 entities. `DatabaseBindings`
