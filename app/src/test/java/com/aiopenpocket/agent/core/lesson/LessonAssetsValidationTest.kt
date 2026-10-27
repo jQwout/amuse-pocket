@@ -3,6 +3,7 @@ package com.aiopenpocket.agent.core.lesson
 // @trace uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2
 // @trace english-ui-on-the-demo-path-223241
 
+import com.aiopenpocket.agent.core.llm.SegmentationConcept
 import com.aiopenpocket.agent.core.llm.VideoUnderstandingClient
 import com.aiopenpocket.i18n.AppLanguage
 import com.aiopenpocket.ui.roadmap.LIBRARY_LESSON_IDS
@@ -163,6 +164,22 @@ class LessonAssetsValidationTest {
               }
               if (step.sampleVideo.isNotBlank() && File(assetsDir, step.sampleVideo).length() > VideoUnderstandingClient.MAX_VIDEO_BYTES) {
                 err("ролик-пример больше потолка VideoUnderstandingClient.MAX_VIDEO_BYTES")
+              }
+            }
+
+            "segment" -> {
+              if (step.instruction.isBlank()) err("пустой instruction — непонятно, что делать")
+              // The default prompt goes to SAM as is when the learner does not edit it, so it must pass the very
+              // check the client applies: one noun phrase, no list and no command. A prompt the client rejects
+              // would make the step's main button a guaranteed error.
+              SegmentationConcept.problemOf(step.segmentPrompt)?.let {
+                err("segmentPrompt «${step.segmentPrompt}» не годится как понятие для SAM: $it")
+              }
+              // And English: SAM is asked in English, in the Russian lesson too.
+              if (!step.segmentPrompt.all { it in ' '..'~' }) err("segmentPrompt: только английский (ASCII), SAM понимает понятие по-английски")
+              // The "Show an example" button with a broken path would turn the step's main path into an error.
+              if (step.sampleImage.isNotBlank() && !File(assetsDir, step.sampleImage).isFile) {
+                err("фото-пример не найдено: ${step.sampleImage}")
               }
             }
 
@@ -361,6 +378,9 @@ class LessonAssetsValidationTest {
             Triple("imagePrompt", e.imagePrompt, r.imagePrompt),
             Triple("sampleVideo", e.sampleVideo, r.sampleVideo),
             Triple("samplePreview", e.samplePreview, r.samplePreview),
+            // The SAM prompt is English in both languages and goes to the model verbatim.
+            Triple("segmentPrompt", e.segmentPrompt, r.segmentPrompt),
+            Triple("sampleImage", e.sampleImage, r.sampleImage),
           )
           shared.forEach { (field, mine, original) ->
             if (mine != original) err("$field='$mine', в оригинале '$original'")

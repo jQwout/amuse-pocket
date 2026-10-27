@@ -92,6 +92,9 @@ fun RenderDrivenUiCard(
     /** The tasks of "video" steps whose clips the model is watching right now. */
     analyzingVideos: Set<String> = emptySet(),
     onLessonVideo: (videoPrompt: String, video: android.net.Uri) -> Unit = { _, _ -> },
+    /** The default prompts of "segment" steps whose photos SAM is working on right now. */
+    segmentingPrompts: Set<String> = emptySet(),
+    onLessonSegment: (cardPrompt: String, concept: String, photo: android.net.Uri) -> Unit = { _, _, _ -> },
 ) {
     // The gate is only lessonCard, not isSystemInDarkTheme(): the app's theme is chosen in Settings
     // (Light/Dark/System, see Theme.kt), so the system flag can disagree with what is on screen — and in a
@@ -144,6 +147,12 @@ fun RenderDrivenUiCard(
                 analyzing = card.prompt in analyzingVideos,
                 onVideoChosen = { uri -> onLessonVideo(card.prompt, uri) },
             )
+            is DrivenUiCard.LessonSegmentCard -> LessonSegmentCardView(
+                card = card,
+                analyzing = card.prompt in segmentingPrompts,
+                onPhotoChosen = { concept, photo -> onLessonSegment(card.prompt, concept, photo) },
+            )
+            is DrivenUiCard.LessonSegmentResultCard -> LessonSegmentResultCardView(card)
             is DrivenUiCard.RevealCard -> RevealCardView(card)
             is DrivenUiCard.ConceptCard -> ConceptCardView(card)
             is DrivenUiCard.ExampleCard -> ExampleCardView(card)

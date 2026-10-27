@@ -27,6 +27,21 @@ class MetaPricingTest {
     assertEquals(100 * 0.20 / 1_000_000, metaListPriceUsd("muse-wonder-1.0", usage)!!, 1e-12)
   }
 
+  /** SAM is billed per picture, so the cost is the count of pictures times the price of one: $2.50 per 1000. */
+  @Test
+  fun `SAM costs a quarter of a cent per picture`() {
+    assertEquals(0.0025, samCostUsd(1), 1e-12)
+    assertEquals(0.0075, samCostUsd(3), 1e-12)
+    // A provider that says 0 pictures was processed is believed: nothing was billed.
+    assertEquals(0.0, samCostUsd(0), 1e-12)
+  }
+
+  /** No usage in the answer: a still image is one picture. The caller marks that row as estimated. */
+  @Test
+  fun `SAM without a picture count is priced as one picture`() {
+    assertEquals(0.0025, samCostUsd(null), 1e-12)
+  }
+
   /** Models without a line in the price list are "price unknown", not a made-up number. */
   @Test
   fun `unknown model has no price`() {
