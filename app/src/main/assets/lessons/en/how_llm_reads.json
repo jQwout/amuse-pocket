@@ -1,0 +1,28 @@
+{
+  "id": "how_llm_reads",
+  "title": "How AI reads your request",
+  "description": "The prompt, the pre-prompt and a request's journey: what the model actually sees when you hit “send.”",
+  "iconKey": "psychology",
+  "steps": [
+    {"type": "text", "text": "We already know that a model simply continues text. Now let's look under the hood: what exactly does it receive when you hit “send”?"},
+    {"type": "image", "asset": "lessons/images/generated/how_llm_reads-7c9138a9be.webp", "imagePrompt": "A parcel being packed on a conveyor belt: a small rulebook, a theatre mask, a stack of earlier chat bubbles and finally one new chat bubble go into a single box, which travels toward a friendly robot ready to read it.", "caption": "The model gets not one phrase but a whole bundle"},
+    {"type": "text", "text": "Your message, as the model sees it, is called a prompt — the request it answers."},
+    {"type": "text", "text": "But before your prompt, I quietly slip in more text — the pre-prompt. It holds the working rules, the persona you chose and facts from your profile."},
+    {"type": "text", "text": "Feel the difference with an example. You write: “suggest dinner ideas.” But what the model actually receives is: “You're a friendly assistant to Sasha, Sasha doesn't eat meat” + the conversation history + “suggest dinner ideas.” That's why the answer lands on target instead of sounding like it came out of a generic reference book."},
+    {"type": "concept", "term": "Bundle", "definition": "The model never gets just your one phrase. Three things go off to it every time: who it is and what it knows about you, what you've already talked about, and only then your question. Those three parts together are the bundle.", "example": "You typed three words: “suggest dinner ideas.” The model read: “You're Sasha's assistant, Sasha doesn't eat meat” + your whole earlier conversation + “suggest dinner ideas.”"},
+    {"type": "animation", "scene": "prompt_layers", "caption": "Switch on the layers the app puts alongside your message. The token counts are approximate"},
+    {"type": "image", "asset": "lessons/images/llm_path.svg", "caption": "The bundle and its journey: pre-prompt + prompt → model → answer"},
+    {"type": "text", "text": "Important: the bundle is assembled afresh before every answer. And it's the only thing the model knows about you at the moment it answers. What isn't in the bundle doesn't exist for it."},
+    { "type": "reveal", "question": "“The model remembers me and can look me up online on its own.” True?", "answer": "No. Between answers the model itself stores nothing, and it doesn't go online of its own accord. The app does the remembering for it — and puts what's needed into the bundle." },
+    {"type": "text", "text": "Memory lives on your device, and several things from it ride along in the bundle: your profile — every time; facts that match your message — found by search; the agent's recent actions; and the conversation itself. That's why the assistant recognizes you, even though the model has no memory of its own."},
+    {"type": "text", "text": "And now a thought for a future agent builder: since the model's behavior is set by the bundle, changing the pre-prompt means changing the behavior. No programming needed. Change the persona and the same question gets a different tone. That's what's called prompt engineering."},
+    { "type": "sort", "instruction": "The whole trip is short. Put it in order:", "items": ["The model reads the bundle and writes an answer", "The app assembles the bundle", "The answer comes back to you", "The bundle is sent to the model"], "correct": [1, 3, 0, 2], "explain": "Assemble the bundle → send it to the model → it reads and writes an answer → the answer comes back to you. And so it goes for every message you send." },
+    {"type": "text", "text": "Practice. After the lesson, go back to the regular chat and ask: “what do you know about me?” — I'll retell what arrived in the pre-prompt. Then change the persona in settings and ask any question: you'll feel how the same bundle with a different persona changes the tone of the answer."},
+    {"type": "text", "text": "In short. The prompt is your request. The pre-prompt is hidden context: rules, persona, profile. The model sees only the assembled bundle, and it's rebuilt for every answer. Change the bundle, change the behavior: that's the basis of tuning any agent."},
+    { "type": "quiz", "questions": [
+      {"q": "What is a prompt?", "options": ["The assistant's memory", "Your request to the model", "The model's finished answer"], "correct": 1, "explain": "A prompt is your message — the request to the model."},
+      {"q": "What goes into the pre-prompt?", "options": ["Only your last phrase", "Nothing — the pre-prompt is empty", "Rules, persona and your profile"], "correct": 2, "explain": "The pre-prompt is hidden context: rules + persona + facts about you."},
+      {"q": "What does the model know about you at the moment it answers?", "options": ["Only what made it into the request bundle", "Everything on the internet", "All your past conversations, forever"], "correct": 0, "explain": "Not in the bundle means it doesn't exist: the model sees only the assembled context."}
+    ] }
+  ]
+}
