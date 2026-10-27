@@ -4,6 +4,7 @@ package com.aiopenpocket.ui.scheduledworks
 
 import androidx.work.WorkInfo
 import com.aiopenpocket.agent.tools.WorkManagerTool
+import com.aiopenpocket.i18n.tr
 
 data class ScheduledWorkItem(
   /** The job's UUID in WorkManager: a stable list key and a fallback cancel path. */
@@ -46,10 +47,10 @@ internal fun WorkInfo.toScheduledWorkItem(): ScheduledWorkItem? {
 
 /** The job's state in human words — the raw enum name is not shown to the user. */
 internal fun WorkInfo.State.label(): String = when (this) {
-  WorkInfo.State.ENQUEUED -> "Ждёт"
-  WorkInfo.State.RUNNING -> "Выполняется"
-  WorkInfo.State.BLOCKED -> "Заблокирована"
-  WorkInfo.State.SUCCEEDED -> "Выполнена"
-  WorkInfo.State.FAILED -> "Ошибка"
-  WorkInfo.State.CANCELLED -> "Отменена"
+  WorkInfo.State.ENQUEUED -> tr("Ждёт", "Waiting")
+  WorkInfo.State.RUNNING -> tr("Выполняется", "Running")
+  WorkInfo.State.BLOCKED -> tr("Заблокирована", "Blocked")
+  WorkInfo.State.SUCCEEDED -> tr("Выполнена", "Done")
+  WorkInfo.State.FAILED -> tr("Ошибка", "Failed")
+  WorkInfo.State.CANCELLED -> tr("Отменена", "Cancelled")
 }

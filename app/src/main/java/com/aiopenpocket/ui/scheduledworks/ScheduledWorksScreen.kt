@@ -36,6 +36,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.work.WorkInfo
 import com.aiopenpocket.agent.tools.WorkManagerTool
+import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.ui.util.formatDateTime
 import dev.zacsweers.metrox.viewmodel.metroViewModel
@@ -64,10 +65,10 @@ private fun ScheduledWorksContent(
   Scaffold(
     topBar = {
       TopAppBar(
-        title = { Text("Запланированные задачи") },
+        title = { Text(tr("Запланированные задачи", "Scheduled tasks")) },
         navigationIcon = {
           IconButton(onClick = onNavigateBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = tr("Назад", "Back"))
           }
         },
       )
@@ -75,8 +76,8 @@ private fun ScheduledWorksContent(
   ) { padding ->
     Box(modifier = Modifier.fillMaxSize().padding(padding)) {
       when {
-        isLoading -> CenteredText("Загрузка...")
-        works.isEmpty() -> CenteredText("Нет активных задач")
+        isLoading -> CenteredText(tr("Загрузка...", "Loading..."))
+        works.isEmpty() -> CenteredText(tr("Нет активных задач", "No active tasks"))
         else -> LazyColumn(
           modifier = Modifier.fillMaxSize(),
           contentPadding = PaddingValues(16.dp),
@@ -110,7 +111,7 @@ private fun WorkItemCard(work: ScheduledWorkItem, onCancel: () -> Unit) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
       ) {
-        Text(work.title.ifBlank { "Без названия" }, style = MaterialTheme.typography.titleMedium)
+        Text(work.title.ifBlank { tr("Без названия", "Untitled") }, style = MaterialTheme.typography.titleMedium)
         TypeBadge(type = work.type)
       }
       Spacer(modifier = Modifier.height(4.dp))
@@ -128,11 +129,11 @@ private fun WorkItemCard(work: ScheduledWorkItem, onCancel: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
       ) {
         Column {
-          Text("Состояние: ${work.state.label()}", style = MaterialTheme.typography.labelMedium)
+          Text("${tr("Состояние", "Status")}: ${work.state.label()}", style = MaterialTheme.typography.labelMedium)
           val dateStr = work.nextScheduleTimeMillis?.let(::formatDateTime) ?: "—"
-          Text("Следующий запуск: $dateStr", style = MaterialTheme.typography.labelMedium)
+          Text("${tr("Следующий запуск", "Next run")}: $dateStr", style = MaterialTheme.typography.labelMedium)
         }
-        TextButton(onClick = onCancel) { Text("Отменить") }
+        TextButton(onClick = onCancel) { Text(tr("Отменить", "Cancel")) }
       }
     }
   }
@@ -142,12 +143,12 @@ private fun WorkItemCard(work: ScheduledWorkItem, onCancel: () -> Unit) {
 private fun TypeBadge(type: String) {
   val (label, bg, fg) = when (type) {
     WorkManagerTool.TAG_ONE_TIME -> Triple(
-      "Разовая",
+      tr("Разовая", "One-time"),
       MaterialTheme.colorScheme.primaryContainer,
       MaterialTheme.colorScheme.onPrimaryContainer,
     )
     WorkManagerTool.TAG_PERIODIC -> Triple(
-      "Периодическая",
+      tr("Периодическая", "Periodic"),
       MaterialTheme.colorScheme.secondaryContainer,
       MaterialTheme.colorScheme.onSecondaryContainer,
     )

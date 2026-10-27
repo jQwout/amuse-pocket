@@ -3,7 +3,9 @@ package com.aiopenpocket.ui.scheduledworks
 import androidx.work.Constraints
 import androidx.work.Data
 import androidx.work.WorkInfo
+import com.aiopenpocket.i18n.AppLanguage
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.util.UUID
@@ -51,5 +53,18 @@ class ScheduledWorkItemMappingTest {
     val item = info(setOf("one_time", "id:x"), state = WorkInfo.State.RUNNING).toScheduledWorkItem()!!
     assertNull(item.nextScheduleTimeMillis)
     assertEquals("Выполняется", item.state.label())
+  }
+
+  @Test
+  fun `state labels follow the English interface`() {
+    try {
+      AppLanguage.code = AppLanguage.EN
+      for (state in WorkInfo.State.values()) {
+        assertFalse(state.label(), Regex("[А-Яа-яЁё]").containsMatchIn(state.label()))
+      }
+      assertEquals("Running", WorkInfo.State.RUNNING.label())
+    } finally {
+      AppLanguage.code = AppLanguage.RU
+    }
   }
 }
