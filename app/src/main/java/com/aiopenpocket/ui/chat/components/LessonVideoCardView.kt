@@ -50,8 +50,11 @@ import java.io.File
 /** The folder in cacheDir where the camera writes the lesson's clip. ChatViewModel cleans it up after the analysis. */
 internal const val LESSON_VIDEO_DIR = "lesson_videos"
 
-/** How Coil and our [bundledAssetPath] recognize a file from the APK's assets (the sample clip and its preview). */
-private const val ANDROID_ASSET_PREFIX = "file:///android_asset/"
+/**
+ * How Coil and our [bundledAssetPath] recognize a file from the APK's assets (the sample clip and its preview;
+ * the "segment" step's sample photo goes through the same door).
+ */
+internal const val ANDROID_ASSET_PREFIX = "file:///android_asset/"
 
 /**
  * The "video" lesson step: hand Muse Spark the sample clip from assets (if the step has one, that is the main

@@ -4,6 +4,7 @@ package com.aiopenpocket.di
 // @trace vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53
 // @trace kartinki-urokov-cherez-muse-image-fd6f8c
 // @trace video-na-vhod-v-uroke-muse-spark-08ccdb
+// @trace sam-segmentation-boxes-in-a-lesson-c3ea52
 
 import com.aiopenpocket.BuildConfig
 import com.aiopenpocket.agent.core.llm.ImageGenClient
@@ -16,6 +17,7 @@ import com.aiopenpocket.agent.core.llm.ModelCatalogLoader
 import com.aiopenpocket.agent.core.llm.OpenAiCompatClient
 import com.aiopenpocket.agent.core.llm.ProviderConfig
 import com.aiopenpocket.agent.core.llm.ProviderFallbackChain
+import com.aiopenpocket.agent.core.llm.SegmentationClient
 import com.aiopenpocket.agent.core.llm.SelectedLlmProvider
 import com.aiopenpocket.agent.core.llm.VideoUnderstandingClient
 import com.aiopenpocket.agent.core.llm.activeLlmProvider
@@ -92,6 +94,23 @@ object LlmModule {
   ): VideoUnderstandingClient = VideoUnderstandingClient(
     engine = engine,
     apiKey = { openRouterKey(settingsRepository) },
+    usageRecorder = usageRecorder,
+  )
+
+  /**
+   * SAM 3.1 outlining objects in a lesson photo. The key is the META one and ONLY that: SAM exists only
+   * on the direct Meta Model API, OpenRouter does not carry it, so with an OpenRouter key alone the
+   * lesson step says "add a Meta key" instead of sending a request that is guaranteed to fail.
+   */
+  @Provides
+  @SingleIn(AppScope::class)
+  fun provideSegmentationClient(
+    engine: HttpClientEngine,
+    settingsRepository: SettingsRepository,
+    usageRecorder: LlmUsageRecorder,
+  ): SegmentationClient = SegmentationClient(
+    engine = engine,
+    apiKey = { metaKey(settingsRepository) },
     usageRecorder = usageRecorder,
   )
 

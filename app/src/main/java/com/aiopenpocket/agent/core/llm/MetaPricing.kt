@@ -1,6 +1,7 @@
 package com.aiopenpocket.agent.core.llm
 
 // @trace vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53
+// @trace sam-segmentation-boxes-in-a-lesson-c3ea52
 
 /**
  * Price of a direct Meta Model API call in USD by Meta's price list, or `null` for a model that is not
@@ -35,3 +36,17 @@ private val META_PRICES = mapOf(
 )
 
 private const val TOKENS_PER_PRICE_UNIT = 1_000_000.0
+
+/**
+ * SAM 3.1 is priced per PICTURE, not per token: $2.50 per 1000 images (docs/meta-hackathon-plan.md,
+ * section 1; the task brief for this step re-checked it against dev.meta.ai on Oct 27, 2026).
+ */
+internal const val SAM_PRICE_PER_IMAGE_USD = 0.0025
+
+/**
+ * The cost of one SAM call from `usage.images_processed`. When the provider sent no usage at all, one
+ * call is counted as one picture — a still image is exactly one. That fallback is NOT verified live
+ * (no paid call has been made, see the owner's zero budget): the caller marks such a row as estimated.
+ */
+internal fun samCostUsd(imagesProcessed: Int?): Double =
+  (imagesProcessed ?: 1).coerceAtLeast(0) * SAM_PRICE_PER_IMAGE_USD

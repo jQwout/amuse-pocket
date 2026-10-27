@@ -1,5 +1,6 @@
 package com.aiopenpocket.ui.chat
 
+import com.aiopenpocket.agent.core.llm.SegmentBox
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -132,5 +133,69 @@ class DrivenUiEngineTest {
 
     val card = DrivenUiEngine.parseJsonString(spec)
     assertTrue(card is DrivenUiCard.ErrorCard)
+  }
+
+  // --- the "segment" lesson step: SAM 3.1 outlines objects in a photo ---
+
+  @Test
+  fun `lesson_segment carries the instruction, the default prompt and the sample photo`() {
+    val spec = """{"template":"lesson_segment","params":{"instruction":"Назови предмет","segment_prompt":"cup","sample_image":"lessons/videos/sample_desk.webp"}}"""
+
+    val card = DrivenUiEngine.parseJsonString(spec)
+
+    assertEquals(DrivenUiCard.LessonSegmentCard("Назови предмет", "cup", "lessons/videos/sample_desk.webp"), card)
+  }
+
+  @Test
+  fun `lesson_segment_result parses the boxes with the size the model reported`() {
+    val spec = """{"template":"lesson_segment_result","params":{
+      "image_url":"file:///cache/segment-1.jpg","image_w":1516,"image_h":1600,"concept":"cup","total":2,
+      "boxes":[
+        {"id":"0","x1":181,"y1":365,"x2":556,"y2":486,"w":1516,"h":1600,"c":0.96},
+        {"id":"10","x1":1,"y1":2,"x2":3,"y2":4,"w":1516,"h":1600}
+      ]}}""".trimIndent()
+
+    val card = DrivenUiEngine.parseJsonString(spec) as DrivenUiCard.LessonSegmentResultCard
+
+    assertEquals("file:///cache/segment-1.jpg", card.imageUrl)
+    assertEquals(1516, card.imageWidth)
+    assertEquals(1600, card.imageHeight)
+    assertEquals("cup", card.concept)
+    assertEquals(2, card.total)
+    assertEquals(listOf("0", "10"), card.boxes.map { it.id })
+    assertEquals(SegmentBox(181, 365, 556, 486, 1516, 1600, 0.96), card.boxes[0].box)
+    // A box with no confidence stays without one: it is not 0.
+    assertEquals(null, card.boxes[1].box.confidence)
+  }
+
+  /** "Nothing found" is an answer: the card still parses, with no boxes. */
+  @Test
+  fun `lesson_segment_result with no boxes is a card, not an error`() {
+    val spec = """{"template":"lesson_segment_result","params":{"image_url":"file:///a.jpg","image_w":640,"image_h":427,"concept":"unicorn","total":0,"boxes":[]}}"""
+
+    val card = DrivenUiEngine.parseJsonString(spec) as DrivenUiCard.LessonSegmentResultCard
+
+    assertTrue(card.boxes.isEmpty())
+    assertEquals(0, card.total)
+  }
+
+  /** A box with no picture size cannot be scaled (the scale divides by it): it is dropped rather than drawn wrong. */
+  @Test
+  fun `a box without a picture size is dropped`() {
+    val spec = """{"template":"lesson_segment_result","params":{"image_url":"file:///a.jpg","image_w":640,"image_h":427,"concept":"cup",
+      "boxes":[{"id":"0","x1":1,"y1":2,"x2":3,"y2":4},{"id":"1","x1":1,"y1":2,"x2":3,"y2":4,"w":640,"h":427}]}}""".trimIndent()
+
+    val card = DrivenUiEngine.parseJsonString(spec) as DrivenUiCard.LessonSegmentResultCard
+
+    assertEquals(listOf("1"), card.boxes.map { it.id })
+  }
+
+  @Test
+  fun `the segment cards have a text form for a chat without widgets`() {
+    val step = DrivenUiCard.LessonSegmentCard("Назови предмет", "cup")
+    val result = DrivenUiCard.LessonSegmentResultCard("file:///a.jpg", 640, 427, "cup", 3, emptyList())
+
+    assertTrue(step.toMarkdown().contains("Назови предмет"))
+    assertTrue(result.toMarkdown().contains("cup") && result.toMarkdown().contains("3"))
   }
 }

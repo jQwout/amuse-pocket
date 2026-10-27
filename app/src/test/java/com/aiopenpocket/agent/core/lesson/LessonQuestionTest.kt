@@ -23,6 +23,13 @@ class LessonQuestionTest {
   }
 
   @Test
+  fun `segment and video steps give the tutor their instruction`() {
+    // A side question on the SAM step must see what the learner was asked to do: the card posts an empty content.
+    val segment = LessonStep(type = "segment", instruction = "Назови одну вещь по-английски")
+    assertTrue(LessonQuestion.stepContext("Как модель видит", segment).contains("Назови одну вещь по-английски"))
+  }
+
+  @Test
   fun `null or empty step yields empty context`() {
     assertEquals("", LessonQuestion.stepContext("Урок", null))
     assertEquals("", LessonQuestion.stepContext("Урок", LessonStep(type = "image")))

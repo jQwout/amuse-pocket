@@ -224,6 +224,9 @@ fun ChatScreen(
     val onLessonVideo: (String, android.net.Uri) -> Unit = remember {
         { prompt, uri -> viewModel.handleIntent(ChatIntent.AnalyzeLessonVideo(prompt, uri)) }
     }
+    val onLessonSegment: (String, String, android.net.Uri) -> Unit = remember {
+        { cardPrompt, concept, uri -> viewModel.handleIntent(ChatIntent.SegmentLessonPhoto(cardPrompt, concept, uri)) }
+    }
     // The live reminder card: the heartbeat subscription + cancel are stable references to ViewModel methods.
     val observeHeartbeat: (String) -> Flow<HeartbeatEntity?> = remember { viewModel::observeHeartbeat }
     val onCancelHeartbeat: (String) -> Unit = remember { viewModel::cancelHeartbeat }
@@ -522,6 +525,8 @@ fun ChatScreen(
                         onPersonalizeImage = onPersonalizeImage,
                         analyzingVideos = state.analyzingVideoPrompts,
                         onLessonVideo = onLessonVideo,
+                        segmentingPrompts = state.segmentingPrompts,
+                        onLessonSegment = onLessonSegment,
                     )
                 }
                 if (hasStreamingItem) {
@@ -881,15 +886,16 @@ fun ChatScreen(
                     // (reveal/concept/example). Interactive ones (quiz/fill/sort/match/scenario) move the lesson
                     // themselves once completed; the exception is a degenerate quiz without questions, which
                     // needs the button. "video" has a button too: filming a clip is not always possible (no
-                    // OpenRouter, the wrong setting), and the lesson must not get stuck on it.
+                    // OpenRouter, the wrong setting), and the lesson must not get stuck on it. "segment" for the same
+                    // reason, and more so: it needs a Meta key that a judge or a fresh clone may not have.
                     val displayStep = currentStep?.type in
-                            setOf("text", "image", "video", "animation", "reveal", "concept", "example", "input", "challenge")
+                            setOf("text", "image", "video", "segment", "animation", "reveal", "concept", "example", "input", "challenge")
                     // !isLoading: while a tutor answer is streaming, the lesson cannot be advanced, otherwise the next step
                     // would be printed into the live turn. The button comes back when the answer arrives. For
                     // the same reason it is hidden while the model watches the video: the answer about the clip
                     // must land under its own step.
                     val needsManualAdvance = currentStep != null && !state.lessonFinished && !state.isLoading &&
-                            state.analyzingVideoPrompts.isEmpty() &&
+                            state.analyzingVideoPrompts.isEmpty() && state.segmentingPrompts.isEmpty() &&
                             (displayStep || (currentStep.type == "quiz" && currentStep.questions.isEmpty()))
                     // "Ask" is a free question to the LLM at any point of the lesson (until it is complete). The cursor is
                     // persisted separately (lessonStepIndex), so a question does not move the steps.
