@@ -7,6 +7,7 @@ import com.aiopenpocket.agent.core.memory.model.Fact
 import com.aiopenpocket.agent.core.plan.model.PlanCriterion
 import com.aiopenpocket.agent.core.plan.model.VerifierType
 import com.aiopenpocket.agent.loop.ToolTrace
+import com.aiopenpocket.i18n.tr
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
@@ -110,7 +111,10 @@ object DeterministicVerifierRegistry {
       is ToolResult.Success -> CriterionVerdict.Satisfied(
         criterion,
         reference = "tool_trace:${call.toolName}#${call.iteration}@${call.timestamp}",
-        summary = "Инструмент «$toolName» выполнен успешно: ${result.data.take(SUMMARY_MAX_CHARS)}",
+        summary = tr(
+          "Инструмент «$toolName» выполнен успешно: ${result.data.take(SUMMARY_MAX_CHARS)}",
+          "Tool “$toolName” ran successfully: ${result.data.take(SUMMARY_MAX_CHARS)}",
+        ),
       )
       is ToolResult.Error -> CriterionVerdict.Unsatisfied(criterion, "Tool '$toolName' returned an error: ${result.message}")
     }
@@ -136,7 +140,10 @@ object DeterministicVerifierRegistry {
     return CriterionVerdict.Satisfied(
       criterion,
       reference = "memory_fact:${fact.id}",
-      summary = "Факт памяти «$key» = ${fact.value.take(SUMMARY_MAX_CHARS)}",
+      summary = tr(
+        "Факт памяти «$key» = ${fact.value.take(SUMMARY_MAX_CHARS)}",
+        "Memory fact “$key” = ${fact.value.take(SUMMARY_MAX_CHARS)}",
+      ),
     )
   }
 

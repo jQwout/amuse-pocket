@@ -23,6 +23,7 @@ import com.aiopenpocket.agent.core.profile.stripToJsonObject
 import com.aiopenpocket.agent.core.prompt.AssetSource
 import com.aiopenpocket.agent.loop.AgentResult
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.i18n.tr
 import dev.zacsweers.metro.BindingContainer
 import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.Inject
@@ -285,10 +286,13 @@ class PlanVerifier @Inject constructor(
       CriterionVerdict.Satisfied(
         criterion,
         reference = "model_assessment:${criterion.id}:${clock()}",
-        summary = verdict.reasoning.ifBlank { "Модель посчитала критерий выполненным." },
+        summary = verdict.reasoning.ifBlank { tr("Модель посчитала критерий выполненным.", "The model judged the criterion met.") },
       )
     } else {
-      CriterionVerdict.Unsatisfied(criterion, verdict.reasoning.ifBlank { "Модель посчитала критерий НЕ выполненным." })
+      CriterionVerdict.Unsatisfied(
+        criterion,
+        verdict.reasoning.ifBlank { tr("Модель посчитала критерий НЕ выполненным.", "The model judged the criterion NOT met.") },
+      )
     }
   }
 

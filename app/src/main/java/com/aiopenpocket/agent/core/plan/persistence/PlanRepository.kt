@@ -22,6 +22,7 @@ import com.aiopenpocket.agent.core.plan.validation.StepTransitionResult
 import java.util.UUID
 import com.aiopenpocket.data.database.AppDatabase
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.i18n.tr
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.flow.Flow
@@ -337,7 +338,7 @@ class PlanRepository @Inject constructor(
         stepId = stepId,
         source = EvidenceSource.USER_CONFIRMATION,
         reference = "user_confirmation:$stepId:$now",
-        summary = "Пользователь подтвердил: ${criterion.description}",
+        summary = tr("Пользователь подтвердил: ${criterion.description}", "The user confirmed: ${criterion.description}"),
         createdAt = now,
       )
     }
