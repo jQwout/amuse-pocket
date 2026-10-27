@@ -23,3 +23,8 @@ build_check.log
 
 # Build artifacts never belong in git: a debug APK carries the .env keys inside BuildConfig.
 .build-outputs/
+
+# Orchestrator: the check command's own output and Python bytecode
+build/check/
+tools/__pycache__/
+orchestrator/evidence/
