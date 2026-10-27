@@ -1,0 +1,24 @@
+{
+  "id": "l1_welcome",
+  "title": "Welcome and setup",
+  "description": "Set up the assistant your way: language, persona, profile — and a first look at the chat.",
+  "iconKey": "waving_hand",
+  "firstRun": true,
+  "steps": [
+    {"type": "text", "stream": true, "text": "Hi! 👋 This is AI Open Pocket — a pocket agent: I don't just answer, I act too. Let's take a couple of minutes to set me up for you. All the theory comes later, one short lesson at a time."},
+    {"type": "image", "asset": "lessons/images/generated/l1_welcome-d55e3ae6a4.webp", "imagePrompt": "A friendly pocket-sized robot waves hello from inside a smartphone held in a hand, with a cozy desk and a cup of tea in the background.", "caption": "A pocket agent: it doesn't just answer, it acts"},
+    {"type": "language"},
+    {"type": "text", "text": "It all works simply: you write me a message, and I answer. Like an ordinary text conversation, except the other side is a program. There are no special commands to learn — just ask in your own words."},
+    {"type": "text", "text": "I can answer almost anything: explain something confusing, help with a text, do the math, suggest an idea. Don't be afraid to ask a “silly” question — asking again is perfectly fine here, I never get tired."},
+    {"type": "text", "text": "Our conversation is saved on your device, so the history doesn't go anywhere between launches. And you can have several chats, one for each topic."},
+    {"type": "text", "text": "You can also tune my character: how dry or warm I sound, how short or detailed I am. That's called a persona. Pick the one that feels closest — you can change it any time in settings."},
+    {"type": "persona"},
+    {"type": "profile", "note": "This is saved on your device — the agent will use it in your conversations."},
+    {"type": "animation", "scene": "persona_switch", "caption": "Switch the character and the profile: the model stays the same, but the answer changes. The answers are just examples"},
+    {"type": "text", "text": "Done — we're set up! Next comes the “Agent path”: short lessons on how all this works under the hood, from tokens to swarms of agents. We'll start with who is actually answering you."},
+    { "type": "quiz", "questions": [
+      {"q": "How do you talk to me?", "options": ["In plain words, like texting a friend", "Through the settings menu", "Only with special commands"], "correct": 0, "explain": "Write the way you would to a person: in your own words. There's no special syntax to learn."},
+      {"q": "What sets my character and tone?", "options": ["Nothing — the tone is always the same", "The persona you chose", "The time of day"], "correct": 1, "explain": "A persona is a setting for character and tone. We'll look at exactly how it affects me in the lesson “How AI reads your request.”"}
+    ] }
+  ]
+}
