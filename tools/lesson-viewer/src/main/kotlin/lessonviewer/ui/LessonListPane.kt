@@ -25,7 +25,7 @@ fun LessonListPane(
   selected: LoadedLesson?,
   onSelect: (LoadedLesson) -> Unit,
 ) {
-  // Граница между путём и уроками вне пути — первый элемент без номера.
+  // The boundary between the path and the lessons outside it is the first item without a number.
   val firstOffPathIndex = items.indexOfFirst { it.roadmapNumber == null }
 
   LazyColumn(Modifier.fillMaxSize().padding(8.dp)) {

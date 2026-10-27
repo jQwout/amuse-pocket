@@ -3,12 +3,12 @@ package lessonviewer.model
 import lessonviewer.io.LoadedLesson
 
 /**
- * Педагогический порядок уроков — копия `ROADMAP_LEVELS` из
- * `app/src/main/java/com/aiopenpocket/ui/roadmap/RoadmapScreen.kt`.
+ * The pedagogical order of the lessons — a copy of `ROADMAP_LEVELS` from
+ * `app/src/main/java/com/aiopenpocket/ui/roadmap/RoadmapLevels.kt`.
  *
- * Копия, а не зависимость: вьюер не связан с `:app` кодом (решение 2.1 спеки). Расхождение
- * ловится `lessonviewer.RoadmapOrderTest` — он читает исходник приложения как ТЕКСТ и сверяет
- * список, поэтому переставленный или добавленный урок роняет тест, а не тихо ломает порядок.
+ * A copy, not a dependency: the viewer is not tied to `:app` code (decision 2.1 of the spec). A mismatch
+ * is caught by `lessonviewer.RoadmapOrderTest` — it reads the app's source as TEXT and compares the list,
+ * so a reordered or added lesson fails the test instead of quietly breaking the order.
  */
 val ROADMAP_ORDER: List<String> = listOf(
   "l1_welcome",
@@ -43,20 +43,20 @@ val ROADMAP_ORDER: List<String> = listOf(
   "agent_blueprint",
 )
 
-/** Урок в списке: его место в пути (или его отсутствие). */
+/** A lesson in the list: its place in the path (or its absence). */
 data class OrderedLesson(
   val loaded: LoadedLesson,
-  /** Номер в пути, начиная с 1; null — урока нет в роадмапе. */
+  /** The number in the path, starting from 1; null — the lesson is not in the roadmap. */
   val roadmapNumber: Int?,
 )
 
-/** id урока = имя файла без расширения; именно по нему роадмап и адресует уроки. */
+/** The lesson id = the file name without the extension; this is exactly how the roadmap addresses lessons. */
 private fun LoadedLesson.lessonId(): String = file.name.removeSuffix(".json")
 
 /**
- * Уроки в порядке пути, а следом — те, которых в пути нет (по алфавиту). Вторые не выбрасываем:
- * они не потеряны — в приложении их открывают через «Библиотеку» (`LIBRARY_LESSON_IDS`), — но не
- * входят в упорядоченный путь, и это полезно видеть при вычитке.
+ * The lessons in path order, followed by those not in the path (alphabetically). The latter are not
+ * thrown away: they are not lost — the app opens them through the "Library" (`LIBRARY_LESSON_IDS`) — but
+ * they are not part of the ordered path, and that is useful to see when proofreading.
  */
 fun orderLessons(lessons: List<LoadedLesson>): List<OrderedLesson> {
   val positions = ROADMAP_ORDER.withIndex().associate { (i, id) -> id to i }

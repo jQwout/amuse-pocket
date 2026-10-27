@@ -106,7 +106,7 @@ fun ExampleStepView(step: LessonStep) {
 
 @Composable
 fun FillStepView(step: LessonStep) {
-  // Подставляем ответ прямо в пропуск: вьюер для вычитки, а не для прохождения.
+  // The answer is put right into the blank: the viewer is for proofreading, not for taking the lesson.
   val hasBlank = step.template.contains("___")
   val filled = if (hasBlank) step.template.replace("___", "【${step.answer}】") else step.template
   Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

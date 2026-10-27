@@ -10,7 +10,7 @@ kotlin { jvmToolchain(17) }
 
 dependencies {
   implementation(compose.desktop.currentOs)
-  // compose.desktop.currentOs даёт ядро, окно и skiko, но НЕ Material 3 — он отдельным артефактом.
+  // compose.desktop.currentOs gives the core, the window and skiko, but NOT Material 3 — that is a separate artifact.
   implementation(compose.material3)
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
   testImplementation(kotlin("test"))
@@ -22,22 +22,22 @@ application {
 }
 
 tasks.named<JavaExec>("run") {
-  // -Dlessons.dir из командной строки Gradle НЕ долетает до форкнутой JVM сам по себе:
-  // без этой строки опция молча не работает. Рабочий каталог — каталог проекта, от него
-  // и отсчитывается путь по умолчанию в LessonsDir.
+  // -Dlessons.dir from the Gradle command line does NOT reach the forked JVM by itself:
+  // without this line the option silently does nothing. The working directory is the project directory,
+  // and the default path in LessonsDir is counted from it.
   System.getProperty("lessons.dir")?.let { systemProperty("lessons.dir", it) }
 }
 
 tasks.test {
   useJUnit()
-  // Тесты читают файлы ВНЕ этого проекта: уроки и RoadmapScreen.kt. Gradle о них не знает, поэтому
-  // без явного объявления входов правка урока или порядка уроков оставляет задачу UP-TO-DATE —
-  // и проверка на дрейф молча не запускается (проверено: ловила изменение только с --rerun-tasks).
-  // Тот же приём, что и в app/build.gradle.kts для каталога уроков.
+  // The tests read files OUTSIDE this project: the lessons and RoadmapLevels.kt. Gradle does not know about
+  // them, so without declaring the inputs explicitly, editing a lesson or the lesson order leaves the task
+  // UP-TO-DATE — and the drift check silently does not run (checked: it caught a change only with
+  // --rerun-tasks). The same trick as in app/build.gradle.kts for the lessons directory.
   inputs.dir(layout.projectDirectory.dir("../../app/src/main/assets/lessons"))
     .withPropertyName("lessonAssets")
     .withPathSensitivity(PathSensitivity.RELATIVE)
-  inputs.file(layout.projectDirectory.file("../../app/src/main/java/com/aiopenpocket/ui/roadmap/RoadmapScreen.kt"))
+  inputs.file(layout.projectDirectory.file("../../app/src/main/java/com/aiopenpocket/ui/roadmap/RoadmapLevels.kt"))
     .withPropertyName("roadmapSource")
     .withPathSensitivity(PathSensitivity.RELATIVE)
 }

@@ -9,8 +9,8 @@ import org.junit.Assume.assumeNotNull
 import org.junit.Test
 
 /**
- * Смысл вьюера как инструмента: если урок не разбирается или у него появился тип шага, которого
- * вьюер не знает, это должно падать здесь, а не выглядеть пустотой в окне.
+ * The point of the viewer as a tool: if a lesson does not parse, or it got a step type the viewer does
+ * not know, that must fail here rather than look like emptiness in the window.
  */
 class AllLessonsParseTest {
 

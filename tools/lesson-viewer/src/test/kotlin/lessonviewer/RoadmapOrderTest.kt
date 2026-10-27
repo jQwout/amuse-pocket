@@ -9,9 +9,9 @@ import org.junit.Test
 import java.io.File
 
 /**
- * [ROADMAP_ORDER] — копия списка из приложения, и копия обязана не разъезжаться. Тест читает
- * исходник `:app` как ТЕКСТ (не как зависимость сборки — вьюер по-прежнему ни от чего не зависит)
- * и сверяет порядок. Переставили или добавили урок в приложении — тест краснеет.
+ * [ROADMAP_ORDER] is a copy of the list from the app, and the copy must not drift. The test reads the
+ * `:app` source as TEXT (not as a build dependency — the viewer still depends on nothing) and compares
+ * the order. Reorder or add a lesson in the app — the test goes red.
  */
 class RoadmapOrderTest {
 
@@ -19,23 +19,23 @@ class RoadmapOrderTest {
     LessonsDir.resolve()
       // .../app/src/main/assets/lessons -> .../app
       ?.parentFile?.parentFile?.parentFile?.parentFile
-      ?.resolve("src/main/java/com/aiopenpocket/ui/roadmap/RoadmapScreen.kt")
+      ?.resolve("src/main/java/com/aiopenpocket/ui/roadmap/RoadmapLevels.kt")
       ?.takeIf { it.isFile }
 
   @Test
   fun `порядок уроков совпадает с ROADMAP_LEVELS приложения`() {
     val src = roadmapSource()
-    assumeTrue("исходник RoadmapScreen.kt не найден — тест пропущен", src != null)
+    assumeTrue("исходник RoadmapLevels.kt не найден — тест пропущен", src != null)
 
     val text = src!!.readText()
-    // Конструктор RoadmapLevel с id первым аргументом. Объявление data class сюда не попадает:
-    // там сразу после скобки идёт `val`, а не кавычка.
+    // The RoadmapLevel constructor with the id as the first argument. The data class declaration does not
+    // match: right after its parenthesis comes `val`, not a quote.
     val ids = Regex("""RoadmapLevel\(\s*"([a-z0-9_]+)"""")
       .findAll(text)
       .map { it.groupValues[1] }
       .toList()
 
-    assertTrue("в RoadmapScreen.kt не нашлось уровней — сломался разбор, а не порядок", ids.size >= 20)
+    assertTrue("в RoadmapLevels.kt не нашлось уровней — сломался разбор, а не порядок", ids.size >= 20)
     assertEquals(
       "порядок уроков разъехался с приложением — обнови ROADMAP_ORDER в LessonOrder.kt",
       ids,

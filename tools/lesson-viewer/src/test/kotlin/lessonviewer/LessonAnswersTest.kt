@@ -14,9 +14,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Единственная нетривиальная логика вьюера — и единственная, которая способна соврать: показать
- * не тот вариант как «правильный». Общее правило всех тестов ниже: битый ключ никогда не
- * превращается в «правильный — первый».
+ * The only non-trivial logic of the viewer — and the only one capable of lying: showing the wrong option
+ * as "correct". The general rule of all the tests below: a broken key never turns into "the first one is
+ * correct".
  */
 class LessonAnswersTest {
 
@@ -46,7 +46,7 @@ class LessonAnswersTest {
 
   @Test
   fun `sort раскладывает элементы по перестановке`() {
-    // Реальный шаг из agent_skills.json: correct = [1,2,0]
+    // A real step from agent_skills.json: correct = [1,2,0]
     val step = LessonStep(type = "sort", items = listOf("а", "б", "в"), correct = arr(1, 2, 0))
     assertEquals(listOf("б", "в", "а"), step.sortCorrectOrder())
   }

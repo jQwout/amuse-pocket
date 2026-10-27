@@ -21,7 +21,7 @@ import lessonviewer.ui.steps.SortStepView
 import lessonviewer.ui.steps.TextStepView
 import java.io.File
 
-/** Единственная точка входа рендера шага. Незнакомый тип — красная плашка, а не пропуск. */
+/** The single entry point for rendering a step. An unknown type is a red plate, not a skip. */
 @Composable
 fun StepCard(step: LessonStep, index: Int, assetsRoot: File?) {
   Card(Modifier.fillMaxWidth()) {

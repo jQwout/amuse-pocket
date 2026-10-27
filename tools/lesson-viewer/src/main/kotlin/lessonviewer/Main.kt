@@ -48,16 +48,16 @@ private fun ViewerRoot() {
   var reloadTick by remember { mutableStateOf(0) }
   var selectedName by remember { mutableStateOf<String?>(null) }
 
-  // reloadTick в ключе — этим и перечитываем: пересчитать список и заново разобрать файлы.
+  // reloadTick in the key is how we reload: recompute the list and parse the files again.
   val dir = remember(reloadTick) { LessonsDir.resolve() }
-  // Порядок — педагогический, как в приложении (ROADMAP_LEVELS), а не по имени файла.
+  // The order is pedagogical, as in the app (ROADMAP_LEVELS), not by file name.
   val lessons = remember(reloadTick, dir) {
     orderLessons(dir?.let { LessonLoader.loadAll(it) } ?: emptyList())
   }
-  // Выбор храним по имени файла, а не по объекту: после перечитывания объекты новые.
+  // The selection is kept by file name, not by object: after a reload the objects are new.
   val selected = lessons.firstOrNull { it.loaded.file.name == selectedName }?.loaded
-  // Пути картинок в уроках отсчитываются от app/src/main/assets, то есть на уровень выше
-  // каталога с самими уроками.
+  // Image paths in lessons are counted from app/src/main/assets, that is, one level above the
+  // directory with the lessons themselves.
   val assetsRoot = remember(dir) { dir?.parentFile }
 
   Column(Modifier.fillMaxSize()) {

@@ -3,21 +3,21 @@ package lessonviewer.io
 import java.io.File
 
 /**
- * Где лежат уроки. По умолчанию — относительно рабочего каталога процесса: при `gradlew -p
- * tools/lesson-viewer run` это сам `tools/lesson-viewer/`, поэтому два уровня вверх дают корень репо.
+ * Where the lessons are. By default relative to the process's working directory: with `gradlew -p
+ * tools/lesson-viewer run` that is `tools/lesson-viewer/` itself, so two levels up give the repo root.
  */
 object LessonsDir {
   const val PROPERTY = "lessons.dir"
   const val DEFAULT_RELATIVE = "../../app/src/main/assets/lessons"
 
-  /** Каталог с уроками, либо null — вызывающий показывает подсказку, а не падает. */
+  /** The directory with the lessons, or null — the caller shows a hint instead of crashing. */
   fun resolve(): File? {
     val override = System.getProperty(PROPERTY)
     val candidate = if (override.isNullOrBlank()) File(DEFAULT_RELATIVE) else File(override)
     return candidate.takeIf { it.isDirectory }?.absoluteFile
   }
 
-  /** Путь, который искали, — для сообщения об ошибке. */
+  /** The path that was searched — for the error message. */
   fun expectedPath(): String =
     (System.getProperty(PROPERTY)?.takeIf { it.isNotBlank() } ?: DEFAULT_RELATIVE)
       .let { File(it).absolutePath }

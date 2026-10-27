@@ -12,7 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
-/** Красная плашка: то, что в приложении молча превращается в пустоту, тут должно быть видно. */
+/** A red plate: what silently turns into nothing in the app must be visible here. */
 @Composable
 fun ErrorPlate(text: String) {
   Box(
@@ -25,7 +25,7 @@ fun ErrorPlate(text: String) {
   }
 }
 
-/** Номер шага и его тип — чтобы можно было назвать шаг вслух, сверяясь с приложением. */
+/** The step number and its type — so a step can be named out loud while checking against the app. */
 @Composable
 fun TypeBadge(type: String, index: Int) {
   Box(

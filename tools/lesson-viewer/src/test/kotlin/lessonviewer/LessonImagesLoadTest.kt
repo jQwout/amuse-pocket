@@ -11,9 +11,9 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Риск 10.2 спеки: картинки уроков рисовались под Coil в приложении, а вьюер грузит их
- * штатным loadSvgPainter. Проверяем машиной, а не глазами: каждая картинка, на которую
- * ссылается шаг "image", должна существовать и разбираться.
+ * Risk 10.2 of the spec: the lesson images were drawn for Coil in the app, while the viewer loads them with
+ * the standard loadSvgPainter. We check by machine, not by eye: every image an "image" step refers to
+ * must exist and parse.
  */
 class LessonImagesLoadTest {
 

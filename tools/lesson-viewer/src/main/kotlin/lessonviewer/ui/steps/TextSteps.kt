@@ -10,7 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import lessonviewer.model.LessonStep
 
-/** text и служебные шаги онбординга (profile/persona/language), а также ещё не живые input/challenge. */
+/** text and the onboarding service steps (profile/persona/language), plus the not-yet-live input/challenge. */
 @Composable
 fun TextStepView(step: LessonStep) {
   Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
