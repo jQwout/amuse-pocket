@@ -55,7 +55,11 @@ data class OnboardingUiState(
     OnboardingStep.PROFILE -> aboutMeText.isNotBlank() && !isExtracting && !isSaving
   }
 
-  val primaryButtonLabel: String = when (currentStep) {
+  // A getter, not a stored value: the state is rebuilt by copy() when the language is chosen, and that happens
+  // BEFORE AppLanguage.code changes (the choice is saved asynchronously). A value computed there kept the old
+  // language: the heading switched to English, the button stayed "Далее". Read at composition time, tr() also
+  // makes the screen follow the language by itself.
+  val primaryButtonLabel: String get() = when (currentStep) {
     OnboardingStep.LANGUAGE, OnboardingStep.INTRO -> tr("Далее", "Next")
     // PROFILE is the last step now: this button also finishes the setup.
     OnboardingStep.PROFILE -> tr("Готово", "Done")
