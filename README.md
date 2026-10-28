@@ -34,6 +34,9 @@ for your yes.
   saw and what it is unsure about.
 - **Muse Image** — illustrates the course (generated ahead of time and bundled, so lessons work
   offline) and redraws a lesson scene around the learner on request.
+- **SAM 3.1** — in the same lesson you name one thing in a photo (yours or a bundled example) and SAM
+  outlines every instance of it. It is available only on Meta Model API, so this step needs a Meta key;
+  without one the lesson says so and lets you skip ahead.
 
 There are two routes to the same models:
 
@@ -110,3 +113,17 @@ code that changed since its reason was last confirmed.
 Kotlin, Jetpack Compose, Metro DI, Ktor (SSE streaming), Room, WorkManager, Coil. Tests: JUnit,
 Robolectric and Roborazzi screenshot tests; `.github/workflows/android.yml` builds the app and runs
 them.
+
+## How it was built
+
+`orchestrator/` holds the working notes of the agent that coordinated the work: the acceptance criteria
+(`CRITERIA.md`), the roadmap, and a journal of every cycle, including what was checked on a device and
+what was not. `python tools/check.py` grades the project against those criteria in one command.
+
+Before publication the history was rewritten once to drop an old build artifact. Commit hashes quoted
+inside `orchestrator/` refer to the earlier private history; `orchestrator/COMMIT_MAP.txt` maps each of
+them to its commit here.
+
+## License
+
+[MIT](LICENSE).
