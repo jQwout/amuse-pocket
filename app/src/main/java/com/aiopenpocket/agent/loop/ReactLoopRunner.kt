@@ -2,6 +2,7 @@ package com.aiopenpocket.agent.loop
 
 // @trace streaming-llm-chat-6595a1
 // @trace user-agent-builder-848153
+// @trace approval-outcome-honesty-554a8c
 
 import com.aiopenpocket.agent.core.AgentLog
 import com.aiopenpocket.agent.core.agent.AgentDefinition
@@ -21,6 +22,8 @@ import com.aiopenpocket.agent.core.mcp.ToolExecutor
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
+import com.aiopenpocket.agent.core.policy.ApprovalOutcome
+import com.aiopenpocket.agent.core.policy.ApprovalResultText
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.agent.core.policy.ExecutionPolicy
 import com.aiopenpocket.agent.core.policy.PolicyDecision
@@ -80,7 +83,7 @@ class ReactLoopRunner(
   // No default value ON PURPOSE: `= ToolApprovalCoordinator()` would create a private instance if DI
   // ever failed to supply the shared singleton — then the UI would resolve approvals in one object
   // while the loop waited on another. The failure would be quiet, not loud: every confirmation
-  // request would just hang until its two-minute timeout and turn into a deny. Better that it does
+  // request would just hang until its timeout and come back unanswered. Better that it does
   // not compile.
   private val toolApprovalCoordinator: ToolApprovalCoordinator,
 ) {
@@ -438,14 +441,16 @@ class ReactLoopRunner(
    * non-interactive run ([interactiveApproval] false — a background heartbeat or plan step, no screen
    * could ever answer) denies immediately without ever registering with [toolApprovalCoordinator] —
    * no point publishing a request nobody will see and paying its timeout for nothing. Otherwise emits
-   * [AgentEvent.ToolApprovalRequired] (so the chat UI can show a modal/bar) and suspends on the
-   * coordinator; the coordinator's own two-minute timeout resolves to a deny, and "Stop" cancels this
-   * coroutine (the coordinator's `finally` cleans up) — never a hang, never a silent execute.
+   * [AgentEvent.ToolApprovalRequired] (so the chat UI can show a modal/bar, and [TurnManager] can push
+   * a notification if the app is not on screen) and suspends on the coordinator; the coordinator's own
+   * timeout ends the wait as [ApprovalOutcome.UNANSWERED], and "Stop" cancels this coroutine (the
+   * coordinator's `finally` cleans up) — never a hang, never a silent execute.
    *
-   * The app going to the background does NOT deny the request: the turn keeps living in TurnManager,
-   * and a user who comes back within a minute can still tap "Allow". There is no separate "went to
-   * the background" signal in the app that would call [ToolApprovalCoordinator.denyAllPending]
-   * (ForegroundState is only polled for the push) — this KDoc used to promise the opposite.
+   * The three outcomes map to three different results, and that is the point of this function: a
+   * timeout is NOT a denial, and the model is told so in words that contain no notion of refusal at
+   * all (see [ApprovalResultText]). The app going to the background does not resolve the request
+   * either: the turn keeps living in [TurnManager], which pushes "the agent needs your permission" so
+   * there is something to come back to.
    *
    * Approval lifts the hook's question but does not cancel the preview: in [ExecutionMode.PREVIEW]
    * everything except reading is still only simulated after "Allow" — otherwise testing an agent draft
@@ -466,22 +471,20 @@ class ReactLoopRunner(
       )
     }
     emit(AgentEvent.ToolApprovalRequired(request))
-    val approved = toolApprovalCoordinator.awaitApproval(request)
-    return if (approved) {
-      if (executionMode == ExecutionMode.PREVIEW && request.riskClass != RiskClass.READ) {
-        ToolResult.Success(simulatedResultJson(request.toolName, request.arguments), simulated = true)
-      } else {
-        toolExecutor.execute(request.toolName, request.arguments)
-      }
-    } else {
-      // Bare "was not approved" read to the model like a missing Android permission: after "Decline"
-      // it told the user to enable mail in Settings. Spell out that this was the user's choice.
-      ToolResult.Error(
-        "The user did not approve '${request.toolName}' in the chat (declined it or did not answer in time). " +
-          "This is the user's decision, not a missing permission or setting: do not suggest enabling anything " +
-          "and do not call it again this turn. Say briefly that it was not done; offer to do it if they ask again.",
-        recoverable = true,
-      )
+    // Three outcomes, not a Boolean, and a separate text for each — the model cannot be more precise
+    // than the fact it is given. A bare "was not approved" first read to it like a missing Android
+    // permission (after "Decline" it told the user to enable mail in Settings); the fix spelled out
+    // "declined it or did not answer in time", and the model resolved that "or" against the user:
+    // a request that expired while the app was minimized came back as "Not sent — declined in chat."
+    return when (toolApprovalCoordinator.awaitApproval(request)) {
+      ApprovalOutcome.APPROVED ->
+        if (executionMode == ExecutionMode.PREVIEW && request.riskClass != RiskClass.READ) {
+          ToolResult.Success(simulatedResultJson(request.toolName, request.arguments), simulated = true)
+        } else {
+          toolExecutor.execute(request.toolName, request.arguments)
+        }
+      ApprovalOutcome.DECLINED -> ToolResult.Error(ApprovalResultText.declined(request.toolName), recoverable = true)
+      ApprovalOutcome.UNANSWERED -> ToolResult.Error(ApprovalResultText.unanswered(request.toolName), recoverable = true)
     }
   }
 
