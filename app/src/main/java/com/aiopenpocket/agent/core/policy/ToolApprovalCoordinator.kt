@@ -1,6 +1,7 @@
 package com.aiopenpocket.agent.core.policy
 
 // @trace user-agent-builder-848153
+// @trace approval-outcome-honesty-554a8c
 
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
@@ -20,27 +21,31 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * Backed by a plain [ConcurrentHashMap] rather than a `Mutex` on purpose: every mutating operation here
  * (register/complete/remove) is a single atomic map op or a [MutableStateFlow.update] (itself a
- * lock-free CAS loop), so [resolve]/[denyAllPending]/[cancelRun] can all stay ordinary, non-suspending
- * functions callable from anywhere (a ViewModel intent handler, a future lifecycle callback) without
- * needing a `CoroutineScope` of their own.
+ * lock-free CAS loop), so [resolve]/[abandonAllPending]/[cancelRun] can all stay ordinary,
+ * non-suspending functions callable from anywhere (a ViewModel intent handler, a future lifecycle
+ * callback) without needing a `CoroutineScope` of their own.
  *
- * "Approval without an answer = deny" (never a hang, never an exception) is enforced by
- * [awaitApproval]'s own [timeoutMs] — the turn asked, nobody answered, move on. A cancelled ENCLOSING
- * run (TurnManager `cancel()`, "Stop") needs nothing extra: cancelling the coroutine that is suspended
- * inside [awaitApproval] throws [kotlinx.coroutines.CancellationException] through it as normal
- * structured-concurrency teardown — the `finally` below still runs and removes the bookkeeping, it just
- * doesn't force a `false` value into a deferred nobody will read.
+ * "No answer is never a hang and never an exception" is enforced by [awaitApproval]'s own [timeoutMs] —
+ * the turn asked, nobody answered, move on. But "nobody answered" is reported as
+ * [ApprovalOutcome.UNANSWERED], NOT as a denial: this function used to return a bare `Boolean`, the
+ * timeout and the "Decline" button both came back `false`, and the model — handed one text covering
+ * both — told the user "declined in chat" about a card they had never seen (see [ApprovalOutcome]).
+ * A cancelled ENCLOSING run (TurnManager `cancel()`, "Stop") needs nothing extra: cancelling the
+ * coroutine that is suspended inside [awaitApproval] throws
+ * [kotlinx.coroutines.CancellationException] through it as normal structured-concurrency teardown —
+ * the `finally` below still runs and removes the bookkeeping, it just doesn't force a value into a
+ * deferred nobody will read.
  *
- * [denyAllPending]/[cancelRun] are ready-made "deny everything at once" levers, but nothing in
- * production calls them today (only tests): there is no "the app went to the background" signal, and
- * going to the background should not deny a request anyway — the turn keeps living, and the user can
- * come back and answer before the timeout.
+ * [abandonAllPending]/[cancelRun] are ready-made "stop waiting on everything at once" levers, but
+ * nothing in production calls them today (only tests): going to the background must NOT resolve a
+ * request — the turn keeps living, a push now tells the user it is waiting
+ * ([com.aiopenpocket.agent.loop.TurnManager]), and they can come back and answer.
  */
 @SingleIn(AppScope::class)
 @Inject
 class ToolApprovalCoordinator() {
 
-  private class Entry(val request: ToolApprovalRequest, val deferred: CompletableDeferred<Boolean>)
+  private class Entry(val request: ToolApprovalRequest, val deferred: CompletableDeferred<ApprovalOutcome>)
 
   private val byRequestId = ConcurrentHashMap<String, Entry>()
 
@@ -51,20 +56,26 @@ class ToolApprovalCoordinator() {
 
   /**
    * Registers [request] into [pending] and suspends until [resolve] completes it, [timeoutMs] elapses,
-   * or [denyAllPending]/[cancelRun] force it — all of those (and a plain miss) resolve to `false`, this
-   * function never throws for "no approval arrived" (only real coroutine cancellation propagates, see
-   * class doc). Always removes [request] from [pending] again, on every exit path.
+   * or [abandonAllPending]/[cancelRun] force it. [ApprovalOutcome.DECLINED] comes ONLY from a
+   * [resolve] with `approved = false`, i.e. from a person who pressed the button; every other way of
+   * not getting a "yes" — the timeout, a forced teardown, a plain miss — is
+   * [ApprovalOutcome.UNANSWERED]. This function never throws for "no approval arrived" (only real
+   * coroutine cancellation propagates, see class doc). Always removes [request] from [pending] again,
+   * on every exit path.
    */
-  suspend fun awaitApproval(request: ToolApprovalRequest, timeoutMs: Long = DEFAULT_TIMEOUT_MS): Boolean {
-    val deferred = CompletableDeferred<Boolean>()
+  suspend fun awaitApproval(request: ToolApprovalRequest, timeoutMs: Long = DEFAULT_TIMEOUT_MS): ApprovalOutcome {
+    val deferred = CompletableDeferred<ApprovalOutcome>()
     byRequestId[request.requestId] = Entry(request, deferred)
     pendingFlow.update { it + request }
     return try {
-      withTimeoutOrNull(timeoutMs) { deferred.await() } ?: false
+      withTimeoutOrNull(timeoutMs) { deferred.await() } ?: ApprovalOutcome.UNANSWERED
     } finally {
       remove(request.requestId)
     }
   }
+
+  /** Is [requestId] still waiting for an answer right now? The "should we nudge the user?" question, asked from outside the suspended turn (see [com.aiopenpocket.agent.loop.PendingApprovals]). */
+  fun isPending(requestId: String): Boolean = byRequestId.containsKey(requestId)
 
   /**
    * The user's decision for one pending [requestId]. [runId] must match the run that created the
@@ -75,19 +86,27 @@ class ToolApprovalCoordinator() {
   fun resolve(runId: String, requestId: String, approved: Boolean): Boolean {
     val entry = byRequestId[requestId] ?: return false
     if (entry.request.runId != runId) return false
-    val completed = entry.deferred.complete(approved)
+    val completed = entry.deferred.complete(
+      if (approved) ApprovalOutcome.APPROVED else ApprovalOutcome.DECLINED,
+    )
     remove(requestId)
     return completed
   }
 
-  /** Every request for [runId] resolves to deny — for a caller that tears a run down without cancelling its coroutine (no production caller today, see class doc). */
+  /** Every request for [runId] stops waiting as [ApprovalOutcome.UNANSWERED] — for a caller that tears a run down without cancelling its coroutine (no production caller today, see class doc). */
   fun cancelRun(runId: String) {
-    byRequestId.values.filter { it.request.runId == runId }.forEach { it.deferred.complete(false) }
+    byRequestId.values.filter { it.request.runId == runId }
+      .forEach { it.deferred.complete(ApprovalOutcome.UNANSWERED) }
   }
 
-  /** Every currently pending request, from any run, resolves to deny (no production caller today, see class doc). */
-  fun denyAllPending() {
-    byRequestId.values.toList().forEach { it.deferred.complete(false) }
+  /**
+   * Every currently pending request, from any run, stops waiting as [ApprovalOutcome.UNANSWERED] (no
+   * production caller today, see class doc). Named "abandon", not "deny": whatever makes the app give
+   * up on a request, it is not the user saying no, and a lever named after a denial is an invitation
+   * to report one.
+   */
+  fun abandonAllPending() {
+    byRequestId.values.toList().forEach { it.deferred.complete(ApprovalOutcome.UNANSWERED) }
   }
 
   private fun remove(requestId: String) {
@@ -96,7 +115,18 @@ class ToolApprovalCoordinator() {
   }
 
   companion object {
-    /** Nobody answered in two minutes — treat it the same as an explicit deny (recoverable, the model can just ask again). */
-    const val DEFAULT_TIMEOUT_MS = 120_000L
+    /**
+     * How long a request waits for a human before the turn gives up on it as
+     * [ApprovalOutcome.UNANSWERED]. Ten minutes, raised from two on 28 Oct 2026: two minutes was sized
+     * for someone looking at the chat, and the whole point of the push is that they are not — a person
+     * who hears a notification may be in another room, and a window that expires before they reach the
+     * phone turns the confirmation into theatre. It still has to end: a turn holds the conversation
+     * (the next message cancels it) and a model's context while it waits. Ten minutes is far past any
+     * real "coming, one second" and nowhere near forever. In a backgrounded app something shorter
+     * usually bites first — the `shortService` protection lasts about three minutes, after which the
+     * turn fails with "Retry" — and that is fine: a turn the system stopped is an honest answer, while
+     * a refusal the user never made is not.
+     */
+    const val DEFAULT_TIMEOUT_MS = 600_000L
   }
 }
