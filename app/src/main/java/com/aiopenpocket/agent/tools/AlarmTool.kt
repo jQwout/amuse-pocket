@@ -14,6 +14,7 @@ import com.aiopenpocket.agent.core.mcp.string
 import com.aiopenpocket.agent.core.mcp.toolSchema
 import com.aiopenpocket.agent.loop.ForegroundState
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.i18n.tr
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import kotlinx.serialization.json.JsonElement
@@ -57,8 +58,8 @@ class AlarmTool(
         intent = Intent(AlarmClock.ACTION_SHOW_ALARMS),
         what = "список будильников",
         opened = "Открыт список будильников.",
-        notificationTitle = "Будильники",
-        notificationText = "Нажми, чтобы открыть «Часы».",
+        notificationTitle = tr("Будильники", "Alarms"),
+        notificationText = tr("Нажми, чтобы открыть «Часы».", "Tap to open the Clock app."),
       )
       else -> ToolResult.Error("Unknown action: $action")
     }
@@ -82,8 +83,8 @@ class AlarmTool(
       intent = intent,
       what = "будильник на $time",
       opened = "Будильник на $time открыт в приложении часов.",
-      notificationTitle = "Будильник на $time",
-      notificationText = "Нажми, чтобы поставить его в «Часах».",
+      notificationTitle = tr("Будильник на $time", "Alarm for $time"),
+      notificationText = tr("Нажми, чтобы поставить его в «Часах».", "Tap to set it in the Clock app."),
     )
   }
 
@@ -91,6 +92,11 @@ class AlarmTool(
    * On screen it opens Clock right away. In the background Android will not allow the launch (see
    * [launchExternalActivity]), so it shows a notification, and the model is told plainly that the
    * alarm is NOT set yet: the tool used to report success in this case while there was no alarm.
+   *
+   * Who reads what: [notificationTitle] and [notificationText] end up in setContentTitle/setContentText,
+   * so a PERSON reads them and the callers pass them through [tr]. [what] and [opened], and every
+   * ToolResult text below, are addressed to the MODEL and stay Russian on purpose (AGENTS.md) — they
+   * are not shown anywhere.
    */
   private fun launch(
     intent: Intent,

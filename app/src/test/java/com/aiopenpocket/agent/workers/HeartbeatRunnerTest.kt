@@ -338,8 +338,11 @@ class HeartbeatRunnerTest {
     val runner = runner(emptyList())
     assertEquals(FireOutcome.DONE, runner.handleFire("hb1", attempt = 0))
     assertEquals("fired", db.heartbeatDao().getById("hb1")?.status)
-    // The push went out through the shared notifier, with the reminder's title and a deep link into its conversation.
-    assertEquals("T", notifier.calls.single().title)
+    // The push went out through the shared notifier, with a deep link into its conversation. The
+    // heading says what this is and the body what to remember (see reminderPushBody) — it used to pass
+    // the reminder's own title as the heading, and the shade showed the same sentence twice.
+    assertEquals("Напоминание", notifier.calls.single().title)
+    assertEquals("T — msg", notifier.calls.single().preview)
     assertEquals("conv1", notifier.calls.single().conversationId)
   }
 
