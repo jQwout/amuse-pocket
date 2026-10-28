@@ -804,24 +804,13 @@ fun ChatScreen(
                         // (the planner fails without one), so a plain chat gets only Chat/Reflection, while a
                         // chat bound to a mini-agent gets the full set. The selector is hidden in guided lessons.
                         if (!state.isTutorial) {
-                            // The selector used to sit WITHOUT a backing right on top of the feed: messages showed through
-                            // "Chat"/"Reflection", and the text mixed with the chips until it was unreadable.
-                            // It gets the same slab as the rest of the bottom chrome.
-                            val modeShape = RoundedCornerShape(24.dp)
-                            GlassSurface(
-                                state = glassState,
-                                shape = modeShape,
-                                modifier = Modifier
-                                    .padding(horizontal = 12.dp)
-                                    .padding(bottom = 6.dp),
-                            ) {
-                                ModeSelector(
-                                    selected = state.agentMode,
-                                    enabled = !state.isLoading,
-                                    available = availableModesFor(state.agent),
-                                    onSelect = { viewModel.handleIntent(ChatIntent.SetMode(it)) },
-                                )
-                            }
+                            ChatModeSelectorBar(
+                                glassState = glassState,
+                                selected = state.agentMode,
+                                enabled = !state.isLoading,
+                                available = availableModesFor(state.agent),
+                                onSelect = { viewModel.handleIntent(ChatIntent.SetMode(it)) },
+                            )
                         }
                         // While recording, the input field is replaced by a recording panel (as in Telegram/Claude): cancel on
                         // the left, status/timer/waveform/live text in the middle, finish on the right. The
@@ -985,6 +974,31 @@ fun ChatScreen(
     }
 }
 
+
+/**
+ * The mode chips on their plate. The selector used to sit WITHOUT a backing right on top of the feed: messages
+ * showed through "Chat"/"Reflection", and the text mixed with the chips until it was unreadable. It gets the
+ * same slab as the rest of the bottom chrome. Its own composable so the preview frame draws this one rather than
+ * a bare selector — the preview had drifted to exactly that.
+ */
+@Composable
+internal fun ChatModeSelectorBar(
+    glassState: GlassState,
+    selected: AgentMode,
+    enabled: Boolean,
+    available: List<AgentMode>,
+    onSelect: (AgentMode) -> Unit,
+) {
+    GlassSurface(
+        state = glassState,
+        shape = RoundedCornerShape(24.dp),
+        modifier = Modifier
+            .padding(horizontal = 12.dp)
+            .padding(bottom = 6.dp),
+    ) {
+        ModeSelector(selected = selected, enabled = enabled, available = available, onSelect = onSelect)
+    }
+}
 
 /**
  * A red line under the feed; with [onRetry] it also carries the "Retry" button of the failed turn.

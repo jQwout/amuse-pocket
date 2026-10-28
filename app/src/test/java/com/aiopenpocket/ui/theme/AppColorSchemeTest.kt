@@ -37,14 +37,55 @@ class AppColorSchemeTest {
     "onTertiaryContainer" to onTertiaryContainer,
   )
 
+  /**
+   * The surfaces dialogs, menus and bottom sheets are drawn on. Material's own are faintly violet
+   * (#2B2930 for surfaceContainerHigh), and two dialogs on the demo path — the builder's "Turn on Email?"
+   * and deleting a chat — sat on exactly that.
+   */
+  private fun ColorScheme.containerRoles(): Map<String, Color> = mapOf(
+    "surfaceContainerLowest" to surfaceContainerLowest,
+    "surfaceContainerLow" to surfaceContainerLow,
+    "surfaceContainer" to surfaceContainer,
+    "surfaceContainerHigh" to surfaceContainerHigh,
+    "surfaceContainerHighest" to surfaceContainerHighest,
+    "surfaceDim" to surfaceDim,
+    "surfaceBright" to surfaceBright,
+    "inverseSurface" to inverseSurface,
+    "inverseOnSurface" to inverseOnSurface,
+    "inversePrimary" to inversePrimary,
+  )
+
   @Test
   fun dark_scheme_has_no_purple_accent() = assertNoPurple("dark", AppDarkColors)
 
   @Test
   fun light_scheme_has_no_purple_accent() = assertNoPurple("light", AppLightColors)
 
-  private fun assertNoPurple(scheme: String, colors: ColorScheme) {
-    val purple = colors.accentRoles().filter { (_, color) -> color.blue > color.green }
+  @Test
+  fun dark_scheme_has_no_purple_container() = assertNoPurple("dark", AppDarkColors, AppDarkColors.containerRoles())
+
+  @Test
+  fun light_scheme_has_no_purple_container() = assertNoPurple("light", AppLightColors, AppLightColors.containerRoles())
+
+  /** The ladder must stay a ladder: each step lighter (dark theme) or darker (light theme) than the last. */
+  @Test
+  fun container_ladder_climbs_in_both_themes() {
+    fun ladder(c: ColorScheme) = listOf(
+      c.surfaceContainerLowest, c.surfaceContainerLow, c.surfaceContainer, c.surfaceContainerHigh,
+      c.surfaceContainerHighest,
+    ).map(::luminance)
+    val dark = ladder(AppDarkColors)
+    val light = ladder(AppLightColors)
+    assertTrue("dark ladder must get lighter step by step: $dark", dark.zipWithNext().all { (a, b) -> b > a })
+    assertTrue("light ladder must get darker step by step: $light", light.zipWithNext().all { (a, b) -> b < a })
+  }
+
+  private fun assertNoPurple(
+    scheme: String,
+    colors: ColorScheme,
+    roles: Map<String, Color> = colors.accentRoles(),
+  ) {
+    val purple = roles.filter { (_, color) -> color.blue > color.green }
     assertTrue(
       "$scheme scheme: ${purple.keys} are purple — a role left unset falls back to Material's own, " +
         "which is outside the lime/olive palette. Spell it out in Theme.kt.",
