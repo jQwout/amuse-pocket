@@ -69,7 +69,6 @@ import com.aiopenpocket.agent.core.memory.model.Message
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.ui.chat.components.ChatInput
 import com.aiopenpocket.ui.chat.components.MessageBubble
-import com.aiopenpocket.ui.chat.components.ModeSelector
 import com.aiopenpocket.ui.chat.components.ResponseStatsBar
 import com.aiopenpocket.ui.components.glass.auroraBackground
 import com.aiopenpocket.ui.components.glass.glassSource
@@ -252,7 +251,10 @@ internal fun ChatPreviewScaffold(
                         ChatErrorLine(text = error, onRetry = {}, glassState = glassState)
                     }
                     if (showInput) {
-                        ModeSelector(
+                        // The production bar (chips on their plate), not a bare ModeSelector: the bare one hid that
+                        // the selector's backing existed at all.
+                        ChatModeSelectorBar(
+                            glassState = glassState,
                             selected = AgentMode.CHAT,
                             enabled = true,
                             available = listOf(AgentMode.CHAT, AgentMode.PLAN, AgentMode.GOAL, AgentMode.REFLECT),

@@ -47,6 +47,19 @@ val AppDarkColors =
     onSurfaceVariant = InkTextSub,
     outline = InkOutline,
     outlineVariant = Color(0x14FFFFFF),
+    // The container ladder. Dialogs (the builder's "Turn on Email? · Leaves the device", deleting a chat),
+    // menus and bottom sheets are drawn on these, and Material's own ladder has a violet cast (#2B2930 for
+    // High). Plain ink greys instead, each step a little lighter than the one before.
+    surfaceContainerLowest = Color(0xFF0D0D0D),
+    surfaceContainerLow = Color(0xFF161616),
+    surfaceContainer = Color(0xFF1A1A1A),
+    surfaceContainerHigh = Color(0xFF212121),
+    surfaceContainerHighest = Color(0xFF282828),
+    surfaceDim = InkBg,
+    surfaceBright = Color(0xFF2E2E2E),
+    inverseSurface = InkText,
+    inverseOnSurface = Color(0xFF1A1A1A),
+    inversePrimary = OliveAccent,
     // error/onError are Material 3 defaults.
   )
 
@@ -73,6 +86,17 @@ val AppLightColors =
     onSurfaceVariant = PaperTextSub,
     outline = PaperOutline,
     outlineVariant = Color(0x14000000),
+    // The container ladder in paper: each step a little darker than the one before (see AppDarkColors).
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF7F7F3),
+    surfaceContainer = Color(0xFFF2F2ED),
+    surfaceContainerHigh = Color(0xFFECECE6),
+    surfaceContainerHighest = Color(0xFFE6E6DF),
+    surfaceDim = Color(0xFFE0E0DA),
+    surfaceBright = PaperBg,
+    inverseSurface = Color(0xFF2B2B28),
+    inverseOnSurface = Color(0xFFF2F2ED),
+    inversePrimary = LimeSignal,
     // error/onError are Material 3 defaults.
   )
 
