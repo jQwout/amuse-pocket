@@ -719,11 +719,12 @@ fun ChatScreen(
                     ChatErrorLine(
                         text = state.error!!,
                         onRetry = if (state.canRetry) ({ viewModel.handleIntent(ChatIntent.RetryRequest) }) else null,
+                        glassState = glassState,
                     )
                 }
                 // The lesson step's own problem (no Meta key, an unreadable clip): a line of its own, with no "Retry"
                 // (the step's card has its own buttons), and it leaves with the step, not with the turn's error.
-                state.lessonStepProblem?.let { ChatErrorLine(text = it, onRetry = null) }
+                state.lessonStepProblem?.let { ChatErrorLine(text = it, onRetry = null, glassState = glassState) }
 
                 // A recognition error is a soft self-dismissing hint, not a hanging error banner.
                 val voiceError = state.voiceError
@@ -803,24 +804,13 @@ fun ChatScreen(
                         // (the planner fails without one), so a plain chat gets only Chat/Reflection, while a
                         // chat bound to a mini-agent gets the full set. The selector is hidden in guided lessons.
                         if (!state.isTutorial) {
-                            // The selector used to sit WITHOUT a backing right on top of the feed: messages showed through
-                            // "Chat"/"Reflection", and the text mixed with the chips until it was unreadable.
-                            // It gets the same slab as the rest of the bottom chrome.
-                            val modeShape = RoundedCornerShape(24.dp)
-                            GlassSurface(
-                                state = glassState,
-                                shape = modeShape,
-                                modifier = Modifier
-                                    .padding(horizontal = 12.dp)
-                                    .padding(bottom = 6.dp),
-                            ) {
-                                ModeSelector(
-                                    selected = state.agentMode,
-                                    enabled = !state.isLoading,
-                                    available = availableModesFor(state.agent),
-                                    onSelect = { viewModel.handleIntent(ChatIntent.SetMode(it)) },
-                                )
-                            }
+                            ChatModeSelectorBar(
+                                glassState = glassState,
+                                selected = state.agentMode,
+                                enabled = !state.isLoading,
+                                available = availableModesFor(state.agent),
+                                onSelect = { viewModel.handleIntent(ChatIntent.SetMode(it)) },
+                            )
                         }
                         // While recording, the input field is replaced by a recording panel (as in Telegram/Claude): cancel on
                         // the left, status/timer/waveform/live text in the middle, finish on the right. The
@@ -985,29 +975,72 @@ fun ChatScreen(
 }
 
 
-/** A red line under the feed; with [onRetry] it also carries the "Retry" button of the failed turn. */
+/**
+ * The mode chips on their plate. The selector used to sit WITHOUT a backing right on top of the feed: messages
+ * showed through "Chat"/"Reflection", and the text mixed with the chips until it was unreadable. It gets the
+ * same slab as the rest of the bottom chrome. Its own composable so the preview frame draws this one rather than
+ * a bare selector — the preview had drifted to exactly that.
+ */
 @Composable
-private fun ChatErrorLine(text: String, onRetry: (() -> Unit)?) {
-    Row(
+internal fun ChatModeSelectorBar(
+    glassState: GlassState,
+    selected: AgentMode,
+    enabled: Boolean,
+    available: List<AgentMode>,
+    onSelect: (AgentMode) -> Unit,
+) {
+    GlassSurface(
+        state = glassState,
+        shape = RoundedCornerShape(24.dp),
+        modifier = Modifier
+            .padding(horizontal = 12.dp)
+            .padding(bottom = 6.dp),
+    ) {
+        ModeSelector(selected = selected, enabled = enabled, available = available, onSelect = onSelect)
+    }
+}
+
+/**
+ * A red line under the feed; with [onRetry] it also carries the "Retry" button of the failed turn.
+ *
+ * It sits on the same floating plate as its neighbours in this Column (the mode selector, the approval bar,
+ * the input). It used to be a bare Row with no surface at all, and it is the only bottom bar that is: the
+ * feed scrolls UNDER the bottom chrome, so with nothing behind it the red text landed on top of whatever
+ * happened to be there — a paragraph of the lesson «Как модель видит», or the card's own "Show an example"
+ * and "Take my own" buttons — and both became unreadable at once. The plate is the fix; the growth of the
+ * bottom chrome is a different problem and already handled by [FollowBottomBarGrowth].
+ */
+@Composable
+internal fun ChatErrorLine(text: String, onRetry: (() -> Unit)?, glassState: GlassState) {
+    GlassSurface(
+        state = glassState,
+        shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .testTag("chat_error_line"),
     ) {
-        Text(
-            text = text,
-            color = MaterialTheme.colorScheme.error,
-            modifier = Modifier.weight(1f),
-        )
-        if (onRetry != null) {
-            TextButton(onClick = onRetry) {
-                Icon(
-                    imageVector = Icons.Default.Refresh,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.size(4.dp))
-                Text(tr("Повторить", "Retry"))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = text,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.weight(1f),
+            )
+            if (onRetry != null) {
+                TextButton(onClick = onRetry) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.size(4.dp))
+                    Text(tr("Повторить", "Retry"))
+                }
             }
         }
     }
