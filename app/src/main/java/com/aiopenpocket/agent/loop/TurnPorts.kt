@@ -72,7 +72,15 @@ fun interface TurnNotifier {
    * confirmation bar is.
    */
   fun approvalNeeded(conversationId: String, conversationTitle: String?, action: String) =
-    turnFinished(conversationId, conversationTitle, tr("Агенту нужно разрешение: $action. Открой чат, чтобы ответить.", "The agent needs your permission: $action. Open the chat to answer."), false)
+    turnFinished(
+      conversationId,
+      // Its own fallback, not turnFinished's "The agent replied": a chat gets its title only after its
+      // first turn, so a brand-new chat — exactly "new chat → email Masha" — has none yet, and the push
+      // asking for permission came titled as if the agent had already answered.
+      conversationTitle ?: tr("Нужно разрешение", "Permission needed"),
+      tr("Агенту нужно разрешение: $action. Открой чат, чтобы ответить.", "The agent needs your permission: $action. Open the chat to answer."),
+      false,
+    )
 }
 
 /**
