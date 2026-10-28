@@ -48,14 +48,27 @@ fun interface ForegroundState {
   fun isInForeground(): Boolean
 }
 
+/**
+ * Is this tool-approval request still waiting for an answer? Bound to
+ * [com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator.isPending] in `TurnModule`, and a port
+ * rather than the coordinator itself for the same reason as [ForegroundState]/[TurnNotifier]:
+ * [TurnManager] stays testable without the policy machinery.
+ *
+ * It exists because the foreground check for the "needs permission" push cannot be a single shot at
+ * the moment the request appears — see [TurnManager]'s own comment on that branch.
+ */
+fun interface PendingApprovals {
+  fun isPending(requestId: String): Boolean
+}
+
 /** Shows the "the turn finished while the app was in the background" notification. */
 fun interface TurnNotifier {
   fun turnFinished(conversationId: String, conversationTitle: String?, preview: String, failed: Boolean)
 
   /**
    * The agent needs permission while the app is minimized. Deleting and sending anything outside
-   * always wait for "Allow", and without a push the request would silently expire as a denial after
-   * two minutes. By default it is the same turn push, leading to the chat: that is where the
+   * always wait for "Allow", and without a push the request just expires with nothing done and
+   * nobody asked. By default it is the same turn push, leading to the chat: that is where the
    * confirmation bar is.
    */
   fun approvalNeeded(conversationId: String, conversationTitle: String?, action: String) =

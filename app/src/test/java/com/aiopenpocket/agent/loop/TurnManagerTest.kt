@@ -2,11 +2,14 @@ package com.aiopenpocket.agent.loop
 
 // @trace user-agent-builder-848153
 // @trace structured-plan-engine-907066
+// @trace approval-outcome-honesty-554a8c
 
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.mcp.CapabilityNames
+import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
 import com.aiopenpocket.agent.core.policy.ExecutionMode
+import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -18,8 +21,11 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -135,6 +141,12 @@ class TurnManagerTest {
   private val lifeSupport = FakeLifeSupport()
   private var inForeground = true
 
+  /**
+   * Request ids the coordinator would still call pending. A mutable set, not a constant `true`: the
+   * push must stop nudging about a request the user has already answered.
+   */
+  private val pendingApprovalIds = mutableSetOf<String>()
+
   /** What is "chosen in Settings" at the time of the turn: the test changes it between turns. */
   private var selectedProvider = LlmProvider.OPENROUTER
 
@@ -146,6 +158,7 @@ class TurnManagerTest {
     persistence = persistence,
     foreground = { inForeground },
     notifier = notifier,
+    pendingApprovals = { it in pendingApprovalIds },
     lifeSupport = lifeSupport,
     scope = CoroutineScope(backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)),
     monotonicNowMs = { 100_000L },
@@ -779,6 +792,97 @@ class TurnManagerTest {
       "foreground-процесс система не вытесняет — резать длинный ход на глазах у юзера незачем",
       m.sessions.value.getValue("c1").status.value is TurnStatus.Running,
     )
+  }
+
+  // --- пуш про ждущее подтверждение (approval-outcome-honesty-554a8c) --------------------------
+
+  private fun approvalArgs(): Map<String, JsonElement> = mapOf("action" to JsonPrimitive("compose"))
+
+  private fun approvalRequest(requestId: String = "req-1") = ToolApprovalRequest(
+    requestId = requestId,
+    runId = "run-1",
+    conversationId = "c1",
+    toolName = "email",
+    riskClass = RiskClass.EXTERNAL,
+    arguments = approvalArgs(),
+  )
+
+  /** Ход, который попросил разрешения и ждёт: пока никто не ответил, он не заканчивается. */
+  private fun scriptAwaitingApproval(requestId: String = "req-1") {
+    pendingApprovalIds += requestId
+    executor.script = {
+      flow {
+        emit(AgentEvent.ToolApprovalRequired(approvalRequest(requestId)))
+        awaitCancellation()
+      }
+    }
+  }
+
+  @Test
+  fun `запрос подтверждения в свёрнутом приложении уходит в пуш`() = runTest {
+    inForeground = false
+    scriptAwaitingApproval()
+    val m = manager()
+
+    m.launchTurn("c1", "email Masha the meeting moves to Friday", AgentMode.CHAT)
+    advanceTimeBy(100)
+
+    val shown = notifier.shown.single()
+    assertEquals("c1", shown.convId)
+    assertTrue(
+      "в шторке должно быть сказано, чего от человека хотят: ${shown.preview}",
+      shown.preview.contains(CapabilityNames.call("email", approvalArgs())),
+    )
+    assertFalse("это не «ход не удался», а просьба", shown.failed)
+  }
+
+  /**
+   * Тот самый дефект с Android 14. Обычный порядок событий — обратный «свернул, потом попросил»:
+   * человек просит черновик, запрос появляется, пока чат ещё перед ним, и только потом он убирает
+   * телефон. Одноразовая проверка переднего плана в этот момент видела открытый экран, решала, что
+   * пуш не нужен, и запрос доживал своё окно, а в шторке всё это время висело «Агент отвечает…».
+   */
+  @Test
+  fun `пуш приходит, даже если приложение свернули уже после запроса`() = runTest {
+    inForeground = true
+    scriptAwaitingApproval()
+    val m = manager()
+
+    m.launchTurn("c1", "email Masha the meeting moves to Friday", AgentMode.CHAT)
+    advanceTimeBy(100)
+    assertTrue("карточка на экране — дёргать пушем незачем", notifier.shown.isEmpty())
+
+    inForeground = false
+    advanceTimeBy(5_000)
+
+    assertEquals("свернули при живом запросе — пуш обязан прийти", 1, notifier.shown.size)
+  }
+
+  @Test
+  fun `пока чат на экране, пуша про подтверждение нет`() = runTest {
+    inForeground = true
+    scriptAwaitingApproval()
+
+    manager().launchTurn("c1", "email Masha the meeting moves to Friday", AgentMode.CHAT)
+    advanceTimeBy(30_000)
+
+    assertTrue("карточка видна в чате, пуш был бы шумом", notifier.shown.isEmpty())
+  }
+
+  @Test
+  fun `отвеченный запрос пушем больше не дёргают`() = runTest {
+    inForeground = true
+    scriptAwaitingApproval()
+
+    manager().launchTurn("c1", "email Masha the meeting moves to Friday", AgentMode.CHAT)
+    advanceTimeBy(100)
+
+    // Человек нажал «Разрешить» — координатор больше не считает запрос ждущим.
+    pendingApprovalIds.clear()
+    inForeground = false
+    advanceTimeBy(30_000)
+
+    assertTrue("запрос уже решён — уведомлять не о чем", notifier.shown.isEmpty())
   }
 
   companion object {
