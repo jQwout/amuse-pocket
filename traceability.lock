@@ -21,6 +21,10 @@
       "hash": "6b0da2dbdb50",
       "git": "20975d3"
     },
+    "approval-outcome-honesty-554a8c": {
+      "hash": "bc87bc6f0605",
+      "git": "77f6731"
+    },
     "background-tasks-15a34a": {
       "hash": "97e03df3b5ca",
       "git": "5530793"
@@ -42,8 +46,8 @@
       "git": "1038aed"
     },
     "fonovye-hody-agenta-dde42d": {
-      "hash": "d2f3c70773b9",
-      "git": "48d4078"
+      "hash": "d34948d904f3",
+      "git": "77f6731"
     },
     "glass-design-system-21a3fe": {
       "hash": "d3e1b8e389cc",
@@ -94,8 +98,8 @@
       "git": "8301383"
     },
     "structured-plan-engine-907066": {
-      "hash": "4dbf5686bae7",
-      "git": "1038aed"
+      "hash": "71ea04a8a6d0",
+      "git": "77f6731"
     },
     "swappable-persona-e5e65e": {
       "hash": "11aaa5d19303",
@@ -106,8 +110,8 @@
       "git": "687ad17"
     },
     "user-agent-builder-848153": {
-      "hash": "1a090d57849f",
-      "git": "1038aed"
+      "hash": "da4dd7bce01a",
+      "git": "77f6731"
     },
     "video-na-vhod-v-uroke-muse-spark-08ccdb": {
       "hash": "5b7f70575627",
@@ -118,8 +122,8 @@
       "git": "48d4078"
     },
     "vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53": {
-      "hash": "7f430bed875f",
-      "git": "1038aed"
+      "hash": "67e8da3ef2e7",
+      "git": "77f6731"
     },
     "yazykovoy-agent-repetitor-s-intervalnymi-povtoreniyami-4a9360": {
       "hash": "74722c84ed79",

@@ -3,17 +3,21 @@ package com.aiopenpocket.agent.loop
 // @trace fonovye-hody-agenta-dde42d
 // @trace user-agent-builder-848153
 // @trace structured-plan-engine-907066
+// @trace approval-outcome-honesty-554a8c
 
 import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.agent.core.AgentLog
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
 import com.aiopenpocket.agent.core.policy.ExecutionMode
+import com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator
+import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,6 +50,8 @@ class TurnManager(
   private val persistence: TurnPersistence,
   private val foreground: ForegroundState,
   private val notifier: TurnNotifier,
+  /** "Is this approval still waiting?" — the gate of [watchPendingApproval]'s polling loop. */
+  private val pendingApprovals: PendingApprovals,
   private val lifeSupport: TurnLifeSupport,
   private val scope: CoroutineScope,
   /** Monotonic clock for the stream gate (SystemClock.uptimeMillis in production, a fake in tests). */
@@ -465,18 +471,45 @@ class TurnManager(
         is AgentEvent.ToolStarted -> session.streamingTextFlow.value = TurnTexts.toolProgress(event.name, event.args)
 
         // ChatViewModel takes the approval bar from ToolApprovalCoordinator.pending (filtering by its own
-        // conversationId), not from the turn's event stream. Here we only push a notification when the
-        // app is in the background: otherwise a delete/send request would silently expire as a denial.
+        // conversationId), not from the turn's event stream. Here we push a notification when the app
+        // is not on screen: otherwise a delete/send request expires with nothing done and nobody asked.
         // The branch is explicit, not else: a new loop event must break compilation here, not get
         // lost silently.
-        is AgentEvent.ToolApprovalRequired -> if (!foreground.isInForeground()) {
+        is AgentEvent.ToolApprovalRequired -> watchPendingApproval(session, event.request)
+      }
+    }
+  }
+
+  /**
+   * Pushes "the agent needs your permission" for as long as [request] is waiting and the app is not on
+   * screen.
+   *
+   * A loop, not the single `if (!isInForeground())` this used to be, because the order of events in
+   * the real case is the other way round: the user asks for a draft, the request appears while the
+   * chat is still in front of them, and only THEN they put the phone down. A one-shot check sees the
+   * app on screen, decides no push is needed, and the request lives out its whole timeout with
+   * nothing in the shade but «The agent is replying…» — which is exactly what Android 14 showed.
+   *
+   * Launched in the manager's own [scope] rather than awaited here: [collectTurnEvents] must keep
+   * projecting the turn's events while this waits. It cannot spin forever — [PendingApprovals] goes
+   * false by the coordinator's own timeout at the latest — but the elapsed bound is kept as well, so a
+   * port that lies cannot leave a coroutine running for the life of the process.
+   */
+  private fun watchPendingApproval(session: TurnSession, request: ToolApprovalRequest) {
+    scope.launch {
+      var waited = 0L
+      while (waited <= ToolApprovalCoordinator.DEFAULT_TIMEOUT_MS && pendingApprovals.isPending(request.requestId)) {
+        if (!foreground.isInForeground()) {
           val title = runCatching { persistence.conversationTitle(session.conversationId) }.getOrNull()
           notifier.approvalNeeded(
             session.conversationId,
             title,
-            CapabilityNames.call(event.request.toolName, event.request.arguments),
+            CapabilityNames.call(request.toolName, request.arguments),
           )
+          return@launch
         }
+        delay(APPROVAL_FOREGROUND_RECHECK_MS)
+        waited += APPROVAL_FOREGROUND_RECHECK_MS
       }
     }
   }
@@ -562,5 +595,12 @@ class TurnManager(
 
   companion object {
     private const val TAG = "TurnManager"
+
+    /**
+     * How often [watchPendingApproval] asks again whether the app has left the screen. Two seconds:
+     * short enough that the push is there by the time the user has put the phone down, long enough
+     * that a request waiting out its whole window costs a few hundred cheap checks, not thousands.
+     */
+    private const val APPROVAL_FOREGROUND_RECHECK_MS = 2_000L
   }
 }

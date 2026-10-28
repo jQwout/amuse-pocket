@@ -4,11 +4,14 @@ package com.aiopenpocket.di
 // @trace user-agent-builder-848153
 // @trace structured-plan-engine-907066
 // @trace vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53
+// @trace approval-outcome-honesty-554a8c
 
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.loop.AgentLoopOrchestrator
 import com.aiopenpocket.agent.loop.AgentMode
+import com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator
 import com.aiopenpocket.agent.loop.ForegroundState
+import com.aiopenpocket.agent.loop.PendingApprovals
 import com.aiopenpocket.agent.loop.ReflectionOrchestrator
 import com.aiopenpocket.agent.loop.StructuredPlanOrchestrator
 import com.aiopenpocket.agent.loop.TurnExecutor
@@ -74,6 +77,13 @@ object TurnModule {
       repository.getConversation(conversationId)?.displayTitle()
   }
 
+  // The only reader is TurnManager's "needs permission" push: it must know whether the request it saw
+  // is still waiting before it nudges the user about it.
+  @Provides
+  @SingleIn(AppScope::class)
+  fun providePendingApprovals(coordinator: ToolApprovalCoordinator): PendingApprovals =
+    PendingApprovals { requestId -> coordinator.isPending(requestId) }
+
   @Provides
   @SingleIn(AppScope::class)
   fun provideTurnManager(
@@ -81,6 +91,7 @@ object TurnModule {
     persistence: TurnPersistence,
     foreground: ForegroundState,
     notifier: TurnNotifier,
+    pendingApprovals: PendingApprovals,
     lifeSupport: TurnLifeSupport,
     selectedProvider: SelectedLlmProvider,
     log: com.aiopenpocket.agent.core.AgentLog,
@@ -89,6 +100,7 @@ object TurnModule {
     persistence = persistence,
     foreground = foreground,
     notifier = notifier,
+    pendingApprovals = pendingApprovals,
     lifeSupport = lifeSupport,
     // An app-level scope of its own: an agent turn lives as long as the process does, not the screen.
     scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),

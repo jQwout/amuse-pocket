@@ -1,6 +1,7 @@
 package com.aiopenpocket.agent.loop
 
 // @trace user-agent-builder-848153
+// @trace approval-outcome-honesty-554a8c
 
 import android.content.Context
 import androidx.room.Room
@@ -26,6 +27,8 @@ import com.aiopenpocket.agent.core.mcp.ToolRegistry
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.mcp.toolSchema
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
+import com.aiopenpocket.agent.core.policy.ApprovalOutcome
+import com.aiopenpocket.agent.core.policy.ApprovalResultText
 import com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator
 import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.data.database.AppDatabase
@@ -41,6 +44,7 @@ import kotlinx.serialization.json.JsonElement
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -55,6 +59,10 @@ import org.robolectric.annotation.Config
  *    non-interactive (background) run never even registers with the coordinator;
  *  - directly against the coordinator's own contract — timeout, cancellation, and foreign-run
  *    rejection don't need the loop/hook/Room machinery to prove at all.
+ *
+ * Since 28 Oct 2026 it also holds the line that "the tool did not run" is TWO facts, not one: a
+ * decline and an unanswered request reach the model as separately named texts, and only a person
+ * pressing the button can ever produce the one that mentions refusal (approval-outcome-honesty-554a8c).
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -216,6 +224,58 @@ class ToolApprovalFlowTest {
     assertFalse("denial must never let the tool execute", tool.executed)
     val toolResult = result.toolTrace.single { it.toolName == "fake_tool" }.result
     assertTrue(toolResult is ToolResult.Error)
+    // Named, not just "an error": a decline is the one outcome the model may legitimately describe as
+    // the user's choice, so it must arrive as THAT text and no other.
+    assertEquals(ApprovalResultText.declined("fake_tool"), (toolResult as ToolResult.Error).message)
+  }
+
+  // --- the two ways of not running: the user's "no" vs nobody's answer ---------------------------
+
+  /**
+   * The defect this pair exists for (Android 14, 28 Oct 2026): ask for a mail draft, minimize the app,
+   * and the request expired on its own. The model was handed one text covering both cases — «declined
+   * it or did not answer in time» — read the "or", and told the person «Not sent — declined in chat.»
+   * They had declined nothing; the card had never been in front of them. So the two outcomes must
+   * reach the model as two different, separately named texts, and the no-answer one must carry no
+   * notion of refusal at all — in any language, because the model answers in the user's.
+   */
+  @Test
+  fun `nobody answering hands the model the waiting text, not the decline text`() = runTest {
+    val tool = FakeTool("fake_tool", RiskClass.EXTERNAL)
+    val toolRegistry = ToolRegistry(setOf(tool))
+    val coordinator = ToolApprovalCoordinator()
+    val runner = runner(ScriptedLlm(toolCallThenStop("fake_tool")), toolRegistry, coordinator)
+
+    // No resolve() anywhere, and deliberately ON runTest's virtual clock (the tests above take pains to
+    // avoid it): time winds through the whole approval window in an instant, which is precisely the
+    // "the phone was face down on the table" case.
+    val result = runner.run(
+      conversationId = "c1",
+      messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
+      tools = toolRegistry.getAllSchemas(),
+      provider = LlmProvider.OPENROUTER,
+    ) { }
+
+    assertFalse("nothing may run when nobody answered", tool.executed)
+    val message = (result.toolTrace.single { it.toolName == "fake_tool" }.result as ToolResult.Error).message
+    assertEquals(ApprovalResultText.unanswered("fake_tool"), message)
+    assertNotEquals(
+      "an expired request must not be reported with the text written for a real decline",
+      ApprovalResultText.declined("fake_tool"),
+      message,
+    )
+    REFUSAL_WORDS.forEach { word ->
+      assertFalse(
+        "the no-answer text must not contain '$word' — the model repeats the salient word: $message",
+        message.lowercase().contains(word),
+      )
+    }
+    // The other half: the decline text is allowed to say it, otherwise "contains no refusal word"
+    // would be satisfied by making both texts vague again.
+    assertTrue(
+      "the decline text must name the refusal: ${ApprovalResultText.declined("fake_tool")}",
+      REFUSAL_WORDS.any { ApprovalResultText.declined("fake_tool").lowercase().contains(it) },
+    )
   }
 
   @Test
@@ -318,31 +378,59 @@ class ToolApprovalFlowTest {
     )
 
   @Test
-  fun `unanswered request times out to a deny`() = runTest {
+  fun `unanswered request times out to UNANSWERED, never to DECLINED`() = runTest {
     val coordinator = ToolApprovalCoordinator()
 
-    val approved = coordinator.awaitApproval(request(), timeoutMs = 1_000L)
+    val outcome = coordinator.awaitApproval(request(), timeoutMs = 1_000L)
 
-    assertFalse(approved)
+    assertEquals(ApprovalOutcome.UNANSWERED, outcome)
     assertTrue("timed-out request must be cleaned up, not left dangling in pending", coordinator.pending.value.isEmpty())
   }
 
+  /** The button, and only the button, makes a DECLINED — that is the whole invariant the result text rests on. */
   @Test
-  fun `cancelRun completes every pending deferred for that run to deny`() = runTest(UnconfinedTestDispatcher()) {
+  fun `only the Decline button produces DECLINED`() = runTest(UnconfinedTestDispatcher()) {
+    val coordinator = ToolApprovalCoordinator()
+    val req = request(requestId = "req-no", runId = "run-no")
+
+    val outcome = async { coordinator.awaitApproval(req, timeoutMs = 60_000L) }
+    coordinator.resolve("run-no", "req-no", approved = false)
+
+    assertEquals(ApprovalOutcome.DECLINED, outcome.await())
+  }
+
+  @Test
+  fun `isPending follows one request from published to resolved`() = runTest(UnconfinedTestDispatcher()) {
+    val coordinator = ToolApprovalCoordinator()
+    val req = request(requestId = "req-watch", runId = "run-watch")
+
+    assertFalse(coordinator.isPending("req-watch"))
+    val outcome = async { coordinator.awaitApproval(req, timeoutMs = 60_000L) }
+    assertTrue("the push gate must see a published request", coordinator.isPending("req-watch"))
+
+    coordinator.resolve("run-watch", "req-watch", approved = true)
+    outcome.await()
+
+    assertFalse("an answered request must stop being pending, or the push would nudge about nothing", coordinator.isPending("req-watch"))
+  }
+
+  @Test
+  fun `cancelRun stops every pending wait of that run as UNANSWERED`() = runTest(UnconfinedTestDispatcher()) {
     val coordinator = ToolApprovalCoordinator()
     val req = request(requestId = "req-cancel", runId = "run-cancel")
 
-    val approvedDeferred = async { coordinator.awaitApproval(req, timeoutMs = 60_000L) }
+    val outcomeDeferred = async { coordinator.awaitApproval(req, timeoutMs = 60_000L) }
     assertEquals(1, coordinator.pending.value.size)
 
     coordinator.cancelRun("run-cancel")
 
-    assertFalse("cancelRun must resolve the deferred to false, not hang", approvedDeferred.await())
+    // UNANSWERED, not DECLINED: a run torn down from outside says nothing about what the user wanted.
+    assertEquals(ApprovalOutcome.UNANSWERED, outcomeDeferred.await())
     assertTrue(coordinator.pending.value.isEmpty())
   }
 
   @Test
-  fun `denyAllPending resolves every currently open request regardless of run`() = runTest(UnconfinedTestDispatcher()) {
+  fun `abandonAllPending stops every currently open wait regardless of run`() = runTest(UnconfinedTestDispatcher()) {
     val coordinator = ToolApprovalCoordinator()
     val reqA = request(requestId = "req-a", runId = "run-a")
     val reqB = request(requestId = "req-b", runId = "run-b")
@@ -351,10 +439,10 @@ class ToolApprovalFlowTest {
     val b = async { coordinator.awaitApproval(reqB, timeoutMs = 60_000L) }
     assertEquals(2, coordinator.pending.value.size)
 
-    coordinator.denyAllPending()
+    coordinator.abandonAllPending()
 
-    assertFalse(a.await())
-    assertFalse(b.await())
+    assertEquals(ApprovalOutcome.UNANSWERED, a.await())
+    assertEquals(ApprovalOutcome.UNANSWERED, b.await())
   }
 
   @Test
@@ -362,7 +450,7 @@ class ToolApprovalFlowTest {
     val coordinator = ToolApprovalCoordinator()
     val req = request(requestId = "req-x", runId = "run-owner")
 
-    val approvedDeferred = async { coordinator.awaitApproval(req, timeoutMs = 60_000L) }
+    val outcomeDeferred = async { coordinator.awaitApproval(req, timeoutMs = 60_000L) }
 
     val resolvedByForeignRun = coordinator.resolve(runId = "run-intruder", requestId = "req-x", approved = true)
     assertFalse("a mismatched runId must not resolve another run's request", resolvedByForeignRun)
@@ -370,7 +458,7 @@ class ToolApprovalFlowTest {
 
     val resolvedByOwner = coordinator.resolve(runId = "run-owner", requestId = "req-x", approved = true)
     assertTrue(resolvedByOwner)
-    assertTrue(approvedDeferred.await())
+    assertEquals(ApprovalOutcome.APPROVED, outcomeDeferred.await())
   }
 
   @Test
@@ -378,5 +466,17 @@ class ToolApprovalFlowTest {
     val coordinator = ToolApprovalCoordinator()
 
     assertFalse(coordinator.resolve(runId = "any", requestId = "never-existed", approved = true))
+  }
+
+  private companion object {
+    /**
+     * Words a person would read as "you said no", in both interface languages (the model answers in
+     * the user's, so a Russian stem in an English prompt still comes out as an accusation in Russian).
+     * Stems, not whole words: "declined"/"declining"/"decline" all start the same.
+     */
+    val REFUSAL_WORDS = listOf(
+      "declin", "refus", "reject", "deny", "denied", "turned it down", "said no",
+      "отказ", "отклон", "запрет", "не разрешил",
+    )
   }
 }
