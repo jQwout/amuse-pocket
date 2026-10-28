@@ -65,6 +65,12 @@ data class ToolCatalogEntry(
  * rather than resolved live: the actual `Tool` beans are a DI multibinding (`Set<Tool>`) built from
  * constructor dependencies (repositories, `Context`) that nothing in the builder wizard resolves or
  * should resolve — the same trade-off `AgentValidator.KNOWN_TOOL_NAMES` itself already made.
+ *
+ * It is also THE source of the risk ceiling outside the wizard: the agent inspector
+ * ([com.aiopenpocket.ui.agents.detail.AgentDetailViewModel]) reads [get] instead of each tool's own
+ * `Tool.riskClass`, so one screen cannot promise a narrower right than the one the other screen took
+ * the user's consent for. Keep the ceilings here and nowhere else — a second table would let the two
+ * drift apart again; the parity is held by a test (`AgentDetailViewModelTest`).
  */
 object ToolCatalog {
 
