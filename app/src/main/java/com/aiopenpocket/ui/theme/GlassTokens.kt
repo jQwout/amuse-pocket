@@ -35,6 +35,23 @@ object GlassTokens {
     @Composable @ReadOnlyComposable
     get() = if (LocalThemeIsDark.current) LightTintDark else LightTintLight
 
+  /**
+   * How dense the backing of a FLOATING plate is (bars, the navigation pill, the status-bar band). One knob
+   * for all of them — `GlassSurface` and `StatusBarScrim` both read it.
+   *
+   * Why it is this high. There is no backdrop blur any more (removed by the product owner, see
+   * `GlassSurface`'s KDoc), so the only thing standing between the feed and the bar above it is this alpha.
+   * At the old 0.94 the remaining 6% was enough for a line of chat text to read through a floating pill —
+   * the tester on the device took the pale ghost for a weak blur. With a flat plate the lever is harsh: the
+   * contrast of what shows through falls below reading threshold only around 0.973, so 0.985 is just past
+   * that with headroom for the brightest thing that can pass underneath (a lesson card's light stone).
+   *
+   * It is deliberately NOT 1f. The plate is still the theme's own background colour under a tint film and a
+   * rim highlight — it belongs to the screen rather than sitting on it — and a caller that genuinely needs
+   * opacity (the input field) passes `plateAlpha = 1f` itself.
+   */
+  const val PlateAlpha: Float = 0.985f
+
   /** The backdrop blur radius of strong glass. */
   val BlurRadius: Dp = 20.dp
 

@@ -245,20 +245,11 @@ internal fun ChatPreviewScaffold(
                         .fillMaxWidth()
                         .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
                 ) {
+                    // The REAL ChatErrorLine, not a copy of it. It used to be re-implemented here as a bare
+                    // Row — which is why no baseline ever showed that the production banner had no surface
+                    // under it and let the feed read through the red text.
                     if (error != null) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f))
-                            TextButton(onClick = {}) {
-                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.size(4.dp))
-                                Text("Повторить")
-                            }
-                        }
+                        ChatErrorLine(text = error, onRetry = {}, glassState = glassState)
                     }
                     if (showInput) {
                         ModeSelector(

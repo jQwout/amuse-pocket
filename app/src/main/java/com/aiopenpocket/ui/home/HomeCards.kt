@@ -326,7 +326,9 @@ internal fun CourseCard(
                   .height(6.dp)
                   .clip(RoundedCornerShape(3.dp)),
                 color = MaterialTheme.colorScheme.primary,
-                trackColor = Color(0xFF3D3A45),
+                // Was a hard-coded #3D3A45 — a violet-grey that ignored the theme and showed as the one
+                // purple thing on an otherwise lime-and-paper card (and stayed dark in the light theme).
+                trackColor = MaterialTheme.colorScheme.outline,
             )
         }
     }

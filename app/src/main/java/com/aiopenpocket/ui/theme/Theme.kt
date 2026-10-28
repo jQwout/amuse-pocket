@@ -15,13 +15,30 @@ import androidx.core.view.WindowCompat
 
 // @trace smena-temy-svetlaya-temnaya-sistemnaya-palitra-lime-ink-paper-005bc6
 
-/** The dark scheme: a lime accent on ink neutrals. */
+/**
+ * The dark scheme: a lime accent on ink neutrals.
+ *
+ * Every accent role is spelled out, secondary and tertiary included. Leaving them unset does not leave them
+ * empty — Material fills them with its own purple, and on the device that purple came through everywhere the
+ * app draws via a secondary role it never chose on purpose: the selected chip in the chat bar, the quiz
+ * scenes' chips, the tool-trace panel. The comment here used to excuse only error/onError, so the gap read as
+ * deliberate for months. If a role is not listed below, it IS Material's default — check that before adding a
+ * component that uses it.
+ */
 val AppDarkColors =
   darkColorScheme(
     primary = LimeSignal,
     onPrimary = LimeOnDark,
     primaryContainer = Color(0xFF2A3B00), // a muted lime container
     onPrimaryContainer = Color(0xFFE6F5B8),
+    secondary = SageSignal,
+    onSecondary = SageOnDark,
+    secondaryContainer = Color(0xFF333A26), // dark moss — the selected filter chip, the tool-trace panel
+    onSecondaryContainer = Color(0xFFDCE8C4),
+    tertiary = SandSignal,
+    onTertiary = SandOnDark,
+    tertiaryContainer = Color(0xFF413721), // dark warm khaki
+    onTertiaryContainer = Color(0xFFF5E4BE),
     background = InkBg,
     onBackground = InkText,
     surface = InkSurface,
@@ -33,13 +50,21 @@ val AppDarkColors =
     // error/onError are Material 3 defaults.
   )
 
-/** The light scheme: an olive accent on warm paper. */
+/** The light scheme: an olive accent on warm paper. The same rule as [AppDarkColors] about unset roles. */
 val AppLightColors =
   lightColorScheme(
     primary = OliveAccent, // the accent on text/icons
     onPrimary = Color(0xFFFFFFFF),
     primaryContainer = Color(0xFFDDF0A6), // a light lime container
     onPrimaryContainer = OliveOnLight,
+    secondary = SageAccent,
+    onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFDCE6CA), // light sage — the selected filter chip, the tool-trace panel
+    onSecondaryContainer = Color(0xFF2A3417),
+    tertiary = SandAccent,
+    onTertiary = Color(0xFFFFFFFF),
+    tertiaryContainer = Color(0xFFF2E3BE), // light warm sand
+    onTertiaryContainer = Color(0xFF3A2B06),
     background = PaperBg,
     onBackground = PaperText,
     surface = PaperSurface,
