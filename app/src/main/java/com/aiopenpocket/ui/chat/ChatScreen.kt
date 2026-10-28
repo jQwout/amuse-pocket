@@ -719,11 +719,12 @@ fun ChatScreen(
                     ChatErrorLine(
                         text = state.error!!,
                         onRetry = if (state.canRetry) ({ viewModel.handleIntent(ChatIntent.RetryRequest) }) else null,
+                        glassState = glassState,
                     )
                 }
                 // The lesson step's own problem (no Meta key, an unreadable clip): a line of its own, with no "Retry"
                 // (the step's card has its own buttons), and it leaves with the step, not with the turn's error.
-                state.lessonStepProblem?.let { ChatErrorLine(text = it, onRetry = null) }
+                state.lessonStepProblem?.let { ChatErrorLine(text = it, onRetry = null, glassState = glassState) }
 
                 // A recognition error is a soft self-dismissing hint, not a hanging error banner.
                 val voiceError = state.voiceError
@@ -985,29 +986,47 @@ fun ChatScreen(
 }
 
 
-/** A red line under the feed; with [onRetry] it also carries the "Retry" button of the failed turn. */
+/**
+ * A red line under the feed; with [onRetry] it also carries the "Retry" button of the failed turn.
+ *
+ * It sits on the same floating plate as its neighbours in this Column (the mode selector, the approval bar,
+ * the input). It used to be a bare Row with no surface at all, and it is the only bottom bar that is: the
+ * feed scrolls UNDER the bottom chrome, so with nothing behind it the red text landed on top of whatever
+ * happened to be there — a paragraph of the lesson «Как модель видит», or the card's own "Show an example"
+ * and "Take my own" buttons — and both became unreadable at once. The plate is the fix; the growth of the
+ * bottom chrome is a different problem and already handled by [FollowBottomBarGrowth].
+ */
 @Composable
-private fun ChatErrorLine(text: String, onRetry: (() -> Unit)?) {
-    Row(
+internal fun ChatErrorLine(text: String, onRetry: (() -> Unit)?, glassState: GlassState) {
+    GlassSurface(
+        state = glassState,
+        shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .testTag("chat_error_line"),
     ) {
-        Text(
-            text = text,
-            color = MaterialTheme.colorScheme.error,
-            modifier = Modifier.weight(1f),
-        )
-        if (onRetry != null) {
-            TextButton(onClick = onRetry) {
-                Icon(
-                    imageVector = Icons.Default.Refresh,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.size(4.dp))
-                Text(tr("Повторить", "Retry"))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = text,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.weight(1f),
+            )
+            if (onRetry != null) {
+                TextButton(onClick = onRetry) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.size(4.dp))
+                    Text(tr("Повторить", "Retry"))
+                }
             }
         }
     }

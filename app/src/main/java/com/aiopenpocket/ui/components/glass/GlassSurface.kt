@@ -68,11 +68,11 @@ fun GlassSurface(
   tint: Color = GlassTokens.LightTint,
   border: Brush? = GlassTokens.BorderBrush,
   /**
-   * The backing's density. By default [PLATE_ALPHA] — the common look of the chrome. Raising it to 1f makes
-   * sense where showing through hurts FUNCTIONALLY, not aesthetically: the input field is exactly such a case,
-   * the feed's messages were readable through it.
+   * The backing's density. By default [GlassTokens.PlateAlpha] — the common look of the chrome. Raising it to
+   * 1f makes sense where showing through hurts FUNCTIONALLY, not aesthetically: the input field is exactly
+   * such a case, the feed's messages were readable through it.
    */
-  plateAlpha: Float = PLATE_ALPHA,
+  plateAlpha: Float = GlassTokens.PlateAlpha,
   content: @Composable BoxScope.() -> Unit,
 ) {
   val backgroundColor = MaterialTheme.colorScheme.background
@@ -88,13 +88,7 @@ fun GlassSurface(
   )
 }
 
-/**
- * The plate's density — a taste knob, tweak it here (one place for all bars and islands).
- *
- * 0.86 (the first attempt, as in the old fallback) turned out too transparent: card headings from under the
- * top bar were readable through it — the same defect that made "Chat"/"Reflection" merge with the feed in the
- * chat. The blur used to hide it: it blurred the backing rather than just letting it show through. Without
- * blur a higher density is needed — the plate still takes the background's tint, and the text on it stays
- * readable.
- */
-private const val PLATE_ALPHA = 0.94f
+// The plate's density now lives in GlassTokens.PlateAlpha — one knob for the bars, the navigation pill and
+// the status-bar band, which all had their own copy of the number. 0.86 was the first attempt and let card
+// headings read through the top bar; 0.94 replaced it and still let a line of chat text through, which is
+// what the owner saw on the device. The arithmetic behind the current value is in that token's KDoc.

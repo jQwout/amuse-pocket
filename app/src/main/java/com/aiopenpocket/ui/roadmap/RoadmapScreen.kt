@@ -354,7 +354,8 @@ private fun ProTipCard(progressFraction: Float) {
         .height(4.dp)
         .clip(RoundedCornerShape(2.dp)),
       color = MaterialTheme.colorScheme.primary,
-      trackColor = Color(0xFF3D3A45),
+      // Was a hard-coded #3D3A45 — see the same track on the home screen's card.
+      trackColor = MaterialTheme.colorScheme.outline,
     )
   }
 }

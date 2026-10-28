@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.glass.GlassState
@@ -36,6 +38,9 @@ enum class AcademyTab {
     Path,
     Tools,
 }
+
+/** The floating pill's node, so a test can check that list content really clears it. */
+const val BOTTOM_NAV_TAG = "academy_bottom_nav"
 
 /**
  * A floating bottom navbar: a glass "pill" with a shadow, detached from the screen edges. It sits in the
@@ -58,6 +63,14 @@ fun AcademyBottomNav(
         shape = pillShape,
         modifier = modifier
           .fillMaxWidth()
+          .testTag(BOTTOM_NAV_TAG)
+          // The system navigation inset belongs to the bar, not to the screen: Scaffold hands the bottomBar
+          // slot the raw bottom edge and then reports THIS composable's measured height as the content's
+          // bottom padding. Without the inset the pill's own 20dp margin was all that stood between it and
+          // the gesture handle, and the list below reserved 20dp less than the bar really occupies on a
+          // phone — the chat bars have always included their inset in the measured height (ChatScreen's
+          // bottom Column measures before windowInsetsPadding), this one did not.
+          .navigationBarsPadding()
           .padding(horizontal = 24.dp)
           .padding(top = 8.dp, bottom = 20.dp)
           .shadow(16.dp, pillShape, clip = false),
