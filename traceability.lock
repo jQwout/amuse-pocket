@@ -38,8 +38,8 @@
       "git": "cba9e00"
     },
     "english-ui-on-the-demo-path-223241": {
-      "hash": "bd5cc8eeb5a2",
-      "git": "a4b1a05"
+      "hash": "5778c65d81bd",
+      "git": "1038aed"
     },
     "fonovye-hody-agenta-dde42d": {
       "hash": "d2f3c70773b9",
@@ -50,16 +50,16 @@
       "git": "67954f1"
     },
     "heartbeat-napominalki-agenta-5f0442": {
-      "hash": "d85981349d63",
-      "git": "67954f1"
+      "hash": "7169f74a130e",
+      "git": "1038aed"
     },
     "kartinki-urokov-cherez-muse-image-fd6f8c": {
       "hash": "a4727163f7de",
       "git": "2464f21"
     },
     "mcp-tools-f77d9b": {
-      "hash": "2b8d298cf3f5",
-      "git": "67954f1"
+      "hash": "a4e2e5f3b8ae",
+      "git": "1038aed"
     },
     "multi-agent-orchestration-27b8e3": {
       "hash": "4b7a254d3917",
@@ -90,12 +90,12 @@
       "git": "295896f"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "e2d2761f7f03",
-      "git": "300a460"
+      "hash": "06a83abdf2ca",
+      "git": "1038aed"
     },
     "structured-plan-engine-907066": {
-      "hash": "13b9fb05f4be",
-      "git": "300a460"
+      "hash": "4dbf5686bae7",
+      "git": "1038aed"
     },
     "swappable-persona-e5e65e": {
       "hash": "11aaa5d19303",
@@ -106,8 +106,8 @@
       "git": "687ad17"
     },
     "user-agent-builder-848153": {
-      "hash": "634519e590a9",
-      "git": "300a460"
+      "hash": "1a090d57849f",
+      "git": "1038aed"
     },
     "video-na-vhod-v-uroke-muse-spark-08ccdb": {
       "hash": "5b7f70575627",
@@ -118,8 +118,8 @@
       "git": "48d4078"
     },
     "vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53": {
-      "hash": "9d537e04bbd7",
-      "git": "687ad17"
+      "hash": "7f430bed875f",
+      "git": "1038aed"
     },
     "yazykovoy-agent-repetitor-s-intervalnymi-povtoreniyami-4a9360": {
       "hash": "74722c84ed79",

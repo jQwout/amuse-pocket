@@ -40,6 +40,26 @@ import dev.zacsweers.metro.SingleIn
 enum class FireOutcome { DONE, RETRY }
 
 /**
+ * The text of a reminder's push, under the «Напоминание»/"Reminder" heading.
+ *
+ * The heading used to be the reminder's own [HeartbeatEntity.title] and the body its
+ * [HeartbeatEntity.message] — and for a one-line reminder the model writes the same sentence into
+ * both, so the shade showed "Call mom" / "Call mom". A fixed heading on its own would have thrown the
+ * title away, so both are kept where they differ: nothing is said twice, and nothing is lost.
+ */
+internal fun reminderPushBody(title: String, message: String?): String {
+  val heading = title.trim()
+  val text = message?.trim().orEmpty()
+  return when {
+    text.isEmpty() -> heading
+    // `contains`, not equality: the message is often the title plus the detail ("Call mom at 7"), and
+    // prefixing the title to that would stutter.
+    heading.isEmpty() || text.contains(heading, ignoreCase = true) -> text
+    else -> "$heading — $text"
+  }
+}
+
+/**
  * The logic of a heartbeat firing — separate from [HeartbeatWorker] so it can be tested without
  * WorkManager. push is a static push; agent is a headless [ReactLoopRunner] turn with a safe subset of
  * tools. The push and the deep link into the conversation reuse [TurnNotifier] (the same infrastructure
@@ -102,11 +122,18 @@ class HeartbeatRunner(
   }
 
   private suspend fun firePush(hb: HeartbeatEntity): FireOutcome {
-    // A push with a deep link into the conversation — through the shared TurnNotifier (title = the
-    // reminder's name, tap → the same chat). Without POST_NOTIFICATIONS showAgentNotification silently
-    // returns false inside; it still counts as fired — the reminder worked, and the missing permission
-    // is a settings matter, not a heartbeat failure.
-    turnNotifier.turnFinished(hb.conversationId, hb.title, hb.message.orEmpty(), failed = false)
+    // A push with a deep link into the conversation — through the shared TurnNotifier (tap → the same
+    // chat). Without POST_NOTIFICATIONS showAgentNotification silently returns false inside; it still
+    // counts as fired — the reminder worked, and the missing permission is a settings matter, not a
+    // heartbeat failure.
+    //
+    // The heading says WHAT this is, the body says WHAT to remember — see [reminderPushBody].
+    turnNotifier.turnFinished(
+      hb.conversationId,
+      tr("Напоминание", "Reminder"),
+      reminderPushBody(hb.title, hb.message),
+      failed = false,
+    )
     record(hb, ok = true, result = hb.message)
     return FireOutcome.DONE
   }
