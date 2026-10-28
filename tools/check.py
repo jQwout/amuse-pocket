@@ -564,9 +564,12 @@ def _paren_owner(toks, pairs, close_index):
     return None
 
 
-def _value_strings(toks, pairs, a, b):
+def _value_strings(toks, pairs, a, b, enter_blocks=False):
     """The Russian string tokens in toks[a:b] that are the value of that expression (see the T6c note
-    above for what is and is not the value)."""
+    above for what is and is not the value).
+
+    enter_blocks=True walks into every `{ ... }` instead of only the branches of an if/when: it is for
+    T6d, which reads a whole function body, where any branch of any block can be the result."""
     out, k = [], a
     while k < b:
         t = toks[k]
@@ -585,14 +588,35 @@ def _value_strings(toks, pairs, a, b):
         elif _is_op(t, "[") and k in pairs:
             k = pairs[k]
         elif _is_op(t, "{") and k in pairs:
-            branch = prev is not None and (
-                (prev.kind == "id" and (prev.value == "else" or prev.value in KT_VALUE_LAMBDAS))
-                or _is_op(prev, "->")
-                or (_is_op(prev, ")") and _paren_owner(toks, pairs, k - 1) in KT_CONDITION_KEYWORDS))
-            if not branch:
+            if not (enter_blocks or _is_value_block(toks, pairs, k, prev)):
                 k = pairs[k]  # a lambda or a block of statements
         k += 1
     return out
+
+
+def _is_value_block(toks, pairs, k, prev):
+    """A `{` at index k that opens a branch whose last expression is the value: `else { ... }`,
+    `-> { ... }`, `if (c) { ... }`, `x.ifBlank { ... }`."""
+    return prev is not None and (
+        (prev.kind == "id" and (prev.value == "else" or prev.value in KT_VALUE_LAMBDAS))
+        or _is_op(prev, "->")
+        or (_is_op(prev, ")") and _paren_owner(toks, pairs, k - 1) in KT_CONDITION_KEYWORDS))
+
+
+def _call_args(toks, pairs, open_index, close_index):
+    """(start, end) token indices of each argument of the call whose "(" is at open_index: split at the
+    commas that sit directly in this call, nested brackets stepped over whole."""
+    args, start, k = [], open_index + 1, open_index + 1
+    while k < close_index:
+        if toks[k].kind == "tpl_open" or _is_op(toks[k], "(", "[", "{"):
+            k = pairs.get(k, k)
+        elif _is_op(toks[k], ","):
+            args.append((start, k))
+            start = k + 1
+        k += 1
+    if start < close_index:
+        args.append((start, close_index))
+    return args
 
 
 def _preview_spans(toks, pairs):
@@ -630,18 +654,7 @@ def screen_cyrillic_literals(src):
         callee = toks[open_index - 1]
         if callee.kind != "id" or callee.value in KT_CONDITION_KEYWORDS:
             continue
-        # split the arguments at the commas that sit directly in this call
-        args, start, k = [], open_index + 1, open_index + 1
-        while k < close_index:
-            if toks[k].kind == "tpl_open" or _is_op(toks[k], "(", "[", "{"):
-                k = pairs.get(k, k)
-            elif _is_op(toks[k], ","):
-                args.append((start, k))
-                start = k + 1
-            k += 1
-        if start < close_index:
-            args.append((start, close_index))
-        for position, (a, b) in enumerate(args):
+        for position, (a, b) in enumerate(_call_args(toks, pairs, open_index, close_index)):
             while a < b and toks[a].kind == "id" and toks[a].value in KT_PARAMETER_MODIFIERS:
                 a += 1  # `val`, `private` ... in front of a constructor parameter
             if b - a >= 2 and toks[a].kind == "id" and _is_op(toks[a + 1], "="):
@@ -744,6 +757,248 @@ def check_screen_russian(report):
     else:
         report.add("T6c", "PASS", "No Russian literal in a screen position outside tr() in %d files; "
                    "%d literals sit in %d named exemptions" % (scanned, covered, len(used)))
+
+
+# ---------------------------------------------------------------- T6d: Russian one step from the person
+# @trace screen-text-check-7c6d09
+#
+# The same blind spot, a third time. T6 reads the English side of a tr() pair, T6b reads the lesson copies,
+# T6c reads the screen position -- and all three measure the place where a string is WRITTEN. The turn's
+# error text is not written on a screen: userFacingLlmError (agent/core/llm/OpenAiCompatClient.kt) returns
+# bare Russian literals, its caller puts the result into StreamEvent.Error(...), and the chat draws what
+# arrived through a variable (ui/chat/ChatScreen.kt: `text = state.error!!`). Three green checks, and an
+# English lesson still showed a Russian red banner on the emulator. T6d measures the other end: the place
+# where a string is SHOWN.
+#
+# A sink is a call that certainly hands its string to a person. Every one is named in USER_TEXT_SINKS with
+# the reason; this is not "anything that looks like a message", and a string meant for the model is not one.
+#
+# Two things are read at a sink:
+#   1. a bare Russian literal standing as that argument (`setContentTitle("...")`);
+#   2. ONE step of indirection: when the argument is a call by bare name to a function defined in the SAME
+#      file, the Russian literals in that function's body count as its results.
+# One step, not arbitrary depth: it covers the real case and it is honest to implement with a lexer rather
+# than a Kotlin front end. Inside the inspected helper the scan over-reports on purpose -- every Russian
+# literal of that body that is not inside a nested call counts, result or not -- because a function that
+# exists to produce the text a person reads has no business holding a bare Russian literal at all.
+#
+# WHAT T6d DOES NOT SEE. Written down here so that a green line is never read as more than it is; a check
+# whose blind spots are unsaid is the reason this one had to be written at all.
+#   - two steps of indirection: a sink fed by f() whose own text comes from g();
+#   - a helper in ANOTHER file -- the lexer reads one file at a time and resolves `fun` by bare name only;
+#   - a string that reaches the sink through a variable, a parameter, a property or a constant
+#     (`showAgentNotification(..., message = preview)`, `val TITLE = "..."`, `copy(error = "...")`);
+#   - a string built by a call the scan steps over on purpose (`String.format("...", n)`, `buildString {}`,
+#     a resource lookup), or glued from pieces that each live somewhere else;
+#   - a qualified call (`helper.text()`) or a function reference (`::userFacingLlmError`);
+#   - an overload: the FIRST `fun` of that name in the file is the body that gets read;
+#   - a Russian DEFAULT value of a sink's own parameter (`fun f(title: String = "...")`): T6d reads
+#     calls, and a declaration is not one; T6c reads the defaults of `title` and `text`, nothing else;
+#   - any sink that is not in the table below -- a new way of putting text in front of a person stays
+#     invisible until someone adds it there.
+# The device-tester walking an English interface stays the net for all of that.
+
+# One line per sink, with WHY it is one. args = the (position, name) of each argument that holds the text;
+# name is None where the argument has none. Position is counted as written, so it only decides an argument
+# that was passed positionally.
+UserTextSink = collections.namedtuple("UserTextSink", "args why")
+
+USER_TEXT_SINKS = {
+    # ui/chat/ChatScreen.kt draws it as the red banner (`text = state.error!!`), and a background turn
+    # pushes it (TurnManager -> TurnNotifier.turnFinished).
+    "StreamEvent.Error": UserTextSink(((0, "message"),), "the chat's error banner"),
+    # agent/core/notification/NotificationHelper.kt passes both straight to setContentTitle/setContentText.
+    "showAgentNotification": UserTextSink(((1, "title"), (2, "message")), "a notification's title and body"),
+    # NotificationCompat.Builder: the two lines the system shade shows.
+    "setContentTitle": UserTextSink(((0, None),), "a notification's title"),
+    "setContentText": UserTextSink(((0, None),), "a notification's body"),
+    # agent/tools/ExternalActivityLauncher.kt hands both to showAgentNotification unchanged.
+    "launchExternalActivity": UserTextSink(((3, "notificationTitle"), (4, "notificationText")),
+                                           "the notification shown when the app is in the background"),
+    # agent/loop/TurnPorts.kt -> AgentTurnNotifier: the title and the body of the "turn finished" push.
+    "turnFinished": UserTextSink(((1, "conversationTitle"), (2, "preview")), "the turn's push"),
+}
+
+# Files where a Russian literal may stand at a user-text sink, by path, with the reason. One line per file,
+# like SCREEN_RU_EXEMPT: adding one is a decision that shows up in review. A sink that turns out NOT to
+# reach a person belongs out of USER_TEXT_SINKS, not in here.
+USER_TEXT_SINK_EXEMPT = {
+}
+
+# `name(` right after one of these opens a declaration's own parameter list, not a call: `fun
+# showAgentNotification(...)`, `data class Error(val message: String)`.
+KT_DECLARED_BY = {"fun", "class", "object", "interface"}
+
+# An expression body (`fun f() = ...`) ends before one of these: they start the next declaration.
+KT_BODY_END = {"fun", "class", "interface", "object", "typealias", "enum", "annotation", "val", "var",
+               "override", "private", "internal", "public", "protected", "abstract", "companion",
+               "init", "constructor"}
+
+
+def _value_calls(toks, pairs, a, b):
+    """The bare-name calls standing where the value of toks[a:b] is: `f(...)` in `x ?: f(...)`, in each
+    branch of an if/when, in each piece of a concatenation. A qualified call (`x.f()`) is not one -- the
+    body T6d can go and read is a `fun` of this same file."""
+    out, k = [], a
+    while k < b:
+        t = toks[k]
+        prev = toks[k - 1] if k > a else None
+        if _is_op(t, "(") and k in pairs:
+            if prev is not None and prev.kind == "id" and prev.value in KT_CONDITION_KEYWORDS:
+                k = pairs[k]
+            elif prev is not None and prev.kind == "id" and prev.value not in KT_KEYWORDS_BEFORE_VALUE:
+                if not (k >= 2 and _is_op(toks[k - 2], ".", "::")):
+                    out.append(prev.value)
+                k = pairs[k]
+            elif _is_op(prev, ")", "]"):
+                k = pairs[k]
+        elif _is_op(t, "[") and k in pairs:
+            k = pairs[k]
+        elif _is_op(t, "{") and k in pairs:
+            if not _is_value_block(toks, pairs, k, prev):
+                k = pairs[k]
+        k += 1
+    return out
+
+
+def _expression_end(toks, pairs, start):
+    """Where the expression body beginning at `start` ends: the closer of an enclosing bracket, the start
+    of the next declaration, or the end of the file. Balanced groups are stepped over whole."""
+    k, n = start, len(toks)
+    while k < n:
+        t = toks[k]
+        if t.kind == "tpl_open" or _is_op(t, "(", "[", "{"):
+            k = pairs.get(k, k)
+        elif t.kind == "tpl_close" or _is_op(t, ")", "]", "}", ";"):
+            return k
+        elif (t.kind == "id" and t.value in KT_BODY_END) or _is_op(t, "@"):
+            return k
+        k += 1
+    return n
+
+
+def kotlin_local_functions(toks, pairs):
+    """name -> (start, end) token indices of the body of every `fun name(...)` written in this file, in
+    both shapes: a block body `{ ... }` and an expression body `= ...`. The first definition of a name
+    wins (see the stated limits above). A declaration without a body is skipped."""
+    out, n = {}, len(toks)
+    for k, t in enumerate(toks):
+        if not (t.kind == "id" and t.value == "fun"):
+            continue
+        params = next((j for j in range(k + 1, min(k + 40, n))
+                       if _is_op(toks[j], "(") and j in pairs and toks[j - 1].kind == "id"), None)
+        if params is None:
+            continue
+        name, j = toks[params - 1].value, pairs[params] + 1
+        limit = min(pairs[params] + 60, n)
+        while j < limit:
+            if _is_op(toks[j], "{") and j in pairs:
+                out.setdefault(name, (j + 1, pairs[j]))
+                break
+            if _is_op(toks[j], "="):
+                out.setdefault(name, (j + 1, _expression_end(toks, pairs, j + 1)))
+                break
+            # an abstract or interface function: the next declaration starts and no body ever came
+            if (toks[j].kind == "id" and toks[j].value in KT_BODY_END) or _is_op(toks[j], "@", "}"):
+                break
+            j += 1
+    return out
+
+
+def _dotted_callee(toks, idx):
+    """The dotted name of the callee whose last identifier is toks[idx]: `StreamEvent.Error` for
+    `StreamEvent.Error(`, `setContentTitle` for `...setSmallIcon(x).setContentTitle(`."""
+    parts, k = [toks[idx].value], idx - 1
+    while k - 1 >= 0 and _is_op(toks[k], ".") and toks[k - 1].kind == "id":
+        parts.append(toks[k - 1].value)
+        k -= 2
+    parts.reverse()
+    return ".".join(parts)
+
+
+def _sink_for(dotted):
+    """(key, spec) of the sink this callee is, matched on the dotted suffix: the key `StreamEvent.Error`
+    matches `StreamEvent.Error(` but never a bare `Error(`, which could be anything."""
+    for key, spec in USER_TEXT_SINKS.items():
+        if dotted == key or dotted.endswith("." + key):
+            return key, spec
+    return None, None
+
+
+def user_text_sink_literals(src):
+    """(offset, literal, why) of every Russian literal this Kotlin source hands to a user-text sink,
+    either straight or through one function of this same file."""
+    toks = kotlin_tokens(src)
+    pairs = _bracket_pairs(toks)
+    previews = _preview_spans(toks, pairs)
+    bodies = kotlin_local_functions(toks, pairs)
+    hits = {}
+    for open_index, close_index in sorted(pairs.items()):
+        if not _is_op(toks[open_index], "(") or open_index == 0:
+            continue
+        if toks[open_index - 1].kind != "id":
+            continue
+        if (open_index >= 2 and toks[open_index - 2].kind == "id"
+                and toks[open_index - 2].value in KT_DECLARED_BY):
+            continue
+        if any(start <= toks[open_index].pos <= end for start, end in previews):
+            continue
+        sink, spec = _sink_for(_dotted_callee(toks, open_index - 1))
+        if spec is None:
+            continue
+        for position, (a, b) in enumerate(_call_args(toks, pairs, open_index, close_index)):
+            arg_name = None
+            if b - a >= 2 and toks[a].kind == "id" and _is_op(toks[a + 1], "="):
+                arg_name, a = toks[a].value, a + 2
+            if not any(arg_name == n if arg_name is not None else position == p for p, n in spec.args):
+                continue
+            for s in _value_strings(toks, pairs, a, b):
+                hits[s.pos] = (s.value, "straight into %s(): %s" % (sink, spec.why))
+            for fn in _value_calls(toks, pairs, a, b):
+                if fn not in bodies:
+                    continue
+                start, end = bodies[fn]
+                for s in _value_strings(toks, pairs, start, end, enter_blocks=True):
+                    hits.setdefault(s.pos, (s.value, "%s() returns it and %s() shows it: %s"
+                                            % (fn, sink, spec.why)))
+    return [(pos, hits[pos][0], hits[pos][1]) for pos in sorted(hits)]
+
+
+def check_sink_russian(report):
+    """T6d: no Russian literal reaches a user-text sink -- straight, or through one function of the same
+    file -- unless the file is named in USER_TEXT_SINK_EXEMPT."""
+    scanned, covered, bad, used = 0, 0, [], set()
+    for path in sorted(JAVA.rglob("*.kt")):
+        # the same reason as in T6c: *Previews.kt is fixture data for Android Studio and Roborazzi
+        if path.name.endswith(SCREEN_RU_SKIP_SUFFIX):
+            continue
+        scanned += 1
+        text = read(path)
+        hits = user_text_sink_literals(text)
+        if not hits:
+            continue
+        name = rel(path)
+        if name in USER_TEXT_SINK_EXEMPT:
+            used.add(name)
+            covered += len(hits)
+            continue
+        for pos, literal, why in hits:
+            bad.append("%s:%d %s -- %s" % (name, text.count("\n", 0, pos) + 1, literal.strip()[:50], why))
+    stale = ["%s: nothing Russian reaches a sink there any more, remove the exemption" % p
+             for p in sorted(set(USER_TEXT_SINK_EXEMPT) - used)]
+
+    if not scanned:
+        report.add("T6d", "FAIL", "No Kotlin file found, so nothing was checked")
+    elif bad:
+        report.add("T6d", "FAIL", "Russian text reaching a person through %d sink argument(s): the text is "
+                   "shown where it arrives, so an English reader gets it as it is" % len(bad), bad[:15])
+    elif stale:
+        report.add("T6d", "WARN", "Nothing Russian at a user-text sink, but %d exemption(s) in check.py "
+                   "match nothing" % len(stale), stale)
+    else:
+        report.add("T6d", "PASS", "No Russian literal reaches any of the %d user-text sinks in %d files, "
+                   "straight or one call deep; %d literals sit in %d named exemptions"
+                   % (len(USER_TEXT_SINKS), scanned, covered, len(used)))
 
 
 def check_english_lessons(report):
@@ -970,6 +1225,7 @@ def main():
     guarded(report, "T6", check_english_demo_path, report)
     guarded(report, "T6b", check_english_lessons, report)
     guarded(report, "T6c", check_screen_russian, report)
+    guarded(report, "T6d", check_sink_russian, report)
 
     if args.fast or args.full:
         built = guarded(report, "T1", check_build, report, full=args.full)
