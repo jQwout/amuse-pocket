@@ -32,18 +32,32 @@ internal val CardSuccessGreen = Color(0xFF4CAF50)
 // Dark theme: lesson cards are drawn in light silver with dark text (rather than a dark surfaceVariant,
 // "dark on dark"). LessonCardTheme overrides the scheme's surface family for the card's subtree, so the
 // existing onSurfaceVariant/outline/surface inside become "for a light card" on their own.
-private val LessonCardSilver = Color(0xFFDCDCE4)   // the card background (surfaceVariant)
-private val LessonCardPanel = Color(0xFFCBCDD8)    // inner panels (surface)
-private val LessonCardInk = Color(0xFF2A2730)      // text (onSurface/onSurfaceVariant)
-private val LessonCardOutline = Color(0xFF6B6B75)  // captions and dividers (outline)
-// Semantic quiz colors (fill/sort/match/scenario color "selected/wrong" through primary/error): the
-// default PurpleAccent/CancelRed are made for a dark background and fade on light silver — we take dark
-// saturated versions, readable on LessonCardSilver, with a light on-color for container uses.
-private val LessonCardPrimary = Color(0xFF5B3FA6)  // primary (selected/right) — dark purple
-private val LessonCardOnPrimary = Color(0xFFF3EEFF)
+// The card's neutrals. They used to be cool lavender-greys (#DCDCE4/#CBCDD8/#2A2730/#6B6B75) — next to a
+// lime-and-paper app that read as a violet card, and on the device it was the first thing the eye caught.
+// Same job, warm stone instead.
+private val LessonCardSilver = Color(0xFFE4E3D9)   // the card background (surfaceVariant)
+private val LessonCardPanel = Color(0xFFD6D4C8)    // inner panels (surface)
+private val LessonCardInk = Color(0xFF26251F)      // text (onSurface/onSurfaceVariant)
+private val LessonCardOutline = Color(0xFF5C5A4E)  // captions and dividers (outline)
+// Semantic quiz colors (fill/sort/match/scenario color "selected/wrong" through primary/error): the theme's
+// own lime is made for a dark background and fades on light stone — we take dark saturated versions,
+// readable on LessonCardSilver, with a light on-color for container uses. The accent used to be a dark
+// PURPLE here, which is why quiz headings, the "Show an example" button and the "in this app" badge — all of
+// which draw through `primary` — came out violet inside an otherwise lime app.
+private val LessonCardPrimary = Color(0xFF3F5214)  // primary (selected/right) — deep olive
+private val LessonCardOnPrimary = Color(0xFFF3F6E6)
 private val LessonCardError = Color(0xFFB3261E)    // error (wrong) — dark red (the M3 light error)
 private val LessonCardOnError = Color(0xFFFFFFFF)
-private val LessonCardSecondary = Color(0xFF544F63) // secondary (rare accent icons)
+private val LessonCardSecondary = Color(0xFF5A5B42) // secondary (rare accent icons)
+// The lesson scenes are full of FilterChips, and a chip's SELECTED state draws through secondaryContainer.
+// That role was left out of this override, so every picked chip inside a lesson card fell back to Material's
+// purple — on a stone card, in a lime app. Same family as the rest of the card.
+private val LessonCardSecondaryContainer = Color(0xFFCBD9A8)
+private val LessonCardOnSecondaryContainer = Color(0xFF26330A)
+private val LessonCardTertiary = Color(0xFF6E5118)   // the third accent (segmentation boxes, tags)
+private val LessonCardOnTertiary = Color(0xFFFFFFFF)
+private val LessonCardTertiaryContainer = Color(0xFFEEDDB4)
+private val LessonCardOnTertiaryContainer = Color(0xFF33250A)
 
 /** In the dark theme swaps the scheme's surface family for light silver in the lesson card's subtree. */
 @Composable
@@ -64,6 +78,13 @@ private fun LessonCardTheme(enabled: Boolean, content: @Composable () -> Unit) {
             error = LessonCardError,
             onError = LessonCardOnError,
             secondary = LessonCardSecondary,
+            onSecondary = Color(0xFFFFFFFF),
+            secondaryContainer = LessonCardSecondaryContainer,
+            onSecondaryContainer = LessonCardOnSecondaryContainer,
+            tertiary = LessonCardTertiary,
+            onTertiary = LessonCardOnTertiary,
+            tertiaryContainer = LessonCardTertiaryContainer,
+            onTertiaryContainer = LessonCardOnTertiaryContainer,
         ),
         content = content,
     )

@@ -69,7 +69,6 @@ import com.aiopenpocket.agent.core.memory.model.Message
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.ui.chat.components.ChatInput
 import com.aiopenpocket.ui.chat.components.MessageBubble
-import com.aiopenpocket.ui.chat.components.ModeSelector
 import com.aiopenpocket.ui.chat.components.ResponseStatsBar
 import com.aiopenpocket.ui.components.glass.auroraBackground
 import com.aiopenpocket.ui.components.glass.glassSource
@@ -245,23 +244,17 @@ internal fun ChatPreviewScaffold(
                         .fillMaxWidth()
                         .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
                 ) {
+                    // The REAL ChatErrorLine, not a copy of it. It used to be re-implemented here as a bare
+                    // Row — which is why no baseline ever showed that the production banner had no surface
+                    // under it and let the feed read through the red text.
                     if (error != null) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f))
-                            TextButton(onClick = {}) {
-                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.size(4.dp))
-                                Text("Повторить")
-                            }
-                        }
+                        ChatErrorLine(text = error, onRetry = {}, glassState = glassState)
                     }
                     if (showInput) {
-                        ModeSelector(
+                        // The production bar (chips on their plate), not a bare ModeSelector: the bare one hid that
+                        // the selector's backing existed at all.
+                        ChatModeSelectorBar(
+                            glassState = glassState,
                             selected = AgentMode.CHAT,
                             enabled = true,
                             available = listOf(AgentMode.CHAT, AgentMode.PLAN, AgentMode.GOAL, AgentMode.REFLECT),

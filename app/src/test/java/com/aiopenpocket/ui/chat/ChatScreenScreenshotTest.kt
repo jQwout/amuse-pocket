@@ -62,6 +62,25 @@ class ChatScreenScreenshotTest {
     composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/chat_streaming.png")
   }
 
+  /**
+   * The error banner over a feed that scrolls under it. On the device the banner had no surface at all, so
+   * the lesson's paragraph and the card's buttons read straight through the red text. The baseline pins the
+   * plate; without it, nothing in the test suite looked at this state.
+   */
+  @Test
+  fun chat_error_line_screenshot() {
+    composeTestRule.setContent {
+      ChatPreviewScaffold(
+        title = "Как модель видит",
+        interactiveCards = true,
+        showInput = false,
+        messages = previewLessonMessages,
+        error = "Не удалось получить ответ: сеть недоступна",
+      )
+    }
+    composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/chat_error_line.png")
+  }
+
   /** The real [ChatInput] (not a stub) in three states: empty / with text / an answer in progress. */
   @Test
   fun chat_input_states_screenshot() {
