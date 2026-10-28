@@ -96,11 +96,7 @@ class AgentsViewModel(
           personaId = personaId,
           agentId = agent.id,
         )
-        val greeting = tr(
-          "Это агент «$name». $description Чем помочь?",
-          "This is the “$name” agent. $description How can I help?",
-        )
-        conversationRepository.addMessage(id, "assistant", greeting)
+        conversationRepository.addMessage(id, "assistant", agentGreeting(name, description))
         onReady(id)
       } finally {
         opening.remove(agentId)
@@ -108,3 +104,32 @@ class AgentsViewModel(
     }
   }
 }
+
+/**
+ * The first message of an agent's chat: who this is, what it does, and an offer to start.
+ *
+ * The three parts used to be glued with a bare space — "…drafts emails about my meetings How can I
+ * help?" — because a description is free text its author ends however they like: the builder does not
+ * demand a full stop, a preset's description happens to have one, and an empty description left a
+ * double space. So the sentence is closed here if it is not closed already, and a part that is empty
+ * drops out of the line entirely instead of leaving a gap.
+ */
+internal fun agentGreeting(name: String, description: String): String {
+  val about = description.trim().let {
+    when {
+      it.isEmpty() -> ""
+      // Only real terminators count as "already closed". A description ending in a bracket or a quote
+      // gets its own full stop after it — "(fast)." is right, "(fast) How can I help?" is not.
+      it.last() in SENTENCE_TERMINATORS -> it
+      else -> "$it."
+    }
+  }
+  return listOf(
+    tr("Это агент «$name».", "This is the “$name” agent."),
+    about,
+    tr("Чем помочь?", "How can I help?"),
+  ).filter { it.isNotEmpty() }.joinToString(" ")
+}
+
+/** Characters after which a description is already a finished sentence. */
+private const val SENTENCE_TERMINATORS = ".!?…:;"

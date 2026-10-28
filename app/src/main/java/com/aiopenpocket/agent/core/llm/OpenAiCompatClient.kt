@@ -29,6 +29,7 @@ import kotlinx.serialization.json.JsonObject
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.i18n.tr
 
 @Inject
 @SingleIn(AppScope::class)
@@ -206,7 +207,7 @@ class OpenAiCompatClient(
             parseError != null -> emit(parseError)
             emptyAttempt -> Unit
             finishReason == "error" ->
-              emit(StreamEvent.Error(userFacingLlmError(null, interrupted = true), code = "finish_error"))
+              emit(StreamEvent.Error(userFacingLlmError(null, interrupted = true, provider = provider), code = "finish_error"))
             else -> emit(StreamEvent.Finish(finishReason))
           }
         }
@@ -236,7 +237,7 @@ class OpenAiCompatClient(
           // Part of the answer has already gone to the consumer — silently restarting on another provider is
           // not allowed, or the chat would get a fragment plus a new full answer.
           Log.w(TAG, "$tag interrupted mid-stream — НЕ фолбэчим (часть ответа уже у пользователя)")
-          emit(StreamEvent.Error(userFacingLlmError(lastErrorCode, interrupted = true), code = lastErrorCode))
+          emit(StreamEvent.Error(userFacingLlmError(lastErrorCode, interrupted = true, provider = provider), code = lastErrorCode))
           return@flow
         }
         // The key did not fit or the balance is empty — a key rejection, not a model one: the next model of
@@ -252,7 +253,10 @@ class OpenAiCompatClient(
     }
 
     Log.e(TAG, "✗ LLM turn: ВСЕ провайдеры упали. Last code=$lastErrorCode msg=${lastError?.message}")
-    emit(StreamEvent.Error(userFacingLlmError(lastErrorCode, interrupted = false), code = lastErrorCode))
+    // `provider` is the route of EVERY attempt, not just the requested one: ProviderFallbackChain.resolve
+    // returns configs of the requested provider only, and there is no cross-provider fallback. So a
+    // 401/402 message can name this provider's key without tracking which attempt failed last.
+    emit(StreamEvent.Error(userFacingLlmError(lastErrorCode, interrupted = false, provider = provider), code = lastErrorCode))
   }
 
   @Serializable
@@ -385,13 +389,16 @@ internal suspend fun consumeOpenAiSse(
   val assembledCalls = toolAccumulators.values.map { acc ->
     acc to parseToolArgumentsOrNull(acc.arguments.toString(), json, onParseError)
   }
+  // provider = null in both: these two texts are about the model's token budget, not about a key or a
+  // balance, so they name no provider either way (see userFacingLlmError) — and the parser is kept out
+  // of the business of knowing which route it is reading.
   if (truncated && assembledCalls.any { (acc, args) -> args == null || acc.name.isBlank() }) {
-    emit(StreamEvent.Error(userFacingLlmError(CODE_LENGTH_TOOL_CALL, interrupted = false), code = CODE_LENGTH_TOOL_CALL))
+    emit(StreamEvent.Error(userFacingLlmError(CODE_LENGTH_TOOL_CALL, interrupted = false, provider = null), code = CODE_LENGTH_TOOL_CALL))
     return usage
   }
   if (truncated && !contentSeen && assembledCalls.isEmpty()) {
     // The thinking is NOT returned as the answer here: it is cut mid-word, just like the answer.
-    emit(StreamEvent.Error(userFacingLlmError(CODE_LENGTH_EMPTY, interrupted = false), code = CODE_LENGTH_EMPTY))
+    emit(StreamEvent.Error(userFacingLlmError(CODE_LENGTH_EMPTY, interrupted = false, provider = null), code = CODE_LENGTH_EMPTY))
     return usage
   }
 
@@ -523,34 +530,82 @@ private data class SseFunctionCall(
 
 private class LlmHttpException(val status: Int, body: String) : Exception("HTTP $status: $body")
 
-/**
- * The turn's error text for a person: it is shown in the chat and in the push about a failed
- * background turn.
- *
- * It used to be "All providers failed. Last: HTTP 401: {json…}" — English and the provider's raw JSON
- * in a Russian app, with no way to tell what to do. The details stay in the log; here — what happened
- * and what to fix. [code] is the HTTP status of the last attempt or our own marker (`blank_key`,
- * `empty_response`).
- */
 /** HTTP statuses where the key or the balance is at fault, not the model (see the fallback in streamChat). */
 private val KEY_LEVEL_FAILURES = setOf("401", "402", "403")
 
 /** HTTP statuses where the provider rejected the request itself: another model of the chain would reject it the same way. */
 private val REQUEST_LEVEL_FAILURES = setOf("400", "413")
 
-internal fun userFacingLlmError(code: String?, interrupted: Boolean): String = when {
-  code == "blank_key" -> "Не задан ключ OpenRouter — впиши его в Настройках."
-  code == "401" || code == "403" -> "Ключ OpenRouter не подошёл — проверь его в Настройках."
-  code == "402" -> "На счёте OpenRouter закончились средства."
-  code == "429" -> "Слишком много запросов к модели — попробуй через минуту."
-  code in REQUEST_LEVEL_FAILURES ->
+/**
+ * The turn's error text for a person: it is shown in the chat (a red banner over the input) and in
+ * the push about a failed background turn.
+ *
+ * It used to be "All providers failed. Last: HTTP 401: {json…}" — the provider's raw JSON, with no way
+ * to tell what to do; then plain Russian literals, which an English reader got word for word («Модель
+ * не ответила…» stood on the English demo path). The details stay in the log; here — what happened and
+ * what to fix, in the interface language ([tr]), because this very string reaches the person.
+ *
+ * [code] is the HTTP status of the last attempt or our own marker (`blank_key`, `empty_response`).
+ * [provider] is the route that last attempt actually went to, and it decides WHOSE key or balance a
+ * key-level failure is about: both routes are live (see [LlmProvider]), and the text used to name
+ * OpenRouter on both — a person who had entered a Meta Model API key was sent to the wrong site to
+ * look for the wrong key. `null` means the route is unknown (an empty chain, or an error raised inside
+ * the stream, where no provider is involved in the wording anyway) — then the message names neither
+ * and stays true for both.
+ */
+internal fun userFacingLlmError(code: String?, interrupted: Boolean, provider: LlmProvider?): String = when {
+  code == "blank_key" -> blankKeyMessage(provider)
+  code == "401" || code == "403" -> rejectedKeyMessage(provider)
+  code == "402" -> emptyBalanceMessage(provider)
+  code == "429" -> tr(
+    "Слишком много запросов к модели — попробуй через минуту.",
+    "Too many requests to the model — give it a minute and try again.",
+  )
+  code in REQUEST_LEVEL_FAILURES -> tr(
     "Модель отклонила запрос: возможно, переписка слишком длинная или вложение ей не подходит. " +
-      "Попробуй короче или начни новый чат."
-  code == CODE_LENGTH_EMPTY ->
-    "Модель слишком долго размышляла и не успела ответить. Нажми «Повторить»."
-  code == CODE_LENGTH_TOOL_CALL ->
-    "Ответ модели оборвался посреди действия — ничего не выполнено. Нажми «Повторить»."
-  interrupted -> "Ответ оборвался: связь с моделью прервалась. Нажми «Повторить»."
-  code == "empty_response" -> "Модель ответила пустотой. Попробуй ещё раз."
-  else -> "Модель не ответила: нет сети или сбой у провайдера. Попробуй ещё раз."
+      "Попробуй короче или начни новый чат.",
+    "The model refused the request: the conversation may be too long, or the attachment unsupported. " +
+      "Try a shorter message, or start a new chat.",
+  )
+  code == CODE_LENGTH_EMPTY -> tr(
+    "Модель слишком долго размышляла и не успела ответить. Нажми «Повторить».",
+    "The model spent its whole budget thinking and never got to an answer. Tap “Retry”.",
+  )
+  code == CODE_LENGTH_TOOL_CALL -> tr(
+    "Ответ модели оборвался посреди действия — ничего не выполнено. Нажми «Повторить».",
+    "The model's answer broke off in the middle of an action — nothing was carried out. Tap “Retry”.",
+  )
+  interrupted -> tr(
+    "Ответ оборвался: связь с моделью прервалась. Нажми «Повторить».",
+    "The answer broke off: the connection to the model dropped. Tap “Retry”.",
+  )
+  code == "empty_response" -> tr(
+    "Модель ответила пустотой. Попробуй ещё раз.",
+    "The model answered with nothing at all. Try again.",
+  )
+  else -> tr(
+    "Модель не ответила: нет сети или сбой у провайдера. Попробуй ещё раз.",
+    "No answer from the model: either there is no network, or the provider is down. Try again.",
+  )
+}
+
+/** No key for the route the request went to. Named per route — see [userFacingLlmError] on why. */
+private fun blankKeyMessage(provider: LlmProvider?): String = when (provider) {
+  LlmProvider.META -> tr("Не задан ключ Meta Model API — впиши его в Настройках.", "No Meta Model API key yet — add it in Settings.")
+  LlmProvider.OPENROUTER -> tr("Не задан ключ OpenRouter — впиши его в Настройках.", "No OpenRouter key yet — add it in Settings.")
+  null -> tr("Не задан ключ провайдера модели — впиши его в Настройках.", "The model provider has no API key yet — add one in Settings.")
+}
+
+/** The key went out and came back rejected (401/403). */
+private fun rejectedKeyMessage(provider: LlmProvider?): String = when (provider) {
+  LlmProvider.META -> tr("Ключ Meta Model API не подошёл — проверь его в Настройках.", "Meta Model API turned the key down — check it in Settings.")
+  LlmProvider.OPENROUTER -> tr("Ключ OpenRouter не подошёл — проверь его в Настройках.", "OpenRouter turned the key down — check it in Settings.")
+  null -> tr("Ключ провайдера модели не подошёл — проверь его в Настройках.", "The model provider turned the key down — check it in Settings.")
+}
+
+/** The key is fine, the money is not (402). */
+private fun emptyBalanceMessage(provider: LlmProvider?): String = when (provider) {
+  LlmProvider.META -> tr("На счёте Meta Model API закончились средства.", "The Meta Model API account has run out of credit.")
+  LlmProvider.OPENROUTER -> tr("На счёте OpenRouter закончились средства.", "The OpenRouter account has run out of credit.")
+  null -> tr("На счёте у провайдера модели закончились средства.", "The account at the model provider has run out of credit.")
 }

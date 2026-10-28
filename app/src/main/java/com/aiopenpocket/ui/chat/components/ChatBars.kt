@@ -73,8 +73,6 @@ import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.agents.builder.components.riskClassLabel
 import com.aiopenpocket.ui.agents.builder.components.riskColor
 import com.aiopenpocket.ui.components.glass.GlassCard
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * The search row in the header: the input field + the match counter and navigation arrows (prev/next),
@@ -207,8 +205,9 @@ private fun ModeChip(
  * The tool confirmation modal/bar (Task 9 backend, Task 21 UI): shown while
  * `state.pendingToolApproval` is not null — the agent's BEFORE_TOOL hook required permission before
  * calling a tool. Shows the call's human name ([CapabilityNames.call]), the risk class (the same badge
- * style as on the agent screen — [riskClassLabel]/[riskColor]) and the call's arguments; "Allow"/"Decline"
- * send [ChatIntent.ApproveToolCall]/[ChatIntent.DenyToolCall] — ChatViewModel resolves them itself against
+ * style as on the agent screen — [riskClassLabel]/[riskColor]) and the call's arguments, the deciding
+ * ones first ([toolArgumentLines]). "Allow"/"Decline" send
+ * [ChatIntent.ApproveToolCall]/[ChatIntent.DenyToolCall] — ChatViewModel resolves them itself against
  * the CURRENT `state.pendingToolApproval`, here sending the intent is enough.
  */
 @Composable
@@ -255,6 +254,9 @@ internal fun ToolApprovalBar(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )
+            // The arguments, one per line, important ones first — see [toolArgumentLines]. The card is
+            // cut off at some point, so WHAT is cut matters: a letter's recipient and subject must be
+            // above the fold, not below its body.
             val argumentsText = formatToolArguments(request.toolName, request.arguments)
             if (argumentsText.isNotEmpty()) {
                 Spacer(Modifier.height(4.dp))
@@ -262,7 +264,7 @@ internal fun ToolApprovalBar(
                     text = argumentsText,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                    maxLines = 4,
+                    maxLines = 5,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -281,16 +283,6 @@ internal fun ToolApprovalBar(
         }
     }
 }
-
-/**
- * The call's arguments under the bar's title. `action` (and a skill's `id` for load_skill) are already
- * said in the title through [CapabilityNames.call] — no need to repeat them below as a raw id. Strings are
- * shown without JSON quotes.
- */
-private fun formatToolArguments(toolName: String, arguments: Map<String, JsonElement>): String =
-    arguments.entries
-        .filterNot { (key, _) -> key == "action" || (toolName == "load_skill" && key == "id") }
-        .joinToString(", ") { (key, value) -> "$key: ${(value as? JsonPrimitive)?.content ?: value}" }
 
 /**
  * A Telegram/Claude-style voice recording panel — it replaces the input field while recognition runs. On
