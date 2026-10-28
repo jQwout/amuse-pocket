@@ -33,6 +33,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -84,10 +85,10 @@ class PendingApprovalPushTest {
     }
   }
 
-  private class FakePersistence(private val title: String) : TurnPersistence {
+  private class FakePersistence(private val title: String?) : TurnPersistence {
     override suspend fun addUserMessage(conversationId: String, text: String) = "u1"
     override suspend fun addAssistantMessage(conversationId: String, text: String, cardSpec: String?) = "a1"
-    override suspend fun conversationTitle(conversationId: String): String = title
+    override suspend fun conversationTitle(conversationId: String): String? = title
   }
 
   private object NoLifeSupport : TurnLifeSupport {
@@ -125,9 +126,9 @@ class PendingApprovalPushTest {
 
   // The manager's scope rides the test scheduler (as in TurnManagerTest), and its Job comes from
   // backgroundScope so the waiting turn is killed when the test ends.
-  private fun TestScope.managerInBackground() = TurnManager(
+  private fun TestScope.managerInBackground(chatTitle: String? = "Masha") = TurnManager(
     executor = ApprovalAskingExecutor(request),
-    persistence = FakePersistence("Masha"),
+    persistence = FakePersistence(chatTitle),
     foreground = { false },
     notifier = AgentTurnNotifier(application),
     pendingApprovals = { it == request.requestId },
@@ -152,6 +153,23 @@ class PendingApprovalPushTest {
       "The agent needs your permission: Email: write a draft. Open the chat to answer.",
       shade.contentText.toString(),
     )
+  }
+
+  /**
+   * A brand-new chat has no title yet — it gets one only after its first turn — and that is exactly the
+   * demo path ("new chat → email Masha"). The push fell back to turnFinished's "The agent replied" while
+   * the agent had replied nothing and was waiting for permission.
+   */
+  @Test
+  fun `a push for permission in a chat with no title yet does not say the agent replied`() = runTest {
+    AppLanguage.code = AppLanguage.EN
+
+    managerInBackground(chatTitle = null).launchTurn("c1", "email Masha the meeting moves to Friday", AgentMode.CHAT)
+    advanceTimeBy(100)
+
+    val title = shadowOf(notifications().single()).contentTitle.toString()
+    assertEquals("Permission needed", title)
+    assertNotEquals("The agent replied", title)
   }
 
   /** The Russian side is still there: a one-sided move to tr() would make the Russian app English. */

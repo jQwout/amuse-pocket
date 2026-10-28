@@ -49,11 +49,17 @@ object ApprovalResultText {
       "it again this turn. Say briefly that it was not done because they declined it; offer to do it if " +
       "they ask again."
 
-  /** Nobody answered. The one thing the model must not do here is turn silence into the user's choice. */
+  /**
+   * Nobody answered. The one thing the model must not do here is turn silence into the user's choice.
+   *
+   * Nor may it promise a follow-through the app does not have: once the window closes the approval card
+   * is gone, nothing waits in the background, and a later "yes" has nowhere to land. An earlier wording
+   * told the model to say "it will happen as soon as they confirm" — the same kind of untrue sentence as
+   * "you declined it", only pointing the other way. The person has to ask again, so the model says so.
+   */
   fun unanswered(toolName: String): String =
     "The approval request for '$toolName' expired with no answer, so nothing was done. The app may " +
-      "have been in the background and the user may never have seen the request: treat this as still " +
-      "waiting for their confirmation, never as a choice they made, and do not blame them for it. Do " +
-      "not call the tool again this turn. Say plainly that it is not done yet and that it will happen " +
-      "as soon as they confirm."
+      "have been in the background and the user may never have seen the request: this is not a choice " +
+      "they made, and do not blame them for it. Do not call the tool again this turn. Say plainly that " +
+      "it is not done yet because the request went unanswered, and offer to do it when they ask again."
 }
