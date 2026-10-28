@@ -30,6 +30,7 @@ import com.aiopenpocket.data.repository.AgentFile
 import com.aiopenpocket.data.repository.AgentFilesRepository
 import com.aiopenpocket.di.AppScope
 import com.aiopenpocket.i18n.tr
+import com.aiopenpocket.ui.agents.builder.components.ToolCatalog
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
@@ -51,6 +52,11 @@ import kotlinx.coroutines.launch
 data class AgentDetailToolRow(
   val name: String,
   val description: String,
+  /**
+   * The worst case this tool can reach — the same ceiling the builder's risk rail showed and took the
+   * user's consent against (`ToolCatalog`), not the tool's own `Tool.riskClass` default. `null` only
+   * for a tool this build no longer registers at all. See [AgentDetailViewModel.resolveToolRow].
+   */
   val riskClass: RiskClass?,
   val available: Boolean,
 )
@@ -264,7 +270,20 @@ class AgentDetailViewModel(
   private fun resolveToolRow(name: String): AgentDetailToolRow {
     val tool = toolRegistry.get(name)
     return if (tool != null) {
-      AgentDetailToolRow(name = name, description = tool.description, riskClass = tool.riskClass, available = true)
+      AgentDetailToolRow(
+        name = name,
+        description = tool.description,
+        // The CEILING from [ToolCatalog], not the tool's own `Tool.riskClass`. The latter is the
+        // class-wide DEFAULT and for `memory_tool`/`heartbeat`/`database_query`/`work_manager` it is
+        // understated — those tools escalate only inside `riskFor(arguments)`, per call (see the
+        // ToolCatalog kdoc, which names itself the worst-case judgment). The builder took the user's
+        // consent against that ceiling ("Can delete permanently" for Reminders); the inspector of the
+        // very same agent showing "READ" was not a cosmetic mismatch but a false claim about what the
+        // agent is allowed to do. One source of truth, and it is the one consent was given against.
+        // A tool missing from the catalog keeps its own declared class — nothing to fall back to.
+        riskClass = ToolCatalog.get(name)?.riskClass ?: tool.riskClass,
+        available = true,
+      )
     } else {
       AgentDetailToolRow(
         name = name,

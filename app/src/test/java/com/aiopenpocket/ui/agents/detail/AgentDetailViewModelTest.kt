@@ -38,6 +38,7 @@ import com.aiopenpocket.agent.core.skill.UserSkillEntity
 import com.aiopenpocket.agent.core.skill.UserSkillRepository
 import com.aiopenpocket.data.database.AppDatabase
 import com.aiopenpocket.data.repository.AgentFilesRepository
+import com.aiopenpocket.ui.agents.builder.components.ToolCatalog
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -109,18 +110,21 @@ class AgentDetailViewModelTest {
     agentFilesRepository = AgentFilesRepository(RuntimeEnvironment.getApplication())
     planRepository = PlanRepository(db, db.planDao()) { now }
     userSkillRepository = UserSkillRepository(db.userSkillDao())
-    vm = AgentDetailViewModel(
-      agentResolver = DefaultAgentResolver(userAgentRepository),
-      userAgentRepository = userAgentRepository,
-      toolRegistry = ToolRegistry(setOf(FakeTool("memory_tool", RiskClass.WRITE))),
-      skillRegistry = SkillRegistry(emptySet(), userSkillRepository),
-      agentHookRepository = agentHookRepository,
-      heartbeatDao = heartbeatDao,
-      agentFilesRepository = agentFilesRepository,
-      planRepository = planRepository,
-      userSkillRepository = userSkillRepository,
-    )
+    vm = viewModelWith(ToolRegistry(setOf(FakeTool("memory_tool", RiskClass.WRITE))))
   }
+
+  /** The same wiring as [vm], with a [ToolRegistry] of its own — for a test that needs other tools registered. */
+  private fun viewModelWith(toolRegistry: ToolRegistry) = AgentDetailViewModel(
+    agentResolver = DefaultAgentResolver(userAgentRepository),
+    userAgentRepository = userAgentRepository,
+    toolRegistry = toolRegistry,
+    skillRegistry = SkillRegistry(emptySet(), userSkillRepository),
+    agentHookRepository = agentHookRepository,
+    heartbeatDao = heartbeatDao,
+    agentFilesRepository = agentFilesRepository,
+    planRepository = planRepository,
+    userSkillRepository = userSkillRepository,
+  )
 
   @After
   fun tearDown() {
@@ -236,6 +240,43 @@ class AgentDetailViewModelTest {
     assertEquals(null, unavailable.riskClass)
     assertTrue(state.tools.single { it.name == "memory_tool" }.available)
     assertTrue(state.hasInvalidCapabilities)
+  }
+
+  // --- The risk badge: one ceiling, shared with the builder ----------------------------------------
+
+  /**
+   * The defect this guards, found on a real screenshot (Oct 28, 2026): in the builder "Memory" read
+   * «Changes data» and "Reminders" «Can delete permanently», while the inspector of the SAME published
+   * agent showed READ for both. Two sources of truth — the builder reads [ToolCatalog]'s worst case,
+   * the inspector read `Tool.riskClass`, the class-wide default that `memory_tool`/`heartbeat`/
+   * `database_query`/`work_manager` never override (they escalate per call, inside `riskFor(arguments)`).
+   * The user gave consent against the ceiling, so a lower class on the agent's own screen is a false
+   * claim about what that agent may do, not a cosmetic mismatch.
+   *
+   * Every tool registered here declares [RiskClass.READ] deliberately — the understated default in its
+   * worst form, so a row that still carries the catalog's ceiling can only have taken it from the catalog.
+   */
+  @Test
+  fun `a tool's risk is the ceiling the builder took consent against, not the tool's own default`() = runTest(testDispatcher) {
+    val id = "every-tool-agent"
+    val catalogNames = ToolCatalog.entries.map { it.name }
+    val understated = ToolRegistry(catalogNames.map { FakeTool(it, RiskClass.READ) }.toSet())
+    val vmAll = viewModelWith(understated)
+    userAgentRepository.saveDraft(customUserAgent(id, toolNames = catalogNames.toSet(), skillIds = emptySet()))
+    userAgentRepository.publish(id)
+
+    vmAll.select(id)
+    val state = vmAll.state.first { it.definition != null && it.tools.size == catalogNames.size }
+
+    // Without this the assertion below could pass on a screen full of "unavailable" rows.
+    assertFalse(state.hasInvalidCapabilities)
+    val expected = ToolCatalog.entries.associate { it.name to it.riskClass }
+    assertEquals(expected, state.tools.associate { it.name to it.riskClass })
+    // The check has teeth only while the catalog really is stricter than the bare default somewhere.
+    assertTrue(
+      "Every catalog ceiling equals the registry's READ — this test can no longer fail",
+      expected.values.any { it != RiskClass.READ },
+    )
   }
 
   // --- Editable / duplicable gating ----------------------------------------------------------------

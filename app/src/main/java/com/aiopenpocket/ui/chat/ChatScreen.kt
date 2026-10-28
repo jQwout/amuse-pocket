@@ -392,6 +392,20 @@ fun ChatScreen(
         if (state.messages.isNotEmpty()) initialScrollDone = true
     }
 
+    // THE BOTTOM BAR GREW, and no message arrived with it: a step's problem banner, the turn's error with
+    // "Retry", the tool-trace panel, the tool-approval bar, the plan card. The autoscroll above cannot help
+    // with that — it is keyed on the LAST MESSAGE's id. See FollowBottomBarGrowth for the whole story.
+    //
+    // The stream anchor is excluded deliberately: there the question is held at the TOP edge with a
+    // viewport-sized spacer under it, so nothing is hiding behind the overlay, while a scroll would knock the
+    // question off the very anchor the reserve exists for.
+    FollowBottomBarGrowth(
+        listState = listState,
+        bottomBarHeightPx = bottomBarHeightPx,
+        followEnabled = pinnedToBottom && initialScrollDone && !searchActive && !streamAnchorActive,
+        resetKey = conversationId,
+    )
+
     // Search: when the current match changes, scroll to it.
     LaunchedEffect(currentMatch, matchIndices) {
         matchIndices.getOrNull(currentMatch)?.let { listState.animateScrollToItem(it) }
