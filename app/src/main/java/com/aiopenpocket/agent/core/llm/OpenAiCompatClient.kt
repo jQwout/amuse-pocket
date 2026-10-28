@@ -439,11 +439,22 @@ private const val FINISH_LENGTH = "length"
 internal const val CODE_LENGTH_EMPTY = "length_empty"
 internal const val CODE_LENGTH_TOOL_CALL = "length_tool_call"
 
-/** Marker above thinking returned instead of an answer: it reads as the model's thoughts, not its answer. */
-internal const val REASONING_ONLY_PREFIX = "💭 *Ответа нет — вот ход мыслей модели:*\n\n"
+/**
+ * Marker above thinking returned instead of an answer: it reads as the model's thoughts, not its answer.
+ *
+ * A getter, not a `const`: this text is glued onto [StreamEvent.TextDelta] and lands inside the answer
+ * bubble itself, so an English reader met it in Russian. A value chosen once at class init would freeze
+ * in whatever language the app started in — the same reason `ToolCatalogEntry.consequence` is a getter.
+ */
+internal val REASONING_ONLY_PREFIX: String
+  get() = tr(
+    "💭 *Ответа нет — вот ход мыслей модели:*\n\n",
+    "💭 *No answer — here is the model's train of thought:*\n\n",
+  )
 
-/** Tail of an answer cut by length. */
-internal const val TRUNCATED_ANSWER_SUFFIX = "…\n\n*(ответ обрезан)*"
+/** Tail of an answer cut by length. A getter for the same reason as [REASONING_ONLY_PREFIX]. */
+internal val TRUNCATED_ANSWER_SUFFIX: String
+  get() = tr("…\n\n*(ответ обрезан)*", "…\n\n*(answer cut off)*")
 
 private class ToolCallAccumulator(val index: Int) {
   var id: String? = null
