@@ -53,8 +53,13 @@ Persona prompts are in `assets/personas/*.md` (7 personas), listed in `agent/cor
 
 ## Models and network
 
-- **Meta only, through OpenRouter.** `LlmProvider` has a single value, `OPENROUTER`. It is kept as
-  a seam for a direct Meta Model API later.
+- **Meta models, by two routes.** `LlmProvider` has TWO values, `META` and `OPENROUTER`, and the key
+  picks between them: a Meta Model API key in Settings sends requests straight to `api.meta.ai`,
+  otherwise they go through OpenRouter (`activeLlmProvider`). There is no cross-provider fallback —
+  the chain only ever resolves the provider it was asked for. Text that names a key or a balance must
+  therefore name the route it is talking about; "your OpenRouter key" shown to someone holding a Meta
+  key sent them to the wrong screen until 28 Oct 2026. This bullet itself claimed a single value long
+  after the second one shipped, which is how a stale instruction becomes a defect.
 - **Catalog.** The model list comes live from OpenRouter (`OpenRouterCatalogService`, `GET /api/v1/models`)
   and is cached in `filesDir` (`OpenRouterCatalogCache`). The seed `assets/config/models_openrouter.json`
   covers first run and offline use and sets priority (`meta/muse-spark-1.3` first).
