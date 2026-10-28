@@ -13,6 +13,7 @@ import com.aiopenpocket.agent.core.mcp.string
 import com.aiopenpocket.agent.core.mcp.toolSchema
 import com.aiopenpocket.agent.loop.ForegroundState
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.i18n.tr
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import kotlinx.serialization.json.JsonElement
@@ -55,9 +56,16 @@ class EmailTool(
     // In the background Android will not let us open the mail app (see launchExternalActivity) — then the
     // draft waits for a tap on the notification, and the model is told so plainly: the tool used to
     // report "opened" while nothing opened.
-    val notificationText = subject?.takeIf { it.isNotBlank() }?.let { "«$it» — нажми, чтобы открыть в почте." }
-      ?: "Нажми, чтобы открыть его в почте."
-    return when (val outcome = launchExternalActivity(context, foreground, intent, "Черновик письма готов", notificationText)) {
+    //
+    // These two strings go to setContentTitle/setContentText, so they are the only text here a PERSON
+    // reads, and they go through tr: Cyrillic in the notification shade of an English interface is the
+    // same bug as Cyrillic in the chat. Everything else below is addressed to the MODEL
+    // (ToolResult.Success/Error) and stays Russian on purpose — see AGENTS.md.
+    val notificationText = subject?.takeIf { it.isNotBlank() }
+      ?.let { tr("«$it» — нажми, чтобы открыть в почте.", "“$it” — tap to open it in your mail app.") }
+      ?: tr("Нажми, чтобы открыть его в почте.", "Tap to open it in your mail app.")
+    val notificationTitle = tr("Черновик письма готов", "Your draft is ready")
+    return when (val outcome = launchExternalActivity(context, foreground, intent, notificationTitle, notificationText)) {
       LaunchOutcome.Opened ->
         ToolResult.Success("Черновик письма открыт в почтовом приложении. Отправьте его кнопкой «Отправить».")
       LaunchOutcome.Notified -> ToolResult.Success(
