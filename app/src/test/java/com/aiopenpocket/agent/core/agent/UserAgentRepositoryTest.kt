@@ -90,7 +90,7 @@ class UserAgentRepositoryTest {
       UserAgentEntity(
         id = "bad", name = "Битый", description = "d", iconKey = "sparkles", systemPrompt = "s",
         toolNames = emptyList(), skillIds = emptyList(), allowedModes = listOf("CHAT"),
-        allowedWidgetTemplates = emptyList(), stateKeyPrefixes = emptyList(), defaultMode = "RENAMED_MODE",
+        allowedWidgetTemplates = emptyList(), stateKeyPrefixes = emptyList(), model = null, defaultMode = "RENAMED_MODE",
         memoryNamespace = "agent:bad:",
         includeSharedProfile = false, status = "PUBLISHED", configVersion = 1L, createdAt = 1L, updatedAt = 2L,
       ),
@@ -381,5 +381,24 @@ class UserAgentRepositoryTest {
 
     assertEquals(AgentStatus.DRAFT, repository.get(agentDraft.id)?.status)
     assertEquals(otherAgent.id, repository.get(otherAgent.id)?.hooks?.single()?.agentId)
+  }
+
+  @Test
+  fun `model round-trips through Room and defaults to null`() = runTest {
+    repository.saveDraft(draft(id = "plain-agent"))
+    assertNull(repository.get("plain-agent")?.model)
+
+    repository.saveDraft(draft(id = "wonder-agent").copy(model = "WONDER"))
+    assertEquals("WONDER", repository.get("wonder-agent")?.model)
+    // Publishing re-writes the row: the choice must survive it.
+    assertEquals("WONDER", repository.publish("wonder-agent").model)
+    assertEquals("WONDER", repository.observePublished().first().single { it.id == "wonder-agent" }.model)
+  }
+
+  @Test
+  fun `clonePreset copies the model field, and a preset clone stays on the app model`() = runTest {
+    assertNull(repository.clonePreset(MiniAgentCatalog.get("budget")!!.toDefinition()).model)
+    val custom = draft(id = "fast-agent").copy(model = "SPARK")
+    assertEquals("SPARK", repository.clonePreset(custom).model)
   }
 }

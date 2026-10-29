@@ -17,8 +17,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.ValidationIssue
+import com.aiopenpocket.agent.core.llm.AgentModel
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.agents.builder.AgentDraft
@@ -103,6 +105,38 @@ fun LoopModesStep(
     }
     ErrorText(errors, "defaultMode")
 
+    Spacer(modifier = Modifier.height(24.dp))
+    Text(text = tr("Модель", "Model"), style = MaterialTheme.typography.titleMedium)
+    Text(
+      text = tr(
+        "На какой модели Muse работает этот агент. Если выбранной модели нет на вашем маршруте, агент работает на модели приложения.",
+        "Which Muse model this agent runs on. If your route doesn't offer it, the agent falls back to the app's model.",
+      ),
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
+    )
+    // Built per call, not as a static list: tr() must run when the text is shown.
+    val modelOptions = listOf<Pair<String?, String>>(
+      null to tr("Модель приложения", "App default"),
+      AgentModel.WONDER.key to tr(
+        "Muse Wonder — сильнейшая, для долгой работы в несколько шагов",
+        "Muse Wonder — strongest, for long multi-step work",
+      ),
+      AgentModel.SPARK.key to tr("Muse Spark — быстрее и дешевле", "Muse Spark — faster and cheaper"),
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+      modelOptions.forEach { (key, label) ->
+        FilterChip(
+          selected = draft.model == key,
+          onClick = { onUpdateDraft { it.copy(model = key) } },
+          label = { Text(label) },
+          modifier = Modifier.testTag("builder_model_${key ?: "default"}"),
+        )
+      }
+    }
+    ErrorText(errors, "model")
+
     Spacer(modifier = Modifier.height(20.dp))
     Text(
       text = tr(
@@ -113,6 +147,13 @@ fun LoopModesStep(
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
   }
+}
+
+/** Short model name for read-only displays (the agent inspector); the picker uses the long labels. */
+fun agentModelShortLabel(key: String?): String = when (AgentModel.fromKey(key)) {
+  AgentModel.WONDER -> "Muse Wonder"
+  AgentModel.SPARK -> "Muse Spark"
+  null -> tr("Модель приложения", "App default")
 }
 
 private fun modeLabel(mode: AgentMode): String = when (mode) {

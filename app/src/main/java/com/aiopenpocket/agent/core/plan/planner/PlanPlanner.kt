@@ -8,6 +8,7 @@ import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.ReasoningEffort
+import com.aiopenpocket.agent.core.llm.AgentModelContext
 import com.aiopenpocket.agent.core.llm.ReasoningEffortContext
 import com.aiopenpocket.agent.core.llm.StreamEvent
 import com.aiopenpocket.agent.core.plan.model.CriterionVerifier
@@ -190,7 +191,7 @@ class PlanPlanner(
     var streamError: String? = null
     // A plan is the one place where thinking longer pays: a bad plan costs every later step. High even when
     // the surrounding GOAL turn runs at medium (a replan happens inside it).
-    llmClient.streamChat(messages, PlanControlSchemas.ALL, provider).flowOn(ReasoningEffortContext(ReasoningEffort.HIGH)).collect { event ->
+    llmClient.streamChat(messages, PlanControlSchemas.ALL, provider).flowOn(ReasoningEffortContext(ReasoningEffort.HIGH) + AgentModelContext(agent.model)).collect { event ->
       when (event) {
         is StreamEvent.TextDelta -> explanation += event.content
         is StreamEvent.ToolCall -> calls += event

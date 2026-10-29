@@ -108,4 +108,72 @@ class ProviderFallbackChainTest {
   fun `empty catalog resolves to empty list`() {
     assertTrue(chainOf().resolve(LlmProvider.OPENROUTER).isEmpty())
   }
+
+  // --- the agent's own model (AgentDefinition.model) -------------------------------------------
+
+  private fun metaConfig(model: String) = config(model).copy(name = LlmProvider.META)
+
+  private fun twoRoutes(preferred: String? = null) = ProviderFallbackChain(
+    configs = mapOf(
+      // The direct route: ids without a vendor prefix, catalog already sorted by priority.
+      LlmProvider.META to listOf("muse-spark-1.3", "muse-spark-1.2", "muse-wonder-1.0").map(::metaConfig),
+      LlmProvider.OPENROUTER to listOf("meta/muse-spark-1.3", "meta/muse-wonder", "meta/muse-spark-1.2").map { config(it) },
+    ),
+    preferredModel = { preferred },
+  )
+
+  @Test
+  fun `agent model WONDER goes first on both routes, despite the id spelling differing`() {
+    val chain = twoRoutes()
+    assertEquals(
+      listOf("muse-wonder-1.0", "muse-spark-1.3", "muse-spark-1.2"),
+      chain.resolve(LlmProvider.META, AgentModel.WONDER).map { it.model },
+    )
+    assertEquals(
+      listOf("meta/muse-wonder", "meta/muse-spark-1.3", "meta/muse-spark-1.2"),
+      chain.resolve(LlmProvider.OPENROUTER, AgentModel.WONDER).map { it.model },
+    )
+  }
+
+  @Test
+  fun `agent model SPARK pulls forward only the best Spark and beats the app-wide choice`() {
+    val chain = twoRoutes(preferred = "muse-wonder-1.0")
+    // The user's app-wide pick is Wonder, the agent wants Spark: the agent wins, Wonder stays as fallback.
+    assertEquals(
+      listOf("muse-spark-1.3", "muse-wonder-1.0", "muse-spark-1.2"),
+      chain.resolve(LlmProvider.META, AgentModel.SPARK).map { it.model },
+    )
+  }
+
+  @Test
+  fun `no agent model leaves the chain exactly as before`() {
+    val chain = twoRoutes(preferred = "muse-wonder-1.0")
+    assertEquals(chain.resolve(LlmProvider.META), chain.resolve(LlmProvider.META, null))
+    assertEquals(
+      listOf("muse-wonder-1.0", "muse-spark-1.3", "muse-spark-1.2"),
+      chain.resolve(LlmProvider.META).map { it.model },
+    )
+  }
+
+  @Test
+  fun `an agent model missing from the active catalog falls back to the default chain`() {
+    val chain = chainOf(config("meta/muse-spark-1.3"), config("meta/muse-spark-1.2"))
+    assertEquals(
+      listOf("meta/muse-spark-1.3", "meta/muse-spark-1.2"),
+      chain.resolve(LlmProvider.OPENROUTER, AgentModel.WONDER).map { it.model },
+    )
+  }
+
+  @Test
+  fun `agent model never resurrects a contributor model`() {
+    val chain = chainOf(config("meta/muse-wonder-contributor"), config("meta/muse-spark-1.3"))
+    assertEquals(listOf("meta/muse-spark-1.3"), chain.resolve(LlmProvider.OPENROUTER, AgentModel.WONDER).map { it.model })
+  }
+
+  @Test
+  fun `unknown stored key maps to no agent model`() {
+    assertEquals(AgentModel.WONDER, AgentModel.fromKey("WONDER"))
+    assertEquals(null, AgentModel.fromKey("GPT_5"))
+    assertEquals(null, AgentModel.fromKey(null))
+  }
 }

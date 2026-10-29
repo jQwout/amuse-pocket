@@ -29,7 +29,7 @@ class ProviderFallbackChain(
    * explicitly, and a request cannot silently go to another vendor. Fallback between MODELS of one
    * provider remains — it changes neither the recipient of the data nor the price list.
    */
-  fun resolve(requested: LlmProvider): List<ProviderConfig> {
+  fun resolve(requested: LlmProvider, agentModel: AgentModel? = null): List<ProviderConfig> {
     // Models without function calling are filtered HERE, not only when building configs: every way of
     // building the chain passes through this point — the live catalog, a hand-edited asset, and a
     // cache written by a previous app version. A model without tools does not fail, it silently stops
@@ -44,11 +44,17 @@ class ProviderFallbackChain(
     // without an explicit check it would be silently looked up among the models (it would find none —
     // harmless, but by accident).
     val preferred = preferredModel()?.takeIf { it.isNotBlank() && it != "AUTO" }
-      ?: return base.take(MAX_ATTEMPTS)
     // Compare ONLY by model name: base is already narrowed to one provider. Truncate AFTER the choice:
     // the chosen model may be the last one in the catalog.
     val (match, rest) = base.partition { it.model == preferred }
-    return (match + rest).take(MAX_ATTEMPTS)
+    val ordered = match + rest
+    // The agent's own model goes in front of the user's app-wide choice (which stays as the first
+    // fallback). Only the single best catalog entry of the family is pulled forward: "Spark" means the
+    // newest Spark the active catalog lists, not every Spark. A family the active route does not have
+    // leaves the chain untouched, so a turn never fails over a model choice.
+    val agentFirst = agentModel?.let { m -> ordered.firstOrNull { m.matches(it.model) } }
+      ?: return ordered.take(MAX_ATTEMPTS)
+    return (listOf(agentFirst) + ordered.filter { it !== agentFirst }).take(MAX_ATTEMPTS)
   }
 
   private companion object {

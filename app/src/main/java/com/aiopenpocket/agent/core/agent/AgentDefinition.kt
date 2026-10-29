@@ -57,6 +57,13 @@ data class AgentDefinition(
    * only ever gets a non-empty set by being cloned from a preset that had one.
    */
   val stateKeyPrefixes: Set<String> = emptySet(),
+  /**
+   * [com.aiopenpocket.agent.core.llm.AgentModel.key] of the model this agent asks to run on, or null
+   * for "the app's model" (Settings -> model). Null is the default for new drafts and for every preset.
+   * A string key rather than the enum so a value from a newer build still loads; [AgentValidator]
+   * rejects an unknown one at publish and the chain ignores it at run time.
+   */
+  val model: String? = null,
   val configVersion: Long,
   val status: AgentStatus,
 ) {

@@ -174,4 +174,20 @@ class AgentValidatorTest {
     // custom skill entity lands (later task). Locks the v1 constant value the brief specifies.
     assertEquals(40_000, AgentValidator.MAX_CUSTOM_SKILL_CHARS)
   }
+
+  @Test
+  fun `model must be null or a known family key`() {
+    assertTrue(validator.validate(validDefinition().copy(model = null)).isEmpty())
+    assertTrue(validator.validate(validDefinition().copy(model = "WONDER")).isEmpty())
+    assertTrue(validator.validate(validDefinition().copy(model = "SPARK")).isEmpty())
+    val issues = validator.validate(validDefinition().copy(model = "gpt-5"))
+    assertEquals(listOf("unknown_model"), issues.map { it.code })
+  }
+
+  @Test
+  fun `no preset names a model - presets keep using the app's model`() {
+    for (agent in MiniAgentCatalog.all) {
+      assertEquals("preset '${agent.id}'", null, agent.toDefinition().model)
+    }
+  }
 }

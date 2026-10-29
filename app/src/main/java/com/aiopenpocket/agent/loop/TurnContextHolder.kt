@@ -4,6 +4,7 @@ package com.aiopenpocket.agent.loop
 // @trace user-agent-builder-848153
 
 import com.aiopenpocket.agent.core.agent.AgentDefinition
+import com.aiopenpocket.agent.core.llm.AgentModelContext
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -39,7 +40,10 @@ class TurnContextHolder() {
 
   /** Wrap a turn: `withContext(holder.contextElement(convId, agent)) { reactLoopRunner.run(...) }`. */
   fun contextElement(conversationId: String?, agent: AgentDefinition?): CoroutineContext =
-    threadLocal.asContextElement(Ctx(conversationId, agent))
+    // The agent's model rides along as a second element: every place that binds an agent to a turn
+    // (chat, reflection, plan steps, heartbeat) already calls this, so they all pick up the model with
+    // no new parameter. OpenAiCompatClient reads it.
+    threadLocal.asContextElement(Ctx(conversationId, agent)) + AgentModelContext(agent?.model)
 
   /** Sets the value directly on the current thread — for tests and synchronous paths. */
   fun set(conversationId: String?, agent: AgentDefinition?) {

@@ -60,6 +60,7 @@ import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.data.repository.AgentFile
 import com.aiopenpocket.i18n.tr
+import com.aiopenpocket.ui.agents.builder.components.agentModelShortLabel
 import com.aiopenpocket.ui.agents.builder.components.hookActionLabel
 import com.aiopenpocket.ui.agents.builder.components.hookConditionSummary
 import com.aiopenpocket.ui.agents.builder.components.hookEventLabel
@@ -164,6 +165,10 @@ internal fun StatTiles(
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
       StatTile(label = tr("Напоминания", "Reminders"), value = state.activeHeartbeats.size.toString(), modifier = Modifier.weight(1f))
       StatTile(label = tr("Хуки", "Hooks"), value = state.hooks.size.toString(), modifier = Modifier.weight(1f))
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+      StatTile(label = tr("Модель", "Model"), value = agentModelShortLabel(state.definition?.model), modifier = Modifier.weight(1f))
+      Spacer(modifier = Modifier.weight(1f))
     }
   }
 }
