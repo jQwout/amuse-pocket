@@ -61,6 +61,15 @@ class TurnCompletionTest {
   }
 
   @Test
+  fun `a model that wrapped up at the limit gets no canned note on top`() {
+    val out = resolveCompletedTurn(
+      result("Done: the notes are found. Not done: the summary. Ask me to finish it.")
+        .copy(hitIterationLimit = true, wrappedUp = true, iterations = 10),
+    )
+    assertEquals("Done: the notes are found. Not done: the summary. Ask me to finish it.", out.responseText)
+  }
+
+  @Test
   fun `лимит шагов без текста — не «пустой ответ», а пометка о лимите`() {
     // Before: the last round is only a tool_call, there are no preambles, and the user saw an "empty answer".
     val out = resolveCompletedTurn(result("").copy(hitIterationLimit = true, iterations = 10))

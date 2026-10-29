@@ -102,6 +102,8 @@ class OpenAiCompatClient(
       val tag = "${p.name}/${p.model}"
       val attempt = "[${idx + 1}/${providers.size}]"
       var sameModelTries = 1
+      // Set when this model answered 400 to a request carrying the effort field: the next try goes without it.
+      var withoutReasoning = false
       attempts@ while (true) {
         try {
           val apiKey = p.apiKeyResolver()
@@ -112,7 +114,10 @@ class OpenAiCompatClient(
             continue@models
           }
 
-          val reasoningFields = reasoningFieldsFor(p, effort)
+          // A model that answered 400 to the effort field, and then worked without it, does not get it again
+          // in this process.
+          val reasoningFields =
+            if (withoutReasoning || reasoningRejected.contains(tag)) null else reasoningFieldsFor(p, effort)
           val requestBody = OpenAiChatRequest(
             model = p.model,
             messages = messages,
@@ -243,6 +248,9 @@ class OpenAiCompatClient(
             lastErrorCode = "empty_response"
             continue@models
           }
+          // Only a request that WORKED without the field proves the field was the problem; a 400 for a
+          // too-long context fails both ways and must not switch the effort off for good.
+          if (withoutReasoning) reasoningRejected.add(tag)
           return@flow
         } catch (e: CancellationException) {
           // Cancellation is NOT a provider failure. `CancellationException` extends `Exception`, so without
@@ -270,6 +278,17 @@ class OpenAiCompatClient(
           // the server), and 4xx request errors are never retried. A wait that does not fit the turn's
           // budget (a "come back in a minute" Retry-After) falls through to the next model, as before.
           val httpError = e as? LlmHttpException
+          // The effort field is the one part of the request the app added on a doc's word, not on a live
+          // answer. If a model rejects the request while it carried that field, ask once more without it
+          // before treating the 400 as a rejection of the request itself: otherwise every turn on the route
+          // would fail on a field the turns worked without (a 400 stops the whole chain, see below).
+          if (httpError?.status == 400 && !withoutReasoning && !reasoningRejected.contains(tag) &&
+            reasoningFieldsFor(p, effort) != null
+          ) {
+            Log.w(TAG, "$attempt $tag HTTP 400 with the reasoning field: retrying once without it")
+            withoutReasoning = true
+            continue@attempts
+          }
           if (httpError != null && httpError.status in RETRYABLE_STATUSES && sameModelTries < MAX_TRIES_PER_MODEL) {
             val wait = RetryBackoff.delayMs(sameModelTries, httpError.retryAfter, retryRandom)
             if (waitedMs + wait <= MAX_TURN_WAIT_MS) {
@@ -339,6 +358,12 @@ class OpenAiCompatClient(
    * built by Metro, and a test needs a seeded one to assert exact waits.
    */
   internal var retryRandom: Random = Random.Default
+
+  /**
+   * `provider/model` tags that answered 400 with the reasoning-effort field and worked without it. Lives as
+   * long as the client (a singleton), so only the first turn pays for the extra request.
+   */
+  private val reasoningRejected: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
 
   private companion object {
     /** Transient by Meta's error-handling guide (dev.meta.ai/docs/error-handling): retry with backoff. */

@@ -163,6 +163,11 @@ data class AgentResult(
    * .stoppedByBudget].
    */
   val stoppedByToolBudget: Boolean = false,
+  /**
+   * The run hit [hitIterationLimit] and the model then gave a closing answer in the extra tool-less call
+   * ([ReactLoopRunner]'s wrap-up), so [text] already says what is done and what to ask next.
+   */
+  val wrappedUp: Boolean = false,
 )
 
 data class ToolTrace(

@@ -177,7 +177,9 @@ fun resolveCompletedTurn(result: AgentResult): CompletedTurn {
   // The iteration limit is a visible outcome, not silence: hitIterationLimit used not to be read here
   // at all. stoppedByToolBudget is a plan step's budget, CHAT/REFLECT/TUTOR have none; just in case,
   // it is not passed off as the chat's step limit.
-  val responseText = if (result.hitIterationLimit && !result.stoppedByToolBudget) {
+  // A run whose model already wrapped up (said what is done and what to ask next) gets no canned note on
+  // top: two closings in a row, the second contradicting the first when the model said it had finished.
+  val responseText = if (result.hitIterationLimit && !result.stoppedByToolBudget && !result.wrappedUp) {
     listOf(result.text.trim(), TurnTexts.ITERATION_LIMIT_NOTE).filter { it.isNotEmpty() }.joinToString("\n\n")
   } else {
     result.text

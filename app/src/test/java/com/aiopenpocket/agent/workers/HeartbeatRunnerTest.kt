@@ -41,6 +41,7 @@ import com.aiopenpocket.agent.core.plan.execution.PlanExecutor
 import com.aiopenpocket.agent.core.plan.execution.PlanRunner
 import com.aiopenpocket.agent.core.plan.execution.PlanScheduleSync
 import com.aiopenpocket.agent.core.plan.execution.PlanStepRunner
+import com.aiopenpocket.agent.core.plan.execution.asPlanStepRunner
 import com.aiopenpocket.agent.core.plan.execution.PlanVerifier
 import com.aiopenpocket.agent.core.plan.model.AgentPlan
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
@@ -215,14 +216,14 @@ class HeartbeatRunnerTest {
     val agentResolver = DefaultAgentResolver(UserAgentRepository(db, db.userAgentDao(), AgentHookRepository(db.agentHookDao())))
     // Task 11: the SAME reactLoopRunner (and thus the SAME fakeLlm/events script) backs a typed
     // plan-step run too — production's own PlanStepRunnerBindings is nothing more than
-    // `PlanStepRunner(reactLoopRunner::run)`, so a plan-step test scripts `events` exactly like a
+    // `reactLoopRunner.asPlanStepRunner()`, so a plan-step test scripts `events` exactly like a
     // generic agent-mode test does, and gets the REAL ToolExecutor/HookEngine/ExecutionPolicy
     // machinery underneath (not a step-runner fake that would bypass hook enforcement entirely).
     val planRepository = PlanRepository(db, db.planDao())
     val planExecutor = PlanExecutor(
       planRepository,
       toolRegistry,
-      PlanStepRunner(reactLoopRunner::run),
+      reactLoopRunner.asPlanStepRunner(),
       NoPlanAssets,
       PlanVerifier(PlanEvidenceSink(planRepository::addEvidence), NoMemoryFacts, UnusedPlanLlmClient, NoPlanAssets),
       AgentHookRepository(db.agentHookDao()),

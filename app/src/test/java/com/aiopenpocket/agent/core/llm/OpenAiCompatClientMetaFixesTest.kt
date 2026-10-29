@@ -95,6 +95,55 @@ class OpenAiCompatClientMetaFixesTest {
   }
 
   @Test
+  fun `a 400 to the effort field is retried once without it, and the field stays off for that model`() = runTest {
+    val bodies = mutableListOf<String>()
+    val engine = MockEngine { request ->
+      val body = (request.body as TextContent).text
+      bodies += body
+      if (body.contains("reasoning_effort")) {
+        respond("""{"error":{"message":"unknown field"}}""", HttpStatusCode.BadRequest)
+      } else {
+        respond(textSse, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "text/event-stream"))
+      }
+    }
+    val client = clientOf(LlmProvider.META, listOf(config("m", LlmProvider.META, reasoning = true)), engine)
+    val turn = suspend {
+      withContext(ReasoningEffortContext(ReasoningEffort.LOW)) {
+        client.streamChat(emptyList(), emptyList(), LlmProvider.META).toList()
+      }
+    }
+
+    val first = turn()
+    assertTrue("the turn must not fail on the field: $first", first.none { it is StreamEvent.Error })
+    assertEquals(2, bodies.size)
+    assertTrue(!bodies[1].contains("reasoning_effort"))
+
+    turn()
+    assertEquals("the next turn goes straight without the field", 3, bodies.size)
+    assertTrue(!bodies[2].contains("reasoning_effort"))
+  }
+
+  @Test
+  fun `a 400 that is not about the effort field still stops the chain and keeps the field on`() = runTest {
+    val bodies = mutableListOf<String>()
+    val engine = MockEngine { request ->
+      bodies += (request.body as TextContent).text
+      respond("""{"error":{"message":"context too long"}}""", HttpStatusCode.BadRequest)
+    }
+    val client = clientOf(LlmProvider.META, listOf(config("m", LlmProvider.META, reasoning = true)), engine)
+    val turn = suspend {
+      withContext(ReasoningEffortContext(ReasoningEffort.LOW)) {
+        client.streamChat(emptyList(), emptyList(), LlmProvider.META).toList()
+      }
+    }
+
+    assertTrue(turn().any { it is StreamEvent.Error })
+    assertEquals("one try with the field, one without, then stop", 2, bodies.size)
+    turn()
+    assertTrue("a request-level 400 must not switch the effort off for good", bodies[2].contains("reasoning_effort"))
+  }
+
+  @Test
   fun `OpenRouter route sends the nested reasoning effort object, not the top-level field`() = runTest {
     val body = bodyFor(LlmProvider.OPENROUTER, reasoning = true, effort = ReasoningEffort.HIGH)
     assertTrue(body, body.contains("\"reasoning\":{\"effort\":\"high\"}"))
