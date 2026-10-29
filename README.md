@@ -71,6 +71,8 @@ error handling, agent frameworks) and the Muse Code permission model:
 - **Least privilege in the builder.** A new agent starts with no tools; each risky tool needs explicit
   consent, and the Instructions step checks the prompt against Meta's prompting guide (role, format,
   length, tone).
+- **The right model for the job.** A built agent can run on Muse Wonder (long multi-step work) or
+  Muse Spark (faster and cheaper), as Meta's agent guide suggests; the choice holds on either route.
 
 ## Your key, your quota
 
