@@ -1,0 +1,518 @@
+# Commit hashes before and after the one history rewrite done before publication (29 Oct 2026).
+# The rewrite dropped .build-outputs/ (an old debug APK); every other file in every commit is unchanged.
+# Commits made on github.com lose GitHub's signature: a rewritten commit can no longer carry it.
+# Hashes quoted inside orchestrator/ notes are the 'before' column.
+#
+# before   after    date        subject
+1a0cec2  f2b55f8  2026-05-31  Initial commit
+0e3331a  3a17eff  2026-05-31  feat: setup project structure and build config
+bd057d0  8183e42  2026-05-31  Update README.md
+2df418f  c8ac09a  2026-06-01  feat(webview): switch login portal to Qwen AI
+effc1c1  a123451  2026-06-02  remove hard assign to qwen
+14af6f5  85381c1  2026-06-06  feat: add NVIDIA NIM support and settings persistence
+8ef36dd  f46f664  2026-06-06  Migrate to Metro DI and remove WebView flow.
+afdb222  115d3c3  2026-06-14  Add agent core (LLM, tools, memory) and fix runtime issues
+f6305d8  d3bae53  2026-06-16  3 stage
+0175dac  9df1805  2026-06-16  Register app as system voice assistant that opens a new chat
+a69990a  72b461d  2026-06-16  Add wiki-style memory data layer (pages + tags + links)
+36f157b  e8bbda2  2026-06-16  Reframe knowledge base onto conversations via tags
+6d9a3f0  c3eb9e0  2026-06-16  Add tool-schema DSL; convert MemoryTools as reference
+fdb45d4  6aa3365  2026-06-16  Add Obsidian-style memory graph + read-only memory page
+bb42dcc  9d1ca3a  2026-06-20  Merge pull request #1 from jQwout/claude/mvp-branch-switch-dkyd2q
+7696493  a11ade5  2026-06-08  refactor: remove Metro framework in favor of manual DI
+5b73a57  6ab294f  2026-06-20  Merge main into mvp: mvp supersedes
+55f5280  e5579ef  2026-06-18  docs: add lesson on creating assistant skills
+964a2f2  7d0492e  2026-06-19  docs: add MCP lesson and number the lesson series
+2fdefe8  6b52134  2026-06-19  docs: add lesson 03 — practical MCP catalog and connection guide
+48fc4ad  c532830  2026-06-20  Merge pull request #2 from jQwout/claude/skill-creation-lesson-3j0a2o
+bc8e9cc  1cb0021  2026-06-21  Merge pull request #3 from jQwout/mvp
+3e6ac89  8432810  2026-06-23  Wire form submit callback back into chat
+cb2ac7d  03d7f66  2026-06-24  Persona cards: RPG-style stats, perks, multi-quote dialog
+eb1932b  788bba2  2026-06-24  Onboarding profile: free-form chat + LLM extraction to JSON
+dee83b6  a1f125d  2026-06-24  refactor: shrink screens, share Academy header + date util, add @Preview everywhere
+165e55b  f945d79  2026-06-24  refactor: previews for onboarding step composables + tighter DrivenUiEngine parser
+ad5099a  3e35031  2026-06-24  chore(preview): add @Preview for shared chat and academy components
+b9df8e0  8ca87c2  2026-06-24  refactor: ViewModel polish — single source of truth + clarity tweaks
+4259411  e8a5b8d  2026-06-24  refactor: collapse repeated navigate(launchSingleTop=true) in MainActivity
+d6c9be6  49be632  2026-06-24  refactor: extend toolSchema DSL + missingArg helper, migrate 3 tools
+dc1a72d  f308493  2026-06-24  refactor: migrate remaining 7 tools to toolSchema DSL
+e499195  eb0a631  2026-06-24  refactor: split LLM client + orchestrator into focused helpers; tighten DI
+d0d2030  3e8f585  2026-06-24  refactor: VM helpers + asset loading extension
+9be979b  c9b8b6d  2026-06-24  refactor: DrivenUiEngine — shared CardTitleRow/CardDivider, single success color
+f3561bf  1094e64  2026-06-23  Add lesson library, home screen, and traceability tooling
+2ab7132  4500633  2026-06-23  Merge remote-tracking branch 'origin/claude/habr-article-relevance-6k7lug' into mvp
+77759f9  3e7837d  2026-06-25  Add plan & goal agent modes + chat-driven JSON lessons
+4f5702e  5018e96  2026-06-23  Add Plan-and-Execute orchestrator on top of shared ReAct loop
+df6c6d5  7f6e2d4  2026-06-23  Wire Plan-and-Execute into a reachable plan_mode lesson
+3ed0afa  950774a  2026-06-23  Add mini-agents (specialists + delegating supervisor)
+8b373b9  6366271  2026-06-23  Give mini-agents their own identity instead of the Settings persona
+9cf110e  4206b6f  2026-06-23  Add logging across the agent loop and orchestrators
+edcd915  0869729  2026-06-23  Make plan mode a UI-only flag (no lesson auto-enable)
+c7981bf  02bd83a  2026-06-24  4 stage
+eb9efa1  83746f4  2026-06-24  Add diary, languages, and fitness skills
+2d421ca  44466ce  2026-06-24  Merge pull request #6 from jQwout/claude/mini-agents-gzqmvf
+7f8bb4c  aabd089  2026-06-24  Merge pull request #9 from jQwout/feature/mini-agents
+15ca958  3f26172  2026-06-24  Add voice input to chat via SpeechRecognizer
+c5a0404  b11b1c3  2026-06-24  Merge pull request #4 from jQwout/claude/mini-agents-gzqmvf
+808749d  2715fc6  2026-06-24  feat: add response stats bar in chat (time, tokens, context remaining)
+41257e7  1b60432  2026-06-24  Merge pull request #5 from jQwout/claude/mini-agents-branch-hqcn9d
+01b0697  31ffe5c  2026-06-24  Merge remote-tracking branch 'origin/main' into claude/voice-input-speech-to-text-vxdzzo
+a32cb3b  14e12be  2026-06-24  Merge pull request #7 from jQwout/claude/voice-input-speech-to-text-vxdzzo
+ee7d577  19b17a4  2026-06-24  Merge remote-tracking branch 'origin/main' into mvp
+68e9a5d  41f09b3  2026-06-26  Merge origin/mvp: reconcile plan/goal modes with Plan-and-Execute, voice, mini-agents
+a77dd80  79ff8f8  2026-06-26  Merge pull request #11 from jQwout/feature/plan-goal-modes
+8791264  37e94a8  2026-06-26  Merge origin/mvp into claude/mini-agents-branch-mp7b0r (resolve conflicts)
+61fda9c  99915c3  2026-06-26  Merge pull request #10 from jQwout/claude/mini-agents-branch-mp7b0r
+24611b2  7525bc4  2026-06-22  docs: add Traceability Cloud tool plan
+21d62f2  68acc14  2026-06-22  docs: phase 6 — manual sync via PR, no automation
+936cb78  1f3ba41  2026-06-26  Merge claude/context-loss-sessions-oyhe4x into mvp
+5233654  1cd87b2  2026-06-24  Add business evaluation of the AI agent learning app
+87e2dfb  e4bfd95  2026-06-24  Reframe business eval for global launch, RU/Android as alpha tactic only
+a7308e2  de83394  2026-06-24  Adopt visibility-to-exit as the active strategy (plan A)
+bb28fa1  91062e7  2026-06-24  Pin acquisition range, add explicit anti-copy defense playbook
+c769cb2  442f933  2026-06-24  Switch to closed-source for alpha/beta; OSS becomes a reserved defensive move
+ff56be7  0aeec93  2026-06-24  Adopt client/server split: OSS client, closed server
+c1d1d8a  fc9d6a6  2026-06-24  Add Plan C: kids-audience pivot with explicit triggers
+44b0648  088a528  2026-06-26  Merge claude/mini-agent-business-eval-89f1cn into mvp
+d3ae5fc  d93852f  2026-06-28  Redesign mini-agent roster into domain agents; drop coordinator
+d18b3ce  283557c  2026-06-28  feat(agents): доменный ростер мини-агентов вместо общих специалистов
+43dec3c  aee2cb4  2026-06-29  fix: voice cancel race + onboarding profile extraction robustness
+a7a927b  1dbdf5c  2026-06-29  chore(trace): bless features touched by roster redesign + fixes
+f646e64  510b976  2026-06-29  fix(lessons): harden sort/scenario cards against malformed answer keys
+afd92b7  ae2c7cb  2026-06-29  chore(trace): bless driven-ui-cards + lessons after card hardening
+9a26181  86a2ed4  2026-07-01  chore: снапшот незакоммиченной работы сессий (каталог NIM-моделей + пикер в настройках, пакет notification, форматирование дат тулов, прочее)
+92b9cbb  d73c11b  2026-07-01  fix(chat): этап 1 — пустые markdown-пузыри и мигание ответа в конце хода
+b3ae597  f178cc9  2026-07-01  fix(chat): этап 2 — поведенческие скроллы: прилипание к низу вместо принудительных прыжков
+badd5e0  777c814  2026-07-02  chore: снапшот правок уроков из параллельной сессии (квиз/библиотека/l1_welcome + тесты)
+4ddf435  56b328c  2026-07-02  fix(chat): этапы 3-4 — слой данных, поиск и полировка стрима
+48f19a3  af64c50  2026-07-02  chore(trace): bless features touched by chat-lag fixes + parallel lesson/tool edits
+3d61a5b  51b9c95  2026-07-02  fix(chat): гейт аннотатора устойчив к нечётному счётчику реплик
+b7038af  348717b  2026-07-03  feat(chat): стрим-ход в стиле ChatGPT — вопрос к верху, ответ печатается в резерв
+5e220b1  5d26012  2026-07-03  feat(chat): превью экрана чата + фиксы код-ревью
+42d59d9  6a33b98  2026-07-04  docs(hooks): дизайн-спека хуков мини-агентов (условный LLM-вызов с side effects)
+cd9ce6d  040df95  2026-07-04  docs: спека глассморфизм-редизайна (Home/Чат/Тулы/Онбординг)
+5da447f  6343c57  2026-07-04  docs: CLAUDE.md — напоминание про traxer-чеклист перед коммитом
+67c2430  980ff15  2026-07-04  feat(lessons): капстоун agent_blueprint + добор контента и порядок роадмапа
+cd5e440  60b595c  2026-07-04  chore(trace): bless lessons/onboarding/streaming после капстоуна и chat-lag правок
+ba20910  3b9074e  2026-07-02  fix(lessons): длина ответа больше не выдаёт правильный вариант квиза
+f5b3d04  1a3e0a3  2026-07-02  chore(trace): bless lessons features after distractor rebalancing
+c60dd6f  31b919c  2026-07-02  refactor(lessons): единый декод scenario-correct + один обход карточек-выбора
+ffca094  7b282fa  2026-07-02  chore(trace): bless lesson feature after scenario-decode refactor
+c3134a2  11b1467  2026-07-04  merge: lessons-quiz-shuffle (ребаланс дистракторов + декод scenario-correct) в roster
+a29d97b  2bbe46c  2026-07-04  chore(trace): bless lessons/onboarding после мержа lessons-quiz-shuffle
+6897cc5  97e296c  2026-07-04  fix(lessons): выровнял длину дистракторов в квизе agent_blueprint
+0107c04  9968785  2026-06-24  Merge pull request #8 from jQwout/mvp
+11a7462  d85666b  2026-07-01  Fix render_card lesson doc to match real tool-calling mechanism
+e521b09  ca4cbc7  2026-07-04  merge: stoic-franklin — правка урока про render_card (реальный tool-calling, 10 шаблонов)
+47bf7c0  a129b29  2026-07-01  Merge remote-tracking branch 'origin/feature/plan-goal-modes' into claude/cool-elgamal-1fac7c
+0d9f0b2  143950a  2026-07-04  feat(agents): языковой агент-репетитор с интервальными повторениями (SRS)
+2cc539f  986bd86  2026-07-04  merge: SRS-репетитор (cool-elgamal) в roster
+1bfbd1d  7f758bb  2026-07-04  chore(trace): bless memory/mcp/orchestration/plan-goal + SRS baseline после мержа
+b76aaf3  988395e  2026-07-04  merge: feature/mini-agent-roster в mvp — консолидация всех веток
+6b9c72c  7ffa849  2026-07-04  refactor(db): схлопнуть Room-миграции в единый v1 baseline (pre-release)
+8de8f85  27ec0fb  2026-07-04  chore(trace): bless agent-memory после схлопывания миграций
+7e7be50  5c74ba7  2026-07-04  chore(db): переименовать БД queen_chat_db → ai_open_pocket_db
+331fa54  843a2ad  2026-07-04  chore(trace): bless agent-memory после переименования БД
+ba3af0e  ebde490  2026-07-04  docs(spec): дизайн экрана «Память агента» (memory inspector UI)
+5954f78  7605154  2026-07-04  docs: дизайн-спека heartbeat/напоминалок с карточкой в чате + урок
+3085c74  2e824ea  2026-07-04  docs: план имплементации heartbeat/напоминалок
+3dd503f  7412d78  2026-07-04  docs: спека фоновых ходов агента (TurnManager в AppScope)
+050c478  d3fe010  2026-07-04  docs: план имплементации фоновых ходов агента (7 задач, TDD)
+cab05e0  5c72fc1  2026-07-04  docs: раздать heartbeat всему ростеру мини-агентов (спека+план)
+1b81761  5ac1b00  2026-07-05  feat(heartbeat): Room-реестр heartbeats + DAO
+1f7d117  cfca8c2  2026-07-05  feat(turns): порты и сессия фоновых ходов агента
+c88dcd9  836bca4  2026-07-05  feat(turns): TurnManager — конвейер хода в appScope
+0854c51  42f48c0  2026-07-05  feat(turns): ретрай, план-бар, markSeen и бейджи в TurnManager
+570f960  a40dbf3  2026-07-05  feat(turns): пуш о завершении фонового хода + DI + deep-link
+b7e2aec  d075c20  2026-07-05  refactor(chat): ChatViewModel — тонкий проектор поверх TurnManager
+80dd68c  c78808a  2026-07-05  feat(turns): бейджи фоновых ходов в списке диалогов
+82bf938  434afbb  2026-07-05  docs: статус спеки фоновых ходов — реализовано + traxer bless
+2b22c57  b003618  2026-07-05  docs(plan): переработка под turns-архитектуру (Task2 coroutine-local, Task4 переиспользует TurnNotifier, Task6 в утиль)
+fc50ae7  050a0f6  2026-07-05  feat(heartbeat): TurnContextHolder — контекст хода для тулз
+312278d  1c78179  2026-07-05  feat(heartbeat): тул heartbeat — schedule/cancel/list
+0ed47c9  c667b82  2026-07-05  feat(heartbeat): HeartbeatRunner — фоновый ход агента с безопасными тулзами
+7d2bebb  4310f8d  2026-07-05  feat(heartbeat): HeartbeatWorker поверх HeartbeatRunner
+54254a1  552deb1  2026-07-05  feat(heartbeat): раздать heartbeat всему ростеру мини-агентов
+d0a9012  ddac0b7  2026-07-05  chore(traxer): bless stale trace ids touched by heartbeat rollout
+ff19983  4c46c41  2026-07-05  Revert "chore(traxer): bless stale trace ids touched by heartbeat rollout"
+40cec63  c3602f1  2026-07-05  feat(heartbeat): живая карточка reminder в чате
+8a3b272  8a11798  2026-07-05  feat(lessons): урок «Heartbeat и cron в агентах»
+83c2dca  f7a0ae3  2026-07-05  docs(heartbeat): AGENTS.md tool row + flows + bless feature-touched trace ids
+ae10836  5f43fdf  2026-07-06  fix: багфиксы из код-ревью дельты mvp
+0037da1  bd6a406  2026-07-05  docs: add agents-best-practices review and harness audit
+ce0ce43  69e54fc  2026-07-05  feat(agent): enforce untrusted-output fencing, risk classes, central arg validation
+b2df6c8  1b785ad  2026-07-06  fix(agent): harden untrusted fence against delimiter injection; fix render_card required
+2384a60  a7e0374  2026-07-06  Merge origin/mvp into claude/agents-best-practices-review-7n8kuu
+10f3e5b  32709b5  2026-07-06  Merge pull request #14 from jQwout/claude/agents-best-practices-review-7n8kuu
+58c33f1  743cf7a  2026-07-06  Merge origin/mvp (PR #14: agents-best-practices) в mvp
+0421257  1fb02ce  2026-07-06  feat: Reflection mode + Reflection/Context-Engineering lessons (mvp)
+174825d  db7bd85  2026-07-06  chore(trace): register reflection-mode feature + @trace marker
+816a86f  fb71959  2026-07-06  Merge pull request #15: Reflection mode + Reflection & Context-Engineering lessons
+660f68b  129c615  2026-07-06  Merge origin/mvp (Reflection, PR #15) в mvp + переинтеграция под TurnManager
+3d104f1  75c752f  2026-07-06  chore(traxer): bless 10 фич после сессии (код-ревью + PR#14 + reflection)
+752d462  2eb079c  2026-07-09  docs: + карточка агента (read-mostly инспектор) в спеку глассморфизма
+1c5d9dd  40339ad  2026-07-09  docs: поправка ветки реализации в спеке (mvp)
+705cfd5  053a636  2026-07-09  docs: учёт design-review в спеке (traxer-регистрация, файлы через repo, честные плитки)
+f3d7ef0  34677cb  2026-07-10  docs: план реализации Plan A (glass-фундамент)
+13ad491  6da5d1a  2026-07-10  build: add Haze 1.7.2 (glassmorphism backdrop-blur)
+bdc9a9c  5a6f780  2026-07-10  feat: GlassTokens (glass tint/blur/border/aurora tokens)
+06b392e  ba0308e  2026-07-10  feat: auroraBackground modifier (static aurora field)
+3fd9a05  1efc975  2026-07-10  feat: GlassCard (light glass, blur-free, LazyColumn-safe)
+26ce4fd  aa10683  2026-07-10  feat: GlassSurface (strong backdrop-blur) + glass state API + screenshot baseline
+2a2826c  0a80b5d  2026-07-10  test: unocclude GlassCard in glass screenshot baseline
+25309fe  4dbf89b  2026-07-10  chore(traxer): register glass-design-system feature
+1d64cf1  d6cc5e0  2026-07-10  build: drop unused haze-materials dependency
+73ca44c  96f74e1  2026-07-10  chore(traxer): bless glass-design-system
+4bc914f  5e3067f  2026-07-10  fix: guard aurora radius>0 and wire GlassSurface shape into Haze edge
+a1a03fa  2977c71  2026-07-10  perf: hoist glass brush/style/shape allocations off the recomposition path
+b88f1bd  e8bec88  2026-07-10  test+chore: aurora radiusFraction assert, API<31 baseline, @trace on all glass files
+feb2d68  64ed07c  2026-07-10  refactor(loop): удалить неподключённый PlanExecuteOrchestrator
+694ccb6  20876e4  2026-07-10  docs(chat): убрать стейл-комментарии про supervisor
+0260cc5  08ffb71  2026-07-10  refactor(modes): гоал-бюджет промпта — в resolveTurnExecutionPlan
+1207081  990b3fb  2026-07-10  refactor(loop): чистая политика завершения хода + TurnTexts
+d43627b  38dcd10  2026-07-10  refactor(loop): стрим-гейт из TurnManager в StreamingTextBuffer
+52b25f7  62b11b0  2026-07-10  refactor(core): порты AgentLog и AssetSource — Android уходит из домена
+9c9b98e  4eb282b  2026-07-10  refactor(loop): общий скелет agentTurnFlow для оркестраторов
+aba348d  dd5b289  2026-07-10  fix(loop): адресовать находки код-ревью (GOAL/REFLECT + чистка)
+d00360a  819afdc  2026-07-10  test(loop): покрыть гейт пустого финала REFLECT
+3175bd0  119aff5  2026-07-11  Merge refactor/agent-loop-cleanup into feature/glassmorphism
+86873a5  6fcb66c  2026-07-11  docs: план реализации Plan B (glass-рестайл 5 зон)
+192be33  62bf15e  2026-07-11  feat(ui): glass floating bottom nav
+21b2468  3ab7f97  2026-07-11  chore(traxer): bless glass-design-system after bottom-nav rollout
+8798caa  aa379b2  2026-07-11  feat(ui): glass restyle Home (aurora + glass cards + glass nav)
+30c47c8  d87d3da  2026-07-11  feat(ui): glass restyle Tools (aurora + glass agent cards)
+e0a3462  2e40aed  2026-07-11  feat(ui): glass chat chrome (aurora + glass topbar/input, bubbles untouched)
+375e2ec  c6b307e  2026-07-11  feat(ui): glass restyle onboarding (aurora + glass chrome/cards/input)
+a5f1acf  fe669d6  2026-07-11  chore(traxer): re-bless features touched by glass restyle
+071fda5  92d482c  2026-07-11  docs: план реализации Plan C (карточка-инспектор агента, read-mostly)
+c264639  85ef1e6  2026-07-11  feat(db): HeartbeatDao.observeActiveByAgent for agent inspector
+63d3ab9  f530713  2026-07-11  feat(data): AgentFilesRepository (read-only agent sandbox listing)
+9c4ebac  36859ef  2026-07-11  feat(ui): AgentInspectorViewModel (heartbeat + files by agent)
+98139ee  fe95ee5  2026-07-11  feat(ui): glass agent inspector sheet (overview + files)
+661d682  04301e9  2026-07-11  feat(ui): open agent inspector on Tools card tap
+71a431b  ddb1962  2026-07-11  chore(traxer): register agent-inspector feature
+f91b7bb  2aa4c47  2026-07-12  feat(lessons): восстановить WIP-правки уроков + 3 SVG-иллюстрации
+bdf6383  d587481  2026-07-12  fix(lessons): restore card contrast and SVG legibility on glass bubbles
+779239f  93a3ad7  2026-07-12  chore(traxer): bless driven-ui-cards-0418d0 after contrast/SVG bugfix
+758a664  d12bafa  2026-07-12  feat(glass): floating bar pills + aurora & glass cards on list screens
+0fc3260  76f35dc  2026-07-12  feat(chat): open agent inspector from a top-bar menu
+5923cd9  567095d  2026-07-12  fix(lessons): render arrow diagrams by swapping SVG2 orient for SVG1.1 "auto"
+fc34ac5  20410c7  2026-07-12  content(lessons): honest "after the lesson" practice steps across 17 lessons
+6155054  04c855a  2026-07-12  content(lessons): plan_mode -> interactive template (reveal/concept/sort/scenario)
+e3ae882  bf7645c  2026-07-12  content(lessons): goal_mode -> interactive template (reveal/concept/sort/fill/scenario)
+1d92481  146f237  2026-07-12  content(lessons): reflection -> interactive template (reveal/match/scenario)
+5d302ae  7fc02ab  2026-07-12  content(lessons): context_engineering -> interactive template (reveal/concept/sort/fill/scenario)
+1769be8  1ce53e7  2026-07-12  content(lessons): workflow_and_agent -> interactive template (reveal/match/2x scenario, trim theory)
+b193a5a  585e2b0  2026-07-12  content(lessons): privacy_and_reliability -> interactive template (+match, concept, scenario, practice, summary)
+76d661d  3161e6f  2026-07-12  content(lessons): heartbeat_and_cron -> interactive template (quiz last, +match/scenario, +summary)
+172232a  15f19f1  2026-07-12  content(lessons): SVG diagrams for context_engineering and workflow_and_agent
+8bc91e0  3a2a85e  2026-07-12  checkpoint: in-flight WIP snapshot before user-agent-builder branch
+0833078  9845fad  2026-07-12  feat(agents): доменный ростер мини-агентов вместо общих специалистов
+84adc0c  412ae34  2026-07-12  chore(agents): register user-agent-builder feature + plan/spec
+1ced5b1  405e27e  2026-07-12  feat(agents): define user agent domain contract
+148a847  f2c3526  2026-07-12  feat(agents): persist custom agent drafts
+1301a0c  e796522  2026-07-13  refactor(agents): resolve preset and custom definitions
+420a7f0  d85c9c2  2026-07-13  feat(skills): load agent-owned Room skills
+25e190a  87d7383  2026-07-13  fix(skills): projection query + independent revise-phase REFLECT test
+ff21e04  7fd4690  2026-07-13  feat(memory): isolate custom agent facts
+8b7321c  292f99e  2026-07-13  feat(files): isolate custom agent sandboxes
+6539a2f  20373b1  2026-07-13  fix(files): validate agentId at sandbox boundary + write_file traversal tests
+04a6d55  aff4d65  2026-07-13  feat(cards): enforce agent widget allowlists
+b3bf823  a6858c9  2026-07-13  feat(hooks): add declarative lifecycle engine
+5f441b4  14a7030  2026-07-13  feat(tools): enforce preview and approval policy
+bafb74c  039c05c  2026-07-13  feat(agents): add builder state and validation
+fc86078  1f94883  2026-07-13  feat(agents): add six-step builder UI
+54923e7  84ce798  2026-07-13  feat(heartbeat): run published custom agents safely
+ca3b0bd  d174d14  2026-07-14  feat(agents): full-screen agent detail replaces inspector sheet
+aa006a1  05dc2b5  2026-07-14  feat(tools): wire tool-approval UI into chat
+a5108af  58f774a  2026-07-14  feat(academy): connect capstone to agent builder
+e1093f5  8aec6cb  2026-07-14  feat(plan): add plan domain and state machine
+6e20109  b6bb98e  2026-07-14  feat(plan): validate plan graphs and material changes
+a0c2629  9ebacee  2026-07-14  feat(plan): persist versions progress and evidence
+d1a0ef7  012872d  2026-07-14  feat(plan): add planner control schemas
+4d0c736  5fb0a6c  2026-07-14  feat(plan): replace magic approval with typed commands
+fa5ed46  3ae8bac  2026-07-14  feat(plan): add compact plan context provider
+5ca8276  cc03c72  2026-07-14  feat(plan): execute scoped plan steps
+a3aa784  5790c1b  2026-07-14  feat(plan): verify steps with evidence
+5667c2d  9cf451c  2026-07-14  feat(hooks): add plan lifecycle events
+9a59270  e0a84f2  2026-07-14  feat(plan): build plan runner and migrate orchestration
+2c35bcf  abb5308  2026-07-14  feat(plan): schedule program steps via typed heartbeat
+ac8a50e  64af3e2  2026-07-14  feat(plan): render live plan UI
+652e15e  f498d72  2026-07-14  feat(plan): add domain planning templates
+053b9b0  f32715b  2026-07-15  feat(plan): recover safely after process death
+e50fc70  89217b4  2026-07-15  refactor(plan): remove legacy prompt-only plan/goal
+633c473  e5fcf7c  2026-07-15  docs(plan): verify structured automation
+24717ae  81f16a0  2026-07-15  feat(tools): restrict database_query to read-only allowlist
+f908c08  59b36af  2026-07-15  feat(tools): add per-agent storage tool
+7770feb  5f3ac71  2026-07-15  docs: спека смены темы (Светлая/Тёмная/Системная) + переезд на lime/ink/paper
+05db722  85a490f  2026-07-15  docs: аврора отключается на светлой теме + обоснование по glass-слоям
+9c4e99d  0df9b40  2026-07-15  docs: поправка по traxer в спеке темы — rationale glass верен, править надо KDoc
+86a02db  cfdfab5  2026-07-16  fix(build): unclosed nested comments broke the whole module
+336c839  94d0613  2026-07-16  fix(llm): fall back when a provider answers 200 with nothing
+08c0934  81839b5  2026-07-16  chore(trace): bless streaming-llm-chat after empty-200 fallback
+0409f64  72f4ce0  2026-07-16  fix(plan): insert the plan row before its version
+5de97dc  aead727  2026-07-16  test(agents): let ViewModel tests actually wait for async work
+4bb8434  562dfb4  2026-07-16  fix(plan): a plan with steps left to run is not COMPLETED
+367b07e  85e42b1  2026-07-16  test(approval): run the approval gate on a real clock, not virtual time
+650f0c0  04b6f19  2026-07-16  fix(plan): let the planner revise a plan that is still awaiting approval
+43d75b0  11c0397  2026-07-16  test(builder): scroll to the gated tool; cancel is legal awaiting approval
+07e3901  3598dc9  2026-07-16  feat(llm): add glm-5.2 and step-3.7-flash, reorder by live health
+5b1eb63  4c86486  2026-07-16  docs(settings): design for adjustable chat font size
+7db00b5  f7834cf  2026-07-16  content(academy): lessons for tool-consent, plans, hooks, agent builder
+1ee36a5  cc1c009  2026-07-16  docs(agents): planning artifacts for builder + plan engine
+4c0db0b  eef481c  2026-07-16  feat(chat): adjustable message font size in settings
+88bed54  dc3ea1b  2026-07-16  chore(trace): bless chat-font-size and streaming after font-scale edit
+c3a3098  fb61f5b  2026-07-16  fix(lessons): lesson-card light theme must not depend on the OS theme
+b49d906  068bc2e  2026-07-17  refactor(chat-font): address review findings #3-8
+e30f8b9  60acdbf  2026-07-17  chore(trace): bless chat-font-size and streaming after cleanup pass
+6238cd1  62e6644  2026-07-17  chore: gitignore harness worktrees (fix Android Studio build)
+3958adc  8fe5e04  2026-07-18  fix(lint): clear 3 pre-existing lint errors blocking the full build
+2ea83d3  e81441e  2026-07-18  chore(trace): bless voice-input after NewApi guard
+34070bb  3d5e48b  2026-07-18  fix(builder): unify wizard text fields, kill double borders
+1abf514  e6d204d  2026-07-18  fix(builder): stop duplicating the step name in the toolbar
+359ebf6  76ba38d  2026-07-18  fix(glass): dim the top-left aurora spot for text contrast
+3ed3e7f  b4b27f9  2026-07-18  chore(trace): bless glass-design-system after aurora dim
+d589a94  222a02d  2026-07-18  feat(theme): смена тем (Светлая/Тёмная/Системная) + переезд на палитру lime/ink/paper
+357a9be  9827ac1  2026-07-18  chore(trace): bless smena-temy after theme commit
+94bf070  81356ab  2026-07-19  fix(chat): размер шрифта/лимит витков не переживали смену диалога
+a84a22b  e4ae5b7  2026-07-19  feat(settings): размер текста — сегмент-контрол «A…A» + живое превью пузыря
+8312904  47c9384  2026-07-19  fix(chat): скрывать клавиатуру после отправки сообщения
+b506261  97dd20d  2026-07-19  perf(chat): печать больше не рекомпозирует весь экран чата
+211a5e6  6de4a1c  2026-07-21  feat(onboarding): яркие лайм-акценты и читаемые карточки
+92a42cd  cb23d75  2026-07-21  refactor(chat): убрать закрепление сообщений
+7c4ebe0  8a15d32  2026-07-21  chore(trace): bless onboarding и мульти-чат после правок
+2521b87  310d065  2026-07-21  chore: вычистить все предупреждения компилятора в main
+3a47f18  681dcd7  2026-07-21  chore(test): довести предупреждения в тестах до нуля
+3fb3997  f85d110  2026-07-21  chore: снять UTF-8 BOM и зафиксировать переносы строк
+dd60a52  0d243bd  2026-07-21  refactor(chat): убрать мёртвый код из ResponseStatsBar
+5980819  a31b545  2026-07-21  refactor(chat): вынести превью чата в отдельный файл
+3a517e1  6cc0fcd  2026-07-21  refactor(chat): вынести панели-бары в components/ChatBars.kt
+4f9d79e  bd2efa3  2026-07-21  refactor(chat): вынести пузырь сообщения и композер в components
+cbebf8b  c02218c  2026-07-21  refactor(chat): отделить парсинг Driven-UI от рендера карточек
+d2aa613  1cf29c9  2026-07-22  fix(chat): пузырь стрима не затирает ответ при вызове инструмента
+ba92743  19cbe26  2026-07-22  refactor(settings): вынести карточки настроек в SettingsCards.kt
+ab20ce4  77c53bc  2026-07-22  refactor(agents): вынести секции инспектора агента в AgentDetailSections.kt
+75eda57  34b6cba  2026-07-22  refactor(home): разложить HomeScreen на экран, карточки и превью
+fafffcb  4bc77bf  2026-07-22  feat(agent-detail): рестайл секции «Инструменты» под макет (срез 1)
+368e708  7da923b  2026-07-22  feat(agent-detail): рестайл секций «Препромпт» и «Heartbeat» (срезы 2-3)
+73f2a0a  3bd22bd  2026-07-22  feat(agent-detail): рестайл стат-плиток и секции «Хуки» (срезы 4-5)
+6aadded  d7cf981  2026-07-22  feat(agent-detail): модалка с ✕ + компактная шапка + табы Обзор/Файлы (срез 6)
+372f945  1c26bd3  2026-07-24  fix(agent-safety): пустой скоуп тулов не даёт все тулзы + srs_tool WRITE
+fbcf3b4  7a46a92  2026-07-24  fix(plan-engine): Preview доходит до GOAL + шаг плана в контексте агента
+8d41864  b7c96d9  2026-07-24  fix(plan-ui): планы доступны в чате с агентом (конец UI-тупика)
+eb449a4  8367e96  2026-07-24  fix(plan-engine): планы не зависают и не зацикливают heartbeat (кластер C)
+7c28de2  6c4dce9  2026-07-24  fix(plan-engine): битая строка в БД не роняет чат/список планов (кластер D)
+894b063  367bf13  2026-07-24  fix(plan-engine): карантин на остальных plan-читалках + shared lenient Json (хвост D)
+515f2fd  3d69fe2  2026-07-24  fix(agent): карантин ростера и хук-читалки от битой строки (хвост D)
+e52607b  aa0c267  2026-07-24  fix(security): database_query больше не читает чужую память и чаты
+82e786e  db3ca92  2026-07-24  fix(plan-engine): исполнитель видит инструкцию шага целиком, не обрезок 220
+7c23146  f70cf5f  2026-07-24  fix(heartbeat): удаление диалога гасит его heartbeat'ы (не зомби навсегда)
+17c3888  ead0e1a  2026-07-24  fix(agent): чат уважает allowedModes агента (а не игнорит рантаймом)
+7d24a07  38d084f  2026-07-24  refactor(plan-engine): удалить рудиментарный PlanStep.completionRule
+2c3ab02  3e52758  2026-07-24  test(plan-engine): запинить Room-executor'ы в flow-тестах (флейк)
+51602b7  13e8b07  2026-07-24  feat(plan-engine): USER_CONFIRMATION -- кнопка «Подтвердить шаг», пере-проверка без ре-рана
+0d4ce1b  5bebfe3  2026-07-24  fix(tools): закрыть обход песочницы через external_files
+e519484  a7ae83a  2026-07-24  fix(llm,db): отмена хода — это не отказ провайдера
+e2e8010  1c02407  2026-07-24  fix(memory): факт по ключу один, а поиск идёт по словам запроса
+7903c4a  e8322b0  2026-07-24  fix(prompt,mcp): ограда конверта, таймаут тула и потолки file_tool
+43a041b  0798255  2026-07-24  fix(backup,build): не бэкапить то, что после восстановления не расшифровать
+12eb73d  5ad09b5  2026-07-24  refactor: доселить каталоги к пакету com.aiopenpocket
+6a6f145  3605835  2026-07-24  chore(build): убрать из репозитория путь к JDK конкретной машины
+5b3f195  dbf71fe  2026-07-24  refactor(test): доселить каталоги тестов; bless voice-input
+8102a75  dd2c25c  2026-07-24  fix(tools): починить потолки file_tool, которые не работали
+22d79fd  1535616  2026-07-25  fix(agent): «напомни в 19:00» больше не превращается в будильник
+c09c432  b69b68a  2026-07-25  docs(tools): спека десктопной читалки уроков
+b09a98c  9781c94  2026-07-25  docs(tools): план реализации читалки уроков
+e52afc6  6d4c456  2026-07-25  fix(plan-engine): реестр запусков больше не растёт вместе с историей
+390f04a  fe93e9b  2026-07-25  feat(tools): скелет десктопной читалки уроков
+d2f6f06  eb5ca9f  2026-07-25  feat(tools): модель урока и чтение уроков с диска
+187860d  6743687  2026-07-25  feat(tools): разбор правильных ответов уроков
+5ae50ce  c0b185e  2026-07-25  feat(tools): каркас читалки — список уроков, прокрутка, перечитывание
+0b2e4d2  1eb205a  2026-07-25  feat(tools): рендер всех типов шагов урока
+08e7d09  d6e9451  2026-07-25  feat(tools): картинки уроков в читалке
+55c9f7c  b660c2c  2026-07-25  docs(tools): README читалки уроков
+837174b  b26abac  2026-07-25  fix(plan-engine): отброшенная строка больше не исчезает бесследно
+34f8781  325f70e  2026-07-25  feat(tools): порядок уроков как в приложении
+2c921d9  7e62d32  2026-07-26  feat(lessons): курс ведёт от «что такое ИИ» до сборки агента
+0eee20b  81adb0a  2026-07-26  feat(onboarding): первый экран — язык, кто я такой, расскажи о себе
+b0d1cdf  d4fb14c  2026-07-26  fix(tools): вьюер догоняет порядок уроков и перестаёт врать про «недостижимы»
+9a95428  b42e88e  2026-07-28  fix(agent-detail): скролл отдаёт остаток высоты + выпил мёртвую шапку (срез 7)
+4152498  29653eb  2026-07-28  test(plan-ui): обновить эталоны плана после удаления completionRule
+47d6b57  cb13d68  2026-07-28  fix(agent-builder): агент перестаёт исчезать, свой навык перестаёт быть ловушкой
+711ad72  cf3bc5b  2026-07-28  fix(agent-builder): тестовый диалог визарда больше не подменяет чат агента
+a53f5e1  a18ce6f  2026-07-28  feat(agent-builder): на шаге «Проверка» видно, за какие инструменты взялся агент
+664bb78  dacea27  2026-07-28  fix(agent-builder): копия пресета перестаёт терять состояние в промпте (схема v10)
+8fb08f9  ca1a3a9  2026-07-28  docs(background-turns): спека foreground-сервиса на время хода агента
+67b3fc8  1c75207  2026-07-28  docs(background-turns): план имплементации foreground-сервиса хода
+2aa8bd2  870a815  2026-07-29  feat(background-turns): ход переживает сворачивание приложения
+d5690f7  9bf5a82  2026-07-29  chore(traxer): подтвердить rationale фоновых ходов после foreground-сервиса
+958ff01  adf6cda  2026-07-29  fix(background-turns): закрыть находки ревью — гонка статуса, снос диалога, тип FGS
+8dbd1cf  23de1d2  2026-07-28  feat(onboarding): полотно во весь экран, обвязка — стеклянные острова
+950250d  e095cf2  2026-07-28  feat(ui): паттерн «полотно + стеклянные острова» на списочных экранах
+e5504af  f48ba40  2026-07-28  feat(agent-builder): визард в концепции «полотно + стеклянные острова»
+e2c6c21  26c5058  2026-07-30  Merge design/onboarding-liquid-glass: концепция «полотно + стеклянные острова»
+038661d  44c9372  2026-07-30  feat(settings): выбор — единый стеклянный лист вместо стокового дропдауна
+cfc516d  ecb4ff0  2026-07-30  fix(ui): правки по фидбеку с устройства — плашки вместо блюра, валидация по кнопке
+da32bd4  db3e4bb  2026-07-30  feat(ui): плавные переходы между экранами и подскроллы в чате
+c2ea99c  9cf43be  2026-07-30  fix(ui): часы и заряд видны в любой теме — цвет иконок по теме приложения + фейд
+849f4b0  0f7aa66  2026-07-30  fix(chat): поле ввода стало непрозрачным
+45d2f51  71024d1  2026-07-30  fix(chat): убрать рывок в конце хода — tail-спейсер схлопывается плавно
+44ee202  55a8902  2026-07-30  fix(agents): пресетам — только Чат и Рефлексия, планирование им не выдаём
+e6aadae  32a6345  2026-07-30  fix: правки по код-ревью — два бага в чате, мёртвый blurEnabled, непокрытая валидация
+2ee78d4  e1d8377  2026-08-03  docs(chat): зафиксировать UI-спеку композера и вложений (фаза C)
+41deb30  dbe19e7  2026-08-03  feat(llm): переключение провайдера NIM↔OpenRouter + живой каталог моделей
+f48efc7  6f7d56e  2026-08-03  chore(trace): базлайн свежести для фичи выбора провайдера
+59640ab  5d7d0e6  2026-08-03  fix(llm): закрыть дыры код-ревью — два вызова шли мимо выбора провайдера
+e56708c  2fd759b  2026-08-03  chore(trace): обновить базлайн после правок код-ревью
+18c3c0c  7c2b12a  2026-08-03  test(settings): покрыть SettingsViewModel + убрать гонку DataStore в тестах
+14b7bae  5800be2  2026-08-03  chore(trace): базлайн после тестов SettingsViewModel
+60f2e3a  50be939  2026-08-03  fix(llm): второй круг ревью — авторитетность каталога, IO в save, честный тест гонки
+aa0eb44  b1e087c  2026-08-03  chore(trace): базлайн после второго круга ревью
+15f578f  6e73c1c  2026-08-04  fix(llm): третий круг ревью — краш на API 24, гонка save(), ещё один тест-театр
+b20e6ce  f7c5b88  2026-08-04  chore(trace): базлайн после третьего круга ревью
+91fe8c8  d30d7f9  2026-07-29  docs: план десктопного клиента генерации медиа через OpenRouter
+7211f13  ae415cc  2026-07-29  docs(desktop-plan): актуализировать под свежую базу
+1b44e8c  2a7b17e  2026-07-30  feat(desktop): десктопный клиент генерации медиа через OpenRouter
+45a5890  3bbf831  2026-07-30  feat(desktop): пачки, библиотека промптов и учёт расходов
+06c0c14  cc15b19  2026-07-30  feat(desktop): проверка ключа и связи до первой генерации
+1e91c94  86f4405  2026-07-30  fix(desktop): очередь теряла обновления статуса при параллельных заданиях
+287a959  5506688  2026-07-30  fix(desktop): разобрать находки код-ревью
+0a9f8ea  db79845  2026-07-30  fix(desktop): ожидание провайдера больше не запирает очередь
+3fcd87c  f6a5ea3  2026-07-30  fix(desktop): разобрать находки третьего ревью
+18e1a49  c9bb25f  2026-08-04  fix(desktop): ядро укладывается в Android API 24
+bba8daf  45ad6de  2026-08-04  fix(desktop): ядро переживает Windows, документация перестала врать
+eec5a93  d8e25a6  2026-08-04  feat(desktop): каталог моделей сведён с :app — живой список вместо вшитого
+bc2117d  1e789ae  2026-08-04  chore(trace): базлайн desktop-genai после сведения каталога
+d245501  51374af  2026-08-04  fix(desktop): разобрать находки код-ревью каталога
+e7b1915  49d7c27  2026-08-04  chore(trace): базлайн desktop-genai после ревью
+16bb77e  ad2a05f  2026-08-04  fix(desktop): ревью всего клиента — оплаченное видео и ключ на чужом хосте
+58376d4  f4d65e6  2026-08-04  chore(trace): базлайн desktop-genai после ревью клиента
+3ad7fca  d0672a8  2026-08-04  fix(desktop): список моделей перестал быть стеной слагов
+17421c9  7c4912c  2026-08-04  chore(trace): базлайн desktop-genai после правки списка моделей
+ba6f550  1564e0a  2026-08-04  feat(desktop): экран генерации разобран на блоки
+1a33a06  1c16dbf  2026-08-04  chore(trace): базлайн desktop-genai после правки экрана генерации
+d7a277a  6fdcb33  2026-08-04  feat(desktop): две панели и рельса вместо вкладок
+6a75c7e  81d20e2  2026-08-04  chore(trace): базлайн desktop-genai после двухпанельного экрана
+e7bdbd3  80f642e  2026-08-04  feat(desktop): видео-параметры по реальным возможностям моделей
+5eb38f1  b9e2728  2026-08-04  chore(trace): базлайн desktop-genai после видео-параметров
+802b482  397aa82  2026-08-04  feat(desktop): визуальный язык макета и живые действия на результате
+d1907a5  c8d89ec  2026-08-04  chore(trace): базлайн desktop-genai после визуального языка макета
+9ef40c4  d6608ce  2026-08-04  feat(desktop): offscreen-снимки экранов и правки, которые они вскрыли
+88529aa  7e4e5db  2026-08-04  chore(trace): базлайн desktop-genai после offscreen-снимков
+992b402  4ac08b2  2026-08-05  feat(desktop): выбор моделей с поиском и файлы с ролями вместо одной картинки
+c25103a  df3f880  2026-08-05  chore(trace): базлайн desktop-genai после файлов с ролями
+0e87e25  cc32f4b  2026-08-05  fix(desktop): карточка файла по макету, а не вдвое выше
+ccfedb6  151f2f4  2026-08-05  chore(trace): базлайн desktop-genai после карточки файла
+5e2ee19  d2153ac  2026-08-05  feat(desktop): три палитры и разрыв между слоями
+072a465  6d7d4be  2026-08-05  chore(trace): базлайн desktop-genai после палитр
+7213d52  cafd85a  2026-08-05  feat(desktop): графитовая палитра по умолчанию
+1fde26f  5403774  2026-08-05  chore(trace): базлайн desktop-genai после выбора палитры
+06ee9e1  663a50c  2026-08-06  feat(desktop): окно выбора модели с живыми ценами
+ee5100f  ebb38df  2026-08-06  chore(trace): базлайн desktop-genai после окна выбора модели
+6076855  03915a3  2026-08-06  feat(desktop): самостоятельный образ приложения под ярлык
+f7fa63a  4a94f09  2026-08-06  fix(desktop): окно выбора модели больше не зажато шириной диалога
+99a2553  1fb88da  2026-08-06  chore(trace): базлайн desktop-genai после ширины окна и ярлыка
+af18649  4df1cc5  2026-08-07  chore(desktop): образ приложения переехал из build в dist
+98161c0  e294327  2026-08-07  feat(desktop): журнал запросов, окно заготовок и номера исходников
+58ceac3  66629c1  2026-08-07  chore(trace): базлайн desktop-genai после журнала и заготовок
+259a650  5df4d5f  2026-08-07  chore: десктопный клиент уехал в свой репозиторий
+8cccd18  ef23154  2026-09-06  feat(tools): выпилить SMS целиком — тул, разрешение и все упоминания
+40a0f3f  b41eac0  2026-09-06  build: не пускать живой ключ провайдера в релизную сборку
+a045bb4  3e602c0  2026-09-06  feat(llm): учёт расхода токенов на каждый вызов модели
+d3ec517  fae4807  2026-09-06  feat(settings): карточка расхода за неделю
+b83db81  dfc24e7  2026-10-24  feat(llm): Muse первой в OpenRouter, без моделей, обучающихся на данных
+c9ec42b  c2ea0de  2026-10-24  docs: план под Meta-хакатон и текст заявки
+c17a968  62c158f  2026-10-24  feat(lessons): картинки уроков через Muse Image
+8393a7f  6a9571d  2026-10-24  chore(trace): базлайн картинок уроков с новыми файлами
+85979eb  9b2ceb8  2026-10-24  feat(lessons): иллюстрации к урокам от Muse Image в сборке
+1a7895a  782acac  2026-10-24  feat(lessons): кнопка «Нарисуй под меня» на картинке урока
+682649c  72b70e5  2026-10-24  feat(lessons): урок «Как модель видит» с видео на вход через Muse Spark
+6d2814d  a52ecef  2026-10-24  feat(llm): Muse по умолчанию — OpenRouter первым провайдером, ключ из .env
+9e3e639  d4a44f4  2026-10-24  feat(lessons): процедурные анимации — «Токены» и «Температура»
+5578082  a2c61b2  2026-10-24  feat(lessons): ещё четыре интерактивные сцены — кадры, ReAct, окно, RAG
+4910b95  9d9ed80  2026-10-24  feat(lessons): «Показать на примере» — видео-шаг в один тап
+ff190fd  3f358ee  2026-10-25  feat(lessons): интерактив в каждом уроке и четыре урока про модели Meta
+197306c  a220da1  2026-10-25  chore: всё на Muse — выпилен NIM, хвосты AI Studio и лишний язык
+7130f89  f3a979a  2026-10-25  fix: проход по всем фичам — баги, тексты и реестр после аудита
+5f337e4  ce9023f  2026-10-25  fix: остатки аудита — шаг плана при сбое, имена инструментов, мёртвый код
+5497b3d  ba8397c  2026-10-25  fix: проход «до демо» — подтверждение по умолчанию, контекст, уроки, тесты и CI
+ec20311  002d8e8  2026-10-26  fix: CI на Linux и пробный прогон конструктора
+3b3ca8d  9ae6c43  2026-10-26  feat: английский интерфейс на пути демо
+7d083d4  8ededc3  2026-10-26  docs: сабмишн хакатона — подача платформы, сценарий ролика, разбор правил
+1328548  de25984  2026-10-26  docs: правила хакатона в плане, английский интерфейс — до окна
+256dd03  8abaa7a  2026-10-26  feat: direct Meta Model API route, key entered by the user
+6521d36  2fe45da  2026-10-26  docs: hackathon rules applied, Impact, user-entered key, English commits
+7611a68  a0ea53b  2026-10-26  docs: README in English, platform first
+891341e  2013ad6  2026-10-26  chore: agent loop comments in English
+1c68767  bc2bfce  2026-10-26  chore: LLM client comments in English
+0f1e9a5  7915692  2026-10-27  chore: tool and approval comments in English
+2464f21  62f9c34  2026-10-27  chore: agents, skills, hooks and DI comments in English
+2ba67e1  03119a7  2026-10-27  chore: core comments in English (memory, prompt, lessons, workers)
+62b617f  4322df8  2026-10-27  chore: agent builder and agent screen comments in English
+322be74  8d27deb  2026-10-27  chore: chat screen comments in English
+295896f  40a9f4c  2026-10-27  chore: chat cards and lesson scene comments in English
+e223403  9c19f3c  2026-10-27  chore: settings, shared components and theme comments in English
+9188185  5a14056  2026-10-27  chore: onboarding, course map and remaining screen comments in English
+eb66481  9408f46  2026-10-27  fix: replace the deprecated Locale constructor in CurrentMoment
+51496c2  88bc7f0  2026-10-27  chore: remove dead code
+88d74ed  a2947dc  2026-10-27  chore: lint cleanup in the manifest and resources
+77fc5c5  8ddab96  2026-10-27  chore: English comments in the build script, CI and resource XML
+6923ec5  8e7047c  2026-10-27  refactor: split DrivenUiCardViews.kt into themed files
+e1a7149  3ec4773  2026-10-27  chore: drop imports the card split carried over
+a888e37  ebb3e7e  2026-10-27  refactor: move the roadmap level data out of RoadmapScreen.kt
+77f15c4  b1ce416  2026-10-27  refactor: split SettingsCards.kt into selectors and integrations
+67954f1  126c48f  2026-10-27  refactor: move agent detail previews out of AgentDetailSections.kt
+478c907  0b55f55  2026-10-27  chore: test comments in English
+08f5df5  e9452d9  2026-10-27  fix(tools): point the lesson viewer at RoadmapLevels.kt
+cf3f900  beedc98  2026-10-27  docs: tool READMEs in English, AGENTS.md follows the roadmap split
+5530793  eb4b466  2026-10-27  feat: Settings screen fully in English
+657c1e2  7cf854c  2026-10-27  feat: Scheduled tasks screen in English
+d8a8f7a  cbe2d87  2026-10-27  feat(orchestrator): one check command for the project's criteria
+e92d7d6  3ce6ec6  2026-10-27  feat(orchestrator): port the orchestrator loop, its agents and the owner's criteria
+20b1c0d  4463b9c  2026-10-27  fix(orchestrator): T4a must expect the key the debug build bundles on purpose
+445f8e5  c5e5428  2026-10-27  docs(orchestrator): cycle 1 of milestone M1 -- what is proven and what is blocked
+ea123f3  fa10fe6  2026-10-27  docs: the hackathon window holds no user-visible work yet, and it is on the record
+b1f1c20  9ea2612  2026-10-27  chore(traxer): bless the plan engine after the schema-comment correction
+cba9e00  39316fc  2026-10-27  docs: plan the codebase-memory-mcp integration for after the submission
+186a4d9  edfbe96  2026-10-27  docs(orchestrator): SAM 3.1 is real, and it splits into boxes now, masks later
+a95bd66  7a824c5  2026-10-27  docs(orchestrator): the verifier's SAM scenarios, and a rule learned by tripping over it
+9905f0d  8a7b434  2026-10-27  feat(lessons): SAM 3.1 outlines objects in a photo in "How a model sees"
+20975d3  a1fb849  2026-10-27  fix(lessons): SAM step bills every accepted call and refuses non-English words
+9ec1885  3be2aa7  2026-10-27  fix(lessons): clean up the SAM step's photos, show its spend, tell the truth about photos
+fa514cf  c833337  2026-10-27  build(lessons): read photo orientation with androidx ExifInterface
+40d98af  962a81f  2026-10-27  Merge branch 'orch/m3-sam-boxes' into mvp
+50ff5fb  95e9c62  2026-10-27  docs(orchestrator): the SAM step is in, and two calls that rest on documentation
+5cddff9  c220ce5  2026-10-27  docs(orchestrator): the first device run, and the hole it found in our own check
+a42a74f  59cd9b7  2026-10-27  feat(lessons): English copies of the first five lessons on the Path
+48d4078  9207c5d  2026-10-27  Merge branch 'orch/m2-lessons-en' into mvp
+c9d9c1d  15cd181  2026-10-28  docs: stop telling agents to write new screen strings in Russian
+8929a7d  5eced02  2026-10-28  fix(lessons): one spelling of gray inside one lesson
+0970e0e  cda3e0f  2026-10-27  feat(ui): put the rest of the demo path's Russian screen text through tr()
+8496160  6055e49  2026-10-27  fix(ui): three findings from the first English device run
+04af3ba  1f32bb3  2026-10-27  feat(check): T6c fails on Russian screen text that never went through tr()
+36b549d  a285035  2026-10-28  fix(plan): tell the user why a plan stopped in the interface language
+687ad17  c5517e9  2026-10-28  fix(ui): give a lesson step's problem its own slot, apart from the turn's error
+1d090d4  201d70d  2026-10-28  fix(ui): one name per lesson everywhere, American spelling, stale docs
+a4b1a05  78b4274  2026-10-28  Merge branch 'orch/m2-screen-text' into mvp
+300a460  8d69941  2026-10-28  feat(check): T6b grades every translated lesson, not the three already done
+381b3ee  28f33f3  2026-10-28  docs(orchestrator): the second device run, and the third blind spot it found
+88979af  ba40f14  2026-10-28  fix(chat): follow the bottom bar as it grows; show the risk consent was given for
+641c674  4fdebf5  2026-10-28  Merge branch 'orch/m3-chat-layout' into mvp
+1038aed  33b2899  2026-10-28  docs(orchestrator): the chat's baselines guard a copy, and the price of a third worktree
+952f77e  34b8ada  2026-10-28  fix(ui): say it in the reader's language, and say whose key it is
+8301383  18bdf87  2026-10-28  Merge branch 'orch/m3-user-text' into mvp
+863ad79  64eb8ca  2026-10-28  fix(chat): the answer bubble itself speaks the reader's language
+14bb55b  783bb85  2026-10-28  feat(check): T6d reads where text is shown, not where it is written
+f807bbb  ac98803  2026-10-28  Merge branch 'orch/m3-check-indirection' into mvp
+77f6731  5fe8ed9  2026-10-28  docs(orchestrator): the cycle that closed four device defects and named a pattern
+9dba8f7  73b8765  2026-10-28  docs(orchestrator): the first run on a modern Android, and what a green check cannot see
+49b229f  5317350  2026-10-28  docs(orchestrator): there is no blur in the app; correct the record
+4c0ee87  56916ad  2026-10-28  fix(approval): never tell someone they declined a request they never saw
+110e5f6  93b0d09  2026-10-28  Merge branch 'orch/m4-approval-honesty' into mvp
+392372b  00f7f03  2026-10-28  fix(approval): promise nothing the app will not do, and title the push for what it is
+f13062f  29c5224  2026-10-28  docs(orchestrator): the owner keeps the pills near-solid and the blur out
+5ce3906  2aa0464  2026-10-28  docs(orchestrator): restore the token and branch names the shell swallowed in Q6
+6a4682d  7354731  2026-10-28  fix(ui): name every colour role, and give the floating chrome a floor
+9e7210d  c8593fa  2026-10-28  fix(theme): the surface ladder is ink and paper too
+365518c  890e885  2026-10-28  Merge branch 'orch/m4-visuals' into mvp
+9246fe1  3627b45  2026-10-28  docs: MIT license, SAM 3.1 in the model list, and a note on the rewritten history
