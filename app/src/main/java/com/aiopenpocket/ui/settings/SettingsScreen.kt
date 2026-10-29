@@ -97,6 +97,7 @@ import com.aiopenpocket.i18n.AppLanguage
 import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
 import com.aiopenpocket.ui.components.MarkdownText
+import com.aiopenpocket.ui.components.glass.GlassSurface
 import com.aiopenpocket.ui.components.glass.glassCardSurface
 import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.components.AcademyTab
@@ -171,11 +172,20 @@ fun SettingsScreen(
         modifier = Modifier
           .fillMaxWidth(),
       ) {
+        // On a plate, like the other floating bars. Bare, the lock line and "Save changes" floated over the
+        // settings cards scrolling underneath, and "System" read through "Keys are stored…" (Android 14, 29 Oct 2026).
+        GlassSurface(
+          state = glassState,
+          shape = RoundedCornerShape(20.dp),
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp),
+        ) {
         Column(
           modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp)
-            .padding(top = 8.dp),
+            .padding(horizontal = 12.dp)
+            .padding(top = 10.dp, bottom = 10.dp),
         ) {
           Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -220,6 +230,7 @@ fun SettingsScreen(
               modifier = Modifier.align(Alignment.CenterHorizontally),
             )
           }
+        }
         }
         AcademyBottomNav(
           selectedTab = AcademyTab.Tools,

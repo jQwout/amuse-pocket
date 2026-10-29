@@ -73,6 +73,8 @@ import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.agents.builder.components.riskClassLabel
 import com.aiopenpocket.ui.agents.builder.components.riskColor
 import com.aiopenpocket.ui.components.glass.GlassCard
+import com.aiopenpocket.ui.components.glass.GlassState
+import com.aiopenpocket.ui.components.glass.GlassSurface
 
 /**
  * The search row in the header: the input field + the match counter and navigation arrows (prev/next),
@@ -456,6 +458,7 @@ internal fun LessonControlBar(
 internal fun LessonAskBar(
     enabled: Boolean,
     onAsk: (String) -> Unit,
+    glassState: GlassState,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     var text by rememberSaveable { mutableStateOf("") }
@@ -469,11 +472,18 @@ internal fun LessonAskBar(
         expanded = false
     }
 
+    // On a plate like its neighbours in the bottom bar. Bare, the pill and the expanded field sat right on top of
+    // the lesson card scrolling underneath — "Ask the AI" over "That the clip was shot in 4K" read as one smear
+    // in the dark theme (Android 14, 29 Oct 2026).
+    GlassSurface(
+        state = glassState,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+    ) {
     if (!expanded) {
         TextButton(
             onClick = { expanded = true },
             enabled = enabled,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
         ) {
             Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
@@ -485,7 +495,7 @@ internal fun LessonAskBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 4.dp),
+                .padding(horizontal = 4.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = { expanded = false; text = "" }) {
@@ -507,5 +517,6 @@ internal fun LessonAskBar(
                 Icon(Icons.AutoMirrored.Filled.Send, contentDescription = tr("Отправить вопрос", "Send question"))
             }
         }
+    }
     }
 }

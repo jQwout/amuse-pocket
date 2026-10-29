@@ -4,8 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -84,8 +86,12 @@ fun GlassSurface(
       .background(backgroundColor.copy(alpha = plateAlpha))
       .background(tint)
       .then(if (border != null) Modifier.border(1.dp, border, shape) else Modifier),
-    content = content,
-  )
+  ) {
+    // A plate is a Box, not a Surface, so nothing sets the content colour: text and icons without their own
+    // colour fell back to Compose's default black — invisible on the dark plate (the Stop button in the dark
+    // theme, Android 14, 29 Oct 2026). The plate is the theme's background, so its content is onSurface.
+    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) { content() }
+  }
 }
 
 // The plate's density now lives in GlassTokens.PlateAlpha — one knob for the bars, the navigation pill and
