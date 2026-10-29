@@ -14,6 +14,11 @@ class ToolExecutor(
   suspend fun execute(name: String, arguments: Map<String, JsonElement>): ToolResult {
     val tool = registry.get(name)
       ?: return ToolResult.Error("Tool '$name' not found", recoverable = false)
+    // Broken JSON from the model is reported as broken JSON — before the schema check, which would
+    // otherwise say "missing required argument" about a map that was never the model's real input.
+    MalformedArguments.excerptOf(arguments)?.let {
+      return ToolResult.Error(MalformedArguments.message(name, it), recoverable = true)
+    }
     // Validate against the declared schema once here, so tools don't each re-check required/enum.
     SchemaValidator.validate(tool.schema, arguments)?.let { return it }
     return try {

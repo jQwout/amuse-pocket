@@ -22,8 +22,8 @@
       "git": "20975d3"
     },
     "approval-outcome-honesty-554a8c": {
-      "hash": "e8bbbb45ae68",
-      "git": "b877767b"
+      "hash": "7842d70cec28",
+      "git": "3325046f"
     },
     "background-tasks-15a34a": {
       "hash": "97e03df3b5ca",
@@ -62,8 +62,8 @@
       "git": "2464f21"
     },
     "mcp-tools-f77d9b": {
-      "hash": "a4e2e5f3b8ae",
-      "git": "1038aed"
+      "hash": "cea6aa79e233",
+      "git": "3325046f"
     },
     "multi-agent-orchestration-27b8e3": {
       "hash": "4b7a254d3917",
@@ -82,8 +82,8 @@
       "git": "67954f1"
     },
     "sam-segmentation-boxes-in-a-lesson-c3ea52": {
-      "hash": "677fd89d5755",
-      "git": "687ad17"
+      "hash": "7b6f3165b28a",
+      "git": "3325046f"
     },
     "screen-text-check-7c6d09": {
       "hash": "5138f2a3f846",
@@ -94,12 +94,12 @@
       "git": "5ce3906"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "3df0df5427f9",
-      "git": "b877767b"
+      "hash": "82527b641cb8",
+      "git": "3325046f"
     },
     "structured-plan-engine-907066": {
-      "hash": "60d45280a24f",
-      "git": "b877767b"
+      "hash": "44e4ae9b2601",
+      "git": "3325046f"
     },
     "swappable-persona-e5e65e": {
       "hash": "11aaa5d19303",
@@ -122,8 +122,8 @@
       "git": "48d4078"
     },
     "vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53": {
-      "hash": "c139e0150f24",
-      "git": "e4e70fe4"
+      "hash": "f8e61da0388c",
+      "git": "3325046f"
     },
     "yazykovoy-agent-repetitor-s-intervalnymi-povtoreniyami-4a9360": {
       "hash": "74722c84ed79",

@@ -7,6 +7,8 @@ import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.llm.ReasoningEffort
+import com.aiopenpocket.agent.core.llm.ReasoningEffortContext
 import com.aiopenpocket.agent.core.llm.StreamEvent
 import com.aiopenpocket.agent.core.plan.model.CriterionVerifier
 import com.aiopenpocket.agent.core.plan.model.PlanAuthor
@@ -26,6 +28,7 @@ import com.aiopenpocket.agent.core.plan.validation.PlanVersionResult
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -185,7 +188,9 @@ class PlanPlanner(
     var explanation = ""
     val calls = mutableListOf<StreamEvent.ToolCall>()
     var streamError: String? = null
-    llmClient.streamChat(messages, PlanControlSchemas.ALL, provider).collect { event ->
+    // A plan is the one place where thinking longer pays: a bad plan costs every later step. High even when
+    // the surrounding GOAL turn runs at medium (a replan happens inside it).
+    llmClient.streamChat(messages, PlanControlSchemas.ALL, provider).flowOn(ReasoningEffortContext(ReasoningEffort.HIGH)).collect { event ->
       when (event) {
         is StreamEvent.TextDelta -> explanation += event.content
         is StreamEvent.ToolCall -> calls += event
