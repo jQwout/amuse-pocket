@@ -377,6 +377,38 @@ class ToolApprovalFlowTest {
       arguments = emptyMap(),
     )
 
+  /**
+   * The request must already be pending when the world first hears of it. TurnManager starts its
+   * "push if the app is minimised" watcher on this very event, and the watcher's first move is to ask
+   * whether the request is still pending. When the event went out before the coordinator registered
+   * the request, a watcher that happened to run first saw "not pending", read it as "already answered"
+   * and never pushed — on Android 14 (29 Oct 2026) the push came on one run and not on the next. An
+   * "Allow" tapped in that gap would have been lost the same way: resolve() finds nothing to resolve.
+   * The push tests could not see this, because their pending-approvals port is a fake that always
+   * says yes; this one uses the real coordinator.
+   */
+  @Test
+  fun `a request is already pending when its approval event goes out`() = runTest {
+    val tool = FakeTool("fake_tool", RiskClass.EXTERNAL)
+    val toolRegistry = ToolRegistry(setOf(tool))
+    val coordinator = ToolApprovalCoordinator()
+    val runner = runner(ScriptedLlm(toolCallThenStop("fake_tool")), toolRegistry, coordinator)
+
+    val pendingWhenAnnounced = mutableListOf<Boolean>()
+    runner.run(
+      conversationId = "c1",
+      messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
+      tools = toolRegistry.getAllSchemas(),
+      provider = LlmProvider.OPENROUTER,
+    ) { event ->
+      if (event is AgentEvent.ToolApprovalRequired) {
+        pendingWhenAnnounced += coordinator.isPending(event.request.requestId)
+      }
+    }
+
+    assertEquals(listOf(true), pendingWhenAnnounced)
+  }
+
   @Test
   fun `unanswered request times out to UNANSWERED, never to DECLINED`() = runTest {
     val coordinator = ToolApprovalCoordinator()
