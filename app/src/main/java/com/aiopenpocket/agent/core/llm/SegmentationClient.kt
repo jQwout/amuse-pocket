@@ -311,23 +311,14 @@ class SegmentationClient(
     const val MAX_IMAGE_URL_CHARS = 20_971_520
 
     const val MAX_ATTEMPTS = 3
-    private const val BASE_BACKOFF_MS = 1_000L
-    private const val JITTER_MS = 500L
     private const val MAX_WAIT_MS = 20_000L
     private const val CONNECT_TIMEOUT_MS = 10_000L
     private const val REQUEST_TIMEOUT_MS = 120_000L
     private const val SOCKET_TIMEOUT_MS = 60_000L
 
-    /**
-     * How long to wait before attempt [attempt] + 1. `Retry-After` in seconds wins when it is longer than
-     * the plain backoff (1 s, 2 s, …); a small random jitter on top, so a burst of retries does not arrive
-     * together. An HTTP-date `Retry-After` is not parsed: the plain backoff stands in.
-     */
-    internal fun retryDelayMs(attempt: Int, retryAfter: String?, random: Random): Long {
-      val backoff = BASE_BACKOFF_MS shl (attempt - 1).coerceIn(0, 10)
-      val asked = retryAfter?.trim()?.toLongOrNull()?.takeIf { it >= 0 }?.let { it * 1_000L }
-      return maxOf(backoff, asked ?: 0L) + random.nextLong(JITTER_MS + 1)
-    }
+    /** The shared Meta backoff — see [RetryBackoff]. */
+    internal fun retryDelayMs(attempt: Int, retryAfter: String?, random: Random): Long =
+      RetryBackoff.delayMs(attempt, retryAfter, random)
   }
 }
 

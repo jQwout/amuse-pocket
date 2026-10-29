@@ -16,7 +16,9 @@ import com.aiopenpocket.agent.loop.ReflectionOrchestrator
 import com.aiopenpocket.agent.loop.StructuredPlanOrchestrator
 import com.aiopenpocket.agent.loop.TurnExecutor
 import com.aiopenpocket.agent.loop.TurnLifeSupport
+import com.aiopenpocket.agent.core.llm.ReasoningEffortContext
 import com.aiopenpocket.agent.core.llm.SelectedLlmProvider
+import com.aiopenpocket.agent.core.llm.reasoningEffortFor
 import com.aiopenpocket.agent.loop.TurnManager
 import com.aiopenpocket.agent.loop.TurnNotifier
 import com.aiopenpocket.agent.loop.TurnPersistence
@@ -28,6 +30,7 @@ import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.flowOn
 
 @ContributesTo(AppScope::class)
 @BindingContainer
@@ -59,7 +62,10 @@ object TurnModule {
           conversationId, message, provider, mode,
           systemPromptExtra = systemPromptExtra, executionMode = executionMode,
         )
-      }
+        // How hard the model thinks is decided HERE, once per turn, by mode (lesson answer: low; chat: medium;
+        // planning and critique: high) and travels in the coroutine context down to OpenAiCompatClient.
+        // flowOn with a non-dispatcher element adds no thread hop and no buffer.
+      }.flowOn(ReasoningEffortContext(reasoningEffortFor(mode)))
     }
 
   @Provides

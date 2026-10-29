@@ -115,7 +115,9 @@ class OpenAiCompatClientCancellationTest {
     val engine = MockEngine { request ->
       val body = request.body.toString()
       if (body.contains("\"model\":\"broken-model\"")) {
-        respond(content = "boom", status = HttpStatusCode.InternalServerError)
+        // 502, not 500: a 500 is now retried on the SAME model after a backoff (OpenAiCompatClientMetaFixesTest
+        // covers that). This test is about a failure that goes straight to the next model.
+        respond(content = "boom", status = HttpStatusCode.BadGateway)
       } else {
         respond(content = textSse, status = HttpStatusCode.OK, headers = headersOf(HttpHeaders.ContentType, "text/event-stream"))
       }
