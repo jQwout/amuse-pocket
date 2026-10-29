@@ -137,6 +137,8 @@ class ReactLoopRunner(
     // Per-RUN (across all iterations) real-dispatch counter for maxToolCalls — see its own kdoc above.
     var toolCallsUsed = 0
     var toolBudgetExhausted = false
+    // A hook STOP (or the tool-loop stop it causes) ends the run on purpose — no step-limit wrap-up then.
+    var stoppedByHook = false
     log.d(TAG, "▶ run conv=$conversationId tools=${tools.size} [${tools.joinToString { it.function.name }}]")
 
     // --- Hook lifecycle plumbing (Task 8) ------------------------------------------------------
@@ -185,16 +187,18 @@ class ReactLoopRunner(
       val beforeTurn = fireHook(HookEvent.BEFORE_TURN, HookContext(iteration = iteration))
       if (beforeTurn.stopped) {
         log.d(TAG, "⏹ BEFORE_TURN hook stopped the run at iter $iteration")
+        stoppedByHook = true
         break@runLoop
       }
 
-      // ADD_INSTRUCTION: an ephemeral system message for THIS streamChat call only. Inserted/removed
-      // at the HEAD (right after the base system message at index 0), NEVER the tail — the tail holds
-      // assistant(tool_calls)/tool pairs from earlier iterations, and splitting a pair there would
-      // give an HTTP 400 on strict providers.
-      val ephemeralIndex = 1.coerceAtMost(messages.size)
+      // ADD_INSTRUCTION: an ephemeral system message for THIS streamChat call only. Appended at the END
+      // (right before the model call) and removed afterwards. It used to go to index 1, but that shifted
+      // the whole history and broke Meta's automatic PREFIX prompt cache from position 1 on every
+      // iteration. At the tail it cannot split an assistant(tool_calls)/tool pair: it lands after the
+      // last complete pair, and the finally below removes it before anything else is appended.
+      val ephemeralIndex = messages.size
       val ephemeralText = beforeTurn.addedInstructions.takeIf { it.isNotEmpty() }?.joinToString("\n\n")
-      if (ephemeralText != null) messages.add(ephemeralIndex, ChatMessage(role = "system", content = ephemeralText))
+      if (ephemeralText != null) messages.add(ChatMessage(role = "system", content = ephemeralText))
       try {
         llmClient.streamChat(messages, tools, provider).collect { chunk ->
           when (chunk) {
@@ -224,6 +228,7 @@ class ReactLoopRunner(
       val afterTurn = fireHook(HookEvent.AFTER_TURN, HookContext(iteration = iteration))
       if (afterTurn.stopped) {
         log.d(TAG, "⏹ AFTER_TURN hook stopped the run at iter $iteration")
+        stoppedByHook = true
         break@runLoop
       }
 
@@ -356,6 +361,7 @@ class ReactLoopRunner(
         if (beforeTool.stopped || afterTool.stopped) toolLoopStopped = true
       }
 
+      if (toolLoopStopped) stoppedByHook = true
       if (toolLoopStopped || toolBudgetExhausted) break@runLoop
     }
 
@@ -367,7 +373,16 @@ class ReactLoopRunner(
       log.w(TAG, "⚠ exhausted maxIterations=$maxIterations")
     }
     // At the limit return the transcript of all iterations (not the possibly empty last text); on a finish — the result.
-    val finalText = if (finished) accumulatedText else transcript.toString().trim().ifBlank { accumulatedText }
+    var finalText = if (finished) accumulatedText else transcript.toString().trim().ifBlank { accumulatedText }
+    // Step limit reached with the model still asking for tools: Meta's agent guide counts a run with no
+    // final assistant message as a failure, so give the user a real closing answer — one extra tool-less
+    // call. Not for a hook STOP or the tool-call budget (those are deliberate stops, PlanExecutor owns them).
+    if (!finished && !stoppedByHook && !toolBudgetExhausted) {
+      val wrapUp = streamWrapUp(messages, provider, emit)
+      if (wrapUp.isNotBlank()) {
+        finalText = if (finalText.isBlank()) wrapUp else "$finalText\n\n$wrapUp"
+      }
+    }
     fireHook(HookEvent.ON_COMPLETE, HookContext(iteration = lastIteration))
     // hitIterationLimit=!finished is the only "hit the limit" source for the GOAL fallback (a hook
     // STOP also lands here with hitIterationLimit=true: it halted before a model-driven finish, same
@@ -379,6 +394,43 @@ class ReactLoopRunner(
       finalText, toolTrace, AgentState.FINISHED, lastIteration, null,
       hitIterationLimit = !finished, stoppedByToolBudget = toolBudgetExhausted,
     )
+  }
+
+  /**
+   * The one extra model call after the step limit: no tools, a short note asking for a summary. The
+   * note is removed from [messages] afterwards (the caller's list must not keep an artificial turn).
+   * Returns the streamed text, or "" when the call produced none — the caller then keeps the old
+   * behaviour (concatenated preambles). A partial text from a stream that broke midway is kept: it was
+   * already shown to the user.
+   */
+  private suspend fun streamWrapUp(
+    messages: MutableList<ChatMessage>,
+    provider: LlmProvider,
+    emit: suspend (AgentEvent) -> Unit,
+  ): String {
+    val noteIndex = messages.size
+    messages.add(ChatMessage(role = "user", content = WRAP_UP_NOTE))
+    val text = StringBuilder()
+    try {
+      emit(AgentEvent.StateChanged(AgentState.STREAMING))
+      llmClient.streamChat(messages, emptyList(), provider).collect { chunk ->
+        when (chunk) {
+          is StreamEvent.TextDelta -> {
+            text.append(chunk.content)
+            emit(AgentEvent.TextDelta(chunk.content))
+          }
+          is StreamEvent.Error -> log.w(TAG, "✗ wrap-up stream error: ${chunk.message}")
+          else -> Unit // a tool call is ignored: the request carried no tools
+        }
+      }
+    } catch (e: kotlinx.coroutines.CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      log.w(TAG, "✗ wrap-up call failed: ${e.message}")
+    } finally {
+      if (noteIndex < messages.size) messages.removeAt(noteIndex)
+    }
+    return text.toString().trim()
   }
 
   private fun resultToString(result: ToolResult): String = when (result) {
@@ -527,6 +579,11 @@ class ReactLoopRunner(
 
   companion object {
     private const val TAG = "ReactLoop"
+
+    /** Model-facing, hence English. Sent as the last message of the tool-less wrap-up call. */
+    internal const val WRAP_UP_NOTE =
+      "You have reached the step limit for this turn. Do not call tools. In a few sentences, " +
+        "tell the user what is done, what is not, and what they can ask next."
     private const val LOAD_SKILL_TOOL = "load_skill"
     const val MAX_ITERATIONS = 10
   }
