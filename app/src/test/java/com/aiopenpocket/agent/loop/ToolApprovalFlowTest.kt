@@ -20,6 +20,7 @@ import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.StreamEvent
+import com.aiopenpocket.agent.core.mcp.MalformedArguments
 import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolExecutor
@@ -326,6 +327,33 @@ class ToolApprovalFlowTest {
     assertTrue(coordinator.resolve(pending.runId, pending.requestId, approved = true))
     resultDeferred.await()
     assertTrue(tool.executed)
+  }
+
+  @Test
+  fun `a DESTRUCTIVE call with unparseable arguments never asks the person - the model hears the JSON error`() = runTest {
+    val tool = FakeTool("calendar", RiskClass.DESTRUCTIVE)
+    val toolRegistry = ToolRegistry(setOf(tool))
+    val coordinator = ToolApprovalCoordinator()
+    val llm = ScriptedLlm(
+      listOf(
+        listOf(StreamEvent.ToolCall("call-1", "calendar", MalformedArguments.marker("{\"title\": ")), StreamEvent.Finish("tool_calls")),
+        listOf(StreamEvent.TextDelta("done"), StreamEvent.Finish("stop")),
+      ),
+    )
+    var askedForApproval = false
+
+    val result = runner(llm, toolRegistry, coordinator).run(
+      conversationId = "c1",
+      messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
+      tools = toolRegistry.getAllSchemas(),
+      provider = LlmProvider.OPENROUTER,
+      agent = null,
+    ) { event -> if (event is AgentEvent.ToolApprovalRequired) askedForApproval = true }
+
+    assertFalse("a call that can never run must not be put to the person", askedForApproval)
+    assertFalse(tool.executed)
+    val traced = result.toolTrace.single().result
+    assertTrue(traced is ToolResult.Error && traced.message.contains("not valid JSON"))
   }
 
   @Test

@@ -1,5 +1,6 @@
 package com.aiopenpocket.agent.core.llm
 
+import com.aiopenpocket.agent.core.mcp.MalformedArguments
 import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
@@ -99,7 +100,7 @@ class OpenAiSseParserTest {
   }
 
   @Test
-  fun `malformed tool arguments produce emptyMap ToolCall, not an error`() = runTest {
+  fun `malformed tool arguments produce a parse-error marker ToolCall, not an error`() = runTest {
     val sse = """
       data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"do_thing","arguments":"{invalid json"}}]}}]}
       data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}
@@ -111,7 +112,8 @@ class OpenAiSseParserTest {
     val calls = events.filterIsInstance<StreamEvent.ToolCall>()
     assertEquals(1, calls.size)
     assertEquals("do_thing", calls[0].name)
-    assertTrue("malformed args must produce emptyMap", calls[0].arguments.isEmpty())
+    // Not an empty map any more: the model would hear "missing argument" and fix the wrong thing.
+    assertEquals("{invalid json", MalformedArguments.excerptOf(calls[0].arguments))
     assertTrue("no Error event on malformed args", events.none { it is StreamEvent.Error })
   }
 
