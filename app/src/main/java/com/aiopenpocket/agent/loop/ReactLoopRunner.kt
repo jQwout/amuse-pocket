@@ -470,13 +470,13 @@ class ReactLoopRunner(
         recoverable = false,
       )
     }
-    emit(AgentEvent.ToolApprovalRequired(request))
     // Three outcomes, not a Boolean, and a separate text for each — the model cannot be more precise
     // than the fact it is given. A bare "was not approved" first read to it like a missing Android
     // permission (after "Decline" it told the user to enable mail in Settings); the fix spelled out
     // "declined it or did not answer in time", and the model resolved that "or" against the user:
     // a request that expired while the app was minimized came back as "Not sent — declined in chat."
-    return when (toolApprovalCoordinator.awaitApproval(request)) {
+    // The event goes out from inside awaitApproval, after the request is registered, never before it.
+    return when (toolApprovalCoordinator.awaitApproval(request) { emit(AgentEvent.ToolApprovalRequired(request)) }) {
       ApprovalOutcome.APPROVED ->
         if (executionMode == ExecutionMode.PREVIEW && request.riskClass != RiskClass.READ) {
           ToolResult.Success(simulatedResultJson(request.toolName, request.arguments), simulated = true)

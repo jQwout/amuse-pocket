@@ -63,11 +63,20 @@ class ToolApprovalCoordinator() {
    * coroutine cancellation propagates, see class doc). Always removes [request] from [pending] again,
    * on every exit path.
    */
-  suspend fun awaitApproval(request: ToolApprovalRequest, timeoutMs: Long = DEFAULT_TIMEOUT_MS): ApprovalOutcome {
+  suspend fun awaitApproval(
+    request: ToolApprovalRequest,
+    timeoutMs: Long = DEFAULT_TIMEOUT_MS,
+    // Called once the request is registered, and only then: whoever learns of the request from here on —
+    // the chat bar, TurnManager's push watcher — finds it pending. Announcing it before registering let a
+    // watcher that ran first see "not pending", take it for "already answered" and never push (Android 14,
+    // 29 Oct 2026), and an "Allow" tapped in that gap had nothing to resolve.
+    onPending: suspend () -> Unit = {},
+  ): ApprovalOutcome {
     val deferred = CompletableDeferred<ApprovalOutcome>()
     byRequestId[request.requestId] = Entry(request, deferred)
     pendingFlow.update { it + request }
     return try {
+      onPending()
       withTimeoutOrNull(timeoutMs) { deferred.await() } ?: ApprovalOutcome.UNANSWERED
     } finally {
       remove(request.requestId)
