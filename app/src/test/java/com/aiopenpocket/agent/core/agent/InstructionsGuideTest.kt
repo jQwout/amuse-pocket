@@ -51,6 +51,24 @@ class InstructionsGuideTest {
     assertFalse(InstructionsGuide.analyze("You are a running coach").metaInstruction)
   }
 
+  @Test fun keys_match_only_where_a_word_starts() {
+    // The review's cases: each word used to tick an item it has nothing to do with.
+    assertFalse(InstructionsGuide.analyze("You give information about trains").format)
+    assertFalse(InstructionsGuide.analyze("Работай автономно").tone)
+    assertFalse(InstructionsGuide.analyze("Следи за тонким балансом").tone)
+    assertFalse(InstructionsGuide.analyze("Track every milestone").tone)
+    assertTrue(InstructionsGuide.analyze("Держи спокойный тон").tone)
+    assertTrue(InstructionsGuide.analyze("Пиши в тоне друга").tone)
+  }
+
+  @Test fun the_task_itself_is_not_a_meta_instruction() {
+    assertFalse(InstructionsGuide.analyze("Выполни цепочку шагов по порядку").metaInstruction)
+    assertFalse(InstructionsGuide.analyze("Report the temperature in Belgrade").metaInstruction)
+    assertFalse(InstructionsGuide.analyze("Следи за температурой в духовке").metaInstruction)
+    assertTrue(InstructionsGuide.analyze("temperature: 0.2").metaInstruction)
+    assertTrue(InstructionsGuide.analyze("Температура 0,7").metaInstruction)
+  }
+
   @Test fun matching_is_case_insensitive() {
     assertTrue(InstructionsGuide.analyze("YOU ARE A COACH").role)
   }

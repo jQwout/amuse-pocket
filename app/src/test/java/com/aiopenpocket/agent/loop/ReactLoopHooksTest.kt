@@ -245,26 +245,26 @@ class ReactLoopHooksTest {
     val firstCallMessages = llm.callsSeenMessages[0]
     val secondCallMessages = llm.callsSeenMessages[1]
 
-    // Iter 1: [system, ephemeral] - appended at the END (cache-friendly: the history prefix never shifts).
+    // Iter 1: [system, ephemeral] - inserted right after the base system message (index 1), head not tail.
     assertEquals(2, firstCallMessages.size)
     assertEquals("system", firstCallMessages[1].role)
     assertTrue(firstCallMessages[1].content.orEmpty().contains("EPHEMERAL_MARKER"))
 
-    // Iter 2: [system, assistant(tool_calls), tool, ephemeral(fresh)] - size 4, NOT 5. If iter 1's
-    // ephemeral had leaked (not removed), it would sit at index 1 and the count would be 5. The history
-    // prefix (index 0..2) is identical to what iter 3 would send, so the provider's prefix cache holds.
+    // Iter 2: [system, ephemeral(fresh), assistant(tool_calls), tool] - size 4, NOT 5: a leaked iter-1
+    // ephemeral would push the count to 5. And never a system turn AFTER the tool result, which strict
+    // chat templates may reject.
     assertEquals(4, secondCallMessages.size)
-    assertEquals("assistant", secondCallMessages[1].role)
-    assertEquals("tool", secondCallMessages[2].role)
-    assertEquals("system", secondCallMessages[3].role)
-    assertTrue(secondCallMessages[3].content.orEmpty().contains("EPHEMERAL_MARKER"))
+    assertEquals("system", secondCallMessages[1].role)
+    assertTrue(secondCallMessages[1].content.orEmpty().contains("EPHEMERAL_MARKER"))
+    assertEquals("assistant", secondCallMessages[2].role)
+    assertEquals("tool", secondCallMessages[3].role)
   }
 
   // --- step limit: the run still ends with a real assistant answer ------------------------------
 
   private fun alwaysCallTool() = listOf(StreamEvent.ToolCall("call-x", "fake_tool", emptyMap()), StreamEvent.Finish("tool_calls"))
 
-  /** Records the `tools` of every call, so the wrap-up request can be shown to carry none. */
+  /** Records the `tools` and `messages` of every call, so the wrap-up request can be inspected. */
   private class ToolsRecordingLlm(private val perCall: List<List<StreamEvent>>) : LlmClient {
     val toolsPerCall = mutableListOf<List<FunctionSchema>>()
     val messagesPerCall = mutableListOf<List<ChatMessage>>()
@@ -277,7 +277,7 @@ class ReactLoopHooksTest {
   }
 
   @Test
-  fun `iteration cap ends with a tool-less wrap-up call whose text is the final answer`() = runTest {
+  fun `iteration cap ends with a wrap-up call whose text is the final answer`() = runTest {
     val toolRegistry = ToolRegistry(setOf(FakeTool("fake_tool")))
     val llm = ToolsRecordingLlm(listOf(alwaysCallTool(), alwaysCallTool(), textThenStop("WRAP_UP_TEXT")))
     val emitted = mutableListOf<AgentEvent>()
@@ -293,7 +293,10 @@ class ReactLoopHooksTest {
 
     assertEquals(3, llm.toolsPerCall.size)
     assertTrue("loop calls carry tools", llm.toolsPerCall[0].isNotEmpty() && llm.toolsPerCall[1].isNotEmpty())
-    assertTrue("the wrap-up request must carry no tools", llm.toolsPerCall[2].isEmpty())
+    // The same tools as the loop: the history holds tool_calls, and a strict API checks their names
+    // against the declared tools. "No tools" is asked for in the note instead.
+    assertEquals("the wrap-up request keeps the run's tools", llm.toolsPerCall[0], llm.toolsPerCall[2])
+    assertTrue(result.wrappedUp)
     assertEquals(ReactLoopRunner.WRAP_UP_NOTE, llm.messagesPerCall[2].last().content)
     assertEquals("WRAP_UP_TEXT", result.text)
     assertTrue(result.hitIterationLimit)
@@ -322,6 +325,26 @@ class ReactLoopHooksTest {
     assertEquals(2, llm.toolsPerCall.size)
     assertEquals("PREAMBLE", result.text)
     assertTrue(result.hitIterationLimit)
+    assertFalse("a failed wrap-up leaves the canned limit note in place", result.wrappedUp)
+  }
+
+  @Test
+  fun `a plan step at its limit makes no wrap-up call`() = runTest {
+    val toolRegistry = ToolRegistry(setOf(FakeTool("fake_tool")))
+    val llm = ToolsRecordingLlm(listOf(alwaysCallTool(), textThenStop("SHOULD_NOT_BE_ASKED")))
+
+    val result = runner(llm, toolRegistry).run(
+      conversationId = "c1",
+      messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
+      tools = toolRegistry.getAllSchemas(),
+      provider = LlmProvider.OPENROUTER,
+      maxIterations = 1,
+      wrapUpAtLimit = false,
+    ) { }
+
+    assertEquals("only the loop's own call: the step is BLOCKED without its text being read", 1, llm.toolsPerCall.size)
+    assertTrue(result.hitIterationLimit)
+    assertFalse(result.wrappedUp)
   }
 
   @Test

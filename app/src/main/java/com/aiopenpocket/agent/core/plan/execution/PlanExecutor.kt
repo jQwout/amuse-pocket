@@ -7,6 +7,7 @@ import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.hook.AgentHookRepository
 import com.aiopenpocket.agent.core.hook.HookDecision
 import com.aiopenpocket.agent.core.hook.HookEvent
+import com.aiopenpocket.agent.core.llm.AgentModelContext
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.llm.LlmProvider
@@ -77,8 +78,21 @@ object PlanStepRunnerBindings {
 
   @Provides
   @SingleIn(AppScope::class)
-  fun providePlanStepRunner(reactLoopRunner: ReactLoopRunner): PlanStepRunner = PlanStepRunner(reactLoopRunner::run)
+  fun providePlanStepRunner(reactLoopRunner: ReactLoopRunner): PlanStepRunner = reactLoopRunner.asPlanStepRunner()
 }
+
+/**
+ * [ReactLoopRunner.run] as a [PlanStepRunner] — the one way to build it, used by the binding and by tests
+ * that want the real loop under a plan step. No wrap-up call at the step limit: a step stopped there is
+ * BLOCKED without its text being read, so the call would be paid for and thrown away.
+ */
+fun ReactLoopRunner.asPlanStepRunner(): PlanStepRunner =
+  PlanStepRunner { conversationId, messages, tools, provider, maxIterations, agent, executionMode, interactiveApproval, maxToolCalls, emit ->
+    run(
+      conversationId, messages, tools, provider, maxIterations, agent, executionMode, interactiveApproval,
+      maxToolCalls, wrapUpAtLimit = false, emit = emit,
+    )
+  }
 
 /**
  * Executes ONE selected runnable step of an approved [PlanVersion][com.aiopenpocket.agent.core.plan.model.PlanVersion]
@@ -348,7 +362,12 @@ class PlanExecutor @Inject constructor(
       ) { }
     }
 
-    return recordOutcome(fresh, step, nextAttempt, nextDueAt, now, agentResult, provider, hooks, hookRunId)
+    // The verification runs on the agent's model too: a "faster and cheaper" Spark agent whose every step
+    // check went to the app-wide model (or a Wonder agent's to a lighter one) would not be what it chose.
+    // Only the model element — the verifier calls no tools, so it needs no TurnContextHolder binding.
+    return withContext(AgentModelContext(agent?.model)) {
+      recordOutcome(fresh, step, nextAttempt, nextDueAt, now, agentResult, provider, hooks, hookRunId)
+    }
   }
 
   /**

@@ -125,6 +125,12 @@ class ReactLoopRunner(
      * no-op for every pre-Task-7 caller.
      */
     maxToolCalls: Int = Int.MAX_VALUE,
+    /**
+     * Whether a run that exhausts [maxIterations] gets one more tool-less call for a closing answer. False
+     * for a plan step: PlanExecutor marks such a step BLOCKED without reading its text, so the extra call
+     * would be paid for and thrown away.
+     */
+    wrapUpAtLimit: Boolean = true,
     emit: suspend (AgentEvent) -> Unit,
   ): AgentResult {
     val toolTrace = mutableListOf<ToolTrace>()
@@ -192,14 +198,15 @@ class ReactLoopRunner(
         break@runLoop
       }
 
-      // ADD_INSTRUCTION: an ephemeral system message for THIS streamChat call only. Appended at the END
-      // (right before the model call) and removed afterwards. It used to go to index 1, but that shifted
-      // the whole history and broke Meta's automatic PREFIX prompt cache from position 1 on every
-      // iteration. At the tail it cannot split an assistant(tool_calls)/tool pair: it lands after the
-      // last complete pair, and the finally below removes it before anything else is appended.
-      val ephemeralIndex = messages.size
+      // ADD_INSTRUCTION: an ephemeral system message for THIS streamChat call only, inserted right after
+      // the base system message (index 1) and removed afterwards. It was briefly moved to the end of the
+      // list to keep Meta's prefix cache, but a system turn after tool results is something strict chat
+      // templates may reject, while one next to the system prompt is accepted everywhere. The cache cost
+      // falls only on agents that have an ADD_INSTRUCTION hook; never the tail either way, which holds
+      // assistant(tool_calls)/tool pairs that must not be split.
+      val ephemeralIndex = 1.coerceAtMost(messages.size)
       val ephemeralText = beforeTurn.addedInstructions.takeIf { it.isNotEmpty() }?.joinToString("\n\n")
-      if (ephemeralText != null) messages.add(ChatMessage(role = "system", content = ephemeralText))
+      if (ephemeralText != null) messages.add(ephemeralIndex, ChatMessage(role = "system", content = ephemeralText))
       try {
         llmClient.streamChat(messages, tools, provider).collect { chunk ->
           when (chunk) {
@@ -295,6 +302,7 @@ class ReactLoopRunner(
 
         val beforeTool = fireHook(HookEvent.BEFORE_TOOL, HookContext(iteration = iteration, toolName = tc.name))
 
+        val malformedExcerpt = MalformedArguments.excerptOf(tc.arguments)
         val result = when {
           tc.name !in allowedToolNames -> ToolResult.Error("Tool '${tc.name}' is not available in this context.", recoverable = false)
           tc.name == LOAD_SKILL_TOOL && !isSkillAllowed(tc.arguments, agent) -> ToolResult.Error("Skill not available for this agent")
@@ -304,8 +312,7 @@ class ReactLoopRunner(
           // Arguments that did not parse as JSON can never run, so they must not reach the policy gate:
           // the person would be asked to approve a DESTRUCTIVE/EXTERNAL call that then fails anyway, and
           // in PREVIEW the simulation would report success. Not counted against the tool budget.
-          MalformedArguments.excerptOf(tc.arguments) != null ->
-            ToolResult.Error(MalformedArguments.message(tc.name, MalformedArguments.excerptOf(tc.arguments)!!), recoverable = true)
+          malformedExcerpt != null -> ToolResult.Error(MalformedArguments.message(tc.name, malformedExcerpt), recoverable = true)
           // Budget gate sits immediately before the real dispatch (plan's Task 7 Step 4: "Stop before
           // the next ToolExecutor.execute when budget is exhausted") — a call rejected by an EARLIER
           // branch above never counts against the budget at all.
@@ -383,8 +390,10 @@ class ReactLoopRunner(
     // Step limit reached with the model still asking for tools: Meta's agent guide counts a run with no
     // final assistant message as a failure, so give the user a real closing answer — one extra tool-less
     // call. Not for a hook STOP or the tool-call budget (those are deliberate stops, PlanExecutor owns them).
-    if (!finished && !stoppedByHook && !toolBudgetExhausted) {
-      val wrapUp = streamWrapUp(messages, provider, emit)
+    var wrappedUp = false
+    if (wrapUpAtLimit && !finished && !stoppedByHook && !toolBudgetExhausted) {
+      val wrapUp = streamWrapUp(messages, tools, provider, emit)
+      wrappedUp = wrapUp.isNotBlank()
       if (wrapUp.isNotBlank()) {
         finalText = if (finalText.isBlank()) wrapUp else "$finalText\n\n$wrapUp"
       }
@@ -398,12 +407,12 @@ class ReactLoopRunner(
     // is the additional, precisely-named signal Task 7's PlanExecutor uses to tell budget kinds apart.
     return AgentResult(
       finalText, toolTrace, AgentState.FINISHED, lastIteration, null,
-      hitIterationLimit = !finished, stoppedByToolBudget = toolBudgetExhausted,
+      hitIterationLimit = !finished, stoppedByToolBudget = toolBudgetExhausted, wrappedUp = wrappedUp,
     )
   }
 
   /**
-   * The one extra model call after the step limit: no tools, a short note asking for a summary. The
+   * The one extra model call after the step limit: a short note asking for no tools asking for a summary. The
    * note is removed from [messages] afterwards (the caller's list must not keep an artificial turn).
    * Returns the streamed text, or "" when the call produced none — the caller then keeps the old
    * behaviour (concatenated preambles). A partial text from a stream that broke midway is kept: it was
@@ -411,6 +420,7 @@ class ReactLoopRunner(
    */
   private suspend fun streamWrapUp(
     messages: MutableList<ChatMessage>,
+    tools: List<FunctionSchema>,
     provider: LlmProvider,
     emit: suspend (AgentEvent) -> Unit,
   ): String {
@@ -419,14 +429,17 @@ class ReactLoopRunner(
     val text = StringBuilder()
     try {
       emit(AgentEvent.StateChanged(AgentState.STREAMING))
-      llmClient.streamChat(messages, emptyList(), provider).collect { chunk ->
+      // The SAME tools as the run, not none: the history still holds assistant tool_calls, and a strict
+      // API validates their names against the declared tools (Meta's tool-calling doc). tool_choice can
+      // only be "auto" there, so "no tools" is asked for in the note and a stray call is ignored below.
+      llmClient.streamChat(messages, tools, provider).collect { chunk ->
         when (chunk) {
           is StreamEvent.TextDelta -> {
             text.append(chunk.content)
             emit(AgentEvent.TextDelta(chunk.content))
           }
           is StreamEvent.Error -> log.w(TAG, "✗ wrap-up stream error: ${chunk.message}")
-          else -> Unit // a tool call is ignored: the request carried no tools
+          else -> Unit // a tool call is ignored: the note asked for none, and nothing will run it
         }
       }
     } catch (e: kotlinx.coroutines.CancellationException) {

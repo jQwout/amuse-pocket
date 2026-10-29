@@ -31,7 +31,7 @@ object InstructionsGuide {
     "a list", "as list", "list of", "bullet", "a table", "format", "paragraph", "step-by-step",
   )
   private val TONE = listOf(
-    "тон", "дружелюб", "формальн", "неформальн", "вежлив", "тепл", "официальн",
+    "дружелюб", "формальн", "неформальн", "вежлив", "тепл", "официальн",
     // No "строг" or "warm": "строго не делай" and a running coach's "warm-up" are not a tone.
     "tone", "friendly", "formal", "casual", "polite", "professional", "playful",
   )
@@ -42,23 +42,46 @@ object InstructionsGuide {
     "\\d+\\s*(слов|предложен|абзац|строк|символ|пункт|words?|sentences?|paragraphs?|lines?|characters?|bullets?|items?)",
   )
 
+  // "тон" as a whole word only (with its case endings): as a stem it sits inside "автономно", "тонкий".
+  private val TONE_WORD = Regex("(?<!\\p{L})тон(?:а|е|ом|у)?(?!\\p{L})")
+
   // Telling the model how to think / what it is internally. Meta recommends describing the task.
+  // A bare "цепочк" or "temperature" is not on the list: "цепочка шагов" is a task, and a weather or
+  // cooking agent talks about temperature for real — only the sampling knob with a number counts.
   private val META = listOf(
     "think step by step", "think step-by-step", "chain of thought", "chain-of-thought",
-    "you are a language model", "you are an ai language model", "as a language model", "temperature",
-    "думай пошагово", "рассуждай пошагово", "цепочк", "ты языковая модель", "ты — языковая модель",
-    "ты - языковая модель", "температур",
+    "you are a language model", "you are an ai language model", "as a language model",
+    "думай пошагово", "рассуждай пошагово", "цепочка рассуждений", "цепочку рассуждений",
+    "цепочка мыслей", "цепочку мыслей", "ты языковая модель", "ты — языковая модель",
+    "ты - языковая модель",
   )
+  private val SAMPLING_KNOB = Regex(
+    "(?<!\\p{L})(?:set (?:the )?temperature|temperature\\s*[=:]?\\s*[01](?:[.,]\\d+)?(?!\\d)|" +
+      "температур\\p{L}*\\s*[=:]?\\s*[01](?:[.,]\\d+)?(?!\\d))",
+  )
+
+  /**
+   * A key counts only where a word starts: plain substring matching ticked "format" inside "information",
+   * "tone" inside "milestone" and the Russian stems inside longer unrelated words. The end stays open on
+   * purpose — the Russian keys are stems that take endings.
+   */
+  private fun List<String>.toWordStartRegex() =
+    Regex("(?<!\\p{L})(?:" + joinToString("|") { Regex.escape(it) } + ")")
+
+  private val ROLE_RX = ROLE.toWordStartRegex()
+  private val FORMAT_RX = FORMAT.toWordStartRegex()
+  private val TONE_RX = TONE.toWordStartRegex()
+  private val BRIEF_RX = BRIEF.toWordStartRegex()
+  private val META_RX = META.toWordStartRegex()
 
   fun analyze(text: String): Coverage {
     val t = text.lowercase()
-    fun any(keys: List<String>) = keys.any { it in t }
     return Coverage(
-      role = any(ROLE),
-      format = any(FORMAT),
-      length = NUMBER_UNIT.containsMatchIn(t) || any(BRIEF),
-      tone = any(TONE),
-      metaInstruction = any(META),
+      role = ROLE_RX.containsMatchIn(t),
+      format = FORMAT_RX.containsMatchIn(t),
+      length = NUMBER_UNIT.containsMatchIn(t) || BRIEF_RX.containsMatchIn(t),
+      tone = TONE_RX.containsMatchIn(t) || TONE_WORD.containsMatchIn(t),
+      metaInstruction = META_RX.containsMatchIn(t) || SAMPLING_KNOB.containsMatchIn(t),
     )
   }
 }
