@@ -171,6 +171,13 @@ class ProviderFallbackChainTest {
   }
 
   @Test
+  fun `a Spark pick never lands on the open-weight Spark`() {
+    assertTrue(AgentModel.SPARK.matches("meta/muse-spark-1.3"))
+    assertTrue(!AgentModel.SPARK.matches("meta/muse-spark-open"))
+    assertTrue(!AgentModel.SPARK.matches("muse-spark-open"))
+  }
+
+  @Test
   fun `unknown stored key maps to no agent model`() {
     assertEquals(AgentModel.WONDER, AgentModel.fromKey("WONDER"))
     assertEquals(null, AgentModel.fromKey("GPT_5"))

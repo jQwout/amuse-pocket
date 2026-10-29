@@ -24,7 +24,12 @@ enum class AgentModel(val key: String, private val family: String) {
   SPARK("SPARK", "muse-spark");
 
   /** Whether [modelId] (either route's spelling) belongs to this family. */
-  fun matches(modelId: String): Boolean = modelId.removePrefix("meta/").startsWith(family)
+  fun matches(modelId: String): Boolean {
+    val id = modelId.removePrefix("meta/")
+    // muse-spark-open is the 816B open-weight model: it shares the prefix but not the promise the
+    // builder makes for Spark ("faster and cheaper"), so a Spark pick must never land on it.
+    return id.startsWith(family) && !id.startsWith("muse-spark-open")
+  }
 
   companion object {
     val KEYS: Set<String> = entries.map { it.key }.toSet()
