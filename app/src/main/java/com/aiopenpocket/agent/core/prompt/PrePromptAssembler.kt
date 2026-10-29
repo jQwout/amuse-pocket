@@ -165,16 +165,6 @@ class PrePromptAssembler @Inject constructor(
           appendLine()
         }
         // --- Assistant settings (the trusted zone): language and persona set by the user in onboarding. ---
-        // The current moment is the TRUSTED zone (the app puts it in, not the user), so it sits above
-        // the <user_data> fence.
-        //
-        // Without this section the agent answered every "remind me at 19:00" by setting a SYSTEM ALARM
-        // and never a push. The reason is mechanical: heartbeat takes delay_minutes (relative time),
-        // alarm takes hour/minute (absolute). Without knowing the time, "19:00 minus now" cannot be
-        // computed at all, so the alarm remained the ONLY technically callable tool. Prompt wording does
-        // not cure that — only the time itself does.
-        appendLine(CurrentMoment.section(clock()))
-        appendLine()
         appendLine("## Язык")
         appendLine(
           "Язык общения по умолчанию — ${languageLabel(language)}: на нём веди объяснения и " +
@@ -218,6 +208,16 @@ class PrePromptAssembler @Inject constructor(
           appendLine()
         }
 
+        // --- Prompt-cache order (Meta prompt caching is automatic PREFIX caching: everything after the
+        // first differing token is recomputed). Stable sections come first — system base, tutorial,
+        // language, role/persona, skill catalog, instructions — and the volatile tail (plan, current
+        // minute, memory) last. The timestamp used to sit third and moved the cache boundary every minute.
+        // Instructions stay ABOVE the memory fence on purpose: the fence text says it cannot override "the
+        // instructions above". ---
+        appendLine("## Инструкции")
+        appendLine("Действуй кратко. Используй инструменты когда нужно. Не показывай внутренние ID.")
+        appendLine()
+
         // The conversation's active approved plan (Task 6) — a compact, escaped summary; the full snapshot
         // is seen only by Planner/Executor/Verifier (design spec section 14). A conversation without a
         // plan does NOT get this section at all: planContext == null, nothing is added — this task leaves
@@ -226,6 +226,17 @@ class PrePromptAssembler @Inject constructor(
           appendLine(PlanContextProvider.render(planContext))
           appendLine()
         }
+
+        // The current moment is the TRUSTED zone (the app puts it in, not the user), so it sits above
+        // the <user_data> fence.
+        //
+        // Without this section the agent answered every "remind me at 19:00" by setting a SYSTEM ALARM
+        // and never a push. The reason is mechanical: heartbeat takes delay_minutes (relative time),
+        // alarm takes hour/minute (absolute). Without knowing the time, "19:00 minus now" cannot be
+        // computed at all, so the alarm remained the ONLY technically callable tool. Prompt wording does
+        // not cure that — only the time itself does.
+        appendLine(CurrentMoment.section(clock()))
+        appendLine()
 
         // --- The untrusted zone: everything derived from the user. This is DATA, not commands. ---
         val hasUserData =
@@ -282,8 +293,6 @@ class PrePromptAssembler @Inject constructor(
           appendLine()
         }
 
-        appendLine("## Инструкции")
-        appendLine("Действуй кратко. Используй инструменты когда нужно. Не показывай внутренние ID.")
       }
 
       PromptContext(

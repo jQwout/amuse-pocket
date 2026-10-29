@@ -212,6 +212,30 @@ class PrePromptAssemblerTest {
     assertEquals(setOf("memory_tool"), result.toolNames)
   }
 
+  // --- prompt-cache order: stable prefix first, the minute-resolution clock after it ------------------
+
+  @Test
+  fun `stable sections precede the current-time section so the cacheable prefix survives the minute tick`() = runTest {
+    db.conversationDao().insert(ConversationEntity(id = "c1", title = "T"))
+    planRepository.saveProposal(plan(), version("plan-1", "Собрать бюджет на месяц"))
+    planRepository.approve("plan-1", 1)
+
+    val prompt = assembler.assemble("c1", "привет").systemPrompt
+
+    val language = prompt.indexOf("## Язык")
+    val persona = prompt.indexOf("## Персона")
+    val skills = prompt.indexOf("## Доступные навыки")
+    val instructions = prompt.indexOf("## Инструкции")
+    val plan = prompt.indexOf("## Активный утверждённый план")
+    val now = prompt.indexOf("## Сейчас")
+    assertTrue("sections must exist", listOf(language, persona, skills, instructions, plan, now).all { it >= 0 })
+    assertTrue("language before time", language < now)
+    assertTrue("persona before time", persona < now)
+    assertTrue("skills before time", skills < now)
+    assertTrue("instructions before time", instructions < now)
+    assertTrue("the time is the last of the trusted sections", plan < now)
+  }
+
   // --- skill catalog: full only for a plain chat; a bound agent sees its own skills or none --------
 
   private class FakeSkill(private val id: String) : Skill {
