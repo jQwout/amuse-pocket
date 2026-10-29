@@ -891,6 +891,7 @@ fun ChatScreen(
                         LessonAskBar(
                             enabled = !state.isLoading,
                             onAsk = { viewModel.handleIntent(ChatIntent.AskDuringLesson(it)) },
+                            glassState = glassState,
                         )
                     }
                     if (needsManualAdvance) {
