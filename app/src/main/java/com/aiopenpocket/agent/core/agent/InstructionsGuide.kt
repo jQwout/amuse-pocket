@@ -27,11 +27,13 @@ object InstructionsGuide {
   )
   private val FORMAT = listOf(
     "списк", "таблиц", "формат", "маркированн", "пункт", "json", "markdown", "абзац",
-    "list", "bullet", "table", "format", "paragraph", "step-by-step",
+    // Not a bare "list"/"table": they hide in "listen" and "suitable".
+    "a list", "as list", "list of", "bullet", "a table", "format", "paragraph", "step-by-step",
   )
   private val TONE = listOf(
-    "тон", "дружелюб", "формальн", "неформальн", "вежлив", "строг", "тепл", "официальн",
-    "tone", "friendly", "formal", "casual", "polite", "warm", "professional", "playful",
+    "тон", "дружелюб", "формальн", "неформальн", "вежлив", "тепл", "официальн",
+    // No "строг" or "warm": "строго не делай" and a running coach's "warm-up" are not a tone.
+    "tone", "friendly", "formal", "casual", "polite", "professional", "playful",
   )
   private val BRIEF = listOf("кратк", "коротк", "лаконичн", "short", "brief", "concise", "terse")
 
