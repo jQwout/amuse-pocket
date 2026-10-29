@@ -50,6 +50,28 @@ happens only between models of one route, never across routes. Model variants th
 on (`-contributor`) are filtered out everywhere. The lesson video and live lesson images still go
 through OpenRouter.
 
+### Following Meta's agent guidance
+
+The agent loop was checked against the Meta Model API docs (tool calling, reasoning, prompt caching,
+error handling, agent frameworks) and the Muse Code permission model:
+
+- **Stable prompt prefix.** The system prompt runs from stable to volatile (base, language, role,
+  skills, instructions, then plan, current time, memory), so Meta's automatic prefix cache survives
+  from turn to turn.
+- **Reasoning effort per mode.** Lesson questions run at `low`, chat at `medium`, planning and
+  self-critique at `high`, instead of leaving the level to the model.
+- **Every run ends with an answer.** At the step limit the model gets one tool-less call to say what is
+  done and what is not.
+- **Errors the model can act on.** A failed tool, a timeout or arguments that are not valid JSON go back
+  to the model as a tool result that names the real problem; 429/5xx back off and honour `Retry-After`
+  before falling back to another model.
+- **Approval before side effects.** Destructive and external tools always wait for the person, hooks
+  cannot remove that floor, background runs never take destructive or external actions, and a test
+  run of a new agent simulates every side effect unless you switch it to live.
+- **Least privilege in the builder.** A new agent starts with no tools; each risky tool needs explicit
+  consent, and the Instructions step checks the prompt against Meta's prompting guide (role, format,
+  length, tone).
+
 ## Your key, your quota
 
 - You type your key into the app (Settings → API key). It is stored in `EncryptedSharedPreferences`
