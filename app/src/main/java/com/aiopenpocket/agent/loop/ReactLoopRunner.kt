@@ -17,6 +17,7 @@ import com.aiopenpocket.agent.core.llm.FunctionSchema
 import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.StreamEvent
+import com.aiopenpocket.agent.core.mcp.MalformedArguments
 import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.ToolExecutor
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
@@ -300,6 +301,11 @@ class ReactLoopRunner(
           // STOP halts the whole run regardless of this call's own risk/mode — checked ahead of the
           // policy gate so a STOP+PREVIEW combination reports "stopped", not a misleading Simulate.
           beforeTool.stopped -> ToolResult.Error("Tool '${tc.name}' was not executed: an agent hook stopped the run.", recoverable = false)
+          // Arguments that did not parse as JSON can never run, so they must not reach the policy gate:
+          // the person would be asked to approve a DESTRUCTIVE/EXTERNAL call that then fails anyway, and
+          // in PREVIEW the simulation would report success. Not counted against the tool budget.
+          MalformedArguments.excerptOf(tc.arguments) != null ->
+            ToolResult.Error(MalformedArguments.message(tc.name, MalformedArguments.excerptOf(tc.arguments)!!), recoverable = true)
           // Budget gate sits immediately before the real dispatch (plan's Task 7 Step 4: "Stop before
           // the next ToolExecutor.execute when budget is exhausted") — a call rejected by an EARLIER
           // branch above never counts against the budget at all.
