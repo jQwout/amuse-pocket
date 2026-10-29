@@ -3,6 +3,7 @@ package com.aiopenpocket.agent.core.agent
 // @trace user-agent-builder-848153
 
 import com.aiopenpocket.agent.core.hook.HookEngine
+import com.aiopenpocket.agent.core.llm.AgentModel
 import com.aiopenpocket.i18n.tr
 
 /**
@@ -173,6 +174,11 @@ object AgentValidator {
         ),
         field = "memoryPolicy.namespace",
       )
+    }
+
+    // null = the app's model; anything else must be a family this build knows how to map to a catalog.
+    if (definition.model != null && definition.model !in AgentModel.KEYS) {
+      issues += ValidationIssue("unknown_model", tr("Неизвестная модель '${definition.model}'", "Unknown model '${definition.model}'"), "model")
     }
 
     for (tool in definition.toolNames) {

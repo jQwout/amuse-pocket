@@ -57,7 +57,8 @@ import com.aiopenpocket.agent.core.srs.SrsWordEntity
 // (in particular a clone of the "languages" preset) keeps its prompt state-injection prefixes instead
 // of silently reporting an empty set; version bumped 9 -> 10. LlmUsageEntity/llmUsageDao()
 // registered for token metering (streaming-llm-chat-6595a1) — one row per completed LLM call, the
-// data the pricing/tariff work is sized from; version bumped 10 -> 11. No Migration is added any of
+// data the pricing/tariff work is sized from; version bumped 10 -> 11. UserAgentEntity gained a nullable
+// `model` column (the agent's own Muse family, null = the app's model); version bumped 11 -> 12. No Migration is added any of
 // these times — see the policy comment on DatabaseBindings.provideDatabase.
 @Database(
   entities = [
@@ -80,7 +81,7 @@ import com.aiopenpocket.agent.core.srs.SrsWordEntity
     AgentStorageEntity::class,
     LlmUsageEntity::class,
   ],
-  version = 11,
+  version = 12,
   // exportSchema = true, although there are no migrations yet and everything is recreated destructively
   // (see the policy in DatabaseBindings.provideDatabase). That is exactly why it is on: the first real
   // Migration will have to be written FROM the release version's schema, and there will be nowhere to

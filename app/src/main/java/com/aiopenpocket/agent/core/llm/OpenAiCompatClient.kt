@@ -73,7 +73,14 @@ class OpenAiCompatClient(
     tools: List<FunctionSchema>,
     provider: LlmProvider,
   ): Flow<StreamEvent> = flow {
-    val providers = fallbackChain.resolve(provider)
+    // The running agent's own model (AgentDefinition.model), if it set one: see AgentModelContext.
+    val agentModelKey = currentCoroutineContext()[AgentModelContext]?.model
+    val agentModel = AgentModel.fromKey(agentModelKey)
+    val providers = fallbackChain.resolve(provider, agentModel)
+    if (agentModelKey != null && providers.firstOrNull()?.let { agentModel?.matches(it.model) } != true) {
+      // Never a failure: a stale key or a family the active route lacks just means the app's model.
+      Log.w(TAG, "agent model '$agentModelKey' not available on $provider, using the app's model")
+    }
     var lastError: Exception? = null
     var lastErrorCode: String? = if (providers.isEmpty()) "no_provider" else null
     // As soon as a provider has sent any part of an answer, moving on to the next one would glue two

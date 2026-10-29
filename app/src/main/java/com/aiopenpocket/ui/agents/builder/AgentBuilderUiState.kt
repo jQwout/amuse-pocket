@@ -124,6 +124,8 @@ data class AgentDraft(
    * a cloned agent rewrote the stored row with an empty set, silently breaking the copy.
    */
   val stateKeyPrefixes: Set<String> = emptySet(),
+  /** See [AgentDefinition.model]; null = the app's model. Edited in the LOOP step. */
+  val model: String? = null,
   /** See [AgentSourceContext]. Never round-tripped through [toDefinition]/[fromDefinition] — it
    * describes how THIS session's draft was opened, not a property of the published agent. */
   val sourceContext: AgentSourceContext = AgentSourceContext.MANUAL,
@@ -150,6 +152,7 @@ data class AgentDraft(
     allowedWidgetTemplates = allowedWidgetTemplates,
     hooks = hooks,
     stateKeyPrefixes = stateKeyPrefixes,
+    model = model,
     configVersion = configVersion,
     status = status,
   )
@@ -186,6 +189,7 @@ data class AgentDraft(
       allowedWidgetTemplates = definition.allowedWidgetTemplates,
       hooks = definition.hooks,
       stateKeyPrefixes = definition.stateKeyPrefixes,
+      model = definition.model,
     )
   }
 }

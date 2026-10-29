@@ -1,5 +1,6 @@
 package com.aiopenpocket.agent.loop
 
+import com.aiopenpocket.agent.core.llm.AgentModelContext
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.AgentMemoryPolicy
 import com.aiopenpocket.agent.core.agent.AgentSource
@@ -71,5 +72,17 @@ class TurnContextHolderTest {
     assertEquals(listOf("A" to "budget", "B" to "diary"), results)
     assertNull(holder.conversationId) // outside the wrapper the context is empty again
     assertNull(holder.agent)
+  }
+
+  @Test
+  fun `contextElement carries the agent's model for the LLM client`() = runTest {
+    val holder = TurnContextHolder()
+    val withModel = agent("fast").copy(model = "SPARK")
+    withContext(holder.contextElement("c", withModel)) {
+      assertEquals("SPARK", kotlin.coroutines.coroutineContext[AgentModelContext]?.model)
+    }
+    withContext(holder.contextElement("c", agent("plain"))) {
+      assertNull(kotlin.coroutines.coroutineContext[AgentModelContext]?.model)
+    }
   }
 }

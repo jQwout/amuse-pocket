@@ -37,6 +37,8 @@ data class UserAgentEntity(
    * getting its own persistent state in the prompt, with nothing in the UI saying so.
    */
   val stateKeyPrefixes: List<String>,
+  /** See [AgentDefinition.model]. Nullable column: null = the app's model. Added in schema v12. */
+  val model: String?,
   val defaultMode: String,
   val memoryNamespace: String,
   val includeSharedProfile: Boolean,
@@ -61,6 +63,7 @@ data class UserAgentEntity(
     allowedWidgetTemplates = allowedWidgetTemplates.toSet(),
     hooks = emptyList(),
     stateKeyPrefixes = stateKeyPrefixes.toSet(),
+    model = model,
     configVersion = configVersion,
     status = AgentStatus.valueOf(status),
   )
@@ -78,6 +81,7 @@ data class UserAgentEntity(
       allowedModes = definition.allowedModes.map { it.name },
       allowedWidgetTemplates = definition.allowedWidgetTemplates.toList(),
       stateKeyPrefixes = definition.stateKeyPrefixes.toList(),
+      model = definition.model,
       defaultMode = definition.defaultMode.name,
       memoryNamespace = definition.memoryPolicy.namespace,
       includeSharedProfile = definition.memoryPolicy.includeSharedProfile,
