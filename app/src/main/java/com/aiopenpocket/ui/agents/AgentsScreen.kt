@@ -44,6 +44,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.text
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
@@ -89,15 +92,7 @@ fun AgentsScreen(
         )
       }
     },
-    floatingActionButton = {
-      ExtendedFloatingActionButton(
-        onClick = onCreateAgent,
-        icon = { Icon(imageVector = Icons.Default.Add, contentDescription = null) },
-        text = { Text(tr("Создать агента", "Create agent")) },
-        containerColor = MaterialTheme.colorScheme.primary,
-        contentColor = MaterialTheme.colorScheme.onPrimary,
-      )
-    },
+    floatingActionButton = { CreateAgentFab(onClick = onCreateAgent) },
   ) { padding ->
     LazyColumn(
       modifier = Modifier
@@ -293,6 +288,29 @@ internal fun iconFor(key: String): ImageVector = when (key) {
   else -> Icons.Default.SmartToy
 }
 
+/**
+ * The "Create agent" entry to the builder. One function for the screen AND its previews, so the test that
+ * walks the accessibility tree checks the very button that ships.
+ *
+ * The label is set on the button's own semantics on purpose. [ExtendedFloatingActionButton] puts its text in a
+ * child that does NOT merge into the button node (checked: the merged node is `Role=Button` with no Text at all,
+ * even for a bare FAB with no scaffold around it). A screen reader then meets a nameless button, and
+ * `uiautomator dump` shows an empty clickable instead of "Create agent" (Android 14, 28 Oct 2026). The icon
+ * carries no description of its own, so the name is not read twice.
+ */
+@Composable
+internal fun CreateAgentFab(onClick: () -> Unit) {
+  val label = tr("Создать агента", "Create agent")
+  ExtendedFloatingActionButton(
+    onClick = onClick,
+    modifier = Modifier.semantics { text = AnnotatedString(label) },
+    icon = { Icon(imageVector = Icons.Default.Add, contentDescription = null) },
+    text = { Text(label) },
+    containerColor = MaterialTheme.colorScheme.primary,
+    contentColor = MaterialTheme.colorScheme.onPrimary,
+  )
+}
+
 // ==================================================================================================
 // Previews of the Agents screen (screenshot tests). The same visual frame (the scaffold's automatic
 // aurora background via glassState, GlassCard on the cards) as in production, built from the same
@@ -320,15 +338,7 @@ internal fun AgentsPreviewScaffold(
           )
         }
       },
-      floatingActionButton = {
-        ExtendedFloatingActionButton(
-          onClick = {},
-          icon = { Icon(imageVector = Icons.Default.Add, contentDescription = null) },
-          text = { Text(tr("Создать агента", "Create agent")) },
-          containerColor = MaterialTheme.colorScheme.primary,
-          contentColor = MaterialTheme.colorScheme.onPrimary,
-        )
-      },
+      floatingActionButton = { CreateAgentFab(onClick = {}) },
     ) { padding ->
       LazyColumn(
         modifier = Modifier
