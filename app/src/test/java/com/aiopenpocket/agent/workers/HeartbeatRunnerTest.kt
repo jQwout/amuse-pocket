@@ -32,6 +32,7 @@ import com.aiopenpocket.agent.core.mcp.toolSchema
 import com.aiopenpocket.agent.core.memory.entity.ConversationEntity
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatTargetType
+import com.aiopenpocket.agent.core.memory.entity.MessageEntity
 import com.aiopenpocket.agent.core.memory.model.Fact
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
@@ -423,6 +424,64 @@ class HeartbeatRunnerTest {
     val runner = runner(listOf(StreamEvent.TextDelta("Готово"), StreamEvent.Finish("stop")))
     runner.handleFire("hb1", attempt = 0)
     assertEquals("scheduled", db.heartbeatDao().getById("hb1")?.status)
+  }
+
+  // --- Wakeups that nobody answers --------------------------------------------------------------
+
+  /** Writes [roles] into conv1 oldest first, with distinct timestamps so the order is unambiguous. */
+  private suspend fun chat(vararg roles: String) {
+    roles.forEachIndexed { i, role ->
+      db.messageDao().insert(
+        MessageEntity(id = "m$i", conversationId = "conv1", role = role, content = "msg $i", createdAt = 1_000L + i),
+      )
+    }
+  }
+
+  @Test
+  fun `a periodic wakeup pauses after 12 unanswered messages and never calls the model`() = runTest {
+    chat("user", *Array(HeartbeatRunner.MAX_UNANSWERED_WAKEUPS) { "assistant" })
+    db.heartbeatDao().insert(hb(mode = "agent", prompt = "x", kind = "periodic"))
+    val doubles = runnerWithRegistry(listOf(StreamEvent.TextDelta("Ещё одно"), StreamEvent.Finish("stop")), ToolRegistry(emptySet()))
+
+    assertEquals(FireOutcome.DONE, doubles.runner.handleFire("hb1", attempt = 0))
+
+    assertTrue(doubles.llm.calls.isEmpty())
+    assertTrue(notifier.calls.isEmpty())
+    assertEquals(HeartbeatRunner.MAX_UNANSWERED_WAKEUPS + 1, db.messageDao().getAllOrdered("conv1").size)
+    // Still scheduled: it resumes by itself once the person writes.
+    assertEquals("scheduled", db.heartbeatDao().getById("hb1")?.status)
+  }
+
+  @Test
+  fun `one reply from the person lets the periodic wakeup run again`() = runTest {
+    chat(*Array(HeartbeatRunner.MAX_UNANSWERED_WAKEUPS - 1) { "assistant" }, "user")
+    db.heartbeatDao().insert(hb(mode = "agent", prompt = "x", kind = "periodic"))
+    val doubles = runnerWithRegistry(listOf(StreamEvent.TextDelta("Готово"), StreamEvent.Finish("stop")), ToolRegistry(emptySet()))
+
+    doubles.runner.handleFire("hb1", attempt = 0)
+
+    assertEquals(1, doubles.llm.calls.size)
+  }
+
+  @Test
+  fun `a one-time wakeup still runs in an unanswered chat`() = runTest {
+    chat(*Array(HeartbeatRunner.MAX_UNANSWERED_WAKEUPS) { "assistant" })
+    db.heartbeatDao().insert(hb(mode = "agent", prompt = "напомни выпить воды"))
+    val doubles = runnerWithRegistry(listOf(StreamEvent.TextDelta("Выпей воды"), StreamEvent.Finish("stop")), ToolRegistry(emptySet()))
+
+    doubles.runner.handleFire("hb1", attempt = 0)
+
+    assertEquals(1, doubles.llm.calls.size)
+  }
+
+  @Test
+  fun `the background prompt says a wakeup is not permission for new work`() = runTest {
+    db.heartbeatDao().insert(hb(mode = "agent", prompt = "x"))
+    val doubles = runnerWithRegistry(listOf(StreamEvent.TextDelta("ок"), StreamEvent.Finish("stop")), ToolRegistry(emptySet()))
+
+    doubles.runner.handleFire("hb1", attempt = 0)
+
+    assertTrue(doubles.llm.calls.single().first().content!!.contains("не даёт права на новую работу"))
   }
 
   // --- Task 22: custom agents in the background heartbeat ----------------------------------------
