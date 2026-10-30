@@ -19,6 +19,7 @@
       "PowerShell(.\\gradlew.bat *)",
       "Bash(traxer *)",
       "PowerShell(traxer *)",
+      "mcp__codebase-memory-mcp",
       "Bash(git status *)",
       "Bash(git diff *)",
       "Bash(git log *)",

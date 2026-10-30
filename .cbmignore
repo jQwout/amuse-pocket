@@ -1,0 +1,18 @@
+# What codebase-memory-mcp must not index.
+#
+# It reads .gitignore itself, nested ones included. Named here is what costs
+# most to miss, so that it does not depend on .gitignore staying as it is.
+
+# Nested checkouts of this repository: in the graph they would be duplicates
+# of every class. The built-in safety core covers .worktrees and
+# .claude-worktrees, but not .claude/worktrees, which the harness uses.
+/.claude/worktrees/
+
+# Build output: Gradle, Android, Kotlin incremental.
+**/build/
+**/.gradle/
+**/.kotlin/
+
+# Orchestrator evidence (screenshots, logs) and assembled APKs.
+/orchestrator/evidence/
+/.build-outputs/
