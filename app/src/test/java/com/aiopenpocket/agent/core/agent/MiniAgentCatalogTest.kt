@@ -78,4 +78,13 @@ class MiniAgentCatalogTest {
     AppLanguage.code = AppLanguage.EN
     assertEquals("my words", own.localizedSystemPrompt)
   }
+
+  @Test
+  fun `there is no nutrition coach in the roster`() {
+    // "AI Nutrition Coach" is on the Meta hackathon's anti-project list.
+    assertTrue(MiniAgentCatalog.get("nutrition") == null)
+    for (agent in MiniAgentCatalog.all) {
+      assertFalse("agent ${agent.id} looks like a nutrition coach", agent.descriptionEn.contains("nutrition", ignoreCase = true))
+    }
+  }
 }

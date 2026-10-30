@@ -79,18 +79,6 @@ class PlanTemplateValidationTest {
   }
 
   @Test
-  fun `nutrition template loads with the expected shape`() = runTest {
-    val template = loadTemplate("nutrition")
-    assertEquals("nutrition-v1", template.id)
-    assertEquals("nutrition", template.agentId)
-    assertEquals(setOf(PlanHorizon.PROGRAM), template.supportedHorizons)
-    assertTrue("nutrition template should declare required constraints", template.requiredConstraints.isNotEmpty())
-    assertTrue("nutrition template should suggest steps", template.suggestedSteps.isNotEmpty())
-    assertTrue("nutrition template should suggest criteria", template.suggestedCriteria.isNotEmpty())
-    assertTrue("nutrition template should not need a forbidden tool (no diagnosis/treatment tool exists)", template.forbiddenToolNames.isEmpty())
-  }
-
-  @Test
   fun `languages template loads with the expected shape`() = runTest {
     val template = loadTemplate("languages")
     assertEquals("languages-v1", template.id)
@@ -280,6 +268,6 @@ class PlanTemplateValidationTest {
   }
 
   private companion object {
-    val DOMAIN_AGENT_IDS = listOf("budget", "nutrition", "languages")
+    val DOMAIN_AGENT_IDS = listOf("budget", "languages")
   }
 }

@@ -20,10 +20,10 @@ import kotlinx.serialization.json.Json
  *
  * ## Почему шаблоны пресетов сейчас никем не читаются — и это НЕ повод их удалять
  *
- * `assets/plan_templates/` содержит `budget.json`, `languages.json`, `nutrition.json` — методологию
- * планирования для трёх пресетов, которая ищется ровно по их id. Единственный вход в планировщик —
+ * `assets/plan_templates/` содержит `budget.json` и `languages.json` — методологию
+ * планирования для двух пресетов (третий, `nutrition.json`, удалён вместе с агентом 30 окт 2026), которая ищется ровно по их id. Единственный вход в планировщик —
  * режим PLAN из чата (`TurnModule`), а пресетам режимы PLAN/GOAL намеренно не выдаются
- * ([com.aiopenpocket.agent.core.agent.toDefinition] — там же и обоснование). Значит эти три файла
+ * ([com.aiopenpocket.agent.core.agent.toDefinition] — там же и обоснование). Значит эти файлы
  * сейчас недостижимы ни одним рантайм-путём.
  *
  * Так решено СОЗНАТЕЛЬНО: методология зафиксирована автором, и возможности переписать изначальный
@@ -44,8 +44,8 @@ interface PlanTemplateRegistry {
 /**
  * Asset-backed [PlanTemplateRegistry]: one JSON file per agent at `assets/plan_templates/<agentId>.json`,
  * decoded against the frozen [PlanTemplate] shape. This task defines the registry and its asset
- * convention; Task 13 is the first task that actually adds `plan_templates/budget.json`,
- * `plan_templates/nutrition.json` and `plan_templates/languages.json` — until then every
+ * convention; Task 13 is the first task that actually adds `plan_templates/budget.json`
+ * and `plan_templates/languages.json` (a nutrition one too, removed with its agent on 30 Oct 2026) — until then every
  * [getForAgent] call legitimately returns `null` for every agent, same as "no template" (there is
  * nothing else this class could do with assets that do not exist yet).
  *
