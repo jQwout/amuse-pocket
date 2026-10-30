@@ -65,6 +65,15 @@ class LessonChatController(
   }
 
   /**
+   * Whether "Draw it for me" can run at all: Muse Image needs a Meta Model API key. Asked first so the
+   * learner without one is told to add it, rather than that drawing is "unavailable".
+   */
+  fun drawingReady(): Boolean = imageGenerator.isConfigured()
+
+  /** Whether the "video" step can run at all: Muse Spark needs a Meta Model API key. Asked before the clip is read. */
+  fun videoReady(): Boolean = videoClient.isConfigured()
+
+  /**
    * Whether the "segment" step can run at all: SAM needs a Meta Model API key. Asked BEFORE the photo is
    * prepared, so a learner without a key gets the explanation at once instead of after a pointless decode.
    */
