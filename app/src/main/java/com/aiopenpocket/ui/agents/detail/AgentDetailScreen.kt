@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -94,7 +96,10 @@ fun AgentDetailScreen(
       }
     } else {
       var tab by rememberSaveable { mutableStateOf(0) }
-      Column(modifier = Modifier.fillMaxSize()) {
+      // The app draws edge to edge. As a ModalBottomSheet the inspector got the status bar inset from the
+      // sheet; as a full-screen route nobody gave it, and the header (name, version, ✕) sat under the clock.
+      // The aurora behind still fills the status bar area — only the content steps down.
+      Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
         AgentDetailModalHeader(agent = agent, enabled = state.isEnabled, onClose = onNavigateBack)
         AgentDetailTabs(
           selected = tab,
@@ -111,6 +116,8 @@ fun AgentDetailScreen(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
             .padding(bottom = 40.dp)
+            // The same edge-to-edge gap at the bottom: without it the last section ends under the gesture bar.
+            .navigationBarsPadding()
             .testTag("agent_detail_scroll"),
         ) {
           if (tab == 1) {
