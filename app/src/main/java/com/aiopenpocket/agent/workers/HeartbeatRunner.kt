@@ -6,6 +6,7 @@ package com.aiopenpocket.agent.workers
 // @trace vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53
 
 import android.util.Log
+import com.aiopenpocket.agent.core.agent.localizedSystemPrompt
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.llm.ChatMessage
@@ -159,7 +160,7 @@ class HeartbeatRunner(
       return FireOutcome.DONE
     }
     val systemPrompt = buildString {
-      append(agent?.systemPrompt ?: "Ты — полезный ассистент AI Open Pocket.")
+      append(agent?.localizedSystemPrompt ?: "Ты — полезный ассистент AI Open Pocket.")
       append("\n\nСейчас ты работаешь В ФОНЕ по плановому heartbeat — юзер тебя не вызывал. ")
       append("Отвечай кратко и по делу: твой ответ уйдёт сообщением в чат и пушем.")
       // The right to stay silent — for ANY background turn, not only a "pulse" without a task: with a task

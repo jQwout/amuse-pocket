@@ -4,6 +4,7 @@ package com.aiopenpocket.ui.agents.builder
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aiopenpocket.agent.core.agent.localizedSystemPrompt
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.agent.AgentStatus
@@ -173,6 +174,7 @@ class AgentBuilderViewModel(
           definition = cloned.copy(
             name = tr("Копия: ${source.displayName}", "Copy: ${source.displayName}"),
             description = source.displayDescription,
+            systemPrompt = source.localizedSystemPrompt,
           ),
           skills = clonedSkills.map { it.toEntity(cloned.id) },
           hooks = cloned.hooks,

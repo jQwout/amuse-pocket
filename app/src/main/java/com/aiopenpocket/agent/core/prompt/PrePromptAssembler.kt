@@ -4,6 +4,7 @@ package com.aiopenpocket.agent.core.prompt
 // @trace user-agent-builder-848153
 // @trace structured-plan-engine-907066
 
+import com.aiopenpocket.agent.core.agent.localizedSystemPrompt
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
@@ -178,7 +179,7 @@ class PrePromptAssembler @Inject constructor(
         // A plain chat (no agent) uses the persona as usual.
         if (agent != null) {
           appendLine("## Личность и роль")
-          appendLine(agent.systemPrompt)
+          appendLine(agent.localizedSystemPrompt)
           appendLine()
         } else {
           appendLine("## Персона")
