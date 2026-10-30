@@ -99,6 +99,9 @@ fun RenderDrivenUiCard(
     onChoiceSelected: (String) -> Unit = {},
     onLessonComplete: () -> Unit = {},
     onLessonQuizComplete: () -> Unit = {},
+    /** The quiz's saved answers (messages.cardState) and where to write them back. */
+    cardState: String? = null,
+    onCardStateChanged: (String?) -> Unit = {},
     // The Academy capstone (Task 23): a tap on the CTA of the lesson_complete card. Zero-arg — which
     // AgentSourceContext it means is decided by the caller (ChatScreen), not by the card engine.
     onOpenAgentBuilder: () -> Unit = {},
@@ -146,7 +149,7 @@ fun RenderDrivenUiCard(
             is DrivenUiCard.ChartBarCard -> ChartBarCardView(card)
             is DrivenUiCard.FormCard -> FormCardView(card, onFormSubmitted)
             is DrivenUiCard.ChoiceCard -> ChoiceCardView(card, onChoiceSelected)
-            is DrivenUiCard.LessonQuizCard -> LessonQuizCardView(card, onLessonQuizComplete)
+            is DrivenUiCard.LessonQuizCard -> LessonQuizCardView(card, onLessonQuizComplete, cardState, onCardStateChanged)
             is DrivenUiCard.LessonCompleteCard -> LessonCompleteCardView(card, onLessonComplete, onOpenAgentBuilder)
             is DrivenUiCard.SwitchCard -> SwitchCardView(card, onAction)
             is DrivenUiCard.NotificationPermissionCard -> NotificationPermissionCardView(card)

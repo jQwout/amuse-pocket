@@ -30,5 +30,12 @@ data class MessageEntity(
   val toolCallsJson: String? = null,
   /** Driven UI card spec ({"template":...,"params":...}) rendered as markdown in chat. */
   val cardSpec: String? = null,
+  /**
+   * The user's state inside an interactive card (today: the chosen options of a lesson quiz, see
+   * [com.aiopenpocket.ui.roadmap.QuizAnswers]). Kept apart from [cardSpec] on purpose: the spec is the
+   * authored content and is re-parsed for the card, while this is what the person did with it — it must
+   * survive leaving the lesson, which the composition's own saved state does not.
+   */
+  val cardState: String? = null,
   val createdAt: Long = System.currentTimeMillis(),
 )

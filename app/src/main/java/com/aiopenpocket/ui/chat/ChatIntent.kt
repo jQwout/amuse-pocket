@@ -65,6 +65,8 @@ sealed class ChatIntent {
   data object AdvanceLesson : ChatIntent()
   /** Lesson: the quiz is passed — show the completion card. */
   data object CompleteLessonQuiz : ChatIntent()
+  /** Lesson: the person picked (or cleared, [state] = null) quiz answers — persist them on the message. */
+  data class SaveCardState(val messageId: String, val state: String?) : ChatIntent()
 
   /** "Draw it for me" on a lesson's image step: redraw [imagePrompt] for the profile and the language. */
   data class PersonalizeLessonImage(val imagePrompt: String, val caption: String) : ChatIntent()

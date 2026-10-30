@@ -214,6 +214,15 @@ class ConversationRepository(
     return id
   }
 
+  /**
+   * Saves what the user did inside a message's card (a lesson quiz's chosen options), so it is still there
+   * when the lesson is reopened. null clears it. Does not touch the conversation's updatedAt: picking an
+   * option is not new conversation activity.
+   */
+  suspend fun updateMessageCardState(messageId: String, cardState: String?) {
+    messageDao.updateCardState(messageId, cardState)
+  }
+
   /** Deletes one message by id (a user action in the chat). */
   suspend fun deleteMessage(messageId: String) {
     messageDao.deleteById(messageId)
@@ -241,6 +250,7 @@ class ConversationRepository(
     content = content,
     toolCallsJson = toolCallsJson,
     cardSpec = cardSpec,
+    cardState = cardState,
     createdAt = createdAt,
   )
 
