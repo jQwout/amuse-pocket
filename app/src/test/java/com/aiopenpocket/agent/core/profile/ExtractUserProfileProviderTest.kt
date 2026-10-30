@@ -42,8 +42,8 @@ class ExtractUserProfileProviderTest {
   fun `извлечение профиля идёт к выбранному провайдеру, а не к дефолту`() = runTest {
     val llm = RecordingLlm()
 
-    ExtractUserProfileUseCase(llm) { LlmProvider.OPENROUTER }("Меня зовут Аня, мне 30")
+    ExtractUserProfileUseCase(llm) { LlmProvider.META }("Меня зовут Аня, мне 30")
 
-    assertEquals(listOf(LlmProvider.OPENROUTER), llm.providers)
+    assertEquals(listOf(LlmProvider.META), llm.providers)
   }
 }

@@ -9,11 +9,10 @@ import kotlin.coroutines.CoroutineContext
 /**
  * The model a built agent asks to run on, named by FAMILY rather than by id.
  *
- * Why a family key and not a model id: the same model has different ids on the two routes
- * (`muse-wonder-1.0` on the direct Meta Model API, `meta/muse-wonder` on OpenRouter), and the user can
- * switch routes after building the agent. A stored id would be wrong on one of them half the time; a
- * family resolves against whichever catalog is active ([ProviderFallbackChain.resolve]) and follows the
- * catalog when Meta ships 1.4. Meta's guide (dev.meta.ai/docs/agent-frameworks) itself splits the work
+ * Why a family key and not a model id: a stored id (`muse-wonder-1.0`) goes stale the day Meta ships
+ * 1.1, and an agent built today would keep asking for a model the catalog no longer lists. A family
+ * resolves against the active catalog ([ProviderFallbackChain.resolve]) and follows it when Meta ships
+ * 1.4. Meta's guide (dev.meta.ai/docs/agent-frameworks) itself splits the work
  * this way: Wonder for the main, heavy loop, Spark for cost-sensitive work and sub-agents.
  *
  * The persisted/`AgentDefinition.model` value is [key] (a plain string, `null` = "the app's model"),
@@ -23,12 +22,11 @@ enum class AgentModel(val key: String, private val family: String) {
   WONDER("WONDER", "muse-wonder"),
   SPARK("SPARK", "muse-spark");
 
-  /** Whether [modelId] (either route's spelling) belongs to this family. */
+  /** Whether [modelId] belongs to this family. */
   fun matches(modelId: String): Boolean {
-    val id = modelId.removePrefix("meta/")
     // muse-spark-open is the 816B open-weight model: it shares the prefix but not the promise the
     // builder makes for Spark ("faster and cheaper"), so a Spark pick must never land on it.
-    return id.startsWith(family) && !id.startsWith("muse-spark-open")
+    return modelId.startsWith(family) && !modelId.startsWith("muse-spark-open")
   }
 
   companion object {

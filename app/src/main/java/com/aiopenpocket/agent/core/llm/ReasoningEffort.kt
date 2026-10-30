@@ -43,24 +43,15 @@ class ReasoningEffortContext(val effort: ReasoningEffort) : AbstractCoroutineCon
 }
 
 /**
- * How the effort is spelled on the wire, per route. The two APIs are not the same:
- * - Meta Model API: a top-level `reasoning_effort` (dev.meta.ai/docs/reasoning);
- * - OpenRouter: a nested `reasoning: {effort}` object (openrouter.ai/docs/guides/best-practices/reasoning-tokens).
- *   Its page documents no top-level `reasoning_effort`, so it is not sent there.
+ * How the effort is spelled on the wire: the Meta Model API takes a top-level `reasoning_effort`
+ * (dev.meta.ai/docs/reasoning).
  */
 internal data class ReasoningRequestFields(
   val reasoningEffort: String? = null,
-  val reasoning: ReasoningObject? = null,
 )
-
-@kotlinx.serialization.Serializable
-internal data class ReasoningObject(val effort: String)
 
 /** Null for a model that is not a reasoning model: sending the field to one risks an HTTP 400. */
 internal fun reasoningFieldsFor(config: ProviderConfig, effort: ReasoningEffort?): ReasoningRequestFields? {
   if (effort == null || !config.reasoning) return null
-  return when (config.name) {
-    LlmProvider.META -> ReasoningRequestFields(reasoningEffort = effort.wire)
-    LlmProvider.OPENROUTER -> ReasoningRequestFields(reasoning = ReasoningObject(effort.wire))
-  }
+  return ReasoningRequestFields(reasoningEffort = effort.wire)
 }

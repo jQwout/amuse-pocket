@@ -69,7 +69,7 @@ class ConversationAnnotatorTutorialTest {
     repository.addMessage(conversationId, "assistant", "кусочек текста")
     val llm = CountingLlm()
 
-    ConversationAnnotator(llm, repository) { LlmProvider.OPENROUTER }.annotate(conversationId)
+    ConversationAnnotator(llm, repository) { LlmProvider.META }.annotate(conversationId)
 
     assertEquals("tokens", repository.getConversation(conversationId)?.title)
     assertEquals(0, llm.calls)
@@ -83,7 +83,7 @@ class ConversationAnnotatorTutorialTest {
     repository.addMessage(conversationId, "user", "привет")
     repository.addMessage(conversationId, "assistant", "здравствуй")
 
-    ConversationAnnotator(CountingLlm(), repository) { LlmProvider.OPENROUTER }.annotate(conversationId)
+    ConversationAnnotator(CountingLlm(), repository) { LlmProvider.META }.annotate(conversationId)
 
     assertEquals("Тема разговора", repository.getConversation(conversationId)?.title)
   }

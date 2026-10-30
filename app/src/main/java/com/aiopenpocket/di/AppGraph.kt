@@ -2,8 +2,6 @@ package com.aiopenpocket.di
 
 import android.app.Application
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
-import com.aiopenpocket.agent.core.llm.OpenRouterCatalogService
-import com.aiopenpocket.agent.core.llm.SelectedLlmProvider
 import com.aiopenpocket.agent.workers.HeartbeatRunner
 import com.aiopenpocket.data.repository.ThemeRepository
 import dev.zacsweers.metro.DependencyGraph
@@ -16,8 +14,6 @@ interface AppGraph : ViewModelGraph {
     val userPreferencesRepository: UserPreferencesRepository
     val themeRepository: ThemeRepository
     val heartbeatRunner: HeartbeatRunner
-    val openRouterCatalogService: OpenRouterCatalogService
-    val selectedLlmProvider: SelectedLlmProvider
 
     @DependencyGraph.Factory
     fun interface Factory {

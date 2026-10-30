@@ -396,7 +396,7 @@ class ChatViewModel(
             is ChatIntent.DeleteMessage -> deleteMessage(intent.messageId)
             is ChatIntent.ClearError -> {
                 currentConversationId()?.let { turnManager.clearError(it) }
-                _state.update { it.copy(error = null, canRetry = false) }
+                _state.update { it.copy(error = null, errorNeedsKey = false, canRetry = false) }
             }
             is ChatIntent.NavigateBack -> { /* handled by navigation */
             }
@@ -475,7 +475,7 @@ class ChatViewModel(
                 throw e
             } catch (e: Exception) {
                 android.util.Log.e("ChatViewModel", "send failed", e)
-                _state.update { it.copy(error = e.message, canRetry = false) }
+                _state.update { it.copy(error = e.message, errorNeedsKey = false, canRetry = false) }
             }
         }
     }
@@ -569,7 +569,7 @@ class ChatViewModel(
                 throw e
             } catch (e: Exception) {
                 android.util.Log.e("ChatViewModel", "lesson ask failed", e)
-                _state.update { it.copy(error = e.message, canRetry = false) }
+                _state.update { it.copy(error = e.message, errorNeedsKey = false, canRetry = false) }
             }
         }
     }
@@ -595,7 +595,7 @@ class ChatViewModel(
                 when {
                     aboutMe.isBlank() -> tr("Чтобы нарисовать под тебя, расскажи о себе в профиле.", "To draw it for you, tell me about yourself in your profile.")
                     !lessonChatController.postPersonalizedImage(convId, imagePrompt, caption, aboutMe, language) ->
-                        tr("Не получилось нарисовать. Проверь ключ OpenRouter и сеть и попробуй ещё раз.", "Couldn't draw it. Check your OpenRouter key and network, then try again.")
+                        tr("Рисование пока недоступно — картинки урока остаются прежними.", "Drawing isn't available right now — the lesson keeps its usual pictures.")
                     else -> null
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -632,7 +632,7 @@ class ChatViewModel(
                 when {
                     clip == null -> tr("Видео слишком большое или не открылось — сними покороче, до 10 секунд.", "The video is too large or didn't open — record a shorter one, up to 10 seconds.")
                     !lessonChatController.postVideoAnswer(convId, videoPrompt, clip.first, clip.second, language) ->
-                        tr("Не получилось разобрать видео. Проверь ключ OpenRouter и сеть и попробуй ещё раз.", "Couldn't analyze the video. Check your OpenRouter key and network, then try again.")
+                        tr("Разбор видео пока недоступен.", "Video analysis isn't available right now.")
                     else -> null
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -820,7 +820,7 @@ class ChatViewModel(
                     .collect { (status, trace, messages) ->
                         when (status) {
                             is TurnStatus.Running -> _state.update {
-                                it.copy(isLoading = true, toolTrace = trace, error = null, canRetry = false)
+                                it.copy(isLoading = true, toolTrace = trace, error = null, errorNeedsKey = false, canRetry = false)
                             }
 
                             is TurnStatus.Completed -> {
@@ -831,6 +831,7 @@ class ChatViewModel(
                                         isLoading = !arrived,
                                         toolTrace = trace,
                                         error = status.error,
+                                        errorNeedsKey = false,
                                         canRetry = status.canRetry,
                                         lastResponseStats = ResponseStats(
                                             responseTimeMs = status.responseTimeMs,
@@ -847,7 +848,13 @@ class ChatViewModel(
                             }
 
                             is TurnStatus.Failed -> _state.update {
-                                it.copy(isLoading = false, toolTrace = trace, error = status.message, canRetry = status.canRetry)
+                                it.copy(
+                                    isLoading = false,
+                                    toolTrace = trace,
+                                    error = status.message,
+                                    errorNeedsKey = status.needsKey,
+                                    canRetry = status.canRetry,
+                                )
                             }
                         }
                     }

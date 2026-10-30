@@ -99,6 +99,8 @@ fun AgentBuilderScreen(
   onResolveTestApproval: (approved: Boolean) -> Unit = {},
   /** "Open chat" after publishing; null — no button (the route cannot navigate to the chat). */
   onOpenChat: (() -> Unit)? = null,
+  /** "Open Settings" on the test run's no-key message; null — no button. */
+  onOpenSettings: (() -> Unit)? = null,
   modifier: Modifier = Modifier,
 ) {
   if (state.isLoading) {
@@ -158,6 +160,7 @@ fun AgentBuilderScreen(
           testPendingApproval = testPendingApproval,
           onResolveTestApproval = onResolveTestApproval,
           onOpenChat = onOpenChat,
+          onOpenSettings = onOpenSettings,
           contentPadding = PaddingValues(top = topPad, bottom = bottomPad),
         )
       }
@@ -259,6 +262,7 @@ private fun BuilderStepContent(
   testPendingApproval: ToolApprovalRequest?,
   onResolveTestApproval: (approved: Boolean) -> Unit,
   onOpenChat: (() -> Unit)?,
+  onOpenSettings: (() -> Unit)?,
   contentPadding: PaddingValues,
 ) {
   // Validation "on the button": a step's inline errors are shown only after "Next" has run into them
@@ -331,6 +335,7 @@ private fun BuilderStepContent(
       testPendingApproval = testPendingApproval,
       onResolveTestApproval = onResolveTestApproval,
       onOpenChat = onOpenChat,
+      onOpenSettings = onOpenSettings,
       modifier = Modifier.fillMaxSize(),
       contentPadding = contentPadding,
     )

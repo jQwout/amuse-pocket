@@ -8,6 +8,7 @@ package com.aiopenpocket.agent.loop
 import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.agent.core.AgentLog
 import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.llm.missingKeyMessage
 import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator
@@ -66,6 +67,13 @@ class TurnManager(
    * NVIDIA without anything failing.
    */
   private val selectedProvider: () -> LlmProvider,
+  /**
+   * Whether the person has entered a Meta Model API key (see `ModelKeyGate`). A lambda, read on every
+   * turn, so a key typed in Settings works from the very next message. No default value, like
+   * [selectedProvider]: an argument lost in DI must break the build, not silently let every turn
+   * run into an HTTP 401.
+   */
+  private val hasModelKey: () -> Boolean,
   private val log: AgentLog,
 ) {
 
@@ -376,6 +384,15 @@ class TurnManager(
         session.lastUserText = userText
         session.lastUserMessageId = userMsgId
       }
+      // The ONE gate for every model-driven turn (chat, lessons, plan/goal, the builder's test run — they
+      // all start here). No key is bundled into any build, so a fresh install has none, and without this
+      // the first message would go out to Meta and come back as a raw HTTP 401. It sits AFTER the user's
+      // message is saved on purpose: the message stays in the chat and "Retry" re-sends it once the key is
+      // entered, instead of the person having to retype it.
+      if (!hasModelKey()) {
+        finishFailed(session, missingKeyMessage(), needsKey = true)
+        return
+      }
       collectTurnEvents(session, userText, mode, planId, budget, systemPromptExtra, executionMode)
     } catch (e: CancellationException) {
       // Stop / a new turn: cancellation is the normal path.
@@ -576,8 +593,8 @@ class TurnManager(
     notifyIfBackground(convId, preview = text.take(140).ifBlank { TurnTexts.TURN_DONE_FALLBACK }, failed = false)
   }
 
-  private suspend fun finishFailed(session: TurnSession, message: String) {
-    session.statusFlow.value = TurnStatus.Failed(message, canRetry = session.lastUserText != null)
+  private suspend fun finishFailed(session: TurnSession, message: String, needsKey: Boolean = false) {
+    session.statusFlow.value = TurnStatus.Failed(message, canRetry = session.lastUserText != null, needsKey = needsKey)
     notifyIfBackground(session.conversationId, preview = message, failed = true)
   }
 

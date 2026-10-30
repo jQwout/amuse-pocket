@@ -84,7 +84,7 @@ class LessonChatControllerSegmentTest {
     key: String = "meta-key",
     handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
   ): LessonChatController {
-    // The other two clients must stay untouched: a segment step has nothing to ask OpenRouter.
+    // The other two clients must stay untouched: a segment step has nothing to ask the image or video clients.
     val unused = MockEngine { error("not this client") }
     return LessonChatController(
       repo,

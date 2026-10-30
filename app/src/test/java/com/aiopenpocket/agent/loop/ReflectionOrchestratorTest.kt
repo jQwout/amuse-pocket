@@ -160,7 +160,7 @@ class ReflectionOrchestratorTest {
       toolRegistry,
       assembler,
       reactLoopRunner,
-      ConversationAnnotator(llm, conversationRepository) { LlmProvider.OPENROUTER },
+      ConversationAnnotator(llm, conversationRepository) { LlmProvider.META },
       turnContextHolder,
       NoopLog,
     )
@@ -346,10 +346,10 @@ class ReflectionOrchestratorTest {
 
   /**
    * The provider plays no part in these tests — the mechanics are checked, not the request's addressee.
-   * Helpers, so that `LlmProvider.OPENROUTER` is not repeated in every call and does not give the
+   * Helpers, so that `LlmProvider.META` is not repeated in every call and does not give the
    * impression that the choice of vendor means anything here.
    */
   private fun ReflectionOrchestrator.executeNim(conversationId: String, message: String) =
-    execute(conversationId, message, LlmProvider.OPENROUTER)
+    execute(conversationId, message, LlmProvider.META)
 
 }

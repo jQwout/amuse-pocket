@@ -4,61 +4,47 @@ package com.aiopenpocket.agent.core.llm
 // @trace vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53
 
 /**
- * Who requests to the model go through. The models are the same on both routes — Meta's Muse; only
- * the path differs:
- * - [META] — the direct Meta Model API (`api.meta.ai`). The primary route: the hackathon's first
- *   screening accepts "Meta Model API and/or Meta's open weights", and OpenRouter is literally neither;
- *   and only here are SAM 3.1 and Voice Transcribe available.
- * - [OPENROUTER] — the backup path to the same models; from its catalog the app takes only Meta
- *   models (see [isMetaModel]).
+ * Who requests to the model go through: the direct Meta Model API (`api.meta.ai`), and nothing else.
  *
- * Which one is in effect is decided by the key (see [activeLlmProvider]). It used to be
- * `NIM, OPENROUTER`, and before that `AUTO, NIM, GROQ, GITHUB`; NVIDIA NIM was removed on Oct 25,
- * 2026 — another vendor meant other models in a course about Meta. There is no cross-provider
- * auto-fallback and there will not be: fallback happens between MODELS of one provider (see
- * [ProviderFallbackChain]), otherwise a request could silently go to another recipient.
+ * The hackathon's first screening accepts "Meta Model API and/or Meta's open weights", and the owner
+ * removed OpenRouter from the project on Oct 30, 2026: the app talks to Meta with a key the PERSON
+ * enters (onboarding or Settings), and no key is bundled into any build, debug included. Earlier
+ * revisions of this enum were `NIM, OPENROUTER`, before that `AUTO, NIM, GROQ, GITHUB`, then
+ * `OPENROUTER, META`.
+ *
+ * The enum stays with a single value rather than being deleted: the provider is part of
+ * [ProviderConfig], of the spend records and of the per-route model choice, and a second route (a
+ * server of our own, say) would slot in here again. There is no cross-provider auto-fallback and
+ * there will not be: fallback happens between MODELS of one provider (see [ProviderFallbackChain]),
+ * otherwise a request could silently go to another recipient.
  */
 enum class LlmProvider {
-  OPENROUTER,
   META,
 }
 
 /**
- * The key decides the provider: with a Meta Model API key entered, requests go straight to Meta;
- * without one — through OpenRouter.
+ * The provider a request goes to — read on every access, not fixed when the graph is built.
  *
- * There is no separate switch on purpose. The Meta key is entered by the user (there is no bundled one,
- * see LlmModule), and "entered a key — it works directly" needs no explanation of what a route is.
- * Without a Meta key the debug build keeps working on the bundled OpenRouter key. ONE function for both
- * the chain and the "where requests go" line in Settings: if they diverged, the screen would promise
- * Meta while the turn went to OpenRouter.
- */
-fun activeLlmProvider(metaKey: String): LlmProvider =
-  if (metaKey.isNotBlank()) LlmProvider.META else LlmProvider.OPENROUTER
-
-/**
- * The OpenRouter key baked into the debug build from `.env`, or an empty string. Without it the app on
- * Muse would not make it to Settings — onboarding calls the model itself. ONE function for both the
- * chain and the warning in Settings: if they diverged, the placeholder would go into a request as a
- * real key, and there would be no warning. A live key cannot get into a store build — a check in
- * app/build.gradle.kts stops it.
- */
-fun bundledOpenRouterKey(buildKey: String): String =
-  buildKey.takeUnless { it.isBlank() || it == OPENROUTER_KEY_PLACEHOLDER }.orEmpty()
-
-const val OPENROUTER_KEY_PLACEHOLDER = "MY_OPENROUTER_API_KEY"
-
-/**
- * The provider a request goes to — read on every access, not fixed when the graph is built: a Meta key
- * entered in Settings moves the very next turn to the direct Meta Model API — the chat, the plan
- * engine and background heartbeats alike, without a restart.
- *
- * A separate type rather than `SettingsRepository` directly: consumers (the agent loop, heartbeats)
+ * Kept as a seam although there is a single provider today: consumers (the agent loop, heartbeats)
  * need exactly one fact, "where to send", and pulling the key store in for it would mean pulling
  * EncryptedSharedPreferences with the Android Keystore into tests.
  */
 fun interface SelectedLlmProvider {
   operator fun invoke(): LlmProvider
+}
+
+/**
+ * Whether the person has entered a Meta Model API key. Read on every access: a key entered in
+ * Settings or onboarding works from the very next turn.
+ *
+ * This is the "no key" gate. No key is bundled into any build, so a fresh install has none, and every
+ * model action must meet that with a plain "add your key" message instead of an HTTP 401 from Meta.
+ * The gate is applied at the points where a model call STARTS (a chat turn in `TurnManager`, a
+ * background wakeup in `HeartbeatRunner`); the HTTP client has its own last-resort check
+ * (`blank_key`) for everything that reaches it without passing through those.
+ */
+fun interface ModelKeyGate {
+  operator fun invoke(): Boolean
 }
 
 data class ProviderConfig(

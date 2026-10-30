@@ -1,31 +1,38 @@
 package com.aiopenpocket.agent.core.llm
 
+// @trace vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53
+
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The two predicates "everything on Muse" rests on: which OpenRouter key counts as real and which model is
- * let into the picker and the chain.
+ * The provider facts "everything on the Meta Model API" rests on.
  */
 class LlmProviderTest {
 
-  /** The placeholder from `.env.example` is not a key: if it went into a request, there would be a 401 instead of a warning in Settings. */
+  /**
+   * The owner removed OpenRouter on Oct 30, 2026 (the hackathon's first screening wants the Meta Model API).
+   * A second value coming back would also bring back a second recipient for the person's data, so it must
+   * be a decision with a failing test in front of it, not a drive-by edit.
+   */
   @Test
-  fun `placeholder and blank build keys are treated as no key`() {
-    assertEquals("", bundledOpenRouterKey(""))
-    assertEquals("", bundledOpenRouterKey(OPENROUTER_KEY_PLACEHOLDER))
-    assertEquals("sk-or-v1-test", bundledOpenRouterKey("sk-or-v1-test"))
+  fun `Meta is the only provider`() {
+    assertEquals(listOf("META"), LlmProvider.entries.map { it.name })
   }
 
+  /** Where the single catalog points: a request must never be addressed to anyone but Meta. */
   @Test
-  fun `only Meta models pass the Muse gate`() {
-    assertTrue(isMetaModel("meta/muse-spark-1.3"))
-    assertTrue(isMetaModel("meta/muse-wonder"))
-    // Llama on OpenRouter is served by third-party hosts, not by Meta.
-    assertFalse(isMetaModel("meta-llama/llama-4-maverick"))
-    assertFalse(isMetaModel("anthropic/claude-sonnet-5"))
-    assertFalse(isMetaModel(""))
+  fun `the catalog base address is the Meta Model API`() {
+    assertEquals("https://api.meta.ai/v1", ModelCatalog.META_BASE_URL)
+    assertEquals(ModelCatalog.META_BASE_URL, ModelCatalog().baseUrl)
+  }
+
+  /** The vendor-trained `-contributor` versions never reach the picker or the chain. */
+  @Test
+  fun `contributor versions are recognised`() {
+    assertTrue(trainsOnUserData("muse-spark-1.3-contributor"))
+    assertFalse(trainsOnUserData("muse-spark-1.3"))
   }
 }

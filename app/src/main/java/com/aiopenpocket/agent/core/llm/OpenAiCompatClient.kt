@@ -126,16 +126,12 @@ class OpenAiCompatClient(
             stream = true,
             temperature = p.temperature,
             topP = p.topP,
-            // OpenRouter names the price in dollars, and only when asked. The direct Meta Model API request
-            // has no such field, and Meta answers 400 to unsupported fields (the protocol description
-            // lists a whole set of them); the same caution as with type:"function" on tools. The Meta
-            // price is computed by us — see metaListPriceUsd.
-            usage = if (p.name == LlmProvider.OPENROUTER) UsageRequest() else null,
-            // Effort only for reasoning models, spelled per route — see reasoningFieldsFor. max_tokens
-            // stays as is: it covers reasoning AND the answer, and the lower effort is what keeps the
-            // answer from being starved.
+            // Effort only for reasoning models — see reasoningFieldsFor. max_tokens stays as is: it covers
+            // reasoning AND the answer, and the lower effort is what keeps the answer from being starved.
+            // There is no `usage` request field on purpose: Meta answers 400 to unsupported fields (the
+            // protocol description lists a whole set of them), and the price is computed by us — see
+            // metaListPriceUsd.
             reasoningEffort = reasoningFields?.reasoningEffort,
-            reasoning = reasoningFields?.reasoning,
           )
           val bodyJson = json.encodeToString(requestBody)
           // The key serialization check: tools must carry type:"function", otherwise strict providers return
@@ -222,13 +218,12 @@ class OpenAiCompatClient(
                 // The direct Meta Model API sends tokens only, without a price — we compute it from Meta's price
                 // list. Otherwise the spend card would show tokens without money exactly on the route
                 // where the credits the user paid for are being spent.
-                costUsd = sseUsage?.cost
-                  ?: sseUsage?.takeIf { p.name == LlmProvider.META }?.let { metaListPriceUsd(p.model, it) },
+                costUsd = sseUsage?.cost ?: sseUsage?.let { metaListPriceUsd(p.model, it) },
                 estimated = sseUsage == null,
                 hadTools = tools.isNotEmpty(),
               ),
             )
-            // finish_reason "error" — that is how OpenRouter closes a stream when the model fails mid-answer.
+            // finish_reason "error" — that is how an OpenAI-compatible gateway closes a stream when the model fails mid-answer.
             // Part of the text is already with the user, and a normal Finish would save the fragment as
             // a finished answer; an error gives "Retry" (no fallback here — see emittedAnswer below).
             val parseError = streamError
@@ -236,7 +231,7 @@ class OpenAiCompatClient(
               parseError != null -> emit(parseError)
               emptyAttempt -> Unit
               finishReason == "error" ->
-                emit(StreamEvent.Error(userFacingLlmError(null, interrupted = true, provider = provider), code = "finish_error"))
+                emit(StreamEvent.Error(userFacingLlmError(null, interrupted = true), code = "finish_error"))
               else -> emit(StreamEvent.Finish(finishReason))
             }
           }
@@ -269,7 +264,7 @@ class OpenAiCompatClient(
             // Part of the answer has already gone to the consumer — silently restarting on another provider is
             // not allowed, or the chat would get a fragment plus a new full answer.
             Log.w(TAG, "$tag interrupted mid-stream — НЕ фолбэчим (часть ответа уже у пользователя)")
-            emit(StreamEvent.Error(userFacingLlmError(lastErrorCode, interrupted = true, provider = provider), code = lastErrorCode))
+            emit(StreamEvent.Error(userFacingLlmError(lastErrorCode, interrupted = true), code = lastErrorCode))
             return@flow
           }
           // A transient error (429/500/503): the SAME model is asked again after a backoff before the chain
@@ -314,10 +309,7 @@ class OpenAiCompatClient(
     }
 
     Log.e(TAG, "✗ LLM turn: ВСЕ провайдеры упали. Last code=$lastErrorCode msg=${lastError?.message}")
-    // `provider` is the route of EVERY attempt, not just the requested one: ProviderFallbackChain.resolve
-    // returns configs of the requested provider only, and there is no cross-provider fallback. So a
-    // 401/402 message can name this provider's key without tracking which attempt failed last.
-    emit(StreamEvent.Error(userFacingLlmError(lastErrorCode, interrupted = false, provider = provider), code = lastErrorCode))
+    emit(StreamEvent.Error(userFacingLlmError(lastErrorCode, interrupted = false), code = lastErrorCode))
   }
 
   @Serializable
@@ -339,19 +331,12 @@ class OpenAiCompatClient(
      * exact number means losing the only reliable data source for pricing.
      */
     val streamOptions: StreamOptions = StreamOptions(),
-    /** OpenRouter only — see where it is filled in. */
-    val usage: UsageRequest? = null,
     /** Meta route only: top-level `reasoning_effort`. Null (omitted) for non-reasoning models. */
     val reasoningEffort: String? = null,
-    /** OpenRouter route only: `reasoning: {effort}`. Null (omitted) for non-reasoning models. */
-    val reasoning: ReasoningObject? = null,
   )
 
   @Serializable
   private data class StreamOptions(val includeUsage: Boolean = true)
-
-  @Serializable
-  private data class UsageRequest(val include: Boolean = true)
 
   /**
    * The jitter source of the backoff. A property rather than a constructor parameter: this class is
@@ -420,8 +405,8 @@ internal suspend fun consumeOpenAiSse(
   var finishReason: String? = null
   // The turn's spend. It arrives as a separate chunk at the end of the stream, so it is accumulated outside the loop.
   var usage: SseUsage? = null
-  // Reasoning models stream their thinking in a separate field (OpenRouter, including for Muse Spark —
-  // delta.reasoning; direct OpenAI-compatible APIs, Meta Model API among them — reasoning_content), and
+  // Reasoning models stream their thinking in a separate field (the Meta Model API sends
+  // reasoning_content; some OpenAI-compatible gateways send delta.reasoning), and
   // the answer in content. Thinking is accumulated separately: if the turn never got content (the
   // model put everything into reasoning) and there was no tool call, the thinking is returned as the
   // answer — otherwise the user sees nothing.
@@ -479,16 +464,13 @@ internal suspend fun consumeOpenAiSse(
   val assembledCalls = toolAccumulators.values.map { acc ->
     acc to parseToolArgumentsOrNull(acc.arguments.toString(), json, onParseError)
   }
-  // provider = null in both: these two texts are about the model's token budget, not about a key or a
-  // balance, so they name no provider either way (see userFacingLlmError) — and the parser is kept out
-  // of the business of knowing which route it is reading.
   if (truncated && assembledCalls.any { (acc, args) -> args == null || acc.name.isBlank() }) {
-    emit(StreamEvent.Error(userFacingLlmError(CODE_LENGTH_TOOL_CALL, interrupted = false, provider = null), code = CODE_LENGTH_TOOL_CALL))
+    emit(StreamEvent.Error(userFacingLlmError(CODE_LENGTH_TOOL_CALL, interrupted = false), code = CODE_LENGTH_TOOL_CALL))
     return usage
   }
   if (truncated && !contentSeen && assembledCalls.isEmpty()) {
     // The thinking is NOT returned as the answer here: it is cut mid-word, just like the answer.
-    emit(StreamEvent.Error(userFacingLlmError(CODE_LENGTH_EMPTY, interrupted = false, provider = null), code = CODE_LENGTH_EMPTY))
+    emit(StreamEvent.Error(userFacingLlmError(CODE_LENGTH_EMPTY, interrupted = false), code = CODE_LENGTH_EMPTY))
     return usage
   }
 
@@ -593,7 +575,7 @@ private data class SseChunk(
 internal data class SseUsage(
   val promptTokens: Int = 0,
   val completionTokens: Int = 0,
-  /** Price of the call in USD. OpenRouter sends it, and only when asked; otherwise null. */
+  /** Price of the call in USD, when the response names it (Meta does not: see metaListPriceUsd). */
   val cost: Double? = null,
   /** How many prompt tokens came from the provider's cache: at Meta they are 8 times cheaper than regular ones. */
   val promptTokensDetails: PromptTokensDetails? = null,
@@ -613,10 +595,10 @@ private data class SseChoice(
 private data class SseDelta(
   val role: String? = null,
   val content: String? = null,
-  // Thinking of reasoning models: direct OpenAI-compatible APIs send reasoning_content, OpenRouter —
-  // reasoning. Both are read: without the second, the "thinking as the answer" fallback never fired
-  // on OpenRouter, and a turn that fit into a single thought burned five attempts across the chain's
-  // models.
+  // Thinking of reasoning models: the Meta Model API sends reasoning_content, some OpenAI-compatible
+  // gateways send reasoning. Both are read: without the second, the "thinking as the answer" fallback
+  // never fired on those gateways, and a turn that fit into a single thought burned five attempts
+  // across the chain's models.
   val reasoningContent: String? = null,
   val reasoning: String? = null,
   val toolCalls: List<SseToolCall>? = null,
@@ -649,23 +631,25 @@ private val REQUEST_LEVEL_FAILURES = setOf("400", "413")
  * The turn's error text for a person: it is shown in the chat (a red banner over the input) and in
  * the push about a failed background turn.
  *
- * It used to be "All providers failed. Last: HTTP 401: {json…}" — the provider's raw JSON, with no way
- * to tell what to do; then plain Russian literals, which an English reader got word for word («Модель
- * не ответила…» stood on the English demo path). The details stay in the log; here — what happened and
- * what to fix, in the interface language ([tr]), because this very string reaches the person.
+ * It used to be "All providers failed. Last: HTTP 401: {json...}" - the provider's raw JSON, with no way
+ * to tell what to do; then plain Russian literals, which an English reader got word for word (the
+ * "model did not answer" line stood on the English demo path). The details stay in the log; here - what
+ * happened and what to fix, in the interface language ([tr]), because this very string reaches the person.
  *
  * [code] is the HTTP status of the last attempt or our own marker (`blank_key`, `empty_response`).
- * [provider] is the route that last attempt actually went to, and it decides WHOSE key or balance a
- * key-level failure is about: both routes are live (see [LlmProvider]), and the text used to name
- * OpenRouter on both — a person who had entered a Meta Model API key was sent to the wrong site to
- * look for the wrong key. `null` means the route is unknown (an empty chain, or an error raised inside
- * the stream, where no provider is involved in the wording anyway) — then the message names neither
- * and stays true for both.
+ * There is a single provider (the Meta Model API), so a key-level failure always names it: the key is
+ * the one the person entered, and it is the only thing that can be wrong.
  */
-internal fun userFacingLlmError(code: String?, interrupted: Boolean, provider: LlmProvider?): String = when {
-  code == "blank_key" -> blankKeyMessage(provider)
-  code == "401" || code == "403" -> rejectedKeyMessage(provider)
-  code == "402" -> emptyBalanceMessage(provider)
+internal fun userFacingLlmError(code: String?, interrupted: Boolean): String = when {
+  code == "blank_key" -> missingKeyMessage()
+  code == "401" || code == "403" -> tr(
+    "Ключ Meta Model API не подошёл — проверь его в Настройках.",
+    "Meta Model API turned the key down — check it in Settings.",
+  )
+  code == "402" -> tr(
+    "На счёте Meta Model API закончились средства.",
+    "The Meta Model API account has run out of credit.",
+  )
   code == "429" -> tr(
     "Слишком много запросов к модели — попробуй через минуту.",
     "Too many requests to the model — give it a minute and try again.",
@@ -698,23 +682,13 @@ internal fun userFacingLlmError(code: String?, interrupted: Boolean, provider: L
   )
 }
 
-/** No key for the route the request went to. Named per route — see [userFacingLlmError] on why. */
-private fun blankKeyMessage(provider: LlmProvider?): String = when (provider) {
-  LlmProvider.META -> tr("Не задан ключ Meta Model API — впиши его в Настройках.", "No Meta Model API key yet — add it in Settings.")
-  LlmProvider.OPENROUTER -> tr("Не задан ключ OpenRouter — впиши его в Настройках.", "No OpenRouter key yet — add it in Settings.")
-  null -> tr("Не задан ключ провайдера модели — впиши его в Настройках.", "The model provider has no API key yet — add one in Settings.")
-}
-
-/** The key went out and came back rejected (401/403). */
-private fun rejectedKeyMessage(provider: LlmProvider?): String = when (provider) {
-  LlmProvider.META -> tr("Ключ Meta Model API не подошёл — проверь его в Настройках.", "Meta Model API turned the key down — check it in Settings.")
-  LlmProvider.OPENROUTER -> tr("Ключ OpenRouter не подошёл — проверь его в Настройках.", "OpenRouter turned the key down — check it in Settings.")
-  null -> tr("Ключ провайдера модели не подошёл — проверь его в Настройках.", "The model provider turned the key down — check it in Settings.")
-}
-
-/** The key is fine, the money is not (402). */
-private fun emptyBalanceMessage(provider: LlmProvider?): String = when (provider) {
-  LlmProvider.META -> tr("На счёте Meta Model API закончились средства.", "The Meta Model API account has run out of credit.")
-  LlmProvider.OPENROUTER -> tr("На счёте OpenRouter закончились средства.", "The OpenRouter account has run out of credit.")
-  null -> tr("На счёте у провайдера модели закончились средства.", "The account at the model provider has run out of credit.")
-}
+/**
+ * The person has not entered a Meta Model API key. One text for every place that notices it (the
+ * turn gate in `TurnManager`, the heartbeat record, the HTTP client's last-resort check), so the
+ * wording and the way out - Settings - are the same everywhere. No bundled key exists in any build,
+ * so a fresh install lands here until the key is entered in onboarding or Settings.
+ */
+fun missingKeyMessage(): String = tr(
+  "Добавь свой ключ Meta API — без него модель не ответит. Его вводят в Настройках.",
+  "Add your Meta API key to talk to the model. You can paste it in Settings.",
+)

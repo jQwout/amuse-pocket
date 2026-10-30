@@ -240,7 +240,7 @@ class CompositeSkillRegistryTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "user", content = "please load $requestedId")),
       tools = toolRegistry.getAllSchemas(),
-      provider = LlmProvider.OPENROUTER,
+      provider = LlmProvider.META,
       agent = agent,
     ) { }
     return result.toolTrace.single { it.toolName == "load_skill" }.result

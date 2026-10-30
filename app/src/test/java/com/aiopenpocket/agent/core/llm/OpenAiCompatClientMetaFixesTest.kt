@@ -46,7 +46,7 @@ class OpenAiCompatClientMetaFixesTest {
 
   private fun config(
     model: String,
-    provider: LlmProvider = LlmProvider.OPENROUTER,
+    provider: LlmProvider = LlmProvider.META,
     reasoning: Boolean = false,
   ) = ProviderConfig(
     maxTokens = 16000,
@@ -144,10 +144,10 @@ class OpenAiCompatClientMetaFixesTest {
   }
 
   @Test
-  fun `OpenRouter route sends the nested reasoning effort object, not the top-level field`() = runTest {
-    val body = bodyFor(LlmProvider.OPENROUTER, reasoning = true, effort = ReasoningEffort.HIGH)
-    assertTrue(body, body.contains("\"reasoning\":{\"effort\":\"high\"}"))
-    assertTrue("OpenRouter documents no top-level reasoning_effort: $body", !body.contains("reasoning_effort"))
+  fun `the Meta route sends the top-level reasoning_effort field, not a nested object`() = runTest {
+    val body = bodyFor(LlmProvider.META, reasoning = true, effort = ReasoningEffort.HIGH)
+    assertTrue(body, body.contains("\"reasoning_effort\":\"high\""))
+    assertTrue("Meta documents the top-level field only: $body", !body.contains("\"reasoning\":{"))
   }
 
   @Test

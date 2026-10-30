@@ -31,6 +31,8 @@ fun AgentBuilderRoute(
    * tests render it).
    */
   onOpenChat: ((String) -> Unit)? = null,
+  /** "Open Settings" on the test run's no-key message (the Meta key is entered there). */
+  onOpenSettings: (() -> Unit)? = null,
 ) {
   val viewModel: AgentBuilderViewModel = metroViewModel()
   val testViewModel: AgentBuilderTestViewModel = metroViewModel()
@@ -77,5 +79,6 @@ fun AgentBuilderRoute(
     testPendingApproval = testPendingApproval,
     onResolveTestApproval = testViewModel::resolveTestApproval,
     onOpenChat = onOpenChat?.let { open -> { agentsViewModel.openAgentChat(state.draft.id, open) } },
+    onOpenSettings = onOpenSettings,
   )
 }

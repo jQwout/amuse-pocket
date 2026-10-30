@@ -153,7 +153,7 @@ class PlanPlanner(
     userMessage: String,
     existingVersion: PlanVersion? = null,
     relevantContext: String? = null,
-    provider: LlmProvider = LlmProvider.OPENROUTER,
+    provider: LlmProvider = LlmProvider.META,
   ): PlanProposalResult {
     require(existingVersion == null || existingVersion.planId == planId) {
       "existingVersion.planId '${existingVersion?.planId}' does not match planId '$planId'."

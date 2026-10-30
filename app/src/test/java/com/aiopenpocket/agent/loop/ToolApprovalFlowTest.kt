@@ -178,7 +178,7 @@ class ToolApprovalFlowTest {
         conversationId = "c1",
         messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
         tools = toolRegistry.getAllSchemas(),
-        provider = LlmProvider.OPENROUTER,
+        provider = LlmProvider.META,
         agent = agentWithApprovalHook(setOf("fake_tool")),
       ) { }
     }
@@ -213,7 +213,7 @@ class ToolApprovalFlowTest {
         conversationId = "c1",
         messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
         tools = toolRegistry.getAllSchemas(),
-        provider = LlmProvider.OPENROUTER,
+        provider = LlmProvider.META,
         agent = agentWithApprovalHook(setOf("fake_tool")),
       ) { }
     }
@@ -254,7 +254,7 @@ class ToolApprovalFlowTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = toolRegistry.getAllSchemas(),
-      provider = LlmProvider.OPENROUTER,
+      provider = LlmProvider.META,
     ) { }
 
     assertFalse("nothing may run when nobody answered", tool.executed)
@@ -290,7 +290,7 @@ class ToolApprovalFlowTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = toolRegistry.getAllSchemas(),
-      provider = LlmProvider.OPENROUTER,
+      provider = LlmProvider.META,
       agent = agentWithApprovalHook(setOf("fake_tool")),
       interactiveApproval = false,
     ) { }
@@ -315,7 +315,7 @@ class ToolApprovalFlowTest {
         conversationId = "c1",
         messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
         tools = toolRegistry.getAllSchemas(),
-        provider = LlmProvider.OPENROUTER,
+        provider = LlmProvider.META,
         agent = null, // a plain chat: no agent, no hooks — the floor must work on its own
       ) { }
     }
@@ -346,7 +346,7 @@ class ToolApprovalFlowTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = toolRegistry.getAllSchemas(),
-      provider = LlmProvider.OPENROUTER,
+      provider = LlmProvider.META,
       agent = null,
     ) { event -> if (event is AgentEvent.ToolApprovalRequired) askedForApproval = true }
 
@@ -367,7 +367,7 @@ class ToolApprovalFlowTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = toolRegistry.getAllSchemas(),
-      provider = LlmProvider.OPENROUTER,
+      provider = LlmProvider.META,
       interactiveApproval = false,
     ) { }
 
@@ -387,7 +387,7 @@ class ToolApprovalFlowTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = toolRegistry.getAllSchemas(),
-      provider = LlmProvider.OPENROUTER,
+      provider = LlmProvider.META,
     ) { }
 
     assertTrue(tool.executed)
@@ -427,7 +427,7 @@ class ToolApprovalFlowTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = toolRegistry.getAllSchemas(),
-      provider = LlmProvider.OPENROUTER,
+      provider = LlmProvider.META,
     ) { event ->
       if (event is AgentEvent.ToolApprovalRequired) {
         pendingWhenAnnounced += coordinator.isPending(event.request.requestId)

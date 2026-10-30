@@ -190,6 +190,8 @@ fun ChatScreen(
     // A tap on "Open →" on the live plan card (Task 12, structured-plan-engine-907066) opens
     // com.aiopenpocket.ui.plan.PlanDetailRoute, route "plan/{planId}".
     onOpenPlanDetail: (String) -> Unit = {},
+    // "Open Settings" on the no-key error line: the Meta key is entered there (see ModelKeyGate).
+    onOpenSettings: () -> Unit = {},
 ) {
     val glassState = rememberGlassState()
     val viewModel: ChatViewModel = metroViewModel()
@@ -724,6 +726,7 @@ fun ChatScreen(
                         text = state.error!!,
                         onRetry = if (state.canRetry) ({ viewModel.handleIntent(ChatIntent.RetryRequest) }) else null,
                         glassState = glassState,
+                        onOpenSettings = if (state.errorNeedsKey) onOpenSettings else null,
                     )
                 }
                 // The lesson step's own problem (no Meta key, an unreadable clip): a line of its own, with no "Retry"
@@ -877,8 +880,8 @@ fun ChatScreen(
                     // The manual button is for steps without their own "completion": text, image and display cards
                     // (reveal/concept/example). Interactive ones (quiz/fill/sort/match/scenario) move the lesson
                     // themselves once completed; the exception is a degenerate quiz without questions, which
-                    // needs the button. "video" has a button too: filming a clip is not always possible (no
-                    // OpenRouter, the wrong setting), and the lesson must not get stuck on it. "segment" for the same
+                    // needs the button. "video" has a button too: filming a clip is not always possible (video
+                    // analysis unavailable, the wrong setting), and the lesson must not get stuck on it. "segment" for the same
                     // reason, and more so: it needs a Meta key that a judge or a fresh clone may not have.
                     val displayStep = currentStep?.type in
                             setOf("text", "image", "video", "segment", "animation", "reveal", "concept", "example", "input", "challenge")
@@ -1016,7 +1019,13 @@ internal fun ChatModeSelectorBar(
  * bottom chrome is a different problem and already handled by [FollowBottomBarGrowth].
  */
 @Composable
-internal fun ChatErrorLine(text: String, onRetry: (() -> Unit)?, glassState: GlassState) {
+internal fun ChatErrorLine(
+    text: String,
+    onRetry: (() -> Unit)?,
+    glassState: GlassState,
+    // Non-null only for the "no Meta key" error: the way out is Settings, not a blind retry.
+    onOpenSettings: (() -> Unit)? = null,
+) {
     GlassSurface(
         state = glassState,
         shape = RoundedCornerShape(16.dp),
@@ -1036,6 +1045,11 @@ internal fun ChatErrorLine(text: String, onRetry: (() -> Unit)?, glassState: Gla
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.weight(1f),
             )
+            if (onOpenSettings != null) {
+                TextButton(onClick = onOpenSettings, modifier = Modifier.testTag("chat_error_open_settings")) {
+                    Text(tr("Настройки", "Open Settings"))
+                }
+            }
             if (onRetry != null) {
                 TextButton(onClick = onRetry) {
                     Icon(

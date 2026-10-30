@@ -194,8 +194,8 @@ internal fun SelectorSheetContent(
       )
     }
     Spacer(modifier = Modifier.height(12.dp))
-    // LazyColumn, not forEach in a scrolling column: the OpenRouter model list is live, it has hundreds of
-    // rows, and eagerly composing all the cards would mean a sheet frozen for half a second on every opening.
+    // LazyColumn, not forEach in a scrolling column: a list of cards composed eagerly would mean a sheet
+    // frozen for a moment on every opening if the catalog grows.
     // heightIn(max) instead of fillMaxHeight — a short list (theme, provider) must stay a short sheet rather
     // than expand to the whole screen.
     LazyColumn(

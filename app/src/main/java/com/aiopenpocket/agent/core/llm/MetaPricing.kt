@@ -7,7 +7,7 @@ package com.aiopenpocket.agent.core.llm
  * Price of a direct Meta Model API call in USD by Meta's price list, or `null` for a model that is not
  * on the list.
  *
- * We compute it ourselves because Meta, unlike OpenRouter, sends only tokens in usage. The Meta key is
+ * We compute it ourselves because Meta sends only tokens in usage, not a price. The Meta key is
  * entered by the user, and their credits are being spent — a spend card without money on this route
  * would be missing it exactly where money matters most.
  *

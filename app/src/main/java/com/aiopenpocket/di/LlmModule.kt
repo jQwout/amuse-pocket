@@ -6,13 +6,12 @@ package com.aiopenpocket.di
 // @trace video-na-vhod-v-uroke-muse-spark-08ccdb
 // @trace sam-segmentation-boxes-in-a-lesson-c3ea52
 
-import com.aiopenpocket.BuildConfig
 import com.aiopenpocket.agent.core.llm.ImageGenClient
 import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.agent.core.llm.LlmUsageRecorder
+import com.aiopenpocket.agent.core.llm.ModelKeyGate
 import com.aiopenpocket.agent.core.llm.ModelCatalog
-import com.aiopenpocket.agent.core.llm.bundledOpenRouterKey
 import com.aiopenpocket.agent.core.llm.ModelCatalogLoader
 import com.aiopenpocket.agent.core.llm.OpenAiCompatClient
 import com.aiopenpocket.agent.core.llm.ProviderConfig
@@ -20,8 +19,6 @@ import com.aiopenpocket.agent.core.llm.ProviderFallbackChain
 import com.aiopenpocket.agent.core.llm.SegmentationClient
 import com.aiopenpocket.agent.core.llm.SelectedLlmProvider
 import com.aiopenpocket.agent.core.llm.VideoUnderstandingClient
-import com.aiopenpocket.agent.core.llm.activeLlmProvider
-import com.aiopenpocket.agent.core.llm.isMetaModel
 import com.aiopenpocket.data.repository.SettingsRepository
 import dev.zacsweers.metro.BindingContainer
 import dev.zacsweers.metro.ContributesTo
@@ -35,24 +32,16 @@ import io.ktor.client.engine.android.Android
 object LlmModule {
 
   /**
-   * The OpenRouter key: from Settings, otherwise the one baked into the debug build from .env. One
-   * function for chat, images and video — otherwise Muse would one day work in the chat and silently
-   * fail in a lesson.
+   * The Meta Model API key: ONLY what the person entered (onboarding or Settings). There is no bundled
+   * key in any build, debug included (decision of Oct 30, 2026): the repository is public, and the
+   * secrets plugin copies `.env` into BuildConfig, i.e. into the artifact, so a bundled key would hand
+   * out the owner's Meta credits to anyone who builds the project. An empty key is not an error to hide:
+   * every model action meets it with a plain "add your key" message (see [ModelKeyGate]).
    */
-  private fun openRouterKey(settingsRepository: SettingsRepository): String =
-    settingsRepository.getApiKey("OPENROUTER").ifBlank { bundledOpenRouterKey(BuildConfig.OPENROUTER_API_KEY) }
+  private fun metaKey(settingsRepository: SettingsRepository): String =
+    settingsRepository.getApiKey(META_KEY_NAME).trim()
 
-  /**
-   * The Meta Model API key — ONLY from Settings: there is no bundled one in either the debug or the
-   * release build (decision of Oct 26, 2026). The repository is public, and the secrets plugin copies
-   * `.env` into BuildConfig, i.e. into the artifact: a bundled key would hand out Meta credits to
-   * anyone who builds the project. An empty key is not an error but "go through OpenRouter" (see
-   * [activeLlmProvider]).
-   */
-  private fun metaKey(settingsRepository: SettingsRepository): String = settingsRepository.getApiKey("META")
-
-  private fun activeProvider(settingsRepository: SettingsRepository): LlmProvider =
-    activeLlmProvider(metaKey(settingsRepository))
+  private const val META_KEY_NAME = "META"
 
   @Provides
   @SingleIn(AppScope::class)
@@ -64,43 +53,46 @@ object LlmModule {
   fun provideLlmHttpEngine(): HttpClientEngine = Android.create()
 
   /**
-   * Muse Image through OpenRouter — for lesson images. The key is the same as the chat's and is read on
-   * every generation: a key entered in Settings takes effect without a restart. The client treats an
-   * empty key as "do not draw" — the lesson shows the images bundled in the build.
+   * Muse Image — for lesson images. Deliberately handed an EMPTY key for now, so the client always
+   * takes its "no image" path and the lesson shows the images bundled in the build.
+   *
+   * TODO(meta-only follow-up): Muse Image used to go through OpenRouter, which no longer exists in this
+   * project. The client's defaults already point at the Meta Model API, but the request shape has not
+   * been verified against dev.meta.ai; the follow-up task checks it and replaces the empty key with
+   * `metaKey(settingsRepository)`.
    */
   @Provides
   @SingleIn(AppScope::class)
   fun provideImageGenClient(
     engine: HttpClientEngine,
-    settingsRepository: SettingsRepository,
     usageRecorder: LlmUsageRecorder,
   ): ImageGenClient = ImageGenClient(
     engine = engine,
-    apiKey = { openRouterKey(settingsRepository) },
+    apiKey = { "" },
     usageRecorder = usageRecorder,
   )
 
   /**
-   * Muse Spark through OpenRouter — for video in a lesson. The key is the same as for images; video has
-   * not been moved to the direct Meta Model API yet, so with only a Meta key the video lesson will not
-   * answer.
+   * Muse Spark watching a clip in the video lesson. Handed an EMPTY key for now, so the client always
+   * returns `null` and the lesson step says the video could not be analyzed.
+   *
+   * TODO(meta-only follow-up): same as [provideImageGenClient] — video used to go through OpenRouter;
+   * verify the Meta request shape for `video_url` and wire in `metaKey(settingsRepository)`.
    */
   @Provides
   @SingleIn(AppScope::class)
   fun provideVideoUnderstandingClient(
     engine: HttpClientEngine,
-    settingsRepository: SettingsRepository,
     usageRecorder: LlmUsageRecorder,
   ): VideoUnderstandingClient = VideoUnderstandingClient(
     engine = engine,
-    apiKey = { openRouterKey(settingsRepository) },
+    apiKey = { "" },
     usageRecorder = usageRecorder,
   )
 
   /**
-   * SAM 3.1 outlining objects in a lesson photo. The key is the META one and ONLY that: SAM exists only
-   * on the direct Meta Model API, OpenRouter does not carry it, so with an OpenRouter key alone the
-   * lesson step says "add a Meta key" instead of sending a request that is guaranteed to fail.
+   * SAM 3.1 outlining objects in a lesson photo, on the person's Meta key; without one the lesson step
+   * says "add a Meta key" instead of sending a request that is guaranteed to fail.
    */
   @Provides
   @SingleIn(AppScope::class)
@@ -115,14 +107,21 @@ object LlmModule {
   )
 
   /**
-   * The provider for the whole app: chat, the plan engine and background heartbeats. The Meta key
-   * decides it (see [activeLlmProvider]); it is read on every access, so an entered key takes effect
-   * from the next turn.
+   * The provider for the whole app: chat, the plan engine and background heartbeats. There is one, the
+   * direct Meta Model API; the seam stays so consumers need not know that.
    */
   @Provides
   @SingleIn(AppScope::class)
-  fun provideSelectedLlmProvider(settingsRepository: SettingsRepository): SelectedLlmProvider =
-    SelectedLlmProvider { activeProvider(settingsRepository) }
+  fun provideSelectedLlmProvider(): SelectedLlmProvider = SelectedLlmProvider { LlmProvider.META }
+
+  /**
+   * "Has the person entered a Meta key?" — read on every access, so a key typed in Settings or
+   * onboarding works from the very next turn, with no restart.
+   */
+  @Provides
+  @SingleIn(AppScope::class)
+  fun provideModelKeyGate(settingsRepository: SettingsRepository): ModelKeyGate =
+    ModelKeyGate { metaKey(settingsRepository).isNotBlank() }
 
   @Provides
   @SingleIn(AppScope::class)
@@ -130,20 +129,13 @@ object LlmModule {
     settingsRepository: SettingsRepository,
     modelCatalogLoader: ModelCatalogLoader,
   ): ProviderFallbackChain {
-    // The OpenRouter catalog (see ModelCatalogLoader): an asset seed that in practice is replaced by the
-    // list from /api/v1/models. The Meta catalog is a static asset.
-    // OpenAiCompatClient posts to the full endpoint, so /chat/completions is appended to base_url.
-    fun configsFor(provider: LlmProvider, catalog: ModelCatalog, apiKey: () -> String): List<ProviderConfig> {
+    // The Meta catalog is a static asset (see ModelCatalogLoader). OpenAiCompatClient posts to the full
+    // endpoint, so /chat/completions is appended to base_url.
+    fun configsFor(catalog: ModelCatalog): List<ProviderConfig> {
       val endpoint = catalog.baseUrl.trimEnd('/') + "/chat/completions"
-      // Only Meta models: the app runs on Muse. On OpenRouter the filter is here, not only in parsing the
-      // live catalog: a cache written by a previous version may still hold foreign models, and a model
-      // chosen in Settings before an update would otherwise stay first in the chain. The direct Meta
-      // Model API has no foreign models, and its ids have no "meta/" prefix — filtering by the prefix
-      // would throw out the whole catalog.
-      val models = if (provider == LlmProvider.OPENROUTER) catalog.models.filter { isMetaModel(it.name) } else catalog.models
-      return models.map { entry ->
+      return catalog.models.map { entry ->
         ProviderConfig(
-          name = provider,
+          name = LlmProvider.META,
           baseUrl = endpoint,
           model = entry.name,
           maxTokens = entry.maxTokens,
@@ -153,29 +145,16 @@ object LlmModule {
           // The "tool-capable models only" gate is applied by ProviderFallbackChain.resolve — here we just
           // pass the fact from the catalog on to it.
           supportsTools = entry.supportsTools,
-          apiKeyResolver = apiKey,
+          apiKeyResolver = { metaKey(settingsRepository) },
         )
       }
     }
 
-    // The catalog is updated at runtime (OpenRouterCatalogService writes the cache), so it is rebuilt on
-    // every resolve — otherwise a new list would not take effect until the process restarts.
+    // Rebuilt on every resolve: cheap (a four-line asset), and a model change in Settings is then picked
+    // up from the very next turn.
     return ProviderFallbackChain(
-      configsFor = { provider ->
-        when (provider) {
-          // The key from Settings takes priority; otherwise the one baked into the debug build from .env.
-          LlmProvider.OPENROUTER -> configsFor(provider, modelCatalogLoader.loadOpenRouter()) {
-            openRouterKey(settingsRepository)
-          }
-          // The key comes only from Settings — see metaKey.
-          LlmProvider.META -> configsFor(provider, modelCatalogLoader.loadMeta()) {
-            metaKey(settingsRepository)
-          }
-        }
-      },
-      // Each route has its own model choice (see SettingsRepository.getSelectedModel): ids on OpenRouter
-      // and on Meta differ, and a shared choice would show a model in Settings the chain does not know.
-      preferredModel = { settingsRepository.getSelectedModel(activeProvider(settingsRepository).name) },
+      configsFor = { configsFor(modelCatalogLoader.loadMeta()) },
+      preferredModel = { settingsRepository.getSelectedModel(LlmProvider.META.name) },
     )
   }
 }

@@ -18,8 +18,8 @@ import org.junit.Test
  *
  * 1. Every branch was a bare Russian literal, so the English demo path showed «Модель не ответила: нет
  *    сети или сбой у провайдера» to a judge with a bad connection.
- * 2. Three branches named OpenRouter, while there are two routes to the models (see [LlmProvider]):
- *    someone with a Meta Model API key was sent to the wrong site to check the wrong key.
+ * 2. Three branches named a provider the person was not using, and sent them to the wrong site to check
+ *    the wrong key. There is one provider now, the Meta Model API, and a key problem must say so.
  */
 class UserFacingLlmErrorTest {
 
@@ -38,15 +38,13 @@ class UserFacingLlmErrorTest {
   fun `no branch leaves Russian in the English interface`() {
     AppLanguage.code = AppLanguage.EN
     for (code in allCodes) {
-      for (provider in listOf(LlmProvider.META, LlmProvider.OPENROUTER, null)) {
-        for (interrupted in listOf(true, false)) {
-          val text = userFacingLlmError(code, interrupted, provider)
-          assertTrue("empty text for code=$code provider=$provider", text.isNotBlank())
-          assertFalse(
-            "Russian in the English text for code=$code provider=$provider interrupted=$interrupted: $text",
-            CYRILLIC.containsMatchIn(text),
-          )
-        }
+      for (interrupted in listOf(true, false)) {
+        val text = userFacingLlmError(code, interrupted)
+        assertTrue("empty text for code=$code", text.isNotBlank())
+        assertFalse(
+          "Russian in the English text for code=$code interrupted=$interrupted: $text",
+          CYRILLIC.containsMatchIn(text),
+        )
       }
     }
   }
@@ -56,57 +54,38 @@ class UserFacingLlmErrorTest {
   fun `every branch speaks Russian in the Russian interface`() {
     AppLanguage.code = AppLanguage.RU
     for (code in allCodes) {
-      val text = userFacingLlmError(code, interrupted = false, provider = LlmProvider.META)
+      val text = userFacingLlmError(code, interrupted = false)
       assertTrue("no Russian for code=$code: $text", CYRILLIC.containsMatchIn(text))
     }
   }
 
   @Test
-  fun `a key problem on the Meta route never names OpenRouter`() {
+  fun `a rejected key or an empty balance names the Meta Model API and nothing else`() {
     for (language in listOf(AppLanguage.RU, AppLanguage.EN)) {
       AppLanguage.code = language
-      for (code in listOf("blank_key", "401", "403", "402")) {
-        val text = userFacingLlmError(code, interrupted = false, provider = LlmProvider.META)
-        assertFalse("$language/$code sends a Meta key owner to OpenRouter: $text", text.contains("OpenRouter"))
+      for (code in listOf("401", "403", "402")) {
+        val text = userFacingLlmError(code, interrupted = false)
+        assertFalse("$language/$code names a provider that is gone: $text", text.contains("OpenRouter"))
         assertTrue("$language/$code does not say whose key it is: $text", text.contains("Meta Model API"))
       }
     }
   }
 
+  /**
+   * The missing-key text is the "add your key" message the person has to be able to act on: it says what
+   * to add (a Meta key) and where (Settings), in both languages — and it is not a provider's raw 401.
+   */
   @Test
-  fun `a key problem on the OpenRouter route names OpenRouter`() {
-    for (language in listOf(AppLanguage.RU, AppLanguage.EN)) {
-      AppLanguage.code = language
-      for (code in listOf("blank_key", "401", "403", "402")) {
-        val text = userFacingLlmError(code, interrupted = false, provider = LlmProvider.OPENROUTER)
-        assertTrue("$language/$code does not say whose key it is: $text", text.contains("OpenRouter"))
-        assertFalse("$language/$code blames Meta for an OpenRouter key: $text", text.contains("Meta"))
-      }
-    }
-  }
-
-  /** An unknown route (an empty chain, an error from inside the stream): the wording must fit both. */
-  @Test
-  fun `without a known route no provider is named at all`() {
-    for (language in listOf(AppLanguage.RU, AppLanguage.EN)) {
-      AppLanguage.code = language
-      for (code in listOf("blank_key", "401", "403", "402")) {
-        val text = userFacingLlmError(code, interrupted = false, provider = null)
-        assertFalse("$language/$code guesses a provider: $text", text.contains("OpenRouter"))
-        assertFalse("$language/$code guesses a provider: $text", text.contains("Meta"))
-      }
-    }
-  }
-
-  /** The same failure must read differently on the two routes — otherwise the route is being ignored. */
-  @Test
-  fun `the route changes the message`() {
+  fun `a blank key is the add-your-key message, not an HTTP error`() {
     AppLanguage.code = AppLanguage.EN
-    for (code in listOf("blank_key", "401", "402")) {
-      val meta = userFacingLlmError(code, interrupted = false, provider = LlmProvider.META)
-      val openRouter = userFacingLlmError(code, interrupted = false, provider = LlmProvider.OPENROUTER)
-      assertFalse("code=$code reads the same on both routes: $meta", meta == openRouter)
-    }
+    val text = userFacingLlmError("blank_key", interrupted = false)
+    assertEquals(missingKeyMessage(), text)
+    assertTrue(text, text.contains("Add your Meta API key"))
+    assertTrue(text, text.contains("Settings"))
+    assertFalse(text, text.contains("401") || text.contains("HTTP"))
+    AppLanguage.code = AppLanguage.RU
+    val ru = userFacingLlmError("blank_key", interrupted = false)
+    assertTrue(ru, ru.contains("Meta API") && ru.contains("Настройках"))
   }
 
   /** The exact wording of the line the device showed in English, so a silent revert is caught. */
@@ -115,17 +94,17 @@ class UserFacingLlmErrorTest {
     AppLanguage.code = AppLanguage.EN
     assertEquals(
       "No answer from the model: either there is no network, or the provider is down. Try again.",
-      userFacingLlmError(null, interrupted = false, provider = LlmProvider.META),
+      userFacingLlmError(null, interrupted = false),
     )
   }
 
-  /** A truncation is about the model's token budget, not a key: the route must not leak into those two texts. */
+  /** A truncation is about the model's token budget, not a key: the key must not leak into those two texts. */
   @Test
   fun `a truncated answer says nothing about any provider`() {
     AppLanguage.code = AppLanguage.EN
     for (code in listOf(CODE_LENGTH_EMPTY, CODE_LENGTH_TOOL_CALL)) {
-      val text = userFacingLlmError(code, interrupted = false, provider = LlmProvider.OPENROUTER)
-      assertFalse("code=$code names a provider: $text", text.contains("OpenRouter"))
+      val text = userFacingLlmError(code, interrupted = false)
+      assertFalse("code=$code names a provider: $text", text.contains("Meta"))
       assertTrue("code=$code does not offer a way out: $text", text.contains("Retry"))
     }
   }

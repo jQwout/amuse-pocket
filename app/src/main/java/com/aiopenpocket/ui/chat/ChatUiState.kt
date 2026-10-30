@@ -49,6 +49,11 @@ data class ChatUiState(
   // deltas do not rebuild the whole screen — only the stream bubble.
   val toolTrace: List<ToolTrace> = emptyList(),
   val error: String? = null,
+  /**
+   * [error] is the "no Meta key" one: the banner then offers a way to open Settings. Set together with
+   * [error] from the turn's status and cleared with it, so a stale flag cannot decorate a different error.
+   */
+  val errorNeedsKey: Boolean = false,
   /** True when the last failed turn can be retried (we still have the last user message). */
   val canRetry: Boolean = false,
   val showToolTrace: Boolean = false,

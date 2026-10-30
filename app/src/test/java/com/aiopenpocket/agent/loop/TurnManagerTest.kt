@@ -5,6 +5,7 @@ package com.aiopenpocket.agent.loop
 // @trace approval-outcome-honesty-554a8c
 
 import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.llm.missingKeyMessage
 import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
@@ -148,7 +149,10 @@ class TurnManagerTest {
   private val pendingApprovalIds = mutableSetOf<String>()
 
   /** What is "chosen in Settings" at the time of the turn: the test changes it between turns. */
-  private var selectedProvider = LlmProvider.OPENROUTER
+  private var selectedProvider = LlmProvider.META
+
+  /** Whether the person has entered a Meta key at the time of the turn: the no-key tests flip it. */
+  private var hasModelKey = true
 
   // The manager's scope is on UnconfinedTestDispatcher(testScheduler): turns run eagerly on the same
   // virtual scheduler as the test — advanceUntilIdle() catches up with any delays. The Job is taken
@@ -163,6 +167,7 @@ class TurnManagerTest {
     scope = CoroutineScope(backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)),
     monotonicNowMs = { 100_000L },
     selectedProvider = { selectedProvider },
+    hasModelKey = { hasModelKey },
     log = NoopLog,
   )
 
@@ -562,6 +567,60 @@ class TurnManagerTest {
     assertEquals(2, assistant.size)
     assertEquals("{\"type\":\"todo\"}", assistant[0].cardSpec)
     assertEquals("" to "{\"type\":\"table\"}", assistant[1].content to assistant[1].cardSpec)
+  }
+
+  /**
+   * No bundled key exists, so a fresh install has none. The first message must meet that with the
+   * "add your key" message and a way to Settings, not with Meta's raw HTTP 401 — and the model must not
+   * be called at all (a keyless request is guaranteed to fail).
+   */
+  @Test
+  fun `без ключа ход не доходит до модели и просит добавить ключ`() = runTest {
+    hasModelKey = false
+    val m = manager()
+
+    m.launchTurn("c1", "Здравствуй", AgentMode.CHAT)
+    advanceUntilIdle()
+
+    assertTrue("модель вызвана без ключа", executor.calls.isEmpty())
+    val status = m.sessions.value.getValue("c1").status.value as TurnStatus.Failed
+    assertTrue("экран должен знать, что дело в ключе, чтобы показать «Открыть настройки»", status.needsKey)
+    assertEquals(missingKeyMessage(), status.message)
+    assertFalse("сообщение не должно быть сырым HTTP-кодом", status.message.contains("401"))
+    // The person's message stays in the chat, and "Retry" is offered: after typing the key they do not retype it.
+    assertEquals(listOf("user" to "Здравствуй"), persistence.rows.map { it.role to it.content })
+    assertTrue(status.canRetry)
+  }
+
+  @Test
+  fun `после ввода ключа Retry доводит тот же ход до ответа без дубля сообщения`() = runTest {
+    hasModelKey = false
+    executor.script = { flowOf(AgentEvent.Completed(finished("Привет!"))) }
+    val m = manager()
+    m.launchTurn("c1", "Здравствуй", AgentMode.CHAT)
+    advanceUntilIdle()
+    assertTrue(executor.calls.isEmpty())
+
+    hasModelKey = true // the person typed the key in Settings and came back
+    m.retry("c1")
+    advanceUntilIdle()
+
+    assertEquals(1, executor.calls.size)
+    assertEquals(listOf("user" to "Здравствуй", "assistant" to "Привет!"), persistence.rows.map { it.role to it.content })
+    assertTrue(m.sessions.value.getValue("c1").status.value is TurnStatus.Completed)
+  }
+
+  /** An ordinary failure must not be mistaken for a missing key: the screen would send the person to Settings for nothing. */
+  @Test
+  fun `обычная ошибка модели не помечается как отсутствие ключа`() = runTest {
+    executor.script = { flowOf(AgentEvent.Error("упало")) }
+    val m = manager()
+
+    m.launchTurn("c1", "вопрос", AgentMode.CHAT)
+    advanceUntilIdle()
+
+    val status = m.sessions.value.getValue("c1").status.value as TurnStatus.Failed
+    assertFalse(status.needsKey)
   }
 
   @Test

@@ -173,7 +173,7 @@ class ReactLoopHooksTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = toolRegistry.getAllSchemas(),
-      provider = LlmProvider.OPENROUTER,
+      provider = LlmProvider.META,
       agent = agentWithHooks(logHooks, toolNames = setOf("fake_tool")),
     ) { }
 
@@ -194,7 +194,7 @@ class ReactLoopHooksTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = emptyList(),
-      provider = LlmProvider.OPENROUTER,
+      provider = LlmProvider.META,
       agent = agentWithHooks(listOf(errorHook)),
     ) { }
 
@@ -212,7 +212,7 @@ class ReactLoopHooksTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = emptyList(),
-      provider = LlmProvider.OPENROUTER,
+      provider = LlmProvider.META,
       agent = null,
     ) { }
 
@@ -237,7 +237,7 @@ class ReactLoopHooksTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = toolRegistry.getAllSchemas(),
-      provider = LlmProvider.OPENROUTER,
+      provider = LlmProvider.META,
       agent = agentWithHooks(listOf(instructionHook), toolNames = setOf("fake_tool")),
     ) { }
 
@@ -287,7 +287,7 @@ class ReactLoopHooksTest {
       conversationId = "c1",
       messages = messages,
       tools = toolRegistry.getAllSchemas(),
-      provider = LlmProvider.OPENROUTER,
+      provider = LlmProvider.META,
       maxIterations = 2,
     ) { emitted += it }
 
@@ -318,7 +318,7 @@ class ReactLoopHooksTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = toolRegistry.getAllSchemas(),
-      provider = LlmProvider.OPENROUTER,
+      provider = LlmProvider.META,
       maxIterations = 1,
     ) { }
 
@@ -337,7 +337,7 @@ class ReactLoopHooksTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = toolRegistry.getAllSchemas(),
-      provider = LlmProvider.OPENROUTER,
+      provider = LlmProvider.META,
       maxIterations = 1,
       wrapUpAtLimit = false,
     ) { }
@@ -357,7 +357,7 @@ class ReactLoopHooksTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = toolRegistry.getAllSchemas(),
-      provider = LlmProvider.OPENROUTER,
+      provider = LlmProvider.META,
       agent = agentWithHooks(listOf(stopHook), toolNames = setOf("fake_tool")),
       maxIterations = 5,
     ) { }
@@ -390,7 +390,7 @@ class ReactLoopHooksTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = toolRegistry.getAllSchemas(),
-      provider = LlmProvider.OPENROUTER,
+      provider = LlmProvider.META,
       agent = agentWithHooks(listOf(denyHook), toolNames = setOf("fake_tool")),
     ) { }
 
@@ -416,7 +416,7 @@ class ReactLoopHooksTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = toolRegistry.getAllSchemas(),
-      provider = LlmProvider.OPENROUTER,
+      provider = LlmProvider.META,
       agent = agentWithHooks(listOf(approvalHook), toolNames = setOf("fake_tool")),
     ) { }
 
@@ -434,7 +434,7 @@ class ReactLoopHooksTest {
       conversationId = "c1",
       messages = mutableListOf(ChatMessage(role = "system", content = "sys")),
       tools = emptyList(),
-      provider = LlmProvider.OPENROUTER,
+      provider = LlmProvider.META,
       agent = agentWithHooks(listOf(stopHook)),
     ) { }
 
@@ -469,7 +469,7 @@ class ReactLoopHooksTest {
       conversationId = "c1",
       messages = messages,
       tools = toolRegistry.getAllSchemas(),
-      provider = LlmProvider.OPENROUTER,
+      provider = LlmProvider.META,
       agent = agentWithHooks(listOf(stopHook), toolNames = setOf("first", "second")),
     ) { }
 

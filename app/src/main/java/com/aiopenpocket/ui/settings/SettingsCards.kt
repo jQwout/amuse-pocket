@@ -51,7 +51,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aiopenpocket.agent.core.identity.ChatFontScale
-import com.aiopenpocket.agent.core.llm.LlmProvider
 import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.glass.glassCardSurface
 import com.aiopenpocket.ui.components.MarkdownText
@@ -176,25 +175,19 @@ internal fun MetaKeyHint(modifier: Modifier = Modifier) {
 private const val META_API_KEY_GUIDE_URL = "https://dev.meta.ai/docs/quickstart"
 
 /**
- * Where requests will go right now. The route is switched by a single pasted key (see
- * [com.aiopenpocket.agent.core.llm.activeLlmProvider]), and without this line a person would not learn that
- * entering a Meta key changed anything, and without any keys at all — would learn it from an error already in
- * the chat.
+ * Whether the model can be reached right now: the status under the key field. Without a key nothing goes
+ * out (see ModelKeyGate), and without this line a person would learn it from an error already in the chat.
  */
 @Composable
 internal fun ProviderRouteLine(
-  provider: LlmProvider,
-  openRouterKeyMissing: Boolean,
+  hasKey: Boolean,
   modifier: Modifier = Modifier,
 ) {
-  val noKey = provider == LlmProvider.OPENROUTER && openRouterKeyMissing
-  val text = when {
-    provider == LlmProvider.META ->
-      tr("Запросы идут напрямую в Meta Model API.", "Requests go straight to Meta Model API.")
-    noKey ->
-      tr("Ключа нет — запросы не уйдут. Введите ключ Meta Model API.", "No key yet — requests won't go out. Add a Meta Model API key.")
-    else ->
-      tr("Запросы идут через OpenRouter. С ключом Meta они пойдут напрямую.", "Requests go through OpenRouter. Add a Meta key to go direct.")
+  val noKey = !hasKey
+  val text = if (noKey) {
+    tr("Ключа нет — запросы не уйдут. Введите ключ Meta Model API.", "No key yet — requests won't go out. Add a Meta Model API key.")
+  } else {
+    tr("Запросы идут напрямую в Meta Model API.", "Requests go straight to Meta Model API.")
   }
   val color = if (noKey) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
   Row(
@@ -424,7 +417,7 @@ internal fun LlmUsageCard(
           style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.primary,
         )
-        // Three rows, not the whole list: OpenRouter has hundreds of models, and a tail of one-off calls answers
+        // Three rows, not the whole list: a tail of one-off calls answers
         // none of the questions people look here for. Models billed per picture are added on top: they have no
         // tokens to rank by, and they are money spent.
         modelUsageRows(usage.byModel).forEach { model ->

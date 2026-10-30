@@ -1,12 +1,16 @@
 package com.aiopenpocket.ui.onboarding
 
 // @trace ai-academy-onboarding-5d51bb
+// @trace vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53
 
 import com.aiopenpocket.i18n.tr
 
 /**
- * The steps of the initial setup wizard — exactly three: choose a language, explain who I am, ask the person
- * to tell about themselves.
+ * The steps of the initial setup wizard: choose a language, explain who I am, enter the Meta key, ask the
+ * person to tell about themselves.
+ *
+ * [KEY] sits right before [PROFILE] because that is the first step that calls a model: no key is bundled
+ * into any build, so the person brings their own. It can be skipped (the key goes into Settings later).
  *
  * What is DELIBERATELY not here and why:
  * - **Persona.** On the first launch a person has nothing to compare with — they have not seen a single
@@ -24,6 +28,7 @@ import com.aiopenpocket.i18n.tr
 enum class OnboardingStep {
   LANGUAGE,
   INTRO,
+  KEY,
   PROFILE,
 }
 
@@ -37,6 +42,8 @@ data class OnboardingUiState(
   /** The wizard does not ask for it — it goes to the settings as is (the default or the one saved earlier). */
   val selectedPersonaId: String = "sharp_partner",
   val aboutMeText: String = "",
+  /** The Meta Model API key as typed in the [OnboardingStep.KEY] step. Saved (trimmed) when the person moves on. */
+  val metaKeyInput: String = "",
   val isExtracting: Boolean = false,
   val extractionError: String? = null,
   val name: String = "",
@@ -52,6 +59,8 @@ data class OnboardingUiState(
   val canProceed: Boolean = when (currentStep) {
     OnboardingStep.LANGUAGE -> selectedLanguage.isNotBlank()
     OnboardingStep.INTRO -> isIntroComplete
+    // "Next" saves what is typed; with nothing typed the way forward is "Skip", not an empty save.
+    OnboardingStep.KEY -> metaKeyInput.isNotBlank()
     OnboardingStep.PROFILE -> aboutMeText.isNotBlank() && !isExtracting && !isSaving
   }
 
@@ -60,7 +69,7 @@ data class OnboardingUiState(
   // language: the heading switched to English, the button stayed "Далее". Read at composition time, tr() also
   // makes the screen follow the language by itself.
   val primaryButtonLabel: String get() = when (currentStep) {
-    OnboardingStep.LANGUAGE, OnboardingStep.INTRO -> tr("Далее", "Next")
+    OnboardingStep.LANGUAGE, OnboardingStep.INTRO, OnboardingStep.KEY -> tr("Далее", "Next")
     // PROFILE is the last step now: this button also finishes the setup.
     OnboardingStep.PROFILE -> tr("Готово", "Done")
   }

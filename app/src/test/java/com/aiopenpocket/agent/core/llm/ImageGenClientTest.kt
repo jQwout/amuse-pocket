@@ -63,10 +63,10 @@ class ImageGenClientTest {
 
     assertArrayEquals(png, image?.bytes)
     assertEquals("image/png", image?.mediaType)
-    assertEquals(ImageGenClient.OPENROUTER_IMAGES_URL, url)
+    assertEquals(ImageGenClient.META_IMAGES_URL, url)
     assertEquals("Bearer sk-test", auth)
-    // Exactly two fields: meta/muse-image on OpenRouter has no declared parameters at all.
-    assertEquals("""{"model":"meta/muse-image","prompt":"a red panda"}""", body)
+    // Exactly two fields: nothing but the model and the prompt is sent.
+    assertEquals("""{"model":"muse-image-1.0","prompt":"a red panda"}""", body)
   }
 
   /** Without a key the request is guaranteed to get a 401 — it must not be sent at all. */
@@ -107,8 +107,8 @@ class ImageGenClientTest {
     ImageGenClient(engine, { "k" }, usage).generate("p")
 
     val call = usage.calls.single()
-    assertEquals(LlmProvider.OPENROUTER, call.provider)
-    assertEquals("meta/muse-image", call.model)
+    assertEquals(LlmProvider.META, call.provider)
+    assertEquals("muse-image-1.0", call.model)
     assertEquals(4175, call.completionTokens)
     assertEquals(0.01, call.costUsd!!, 1e-9)
     assertFalse(call.estimated)

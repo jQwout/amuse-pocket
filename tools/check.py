@@ -168,10 +168,11 @@ def key_fingerprint(value):
 
 
 def env_key_fingerprints():
-    """The keys of the local .env, by fingerprint. The debug build bundles OPENROUTER_API_KEY into
-    BuildConfig on purpose (see app/build.gradle.kts and the README), so the artifact is expected to
-    carry it; that is also why checkReleaseSecrets exists for release. .env is gitignored and may be
-    absent (a fresh clone, CI) -- then nothing is expected and every key in the APK is a finding."""
+    """The keys of the local .env, by fingerprint. NO build bundles a key any more (the owner's decision
+    of Oct 30: the person enters their own Meta key in the app), so these fingerprints excuse nothing.
+    They are only used to NAME a leak: when a key found in the APK is one of this machine's .env keys,
+    the report says which variable it came from, which is the first thing the dev needs to know.
+    .env is gitignored and may be absent (a fresh clone, CI) -- then a finding is simply anonymous."""
     path = ROOT / ".env"
     if not path.exists():
         return {}
@@ -203,7 +204,8 @@ def find_keys(data):
 
 
 def check_secrets(report):
-    """T4: no live key in anything git tracks, .env is not tracked, and the release guard is wired."""
+    """T4: no live key in anything git tracks, .env is not tracked, and nothing can carry a key into
+    BuildConfig (no secrets plugin, no key-like buildConfigField)."""
     details = []
     for path in tracked_files():
         full = ROOT / path
@@ -229,36 +231,46 @@ def check_secrets(report):
         # carries .env through BuildConfig (docs/meta-hackathon-submission.md, section 4).
         details.append("build artifacts are tracked: " + ", ".join(apks[:5]))
 
+    # Since Oct 30 no key is bundled on purpose, so the old "release guard is wired" test is replaced by
+    # its cause: nothing may be able to copy a secret into BuildConfig. The Secrets Gradle Plugin copied
+    # every .env line there, and BuildConfig travels inside the artifact.
     gradle_text = read(APP_GRADLE) if APP_GRADLE.exists() else ""
-    if "checkReleaseSecrets" not in gradle_text:
-        details.append("the checkReleaseSecrets task is gone from app/build.gradle.kts: a release "
-                       "would carry .env inside BuildConfig")
-    elif not re.search(r"generateReleaseBuildConfig|bundleRelease|assembleRelease", gradle_text):
-        details.append("checkReleaseSecrets hangs on no release task, so it never runs")
+    code_lines = [l for l in gradle_text.splitlines() if not l.strip().startswith("//")]
+    code = "\n".join(code_lines)
+    if re.search(r"libs\.plugins\.secrets|secrets-gradle-plugin|\bsecrets\s*\{", code):
+        details.append("app/build.gradle.kts applies the Secrets Gradle Plugin: it copies .env into "
+                       "BuildConfig, i.e. into the artifact; the person enters their own key instead")
+    for m in re.finditer(r"buildConfigField\s*\(([^)]*)\)", code):
+        if re.search(r"KEY|TOKEN|SECRET|PASSWORD", m.group(1), re.I):
+            details.append("app/build.gradle.kts has a key-like buildConfigField: " + m.group(0)[:80])
+    if "checkReleaseSecrets" in code:
+        details.append("checkReleaseSecrets is back in app/build.gradle.kts: it guards a path "
+                       "(.env into BuildConfig) that must not exist; remove the path, not the guard")
 
     if details:
-        report.add("T4", "FAIL", "Live keys or build artifacts in what git tracks", details[:15])
+        report.add("T4", "FAIL", "Live keys, build artifacts, or a way to bundle keys", details[:15])
     else:
-        report.add("T4", "PASS", "No provider keys in tracked files; .env untracked; release guard wired")
+        report.add("T4", "PASS", "No provider keys in tracked files; .env untracked; nothing can copy a "
+                   "key into BuildConfig")
 
 
 def check_apk_keys(report):
     """T4a: the artifact is what a judge can unpack, so the keys are looked for inside it, not in the
     sources that produced it.
 
-    One key is expected here and must not read as a finding: the debug build copies .env into
-    BuildConfig by design, so the dev's own OpenRouter key is in the dex. Everything else is a FAIL --
-    a key from another provider, a key hardcoded in the sources, or a stale one. That is not a
-    hypothetical: a committed debug APK with a Google key from an earlier era is exactly why this
-    repository could not simply be made public (docs/meta-hackathon-submission.md, section 4).
+    NO key is expected: since Oct 30 nothing is bundled, debug included, because the person enters
+    their own Meta key in the app. Every key found is a FAIL -- one copied from .env, one from
+    another provider, one hardcoded in the sources, a stale one. That is not a hypothetical: a
+    committed debug APK with a Google key from an earlier era is exactly why this repository could not
+    simply be made public (docs/meta-hackathon-submission.md, section 4).
 
-    So the artifact is compared against .env by fingerprint, never by value. No .env (a fresh clone,
-    CI) means nothing is expected and every key found is a finding."""
+    A key that matches this machine's .env (by fingerprint, never by value) is still a FAIL; the
+    report only adds which .env variable it was, so the dev can find the path that carried it."""
     if not APK.exists():
         report.add("T4a", "FAIL", "No APK after a successful build, so nothing was scanned", [rel(APK)])
         return
-    expected = env_key_fingerprints()
-    found, bundled, scanned = {}, {}, 0
+    from_env = env_key_fingerprints()
+    found, scanned = {}, 0
     try:
         with zipfile.ZipFile(str(APK)) as zf:
             for info in zf.infolist():
@@ -267,27 +279,22 @@ def check_apk_keys(report):
                 data = zf.read(info)
                 scanned += 1
                 for kind, value in find_keys(data):
-                    name = expected.get(key_fingerprint(value))
-                    if name:
-                        bundled.setdefault(name, set()).add(info.filename)
-                    else:
-                        found.setdefault((info.filename, kind, key_mask(value)), None)
+                    # The .env variable name is a hint about the source of the leak, not an excuse.
+                    name = from_env.get(key_fingerprint(value))
+                    shown = key_mask(value) + (" (the value of %s in .env)" % name if name else "")
+                    found.setdefault((info.filename, kind, shown), None)
     except (zipfile.BadZipFile, OSError) as e:
         report.add("T4a", "FAIL", "The APK could not be read, so it was not scanned", ["%s: %s" % (rel(APK), e)])
         return
 
-    note = ["%s from .env, bundled into BuildConfig by the debug build, in %s"
-            % (name, ", ".join(sorted(where))) for name, where in sorted(bundled.items())]
-    if note:
-        note.append("this debug APK therefore carries a live key: do not commit it or hand it to anyone")
     if not scanned:
         report.add("T4a", "FAIL", "The APK holds no entries, so the scan proves nothing", [rel(APK)])
     elif found:
-        report.add("T4a", "FAIL", "Keys inside the debug APK that .env does not account for",
-                   ["%s: %s %s" % (f, k, v) for f, k, v in sorted(found)][:15] + note)
+        report.add("T4a", "FAIL", "Keys inside the debug APK, which must carry none",
+                   ["%s: %s %s" % (f, k, v) for f, k, v in sorted(found)][:15]
+                   + ["this APK carries a live key: do not commit it or hand it to anyone"])
     else:
-        report.add("T4a", "PASS", "No unaccounted key in any of the %d entries of the debug APK" % scanned,
-                   note)
+        report.add("T4a", "PASS", "No key in any of the %d entries of the debug APK" % scanned)
 
 
 def check_traxer(report):
@@ -1045,7 +1052,7 @@ def check_english_lessons(report):
 
 def check_meta_route(report):
     """R2: Stage 1 of the judging is pass/fail on "Meta Model API and/or Meta's open weights".
-    OpenRouter is neither, so the direct route has to be the one in the build."""
+    Anything that is not the direct Meta route fails it, so that route has to be the one in the build."""
     details = []
     provider = JAVA / "com" / "aiopenpocket" / "agent" / "core" / "llm" / "LlmProvider.kt"
     catalog = JAVA / "com" / "aiopenpocket" / "agent" / "core" / "llm" / "ModelCatalog.kt"

@@ -44,7 +44,7 @@ class OpenAiCompatClientFallbackTest {
   """.trimIndent()
 
   private fun config(model: String) = ProviderConfig(
-    name = LlmProvider.OPENROUTER,
+    name = LlmProvider.META,
     baseUrl = "https://nim.test/chat/completions",
     model = model,
     apiKeyResolver = { "test-key" },
@@ -63,7 +63,7 @@ class OpenAiCompatClientFallbackTest {
   }
 
   private fun clientOf(models: List<String>, engine: MockEngine) = OpenAiCompatClient(
-    fallbackChain = ProviderFallbackChain(mapOf(LlmProvider.OPENROUTER to models.map { config(it) })),
+    fallbackChain = ProviderFallbackChain(mapOf(LlmProvider.META to models.map { config(it) })),
     engine = engine,
     usageRecorder = NoOpLlmUsageRecorder,
   )
@@ -76,7 +76,7 @@ class OpenAiCompatClientFallbackTest {
       engine = engineFor(mapOf("empty-model" to emptySse, "good-model" to textSse), calls),
     )
 
-    val events = client.streamChat(emptyList(), emptyList(), LlmProvider.OPENROUTER).toList()
+    val events = client.streamChat(emptyList(), emptyList(), LlmProvider.META).toList()
 
     // An empty 200 is not an answer: the turn must reach the next model, not end with nothing.
     assertEquals(listOf("empty-model", "good-model"), calls)
@@ -93,7 +93,7 @@ class OpenAiCompatClientFallbackTest {
       engine = engineFor(mapOf("good-model" to textSse, "never-called" to textSse), calls),
     )
 
-    client.streamChat(emptyList(), emptyList(), LlmProvider.OPENROUTER).toList()
+    client.streamChat(emptyList(), emptyList(), LlmProvider.META).toList()
 
     // Invariant: once a real answer arrives, we do not go further down the chain (or we would glue two answers into one).
     assertEquals(listOf("good-model"), calls)
@@ -113,7 +113,7 @@ class OpenAiCompatClientFallbackTest {
     }
     val client = clientOf(models = listOf("rejecting-model", "never-called"), engine = engine)
 
-    val events = client.streamChat(emptyList(), emptyList(), LlmProvider.OPENROUTER).toList()
+    val events = client.streamChat(emptyList(), emptyList(), LlmProvider.META).toList()
 
     // The next model would get a refusal of the request itself too — no point running the chain.
     assertEquals(listOf("rejecting-model"), calls)
@@ -135,7 +135,7 @@ class OpenAiCompatClientFallbackTest {
       engine = engineFor(mapOf("thinker" to lengthSse, "never-called" to textSse), calls),
     )
 
-    val events = client.streamChat(emptyList(), emptyList(), LlmProvider.OPENROUTER).toList()
+    val events = client.streamChat(emptyList(), emptyList(), LlmProvider.META).toList()
 
     assertEquals(listOf("thinker"), calls)
     assertEquals(CODE_LENGTH_EMPTY, (events.single() as StreamEvent.Error).code)
@@ -149,7 +149,7 @@ class OpenAiCompatClientFallbackTest {
       engine = engineFor(mapOf("empty-1" to emptySse, "empty-2" to emptySse), calls),
     )
 
-    val events = client.streamChat(emptyList(), emptyList(), LlmProvider.OPENROUTER).toList()
+    val events = client.streamChat(emptyList(), emptyList(), LlmProvider.META).toList()
 
     // The chain is exhausted — the user must see an error, not a silent screen.
     assertEquals(listOf("empty-1", "empty-2"), calls)

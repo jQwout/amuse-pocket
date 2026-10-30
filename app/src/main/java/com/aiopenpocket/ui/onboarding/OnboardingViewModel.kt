@@ -1,6 +1,7 @@
 package com.aiopenpocket.ui.onboarding
 
 // @trace ai-academy-onboarding-5d51bb
+// @trace vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,6 +9,7 @@ import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.memory.model.UserProfile
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
 import com.aiopenpocket.agent.core.profile.ExtractUserProfileUseCase
+import com.aiopenpocket.data.repository.SettingsRepository
 import com.aiopenpocket.di.AppScope
 import com.aiopenpocket.i18n.AppLanguage
 import com.aiopenpocket.i18n.tr
@@ -15,6 +17,7 @@ import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
@@ -30,6 +34,7 @@ class OnboardingViewModel(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val memoryRepository: MemoryRepository,
     private val extractUserProfile: ExtractUserProfileUseCase,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
     // The initial choice is the current language, not "ru" by default: the language is written to the settings
@@ -62,6 +67,10 @@ class OnboardingViewModel(
                 _state.update { it.copy(aboutMeText = intent.value, extractionError = null) }
             }
 
+            is OnboardingIntent.UpdateMetaKey -> _state.update { it.copy(metaKeyInput = intent.value, error = null) }
+
+            OnboardingIntent.SkipMetaKey -> if (_state.value.currentStep == OnboardingStep.KEY) goToStep(OnboardingStep.PROFILE)
+
             OnboardingIntent.Complete -> completeOnboarding()
         }
     }
@@ -70,6 +79,9 @@ class OnboardingViewModel(
         viewModelScope.launch {
             val personaId = userPreferencesRepository.getDefaultPersonaId()
             val language = userPreferencesRepository.getLanguage()
+            // So re-entering the wizard from the roadmap shows the key that is already saved. IO: the first
+            // access to EncryptedSharedPreferences brings up the Keystore.
+            val savedKey = withContext(Dispatchers.IO) { settingsRepository.getApiKey(META_KEY_NAME) }
             val facts = memoryRepository.getFactsByCategory("profile").associate { it.key to it.value }
             val stored = UserProfile(
                 name = facts["user.name"].orEmpty(),
@@ -83,6 +95,8 @@ class OnboardingViewModel(
                 it.mergeProfile(stored).copy(
                     selectedPersonaId = personaId,
                     selectedLanguage = language,
+                    // Typed-in text wins over the stored key: a late disk read must not wipe what is being typed.
+                    metaKeyInput = it.metaKeyInput.ifBlank { savedKey },
                 )
             }
         }
@@ -146,7 +160,8 @@ class OnboardingViewModel(
         if (!current.canProceed) return
         when (current.currentStep) {
             OnboardingStep.LANGUAGE -> goToStep(OnboardingStep.INTRO)
-            OnboardingStep.INTRO -> goToStep(OnboardingStep.PROFILE)
+            OnboardingStep.INTRO -> goToStep(OnboardingStep.KEY)
+            OnboardingStep.KEY -> saveMetaKeyAndContinue()
             // PROFILE is the last step: parse the story about oneself and finish the setup on that.
             OnboardingStep.PROFILE -> extractProfileAndFinish()
         }
@@ -155,8 +170,33 @@ class OnboardingViewModel(
     private fun goToPreviousStep() {
         when (_state.value.currentStep) {
             OnboardingStep.INTRO -> goToStep(OnboardingStep.LANGUAGE)
-            OnboardingStep.PROFILE -> goToStep(OnboardingStep.INTRO)
+            OnboardingStep.KEY -> goToStep(OnboardingStep.INTRO)
+            OnboardingStep.PROFILE -> goToStep(OnboardingStep.KEY)
             OnboardingStep.LANGUAGE -> Unit
+        }
+    }
+
+    /**
+     * Saves the typed Meta key and moves on to the profile step. The key is stored EXACTLY the way Settings
+     * stores it (`setApiKey("META", key.trim())` in EncryptedSharedPreferences): the trim matters because a
+     * key is pasted from the clipboard, and a trailing newline in the Authorization header looks like
+     * "the key is right, but Meta answers 401". The step moves on only AFTER the write, so the profile
+     * parsing right after it already finds the key.
+     */
+    private fun saveMetaKeyAndContinue() {
+        val key = _state.value.metaKeyInput.trim()
+        if (key.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { settingsRepository.setApiKey(META_KEY_NAME, key) }
+                goToStep(OnboardingStep.PROFILE)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // The Keystore can be unavailable on odd devices. Stay on the step and say so; "Skip" still works.
+                android.util.Log.w("OnboardingViewModel", "could not save the Meta key: ${e.message}")
+                _state.update { it.copy(error = tr("Не удалось сохранить ключ — попробуй ещё раз или пропусти шаг.", "Couldn't save the key — try again or skip this step.")) }
+            }
         }
     }
 
@@ -185,9 +225,9 @@ class OnboardingViewModel(
                 // be spent on updating the state of an already dying VM instead of propagating normally.
                 throw e
             } catch (e: Exception) {
-                // The setup is not held hostage to the model: no key (a store build does not bundle one), no network, or the
-                // provider is down — and a key can only be entered in Settings, which open AFTER onboarding. This
-                // used to be a dead end: an error and the same "Done" button forever. The story about oneself is
+                // The setup is not held hostage to the model: the key step can be skipped (no key is bundled into
+                // any build), or there is no network, or the provider is down. This used to be a dead end: an
+                // error and the same "Done" button forever. The story about oneself is
                 // saved as is — parsing it into fields adds nothing to what the model reads in "about me" anyway,
                 // and the agent learns the name in conversation.
                 android.util.Log.w("OnboardingViewModel", "profile extraction failed, saving raw text: ${e.message}")
@@ -231,5 +271,8 @@ class OnboardingViewModel(
 
     companion object {
         private const val STREAM_CHAR_DELAY_MS = 25L
+
+        /** The name SettingsRepository files the Meta key under (the same one Settings and LlmModule use). */
+        private const val META_KEY_NAME = "META"
     }
 }
