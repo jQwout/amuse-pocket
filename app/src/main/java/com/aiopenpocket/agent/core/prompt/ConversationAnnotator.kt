@@ -20,7 +20,7 @@ import kotlinx.serialization.json.Json
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
-import com.aiopenpocket.i18n.tr
+import com.aiopenpocket.i18n.AppLanguage
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -121,25 +121,10 @@ class ConversationAnnotator(
   }
 
   private suspend fun request(transcript: String): Annotation? {
-    val userContent = buildString {
-      appendLine("Диалог пользователя и ассистента:")
-      appendLine(transcript)
-      appendLine()
-      appendLine("Верни СТРОГО JSON-объект без markdown и пояснений вида:")
-      appendLine("""{"title": "...", "summary": "...", "tags": ["...", "..."]}""")
-      // The language is the interface language: the title is shown in the chat list next to translated captions.
-      val lang = tr("на русском", "in English")
-      appendLine("- title: короткий заголовок темы, до 6 слов, $lang.")
-      appendLine("- summary: суть диалога (ключевые факты, решения, открытые задачи), до 500 слов, $lang.")
-      appendLine("- tags: 2–5 коротких тегов в нижнем регистре (одно-два слова), $lang.")
-    }
-
     val chat = listOf(
-      ChatMessage(
-        role = "system",
-        content = "Ты анализируешь историю чата и возвращаешь только JSON. Без markdown, без текста вокруг.",
-      ),
-      ChatMessage(role = "user", content = userContent),
+      ChatMessage(role = "system", content = AnnotationPrompt.SYSTEM),
+      // The language is the interface language: the title is shown in the chat list next to translated captions.
+      ChatMessage(role = "user", content = AnnotationPrompt.user(transcript, AppLanguage.isEnglish)),
     )
 
     val builder = StringBuilder()
@@ -168,4 +153,48 @@ class ConversationAnnotator(
     @SerialName("summary") val summary: String? = null,
     @SerialName("tags") val tags: List<String>? = null,
   )
+}
+
+/**
+ * The annotator's prompt, pulled out of [ConversationAnnotator] so a JVM test can read it as text.
+ *
+ * The title is the first thing an English-speaking judge sees in the chat list. It used to be asked as
+ * "a short topic title" and nothing more, and the model wrote the OUTCOME of the chat: an email draft
+ * waiting for approval came back as "Declined emails to Masha" — a verdict on the user. So the role,
+ * the tone and a contrasting example are stated up front (Meta's prompting guide: role, format, length
+ * and tone first, an example over a prohibition list); there is deliberately no word filter on the reply.
+ */
+internal object AnnotationPrompt {
+  const val SYSTEM =
+    "Ты редактор списка чатов. Ты подписываешь каждый диалог коротким нейтральным названием темы — " +
+      "как название папки или тему письма — и возвращаешь только JSON. Без markdown, без текста вокруг."
+
+  fun user(transcript: String, english: Boolean): String {
+    val lang = if (english) "in English" else "на русском"
+    val examples = if (english) {
+      "«Email to Masha», «Reminder to call mom», «Weekly budget plan». " +
+        "Плохо: «Declined emails to Masha» — это итог и оценка, а не тема."
+    } else {
+      "«Письмо Маше», «Напоминание позвонить маме», «План бюджета на неделю». " +
+        "Плохо: «Отклонённые письма Маше» — это итог и оценка, а не тема."
+    }
+    return buildString {
+      appendLine("Диалог пользователя и ассистента:")
+      appendLine(transcript)
+      appendLine()
+      appendLine("Верни СТРОГО JSON-объект без markdown и пояснений вида:")
+      appendLine("""{"title": "...", "summary": "...", "tags": ["...", "..."]}""")
+      appendLine("- title: нейтральное название темы или задачи, до 6 слов, $lang. $TITLE_TONE")
+      appendLine("  Хорошо: $examples")
+      appendLine("- summary: суть диалога (ключевые факты, решения, открытые задачи), до 500 слов, $lang.")
+      appendLine("- tags: 2–5 коротких тегов в нижнем регистре (одно-два слова), $lang.")
+    }
+  }
+
+  /** Stated once and checked by the test by this exact marker — keep the wording in one place. */
+  const val TITLE_TONE =
+    "Название говорит, о чём чат или что делаем, а не чем это кончилось: " +
+      "без оценок и вердиктов о пользователе и ассистенте, без итогов вроде «отклонено», «не удалось», " +
+      "«отказ», «игнорирует», «забыл». Действие, которое ждёт подтверждения или было отклонено, — " +
+      "не тема: назови саму задачу."
 }
