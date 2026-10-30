@@ -28,3 +28,7 @@ build_check.log
 build/check/
 tools/__pycache__/
 orchestrator/evidence/
+
+# codebase-memory-mcp: the repository graph artifact. Megabytes of binary, and
+# the index is rebuilt from the code anyway -- it has no place in a public history.
+.codebase-memory/
