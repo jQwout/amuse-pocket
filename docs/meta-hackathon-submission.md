@@ -98,7 +98,7 @@ AI Open Pocket is an Android platform for building AI agents on Meta's models, w
 
 - **Strict tool-call replay:** Meta's API rejects an assistant tool call without its paired result; every branch of the loop (stops, limits, errors, denials) answers every call.
 - **A denial must read as a decision:** a bare "not approved" made the model tell users to enable a permission; the loop now says the user declined.
-- **Muse Image is driven by the prompt alone** (the app sends no extra parameters), so composition and one consistent style live in the prompt, shared by the build-time script and the app and kept in sync by a test.
+- **Muse Image is driven by the prompt** (the app sends only the fields Meta documents; `size` fixes the 16:9 frame and nothing else), so composition and one consistent style live in the prompt, shared by the build-time script and the app and kept in sync by a test.
 - **Video from a phone** goes as a base64 data URL, short and capped at 20 MB.
 
 ### How it's built

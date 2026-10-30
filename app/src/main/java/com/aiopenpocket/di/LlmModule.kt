@@ -53,40 +53,35 @@ object LlmModule {
   fun provideLlmHttpEngine(): HttpClientEngine = Android.create()
 
   /**
-   * Muse Image — for lesson images. Deliberately handed an EMPTY key for now, so the client always
-   * takes its "no image" path and the lesson shows the images bundled in the build.
-   *
-   * TODO(meta-only follow-up): Muse Image used to go through OpenRouter, which no longer exists in this
-   * project. The client's defaults already point at the Meta Model API, but the request shape has not
-   * been verified against dev.meta.ai; the follow-up task checks it and replaces the empty key with
-   * `metaKey(settingsRepository)`.
+   * Muse Image, for lesson images and "Draw it for me", on the person's Meta key. Without one the
+   * client sends nothing: lessons keep the images bundled in the build, and "Draw it for me" tells the
+   * person to add a key.
    */
   @Provides
   @SingleIn(AppScope::class)
   fun provideImageGenClient(
     engine: HttpClientEngine,
+    settingsRepository: SettingsRepository,
     usageRecorder: LlmUsageRecorder,
   ): ImageGenClient = ImageGenClient(
     engine = engine,
-    apiKey = { "" },
+    apiKey = { metaKey(settingsRepository) },
     usageRecorder = usageRecorder,
   )
 
   /**
-   * Muse Spark watching a clip in the video lesson. Handed an EMPTY key for now, so the client always
-   * returns `null` and the lesson step says the video could not be analyzed.
-   *
-   * TODO(meta-only follow-up): same as [provideImageGenClient] — video used to go through OpenRouter;
-   * verify the Meta request shape for `video_url` and wire in `metaKey(settingsRepository)`.
+   * Muse Spark watching a clip in the video lesson, on the person's Meta key. Without one the client
+   * returns `null` and the lesson step tells the person to add a key.
    */
   @Provides
   @SingleIn(AppScope::class)
   fun provideVideoUnderstandingClient(
     engine: HttpClientEngine,
+    settingsRepository: SettingsRepository,
     usageRecorder: LlmUsageRecorder,
   ): VideoUnderstandingClient = VideoUnderstandingClient(
     engine = engine,
-    apiKey = { "" },
+    apiKey = { metaKey(settingsRepository) },
     usageRecorder = usageRecorder,
   )
 

@@ -22,6 +22,8 @@ import com.aiopenpocket.agent.core.lesson.aboutMeFrom
 import com.aiopenpocket.agent.core.lesson.prepareSegmentPhoto
 import com.aiopenpocket.agent.core.lesson.sweepPhotoFolder
 import com.aiopenpocket.agent.core.llm.SegmentationFailure
+import com.aiopenpocket.agent.core.llm.VideoUnderstandingClient
+import com.aiopenpocket.agent.core.llm.missingKeyMessage
 import com.aiopenpocket.agent.core.memory.dao.HeartbeatDao
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
@@ -593,6 +595,8 @@ class ChatViewModel(
                     aboutMeFrom(memoryRepository.getFactsByCategory("profile")) to userPreferencesRepository.getLanguage()
                 }
                 when {
+                    // First what the person can fix at once: without a Meta key nothing is drawn at all.
+                    !lessonChatController.drawingReady() -> missingKeyMessage()
                     aboutMe.isBlank() -> tr("Чтобы нарисовать под тебя, расскажи о себе в профиле.", "To draw it for you, tell me about yourself in your profile.")
                     !lessonChatController.postPersonalizedImage(convId, imagePrompt, caption, aboutMe, language) ->
                         tr("Рисование пока недоступно — картинки урока остаются прежними.", "Drawing isn't available right now — the lesson keeps its usual pictures.")
@@ -628,9 +632,12 @@ class ChatViewModel(
         viewModelScope.launch {
             val problem = try {
                 val language = withContext(Dispatchers.IO) { userPreferencesRepository.getLanguage() }
-                val clip = withContext(Dispatchers.IO) { readLessonVideo(video) }
+                // Asked before the clip is read: with no key there is no point in loading megabytes.
+                val keyed = lessonChatController.videoReady()
+                val clip = if (keyed) withContext(Dispatchers.IO) { readLessonVideo(video) } else null
                 when {
-                    clip == null -> tr("Видео слишком большое или не открылось — сними покороче, до 10 секунд.", "The video is too large or didn't open — record a shorter one, up to 10 seconds.")
+                    !keyed -> missingKeyMessage()
+                    clip == null -> tr("Видео слишком большое, не MP4 или не открылось — сними покороче (до 10 секунд) в формате MP4.", "The video is too large, isn't an MP4 or didn't open — record a shorter one (up to 10 seconds) as MP4.")
                     !lessonChatController.postVideoAnswer(convId, videoPrompt, clip.first, clip.second, language) ->
                         tr("Разбор видео пока недоступен.", "Video analysis isn't available right now.")
                     else -> null
@@ -652,8 +659,10 @@ class ChatViewModel(
     /** The clip's bytes and type, or null: it did not open or is longer than [VideoUnderstandingClient.MAX_VIDEO_BYTES]. */
     private fun readLessonVideo(video: android.net.Uri): Pair<ByteArray, String>? {
         val resolver = context.contentResolver
-        val mimeType = resolver.getType(video)?.takeIf { it.startsWith("video/") } ?: "video/mp4"
-        val limit = com.aiopenpocket.agent.core.llm.VideoUnderstandingClient.MAX_VIDEO_BYTES
+        val mimeType = resolver.getType(video)?.takeIf { it.startsWith("video/") } ?: VideoUnderstandingClient.MP4_MIME_TYPE
+        // Meta takes MP4 only: say so now, before reading megabytes that would only come back as a 400.
+        if (!mimeType.equals(VideoUnderstandingClient.MP4_MIME_TYPE, ignoreCase = true)) return null
+        val limit = VideoUnderstandingClient.MAX_VIDEO_BYTES
         // The lesson's sample clip lives in the APK's assets: the content resolver does not open file:///android_asset.
         val asset = video.bundledAssetPath()
         val stream = if (asset != null) context.assets.open(asset) else resolver.openInputStream(video)

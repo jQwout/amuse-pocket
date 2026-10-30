@@ -1,10 +1,10 @@
 """Pre-generate lesson illustrations with Muse Image and bundle them into the app assets.
 
 For every "image" step that has an imagePrompt but no asset/imageKey, the script asks
-Muse Image (via OpenRouter) for a picture, converts it to WebP, saves it under
+Muse Image (the Meta Model API) for a picture, converts it to WebP, saves it under
 app/src/main/assets/lessons/images/generated/ and writes the "asset" field into the
-lesson JSON. After that the app shows the bundled picture: offline, for free, and for
-every provider -- runtime generation only covers steps that still have no asset.
+lesson JSON. After that the app shows the bundled picture: offline and for free --
+runtime generation only covers steps that still have no asset.
 
 The lesson JSON is patched as text, not re-serialized, so hand formatting and line
 endings stay as they are. Prompts are therefore plain ASCII without quotes or
@@ -12,7 +12,10 @@ backslashes (LessonAssetsValidationTest enforces it).
 
 Usage:
     python tools/lesson-images/pregenerate.py --dry-run
-    OPENROUTER_API_KEY=... python tools/lesson-images/pregenerate.py [--only rag plan_mode]
+    META_API_KEY=... python tools/lesson-images/pregenerate.py [--only rag plan_mode]
+
+META_API_KEY is a Meta Model API key (https://dev.meta.ai/docs/quickstart). Every picture
+costs $0.01 on that key, so look at --dry-run first.
 
 Requires Pillow (pip install pillow).
 """
@@ -25,6 +28,7 @@ import io
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -34,8 +38,19 @@ LESSONS_DIR = ROOT / "app" / "src" / "main" / "assets" / "lessons"
 ASSETS_DIR = ROOT / "app" / "src" / "main" / "assets"
 OUT_SUBDIR = "lessons/images/generated"
 
-ENDPOINT = "https://openrouter.ai/api/v1/images"
-MODEL = "meta/muse-image"
+ENDPOINT = "https://api.meta.ai/v1/images/generations"
+MODEL = "muse-image-1.0"
+
+# Meta answers 400 to any top-level field it does not know (and to "moderation" on this model),
+# so the body below holds only documented fields. "size" sets the aspect ratio only.
+SIZE = "1280x720"
+# Lossless in, one lossy WebP encode out (to_webp): no double compression.
+OUTPUT_FORMAT = "png"
+# Meta bills a flat $0.01 per successful image; the response carries tokens, not a price.
+PRICE_PER_IMAGE_USD = 0.01
+# Meta documents 429 (honour Retry-After) and 503 as worth another try; 500 is not.
+MAX_ATTEMPTS = 3
+MAX_WAIT_S = 30
 
 # One line on purpose: LessonImageStyleSyncTest looks for the Kotlin LESSON_IMAGE_STYLE
 # verbatim here, so bundled and on-device pictures share one style.
@@ -69,21 +84,46 @@ def asset_path_for(lesson_id, prompt):
     return f"{OUT_SUBDIR}/{lesson_id}-{digest}.webp"
 
 
+def request_body(prompt):
+    return {
+        "model": MODEL,
+        "prompt": f"{prompt.strip()}\n\n{STYLE}",
+        "size": SIZE,
+        "response_format": "b64_json",
+        "output_format": OUTPUT_FORMAT,
+    }
+
+
+def retry_wait_s(attempt, retry_after):
+    """Seconds to wait before attempt + 1: 1 s, 2 s, ... or Retry-After if the server asks for more."""
+    asked = int(retry_after) if retry_after and retry_after.strip().isdigit() else 0
+    return max(2 ** (attempt - 1), asked)
+
+
 def generate(prompt, api_key):
-    body = json.dumps({"model": MODEL, "prompt": f"{prompt.strip()}\n\n{STYLE}"}).encode("utf-8")
-    request = urllib.request.Request(
-        ENDPOINT,
-        data=body,
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        method="POST",
-    )
-    with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_S) as response:
-        payload = json.loads(response.read().decode("utf-8"))
+    """One image for the prompt: (raw bytes, cost in USD). Retries 429 and 503 only."""
+    body = json.dumps(request_body(prompt)).encode("utf-8")
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        request = urllib.request.Request(
+            ENDPOINT,
+            data=body,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_S) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            break
+        except urllib.error.HTTPError as e:
+            wait = retry_wait_s(attempt, e.headers.get("Retry-After"))
+            if e.code not in (429, 503) or attempt == MAX_ATTEMPTS or wait > MAX_WAIT_S:
+                raise
+            print(f"  HTTP {e.code}, waiting {wait} s (attempt {attempt} of {MAX_ATTEMPTS})")
+            time.sleep(wait)
     images = [d for d in payload.get("data", []) if d.get("b64_json")]
     if not images:
         raise RuntimeError("response has no image")
-    cost = (payload.get("usage") or {}).get("cost")
-    return base64.b64decode(images[0]["b64_json"]), cost
+    return base64.b64decode(images[0]["b64_json"]), PRICE_PER_IMAGE_USD
 
 
 def to_webp(raw):
@@ -120,14 +160,13 @@ def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-    api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    api_key = os.environ.get("META_API_KEY", "").strip()
     if not args.dry_run and not api_key:
-        sys.exit("OPENROUTER_API_KEY is not set. Run with --dry-run to see the plan without it.")
-    if not args.dry_run and ("..." in api_key or not api_key.startswith("sk-or-")):
-        # The README shows "sk-or-..." as a placeholder; OpenRouter answers it with a confusing
-        # "Missing Authentication header" for every single image.
-        sys.exit("OPENROUTER_API_KEY does not look like a real OpenRouter key (sk-or-v1-...). "
-                 "Replace the placeholder with your key from https://openrouter.ai/keys")
+        sys.exit("META_API_KEY is not set. Run with --dry-run to see the plan without it.")
+    if not args.dry_run and "..." in api_key:
+        # The README shows "..." as a placeholder; sent as a key it would come back as a 401 for every image.
+        sys.exit("META_API_KEY looks like the placeholder from the README. "
+                 "Put your Meta Model API key there (https://dev.meta.ai/docs/quickstart)")
 
     todo = []
     for lesson_file in sorted(LESSONS_DIR.glob("*.json")):
@@ -138,7 +177,7 @@ def main():
         for step in pending_steps(lesson):
             todo.append((lesson_file, lesson_id, step["imagePrompt"]))
 
-    print(f"{len(todo)} image(s) to bundle, about ${0.01 * len(todo):.2f} at $0.01 per image")
+    print(f"{len(todo)} image(s) to bundle, about ${PRICE_PER_IMAGE_USD * len(todo):.2f} at ${PRICE_PER_IMAGE_USD:.2f} per image")
     failures = 0
     total_cost = 0.0
     for lesson_file, lesson_id, prompt in todo:
@@ -174,7 +213,7 @@ def main():
                 break
 
     if not args.dry_run:
-        print(f"done: {len(todo) - failures} bundled, {failures} failed, provider cost ${total_cost:.4f}")
+        print(f"done: {len(todo) - failures} bundled, {failures} failed, cost ${total_cost:.2f} at the list price")
     sys.exit(1 if failures else 0)
 
 

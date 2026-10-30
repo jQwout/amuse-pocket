@@ -21,25 +21,32 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
+import kotlin.random.Random
 
 /**
  * Muse Spark watching a short video, on the direct Meta Model API (`POST /v1/chat/completions`, model
- * `muse-spark-1.3`, a `video_url` content part).
- *
- * TODO(meta-only follow-up): the defaults below are the Meta address and model, but the video request
- * shape has NOT been checked against dev.meta.ai yet, and LlmModule deliberately hands this client an
- * empty key, so in this build it always returns `null` and the lesson step says video is unavailable.
- * The follow-up task verifies the endpoint and wires the person's Meta key in.
+ * `muse-spark-1.3`, a `video_url` content part), on the person's own Meta key. Without a key nothing is
+ * sent ([isConfigured] is false) and [describe] returns `null`.
  *
  * A separate client rather than attachments in [OpenAiCompatClient]: the agent loop, the tools and the
  * history are built entirely on text messages, while a lesson needs one question and one answer about
  * one clip. Bringing video into the shared loop would mean rebuilding ChatMessage, history
  * serialization and every orchestrator for the sake of one lesson step.
  *
- * The video goes as a base64 data URL: a local file on a phone is never a link. No stream: the answer is short, and the user sees
- * "Watching the video…" on the card.
+ * The video goes as a base64 data URL: a local file on a phone is never a link. Meta accepts MP4 only
+ * and 50 MB inline; our own ceiling ([MAX_VIDEO_BYTES]) is far below that. No stream: the answer is
+ * short, and the user sees "Watching the video…" on the card.
+ *
+ * The request holds only fields Meta documents for this endpoint: `model`, `messages` and
+ * `max_completion_tokens` (`max_tokens` is a deprecated alias; reasoning tokens count against the limit,
+ * so it is generous). Meta answers 400 to unsupported parameters, and OpenRouter's `usage: {include}`
+ * is not one it knows - never sent. 429 and 503 are retried with Meta's backoff ([RetryBackoff]).
  *
  * Does NOT throw (except on cancellation): any failure is `null` and a line in the log.
+ *
+ * **Spend.** Meta's usage block carries tokens, never a price, so the call is priced from them with
+ * [metaListPriceUsd] (Spark: $1.25 in / $4.25 out / $0.15 cached per 1M). No usage at all: zeros, no
+ * price, and the row says `estimated`.
  */
 class VideoUnderstandingClient(
   engine: HttpClientEngine,
@@ -48,6 +55,7 @@ class VideoUnderstandingClient(
   private val usageRecorder: LlmUsageRecorder,
   private val endpoint: String = META_CHAT_URL,
   val model: String = MUSE_SPARK_MODEL,
+  private val random: Random = Random.Default,
 ) {
 
   @OptIn(ExperimentalSerializationApi::class)
@@ -67,11 +75,19 @@ class VideoUnderstandingClient(
     }
   }
 
+  /** Whether a key is set — lets a caller say "add a Meta key" instead of a bare "unavailable". */
+  fun isConfigured(): Boolean = apiKey().isNotBlank()
+
   /** The model's answer to [instruction] about [video], or `null`: no key, network, a refusal, an empty answer. */
   suspend fun describe(instruction: String, video: ByteArray, mimeType: String): String? {
     val key = apiKey()
     if (key.isBlank()) {
       Log.i(TAG, "No Meta key for video — skipping")
+      return null
+    }
+    if (!mimeType.equals(MP4_MIME_TYPE, ignoreCase = true)) {
+      // Meta takes MP4 only; any other type is a guaranteed 400 on a request of many megabytes.
+      Log.w(TAG, "Not an MP4 ($mimeType) — skipping")
       return null
     }
     return try {
@@ -87,12 +103,15 @@ class VideoUnderstandingClient(
             ),
           ),
         ),
-        maxTokens = MAX_TOKENS,
+        maxCompletionTokens = MAX_COMPLETION_TOKENS,
       )
-      val response = httpClient.post(endpoint) {
-        header("Authorization", "Bearer $key")
-        contentType(ContentType.Application.Json)
-        setBody(json.encodeToString(request))
+      val requestBody = json.encodeToString(request)
+      val response = RetryBackoff.send(random, TAG) {
+        httpClient.post(endpoint) {
+          header("Authorization", "Bearer $key")
+          contentType(ContentType.Application.Json)
+          setBody(requestBody)
+        }
       }
       val body = response.bodyAsText()
       if (!response.status.isSuccess()) {
@@ -115,15 +134,16 @@ class VideoUnderstandingClient(
     }
   }
 
-  private suspend fun recordUsage(usage: Usage?) {
+  private suspend fun recordUsage(usage: SseUsage?) {
     usageRecorder.record(
       LlmCallUsage(
         provider = LlmProvider.META,
         model = model,
         promptTokens = usage?.promptTokens ?: 0,
         completionTokens = usage?.completionTokens ?: 0,
-        costUsd = usage?.cost,
-        // The provider did not name the spend — zeros in the tokens are not a measurement.
+        // Meta names tokens, not money: the price comes from the list (see metaListPriceUsd).
+        costUsd = usage?.let { metaListPriceUsd(model, it) },
+        // The provider named no usage - zeros in the tokens are not a measurement.
         estimated = usage == null,
         hadTools = false,
       ),
@@ -134,7 +154,7 @@ class VideoUnderstandingClient(
   private data class ChatRequest(
     val model: String,
     val messages: List<Message>,
-    val maxTokens: Int,
+    val maxCompletionTokens: Int,
   )
 
   @Serializable
@@ -154,7 +174,7 @@ class VideoUnderstandingClient(
   @Serializable
   private data class ChatResponse(
     val choices: List<Choice> = emptyList(),
-    val usage: Usage? = null,
+    val usage: SseUsage? = null,
   )
 
   @Serializable
@@ -162,13 +182,6 @@ class VideoUnderstandingClient(
 
   @Serializable
   private data class ResponseMessage(val content: String? = null)
-
-  @Serializable
-  private data class Usage(
-    val promptTokens: Int? = null,
-    val completionTokens: Int? = null,
-    val cost: Double? = null,
-  )
 
   companion object {
     private const val TAG = "VideoUnderstanding"
@@ -179,7 +192,13 @@ class VideoUnderstandingClient(
      * a long video (expensive and slow) or 4K, which the model does not need. Base64 adds another third.
      */
     const val MAX_VIDEO_BYTES = 20 * 1024 * 1024
-    private const val MAX_TOKENS = 1500
+    const val MP4_MIME_TYPE = "video/mp4"
+
+    /**
+     * The answer is short, but the model reasons first and those tokens count against the limit: with
+     * a tight cap the visible answer comes back empty.
+     */
+    private const val MAX_COMPLETION_TOKENS = 4000
     private const val CONNECT_TIMEOUT_MS = 10_000L
     private const val REQUEST_TIMEOUT_MS = 180_000L
   }

@@ -41,6 +41,9 @@ class LessonImageGenerator(
 
   private val dir: File get() = File(application.filesDir, DIR_NAME)
 
+  /** Whether the person has a Meta key, i.e. whether a cache miss can be drawn at all. */
+  fun isConfigured(): Boolean = client.isConfigured()
+
   /** The image file, or `null` if drawing failed (no key, no network, a provider refusal). */
   suspend fun imageFor(prompt: String): File? = withContext(Dispatchers.IO) {
     // The key is read from EncryptedSharedPreferences, and the first access to them brings up the Keystore

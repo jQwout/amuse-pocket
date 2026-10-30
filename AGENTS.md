@@ -76,13 +76,15 @@ Persona prompts are in `assets/personas/*.md` (7 personas), listed in `agent/cor
   in priority order, with at most 5 attempts (`MAX_ATTEMPTS`). It falls back between Meta models only.
   `OpenAiCompatClient` streams SSE over Ktor. It moves to the next model only if no answer content
   has been emitted yet. On 401/402/403 (a problem with the key) it stops the chain.
-- **Other clients.** `ImageGenClient` (Muse Image) and `VideoUnderstandingClient` (Muse Spark with a
-  base64 `video_url`) were OpenRouter-only; their defaults now point at the Meta address but the request
-  shapes are NOT verified, and `LlmModule` hands them an empty key, so they take their "unavailable"
-  path until the follow-up task ports them (grep `TODO(meta-only follow-up)`). `SegmentationClient`
-  calls SAM 3.1 on the Meta Model API (`POST https://api.meta.ai/v1/responses`, model `sam-3.1`, the
-  person's Meta key, billed per picture). None of them falls back to another model, and only SAM
-  streams (the client assembles the stream itself). Token and cost usage per call goes to Room through `LlmUsageRecorder`; Settings shows
+- **Other clients.** All three run on the person's Meta key and say "add your Meta key" without one.
+  `ImageGenClient` calls Muse Image (`POST https://api.meta.ai/v1/images/generations`, model
+  `muse-image-1.0`; the response has no media type, it comes from `output_format`; billed a flat $0.01
+  per successful image). `VideoUnderstandingClient` calls Muse Spark with a base64 `video_url` part
+  (`POST /v1/chat/completions`, MP4 only, `max_completion_tokens`; priced from the usage tokens with
+  `MetaPricing`). `SegmentationClient` calls SAM 3.1 (`POST https://api.meta.ai/v1/responses`, model
+  `sam-3.1`, billed per picture). The image and video request shapes are written from dev.meta.ai
+  and have NOT been seen against a live call. They share `RetryBackoff.send` for 429/503. None of them
+  falls back to another model, and only SAM streams (the client assembles the stream itself). Token and cost usage per call goes to Room through `LlmUsageRecorder`; Settings shows
   the weekly total.
 - **API key.** Entered in the app (see "The key is the person's"); stored with `EncryptedSharedPreferences`
   (`data/repository/SettingsRepository.kt`), which also deletes the obsolete NVIDIA and OpenRouter keys

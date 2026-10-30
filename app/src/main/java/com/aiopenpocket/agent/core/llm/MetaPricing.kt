@@ -50,3 +50,13 @@ internal const val SAM_PRICE_PER_IMAGE_USD = 0.0025
  */
 internal fun samCostUsd(imagesProcessed: Int?): Double =
   (imagesProcessed ?: 1).coerceAtLeast(0) * SAM_PRICE_PER_IMAGE_USD
+
+/**
+ * Muse Image is priced per successful IMAGE, not per token: $0.01 each (dev.meta.ai pricing, per the
+ * researcher's check of Oct 30, 2026; not seen on a live bill - no paid call was made). The response
+ * does carry token usage, but the price does not depend on it.
+ */
+internal const val MUSE_IMAGE_PRICE_PER_IMAGE_USD = 0.01
+
+/** The cost of [images] returned images. A failed call returns none and costs nothing. */
+internal fun museImageCostUsd(images: Int): Double = images.coerceAtLeast(0) * MUSE_IMAGE_PRICE_PER_IMAGE_USD
