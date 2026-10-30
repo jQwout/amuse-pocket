@@ -60,7 +60,7 @@ import androidx.compose.ui.unit.sp
 private class WeightsFact(val label: String, val mine: String, val vendor: String)
 
 private val FACTS = listOf(
-    WeightsFact("Кто видит данные", "только ты", "ты, OpenRouter и Meta"),
+    WeightsFact("Кто видит данные", "только ты", "ты и Meta"),
     WeightsFact("Что нужно", "видеокарта, сервер", "только ключ API"),
     WeightsFact("Как платишь", "железо и свет", "за токены"),
     WeightsFact("Обновления", "ставишь сам", "делает вендор"),

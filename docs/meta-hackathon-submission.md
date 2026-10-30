@@ -41,7 +41,7 @@
 - [ ] **Конструктор от начала до конца на эмуляторе:** все шаги, пробный прогон, публикация, чат с агентом. Пробный прогон на устройстве ещё не проверялся.
 - [ ] **Письмо на эмуляторе:** после «Разрешить» должно открыться почтовое приложение — проверить, что оно есть.
 - [ ] **SAM 3.1 (обещан в заявке)** — только если после допуска дадут кредиты на Meta Model API.
-- [ ] Чистые данные для записи: свежая установка, ключ OpenRouter в `.env`, карточка расходов не пустая.
+- [ ] Чистые данные для записи: свежая установка, ключ Meta Model API введён в приложении (онбординг или Настройки; в сборку ключи не вшиты), карточка расходов не пустая.
 
 ## 2. Сценарий ролика (3:00)
 
@@ -56,7 +56,7 @@
 | 2:15–2:50 | Чат агента: «remind me in 2 minutes to call mom» → «Напоминания: поставить → ок»; «email Masha the meeting moves to Friday» → «Агенту нужно разрешение · Покидает устройство» → «Разрешить»; уведомление приходит | Muse Spark · tool call | And it runs. Every action is visible. Reading and writing just happen; deleting or sending anything off the phone always waits for my OK. Two minutes later — the reminder, on time. |
 | 2:50–3:00 | Логотип, слоган | — | AI Open Pocket — learn Meta's models, build agents on them. Built solo on Muse Spark and Muse Image. |
 
-Запасной вариант, если OpenRouter в день записи не ответит: 0:35–1:15 — только ползунок кадров и сцена «Цикл ReAct».
+Запасной вариант, если Meta Model API в день записи не ответит: 0:35–1:15 — только ползунок кадров и сцена «Цикл ReAct».
 
 ## 3. Текст для судей (EN)
 
@@ -98,7 +98,7 @@ AI Open Pocket is an Android platform for building AI agents on Meta's models, w
 
 - **Strict tool-call replay:** Meta's API rejects an assistant tool call without its paired result; every branch of the loop (stops, limits, errors, denials) answers every call.
 - **A denial must read as a decision:** a bare "not approved" made the model tell users to enable a permission; the loop now says the user declined.
-- **Muse Image declares no parameters on OpenRouter**, so composition and one consistent style live in the prompt, shared by the build-time script and the app and kept in sync by a test.
+- **Muse Image is driven by the prompt alone** (the app sends no extra parameters), so composition and one consistent style live in the prompt, shared by the build-time script and the app and kept in sync by a test.
 - **Video from a phone** goes as a base64 data URL, short and capped at 20 MB.
 
 ### How it's built
@@ -111,7 +111,7 @@ Kotlin, Jetpack Compose, Metro DI, Ktor (SSE streaming), Room, WorkManager. ~49k
 
 **Before the hackathon** *(up to Oct 26)* — the platform existed: the agent loop, the builder, the on-device tools, the lesson engine, Meta models through OpenRouter (Oct 24, `b83db81`), lesson images by Muse Image (`c17a968`, `85979eb`), the video-input lesson on Muse Spark (`682649c`), an interactive scene in every lesson and the four Meta-model lessons (Oct 25, `ff190fd`), NVIDIA NIM removed so the whole app runs on Muse (`197306c`), **the direct Meta Model API route with the key entered by the user** (Oct 26, `256dd03`), and the English interface on the demo path with three lessons translated (Oct 26, `3b3ca8d`; the rest of the course stayed Russian).
 
-**Built during the hackathon** *(Oct 27 – Nov 4, commits `0f1e9a5`..)* — as of Oct 27, 26 commits: the Settings and Scheduled-tasks screens fully in English (`5530793`, `657c1e2`), every source comment and tool README translated, `DrivenUiCardViews`/`SettingsCards`/`RoadmapScreen` split up, dead code and manifest lint cleared, and a criteria-driven orchestrator with one check command over the whole project — build, 1091 unit tests, traceability, key scans of the sources and of the built APK, the English side of every `tr()` pair (`d8a8f7a`, `e92d7d6`, `20b1c0d`).
+**Built during the hackathon** *(Oct 27 – Nov 4, commits `0f1e9a5`..)* — from Oct 30, the app talks only to the Meta Model API with a key the person enters in onboarding or Settings (OpenRouter and every bundled key removed). As of Oct 27, 26 commits: the Settings and Scheduled-tasks screens fully in English (`5530793`, `657c1e2`), every source comment and tool README translated, `DrivenUiCardViews`/`SettingsCards`/`RoadmapScreen` split up, dead code and manifest lint cleared, and a criteria-driven orchestrator with one check command over the whole project — build, 1091 unit tests, traceability, key scans of the sources and of the built APK, the English side of every `tr()` pair (`d8a8f7a`, `e92d7d6`, `20b1c0d`).
 
 > **Внимание, решение за владельцем.** По состоянию на 27 окт в окне нет ни одной
 > пользовательской возможности, которую судья увидел бы в демо: окно — это перевод двух экранов,
@@ -129,7 +129,7 @@ English and other languages for the whole course via Muse Spark; SAM 3.1 and Voi
 
 ### Built with
 
-Muse Spark 1.3 · Muse Image · OpenRouter · Kotlin · Jetpack Compose · Ktor · Room · WorkManager
+Muse Spark 1.3 · Muse Image · Meta Model API · Kotlin · Jetpack Compose · Ktor · Room · WorkManager
 
 ### Links
 
