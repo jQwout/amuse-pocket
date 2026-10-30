@@ -11,7 +11,8 @@ Room, WorkManager. Приложение — платформа сборки ИИ
 ## Перед началом
 
 1. Прочитай `CLAUDE.md`, `AGENTS.md`, `orchestrator/AUTONOMY.md` и те критерии из
-   `orchestrator/CRITERIA.md`, на которые ссылается задача.
+   `orchestrator/CRITERIA.md`, на которые ссылается задача. Правишь Kotlin — прочитай ещё навык
+   `craft` (`/craft`): в каком порядке работать и какие гейты прогнать.
 2. Проверь, что ты в своём worktree. Если ветки задачи ещё нет — создай `orch/<id>-<slug>` от текущего
    HEAD. **В worktree сверяйся через Bash:** инструменты Read/Write/Grep однажды молча отработали по
    основному дереву вместо `.claude/worktrees/*`.
