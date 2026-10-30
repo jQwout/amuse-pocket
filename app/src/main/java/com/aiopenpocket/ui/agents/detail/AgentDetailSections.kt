@@ -52,6 +52,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.agent.core.agent.localizedSystemPrompt
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.hook.AgentHookRunEntity
 import com.aiopenpocket.agent.core.hook.HookActionType
@@ -194,7 +195,7 @@ private const val PROMPT_COLLAPSE_LINES = 40
 
 @Composable
 internal fun PromptSection(agent: AgentDefinition, modifier: Modifier = Modifier) {
-  val lines = remember(agent.systemPrompt) { agent.systemPrompt.lines() }
+  val lines = remember(agent) { agent.localizedSystemPrompt.lines() }
   val isLong = lines.size > PROMPT_COLLAPSE_LINES
   var expanded by rememberSaveable(agent.id) { mutableStateOf(true) }
 
@@ -214,7 +215,7 @@ internal fun PromptSection(agent: AgentDefinition, modifier: Modifier = Modifier
         val displayText = if (isLong && !expanded) {
           lines.take(PROMPT_COLLAPSE_LINES).joinToString("\n") + "\n…"
         } else {
-          agent.systemPrompt
+          agent.localizedSystemPrompt
         }
         Text(
           text = displayText,

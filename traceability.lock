@@ -42,8 +42,8 @@
       "git": "e28f42cb"
     },
     "english-ui-on-the-demo-path-223241": {
-      "hash": "6c72e5f4e2aa",
-      "git": "5ce3906"
+      "hash": "2a0e4daadc17",
+      "git": "5c80242e"
     },
     "fonovye-hody-agenta-dde42d": {
       "hash": "37c74df4f945",
@@ -66,8 +66,8 @@
       "git": "3325046f"
     },
     "multi-agent-orchestration-27b8e3": {
-      "hash": "4b7a254d3917",
-      "git": "ec20311"
+      "hash": "df3f619804a9",
+      "git": "5c80242e"
     },
     "multi-chat-conversations-b3c93b": {
       "hash": "536a07251c22",
@@ -98,8 +98,8 @@
       "git": "e28f42cb"
     },
     "structured-plan-engine-907066": {
-      "hash": "7d8cc00e527d",
-      "git": "0b5abe9d"
+      "hash": "47baa0247387",
+      "git": "5c80242e"
     },
     "swappable-persona-e5e65e": {
       "hash": "11aaa5d19303",
@@ -110,8 +110,8 @@
       "git": "e28f42cb"
     },
     "user-agent-builder-848153": {
-      "hash": "43d0d0470281",
-      "git": "815e687a"
+      "hash": "50856504b3e7",
+      "git": "5c80242e"
     },
     "video-na-vhod-v-uroke-muse-spark-08ccdb": {
       "hash": "5b7f70575627",
@@ -122,12 +122,12 @@
       "git": "48d4078"
     },
     "vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53": {
-      "hash": "f968b5c84968",
-      "git": "ba1d1017"
+      "hash": "c3049165ef17",
+      "git": "5c80242e"
     },
     "yazykovoy-agent-repetitor-s-intervalnymi-povtoreniyami-4a9360": {
-      "hash": "74722c84ed79",
-      "git": "ec20311"
+      "hash": "76fbd124204c",
+      "git": "5c80242e"
     }
   }
 }
