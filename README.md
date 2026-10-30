@@ -38,17 +38,11 @@ for your yes.
   outlines every instance of it. It is available only on Meta Model API, so this step needs a Meta key;
   without one the lesson says so and lets you skip ahead.
 
-There are two routes to the same models:
-
-| Route | When | Model ids |
-| --- | --- | --- |
-| **Meta Model API** (`api.meta.ai`) — primary | a Meta key is set in Settings | `muse-spark-1.3`, `muse-spark-1.2`, `muse-spark-1.1`, `muse-wonder-1.0` |
-| **OpenRouter** — backup | no Meta key | `meta/muse-spark-1.3`, … (Meta models only) |
-
-The key decides the route; there is no switch. Settings show where requests go right now. Fallback
-happens only between models of one route, never across routes. Model variants that the vendor trains
-on (`-contributor`) are filtered out everywhere. The lesson video and live lesson images still go
-through OpenRouter.
+Every model call goes to the **Meta Model API** (`api.meta.ai`) and nowhere else: `muse-spark-1.3`,
+`muse-spark-1.2`, `muse-spark-1.1` and `muse-wonder-1.0`. Fallback happens only between those models.
+Model variants that the vendor trains on (`-contributor`) are filtered out everywhere. Without a key
+the app does not guess or fall back: every model action says "add your Meta API key" and points to
+Settings.
 
 ### Following Meta's agent guidance
 
@@ -76,13 +70,13 @@ error handling, agent frameworks) and the Muse Code permission model:
 
 ## Your key, your quota
 
-- You type your key into the app (Settings → API key). It is stored in `EncryptedSharedPreferences`
-  behind an Android Keystore master key.
-- No key lives in this repository, and the Meta key is never compiled into a build.
-- A Gradle check fails the release build when `.env` holds a live provider key: the secrets plugin
-  copies `.env` into `BuildConfig`, and `BuildConfig` ships inside the AAB.
-- Every model call — text, image, video — is metered in a weekly spend card. Meta reports tokens only,
-  so the app prices Meta calls from Meta's price list.
+- **Enter your own Meta Model API key in onboarding or in Settings. Nothing is bundled.** The key is
+  stored in `EncryptedSharedPreferences` behind an Android Keystore master key and goes only to Meta.
+- No key lives in this repository, and no key is compiled into any build, debug included: the build
+  has no step that copies `.env` or anything else into `BuildConfig`. `tools/check.py` fails if one
+  ever comes back, and scans the built APK for provider keys.
+- Every model call is metered in a weekly spend card. Meta reports tokens only, so the app prices Meta
+  calls from Meta's price list.
 
 ## Build and run
 
@@ -91,13 +85,13 @@ a device on Android 7.0+.
 
 1. Clone the repository and open it in Android Studio.
 2. Run the `app` configuration.
-3. In the app, open **Settings → API key** and paste your **Meta Model API** key. Get one at
-   [dev.meta.ai](https://dev.meta.ai/docs/quickstart). The line under the keys should say that requests
-   go straight to Meta Model API.
+3. In the app, paste your **Meta Model API** key: onboarding asks for it right before the first step
+   that calls a model (you can skip and add it later in **Settings → API key**). Get one at
+   [dev.meta.ai](https://dev.meta.ai/docs/quickstart). The line under the key field in Settings should say
+   that requests go straight to Meta Model API.
 4. For English, open **Settings → Language → English**.
 
-Optional: an OpenRouter key — in Settings, or in a local `.env` as `OPENROUTER_API_KEY` (see
-`.env.example`; debug builds only). It is needed for the lesson video and for redrawing lesson images.
+There is no `.env` to fill in: the build reads no key.
 
 From the command line:
 

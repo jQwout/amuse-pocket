@@ -3,7 +3,8 @@
 AI Open Pocket is an Android app that teaches how AI agents work from inside a working agent.
 The learner works through 31 short lessons in the chat. Each lesson has an interactive scene,
 and the course ends in a builder where the learner makes their own agent. The agent runs on
-Meta models (Muse Spark for text and video, Muse Image for pictures), reached through OpenRouter.
+Meta models (Muse Spark for text and video, Muse Image for pictures), reached through the Meta Model API
+with a key the learner enters themselves.
 
 - Single Gradle module `:app`, Kotlin + Jetpack Compose, one Activity (`MainActivity`, Navigation Compose).
 - Package `com.aiopenpocket`; directories match packages: `app/src/main/java/com/aiopenpocket/`
@@ -53,35 +54,39 @@ Persona prompts are in `assets/personas/*.md` (7 personas), listed in `agent/cor
 
 ## Models and network
 
-- **Meta models, by two routes.** `LlmProvider` has TWO values, `META` and `OPENROUTER`, and the key
-  picks between them: a Meta Model API key in Settings sends requests straight to `api.meta.ai`,
-  otherwise they go through OpenRouter (`activeLlmProvider`). There is no cross-provider fallback —
-  the chain only ever resolves the provider it was asked for. Text that names a key or a balance must
-  therefore name the route it is talking about; "your OpenRouter key" shown to someone holding a Meta
-  key sent them to the wrong screen until 28 Oct 2026. This bullet itself claimed a single value long
-  after the second one shipped, which is how a stale instruction becomes a defect.
-- **Catalog.** The model list comes live from OpenRouter (`OpenRouterCatalogService`, `GET /api/v1/models`)
-  and is cached in `filesDir` (`OpenRouterCatalogCache`). The seed `assets/config/models_openrouter.json`
-  covers first run and offline use and sets priority (`meta/muse-spark-1.3` first).
-  `ModelCatalog.kt` filters models: `isMetaModel` keeps the `meta/` prefix only (`meta-llama/` is
-  excluded), and `trainsOnUserData` rejects `-contributor` variants. Models without tool support are dropped.
+- **One route: the Meta Model API.** `LlmProvider` has a single value, `META` (`api.meta.ai/v1`).
+  OpenRouter was removed on 30 Oct 2026 (the hackathon's first screening wants the Meta Model API).
+  There is no cross-provider fallback — the chain only ever resolves the provider it was asked for.
+  `SelectedLlmProvider` stays as a seam that returns `META`.
+- **The key is the person's.** No key is bundled into any build, debug included. The learner enters a
+  Meta key in onboarding (the key step, before the first model call, skippable) or Settings; both save
+  it the same way — `SettingsRepository.setApiKey("META", key.trim())`, `EncryptedSharedPreferences`.
+  Do not reintroduce a bundled key, the Secrets Gradle Plugin or a key-like `buildConfigField`:
+  `tools/check.py` (T4, T4a) fails on them.
+- **No key.** `ModelKeyGate` ("has the person entered a key?") is applied where a model call starts:
+  `TurnManager.runTurn` (chat, lessons, plan/goal, the builder's test run) fails the turn with
+  `missingKeyMessage()` and `TurnStatus.Failed.needsKey`, which the chat and the builder turn into an
+  "Open Settings" button; `HeartbeatRunner` skips the wakeup and records the reason, with no push.
+  `OpenAiCompatClient` keeps a last-resort `blank_key` check. Never let a keyless request reach Meta
+  to come back as a raw HTTP 401.
+- **Catalog.** The model list is static: `assets/config/models_meta.json`, loaded by
+  `ModelCatalogLoader.loadMeta()`. `ModelCatalog.kt` has `trainsOnUserData`, which rejects
+  `-contributor` variants. Models without tool support are dropped.
 - **Fallback.** `ProviderFallbackChain.resolve` puts the model picked in Settings first and the rest
   in priority order, with at most 5 attempts (`MAX_ATTEMPTS`). It falls back between Meta models only.
   `OpenAiCompatClient` streams SSE over Ktor. It moves to the next model only if no answer content
   has been emitted yet. On 401/402/403 (a problem with the key) it stops the chain.
-- **Other clients.** `ImageGenClient` calls Muse Image (`meta/muse-image`, `POST /api/v1/images`).
-  `VideoUnderstandingClient` calls Muse Spark with a base64 `video_url`. `SegmentationClient` calls
-  SAM 3.1 on the direct Meta Model API (`POST https://api.meta.ai/v1/responses`, model `sam-3.1`, the
-  Meta key only, billed per picture). None of them falls back to another model, and only SAM
+- **Other clients.** `ImageGenClient` (Muse Image) and `VideoUnderstandingClient` (Muse Spark with a
+  base64 `video_url`) were OpenRouter-only; their defaults now point at the Meta address but the request
+  shapes are NOT verified, and `LlmModule` hands them an empty key, so they take their "unavailable"
+  path until the follow-up task ports them (grep `TODO(meta-only follow-up)`). `SegmentationClient`
+  calls SAM 3.1 on the Meta Model API (`POST https://api.meta.ai/v1/responses`, model `sam-3.1`, the
+  person's Meta key, billed per picture). None of them falls back to another model, and only SAM
   streams (the client assembles the stream itself). Token and cost usage per call goes to Room through `LlmUsageRecorder`; Settings shows
   the weekly total.
-- **API key.** Set `OPENROUTER_API_KEY` in `.env` at the repo root (template: `.env.example`).
-  The Secrets Gradle Plugin copies `.env` keys into `BuildConfig`; `ignoreList` in
-  `app/build.gradle.kts` drops the leftover `NVIDIA_API_KEY` / `GEMINI_API_KEY` (add any new unused key
-  there too — the plugin matches with `containsMatchIn`, so anchor patterns with `^…$`). It is meant for debug builds: the `checkReleaseSecrets` task fails any
-  release build when `.env` holds a live key (`sk-or-v1-`, `sk-`, `nvapi-` or `AIza` prefix). A key
-  typed in Settings → «КЛЮЧ API» wins over the bundled one. Settings stores it with
-  `EncryptedSharedPreferences` (`data/repository/SettingsRepository.kt`).
+- **API key.** Entered in the app (see "The key is the person's"); stored with `EncryptedSharedPreferences`
+  (`data/repository/SettingsRepository.kt`), which also deletes the obsolete NVIDIA and OpenRouter keys
+  from an updated device. There is no `.env` the build reads (`.env.example` is only a note).
 
 ## Agent architecture (`agent/`)
 
@@ -267,7 +272,7 @@ Never strip `@trace` markers while refactoring.
 
 | Path | Purpose |
 |---|---|
-| `app/build.gradle.kts`, `gradle/libs.versions.toml` | Build, dependencies, secrets filter, release key guard |
+| `app/build.gradle.kts`, `gradle/libs.versions.toml` | Build, dependencies (no key reaches BuildConfig) |
 | `di/AppGraph.kt`, `di/TurnModule.kt` | DI root; turn dispatch by mode |
 | `agent/loop/TurnManager.kt`, `agent/loop/ReactLoopRunner.kt` | App-scoped turns; shared ReAct loop and policy gate |
 | `agent/core/llm/OpenAiCompatClient.kt` | SSE chat client with model fallback |

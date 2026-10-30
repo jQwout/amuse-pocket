@@ -92,8 +92,8 @@ internal fun DataFlowScene() {
                 Row {
                     Text("Телефон", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, modifier = Modifier.width(half))
                     Spacer(Modifier.width(gap))
-                    // Two parties see the request: the intermediary (OpenRouter) and Meta itself — the lesson names both.
-                    Text("OpenRouter и Meta", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = primary, modifier = Modifier.width(half))
+                    // The request goes straight to Meta, so Meta is the only party besides the phone that sees it.
+                    Text("Meta", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = primary, modifier = Modifier.width(half))
                 }
                 Box(Modifier.fillMaxWidth().height(((CHIP_HEIGHT + CHIP_GAP) * ITEMS.size + 10).dp)) {
                     Row(Modifier.fillMaxHeight()) {
