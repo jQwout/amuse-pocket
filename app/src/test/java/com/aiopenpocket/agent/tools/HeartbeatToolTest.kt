@@ -170,4 +170,40 @@ class HeartbeatToolTest {
     assertTrue(result is ToolResult.Error)
     assertTrue((result as ToolResult.Error).message.contains("notification_permission"))
   }
+
+  private fun agentWakeup(title: String) =
+    args("action" to "schedule", "mode" to "agent", "title" to title, "prompt" to "p", "interval_minutes" to "30")
+
+  @Test
+  fun `an agent may keep at most three wakeups of its own`() = runTest {
+    repeat(HeartbeatTool.MAX_PENDING_AGENT_WAKEUPS) { assertTrue(tool.execute(agentWakeup("w$it")) is ToolResult.Success) }
+
+    val fourth = tool.execute(agentWakeup("w4"))
+
+    assertTrue(fourth is ToolResult.Error)
+    assertTrue((fourth as ToolResult.Error).recoverable)
+    assertEquals(HeartbeatTool.MAX_PENDING_AGENT_WAKEUPS, db.heartbeatDao().listActive().size)
+  }
+
+  @Test
+  fun `the wakeup cap is per agent and leaves push reminders alone`() = runTest {
+    repeat(HeartbeatTool.MAX_PENDING_AGENT_WAKEUPS) { tool.execute(agentWakeup("w$it")) }
+
+    val push = tool.execute(
+      args("action" to "schedule", "mode" to "push", "title" to "x", "message" to "y", "delay_minutes" to "10"),
+    )
+    holder.set("conv1", testAgent("tasks"))
+    val otherAgent = tool.execute(agentWakeup("other"))
+
+    assertTrue(push is ToolResult.Success)
+    assertTrue(otherAgent is ToolResult.Success)
+  }
+
+  @Test
+  fun `cancelling a wakeup frees a slot`() = runTest {
+    repeat(HeartbeatTool.MAX_PENDING_AGENT_WAKEUPS) { tool.execute(agentWakeup("w$it")) }
+    tool.execute(args("action" to "cancel", "heartbeat_id" to db.heartbeatDao().listActive().first().id))
+
+    assertTrue(tool.execute(agentWakeup("again")) is ToolResult.Success)
+  }
 }

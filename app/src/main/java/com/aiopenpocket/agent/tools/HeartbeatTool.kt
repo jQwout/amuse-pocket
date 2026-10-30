@@ -134,6 +134,22 @@ class HeartbeatTool(
       )
     }
 
+    // An agent waking itself up is the one way it can act without being asked, so it may keep only a
+    // few such wakeups at once (the limit Noodle uses for its bots). Push reminders are not capped:
+    // they are the person's own "remind me", and they never run the model.
+    if (mode == "agent") {
+      val pending = heartbeatDao.listActive().count {
+        it.planId == null && it.mode == "agent" && it.agentId == turnContextHolder.agentId
+      }
+      if (pending >= MAX_PENDING_AGENT_WAKEUPS) {
+        return ToolResult.Error(
+          "У агента уже $pending фоновых пробуждения — это предел. Посмотри их через action=list " +
+            "и отмени ненужное, если новое важнее.",
+          recoverable = true,
+        )
+      }
+    }
+
     val id = UUID.randomUUID().toString()
     val entity = HeartbeatEntity(
       id = id,
@@ -196,6 +212,9 @@ class HeartbeatTool(
       PackageManager.PERMISSION_GRANTED
 
   companion object {
+    /** How many mode=agent wakeups one agent may have scheduled at once. */
+    const val MAX_PENDING_AGENT_WAKEUPS = 3
+
     fun workName(heartbeatId: String) = "heartbeat_$heartbeatId"
   }
 }

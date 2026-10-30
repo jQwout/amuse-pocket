@@ -149,6 +149,15 @@ class HeartbeatRunner(
       is GuardedAgent.Denied -> return skip(hb, guard.reason)
       is GuardedAgent.Allowed -> guard.agent
     }
+    // A periodic wakeup that keeps writing into a chat nobody answers is the runaway case: stop running
+    // it until the person writes again (Noodle's rule for its bots). Checked before the model call, so
+    // a paused wakeup costs nothing. A one-time wakeup still runs — it is a single thing the person asked
+    // for, not a loop.
+    if (hb.kind == "periodic" && isUnanswered(hb.conversationId)) {
+      Log.i(TAG, "heartbeat ${hb.id} paused: $MAX_UNANSWERED_WAKEUPS messages without a reply")
+      record(hb, ok = true, result = PAUSED_UNANSWERED)
+      return FireOutcome.DONE
+    }
     val systemPrompt = buildString {
       append(agent?.systemPrompt ?: "Ты — полезный ассистент AI Open Pocket.")
       append("\n\nСейчас ты работаешь В ФОНЕ по плановому heartbeat — юзер тебя не вызывал. ")
@@ -159,6 +168,9 @@ class HeartbeatRunner(
       // not swallowed as "nothing to report".
       append("\nЕсли сообщать нечего — ответь ровно $HEARTBEAT_OK: тогда юзер ничего не получит. ")
       append("Напоминание, о котором тебя просили, — это всегда «есть что сообщить».")
+      // A wakeup is permission to do the task it was scheduled for, not to start something else.
+      append("\nПробуждение не даёт права на новую работу: делай только задачу этого напоминания ")
+      append("и не начинай того, о чём человек не просил.")
       // The same "Now" section as the chat (PrePromptAssembler) and the plan have: without it a background
       // turn does not know what time it is — it can neither convert "at 19:00" in the task nor
       // "today/in an hour" into a time (calendar.start in Unix ms, delays), and "what matters right now"
@@ -384,6 +396,17 @@ class HeartbeatRunner(
     return FireOutcome.DONE
   }
 
+  /**
+   * The last [MAX_UNANSWERED_WAKEUPS] text messages of the chat are all the assistant's: the person has
+   * not answered for that long. Counted from the chat itself rather than a counter on the heartbeat, so
+   * any message from the person resets it with no extra state; a silent HEARTBEAT_OK writes nothing and
+   * so never counts.
+   */
+  private suspend fun isUnanswered(conversationId: String): Boolean {
+    val recent = conversationRepository.getRecentAnnotatableMessages(conversationId, MAX_UNANSWERED_WAKEUPS)
+    return recent.size == MAX_UNANSWERED_WAKEUPS && recent.none { it.role == "user" }
+  }
+
   private suspend fun record(hb: HeartbeatEntity, ok: Boolean, result: String?) {
     val status = when {
       !ok -> "error"
@@ -397,6 +420,8 @@ class HeartbeatRunner(
     private const val TAG = "HeartbeatRunner"
     const val BG_MAX_ITERATIONS = 5
     const val MAX_ATTEMPTS = 3
+    /** After this many assistant messages in a row without a reply, periodic wakeups wait for the person. */
+    const val MAX_UNANSWERED_WAKEUPS = 12
     /**
      * Reading + notifications + storage_tool (isolated per agent in code through TurnContextHolder —
      * as safe in the background as memory_tool) + srs_tool (a local write of cards to Room, like
@@ -427,6 +452,11 @@ class HeartbeatRunner(
       get() = tr("Агент, к которому привязано напоминание, больше не существует.", "The agent this reminder is tied to no longer exists.")
     private val AGENT_NOT_PUBLISHED: String
       get() = tr("Агент архивирован или ещё не опубликован — напоминание пропущено.", "The agent is archived or not published yet — reminder skipped.")
+    private val PAUSED_UNANSWERED: String
+      get() = tr(
+        "На паузе: в чате $MAX_UNANSWERED_WAKEUPS сообщений без ответа. Продолжу, когда вы напишете.",
+        "Paused: $MAX_UNANSWERED_WAKEUPS messages in the chat without a reply. Resumes when you write.",
+      )
     private val PLAN_NOT_FOUND: String
       get() = tr("План, на который ссылается heartbeat, больше не существует.", "The plan this heartbeat refers to no longer exists.")
     private val PLAN_NOT_ACTIVE: String

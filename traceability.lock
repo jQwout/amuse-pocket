@@ -55,7 +55,7 @@
     },
     "heartbeat-napominalki-agenta-5f0442": {
       "hash": "7169f74a130e",
-      "git": "1038aed"
+      "git": "ba1d1017"
     },
     "kartinki-urokov-cherez-muse-image-fd6f8c": {
       "hash": "a4727163f7de",
@@ -98,8 +98,8 @@
       "git": "18d34182"
     },
     "structured-plan-engine-907066": {
-      "hash": "db8d83e56b40",
-      "git": "18d34182"
+      "hash": "ef5a3a081533",
+      "git": "ba1d1017"
     },
     "swappable-persona-e5e65e": {
       "hash": "11aaa5d19303",
@@ -110,8 +110,8 @@
       "git": "687ad17"
     },
     "user-agent-builder-848153": {
-      "hash": "7d966ccfeaba",
-      "git": "18d34182"
+      "hash": "7efe7c61ba63",
+      "git": "ba1d1017"
     },
     "video-na-vhod-v-uroke-muse-spark-08ccdb": {
       "hash": "5b7f70575627",
@@ -122,8 +122,8 @@
       "git": "48d4078"
     },
     "vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53": {
-      "hash": "dcc20f1833f5",
-      "git": "1fee6961"
+      "hash": "f968b5c84968",
+      "git": "ba1d1017"
     },
     "yazykovoy-agent-repetitor-s-intervalnymi-povtoreniyami-4a9360": {
       "hash": "74722c84ed79",
