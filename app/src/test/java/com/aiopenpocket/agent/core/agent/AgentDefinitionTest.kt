@@ -69,9 +69,9 @@ class AgentDefinitionTest {
 
   @Test
   fun `toDefinition scopes memory to an agent-prefixed namespace and keeps shared profile visible`() {
-    val definition = MiniAgentCatalog.get("nutrition")!!.toDefinition()
+    val definition = MiniAgentCatalog.get("tasks")!!.toDefinition()
 
-    assertEquals(AgentMemoryPolicy(namespace = "agent:nutrition:", includeSharedProfile = true), definition.memoryPolicy)
+    assertEquals(AgentMemoryPolicy(namespace = "agent:tasks:", includeSharedProfile = true), definition.memoryPolicy)
   }
 
   @Test
@@ -90,7 +90,6 @@ class AgentDefinitionTest {
     assertEquals(setOf("diary"), mapped.getValue("diary"))
     assertEquals(emptySet<String>(), mapped.getValue("tasks"))
     assertEquals(emptySet<String>(), mapped.getValue("reminders"))
-    assertEquals(emptySet<String>(), mapped.getValue("nutrition"))
   }
 
   @Test
