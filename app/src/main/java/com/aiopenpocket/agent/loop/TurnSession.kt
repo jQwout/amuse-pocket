@@ -38,7 +38,11 @@ sealed interface TurnStatus {
     val canRetry: Boolean,
   ) : TurnStatus
 
-  data class Failed(val message: String, val canRetry: Boolean) : TurnStatus
+  /**
+   * [needsKey]: the turn did not run because the person has no Meta Model API key. The screens turn it
+   * into an "Open Settings" button next to the message; "Retry" works as usual once the key is entered.
+   */
+  data class Failed(val message: String, val canRetry: Boolean, val needsKey: Boolean = false) : TurnStatus
 }
 
 /**

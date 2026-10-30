@@ -277,6 +277,7 @@ class MainActivity : ComponentActivity() {
                                         agentId = null,
                                         sourceContext = sourceContext,
                                         onExit = { navController.popBackStack() },
+                                        onOpenSettings = { navController.navigate("settings") { launchSingleTop = true } },
                                         // A published agent goes straight to its chat; the builder is closed
                                         // so that "Back" from the chat does not return to the finished wizard.
                                         onOpenChat = { id ->
@@ -290,6 +291,7 @@ class MainActivity : ComponentActivity() {
                                     AgentBuilderRoute(
                                         agentId = agentId,
                                         onExit = { navController.popBackStack() },
+                                        onOpenSettings = { navController.navigate("settings") { launchSingleTop = true } },
                                         onOpenChat = { id ->
                                             navController.popBackStack()
                                             navController.navigate("chat/$id")
@@ -375,6 +377,11 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onOpenPlanDetail = { planId ->
                                             navController.navigate("plan/$planId")
+                                        },
+                                        // Pushed on top of the chat, not a tab switch: "Back" from Settings returns
+                                        // to this very chat, where "Retry" re-sends the message once the key is in.
+                                        onOpenSettings = {
+                                            navController.navigate("settings") { launchSingleTop = true }
                                         },
                                     )
                                 }

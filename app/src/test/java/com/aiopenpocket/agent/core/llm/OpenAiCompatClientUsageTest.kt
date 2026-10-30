@@ -87,8 +87,8 @@ class OpenAiCompatClientUsageTest {
   @Test
   fun `usage named by the provider is recorded verbatim, not estimated`() = runTest {
     val recorder = RecordingUsageRecorder()
-    clientOf(LlmProvider.OPENROUTER, withUsageSse, recorder)
-      .streamChat(message, emptyList(), LlmProvider.OPENROUTER).toList()
+    clientOf(LlmProvider.META, withUsageSse, recorder)
+      .streamChat(message, emptyList(), LlmProvider.META).toList()
 
     val usage = recorder.recorded.single()
     assertEquals(1200, usage.promptTokens)
@@ -96,14 +96,14 @@ class OpenAiCompatClientUsageTest {
     assertEquals(0.00031, usage.costUsd ?: 0.0, 1e-9)
     assertFalse("замер провайдера не должен помечаться оценкой", usage.estimated)
     assertEquals("vendor/test-model", usage.model)
-    assertEquals(LlmProvider.OPENROUTER, usage.provider)
+    assertEquals(LlmProvider.META, usage.provider)
   }
 
   @Test
   fun `silence from the provider becomes an estimate, explicitly flagged`() = runTest {
     val recorder = RecordingUsageRecorder()
-    clientOf(LlmProvider.OPENROUTER, withoutUsageSse, recorder)
-      .streamChat(message, emptyList(), LlmProvider.OPENROUTER).toList()
+    clientOf(LlmProvider.META, withoutUsageSse, recorder)
+      .streamChat(message, emptyList(), LlmProvider.META).toList()
 
     val usage = recorder.recorded.single()
     assertTrue("оценка обязана быть помечена оценкой", usage.estimated)
@@ -120,8 +120,8 @@ class OpenAiCompatClientUsageTest {
   @Test
   fun `an empty 200 attempt is still recorded`() = runTest {
     val recorder = RecordingUsageRecorder()
-    clientOf(LlmProvider.OPENROUTER, emptySse, recorder)
-      .streamChat(message, emptyList(), LlmProvider.OPENROUTER).toList()
+    clientOf(LlmProvider.META, emptySse, recorder)
+      .streamChat(message, emptyList(), LlmProvider.META).toList()
 
     assertEquals(1, recorder.recorded.size)
     assertTrue(recorder.recorded.single().promptTokens > 0)
@@ -130,8 +130,8 @@ class OpenAiCompatClientUsageTest {
   @Test
   fun `the request asks for usage through the standard stream_options field`() = runTest {
     val bodies = mutableListOf<String>()
-    clientOf(LlmProvider.OPENROUTER, withoutUsageSse, RecordingUsageRecorder(), bodies)
-      .streamChat(message, emptyList(), LlmProvider.OPENROUTER).toList()
+    clientOf(LlmProvider.META, withoutUsageSse, RecordingUsageRecorder(), bodies)
+      .streamChat(message, emptyList(), LlmProvider.META).toList()
 
     assertTrue(
       "без stream_options.include_usage провайдер не пришлёт расход вовсе: ${bodies.single()}",
@@ -139,12 +139,15 @@ class OpenAiCompatClientUsageTest {
     )
   }
 
-  /** `usage: {"include": true}` is an OpenRouter extension: without it, it will not name the price in dollars. */
+  /**
+   * `usage: {"include": true}` was an extension of a gateway that is gone from the project. Meta answers 400
+   * to fields it does not know, so the field must not be sent: the price comes from Meta's list instead.
+   */
   @Test
-  fun `the OpenRouter usage field asks for the price`() = runTest {
+  fun `the request carries no top-level usage field`() = runTest {
     val bodies = mutableListOf<String>()
-    clientOf(LlmProvider.OPENROUTER, withUsageSse, RecordingUsageRecorder(), bodies)
-      .streamChat(message, emptyList(), LlmProvider.OPENROUTER).toList()
-    assertTrue(bodies.single().contains("\"usage\":{\"include\":true}"))
+    clientOf(LlmProvider.META, withUsageSse, RecordingUsageRecorder(), bodies)
+      .streamChat(message, emptyList(), LlmProvider.META).toList()
+    assertFalse(bodies.single(), bodies.single().contains("\"usage\":"))
   }
 }

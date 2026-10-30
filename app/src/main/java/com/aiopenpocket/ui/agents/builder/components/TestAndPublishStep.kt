@@ -73,6 +73,8 @@ fun TestAndPublishStep(
   onResolveTestApproval: (approved: Boolean) -> Unit = {},
   /** "Open chat" in the publish confirmation; null — no button. */
   onOpenChat: (() -> Unit)? = null,
+  /** "Open Settings" under the no-key message of a test run; null — no button. */
+  onOpenSettings: (() -> Unit)? = null,
   modifier: Modifier = Modifier,
   /**
    * Paddings for the wizard's floating glass islands (their heights are measured in AgentBuilderScreen).
@@ -157,7 +159,7 @@ fun TestAndPublishStep(
     }
 
     Spacer(modifier = Modifier.height(16.dp))
-    TestRunStatus(testStatus, testStreamingText)
+    TestRunStatus(testStatus, testStreamingText, onOpenSettings)
 
     // The same confirmation bar as in the chat. A "Require confirmation" hook puts a call on hold in
     // preview too, and without the bar here the test turn silently hung for two minutes until the timeout.
@@ -288,7 +290,7 @@ private fun stepTitle(step: BuilderStep): String = when (step) {
 
 /** [replyText] — the turn's answer: the stream or the message written to the conversation (for "Plan"/"Goal" turns only the latter). */
 @Composable
-private fun TestRunStatus(status: TurnStatus?, replyText: String) {
+private fun TestRunStatus(status: TurnStatus?, replyText: String, onOpenSettings: (() -> Unit)?) {
   when (status) {
     null -> Unit
     is TurnStatus.Running -> Row(verticalAlignment = Alignment.CenterVertically) {
@@ -312,10 +314,16 @@ private fun TestRunStatus(status: TurnStatus?, replyText: String) {
       }
     }
 
-    is TurnStatus.Failed -> Text(
-      text = status.message,
-      style = MaterialTheme.typography.bodyMedium,
-      color = MaterialTheme.colorScheme.error,
-    )
+    is TurnStatus.Failed -> Column {
+      Text(
+        text = status.message,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.error,
+      )
+      // The dry run has no model to talk to without the person's Meta key; the way out is Settings.
+      if (status.needsKey && onOpenSettings != null) {
+        TextButton(onClick = onOpenSettings) { Text(tr("Открыть настройки", "Open Settings")) }
+      }
+    }
   }
 }

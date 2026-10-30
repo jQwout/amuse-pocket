@@ -46,7 +46,7 @@ class OpenAiCompatClientCancellationTest {
    * loop reached the next models after cancellation.
    */
   private fun config(model: String, attempts: AtomicInteger) = ProviderConfig(
-    name = LlmProvider.OPENROUTER,
+    name = LlmProvider.META,
     baseUrl = "https://nim.test/chat/completions",
     model = model,
     apiKeyResolver = {
@@ -57,7 +57,7 @@ class OpenAiCompatClientCancellationTest {
 
   private fun clientOf(models: List<String>, attempts: AtomicInteger, engine: MockEngine) =
     OpenAiCompatClient(
-      fallbackChain = ProviderFallbackChain(mapOf(LlmProvider.OPENROUTER to models.map { config(it, attempts) })),
+      fallbackChain = ProviderFallbackChain(mapOf(LlmProvider.META to models.map { config(it, attempts) })),
       engine = engine,
       usageRecorder = NoOpLlmUsageRecorder,
     )
@@ -77,7 +77,7 @@ class OpenAiCompatClientCancellationTest {
     val client = clientOf(listOf("hanging-model", "second-model", "third-model"), attempts, engine)
 
     val job = launch {
-      client.streamChat(emptyList(), emptyList(), LlmProvider.OPENROUTER).toList()
+      client.streamChat(emptyList(), emptyList(), LlmProvider.META).toList()
     }
     firstCallEntered.await()
     job.cancelAndJoin()
@@ -95,7 +95,7 @@ class OpenAiCompatClientCancellationTest {
     // Caught by hand, not with assertThrows: the cancellation comes from the engine, and the test job itself
     // is not cancelled, so catching it here is safe and does not break the runTest scope.
     val thrown = try {
-      client.streamChat(emptyList(), emptyList(), LlmProvider.OPENROUTER).toList()
+      client.streamChat(emptyList(), emptyList(), LlmProvider.META).toList()
       null
     } catch (e: Throwable) {
       e
@@ -124,7 +124,7 @@ class OpenAiCompatClientCancellationTest {
     }
     val client = clientOf(listOf("broken-model", "good-model"), attempts, engine)
 
-    val events = client.streamChat(emptyList(), emptyList(), LlmProvider.OPENROUTER).toList()
+    val events = client.streamChat(emptyList(), emptyList(), LlmProvider.META).toList()
 
     assertEquals(2, attempts.get())
     assertEquals("Привет", events.filterIsInstance<StreamEvent.TextDelta>().joinToString("") { it.content })

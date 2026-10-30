@@ -202,7 +202,7 @@ class PlanVerifier @Inject constructor(
     snapshot: PlanSnapshot,
     step: PlanStep,
     result: AgentResult,
-    provider: LlmProvider = LlmProvider.OPENROUTER,
+    provider: LlmProvider = LlmProvider.META,
   ): PlanVerificationResult {
     val criteria = snapshot.version.criteria
     val alreadyProvenIds = snapshot.evidence.mapNotNullTo(mutableSetOf()) { it.criterionId }

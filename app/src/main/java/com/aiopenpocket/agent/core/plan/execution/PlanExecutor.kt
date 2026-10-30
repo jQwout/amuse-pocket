@@ -240,7 +240,7 @@ class PlanExecutor @Inject constructor(
     // Дефолт сознательный: у execute ровно один вызывающий — PlanRunner, а он провайдера уже
     // обязан прокинуть. Гейт «не забудь провайдера» стоит на ВХОДНЫХ точках подсистемы
     // (PlanRunner.run, StructuredPlanOrchestrator, оркестраторы петли) и на LlmClient.streamChat.
-    provider: LlmProvider = LlmProvider.OPENROUTER,
+    provider: LlmProvider = LlmProvider.META,
     executionMode: ExecutionMode = ExecutionMode.LIVE,
     /** False by default — a plan step run defaults to headless/background (design spec section 9:
      * "Background run не ждёт UI approval"); a future foreground caller (Task 10) may pass `true`. */

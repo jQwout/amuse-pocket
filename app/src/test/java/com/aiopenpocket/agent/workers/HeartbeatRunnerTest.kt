@@ -82,7 +82,10 @@ import org.robolectric.annotation.Config
 class HeartbeatRunnerTest {
 
   /** What is "chosen in Settings" at the time of the background turn. */
-  private var selectedProvider = LlmProvider.OPENROUTER
+  private var selectedProvider = LlmProvider.META
+
+  /** Whether the person has entered a Meta key when the wakeup fires. */
+  private var hasModelKey = true
 
   private class FakeLlm(private val events: List<StreamEvent>) : LlmClient {
     /** Snapshot (not a live reference) of `messages` as seen on each `streamChat` call — lets a test
@@ -244,6 +247,7 @@ class HeartbeatRunnerTest {
       planRunner,
       planScheduleSync,
       { selectedProvider },
+      { hasModelKey },
     )
     return Doubles(runner, fakeLlm, planRepository, planScheduleSync)
   }
@@ -361,19 +365,61 @@ class HeartbeatRunnerTest {
 
   /**
    * A background turn must go to the same vendor as an ordinary one. There used to be a literal
-   * LlmProvider.NIM here: after switching to OpenRouter, reminders would keep going to NVIDIA — that is,
+   * LlmProvider.NIM here: after switching vendors, reminders would keep going to NVIDIA — that is,
    * quietly fail on an empty key or carry data to a vendor the user had left.
    */
   @Test
   fun `agent mode goes to the provider selected in settings`() = runTest {
-    selectedProvider = LlmProvider.OPENROUTER
+    selectedProvider = LlmProvider.META
     db.heartbeatDao().insert(hb(mode = "agent", prompt = "проверь задачи"))
     val doubles = runnerWithRegistry(
       listOf(StreamEvent.TextDelta("ок"), StreamEvent.Finish("stop")),
       ToolRegistry(emptySet()),
     )
     assertEquals(FireOutcome.DONE, doubles.runner.handleFire("hb1", attempt = 0))
-    assertEquals(listOf(LlmProvider.OPENROUTER), doubles.llm.providers)
+    assertEquals(listOf(LlmProvider.META), doubles.llm.providers)
+  }
+
+  /**
+   * A background wakeup has nobody to ask. Without a Meta key it must NOT call the model (a guaranteed
+   * 401, which the retry loop would repeat), must NOT push, and must leave the reason on the run.
+   */
+  @Test
+  fun `agent wakeup without a key is skipped silently and records why`() = runTest {
+    hasModelKey = false
+    db.heartbeatDao().insert(hb(mode = "agent", prompt = "проверь задачи"))
+    val doubles = runnerWithRegistry(
+      listOf(StreamEvent.TextDelta("ок"), StreamEvent.Finish("stop")),
+      ToolRegistry(emptySet()),
+    )
+
+    assertEquals(FireOutcome.DONE, doubles.runner.handleFire("hb1", attempt = 0))
+
+    assertTrue("модель вызвана без ключа", doubles.llm.providers.isEmpty())
+    assertTrue("фон молчит: ни пуша, ни сообщения", notifier.calls.isEmpty())
+    assertTrue(db.messageDao().getAllOrdered("conv1").isEmpty())
+    val saved = db.heartbeatDao().getById("hb1")
+    assertEquals("error", saved?.status)
+    assertTrue("причина записана: ${saved?.lastResult}", saved?.lastResult?.contains("Meta API") == true)
+  }
+
+  @Test
+  fun `a plan-step wakeup without a key is skipped silently too`() = runTest {
+    hasModelKey = false
+    val (runner, llm, planRepository, planScheduleSync) = runnerWithRegistry(
+      listOf(StreamEvent.TextDelta("ок"), StreamEvent.Finish("stop")),
+      ToolRegistry(emptySet()),
+    )
+    planRepository.saveProposal(plan(id = "plan-1"), planVersion(planId = "plan-1", steps = listOf(planStep(id = "step-1"))))
+    planRepository.approve("plan-1", 1)
+    db.heartbeatDao().insert(planHeartbeat())
+
+    assertEquals(FireOutcome.DONE, runner.handleFire("hb1", attempt = 0))
+
+    assertTrue("модель вызвана без ключа", llm.calls.isEmpty())
+    assertTrue("фон молчит", notifier.calls.isEmpty())
+    assertEquals("error", db.heartbeatDao().getById("hb1")?.status)
+    assertEquals("a skipped step does not cancel the plan's schedule", emptyList<String>(), planScheduleSync.cancelled)
   }
 
   @Test

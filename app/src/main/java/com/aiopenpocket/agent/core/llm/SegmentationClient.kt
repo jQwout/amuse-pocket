@@ -36,7 +36,7 @@ import kotlin.random.Random
 
 /** Why a segmentation did not come back. The lesson turns each one into a different sentence for the user. */
 enum class SegmentationFailure {
-  /** No Meta Model API key: SAM exists only on the direct route, OpenRouter does not carry it. */
+  /** No Meta Model API key: SAM needs the person's own key. */
   NO_KEY,
   /** The concept is empty or is not one noun phrase (a list, a command). Never sent: it would cost a call. */
   BAD_CONCEPT,
@@ -80,7 +80,7 @@ sealed interface SegmentationResult {
 
 /**
  * SAM 3.1 outlining things in a photo — the direct Meta Model API (`POST https://api.meta.ai/v1/responses`,
- * model `sam-3.1`). Not OpenRouter: SAM exists only on the direct route.
+ * model `sam-3.1`).
  *
  * A separate client in the mould of [VideoUnderstandingClient] rather than a branch of
  * [OpenAiCompatClient]: this is the Responses API, not chat completions, the answer is not a message but

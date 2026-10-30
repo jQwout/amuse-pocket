@@ -5,7 +5,6 @@ plugins {
   alias(libs.plugins.kotlin.serialization)
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.roborazzi)
-  alias(libs.plugins.secrets)
   alias(libs.plugins.metro)
 }
 
@@ -77,75 +76,12 @@ android {
   testOptions { unitTests { isIncludeAndroidResources = true } }
 }
 
-// Configure the Secrets Gradle Plugin to use .env and .env.example files
-// to match the convention used in Web projects.
-secrets {
-  propertiesFileName = ".env"
-  defaultPropertiesFileName = ".env.example"
-  // Keys the app does not read do not go into BuildConfig: by default the plugin puts every .env line there,
-  // and a debug APK handed to someone would carry long-unneeded keys (NVIDIA, Gemini from the AI Studio days).
-  // An explicit list rather than "everything except OpenRouter" through a lookahead: the plugin matches the
-  // pattern with containsMatchIn, and such a pattern in fact threw out OPENROUTER_API_KEY itself too.
-  ignoreList.add("^NVIDIA_API_KEY$")
-  ignoreList.add("^GEMINI_API_KEY$")
-}
-
-// The beginnings of live provider keys: sk-or-v1- and sk- (OpenRouter/OpenAI), nvapi- (NVIDIA NIM), AIza
-// (Google). NIM is gone from the app, but the secrets plugin puts ANY .env line into BuildConfig, so an old
-// key left in the file would ship in a release even without code that reads it.
-// The placeholder from .env.example (MY_OPENROUTER_API_KEY) matches none of the prefixes.
-val liveKeyPrefixes = listOf("nvapi-", "sk-or-v1-", "sk-", "AIza")
-
-/**
- * Do not let a store build carry away a live provider key.
- *
- * The secrets plugin puts the values from `.env` into BuildConfig, and BuildConfig travels INSIDE the
- * artifact: getting a string out of it takes one unzip of the AAB. So a key built into a release is not "a
- * leak someday" but handing out your quota to everyone who downloaded the app, from day one. Checked on a
- * live artifact on 2026-09-06: `bundleRelease` carried away a working `nvapi-…` key.
- *
- * The guard hangs ONLY on release: debug is built with a working `.env` all the time, and failing on it would
- * break normal development for the sake of an invariant that does not apply to debug — that artifact goes
- * nowhere.
- */
-val checkReleaseSecrets = tasks.register("checkReleaseSecrets") {
-  description = "Fails the release build when .env carries a live provider key (it would ship inside BuildConfig)."
-  val envFile = rootProject.file(".env")
-  val prefixes = liveKeyPrefixes
-  // The file may not exist at all (a fresh clone without keys) — that is not an error: then the placeholders
-  // from .env.example go into BuildConfig, exactly what a release needs.
-  inputs.files(files(envFile)).withPropertyName("envFile")
-  doLast {
-    if (!envFile.exists()) return@doLast
-    val offenders = envFile.readLines()
-      .map { it.trim() }
-      .filter { it.isNotEmpty() && !it.startsWith("#") && it.contains('=') }
-      .mapNotNull { line ->
-        val name = line.substringBefore('=').trim()
-        val value = line.substringAfter('=').trim().trim('"', '\'')
-        name.takeIf { prefixes.any(value::startsWith) }
-      }
-    if (offenders.isNotEmpty()) {
-      // The message text is ASCII on purpose: the Windows console gets Gradle's output in cp866/cp1251, and
-      // Cyrillic in a GradleException arrives as gibberish exactly where it must be read.
-      throw GradleException(
-        "Release build stopped: .env holds live provider key(s) (${offenders.joinToString()}). " +
-          "They are copied into BuildConfig and ship inside the AAB, where anyone can unpack them. " +
-          "Put placeholders (see .env.example) in .env before building a release; " +
-          "real keys for the paid path belong on the server, not in the artifact.",
-      )
-    }
-  }
-}
-
-// generateReleaseBuildConfig is the moment the key physically gets into the build's code; a check before it
-// fails the build before compilation rather than after four minutes of work. A duplicate on the artifact
-// tasks themselves — in case BuildConfig turns out UP-TO-DATE and does not run at all.
-tasks.matching {
-  it.name in setOf("generateReleaseBuildConfig", "bundleRelease", "assembleRelease")
-}.configureEach {
-  dependsOn(checkReleaseSecrets)
-}
+// NO provider key goes into BuildConfig, in any build type (decision of Oct 30, 2026). The app talks to the
+// Meta Model API with a key the PERSON enters in onboarding or Settings (EncryptedSharedPreferences);
+// nothing is bundled. That is why the Secrets Gradle Plugin that used to copy `.env` into BuildConfig is
+// gone, together with its release guard: with no plugin there is no path from `.env` into the artifact,
+// and BuildConfig is just the build type and the version. tools/check.py (T4) fails the build of the
+// invariant if the plugin or a key-like buildConfigField ever comes back, and T4a scans the built APK.
 
 // LessonAssetsValidationTest reads assets/lessons/*.json (+ images) directly through File() at test runtime,
 // bypassing resource merging. Gradle does not see them as task inputs → with edits to lessons ONLY,

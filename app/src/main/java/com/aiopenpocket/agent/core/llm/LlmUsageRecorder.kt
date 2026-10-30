@@ -16,7 +16,7 @@ data class LlmCallUsage(
   val model: String,
   val promptTokens: Int,
   val completionTokens: Int,
-  /** Price in USD, if the provider named it (OpenRouter). `null` — price it separately from the price list. */
+  /** Price in USD, if the provider named it. `null` — price it separately from the price list (see metaListPriceUsd). */
   val costUsd: Double?,
   /**
    * The tokens did not come from the provider but were estimated from the text length

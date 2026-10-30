@@ -88,8 +88,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.aiopenpocket.BuildConfig
-import com.aiopenpocket.agent.core.llm.bundledOpenRouterKey
 import com.aiopenpocket.agent.core.persona.PersonaCatalog
 import com.aiopenpocket.ui.onboarding.components.PersonaCard
 import com.aiopenpocket.ui.components.AcademyBottomNav
@@ -272,8 +270,8 @@ fun SettingsScreen(
         modifier = Modifier.padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
       ) {
-        // The Meta key comes first: it is the primary route (see LlmProvider). There is no bundled Meta key, so
-        // this field is the only way to the direct Meta Model API, including for someone who built the
+        // The Meta key is the only key in the app (see LlmProvider). Nothing is bundled into any build, so this
+        // field — or the key step of onboarding — is the only way to a model, including for someone who built the
         // project from the public repository.
         ApiKeyField(
           label = tr("Ключ Meta Model API", "Meta Model API key"),
@@ -282,23 +280,12 @@ fun SettingsScreen(
           modifier = Modifier.testTag("settings_meta_key"),
         )
         MetaKeyHint()
-        ApiKeyField(
-          label = tr("Ключ OpenRouter — запасной путь", "OpenRouter key — backup route"),
-          value = state.openRouterKey,
-          onValueChange = viewModel::updateOpenRouterKey,
-        )
       }
 
-      // Without this line the first signal of a forgotten key would be "All providers failed" in the chat,
-      // already after sending a question, and that a Meta key switched something a person would learn only
-      // from the spend. The route uses the same predicate as the chain (state.provider → activeLlmProvider),
-      // and the presence of an OpenRouter key the same as its resolver: otherwise the line and the real
-      // behavior would one day diverge.
-      val openRouterKeyMissing =
-        state.openRouterKey.isBlank() && bundledOpenRouterKey(BuildConfig.OPENROUTER_API_KEY).isBlank()
+      // Without this line the first signal of a missing key would be an error in the chat, already after
+      // sending a question. It reacts to the field as the person types, before "Save".
       ProviderRouteLine(
-        provider = state.provider,
-        openRouterKeyMissing = openRouterKeyMissing,
+        hasKey = state.hasKey,
         modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
       )
 
@@ -557,15 +544,13 @@ fun SettingsScreen(
 }
 
 /**
- * A model's name for a person: "meta/muse-spark-1.3" (OpenRouter) and "muse-spark-1.3" (Meta) →
- * "Muse Spark 1.3", "AUTO" → "Auto — by priority". The id stays the key in the settings and in the chain;
- * here is only the caption — without the vendor prefix (it is the same for all) and without the settings
- * sentinel, which tells the user nothing.
+ * A model's name for a person: "muse-spark-1.3" → "Muse Spark 1.3", "AUTO" → "Auto — by priority". The id
+ * stays the key in the settings and in the chain; here is only the caption — without the settings sentinel,
+ * which tells the user nothing.
  */
 internal fun modelLabel(id: String): String {
   if (id == "AUTO") return tr("Авто — по приоритету", "Auto — by priority")
-  return id.substringAfter('/')
-    .split('-')
+  return id.split('-')
     // "30b" is the model size in billions of parameters, written as "30B".
     .joinToString(" ") { part -> if (part.matches(SIZE_SUFFIX)) part.uppercase() else part.replaceFirstChar { it.uppercase() } }
 }

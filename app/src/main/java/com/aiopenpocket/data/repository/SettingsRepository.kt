@@ -13,7 +13,8 @@ import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
 
 /**
- * Provider keys (OpenRouter and Meta Model API) and the model choice.
+ * The person's Meta Model API key and the model choice. Nothing is bundled: the key is whatever the person
+ * entered in onboarding or Settings.
  *
  * An interface (the implementation is [EncryptedSettingsRepository]) not for the sake of an
  * "abstraction for the future", but because the only implementation fundamentally cannot be created
@@ -29,15 +30,12 @@ interface SettingsRepository {
 
   /**
    * The specific Meta model on route [provider] (`LlmProvider.name`). "AUTO" — go by priority from the
-   * catalog.
-   *
-   * Each route has its own choice: the same model has different ids on OpenRouter and on the direct
-   * Meta Model API ("meta/muse-wonder" and "muse-wonder-1.0"). A shared choice would either be silently
-   * lost when a Meta key is entered, or show a model in Settings the chain does not know.
+   * catalog. Stored per provider so that a second route, if one ever returns, does not inherit an id
+   * its catalog does not know.
    */
-  fun getSelectedModel(provider: String = "OPENROUTER"): String
+  fun getSelectedModel(provider: String = "META"): String
 
-  fun setSelectedModel(model: String, provider: String = "OPENROUTER")
+  fun setSelectedModel(model: String, provider: String = "META")
 
   companion object {
     /**
@@ -74,10 +72,11 @@ class EncryptedSettingsRepository(
       EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
       EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
     ).also { prefs ->
-      // NVIDIA NIM was removed on Oct 25, 2026: nobody reads its key and provider choice any more, but on an
-      // updated device they would just stay there — a live key the user no longer knows about.
-      if (prefs.contains(OBSOLETE_NVIDIA_KEY) || prefs.contains(OBSOLETE_PROVIDER)) {
-        prefs.edit().remove(OBSOLETE_NVIDIA_KEY).remove(OBSOLETE_PROVIDER).apply()
+      // NVIDIA NIM was removed on Oct 25, 2026 and OpenRouter on Oct 30, 2026: nobody reads their keys and
+      // choices any more, but on an updated device they would just stay there — a live key the user no
+      // longer knows about.
+      if (OBSOLETE_KEYS.any { prefs.contains(it) }) {
+        prefs.edit().apply { OBSOLETE_KEYS.forEach { remove(it) } }.apply()
       }
     }
   }
@@ -85,6 +84,10 @@ class EncryptedSettingsRepository(
   private companion object {
     const val OBSOLETE_NVIDIA_KEY = "api_key_NVIDIA"
     const val OBSOLETE_PROVIDER = "selected_provider"
+    const val OBSOLETE_OPENROUTER_KEY = "api_key_OPENROUTER"
+    // The OpenRouter route's model choice lived under the bare name (ids like "meta/muse-spark-1.3").
+    const val OBSOLETE_OPENROUTER_MODEL = "selected_model"
+    val OBSOLETE_KEYS = listOf(OBSOLETE_NVIDIA_KEY, OBSOLETE_PROVIDER, OBSOLETE_OPENROUTER_KEY, OBSOLETE_OPENROUTER_MODEL)
   }
 
   override fun getApiKey(provider: String): String =
@@ -102,10 +105,8 @@ class EncryptedSettingsRepository(
   }
 
   /**
-   * OpenRouter keeps the old key: a choice made before the second route appeared is not lost.
-   * Not `selected_provider` or anything with that name: such a key is deleted every time the prefs are
-   * opened (a NIM legacy, see OBSOLETE_PROVIDER).
+   * Not `selected_provider` or the bare `selected_model`: such keys are deleted every time the prefs are
+   * opened (NIM and OpenRouter legacy, see OBSOLETE_KEYS).
    */
-  private fun selectedModelKey(provider: String): String =
-    if (provider == "OPENROUTER") "selected_model" else "selected_model_$provider"
+  private fun selectedModelKey(provider: String): String = "selected_model_$provider"
 }

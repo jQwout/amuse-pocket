@@ -59,6 +59,7 @@ import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.onboarding.components.AboutMeStep
 import com.aiopenpocket.ui.onboarding.components.IntroStreamingStep
 import com.aiopenpocket.ui.onboarding.components.LanguageSelectionStep
+import com.aiopenpocket.ui.onboarding.components.MetaKeyStep
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
@@ -324,6 +325,15 @@ private fun OnboardingStepBody(
             streamingText = state.introStreamingText,
             isStreaming = state.isIntroStreaming,
             modifier = modifier.padding(top = topPad, bottom = bottomPad),
+        )
+
+        // KEY scrolls too (the keyboard is up while typing), so its paddings go INSIDE, like PROFILE's.
+        OnboardingStep.KEY -> MetaKeyStep(
+            key = state.metaKeyInput,
+            onKeyChange = { onIntent(OnboardingIntent.UpdateMetaKey(it)) },
+            onSkip = { onIntent(OnboardingIntent.SkipMetaKey) },
+            modifier = modifier,
+            contentPadding = PaddingValues(top = topPad, bottom = bottomPad),
         )
 
         // PROFILE is the wizard's last step ("Done" finishes the setup) and the only scrollable one: the paddings go

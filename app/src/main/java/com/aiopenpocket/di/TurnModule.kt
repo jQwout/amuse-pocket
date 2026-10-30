@@ -17,6 +17,7 @@ import com.aiopenpocket.agent.loop.StructuredPlanOrchestrator
 import com.aiopenpocket.agent.loop.TurnExecutor
 import com.aiopenpocket.agent.loop.TurnLifeSupport
 import com.aiopenpocket.agent.core.llm.ReasoningEffortContext
+import com.aiopenpocket.agent.core.llm.ModelKeyGate
 import com.aiopenpocket.agent.core.llm.SelectedLlmProvider
 import com.aiopenpocket.agent.core.llm.reasoningEffortFor
 import com.aiopenpocket.agent.loop.TurnManager
@@ -100,6 +101,7 @@ object TurnModule {
     pendingApprovals: PendingApprovals,
     lifeSupport: TurnLifeSupport,
     selectedProvider: SelectedLlmProvider,
+    modelKeyGate: ModelKeyGate,
     log: com.aiopenpocket.agent.core.AgentLog,
   ): TurnManager = TurnManager(
     executor = executor,
@@ -111,9 +113,10 @@ object TurnModule {
     // An app-level scope of its own: an agent turn lives as long as the process does, not the screen.
     scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     monotonicNowMs = android.os.SystemClock::uptimeMillis,
-    // A lambda rather than a value: the provider is read on every turn — with two routes (the direct Meta
-    // Model API and OpenRouter) a change is picked up at once, without rebuilding the DI graph.
+    // Lambdas rather than values: both are read on every turn, so a key entered in Settings is picked up
+    // at once, without rebuilding the DI graph.
     selectedProvider = { selectedProvider() },
+    hasModelKey = { modelKeyGate() },
     log = log,
   )
 }

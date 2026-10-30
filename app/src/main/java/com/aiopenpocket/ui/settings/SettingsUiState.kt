@@ -4,21 +4,14 @@ package com.aiopenpocket.ui.settings
 // @trace vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53
 
 import com.aiopenpocket.agent.core.identity.ChatFontScale
-import com.aiopenpocket.agent.core.llm.LlmProvider
-import com.aiopenpocket.agent.core.llm.activeLlmProvider
 import com.aiopenpocket.ui.theme.ThemeMode
 
 data class SettingsUiState(
-  val openRouterKey: String = "",
-  /** The Meta Model API key. Non-empty — requests go straight to Meta (see [activeLlmProvider]). */
+  /** The Meta Model API key the person entered. Empty — no model call can go out (see ModelKeyGate). */
   val metaKey: String = "",
-  /** The model of the OpenRouter route ("AUTO" — by priority from the catalog). */
-  val selectedModel: String = "AUTO",
-  /** The model of the direct Meta route — a choice of its own, see SettingsRepository.getSelectedModel. */
+  /** The chosen Meta model ("AUTO" — by priority from the catalog). */
   val selectedMetaModel: String = "AUTO",
-  /** Meta models from the OpenRouter catalog, sorted by priority. */
-  val openRouterModels: List<String> = emptyList(),
-  /** Models of the direct Meta Model API (a static catalog), sorted by priority. */
+  /** Models of the Meta Model API (a static catalog), sorted by priority. */
   val metaModels: List<String> = emptyList(),
   val personaId: String = "sharp_partner",
   val personas: List<String> = emptyList(),
@@ -32,19 +25,14 @@ data class SettingsUiState(
   val usage: UsageSummary? = null,
   val saved: Boolean = false,
 ) {
-  /**
-   * Where requests will go with THE keys that are in the fields right now — even before "Save": the screen
-   * shows at once what a tap will change, and the model list switches together with the route line.
-   */
-  val provider: LlmProvider get() = activeLlmProvider(metaKey)
+  /** Whether the key field holds a key right now — even before "Save": the status line reacts as the person types. */
+  val hasKey: Boolean get() = metaKey.isNotBlank()
 
-  /** The model selector's options — the catalog of the current [provider]. */
-  val availableModels: List<String>
-    get() = if (provider == LlmProvider.META) metaModels else openRouterModels
+  /** The model selector's options. */
+  val availableModels: List<String> get() = metaModels
 
-  /** The selected model of the current [provider]. */
-  val currentModel: String
-    get() = if (provider == LlmProvider.META) selectedMetaModel else selectedModel
+  /** The selected model. */
+  val currentModel: String get() = selectedMetaModel
 }
 
 /**

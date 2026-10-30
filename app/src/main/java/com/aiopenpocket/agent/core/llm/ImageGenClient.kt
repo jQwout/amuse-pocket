@@ -28,18 +28,21 @@ class GeneratedImage(
 )
 
 /**
- * Image generation through Muse Image — currently over the OpenRouter route (`POST /api/v1/images`,
- * model `meta/muse-image`).
+ * Image generation through Muse Image on the direct Meta Model API (`muse-image-1.0`).
+ *
+ * TODO(meta-only follow-up): the defaults below are the Meta address and model, but the request shape
+ * has NOT been checked against dev.meta.ai yet, and LlmModule deliberately hands this client an empty
+ * key, so in this build it always takes the "no image" path (lessons fall back to the bundled
+ * pictures; "Draw it for me" reports that drawing is unavailable). The follow-up task verifies the
+ * endpoint and wires the person's Meta key in.
  *
  * A separate client rather than another branch of [OpenAiCompatClient]: images have no stream, no
  * tools and no model chain — one request, one answer, and a fallback to "another model" here would
  * mean a different illustration style in the middle of a lesson. The address and the model are
- * parameters: the direct Meta Model API (`/v1/images/generations`, `muse-image-1.0`) returns the image
- * in the same `data[].b64_json` shape.
+ * parameters.
  *
- * Only `model` and `prompt` are sent: OpenRouter declares no supported parameters for
- * `meta/muse-image`, and an unknown parameter at a strict provider means 400 instead of an image. The
- * frame shape is therefore set by the prompt itself (see LessonImageGenerator).
+ * Only `model` and `prompt` are sent: an unknown parameter at a strict provider means 400 instead of an
+ * image. The frame shape is therefore set by the prompt itself (see LessonImageGenerator).
  *
  * Does NOT throw (except on cancellation): an image in a lesson decorates the step, it is not its
  * substance, and a generation failure must let the lesson go on without it. Any failure is `null` and
@@ -54,7 +57,7 @@ class ImageGenClient(
    * binding must break the graph build, not quietly lose money from the summary.
    */
   private val usageRecorder: LlmUsageRecorder,
-  private val endpoint: String = OPENROUTER_IMAGES_URL,
+  private val endpoint: String = META_IMAGES_URL,
   val model: String = MUSE_IMAGE_MODEL,
 ) {
 
@@ -79,7 +82,7 @@ class ImageGenClient(
     val key = apiKey()
     if (key.isBlank()) {
       // Without a key the request is guaranteed a 401 — do not spend the network and the step's time on it.
-      Log.i(TAG, "No OpenRouter key — skipping image generation")
+      Log.i(TAG, "No Meta key for image generation — skipping")
       return null
     }
     return try {
@@ -112,12 +115,12 @@ class ImageGenClient(
 
   /**
    * An image is as much a paid model call as a chat turn, and it belongs next to it in the weekly
-   * spend card. The provider is OpenRouter, the only route of this client today.
+   * spend card.
    */
   private suspend fun recordUsage(usage: ImageUsage?) {
     usageRecorder.record(
       LlmCallUsage(
-        provider = LlmProvider.OPENROUTER,
+        provider = LlmProvider.META,
         model = model,
         promptTokens = usage?.promptTokens ?: 0,
         completionTokens = usage?.completionTokens ?: 0,
@@ -153,8 +156,8 @@ class ImageGenClient(
 
   companion object {
     private const val TAG = "ImageGenClient"
-    const val OPENROUTER_IMAGES_URL = "${ModelCatalog.OPENROUTER_BASE_URL}/images"
-    const val MUSE_IMAGE_MODEL = "meta/muse-image"
+    const val META_IMAGES_URL = "${ModelCatalog.META_BASE_URL}/images/generations"
+    const val MUSE_IMAGE_MODEL = "muse-image-1.0"
     private const val CONNECT_TIMEOUT_MS = 10_000L
     private const val REQUEST_TIMEOUT_MS = 90_000L
   }

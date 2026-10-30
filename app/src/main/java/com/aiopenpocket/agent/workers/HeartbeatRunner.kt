@@ -10,6 +10,7 @@ import com.aiopenpocket.agent.core.agent.localizedSystemPrompt
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.llm.ChatMessage
+import com.aiopenpocket.agent.core.llm.ModelKeyGate
 import com.aiopenpocket.agent.core.llm.SelectedLlmProvider
 import com.aiopenpocket.agent.core.mcp.ToolRegistry
 import com.aiopenpocket.agent.core.memory.dao.HeartbeatDao
@@ -102,9 +103,12 @@ class HeartbeatRunner(
   private val planRunner: PlanRunner,
   private val planScheduleSync: PlanScheduleSync,
   // A background turn goes to the same vendor as a normal one: there used to be a literal
-  // LlmProvider.NIM here, and after switching to OpenRouter the user got reminders that silently failed
+  // LlmProvider.NIM here, and after switching vendors the user got reminders that silently failed
   // on an empty NIM key (or went to the vendor they had deliberately left).
   private val selectedProvider: SelectedLlmProvider,
+  // No default on purpose: a wakeup without a key must be skipped and recorded, never sent to Meta to
+  // come back as an HTTP 401 that the retry loop would then repeat.
+  private val modelKeyGate: ModelKeyGate,
 ) {
 
   suspend fun handleFire(heartbeatId: String, attempt: Int): FireOutcome {
@@ -150,6 +154,10 @@ class HeartbeatRunner(
       is GuardedAgent.Denied -> return skip(hb, guard.reason)
       is GuardedAgent.Allowed -> guard.agent
     }
+    // No Meta key (none is bundled; the person enters it): the wakeup is skipped and the reason is
+    // recorded on the run, shown on the scheduled-tasks screen. NOT a push, NOT a retry: a background turn
+    // has nobody to ask, and a notification per skipped wakeup would turn a missing key into spam.
+    if (!modelKeyGate()) return skip(hb, NO_MODEL_KEY)
     // A periodic wakeup that keeps writing into a chat nobody answers is the runaway case: stop running
     // it until the person writes again (Noodle's rule for its bots). Checked before the model call, so
     // a paused wakeup costs nothing. A one-time wakeup still runs — it is a single thing the person asked
@@ -263,6 +271,8 @@ class HeartbeatRunner(
       is GuardedAgent.Denied -> return skip(hb, guard.reason)
       is GuardedAgent.Allowed -> Unit // PlanRunner resolves the agent itself again internally; nothing more to thread through here.
     }
+    // Same gate as fireAgent: a plan step is a model call too. Skipped and recorded, never run keyless.
+    if (!modelKeyGate()) return skip(hb, NO_MODEL_KEY)
 
     val result = try {
       planRunner.run(
@@ -453,6 +463,11 @@ class HeartbeatRunner(
       get() = tr("Агент, к которому привязано напоминание, больше не существует.", "The agent this reminder is tied to no longer exists.")
     private val AGENT_NOT_PUBLISHED: String
       get() = tr("Агент архивирован или ещё не опубликован — напоминание пропущено.", "The agent is archived or not published yet — reminder skipped.")
+    private val NO_MODEL_KEY: String
+      get() = tr(
+        "Нет ключа Meta API — запуск пропущен. Добавь ключ в Настройках.",
+        "No Meta API key — this run was skipped. Add your key in Settings.",
+      )
     private val PAUSED_UNANSWERED: String
       get() = tr(
         "На паузе: в чате $MAX_UNANSWERED_WAKEUPS сообщений без ответа. Продолжу, когда вы напишете.",

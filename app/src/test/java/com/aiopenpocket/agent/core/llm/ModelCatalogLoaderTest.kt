@@ -10,7 +10,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
- * The OpenRouter seed catalog REALLY parses from the assets.
+ * The Meta catalog REALLY parses from the assets.
  *
  * By design the loader fails silently: a typo in the JSON — and `load()` returns a one-model fallback,
  * having logged a warning nobody reads. From the outside it looks like "for some reason Settings has one
@@ -21,40 +21,9 @@ import org.robolectric.annotation.Config
 class ModelCatalogLoaderTest {
 
   private val application = RuntimeEnvironment.getApplication() as Application
-  private val loader = ModelCatalogLoader(application, OpenRouterCatalogCache(application))
+  private val loader = ModelCatalogLoader(application)
 
-  @Test
-  fun `OpenRouter seed parses and is sorted by priority`() {
-    val catalog = loader.loadOpenRouterSeed()
-    assertTrue("ожидали больше одной модели, похоже на fallback", catalog.models.size > 1)
-    assertEquals(ModelCatalog.OPENROUTER_BASE_URL, catalog.baseUrl)
-    assertEquals(catalog.models.map { it.priority }.sorted(), catalog.models.map { it.priority })
-  }
-
-  /**
-   * On OpenRouter a model id is always `vendor/model` — without the prefix the request goes to a 404, and
-   * the fallback along the chain silently hides it behind the next model.
-   */
-  @Test
-  fun `OpenRouter model ids are vendor-prefixed`() {
-    val bad = loader.loadOpenRouterSeed().models.map { it.name }.filterNot { it.contains('/') }
-    assertEquals(emptyList<String>(), bad)
-  }
-
-  /** A catalog without a single tools model would leave the agent without tools — that is not configuration, it is a bug. */
-  @Test
-  fun `seed offers tool-capable models`() {
-    assertTrue(loader.loadOpenRouterSeed().models.any { it.supportsTools })
-  }
-
-  /** The seed is the first launch and offline: a foreign model in it would be a choice the chain silently drops. */
-  @Test
-  fun `seed holds only Meta models`() {
-    val foreign = loader.loadOpenRouterSeed().models.map { it.name }.filterNot(::isMetaModel)
-    assertEquals(emptyList<String>(), foreign)
-  }
-
-  /** The direct Meta Model API catalog would fall back to a one-model fallback just as silently on a typo. */
+  /** The catalog would fall back to a one-model fallback just as silently on a typo. */
   @Test
   fun `Meta catalog parses, is sorted and points at the direct API`() {
     val catalog = loader.loadMeta()
@@ -64,7 +33,7 @@ class ModelCatalogLoaderTest {
   }
 
   /**
-   * On the direct API ids have no vendor prefix — "meta/muse-spark-1.3" is the name on OpenRouter. Every
+   * Ids have no vendor prefix ("muse-spark-1.3", not "meta/muse-spark-1.3"). Every
    * model has function calling, and there is not a single contributor version: Meta trains on their data.
    */
   @Test

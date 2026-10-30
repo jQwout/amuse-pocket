@@ -71,8 +71,8 @@ class ConversationAnnotatorProviderTest {
     repository.addMessage(conversationId, "assistant", "здравствуй")
     val llm = RecordingLlm()
 
-    ConversationAnnotator(llm, repository) { LlmProvider.OPENROUTER }.annotate(conversationId)
+    ConversationAnnotator(llm, repository) { LlmProvider.META }.annotate(conversationId)
 
-    assertEquals(listOf(LlmProvider.OPENROUTER), llm.providers)
+    assertEquals(listOf(LlmProvider.META), llm.providers)
   }
 }

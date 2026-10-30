@@ -23,16 +23,20 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
 
 /**
- * Muse Spark watching a short video — currently over the OpenRouter route
- * (`POST /api/v1/chat/completions`, model `meta/muse-spark-1.3`, a `video_url` content part).
+ * Muse Spark watching a short video, on the direct Meta Model API (`POST /v1/chat/completions`, model
+ * `muse-spark-1.3`, a `video_url` content part).
+ *
+ * TODO(meta-only follow-up): the defaults below are the Meta address and model, but the video request
+ * shape has NOT been checked against dev.meta.ai yet, and LlmModule deliberately hands this client an
+ * empty key, so in this build it always returns `null` and the lesson step says video is unavailable.
+ * The follow-up task verifies the endpoint and wires the person's Meta key in.
  *
  * A separate client rather than attachments in [OpenAiCompatClient]: the agent loop, the tools and the
  * history are built entirely on text messages, while a lesson needs one question and one answer about
  * one clip. Bringing video into the shared loop would mean rebuilding ChatMessage, history
  * serialization and every orchestrator for the sake of one lesson step.
  *
- * The video goes as a base64 data URL: OpenRouter passes a link on to the provider only if it supports
- * one, and a local file on a phone is never a link. No stream: the answer is short, and the user sees
+ * The video goes as a base64 data URL: a local file on a phone is never a link. No stream: the answer is short, and the user sees
  * "Watching the video…" on the card.
  *
  * Does NOT throw (except on cancellation): any failure is `null` and a line in the log.
@@ -42,7 +46,7 @@ class VideoUnderstandingClient(
   /** The key is read on every request; an empty one means "do not send" (see LlmModule). */
   private val apiKey: () -> String,
   private val usageRecorder: LlmUsageRecorder,
-  private val endpoint: String = OPENROUTER_CHAT_URL,
+  private val endpoint: String = META_CHAT_URL,
   val model: String = MUSE_SPARK_MODEL,
 ) {
 
@@ -50,8 +54,6 @@ class VideoUnderstandingClient(
   private val json = Json {
     ignoreUnknownKeys = true
     isLenient = true
-    // usage={include:true} is a default value; without encodeDefaults it would silently not be sent and there would be no price.
-    encodeDefaults = true
     // And empty fields of the parts (text on the video part, video_url on the text part) are not sent at all.
     explicitNulls = false
     namingStrategy = JsonNamingStrategy.SnakeCase
@@ -69,7 +71,7 @@ class VideoUnderstandingClient(
   suspend fun describe(instruction: String, video: ByteArray, mimeType: String): String? {
     val key = apiKey()
     if (key.isBlank()) {
-      Log.i(TAG, "No OpenRouter key — skipping video")
+      Log.i(TAG, "No Meta key for video — skipping")
       return null
     }
     return try {
@@ -116,7 +118,7 @@ class VideoUnderstandingClient(
   private suspend fun recordUsage(usage: Usage?) {
     usageRecorder.record(
       LlmCallUsage(
-        provider = LlmProvider.OPENROUTER,
+        provider = LlmProvider.META,
         model = model,
         promptTokens = usage?.promptTokens ?: 0,
         completionTokens = usage?.completionTokens ?: 0,
@@ -133,8 +135,6 @@ class VideoUnderstandingClient(
     val model: String,
     val messages: List<Message>,
     val maxTokens: Int,
-    // OpenRouter names the price in dollars only when asked — as in OpenAiCompatClient.
-    val usage: UsageRequest = UsageRequest(),
   )
 
   @Serializable
@@ -150,9 +150,6 @@ class VideoUnderstandingClient(
 
   @Serializable
   private data class VideoUrl(val url: String)
-
-  @Serializable
-  private data class UsageRequest(val include: Boolean = true)
 
   @Serializable
   private data class ChatResponse(
@@ -175,8 +172,8 @@ class VideoUnderstandingClient(
 
   companion object {
     private const val TAG = "VideoUnderstanding"
-    const val OPENROUTER_CHAT_URL = "${ModelCatalog.OPENROUTER_BASE_URL}/chat/completions"
-    const val MUSE_SPARK_MODEL = "meta/muse-spark-1.3"
+    const val META_CHAT_URL = "${ModelCatalog.META_BASE_URL}/chat/completions"
+    const val MUSE_SPARK_MODEL = "muse-spark-1.3"
     /**
      * The clip ceiling. Ten seconds in low quality is a couple of megabytes; anything larger is either
      * a long video (expensive and slow) or 4K, which the model does not need. Base64 adds another third.

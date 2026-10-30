@@ -135,7 +135,8 @@ class PendingApprovalPushTest {
     lifeSupport = NoLifeSupport,
     scope = CoroutineScope(backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)),
     monotonicNowMs = { 100_000L },
-    selectedProvider = { LlmProvider.OPENROUTER },
+    selectedProvider = { LlmProvider.META },
+    hasModelKey = { true },
     log = NoopLog,
   )
 
