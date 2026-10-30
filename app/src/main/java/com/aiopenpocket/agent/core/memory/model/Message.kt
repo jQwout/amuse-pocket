@@ -9,5 +9,7 @@ data class Message(
   val content: String,
   val toolCallsJson: String?,
   val cardSpec: String? = null,
+  /** The user's state inside an interactive card (a lesson quiz's answers); see MessageEntity.cardState. */
+  val cardState: String? = null,
   val createdAt: Long,
 )

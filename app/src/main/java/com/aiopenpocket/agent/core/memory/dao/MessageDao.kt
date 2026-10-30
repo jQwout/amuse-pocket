@@ -11,6 +11,10 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface MessageDao {
+  /** Writes only the card-state column, so a quiz answer never rewrites the message's content or spec. */
+  @Query("UPDATE messages SET cardState = :cardState WHERE id = :id")
+  suspend fun updateCardState(id: String, cardState: String?)
+
   @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY createdAt ASC")
   fun getByConversation(conversationId: String): Flow<List<MessageEntity>>
 

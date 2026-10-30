@@ -14,8 +14,8 @@
       "git": "0f1e9a5"
     },
     "ai-academy-onboarding-5d51bb": {
-      "hash": "2f31e999959c",
-      "git": "687ad17"
+      "hash": "37afa934ad42",
+      "git": "e28f42cb"
     },
     "app-settings-beb470": {
       "hash": "6b0da2dbdb50",
@@ -38,8 +38,8 @@
       "git": "98161c0"
     },
     "driven-ui-cards-0418d0": {
-      "hash": "18d74fad2c10",
-      "git": "5ce3906"
+      "hash": "d81d4609101e",
+      "git": "e28f42cb"
     },
     "english-ui-on-the-demo-path-223241": {
       "hash": "6c72e5f4e2aa",
@@ -70,8 +70,8 @@
       "git": "ec20311"
     },
     "multi-chat-conversations-b3c93b": {
-      "hash": "19840f0d50cf",
-      "git": "e28f42cb"
+      "hash": "536a07251c22",
+      "git": "901144ed"
     },
     "protsedurnye-animatsii-v-urokah-68b2bf": {
       "hash": "63b7a313f273",
@@ -82,8 +82,8 @@
       "git": "67954f1"
     },
     "sam-segmentation-boxes-in-a-lesson-c3ea52": {
-      "hash": "7b6f3165b28a",
-      "git": "3325046f"
+      "hash": "19a643a6c3b4",
+      "git": "e28f42cb"
     },
     "screen-text-check-7c6d09": {
       "hash": "5138f2a3f846",
@@ -94,20 +94,20 @@
       "git": "5ce3906"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "ea72fe317ab6",
-      "git": "18d34182"
+      "hash": "a3428ab45393",
+      "git": "e28f42cb"
     },
     "structured-plan-engine-907066": {
-      "hash": "ef5a3a081533",
-      "git": "ba1d1017"
+      "hash": "b826e1884b38",
+      "git": "e28f42cb"
     },
     "swappable-persona-e5e65e": {
       "hash": "11aaa5d19303",
       "git": "48d4078"
     },
     "uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2": {
-      "hash": "73ea86d199d8",
-      "git": "687ad17"
+      "hash": "3a95b7aad256",
+      "git": "e28f42cb"
     },
     "user-agent-builder-848153": {
       "hash": "7efe7c61ba63",

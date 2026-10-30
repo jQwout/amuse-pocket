@@ -36,7 +36,9 @@ import java.util.Locale
 @Composable
 fun LessonQuizCardView(
     card: DrivenUiCard.LessonQuizCard,
-    onAllAnswered: () -> Unit
+    onAllAnswered: () -> Unit,
+    savedState: String? = null,
+    onStateChanged: (String?) -> Unit = {},
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -48,6 +50,8 @@ fun LessonQuizCardView(
         QuizContent(
             questions = card.questions,
             onAllAnswered = onAllAnswered,
+            savedState = savedState,
+            onStateChanged = onStateChanged,
         )
     }
 }

@@ -425,6 +425,9 @@ class ChatViewModel(
             is ChatIntent.EditPlan -> _state.update { it.copy(pendingPlanApproval = null) }
             is ChatIntent.AdvanceLesson -> advanceLesson()
             is ChatIntent.CompleteLessonQuiz -> completeLessonQuiz()
+            is ChatIntent.SaveCardState -> viewModelScope.launch {
+                conversationRepository.updateMessageCardState(intent.messageId, intent.state)
+            }
             is ChatIntent.PersonalizeLessonImage -> personalizeLessonImage(intent.imagePrompt, intent.caption)
             is ChatIntent.AnalyzeLessonVideo -> analyzeLessonVideo(intent.videoPrompt, intent.video)
             is ChatIntent.SegmentLessonPhoto -> segmentLessonPhoto(intent.cardPrompt, intent.concept, intent.photo)

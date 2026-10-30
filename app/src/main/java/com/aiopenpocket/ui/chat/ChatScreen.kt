@@ -515,6 +515,9 @@ fun ChatScreen(
                             if (state.lessonMode) viewModel.completeLesson(onNavigateBack) else onNavigateBack()
                         }
                     }
+                    val onCardStateChanged = remember(message.id) {
+                        { state: String? -> viewModel.handleIntent(ChatIntent.SaveCardState(message.id, state)) }
+                    }
                     // The capstone CTA (Task 23): rendered ONLY when the card itself carries primaryAction (see
                     // DrivenUiEngine.LessonCompleteCardView) — that is the capstone-only gate; here we just
                     // open the builder with the right source.
@@ -530,6 +533,7 @@ fun ChatScreen(
                         onChoiceSelected = onChoiceSelected,
                         onFormSubmitted = onChoiceSelected,
                         onLessonQuizComplete = onLessonQuizComplete,
+                        onCardStateChanged = onCardStateChanged,
                         onLessonComplete = onLessonComplete,
                         onOpenAgentBuilder = onOpenAgentBuilderTap,
                         onCardAction = onCardAction,

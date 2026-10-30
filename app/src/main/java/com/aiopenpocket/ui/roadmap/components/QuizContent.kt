@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.i18n.tr
+import com.aiopenpocket.ui.roadmap.QuizAnswers
 import com.aiopenpocket.ui.roadmap.QuizQuestion
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import kotlin.random.Random
@@ -70,7 +71,15 @@ fun QuizContent(
   modifier: Modifier = Modifier,
   /** Fires once every question has an answer — used by the in-chat lesson quiz to advance. */
   onAllAnswered: (() -> Unit)? = null,
+  /**
+   * Answers saved earlier (see QuizAnswers): they pre-fill the quiz when the lesson is reopened. Read once —
+   * after that the live state is the source of truth.
+   */
+  savedState: String? = null,
+  /** Fires with the new encoded answers on every change (null = cleared), for the caller to persist. */
+  onStateChanged: ((String?) -> Unit)? = null,
 ) {
+  val restored = remember(questions) { QuizAnswers.decode(savedState, questions) }
   // questionIndex -> selected option index. rememberSaveable so the answers survive the item being recycled in
   // LazyColumn, a rotation and process death (otherwise a passed quiz is redrawn empty).
   val answers = rememberSaveable(
@@ -86,12 +95,13 @@ fun QuizContent(
         }
       },
     ),
-  ) { mutableStateMapOf<Int, Int>() }
+  ) { mutableStateMapOf<Int, Int>().apply { putAll(restored) } }
 
   // onAllAnswered must fire EXACTLY once per life of the saved state. rememberSaveable restores an already full map
   // after a rotation/process death/the item being recycled in LazyColumn — without this flag LaunchedEffect would
   // call the callback again and skip the lesson an extra step.
-  val fired = rememberSaveable { mutableStateOf(false) }
+  // A quiz that comes back already complete from storage has, by definition, already moved the lesson on.
+  val fired = rememberSaveable { mutableStateOf(questions.isNotEmpty() && restored.size == questions.size) }
   LaunchedEffect(answers.size) {
     if (!fired.value && questions.isNotEmpty() && answers.size == questions.size) {
       fired.value = true
@@ -150,7 +160,10 @@ fun QuizContent(
             .clip(RoundedCornerShape(12.dp))
             .background(optionBg)
             .border(1.5.dp, borderColor, RoundedCornerShape(12.dp))
-            .clickable(enabled = selected == null) { answers[qIndex] = i }
+            .clickable(enabled = selected == null) {
+              answers[qIndex] = i
+              onStateChanged?.invoke(QuizAnswers.encode(answers))
+            }
             .padding(14.dp),
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically,
@@ -216,7 +229,10 @@ fun QuizContent(
           else MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.weight(1f),
         )
-        TextButton(onClick = { answers.clear() }) { Text(tr("Пройти ещё раз", "Try again")) }
+        TextButton(onClick = {
+          answers.clear()
+          onStateChanged?.invoke(null)
+        }) { Text(tr("Пройти ещё раз", "Try again")) }
       }
     }
   }
