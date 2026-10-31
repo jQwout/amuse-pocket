@@ -419,17 +419,13 @@ SCREEN_RU_EXEMPT = {
 # English lesson with a Russian scene is the very bug this check was written for.
 _SCENES = "app/src/main/java/com/aiopenpocket/ui/chat/components/"
 SCREEN_RU_LESSON_ONLY = {
-    _SCENES + "SceneAgentAssembler.kt": "build_your_agent",
-    _SCENES + "SceneArenaSwarm.kt": "arena_and_swarm",
     _SCENES + "SceneChainRouter.kt": "chaining_and_routing",
     _SCENES + "SceneConfidentWrong.kt": "hallucinations",
     _SCENES + "SceneContextBudget.kt": "context_engineering",
     _SCENES + "SceneContextWindow.kt": "memory_and_context",
     _SCENES + "SceneDataFlow.kt": "privacy_and_reliability",
-    _SCENES + "SceneDayClock.kt": "heartbeat_and_cron",
     _SCENES + "SceneDraftCritique.kt": "reflection",
     _SCENES + "SceneGoalLoop.kt": "goal_mode",
-    _SCENES + "SceneHookTimeline.kt": "hooks_and_lifecycle",
     _SCENES + "SceneImageReasoning.kt": "muse_image_draws",
     _SCENES + "SceneOpenWeights.kt": "open_weights_and_api",
     _SCENES + "ScenePlanGate.kt": "plan_mode",

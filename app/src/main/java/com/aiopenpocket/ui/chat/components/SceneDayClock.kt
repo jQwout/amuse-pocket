@@ -48,6 +48,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aiopenpocket.i18n.tr
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -58,7 +59,12 @@ private const val DEADLINE_AT = 14
 
 /** A cron task: the hour, the label on the scale and the push text. The same examples as in the lesson: a report at 9, "call mom" at 18. */
 private class CronJob(val hour: Int, val tag: String, val push: String)
-private val CRON = listOf(CronJob(9, "отчёт", "«Время отчёта»"), CronJob(18, "маме", "«Позвони маме»"))
+// A getter, not a val: the text is picked in the interface language when it is shown, not once at class load.
+private val CRON: List<CronJob>
+    get() = listOf(
+        CronJob(9, tr("отчёт", "report"), tr("«Время отчёта»", "“Report time”")),
+        CronJob(18, tr("маме", "Mom"), tr("«Позвони маме»", "“Call Mom”")),
+    )
 
 private class DayEvent(val hour: Int, val order: Int, val text: String)
 
@@ -88,26 +94,36 @@ internal fun DayClockScene() {
     val heartbeatPushes = if (speakAt <= time) 1 else 0
     val cronPushes = CRON.count { it.hour <= time }
     val events = buildList {
-        add(DayEvent(DEADLINE_AT, 0, "${hhmm(DEADLINE_AT)} в задачах: дедлайн на завтра"))
-        CRON.forEach { add(DayEvent(it.hour, 1, "${hhmm(it.hour)} cron: пуш ${it.push}")) }
+        add(DayEvent(DEADLINE_AT, 0, "${hhmm(DEADLINE_AT)} " + tr("в задачах: дедлайн на завтра", "in the tasks: a deadline for tomorrow")))
+        CRON.forEach { add(DayEvent(it.hour, 1, "${hhmm(it.hour)} cron: " + tr("пуш", "push") + " ${it.push}")) }
         wakeHours.forEach { h ->
-            add(DayEvent(h, 2, if (h == speakAt) "${hhmm(h)} heartbeat: завтра дедлайн — пишу!" else "${hhmm(h)} heartbeat: HEARTBEAT_OK — молчу"))
+            add(
+                DayEvent(
+                    h,
+                    2,
+                    if (h == speakAt) {
+                        "${hhmm(h)} heartbeat: " + tr("завтра дедлайн — пишу!", "a deadline tomorrow, so I speak up!")
+                    } else {
+                        "${hhmm(h)} heartbeat: HEARTBEAT_OK " + tr("— молчу", "(staying quiet)")
+                    },
+                ),
+            )
         }
     }.filter { it.hour <= time }.sortedWith(compareBy<DayEvent>({ it.hour }, { it.order })).takeLast(3)
     val finished = time >= 24f
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Сутки агента: cron по часам, heartbeat — по пробуждениям", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(tr("Сутки агента: cron по часам, heartbeat — по пробуждениям", "The agent's day: cron by the clock, heartbeat by wake-ups"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         DayTrack(time = time, wakeHours = wakeHours, speakAt = speakAt, modifier = Modifier.fillMaxWidth().height(100.dp))
         Row(modifier = Modifier.fillMaxWidth()) {
-            Text("■ cron: по часам", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-            Text("● heartbeat: решает сам", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+            Text("■ cron: " + tr("по часам", "by the clock"), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+            Text("● heartbeat: " + tr("решает сам", "decides for itself"), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
         }
         Column(
             verticalArrangement = Arrangement.spacedBy(2.dp),
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White).padding(10.dp),
         ) {
-            Text("Журнал агента · ${hhmm(time.toInt().coerceAtMost(24))}", style = MaterialTheme.typography.labelMedium, color = SceneInk.copy(alpha = 0.6f))
+            Text(tr("Журнал агента", "Agent log") + " · ${hhmm(time.toInt().coerceAtMost(24))}", style = MaterialTheme.typography.labelMedium, color = SceneInk.copy(alpha = 0.6f))
             // Three lines are always reserved: the log grows, the card does not.
             (0 until 3).forEach { row ->
                 val event = events.getOrNull(row)
@@ -122,11 +138,11 @@ internal fun DayClockScene() {
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-            Stat(value = woke, label = "пробуждений = вызовов LLM", modifier = Modifier.weight(1f))
-            Stat(value = heartbeatPushes, label = "пушей от heartbeat", modifier = Modifier.weight(1f))
-            Stat(value = cronPushes, label = "пушей от cron", modifier = Modifier.weight(1f))
+            Stat(value = woke, label = tr("пробуждений = вызовов LLM", "wake-ups = LLM calls"), modifier = Modifier.weight(1f))
+            Stat(value = heartbeatPushes, label = tr("пушей от heartbeat", "pushes from heartbeat"), modifier = Modifier.weight(1f))
+            Stat(value = cronPushes, label = tr("пушей от cron", "pushes from cron"), modifier = Modifier.weight(1f))
         }
-        Text("Heartbeat будит каждые $every ч", style = MaterialTheme.typography.labelLarge, maxLines = 1)
+        Text(tr("Heartbeat будит каждые $every ч", "Heartbeat wakes it every $every h"), style = MaterialTheme.typography.labelLarge, maxLines = 1)
         Slider(
             value = every.toFloat(),
             onValueChange = { every = it.roundToInt() },
@@ -139,17 +155,23 @@ internal fun DayClockScene() {
             Spacer(Modifier.width(6.dp))
             Text(
                 when {
-                    running -> "Идут сутки…"
-                    runs == 0 -> "Запустить сутки"
-                    else -> "Ещё раз"
+                    running -> tr("Идут сутки…", "The day is running…")
+                    runs == 0 -> tr("Запустить сутки", "Run the day")
+                    else -> tr("Ещё раз", "Again")
                 },
             )
         }
         Text(
             text = if (finished) {
-                "Проснулся $woke раз, написал один — в ${hhmm(speakAt)}. Cron — по часам, heartbeat — проснуться и решить, вплоть до «промолчать»"
+                tr(
+                    "Проснулся $woke раз, написал один — в ${hhmm(speakAt)}. Cron — по часам, heartbeat — проснуться и решить, вплоть до «промолчать»",
+                    "It woke up $woke times and wrote once, at ${hhmm(speakAt)}. Cron works by the clock; heartbeat means wake up and decide, all the way down to “stay quiet”",
+                )
             } else {
-                "Cron сработает в 9:00 и 18:00 при любом раскладе. Heartbeat проснётся и сам решит, есть ли повод писать"
+                tr(
+                    "Cron сработает в 9:00 и 18:00 при любом раскладе. Heartbeat проснётся и сам решит, есть ли повод писать",
+                    "Cron fires at 9:00 and 18:00 no matter what. Heartbeat wakes up and decides for itself whether there is a reason to write",
+                )
             },
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (finished) FontWeight.SemiBold else FontWeight.Normal,
@@ -192,7 +214,7 @@ private fun DayTrack(time: Float, wakeHours: List<Int>, speakAt: Int, modifier: 
                 strokeWidth = 2.dp.toPx(),
                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f)),
             )
-            val tag = measurer.measure("дедлайн", TextStyle(fontSize = 10.sp, color = error, fontWeight = FontWeight.SemiBold))
+            val tag = measurer.measure(tr("дедлайн", "deadline"), TextStyle(fontSize = 10.sp, color = error, fontWeight = FontWeight.SemiBold))
             drawText(tag, topLeft = Offset(x(DEADLINE_AT.toFloat()) - tag.size.width / 2, 0f))
         }
 

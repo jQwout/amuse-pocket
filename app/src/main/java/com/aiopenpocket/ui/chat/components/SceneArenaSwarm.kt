@@ -39,31 +39,61 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 import kotlin.math.roundToInt
 
 /** An arena run: the answer, the judge's score (out of 10, illustrative), its verdict and at which share of the time the run finishes. */
 private class ArenaRun(val answer: String, val score: Int, val verdict: String, val doneAt: Float)
 
 // The lesson's example: three versions of a letter and a judge with the criteria "polite, short, precise".
-private const val ARENA_PROMPT = "письмо коллеге: встречу переносим на пятницу"
-private val RUNS = listOf(
-    ArenaRun("Встречи в среду не будет. Перенесли на пятницу.", 5, "коротко, но сухо и без времени", 0.55f),
-    ArenaRun("Привет! Давай перенесём встречу на пятницу, на 11:00? Если неудобно — предложи своё время.", 9, "вежливо, коротко и с точным временем", 1f),
-    ArenaRun("Добрый день! Пишу, чтобы сообщить, что в силу ряда обстоятельств, которые от нас, к сожалению, не зависят, мы вынуждены…", 6, "вежливо, но длинно — мимо «коротко»", 0.8f),
-)
+// Getters, not vals: the text is picked in the interface language when it is shown, not once at class load.
+private val ARENA_PROMPT: String
+    get() = tr("письмо коллеге: встречу переносим на пятницу", "a note to a colleague: the meeting moves to Friday")
+private val RUNS: List<ArenaRun>
+    get() = listOf(
+        ArenaRun(
+            tr("Встречи в среду не будет. Перенесли на пятницу.", "No meeting on Wednesday. Moved to Friday."),
+            5,
+            tr("коротко, но сухо и без времени", "short, but dry and with no time"),
+            0.55f,
+        ),
+        ArenaRun(
+            tr(
+                "Привет! Давай перенесём встречу на пятницу, на 11:00? Если неудобно — предложи своё время.",
+                "Hi! Shall we move the meeting to Friday at 11:00? If that doesn't work, suggest a time.",
+            ),
+            9,
+            tr("вежливо, коротко и с точным временем", "polite, short and with an exact time"),
+            1f,
+        ),
+        ArenaRun(
+            tr(
+                "Добрый день! Пишу, чтобы сообщить, что в силу ряда обстоятельств, которые от нас, к сожалению, не зависят, мы вынуждены…",
+                "Good afternoon! I am writing to let you know that, due to a number of circumstances which are unfortunately beyond our control, we are obliged to…",
+            ),
+            6,
+            tr("вежливо, но длинно — мимо «коротко»", "polite, but long, so it misses “short”"),
+            0.8f,
+        ),
+    )
 private const val WINNER = 1
 
 /** A swarm worker: which chunk it got, what it found in it and how long it reads (ms, for the animation). */
 private class SwarmWorker(val reviews: String, val finding: String, val workMs: Int)
 
 // The lesson's swarm example: 20 reviews, the orchestrator hands five each to four workers.
-private val WORKERS = listOf(
-    SwarmWorker("отзывы 1–5", "хвалят скорость", 1300),
-    SwarmWorker("отзывы 6–10", "путаются в меню", 1700),
-    SwarmWorker("отзывы 11–15", "просят тёмную тему", 1100),
-    SwarmWorker("отзывы 16–20", "снова меню и скорость", 1500),
-)
-private const val SUMMARY = "Выжимка: хвалят скорость, путаются в меню, просят тёмную тему"
+private val WORKERS: List<SwarmWorker>
+    get() = listOf(
+        SwarmWorker(tr("отзывы 1–5", "reviews 1–5"), tr("хвалят скорость", "praise the speed"), 1300),
+        SwarmWorker(tr("отзывы 6–10", "reviews 6–10"), tr("путаются в меню", "get lost in the menu"), 1700),
+        SwarmWorker(tr("отзывы 11–15", "reviews 11–15"), tr("просят тёмную тему", "ask for a dark theme"), 1100),
+        SwarmWorker(tr("отзывы 16–20", "reviews 16–20"), tr("снова меню и скорость", "the menu and the speed again"), 1500),
+    )
+private val SUMMARY: String
+    get() = tr(
+        "Выжимка: хвалят скорость, путаются в меню, просят тёмную тему",
+        "Summary: people praise the speed, get lost in the menu and ask for a dark theme",
+    )
 private const val SPLIT_MS = 500
 private const val MERGE_MS = 600
 private val SWARM_MS = SPLIT_MS + WORKERS.maxOf { it.workMs } + MERGE_MS
@@ -81,8 +111,8 @@ internal fun ArenaSwarmScene() {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = tab == 0, onClick = { tab = 0 }, label = { Text("Арена") })
-            FilterChip(selected = tab == 1, onClick = { tab = 1 }, label = { Text("Рой") })
+            FilterChip(selected = tab == 0, onClick = { tab = 0 }, label = { Text(tr("Арена", "Arena")) })
+            FilterChip(selected = tab == 1, onClick = { tab = 1 }, label = { Text(tr("Рой", "Swarm")) })
         }
         if (tab == 0) ArenaTab() else SwarmTab()
     }
@@ -105,7 +135,7 @@ private fun ArenaTab() {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Один запрос — три прогона: «$ARENA_PROMPT»", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(tr("Один запрос — три прогона", "One request, three runs") + ": “$ARENA_PROMPT”", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         RUNS.forEachIndexed { index, run ->
             // Three runs write at once, but at different speeds — like parallel requests.
             val progress = (write.value / run.doneAt).coerceIn(0f, 1f)
@@ -124,15 +154,15 @@ private fun ArenaTab() {
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White).padding(10.dp),
         ) {
             Text(
-                text = if (stage == 4) "Модель-судья · тапни карточку, чтобы сравнить" else "Модель-судья",
+                text = if (stage == 4) tr("Модель-судья · тапни карточку, чтобы сравнить", "Judge model · tap a card to compare") else tr("Модель-судья", "Judge model"),
                 style = MaterialTheme.typography.labelMedium,
                 color = SceneInk.copy(alpha = 0.6f),
             )
             Text(
                 text = when {
-                    stage < 3 -> "Ждёт ответы. Критерии: вежливо, коротко, точно"
-                    stage == 3 -> "Читает и сравнивает по критериям…"
-                    else -> "№${picked + 1}: ${RUNS[picked].score}/10 — ${RUNS[picked].verdict}"
+                    stage < 3 -> tr("Ждёт ответы. Критерии: вежливо, коротко, точно", "Waiting for the answers. Criteria: polite, short, precise")
+                    stage == 3 -> tr("Читает и сравнивает по критериям…", "Reading and comparing against the criteria…")
+                    else -> "#${picked + 1}: ${RUNS[picked].score}/10 — ${RUNS[picked].verdict}"
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = SceneInk,
@@ -151,13 +181,27 @@ private fun ArenaTab() {
             enabled = stage != 1 && stage != 3,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(listOf("Запустить 3 прогона", "Прогоны пишут…", "Позвать судью", "Судья читает…", "Сначала")[stage])
+            Text(
+                listOf(
+                    tr("Запустить 3 прогона", "Start 3 runs"),
+                    tr("Прогоны пишут…", "The runs are writing…"),
+                    tr("Позвать судью", "Call the judge"),
+                    tr("Судья читает…", "The judge is reading…"),
+                    tr("Сначала", "Start over"),
+                )[stage],
+            )
         }
         Text(
             text = when (stage) {
-                0 -> "Запусти — и посмотри, как по-разному модель отвечает на один и тот же запрос"
-                4 -> "Один прогон мог дать №1 — и ты бы не узнал. Тот же приём — прогоны и судья — меряет, стал ли агент лучше после правки"
-                else -> "Ответы разные, хотя запрос один. Какой лучший? Пусть решит судья"
+                0 -> tr(
+                    "Запусти — и посмотри, как по-разному модель отвечает на один и тот же запрос",
+                    "Start it and see how differently a model answers the very same request",
+                )
+                4 -> tr(
+                    "Один прогон мог дать №1 — и ты бы не узнал. Тот же приём — прогоны и судья — меряет, стал ли агент лучше после правки",
+                    "A single run could have given you #1, and you would never have known. The same trick, runs plus a judge, measures whether an agent got better after a change",
+                )
+                else -> tr("Ответы разные, хотя запрос один. Какой лучший? Пусть решит судья", "The answers differ, though the request is the same. Which is best? Let the judge decide")
             },
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (stage == 4) FontWeight.SemiBold else FontWeight.Normal,
@@ -179,7 +223,7 @@ private fun RunCard(number: Int, text: String, score: Int?, winner: Boolean, sel
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 8.dp),
     ) {
-        Text("№$number", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = SceneInk, modifier = Modifier.width(30.dp))
+        Text("#$number", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = SceneInk, modifier = Modifier.width(30.dp))
         Text(
             text = text.ifEmpty { " " },
             style = MaterialTheme.typography.bodySmall,
@@ -191,7 +235,7 @@ private fun RunCard(number: Int, text: String, score: Int?, winner: Boolean, sel
         )
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(56.dp)) {
             Text(score?.let { "$it/10" } ?: "—", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = SceneInk)
-            Text(if (winner) "лучший" else " ", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = SceneInk)
+            Text(if (winner) tr("лучший", "best") else " ", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = SceneInk)
         }
     }
 }
@@ -214,16 +258,16 @@ private fun SwarmTab() {
     val primary = MaterialTheme.colorScheme.primary
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Задача: «изучи 20 отзывов и сделай выжимку»", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(tr("Задача: «изучи 20 отзывов и сделай выжимку»", "Task: “study 20 reviews and write a summary”"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(ScenePalette[0]).padding(10.dp)) {
-            Text("Оркестратор", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = SceneInk)
+            Text(tr("Оркестратор", "Orchestrator"), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = SceneInk)
             Text(
                 text = when {
-                    !started -> "держит все 20 отзывов"
-                    t < SPLIT_MS -> "режет на 4 куска по 5…"
-                    t < SWARM_MS - MERGE_MS -> "раздал куски — воркеры читают параллельно"
-                    !done -> "сводит итоги воркеров…"
-                    else -> "свёл итоги в одну выжимку"
+                    !started -> tr("держит все 20 отзывов", "holds all 20 reviews")
+                    t < SPLIT_MS -> tr("режет на 4 куска по 5…", "cutting them into 4 pieces of 5…")
+                    t < SWARM_MS - MERGE_MS -> tr("раздал куски — воркеры читают параллельно", "handed out the pieces; the workers read in parallel")
+                    !done -> tr("сводит итоги воркеров…", "merging the workers' results…")
+                    else -> tr("свёл итоги в одну выжимку", "merged the results into one summary")
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = SceneInk,
@@ -237,22 +281,22 @@ private fun SwarmTab() {
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color.White).padding(horizontal = 10.dp, vertical = 6.dp),
             ) {
-                Text("В${index + 1}", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = SceneInk, modifier = Modifier.width(30.dp))
+                Text("W${index + 1}", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = SceneInk, modifier = Modifier.width(30.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(if (started && t >= SPLIT_MS) worker.reviews else "ждёт свой кусок", style = MaterialTheme.typography.labelMedium, color = SceneInk.copy(alpha = 0.6f))
+                    Text(if (started && t >= SPLIT_MS) worker.reviews else tr("ждёт свой кусок", "waiting for its piece"), style = MaterialTheme.typography.labelMedium, color = SceneInk.copy(alpha = 0.6f))
                     Text(if (progress >= 1f) worker.finding else " ", style = MaterialTheme.typography.bodySmall, color = SceneInk, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Bar(progress = progress, color = primary)
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp)) {
-            Text("Один агент подряд", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+            Text(tr("Один агент подряд", "One agent in a row"), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
             Bar(progress = solo, color = SceneInk.copy(alpha = 0.45f))
-            Text("${(solo * 20).toInt()} из 20", style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.End, modifier = Modifier.width(52.dp))
+            Text("${(solo * 20).toInt()} " + tr("из", "of") + " 20", style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.End, modifier = Modifier.width(52.dp))
         }
         Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (done) ScenePalette[2] else Color.White).padding(10.dp)) {
             Text(
-                text = if (done) SUMMARY else "Выжимка появится, когда все воркеры закончат",
+                text = if (done) SUMMARY else tr("Выжимка появится, когда все воркеры закончат", "The summary appears when all the workers finish"),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (done) FontWeight.SemiBold else FontWeight.Normal,
                 color = if (done) SceneInk else SceneInk.copy(alpha = 0.5f),
@@ -262,17 +306,23 @@ private fun SwarmTab() {
         Button(onClick = { started = !started }, enabled = !running, modifier = Modifier.fillMaxWidth()) {
             Text(
                 when {
-                    !started -> "Запустить рой"
-                    running -> "Воркеры читают…"
-                    else -> "Сначала"
+                    !started -> tr("Запустить рой", "Start the swarm")
+                    running -> tr("Воркеры читают…", "The workers are reading…")
+                    else -> tr("Сначала", "Start over")
                 },
             )
         }
         Text(
             text = if (done) {
-                "Быстрее: каждый воркер держит в голове 5 отзывов, а не 20. Но запросов уже шесть — раздать, четыре воркера, свести"
+                tr(
+                    "Быстрее: каждый воркер держит в голове 5 отзывов, а не 20. Но запросов уже шесть — раздать, четыре воркера, свести",
+                    "Faster: each worker keeps 5 reviews in mind, not 20. But that is already six requests: hand out, four workers, merge",
+                )
             } else {
-                "Один агент читал бы все 20 подряд. Запусти — и посмотри, кто успеет раньше"
+                tr(
+                    "Один агент читал бы все 20 подряд. Запусти — и посмотри, кто успеет раньше",
+                    "One agent would read all 20 in a row. Start it and see who finishes first",
+                )
             },
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (done) FontWeight.SemiBold else FontWeight.Normal,
