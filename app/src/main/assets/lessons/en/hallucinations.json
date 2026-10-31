@@ -6,7 +6,7 @@
   "steps": [
     { "type": "text", "text": "Sometimes a model answers smoothly and confidently, and the fact turns out to be made up. This is called a hallucination. And the sneaky part: you can't tell a made-up fact from a true one by the tone." },
     { "type": "text", "text": "Where does it come from? The model doesn't keep a database of checked facts. It predicts the next word from what appeared most often in training. If a plausible continuation exists but the real fact doesn't, it will still write something that sounds right." },
-    { "type": "image", "asset": "lessons/images/hallucination.svg", "caption": "Truth and invention come out with the same confidence — check what matters" },
+    { "type": "image", "asset": "lessons/images/en/hallucination.svg", "caption": "Truth and invention come out with the same confidence — check what matters" },
     { "type": "text", "text": "So a model's confidence is not a sign that it's right. It will name a real date and a nonexistent one with the same cheer, and invent a quote or a link. It sounds convincing for exactly one reason: the words were chosen to read “the way people usually write.”" },
     { "type": "animation", "scene": "confident_wrong", "caption": "Check each answer, then switch on “if you're not sure, say so.” The article in the example is made up on purpose" },
     { "type": "text", "text": "Where the risk is highest: exact numbers, dates, names, quotes, links and recent events. Where you need a specific fact rather than a general sense, the chance of invention goes up sharply." },

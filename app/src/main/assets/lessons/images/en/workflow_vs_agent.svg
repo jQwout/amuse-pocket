@@ -1,0 +1,27 @@
+<svg viewBox="0 0 800 430" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif">
+  <defs><marker id="a2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#5B6472"/></marker></defs>
+  <text x="200" y="36" text-anchor="middle" font-size="20" font-weight="bold" fill="#2B6CB0">Workflow — rails</text>
+  <text x="600" y="36" text-anchor="middle" font-size="20" font-weight="bold" fill="#C05621">Agent — driver</text>
+  <g font-size="15" fill="#FFFFFF">
+    <rect x="90" y="70"  width="220" height="52" rx="10" fill="#2B6CB0"/>
+    <text x="200" y="102" text-anchor="middle">Step 1: recognize</text>
+    <rect x="90" y="170" width="220" height="52" rx="10" fill="#2B6CB0"/>
+    <text x="200" y="202" text-anchor="middle">Step 2: translate</text>
+    <rect x="90" y="270" width="220" height="52" rx="10" fill="#2B6CB0"/>
+    <text x="200" y="302" text-anchor="middle">Step 3: summarize</text>
+    <rect x="490" y="70"  width="220" height="52" rx="10" fill="#C05621"/>
+    <text x="600" y="102" text-anchor="middle">Thought: where to start?</text>
+    <rect x="490" y="170" width="220" height="52" rx="10" fill="#C05621"/>
+    <text x="600" y="202" text-anchor="middle">Searched → too little</text>
+    <rect x="490" y="270" width="220" height="52" rx="10" fill="#C05621"/>
+    <text x="600" y="302" text-anchor="middle">Refined → found it</text>
+  </g>
+  <g stroke-width="4" fill="none" marker-end="url(#a2)">
+    <path d="M 200 122 V 162" stroke="#2B6CB0"/>
+    <path d="M 200 222 V 262" stroke="#2B6CB0"/>
+    <path d="M 600 122 C 540 140, 660 152, 600 162" stroke="#C05621"/>
+    <path d="M 600 222 C 660 240, 540 252, 600 262" stroke="#C05621"/>
+  </g>
+  <text x="200" y="380" text-anchor="middle" font-size="16" fill="#5B6472">route is set in advance</text>
+  <text x="600" y="380" text-anchor="middle" font-size="16" fill="#5B6472">route is laid as it goes</text>
+</svg>
