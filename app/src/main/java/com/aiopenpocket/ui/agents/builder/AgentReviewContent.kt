@@ -77,7 +77,7 @@ internal fun AgentReviewContent(
   onSendTestMessage: (String) -> Unit,
   onArchive: () -> Unit,
   testPendingApproval: ToolApprovalRequest?,
-  onResolveTestApproval: (approved: Boolean) -> Unit,
+  onResolveTestApproval: (requestId: String, approved: Boolean) -> Unit,
   onOpenChat: (() -> Unit)?,
   onOpenSettings: (() -> Unit)?,
   onEditStepByStep: (BuilderStep) -> Unit,
