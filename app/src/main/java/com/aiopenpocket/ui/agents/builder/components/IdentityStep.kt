@@ -78,6 +78,22 @@ fun IdentityStep(
       modifier = Modifier.padding(bottom = 16.dp),
     )
 
+    IdentityFields(draft = draft, errors = errors, onUpdateDraft = onUpdateDraft)
+  }
+}
+
+/**
+ * Name, description and icon with their inline errors — the body of [IdentityStep], also a section of the
+ * review screen ([com.aiopenpocket.ui.agents.builder.AgentReviewContent]). One copy of the controls: an edit
+ * there goes through the same [onUpdateDraft] as in the wizard, so validation and autosave behave the same.
+ */
+@Composable
+internal fun IdentityFields(
+  draft: AgentDraft,
+  errors: List<ValidationIssue>,
+  onUpdateDraft: ((AgentDraft) -> AgentDraft) -> Unit,
+) {
+  Column {
     LabeledField(
       value = draft.name,
       onValueChange = { text -> onUpdateDraft { it.copy(name = text.take(AgentValidator.MAX_AGENT_NAME_CHARS)) } },

@@ -69,21 +69,6 @@ fun CapabilitiesStep(
    */
   contentPadding: PaddingValues = PaddingValues(),
 ) {
-  var pendingConsentTool by remember { mutableStateOf<ToolCatalogEntry?>(null) }
-  var advancedExpanded by remember { mutableStateOf(false) }
-
-  fun setToolSelected(name: String, selected: Boolean) {
-    onUpdateDraft { d -> d.copy(toolNames = if (selected) d.toolNames + name else d.toolNames - name) }
-  }
-
-  fun onToggleTool(tool: ToolCatalogEntry, selected: Boolean) {
-    if (selected && tool.requiresConsent) {
-      pendingConsentTool = tool
-    } else {
-      setToolSelected(tool.name, selected)
-    }
-  }
-
   Column(
     modifier = modifier
       .verticalScroll(rememberScrollState())
@@ -101,11 +86,54 @@ fun CapabilitiesStep(
 
     Text(text = tr("Инструменты", "Tools"), style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(8.dp))
+    ToolPicker(draft = draft, onUpdateDraft = onUpdateDraft)
+
+    Spacer(modifier = Modifier.height(20.dp))
+    CapabilitiesExtras(
+      draft = draft,
+      errors = errors,
+      availableSkillIds = availableSkillIds,
+      onUpdateDraft = onUpdateDraft,
+    )
+    Spacer(modifier = Modifier.height(24.dp))
+  }
+}
+
+/**
+ * Every tool as a ticked/unticked row, then the "Advanced tools" expander. The body of the tools block of
+ * [CapabilitiesStep], also a section of the review screen, where the owner wants every checkbox visible
+ * without a tap, hence [compact]: the consequence line is kept for ticked rows only, so the list stays
+ * short enough to read. Ticking a tool that needs consent still goes through [RiskConsentDialog] here,
+ * so the review screen cannot grant a right the wizard would have asked about.
+ */
+@Composable
+internal fun ToolPicker(
+  draft: AgentDraft,
+  onUpdateDraft: ((AgentDraft) -> AgentDraft) -> Unit,
+  compact: Boolean = false,
+) {
+  var pendingConsentTool by remember { mutableStateOf<ToolCatalogEntry?>(null) }
+  var advancedExpanded by remember { mutableStateOf(false) }
+
+  fun setToolSelected(name: String, selected: Boolean) {
+    onUpdateDraft { d -> d.copy(toolNames = if (selected) d.toolNames + name else d.toolNames - name) }
+  }
+
+  fun onToggleTool(tool: ToolCatalogEntry, selected: Boolean) {
+    if (selected && tool.requiresConsent) {
+      pendingConsentTool = tool
+    } else {
+      setToolSelected(tool.name, selected)
+    }
+  }
+
+  Column {
     ToolCatalog.default.forEach { tool ->
       ToolRow(
         tool = tool,
         selected = tool.name in draft.toolNames,
         onToggle = { selected -> onToggleTool(tool, selected) },
+        compact = compact,
       )
       Spacer(modifier = Modifier.height(6.dp))
     }
@@ -131,12 +159,39 @@ fun CapabilitiesStep(
           tool = tool,
           selected = tool.name in draft.toolNames,
           onToggle = { selected -> onToggleTool(tool, selected) },
+          compact = compact,
         )
         Spacer(modifier = Modifier.height(6.dp))
       }
     }
+  }
 
-    Spacer(modifier = Modifier.height(20.dp))
+  pendingConsentTool?.let { tool ->
+    RiskConsentDialog(
+      tool = tool,
+      onConfirm = {
+        setToolSelected(tool.name, true)
+        pendingConsentTool = null
+      },
+      onDismiss = { pendingConsentTool = null },
+    )
+  }
+}
+
+/**
+ * Skills, the agent's own skills, memory and card templates: the rest of [CapabilitiesStep] after the tools.
+ * The review screen shows it as a collapsed section: the chat never sets these, but an existing draft can
+ * carry them, and their errors would otherwise block Publish with nothing to fix on screen.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun CapabilitiesExtras(
+  draft: AgentDraft,
+  errors: List<ValidationIssue>,
+  availableSkillIds: Set<String>,
+  onUpdateDraft: ((AgentDraft) -> AgentDraft) -> Unit,
+) {
+  Column {
     Text(text = tr("Навыки", "Skills"), style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(8.dp))
     ErrorText(errors, "skillIds")
@@ -214,23 +269,11 @@ fun CapabilitiesStep(
         )
       }
     }
-    Spacer(modifier = Modifier.height(24.dp))
-  }
-
-  pendingConsentTool?.let { tool ->
-    RiskConsentDialog(
-      tool = tool,
-      onConfirm = {
-        setToolSelected(tool.name, true)
-        pendingConsentTool = null
-      },
-      onDismiss = { pendingConsentTool = null },
-    )
   }
 }
 
 @Composable
-private fun ToolRow(tool: ToolCatalogEntry, selected: Boolean, onToggle: (Boolean) -> Unit) {
+private fun ToolRow(tool: ToolCatalogEntry, selected: Boolean, onToggle: (Boolean) -> Unit, compact: Boolean = false) {
   Row(
     modifier = Modifier
       .fillMaxWidth()
@@ -252,17 +295,21 @@ private fun ToolRow(tool: ToolCatalogEntry, selected: Boolean, onToggle: (Boolea
           color = riskColor(tool.riskClass),
         )
       }
-      Text(
-        text = tool.consequence,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-      )
-      tool.permission?.let { permission ->
+      // Compact (the review screen): a long list of cards each with a paragraph is a wall. What a tool does
+      // is spelled out only for the ticked ones, which are what the person is looking at.
+      if (!compact || selected) {
         Text(
-          text = tr("Разрешение Android: $permission", "Android permission: $permission"),
-          style = MaterialTheme.typography.labelSmall,
+          text = tool.consequence,
+          style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        tool.permission?.let { permission ->
+          Text(
+            text = tr("Разрешение Android: $permission", "Android permission: $permission"),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
       }
     }
   }

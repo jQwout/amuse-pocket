@@ -87,7 +87,7 @@ class AgentBuilderViewModel(
    * with a new id (and editing threw the user back to the first step), and for every new id the test
    * step created one more "Agent test" chat. The same trick as `AgentDetailViewModel.select`.
    */
-  private var startedWith: Pair<String?, AgentSourceContext>? = null
+  private var startedWith: Triple<String?, AgentSourceContext, Boolean>? = null
 
   init {
     viewModelScope.launch {
@@ -103,17 +103,18 @@ class AgentBuilderViewModel(
    * [loadExisting]. Call once per navigation entry (e.g. from a Compose `LaunchedEffect(agentId)`),
    * not on every recomposition. [sourceContext] (Task 23) only matters for the null-[agentId]
    * branch — see [newDraft]; it is ignored (never overrides an existing agent's bookkeeping) when
-   * [loadExisting] runs instead.
+   * [loadExisting] runs instead. [openReview] (the `review=true` route argument) opens an EXISTING draft on
+   * the review screen; a brand-new empty draft has nothing to review, so it is ignored for a null [agentId].
    *
    * A repeated call with the same arguments is a no-op (see [startedWith]): the draft and the current
    * step survive a screen rotation. [newDraft]/[loadExisting] themselves are not guarded — an explicit
    * call still reloads.
    */
-  fun start(agentId: String?, sourceContext: AgentSourceContext = AgentSourceContext.MANUAL) {
-    val key = agentId to sourceContext
+  fun start(agentId: String?, sourceContext: AgentSourceContext = AgentSourceContext.MANUAL, openReview: Boolean = false) {
+    val key = Triple(agentId, sourceContext, openReview)
     if (startedWith == key) return
     startedWith = key
-    if (agentId == null) newDraft(sourceContext) else loadExisting(agentId)
+    if (agentId == null) newDraft(sourceContext) else loadExisting(agentId, openReview)
   }
 
   /**
@@ -133,12 +134,15 @@ class AgentBuilderViewModel(
    * CURRENT repository row rather than trusting any other instance's in-memory state, so whatever
    * the previous instance's autosave last persisted is exactly what reappears.
    */
-  fun loadExisting(agentId: String) {
+  fun loadExisting(agentId: String, openReview: Boolean = false) {
     viewModelScope.launch {
       _state.update { it.copy(isLoading = true) }
       try {
         val resolved = agentResolver.resolve(agentId)
-        applyLoaded(resolved?.let { AgentDraft.fromDefinition(it, customSkillsOf(agentId)) } ?: AgentDraft.new(agentId))
+        applyLoaded(
+          resolved?.let { AgentDraft.fromDefinition(it, customSkillsOf(agentId)) } ?: AgentDraft.new(agentId),
+          review = openReview,
+        )
       } catch (e: Exception) {
         _state.update { it.copy(isLoading = false, saveError = ERROR_LOAD) }
       }
@@ -207,6 +211,14 @@ class AgentBuilderViewModel(
 
   fun goToStep(step: BuilderStep) {
     _state.update { it.copy(step = step, showErrors = false) }
+  }
+
+  /**
+   * Leaves the review screen for the step wizard, on [step] ("Edit step by step" opens the first one, "Edit
+   * rules" the hooks). The draft is the same object the review edited, so nothing is lost either way.
+   */
+  fun editStepByStep(step: BuilderStep = BuilderStep.IDENTITY) {
+    _state.update { it.copy(reviewMode = false, step = step, showErrors = false) }
   }
 
   /**
@@ -295,11 +307,18 @@ class AgentBuilderViewModel(
 
   // --- Internals -------------------------------------------------------------------------------------
 
-  private fun applyLoaded(draft: AgentDraft) {
+  private fun applyLoaded(draft: AgentDraft, review: Boolean = false) {
     pendingEdits.value = null // discard any stale pending edit left over from whatever was loaded before
     setDraftAndValidate(draft)
     _state.update {
-      it.copy(isLoading = false, step = BuilderStep.IDENTITY, isSaving = false, saveError = null, justPublished = false)
+      it.copy(
+        isLoading = false,
+        step = BuilderStep.IDENTITY,
+        reviewMode = review,
+        isSaving = false,
+        saveError = null,
+        justPublished = false,
+      )
     }
   }
 

@@ -47,6 +47,29 @@ fun InstructionsStep(
       modifier = Modifier.padding(top = 6.dp, bottom = 16.dp),
     )
 
+    InstructionsFields(
+      draft = draft,
+      errors = errors,
+      onUpdateDraft = onUpdateDraft,
+      fieldModifier = Modifier.weight(1f, fill = false),
+    )
+  }
+}
+
+/**
+ * The prompt field, its counter, inline errors and the prompting checklist — the body of [InstructionsStep],
+ * also a section of the review screen. [fieldModifier] is the caller's: the wizard lets the field share the
+ * column's height, the review screen sits in a scroll and passes nothing.
+ */
+@Composable
+internal fun InstructionsFields(
+  draft: AgentDraft,
+  errors: List<ValidationIssue>,
+  onUpdateDraft: ((AgentDraft) -> AgentDraft) -> Unit,
+  fieldModifier: Modifier = Modifier,
+  minLines: Int = 8,
+) {
+  Column {
     BuilderTextField(
       value = draft.systemPrompt,
       onValueChange = { text ->
@@ -59,9 +82,9 @@ fun InstructionsStep(
           "Reply as a list, no longer than 6 sentences. Keep the tone friendly and encouraging.",
       ),
       isError = errors.any { it.field == "systemPrompt" },
-      minLines = 8,
+      minLines = minLines,
       maxLines = 14,
-      modifier = Modifier.weight(1f, fill = false),
+      modifier = fieldModifier,
     )
     Text(
       text = "${draft.systemPrompt.length} / ${AgentValidator.MAX_SYSTEM_PROMPT_CHARS}",

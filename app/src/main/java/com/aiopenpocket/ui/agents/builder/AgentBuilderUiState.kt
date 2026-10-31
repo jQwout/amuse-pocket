@@ -242,4 +242,12 @@ data class AgentBuilderUiState(
    * [AgentBuilderViewModel.publish], cleared by any following edit ([AgentBuilderViewModel.updateDraft]).
    */
   val justPublished: Boolean = false,
+  /**
+   * The builder shows the one-page review of the whole draft instead of the step wizard. Raised when the
+   * route is opened with `review=true` (the builder chat sends the person here once the draft validates),
+   * dropped by [AgentBuilderViewModel.editStepByStep]. It is a flag next to [step], not a seventh
+   * [BuilderStep]: the wizard's next/back/progress walk [BuilderStep.entries] by ordinal, and a review
+   * "step" would sit inside that walk where it does not belong.
+   */
+  val reviewMode: Boolean = false,
 )

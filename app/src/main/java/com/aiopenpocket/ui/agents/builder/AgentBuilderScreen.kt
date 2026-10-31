@@ -55,6 +55,9 @@ import com.aiopenpocket.ui.agents.builder.components.HooksStep
 import com.aiopenpocket.ui.agents.builder.components.IdentityStep
 import com.aiopenpocket.ui.agents.builder.components.InstructionsStep
 import com.aiopenpocket.ui.agents.builder.components.LoopModesStep
+import com.aiopenpocket.ui.agents.builder.components.PublishButton
+import com.aiopenpocket.ui.agents.builder.components.PublishedNotice
+import com.aiopenpocket.ui.agents.builder.components.isPublishedUnchanged
 import com.aiopenpocket.ui.agents.builder.components.TestAndPublishStep
 import com.aiopenpocket.ui.components.glass.GlassState
 import com.aiopenpocket.ui.components.glass.GlassSurface
@@ -101,6 +104,11 @@ fun AgentBuilderScreen(
   onOpenChat: (() -> Unit)? = null,
   /** "Open Settings" on the test run's no-key message; null — no button. */
   onOpenSettings: (() -> Unit)? = null,
+  /**
+   * Leaves the review screen for the wizard on the given step ("Edit step by step", "Edit rules").
+   * "Back to chat" on the review screen is [onExit]: the route pops to wherever the review was opened from.
+   */
+  onEditStepByStep: (BuilderStep) -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   if (state.isLoading) {
@@ -146,23 +154,44 @@ fun AgentBuilderScreen(
       // step headings drown on the dark aurora. The color is set once for the whole canvas (as in
       // onboarding).
       CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onBackground) {
-        BuilderStepContent(
-          state = state,
-          availableSkillIds = availableSkillIds,
-          testStatus = testStatus,
-          testStreamingText = testStreamingText,
-          testToolTrace = testToolTrace,
-          onUpdateDraft = onUpdateDraft,
-          onSetExecutionMode = onSetExecutionMode,
-          onSendTestMessage = onSendTestMessage,
-          onPublish = onPublish,
-          onArchive = onArchive,
-          testPendingApproval = testPendingApproval,
-          onResolveTestApproval = onResolveTestApproval,
-          onOpenChat = onOpenChat,
-          onOpenSettings = onOpenSettings,
-          contentPadding = PaddingValues(top = topPad, bottom = bottomPad),
-        )
+        if (state.reviewMode) {
+          AgentReviewContent(
+            state = state,
+            availableSkillIds = availableSkillIds,
+            testStatus = testStatus,
+            testStreamingText = testStreamingText,
+            testToolTrace = testToolTrace,
+            onUpdateDraft = onUpdateDraft,
+            onSetExecutionMode = onSetExecutionMode,
+            onSendTestMessage = onSendTestMessage,
+            onArchive = onArchive,
+            testPendingApproval = testPendingApproval,
+            onResolveTestApproval = onResolveTestApproval,
+            onOpenChat = onOpenChat,
+            onOpenSettings = onOpenSettings,
+            onEditStepByStep = onEditStepByStep,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = topPad, bottom = bottomPad),
+          )
+        } else {
+          BuilderStepContent(
+            state = state,
+            availableSkillIds = availableSkillIds,
+            testStatus = testStatus,
+            testStreamingText = testStreamingText,
+            testToolTrace = testToolTrace,
+            onUpdateDraft = onUpdateDraft,
+            onSetExecutionMode = onSetExecutionMode,
+            onSendTestMessage = onSendTestMessage,
+            onPublish = onPublish,
+            onArchive = onArchive,
+            testPendingApproval = testPendingApproval,
+            onResolveTestApproval = onResolveTestApproval,
+            onOpenChat = onOpenChat,
+            onOpenSettings = onOpenSettings,
+            contentPadding = PaddingValues(top = topPad, bottom = bottomPad),
+          )
+        }
       }
     }
 
@@ -174,7 +203,7 @@ fun AgentBuilderScreen(
         .fillMaxWidth()
         .onSizeChanged { topIslandHeightPx = it.height },
     ) {
-      BuilderTopIsland(progress = progress, glassState = glassState, onExit = onExit)
+      BuilderTopIsland(progress = progress.takeUnless { state.reviewMode }, glassState = glassState, onExit = onExit)
     }
 
     // The BOTTOM island: the save error and "Back/Next". onSizeChanged comes BEFORE windowInsetsPadding
@@ -187,13 +216,23 @@ fun AgentBuilderScreen(
         .fillMaxWidth()
         .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
     ) {
-      BuilderBottomBar(
-        saveError = state.saveError,
-        showNext = state.step != BuilderStep.TEST,
-        glassState = glassState,
-        onBack = onBack,
-        onNext = onNext,
-      )
+      if (state.reviewMode) {
+        ReviewBottomBar(
+          state = state,
+          glassState = glassState,
+          onBackToChat = onExit,
+          onPublish = onPublish,
+          onOpenChat = onOpenChat,
+        )
+      } else {
+        BuilderBottomBar(
+          saveError = state.saveError,
+          showNext = state.step != BuilderStep.TEST,
+          glassState = glassState,
+          onBack = onBack,
+          onNext = onNext,
+        )
+      }
     }
   }
 }
@@ -205,7 +244,8 @@ fun AgentBuilderScreen(
  */
 @Composable
 private fun BuilderTopIsland(
-  progress: Float,
+  /** null on the review screen: it is one page, there is no step to count. */
+  progress: Float?,
   glassState: GlassState,
   onExit: () -> Unit,
 ) {
@@ -226,20 +266,22 @@ private fun BuilderTopIsland(
         }
         Spacer(Modifier.width(4.dp))
         Text(
-          text = tr("Конструктор агента", "Agent builder"),
+          text = if (progress == null) tr("Обзор агента", "Agent review") else tr("Конструктор агента", "Agent builder"),
           style = MaterialTheme.typography.titleMedium,
           color = MaterialTheme.colorScheme.onSurface,
         )
       }
-      Spacer(Modifier.height(10.dp))
-      LinearProgressIndicator(
-        progress = { progress },
-        modifier = Modifier
-          .fillMaxWidth()
-          .height(4.dp)
-          .clip(CircleShape),
-        trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-      )
+      if (progress != null) {
+        Spacer(Modifier.height(10.dp))
+        LinearProgressIndicator(
+          progress = { progress },
+          modifier = Modifier
+            .fillMaxWidth()
+            .height(4.dp)
+            .clip(CircleShape),
+          trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+        )
+      }
     }
   }
 }
@@ -384,6 +426,72 @@ private fun BuilderBottomBar(
             onClick = onNext,
             modifier = Modifier.testTag("agent_builder_next"),
           ) { Text(tr("Далее", "Next")) }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * The review screen's bottom island: "Back to chat" and Publish, where a person who has scrolled the whole
+ * draft can still reach them. The Publish button is the wizard's own ([PublishButton]) and follows its rule,
+ * [AgentBuilderUiState.canPublish]: the draft has no validation issue at all. While it is off the bar says
+ * so and points at the marked sections, because a greyed-out button alone does not tell what to fix.
+ * After a successful publish the button is replaced by the "published" notice (with "Open chat").
+ */
+@Composable
+private fun ReviewBottomBar(
+  state: AgentBuilderUiState,
+  glassState: GlassState,
+  onBackToChat: () -> Unit,
+  onPublish: () -> Unit,
+  onOpenChat: (() -> Unit)?,
+) {
+  val publishedUnchanged = isPublishedUnchanged(state.draft, state.justPublished)
+  GlassSurface(
+    state = glassState,
+    shape = ISLAND_SHAPE,
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(horizontal = 12.dp)
+      .padding(top = 8.dp, bottom = 12.dp)
+      .shadow(16.dp, ISLAND_SHAPE, clip = false),
+  ) {
+    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+      state.saveError?.let {
+        Text(
+          text = it,
+          color = MaterialTheme.colorScheme.error,
+          modifier = Modifier.padding(bottom = 8.dp),
+        )
+      }
+      if (publishedUnchanged) {
+        PublishedNotice(configVersion = state.draft.configVersion, onOpenChat = onOpenChat)
+        Spacer(Modifier.height(8.dp))
+      } else if (!state.canPublish) {
+        Text(
+          text = tr(
+            "Публикация откроется, когда будут исправлены отмеченные разделы.",
+            "Publishing unlocks once the marked sections are fixed.",
+          ),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.error,
+          modifier = Modifier.padding(bottom = 8.dp).testTag("agent_builder_review_blocked"),
+        )
+      }
+      Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        TextButton(
+          onClick = onBackToChat,
+          modifier = Modifier.testTag("agent_builder_back_to_chat"),
+        ) { Text(tr("Назад к чату", "Back to chat")) }
+        Box(modifier = Modifier.weight(1f))
+        if (!publishedUnchanged) {
+          PublishButton(
+            draft = state.draft,
+            enabled = state.canPublish && !state.isSaving,
+            isSaving = state.isSaving,
+            onPublish = onPublish,
+          )
         }
       }
     }
