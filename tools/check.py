@@ -419,12 +419,6 @@ SCREEN_RU_EXEMPT = {
 # English lesson with a Russian scene is the very bug this check was written for.
 _SCENES = "app/src/main/java/com/aiopenpocket/ui/chat/components/"
 SCREEN_RU_LESSON_ONLY = {
-    _SCENES + "SceneContextBudget.kt": "context_engineering",
-    _SCENES + "SceneContextWindow.kt": "memory_and_context",
-    _SCENES + "SceneRag.kt": "rag",
-    _SCENES + "SceneRiskGate.kt": "tool_approval_and_limits",
-    _SCENES + "SceneSkillLevels.kt": "agent_skills",
-    _SCENES + "SceneToolCall.kt": "agent_tools",
 }
 
 # After one of these a "(" is a plain parenthesis, not a call; after anything else that is an identifier

@@ -38,36 +38,48 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 import kotlinx.coroutines.delay
 
 // A small "knowledge base": an employee handbook, already cut into chunks.
-private val CHUNKS = listOf(
-    "Отчёт за квартал сдаём до 5-го числа следующего месяца.",
-    "Кофемашина — на третьем этаже, капсулы у ресепшена.",
-    "Отпуск — 28 дней в году, заявление подают за две недели.",
-    "Пропуск выдаёт служба безопасности, кабинет 105.",
-    "Больничный оформляют в первый же день болезни.",
-    "Отчёты отправляют руководителю отдела на почту.",
+// A function, not a val: the language is read when the scene is drawn.
+private fun chunks() = listOf(
+    tr("Отчёт за квартал сдаём до 5-го числа следующего месяца.", "The quarterly report is due by the 5th of the next month."),
+    tr("Кофемашина — на третьем этаже, капсулы у ресепшена.", "The coffee machine is on the third floor, capsules are at reception."),
+    tr("Отпуск — 28 дней в году, заявление подают за две недели.", "Vacation is 28 days a year, request it two weeks ahead."),
+    tr("Пропуск выдаёт служба безопасности, кабинет 105.", "Security issues the access pass, room 105."),
+    tr("Больничный оформляют в первый же день болезни.", "Sick leave is filed on the very first day of illness."),
+    tr("Отчёты отправляют руководителю отдела на почту.", "Reports are emailed to the department head."),
 )
 
 /** A question, each chunk's similarity to it (illustrative — as embeddings would give) and the answer from the two best. */
-private class RagQuestion(val text: String, val scores: List<Float>, val answer: String)
+private class RagQuestion(
+    private val textRu: String, private val textEn: String,
+    val scores: List<Float>,
+    private val answerRu: String, private val answerEn: String,
+) {
+    val text: String get() = tr(textRu, textEn)
+    val answer: String get() = tr(answerRu, answerEn)
+}
 
 private val QUESTIONS = listOf(
     RagQuestion(
-        "Когда сдавать отчёт?",
+        "Когда сдавать отчёт?", "When is the report due?",
         listOf(0.92f, 0.08f, 0.21f, 0.10f, 0.18f, 0.74f),
         "До 5-го числа следующего месяца — и отправить руководителю отдела на почту.",
+        "By the 5th of the next month, emailed to the department head.",
     ),
     RagQuestion(
-        "Сколько дней отпуска?",
+        "Сколько дней отпуска?", "How many vacation days?",
         listOf(0.15f, 0.05f, 0.94f, 0.07f, 0.33f, 0.09f),
         "28 дней в году, заявление — за две недели.",
+        "28 days a year, request it two weeks ahead.",
     ),
     RagQuestion(
-        "Где получить пропуск?",
+        "Где получить пропуск?", "Where do I get a pass?",
         listOf(0.06f, 0.22f, 0.08f, 0.95f, 0.12f, 0.11f),
         "В службе безопасности, кабинет 105.",
+        "From security, room 105.",
     ),
 )
 
@@ -98,13 +110,13 @@ internal fun RagScene() {
     val primary = MaterialTheme.colorScheme.primary
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.animateContentSize()) {
-        Text("Спроси базу — памятку сотрудника:", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(tr("Спроси базу — памятку сотрудника:", "Ask the collection, an employee handbook:"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             QUESTIONS.forEachIndexed { index, q ->
                 FilterChip(selected = selected == index, onClick = { selected = index }, label = { Text(q.text) })
             }
         }
-        CHUNKS.forEachIndexed { index, chunk ->
+        chunks().forEachIndexed { index, chunk ->
             val score = (question?.scores?.get(index) ?: 0f) * search.value
             val picked = question != null && phase >= 1 && index in top
             ChunkRow(number = index + 1, text = chunk, score = score, picked = picked, accent = primary)
@@ -118,8 +130,8 @@ internal fun RagScene() {
                     .border(2.dp, primary, RoundedCornerShape(12.dp))
                     .padding(10.dp),
             ) {
-                Text("Пакет для модели: вопрос + куски ${top.joinToString(" и ") { "${it + 1}" }}", style = MaterialTheme.typography.labelMedium, color = primary, fontWeight = FontWeight.SemiBold)
-                top.forEach { Text("· ${CHUNKS[it]}", style = MaterialTheme.typography.bodySmall, color = SceneInk) }
+                Text(tr("Пакет для модели: вопрос + куски ${top.joinToString(" и ") { "${it + 1}" }}", "Package for the model: question + pieces ${top.joinToString(" and ") { "${it + 1}" }}"), style = MaterialTheme.typography.labelMedium, color = primary, fontWeight = FontWeight.SemiBold)
+                top.forEach { Text("· ${chunks()[it]}", style = MaterialTheme.typography.bodySmall, color = SceneInk) }
             }
         }
         AnimatedVisibility(visible = question != null && phase >= 2, enter = fadeIn()) {
@@ -130,7 +142,7 @@ internal fun RagScene() {
                     .background(primary.copy(alpha = 0.14f))
                     .padding(12.dp),
             ) {
-                Text("Ответ: ${question?.answer.orEmpty()}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = SceneInk)
+                Text(tr("Ответ: ${question?.answer.orEmpty()}", "Answer: ${question?.answer.orEmpty()}"), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = SceneInk)
             }
         }
     }

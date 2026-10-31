@@ -33,18 +33,23 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 
-private data class Line(val fromUser: Boolean, val text: String)
+// Both languages stay in the constructor so two lines are equal when both texts are (the scene compares them),
+// and the text itself is picked when the line is drawn, not when CHAT is built.
+private data class Line(val fromUser: Boolean, private val ru: String, private val en: String) {
+    val text: String get() = tr(ru, en)
+}
 
 // The scene's conversation. The name is said in the very first message — and by the last question it no longer fits in the window.
 private val CHAT = listOf(
-    Line(true, "Привет! Меня зовут Ваня"),
-    Line(false, "Привет, Ваня!"),
-    Line(true, "Посоветуй фильм на вечер"),
-    Line(false, "«Интерстеллар» — если есть три часа"),
-    Line(true, "А покороче?"),
-    Line(false, "Тогда «Остров собак», полтора часа"),
-    Line(true, "Спасибо! А как меня зовут?"),
+    Line(true, "Привет! Меня зовут Ваня", "Hi! My name is Sam"),
+    Line(false, "Привет, Ваня!", "Hi, Sam!"),
+    Line(true, "Посоветуй фильм на вечер", "Suggest a movie for tonight"),
+    Line(false, "«Интерстеллар» — если есть три часа", "“Interstellar,” if you have three hours"),
+    Line(true, "А покороче?", "Something shorter?"),
+    Line(false, "Тогда «Остров собак», полтора часа", "Then “Isle of Dogs,” an hour and a half"),
+    Line(true, "Спасибо! А как меня зовут?", "Thanks! What's my name?"),
 )
 
 /** How many messages fit in the scene's window. A real window is tokens, not pieces; the principle is the same. */
@@ -69,7 +74,7 @@ internal fun ContextWindowScene() {
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.animateContentSize()) {
         if (outside.isNotEmpty()) {
-            Text("За окном — модель этого уже не видит", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+            Text(tr("За окном — модель этого уже не видит", "Outside the window, the model can no longer see this"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
             outside.forEach { ChatBubble(it, faded = true) }
         }
         Column(
@@ -81,7 +86,7 @@ internal fun ContextWindowScene() {
                 .background(primary.copy(alpha = 0.05f))
                 .padding(10.dp),
         ) {
-            Text("Окно контекста: $WINDOW сообщения", style = MaterialTheme.typography.labelMedium, color = primary, fontWeight = FontWeight.SemiBold)
+            Text(tr("Окно контекста: $WINDOW сообщения", "Context window: $WINDOW messages"), style = MaterialTheme.typography.labelMedium, color = primary, fontWeight = FontWeight.SemiBold)
             AnimatedVisibility(visible = remembered, enter = fadeIn() + expandVertically()) {
                 Box(
                     modifier = Modifier
@@ -90,7 +95,7 @@ internal fun ContextWindowScene() {
                         .background(ScenePalette[2])
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                 ) {
-                    Text("Долгая память: имя — Ваня", color = SceneInk, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    Text(tr("Долгая память: имя — Ваня", "Long-term memory: name is Sam"), color = SceneInk, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 }
             }
             inWindow.forEach { ChatBubble(it, faded = false) }
@@ -98,17 +103,17 @@ internal fun ContextWindowScene() {
         if (finished) {
             val knows = remembered || nameInWindow
             ChatBubble(
-                Line(false, if (knows) "Тебя зовут Ваня" else "Не знаю — ты не говорил"),
+                Line(false, if (knows) "Тебя зовут Ваня" else "Не знаю — ты не говорил", if (knows) "Your name is Sam" else "I don't know. You didn't tell me"),
                 faded = false,
                 accent = if (knows) primary else MaterialTheme.colorScheme.error,
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Text("Запомнить имя в долгую память", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            Text(tr("Запомнить имя в долгую память", "Save the name to long-term memory"), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
             Switch(checked = remembered, onCheckedChange = { remembered = it })
         }
         Button(onClick = { shown = if (finished) 1 else shown + 1 }, modifier = Modifier.fillMaxWidth()) {
-            Text(if (finished) "Сначала" else "Следующее сообщение")
+            Text(if (finished) tr("Сначала", "Start over") else tr("Следующее сообщение", "Next message"))
         }
     }
 }

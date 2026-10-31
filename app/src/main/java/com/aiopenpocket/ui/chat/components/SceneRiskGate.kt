@@ -33,25 +33,52 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 
-/** One call: the tool, the action, the risk class (an index in [RISKS]) and what came of "Allow"/"Decline". */
-private class GateCall(val tool: String, val action: String, val risk: Int, val allowed: String, val denied: String)
+/** One call: the tool, the action, the risk class (an index in [risks]) and what came of "Allow"/"Decline". */
+private class GateCall(
+    private val toolRu: String, private val toolEn: String,
+    private val actionRu: String, private val actionEn: String,
+    val risk: Int,
+    private val allowedRu: String = "", private val allowedEn: String = "",
+    private val deniedRu: String = "", private val deniedEn: String = "",
+) {
+    // A ru/en pair picked at display time: CALLS is built once, and a tr() in its initializer would freeze the
+    // language of the first draw.
+    val tool: String get() = tr(toolRu, toolEn)
+    val action: String get() = tr(actionRu, actionEn)
+    val allowed: String get() = tr(allowedRu, allowedEn)
+    val denied: String get() = tr(deniedRu, deniedEn)
+}
 
 // The four classes from the lesson. The scene plays the app's default rule, without hooks: reading and writing
 // go silently, while "leaves the device" and "may delete irreversibly" wait for your "ok".
-private val RISKS = listOf("только чтение", "изменяет данные", "покидает устройство", "может удалить необратимо")
+private fun risks() = listOf(
+    tr("только чтение", "read only"),
+    tr("изменяет данные", "changes data"),
+    tr("покидает устройство", "leaves the device"),
+    tr("может удалить необратимо", "can delete irreversibly"),
+)
 
-/** From this class ([RISKS]) on, a call waits for an "ok" — the same as by default in the app's chat. */
+/** From this class ([risks]) on, a call waits for an "ok" — the same as by default in the app's chat. */
 private const val ASK_FROM_RISK = 2
 
 // "Reminders" appears twice: the same tool, but the calls have different risk. The tools and actions are real
 // (the app has no "notes", and mail only opens a draft).
 private val CALLS = listOf(
-    GateCall("календарь", "показать события", 0, "", ""),
-    GateCall("напоминания", "показать список", 0, "", ""),
-    GateCall("будильник", "поставить на 7:00", 1, "", ""),
-    GateCall("почта", "черновик письма Ане", 2, "черновик открыт", "черновик не открыт"),
-    GateCall("напоминания", "отменить напоминание", 3, "напоминание отменено", "напоминание цело"),
+    GateCall("календарь", "calendar", "показать события", "show events", 0),
+    GateCall("напоминания", "reminders", "показать список", "show the list", 0),
+    GateCall("будильник", "alarm", "поставить на 7:00", "set for 7:00", 1),
+    GateCall(
+        "почта", "email", "черновик письма Ане", "draft an email to Anna", 2,
+        allowedRu = "черновик открыт", allowedEn = "the draft is open",
+        deniedRu = "черновик не открыт", deniedEn = "the draft stays closed",
+    ),
+    GateCall(
+        "напоминания", "reminders", "отменить напоминание", "cancel a reminder", 3,
+        allowedRu = "напоминание отменено", allowedEn = "the reminder is canceled",
+        deniedRu = "напоминание цело", deniedEn = "the reminder is untouched",
+    ),
 )
 
 /**
@@ -72,9 +99,9 @@ internal fun RiskGateScene() {
     val error = MaterialTheme.colorScheme.error
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Агент делает вызовы по одному. Какой спросит твоё «ок»?", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(tr("Агент делает вызовы по одному. Какой спросит твоё «ок»?", "The agent makes calls one at a time. Which one will ask for your “OK”?"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(200.dp)) {
-            listOf("Молча", "Спросит твоё «ок»").forEachIndexed { lane, title ->
+            listOf(tr("Молча", "Silently"), tr("Спросит твоё «ок»", "Asks for your “OK”")).forEachIndexed { lane, title ->
                 Column(
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier
@@ -109,13 +136,31 @@ internal fun RiskGateScene() {
         ) {
             Text(
                 text = when {
-                    current == null -> "Жми «Следующий вызов». Правило по умолчанию: читать и записывать — молча, отправлять и удалять — только с твоим «ок»."
-                    finished -> "«Напоминания»: список — молча, «отменить» — с твоим «ок». Риск считают по каждому вызову."
-                    current.risk == 0 -> "${current.tool}: ${current.action} — «${RISKS[0]}», нечего испортить. Выполнено молча."
-                    current.risk < ASK_FROM_RISK -> "${current.tool}: ${current.action} — «${RISKS[current.risk]}». Запись на устройстве идёт без вопроса."
-                    pending -> "${current.tool}: ${current.action} — «${RISKS[current.risk]}». Ход замер и ждёт тебя."
-                    (allowedMask and currentBit) != 0 -> "Разрешено — ${current.allowed}."
-                    else -> "Запрещено — ${current.denied}. Без «ок» агент действие не трогает."
+                    current == null -> tr(
+                        "Жми «Следующий вызов». Правило по умолчанию: читать и записывать — молча, отправлять и удалять — только с твоим «ок».",
+                        "Tap “Next call.” The default rule: read and write silently, send and delete only with your “OK.”",
+                    )
+                    finished -> tr(
+                        "«Напоминания»: список — молча, «отменить» — с твоим «ок». Риск считают по каждому вызову.",
+                        "“Reminders”: the list runs silently, “cancel” asks for your “OK.” Risk is judged per call.",
+                    )
+                    current.risk == 0 -> tr(
+                        "${current.tool}: ${current.action} — «${risks()[0]}», нечего испортить. Выполнено молча.",
+                        "${current.tool}: ${current.action} — “${risks()[0]},” nothing to break. Done silently.",
+                    )
+                    current.risk < ASK_FROM_RISK -> tr(
+                        "${current.tool}: ${current.action} — «${risks()[current.risk]}». Запись на устройстве идёт без вопроса.",
+                        "${current.tool}: ${current.action} — “${risks()[current.risk]}.” Writing on the device goes without a question.",
+                    )
+                    pending -> tr(
+                        "${current.tool}: ${current.action} — «${risks()[current.risk]}». Ход замер и ждёт тебя.",
+                        "${current.tool}: ${current.action} — “${risks()[current.risk]}.” The turn froze and waits for you.",
+                    )
+                    (allowedMask and currentBit) != 0 -> tr("Разрешено — ${current.allowed}.", "Allowed: ${current.allowed}.")
+                    else -> tr(
+                        "Запрещено — ${current.denied}. Без «ок» агент действие не трогает.",
+                        "Denied: ${current.denied}. Without an “OK” the agent doesn't touch the action.",
+                    )
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (finished) FontWeight.SemiBold else FontWeight.Normal,
@@ -126,11 +171,11 @@ internal fun RiskGateScene() {
         // The confirmation bar — as at the bottom of the chat. Its space is always taken so the button below does not jump.
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(48.dp)) {
             if (pending) {
-                OutlinedButton(onClick = { deniedMask = deniedMask or currentBit }, modifier = Modifier.weight(1f)) { Text("Отклонить", color = error) }
-                Button(onClick = { allowedMask = allowedMask or currentBit }, modifier = Modifier.weight(1f)) { Text("Разрешить") }
+                OutlinedButton(onClick = { deniedMask = deniedMask or currentBit }, modifier = Modifier.weight(1f)) { Text(tr("Отклонить", "Deny"), color = error) }
+                Button(onClick = { allowedMask = allowedMask or currentBit }, modifier = Modifier.weight(1f)) { Text(tr("Разрешить", "Allow")) }
             } else {
                 Text(
-                    text = "Здесь появится полоса подтверждения",
+                    text = tr("Здесь появится полоса подтверждения", "The confirmation bar will appear here"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline,
                     modifier = Modifier.weight(1f),
@@ -148,7 +193,7 @@ internal fun RiskGateScene() {
             enabled = !pending,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(if (finished) "Сначала" else "Следующий вызов")
+            Text(if (finished) tr("Сначала", "Start over") else tr("Следующий вызов", "Next call"))
         }
     }
 }
