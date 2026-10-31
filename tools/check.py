@@ -986,6 +986,7 @@ def check_sink_russian(report):
                    % (len(USER_TEXT_SINKS), scanned, covered, len(used)))
 
 
+# @trace english-ui-on-the-demo-path-223241
 def check_english_lessons(report):
     """T6b: every lesson that HAS an English copy matches its original step for step, and the
     lessons of the demo path have a copy at all.
@@ -1021,6 +1022,13 @@ def check_english_lessons(report):
         for field in ("title", "description"):
             if CYRILLIC.search(str(en.get(field, ""))):
                 details.append("%s: the English copy's %s is Russian" % (name, field))
+        # A picture is part of the lesson text: an SVG with Russian labels baked in reads as Russian
+        # to an English reader no matter how the caption is translated (found on the emulator, 31 Oct).
+        # Only vector files can be read here; a raster has its words painted in and needs eyes.
+        for i, e in enumerate(en_steps):
+            image = e.get("asset") or ("lessons/images/%s.svg" % e["imageKey"] if e.get("imageKey") else "")
+            if image.endswith(".svg") and (ASSETS / image).is_file() and CYRILLIC.search(read(ASSETS / image)):
+                details.append("%s: step %d shows %s, which has Russian text in it" % (name, i + 1, image))
     if details:
         report.add("T6b", "FAIL", "An English lesson does not match its Russian original", details[:15])
     else:

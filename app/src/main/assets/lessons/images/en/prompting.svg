@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 175" font-family="sans-serif">
+  <defs>
+    <marker id="pr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9aa0a6"/>
+    </marker>
+  </defs>
+
+  <!-- Vague request -->
+  <rect x="12" y="66" width="120" height="44" rx="9" fill="#9E9E9E"/>
+  <text x="72" y="86" fill="#ffffff" font-size="12" text-anchor="middle">Vague</text>
+  <text x="72" y="101" fill="#ffffff" font-size="12" text-anchor="middle">request</text>
+
+  <!-- diverging answers -->
+  <line x1="132" y1="80" x2="178" y2="36"  stroke="#9aa0a6" stroke-width="1.8" marker-end="url(#pr)"/>
+  <line x1="132" y1="88" x2="178" y2="88"  stroke="#9aa0a6" stroke-width="1.8" marker-end="url(#pr)"/>
+  <line x1="132" y1="96" x2="178" y2="140" stroke="#9aa0a6" stroke-width="1.8" marker-end="url(#pr)"/>
+  <text x="186" y="40"  fill="#9aa0a6" font-size="13" text-anchor="start">?</text>
+  <text x="186" y="92"  fill="#9aa0a6" font-size="13" text-anchor="start">?</text>
+  <text x="186" y="144" fill="#9aa0a6" font-size="13" text-anchor="start">?</text>
+
+  <!-- Precise request -->
+  <rect x="210" y="66" width="118" height="44" rx="9" fill="#43A047"/>
+  <text x="269" y="86" fill="#ffffff" font-size="12" text-anchor="middle">Precise</text>
+  <text x="269" y="101" fill="#ffffff" font-size="12" text-anchor="middle">request</text>
+
+  <line x1="328" y1="88" x2="352" y2="88" stroke="#9aa0a6" stroke-width="2" marker-end="url(#pr)"/>
+</svg>

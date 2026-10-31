@@ -13,7 +13,7 @@
     { "type": "text", "text": "Level 3 is resources: the data that the instructions refer to. For example, the “Budget” skill stores expenses as facts in memory. The agent fetches them with ordinary tools, and only when it gets to them. That way nothing unneeded ends up in the window." },
     { "type": "animation", "scene": "skill_levels", "caption": "Tap a skill, then try “Load everything at once.” The token counts are an example for illustration" },
     { "type": "text", "text": "Ready-made skills already exist: budget, diary, fitness, languages. They are built into the app. You can also add your own skill without any code. On the agent's review screen, which is where the builder chat ends, the “Skills, memory, cards” section has “Custom skill”: a name, when to use it and the instructions. The same field exists in the step-by-step form. The skill goes into the agent's catalog and is loaded the same way, on demand." },
-    { "type": "image", "asset": "lessons/images/skill_levels.svg", "caption": "Three levels of disclosure: a cheap catalog → instructions on request → resources on demand" },
+    { "type": "image", "asset": "lessons/images/en/skill_levels.svg", "caption": "Three levels of disclosure: a cheap catalog → instructions on request → resources on demand" },
     { "type": "text", "text": "This technique is called progressive disclosure: the agent knows a little about everything and pulls out details only for a specific task. That way it stays both capable and light, and the context isn't clogged with things that aren't needed right now." },
     { "type": "sort", "instruction": "Put the levels of skill disclosure in order:", "items": [
       "The agent fetches the skill's data with tools",

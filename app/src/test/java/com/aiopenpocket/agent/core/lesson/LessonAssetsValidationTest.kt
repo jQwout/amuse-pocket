@@ -361,6 +361,17 @@ class LessonAssetsValidationTest {
 
   // --- English copies of the lessons (assets/lessons/en) ---
 
+  private fun LessonStep.bundledImagePath(): String =
+    asset.ifBlank { imageKey.takeIf { it.isNotBlank() }?.let { "lessons/images/$it.svg" } ?: "" }
+
+  /** `lessons/images/x.svg` -> `lessons/images/en/x.svg`; a path outside that folder has no twin. */
+  private fun englishTwinOf(path: String): String =
+    if (path.startsWith("lessons/images/") && '/' !in path.removePrefix("lessons/images/")) {
+      "lessons/images/en/" + path.removePrefix("lessons/images/")
+    } else {
+      path
+    }
+
   /**
    * Translation changes only the text. The copy's steps, their types, scenes, assets and answer keys are the
    * same as the Russian original's: otherwise the English lesson would quietly drift from the Russian one
@@ -394,8 +405,6 @@ class LessonAssetsValidationTest {
           }
           val shared = listOf(
             Triple("scene", e.scene, r.scene),
-            Triple("asset", e.asset, r.asset),
-            Triple("imageKey", e.imageKey, r.imageKey),
             Triple("url", e.url, r.url),
             Triple("imagePrompt", e.imagePrompt, r.imagePrompt),
             Triple("sampleVideo", e.sampleVideo, r.sampleVideo),
@@ -406,6 +415,14 @@ class LessonAssetsValidationTest {
           )
           shared.forEach { (field, mine, original) ->
             if (mine != original) err("$field='$mine', в оригинале '$original'")
+          }
+          // The picture is shared too, except that an English copy may point at the `images/en/` twin of the
+          // original's SVG: the Russian drawing has Russian words baked into it. imageKey and asset are the
+          // same picture in two spellings, so compare where they resolve to, not how they are written.
+          val enImage = e.bundledImagePath()
+          val ruImage = r.bundledImagePath()
+          if (enImage != ruImage && enImage != englishTwinOf(ruImage)) {
+            err("картинка '$enImage', в оригинале '$ruImage' (допустим только двойник в images/en/)")
           }
           if (e.caseSensitive != r.caseSensitive) err("caseSensitive=${e.caseSensitive}, в оригинале ${r.caseSensitive}")
           if (e.primaryAction?.type != r.primaryAction?.type) {
