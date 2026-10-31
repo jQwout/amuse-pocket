@@ -770,8 +770,8 @@ fun ChatScreen(
                 state.pendingToolApproval?.let { request ->
                     ToolApprovalBar(
                         request = request,
-                        onApprove = { viewModel.handleIntent(ChatIntent.ApproveToolCall) },
-                        onDeny = { viewModel.handleIntent(ChatIntent.DenyToolCall) },
+                        onApprove = { viewModel.handleIntent(ChatIntent.ApproveToolCall(request.requestId)) },
+                        onDeny = { viewModel.handleIntent(ChatIntent.DenyToolCall(request.requestId)) },
                     )
                 }
 

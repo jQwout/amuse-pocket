@@ -96,7 +96,7 @@ fun AgentBuilderScreen(
   onArchive: () -> Unit,
   /** A confirmation request from a hook in the test turn — see `AgentBuilderTestViewModel.testPendingApproval`. */
   testPendingApproval: ToolApprovalRequest? = null,
-  onResolveTestApproval: (approved: Boolean) -> Unit = {},
+  onResolveTestApproval: (requestId: String, approved: Boolean) -> Unit = { _, _ -> },
   /** "Open chat" after publishing; null — no button (the route cannot navigate to the chat). */
   onOpenChat: (() -> Unit)? = null,
   /** "Open Settings" on the test run's no-key message; null — no button. */
@@ -260,7 +260,7 @@ private fun BuilderStepContent(
   onPublish: () -> Unit,
   onArchive: () -> Unit,
   testPendingApproval: ToolApprovalRequest?,
-  onResolveTestApproval: (approved: Boolean) -> Unit,
+  onResolveTestApproval: (requestId: String, approved: Boolean) -> Unit,
   onOpenChat: (() -> Unit)?,
   onOpenSettings: (() -> Unit)?,
   contentPadding: PaddingValues,

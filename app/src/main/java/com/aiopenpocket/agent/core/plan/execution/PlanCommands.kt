@@ -169,13 +169,17 @@ class PlanCommands(
    * probes whole-plan completion — see its kdoc). If that confirmation completed the whole plan, tears
    * down any armed [scheduler] work for it — a [com.aiopenpocket.agent.core.plan.model.PlanStatus.COMPLETED]
    * plan must not keep firing scheduled steps, exactly like [cancel]/[pause]. A confirmation that only
-   * un-blocks the step (plan stays [com.aiopenpocket.agent.core.plan.model.PlanStatus.ACTIVE]) leaves the
-   * schedule armed, since the plan is still running.
+   * un-blocks the step (plan stays [com.aiopenpocket.agent.core.plan.model.PlanStatus.ACTIVE]) re-arms
+   * the schedule: it is usually NOT armed any more — the heartbeat that left the step BLOCKED synced
+   * right then, and the blocked step and everything depending on it were not selectable, so every row
+   * was cancelled. Without this sync the plan stayed ACTIVE with nothing to run its next step.
    */
   suspend fun confirmStep(planId: String, stepId: String) {
     val snapshot = repository.confirmStep(planId, stepId)
-    if (snapshot.plan.status == PlanStatus.COMPLETED) {
-      scheduler.cancel(planId)
+    when (snapshot.plan.status) {
+      PlanStatus.COMPLETED -> scheduler.cancel(planId)
+      PlanStatus.ACTIVE -> scheduler.sync(planId)
+      else -> Unit
     }
   }
 }

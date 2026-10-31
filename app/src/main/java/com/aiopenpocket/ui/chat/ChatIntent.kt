@@ -84,9 +84,11 @@ sealed class ChatIntent {
   data class AskDuringLesson(val text: String) : ChatIntent()
 
   /**
-   * The tool-approval bar (Task 9): the user allowed/denied `state.pendingToolApproval`. Neither carries
-   * parameters — they resolve exactly the request that is in the state right now (see ChatViewModel).
+   * The tool-approval bar (Task 9): the user allowed/denied the request the bar SHOWED — [requestId] is
+   * the one it was drawn for. Without it the tap resolved whatever was pending when it was handled: two
+   * DESTRUCTIVE calls in one model response, a double tap on "Allow", and the second tap approved a
+   * request that had never been on screen.
    */
-  data object ApproveToolCall : ChatIntent()
-  data object DenyToolCall : ChatIntent()
+  data class ApproveToolCall(val requestId: String) : ChatIntent()
+  data class DenyToolCall(val requestId: String) : ChatIntent()
 }

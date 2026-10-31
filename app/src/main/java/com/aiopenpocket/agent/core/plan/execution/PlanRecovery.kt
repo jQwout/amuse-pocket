@@ -129,11 +129,15 @@ class PlanRecovery @Inject constructor(
    * concurrent mutation) does not need to be caught here specifically, matching every other
    * Structured Plan Engine class's "throw rather than silently corrupt state" convention; a caller
    * that wants partial-failure isolation across plans can wrap each call site itself.
+   *
+   * [startedBefore] is the moment this process started: a step started after it is not a leftover of a
+   * dead process but a live run (a WorkManager job can start one in the same process while this sweep
+   * is still going), and blocking it would be a false repair.
    */
-  suspend fun recover() {
+  suspend fun recover(startedBefore: Long = Long.MAX_VALUE) {
     for (plan in repository.getNonTerminalPlans()) {
       val snapshot = repository.snapshot(plan.id) ?: continue
-      if (recoverSnapshot(repository, snapshot, clock())) {
+      if (recoverSnapshot(repository, snapshot, clock(), startedBefore)) {
         scheduler.sync(plan.id)
       }
     }
@@ -147,10 +151,16 @@ class PlanRecovery @Inject constructor(
      * this ONE plan's repair. Returns whether anything actually changed, so a caller knows whether
      * its OWN, now-stale, [snapshot] needs a fresh re-read.
      */
-    internal suspend fun recoverSnapshot(repository: PlanRepository, snapshot: PlanSnapshot, now: Long): Boolean {
+    internal suspend fun recoverSnapshot(
+      repository: PlanRepository,
+      snapshot: PlanSnapshot,
+      now: Long,
+      startedBefore: Long = Long.MAX_VALUE,
+    ): Boolean {
       var changed = false
       for (state in snapshot.stepStates) {
         if (state.status != StepStatus.EXECUTING && state.status != StepStatus.VERIFYING) continue
+        if ((state.startedAt ?: Long.MIN_VALUE) >= startedBefore) continue
         val step = snapshot.version.steps.find { it.id == state.stepId } ?: continue
         if (recoverStep(repository, snapshot, step, state, now)) changed = true
       }

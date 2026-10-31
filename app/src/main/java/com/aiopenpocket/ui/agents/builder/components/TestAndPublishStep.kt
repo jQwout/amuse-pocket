@@ -70,7 +70,7 @@ fun TestAndPublishStep(
   justPublished: Boolean = false,
   /** A "Require confirmation" hook is waiting for a decision in the test turn; null — nothing is waiting. */
   testPendingApproval: ToolApprovalRequest? = null,
-  onResolveTestApproval: (approved: Boolean) -> Unit = {},
+  onResolveTestApproval: (requestId: String, approved: Boolean) -> Unit = { _, _ -> },
   /** "Open chat" in the publish confirmation; null — no button. */
   onOpenChat: (() -> Unit)? = null,
   /** "Open Settings" under the no-key message of a test run; null — no button. */
@@ -167,8 +167,8 @@ fun TestAndPublishStep(
       Spacer(modifier = Modifier.height(8.dp))
       ToolApprovalBar(
         request = request,
-        onApprove = { onResolveTestApproval(true) },
-        onDeny = { onResolveTestApproval(false) },
+        onApprove = { onResolveTestApproval(request.requestId, true) },
+        onDeny = { onResolveTestApproval(request.requestId, false) },
       )
     }
 

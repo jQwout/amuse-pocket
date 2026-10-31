@@ -1,6 +1,7 @@
 package com.aiopenpocket
 
 import android.app.Application
+import android.util.Log
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.decode.SvgDecoder
@@ -19,8 +20,23 @@ class AiOpenPocketApp : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+        val processStartedAt = System.currentTimeMillis()
         appGraph = createGraphFactory<AppGraph.Factory>().create(this)
         mirrorInterfaceLanguage()
+        recoverPlans(processStartedAt)
+    }
+
+    /**
+     * The plan engine's startup sweep: a step the previous process died in stays EXECUTING, and both
+     * step selectors skip that status, so without this the plan never moved again on its own. See
+     * PlanRecovery — it never re-runs a step, it only completes it on evidence or blocks it for review.
+     * Best-effort: a failure here must not take the app start down with it.
+     */
+    private fun recoverPlans(processStartedAt: Long) {
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            runCatching { appGraph.planRecovery.recover(startedBefore = processStartedAt) }
+                .onFailure { Log.w("AiOpenPocketApp", "plan recovery failed", it) }
+        }
     }
 
     /**
