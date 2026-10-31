@@ -140,7 +140,8 @@ import com.aiopenpocket.agent.core.plan.model.PlanSnapshot
 import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.i18n.tr
-import com.aiopenpocket.ui.agents.builder.AgentSourceContext
+import com.aiopenpocket.agent.core.agent.BuilderAgent
+import com.aiopenpocket.ui.agents.AgentsViewModel
 import com.aiopenpocket.ui.agents.builder.components.riskClassLabel
 import com.aiopenpocket.ui.agents.builder.components.riskColor
 import com.aiopenpocket.ui.chat.components.ChatInput
@@ -182,11 +183,13 @@ fun ChatScreen(
     // (com.aiopenpocket.ui.agents.detail.AgentDetailRoute, route "agent/{agentId}") — it replaces the
     // old read-only inspector sheet that used to live right in this screen.
     onOpenAgentDetail: (String) -> Unit = {},
-    // The CTA on the Academy capstone completion card (Task 23, "Open the builder"): opens agent_builder
-    // with a new empty draft marked sourceContext = ACADEMY_CAPSTONE. The button exists only on the REAL
+    // The CTA on the Academy capstone completion card (Task 23, "Open the builder"): starts a NEW builder chat
+    // (the hidden Builder agent) and hands its conversation id here. The button exists only on the REAL
     // agent_blueprint completion card (see DrivenUiEngine/LessonChatController.postCompletion) —
     // ordinary lessons do not show it.
-    onOpenAgentBuilder: (AgentSourceContext) -> Unit = {},
+    onOpenBuilderChat: (String) -> Unit = {},
+    // The "Review your agent" card at the end of a builder chat: opens the review screen of that draft.
+    onOpenAgentReview: (String) -> Unit = {},
     // A tap on "Open →" on the live plan card (Task 12, structured-plan-engine-907066) opens
     // com.aiopenpocket.ui.plan.PlanDetailRoute, route "plan/{planId}".
     onOpenPlanDetail: (String) -> Unit = {},
@@ -195,6 +198,9 @@ fun ChatScreen(
 ) {
     val glassState = rememberGlassState()
     val viewModel: ChatViewModel = metroViewModel()
+    // Only for the capstone's "Open the builder": creating the builder chat is the roster's job (the Agents
+    // FAB does the same), so it is not duplicated into ChatViewModel.
+    val agentsViewModel: AgentsViewModel = metroViewModel()
     val state by viewModel.state.collectAsState()
     val scope = rememberCoroutineScope()
 
@@ -524,7 +530,7 @@ fun ChatScreen(
                     // DrivenUiEngine.LessonCompleteCardView) — that is the capstone-only gate; here we just
                     // open the builder with the right source.
                     val onOpenAgentBuilderTap = remember(message.id) {
-                        { onOpenAgentBuilder(AgentSourceContext.ACADEMY_CAPSTONE) }
+                        { agentsViewModel.openBuilderChat(onOpenBuilderChat) }
                     }
                     MessageBubble(
                         message = message,
@@ -538,6 +544,7 @@ fun ChatScreen(
                         onCardStateChanged = onCardStateChanged,
                         onLessonComplete = onLessonComplete,
                         onOpenAgentBuilder = onOpenAgentBuilderTap,
+                        onOpenAgentReview = onOpenAgentReview,
                         onCardAction = onCardAction,
                         observeHeartbeat = observeHeartbeat,
                         onCancelHeartbeat = onCancelHeartbeat,
@@ -671,8 +678,9 @@ fun ChatScreen(
                                             )
                                         }
                                     }
-                                    // A tap opens the full-screen AgentDetailScreen (Task 21). Only for agent chats.
-                                    if (state.agentId != null) {
+                                    // A tap opens the full-screen AgentDetailScreen (Task 21). Only for agent chats —
+                                    // and not the hidden Builder: it is a tool, not an agent the person owns.
+                                    if (state.agentId != null && state.agentId != BuilderAgent.ID) {
                                         IconButton(onClick = { onOpenAgentDetail(state.agentId!!) }) {
                                             Icon(
                                                 Icons.Default.MoreVert,

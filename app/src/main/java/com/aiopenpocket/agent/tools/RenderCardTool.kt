@@ -12,7 +12,10 @@ import com.aiopenpocket.agent.loop.TurnContextHolder
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * General-purpose templates any agent (preset or user-built) may render — not tied to the AI
@@ -22,7 +25,7 @@ import kotlinx.serialization.json.JsonElement
  * bound agent was actually given.
  */
 val GENERAL_CARD_TEMPLATES = setOf(
-  "todo_list", "timer", "chart_bar", "table", "form", "choice",
+  "todo_list", "timer", "chart_bar", "table", "form", "choice", "multi_choice",
   "notification_permission", "reminder", "image",
 )
 
@@ -60,7 +63,10 @@ class RenderCardTool(
   override val description =
     "Отображает интерактивную карточку в чате. Доступные шаблоны: ${CARD_TEMPLATES.joinToString(", ")}. " +
     "notification_permission — карточка запроса разрешения на уведомления, params необязательны: {title, description, button_label}. " +
-    "reminder — живая карточка напоминания/heartbeat, params: {heartbeat_id} (id из ответа тула heartbeat)."
+    "reminder — живая карточка напоминания/heartbeat, params: {heartbeat_id} (id из ответа тула heartbeat). " +
+    "multi_choice — вопрос с несколькими отмечаемыми вариантами и кнопкой «Далее», params: " +
+    "{question, options (2-4 коротких подписи), preselected (индексы заранее отмеченных), min, max}; " +
+    "ответ человека придёт его следующим сообщением — отмеченные подписи через запятую."
   override val schema = toolSchema(name, description) {
     string("template", "ID шаблона карточки", required = true, enum = CARD_TEMPLATES)
     // params optional: some cards (e.g. notification_permission) take none, and execute tolerates
@@ -89,7 +95,34 @@ class RenderCardTool(
         )
       }
     }
+    if (template == MULTI_CHOICE) {
+      multiChoiceProblem(arguments["params"])?.let { return ToolResult.Error(it) }
+    }
     val params = arguments["params"].toString()
     return ToolResult.Success("""{"template":"$template","params":$params}""")
   }
+}
+
+private const val MULTI_CHOICE = "multi_choice"
+
+/** The most options one `multi_choice` card may carry: a longer list is a wall of choices, not a question. */
+private const val MULTI_CHOICE_MAX_OPTIONS = 4
+
+/**
+ * Why a `multi_choice` call cannot be drawn, or null when it can. Checked here, in the tool, so the model
+ * gets the reason back and fixes the call - the parser in the chat repairs what it can, but a card with
+ * one option, or a dozen, is a bad question rather than a broken spec. Owner's rule for the agent builder:
+ * 2-4 options, one question per card.
+ */
+internal fun multiChoiceProblem(params: JsonElement?): String? {
+  val obj = params as? JsonObject ?: return "multi_choice needs params {question, options}."
+  val question = (obj["question"] as? JsonPrimitive)?.content.orEmpty()
+  if (question.isBlank()) return "multi_choice needs a non-empty 'question'."
+  val options = (obj["options"] as? JsonArray)
+    ?.mapNotNull { (it as? JsonPrimitive)?.content?.takeIf { label -> label.isNotBlank() } }
+    ?: return "multi_choice needs 'options': a list of 2-$MULTI_CHOICE_MAX_OPTIONS short labels."
+  if (options.size !in 2..MULTI_CHOICE_MAX_OPTIONS) {
+    return "multi_choice takes 2-$MULTI_CHOICE_MAX_OPTIONS options, got ${options.size}. Ask one question per card."
+  }
+  return null
 }

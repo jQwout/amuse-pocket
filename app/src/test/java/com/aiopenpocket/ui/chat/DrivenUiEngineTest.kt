@@ -198,4 +198,76 @@ class DrivenUiEngineTest {
     assertTrue(step.toMarkdown().contains("Назови предмет"))
     assertTrue(result.toMarkdown().contains("cup") && result.toMarkdown().contains("3"))
   }
+
+  // --- multi_choice / agent_review (the agent builder chat) ---
+
+  @Test
+  fun `multi_choice parses options, preselected ticks and the bounds`() {
+    val spec = """{"template":"multi_choice","params":{"question":"What may it use?",
+      "options":["Memory","Reminders","Calendar"],"preselected":[0,2],"min":1,"max":3}}"""
+
+    val card = DrivenUiEngine.parseJsonString(spec) as DrivenUiCard.MultiChoiceCard
+
+    assertEquals("What may it use?", card.question)
+    assertEquals(listOf("Memory", "Reminders", "Calendar"), card.options)
+    assertEquals(setOf(0, 2), card.preselected)
+    assertEquals(1, card.min)
+    assertEquals(3, card.max)
+  }
+
+  /** The model fills the numbers freely; a card whose "Next" can never be enabled would dead-end the chat. */
+  @Test
+  fun `multi_choice repairs bounds and drops ticks that point nowhere`() {
+    val spec = """{"template":"multi_choice","params":{"question":"q","options":["a","b","c"],
+      "preselected":[1,1,9,-1],"min":7,"max":0}}"""
+
+    val card = DrivenUiEngine.parseJsonString(spec) as DrivenUiCard.MultiChoiceCard
+
+    assertEquals(3, card.min) // clamped to the option count, so "Next" can be reached
+    assertEquals(3, card.max)
+    assertEquals(setOf(1), card.preselected) // duplicate, out-of-range and negative ticks are gone
+  }
+
+  @Test
+  fun `multi_choice never preselects more than max`() {
+    val spec = """{"template":"multi_choice","params":{"question":"q","options":["a","b","c"],
+      "preselected":[0,1,2],"min":1,"max":2}}"""
+
+    val card = DrivenUiEngine.parseJsonString(spec) as DrivenUiCard.MultiChoiceCard
+
+    assertEquals(setOf(0, 1), card.preselected)
+  }
+
+  @Test
+  fun `multi_choice with fewer than two options is an error card, not a question`() {
+    val spec = """{"template":"multi_choice","params":{"question":"q","options":["only one"]}}"""
+
+    assertTrue(DrivenUiEngine.parseJsonString(spec) is DrivenUiCard.ErrorCard)
+  }
+
+  @Test
+  fun `agent_review parses the agent id and name`() {
+    val spec = """{"template":"agent_review","params":{"agent_id":"my-agent-1","name":"Budget buddy"}}"""
+
+    val card = DrivenUiEngine.parseJsonString(spec) as DrivenUiCard.AgentReviewCard
+
+    assertEquals("my-agent-1", card.agentId)
+    assertEquals("Budget buddy", card.name)
+  }
+
+  @Test
+  fun `agent_review without an agent id is an error card`() {
+    val spec = """{"template":"agent_review","params":{"name":"x"}}"""
+
+    assertTrue(DrivenUiEngine.parseJsonString(spec) is DrivenUiCard.ErrorCard)
+  }
+
+  /** What the tool's finish result looks like to the parser: extra keys for the model must not break it. */
+  @Test
+  fun `the draft tool finish result parses as the review card`() {
+    val finishResult = """{"template":"agent_review","params":{"agent_id":"my-agent-7","name":"N"},
+      "status":"ready","next":"Tell the person it is ready."}"""
+
+    assertTrue(DrivenUiEngine.parseJsonString(finishResult) is DrivenUiCard.AgentReviewCard)
+  }
 }

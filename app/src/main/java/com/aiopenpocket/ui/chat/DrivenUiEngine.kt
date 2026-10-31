@@ -26,6 +26,25 @@ sealed class DrivenUiCard {
     data class ChartBarCard(val title: String, val labels: List<String>, val values: List<Float>) : DrivenUiCard()
     data class FormCard(val fields: List<FormField>, val submitLabel: String) : DrivenUiCard()
     data class ChoiceCard(val question: String, val options: List<String>, val answerIndex: Int) : DrivenUiCard()
+    /**
+     * Several options can be ticked at once, then "Next" sends the ticked labels back as the user's message.
+     * [preselected] are the options the asker already thinks fit (the agent builder pre-ticks the likely
+     * ones); [min]/[max] bound how many ticks "Next" accepts. Always normalized by the parser: 0 <= [min] <=
+     * [max] <= options.size, and [preselected] holds valid indexes only, at most [max] of them.
+     */
+    data class MultiChoiceCard(
+        val question: String,
+        val options: List<String>,
+        val preselected: Set<Int>,
+        val min: Int,
+        val max: Int,
+    ) : DrivenUiCard()
+    /**
+     * The "Review your agent" card the agent builder chat ends with: a tap opens the review screen for
+     * [agentId]. Not a template a model can ask for through render_card: the draft tool's finish result
+     * produces it (see AgentDraftTool), so [agentId] is always a real draft of this conversation.
+     */
+    data class AgentReviewCard(val agentId: String, val name: String) : DrivenUiCard()
     data class LessonQuizCard(val questions: List<QuizQuestion>) : DrivenUiCard()
     /** [primaryAction] is non-null ONLY for the AI Academy capstone's real completion card (Task 23) — see [DrivenUiEngine.parseJsonString]'s `lesson_complete` branch and `LessonChatController.postCompletion`. */
     data class LessonCompleteCard(val title: String, val subtitle: String, val buttonLabel: String, val primaryAction: LessonPrimaryAction? = null) : DrivenUiCard()
@@ -133,6 +152,34 @@ private fun JSONObject.array(key: String): JSONArray = optJSONArray(key) ?: JSON
 
 object DrivenUiEngine {
 
+    /**
+     * The model fills [min]/[max]/[preselected] freely, so they are repaired here instead of trusted:
+     * a "Next" that can never be enabled (min above the option count) or a tick on an option that does not
+     * exist would dead-end the builder chat. Fewer than two options is not a question at all.
+     */
+    private fun parseMultiChoice(p: JSONObject): DrivenUiCard {
+        val options = p.array("options").toStringList().filter { it.isNotBlank() }.distinct()
+        if (options.size < 2) {
+            return DrivenUiCard.ErrorCard(
+                tr("multi_choice: нужно минимум два варианта", "multi_choice: needs at least two options"),
+            )
+        }
+        val min = p.optInt("min", 1).coerceIn(0, options.size)
+        val max = p.optInt("max", options.size).coerceIn(maxOf(min, 1), options.size)
+        val preselected = p.array("preselected").toIntList()
+            .filter { it in options.indices }
+            .distinct()
+            .take(max)
+            .toSet()
+        return DrivenUiCard.MultiChoiceCard(
+            question = p.optString("question", ""),
+            options = options,
+            preselected = preselected,
+            min = min,
+            max = max,
+        )
+    }
+
     fun parseJsonString(specString: String): DrivenUiCard = try {
         val root = JSONObject(specString)
         val template = root.optString("template", "")
@@ -198,6 +245,15 @@ object DrivenUiEngine {
                 options = p.array("options").toStringList(),
                 answerIndex = if (p.has("answer")) p.optInt("answer", -1) else -1,
             )
+            "multi_choice" -> parseMultiChoice(p)
+            "agent_review" -> {
+                val id = p.optString("agent_id", "")
+                if (id.isBlank()) DrivenUiCard.ErrorCard(tr("agent_review: нет agent_id", "agent_review: missing agent_id"))
+                else DrivenUiCard.AgentReviewCard(
+                    agentId = id,
+                    name = p.optString("name", "").ifBlank { tr("Новый агент", "New agent") },
+                )
+            }
             "lesson_quiz" -> DrivenUiCard.LessonQuizCard(
                 questions = p.array("questions").mapObjects {
                     QuizQuestion(
@@ -412,6 +468,13 @@ fun DrivenUiCard.toMarkdown(): String = when (this) {
         if (question.isNotBlank()) appendLine("**$question**")
         options.forEach { appendLine("- $it") }
     }.trim()
+
+    is DrivenUiCard.MultiChoiceCard -> buildString {
+        if (question.isNotBlank()) appendLine("**$question**")
+        options.forEach { appendLine("- $it") }
+    }.trim()
+
+    is DrivenUiCard.AgentReviewCard -> tr("**Проверь агента:** $name", "**Review your agent:** $name")
 
     is DrivenUiCard.LessonQuizCard -> buildString {
         appendLine(tr("**Проверка**", "**Quiz**"))

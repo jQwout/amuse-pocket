@@ -29,6 +29,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.toggleable
+import com.aiopenpocket.ui.chat.MultiChoiceSelection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -469,6 +472,135 @@ fun ChoiceCardView(
                     answered && hasKey && isPicked -> Icon(Icons.Default.Close, null, tint = MaterialTheme.colorScheme.error)
                 }
             }
+        }
+    }
+}
+
+/**
+ * Several options to tick, then "Next" (`multi_choice`). The answer goes back as the user's message, the same
+ * way [ChoiceCardView]'s does ([onSubmit] is ChatScreen's onChoiceSelected -> sendUserMessage).
+ *
+ * Locked after "Next": the ticks stay on screen but cannot change, because the model has already been told.
+ * The lock lives in two places on purpose: [locked] switches at once (a second tap during the write to the DB
+ * must not send a second message), [cardState] (messages.cardState) keeps it after the person leaves the chat.
+ */
+@Composable
+fun MultiChoiceCardView(
+    card: DrivenUiCard.MultiChoiceCard,
+    cardState: String?,
+    onCardStateChanged: (String?) -> Unit,
+    onSubmit: (String) -> Unit,
+) {
+    val saved = remember(card, cardState) { MultiChoiceSelection.decodeSubmitted(cardState, card.options.size) }
+    var ticks by remember(card) { mutableStateOf(card.preselected) }
+    var locked by remember(card) { mutableStateOf<Set<Int>?>(null) }
+    val final = locked ?: saved
+    val shown = final ?: ticks
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (card.question.isNotBlank()) {
+            Text(
+                text = card.question,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (final == null) {
+            Text(
+                text = when {
+                    card.max == 1 -> tr("Выбери один вариант", "Pick one")
+                    card.min == card.max -> tr("Выбери ${card.max}", "Pick ${card.max}")
+                    card.min > 1 -> tr("Выбери от ${card.min} до ${card.max}", "Pick ${card.min} to ${card.max}")
+                    else -> tr("Отметь всё подходящее (до ${card.max})", "Tick what fits (up to ${card.max})")
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline,
+            )
+        }
+
+        card.options.forEachIndexed { i, option ->
+            val checked = i in shown
+            val borderColor = when {
+                checked && final != null -> MaterialTheme.colorScheme.outline
+                checked -> MaterialTheme.colorScheme.primary
+                final != null -> MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(1.5.dp, borderColor, RoundedCornerShape(12.dp))
+                    .toggleable(
+                        value = checked,
+                        enabled = final == null,
+                        role = Role.Checkbox,
+                        onValueChange = { ticks = MultiChoiceSelection.toggle(ticks, i, card.max) },
+                    )
+                    .padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(text = option, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                if (checked) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = null,
+                        tint = if (final != null) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+        }
+
+        if (final == null) {
+            Button(
+                onClick = {
+                    val answer = MultiChoiceSelection.answerText(card.options, ticks)
+                    locked = ticks
+                    onCardStateChanged(MultiChoiceSelection.encodeSubmitted(ticks))
+                    onSubmit(answer)
+                },
+                enabled = MultiChoiceSelection.canSubmit(ticks, card.min, card.max),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("multi_choice_next"),
+            ) {
+                Text(tr("Далее", "Next"))
+            }
+        }
+    }
+}
+
+/** The "Review your agent" card the agent builder chat ends with: opens the review screen for the draft. */
+@Composable
+fun AgentReviewCardView(
+    card: DrivenUiCard.AgentReviewCard,
+    onOpen: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        CardTitleRow(icon = Icons.Default.SmartToy, title = tr("Проверь своего агента", "Review your agent"))
+        CardDivider()
+        Text(
+            text = card.name,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text = tr(
+                "Черновик готов. Посмотри все настройки, поправь что нужно и опубликуй.",
+                "The draft is ready. Look over every setting, change what you want, then publish.",
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.outline,
+        )
+        Button(
+            onClick = { onOpen(card.agentId) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("agent_review_open"),
+        ) {
+            Text(tr("Открыть проверку", "Review your agent"))
         }
     }
 }

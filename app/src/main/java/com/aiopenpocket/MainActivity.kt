@@ -226,7 +226,9 @@ class MainActivity : ComponentActivity() {
                                 composable("agents") {
                                     AgentsScreen(
                                         onOpenAgent = { id -> navController.navigate("agent/$id") },
-                                        onCreateAgent = { navController.navigate("agent_builder") },
+                                        // "Create agent" opens a new chat with the hidden Builder agent; the step form
+                                        // stays reachable through the draft/edit routes below.
+                                        onOpenBuilderChat = { id -> navController.navigate("chat/$id") },
                                         // A draft opens straight in the builder: it has no chat yet.
                                         onEditDraft = { id -> navController.navigate("agent_builder/$id") },
                                         onNavigateBack = { navController.popBackStack() },
@@ -286,10 +288,22 @@ class MainActivity : ComponentActivity() {
                                         },
                                     )
                                 }
-                                composable("agent_builder/{agentId}") { backStackEntry ->
+                                composable(
+                                    route = "agent_builder/{agentId}?review={review}",
+                                    arguments = listOf(
+                                        // The builder chat's "Review your agent" card opens the draft with
+                                        // review=true; every other entry (edit, draft in the roster) omits it.
+                                        navArgument("review") {
+                                            type = NavType.BoolType
+                                            defaultValue = false
+                                        },
+                                    ),
+                                ) { backStackEntry ->
                                     val agentId = backStackEntry.arguments?.getString("agentId")
+                                    val openReview = backStackEntry.arguments?.getBoolean("review") ?: false
                                     AgentBuilderRoute(
                                         agentId = agentId,
+                                        openReview = openReview,
                                         onExit = { navController.popBackStack() },
                                         onOpenSettings = { navController.navigate("settings") { launchSingleTop = true } },
                                         onOpenChat = { id ->
@@ -372,8 +386,11 @@ class MainActivity : ComponentActivity() {
                                         onOpenAgentDetail = { agentId ->
                                             navController.navigate("agent/$agentId")
                                         },
-                                        onOpenAgentBuilder = { source ->
-                                            navController.navigate("agent_builder?source=${source.name}")
+                                        // The capstone's "Open the builder": a new builder chat.
+                                        onOpenBuilderChat = { id -> navController.navigate("chat/$id") },
+                                        // The "Review your agent" card at the end of a builder chat.
+                                        onOpenAgentReview = { id ->
+                                            navController.navigate("agent_builder/$id?review=true")
                                         },
                                         onOpenPlanDetail = { planId ->
                                             navController.navigate("plan/$planId")

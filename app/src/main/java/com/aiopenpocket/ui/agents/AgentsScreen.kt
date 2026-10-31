@@ -67,13 +67,14 @@ import dev.zacsweers.metrox.viewmodel.metroViewModel
  * Roster screen (Task 21): tapping a card navigates to the full-screen agent detail (`agent/{id}`,
  * [com.aiopenpocket.ui.agents.detail.AgentDetailRoute]) — the old read-only glass bottom-sheet
  * inspector is gone, along with "Open chat" living only inside that sheet. Opening a chat is now
- * the detail screen's own header action. [onCreateAgent] (the FAB) starts a brand-new draft in the
- * Task 20 builder (`agent_builder`).
+ * the detail screen's own header action. [onOpenBuilderChat] (the FAB) starts a brand-new chat with the
+ * hidden Builder agent and receives its conversation id; the old step form (`agent_builder`) stays
+ * reachable for editing a draft ([onEditDraft]) and an existing agent.
  */
 @Composable
 fun AgentsScreen(
   onOpenAgent: (String) -> Unit,
-  onCreateAgent: () -> Unit,
+  onOpenBuilderChat: (String) -> Unit,
   onEditDraft: (String) -> Unit,
   onNavigateBack: () -> Unit,
 ) {
@@ -92,7 +93,7 @@ fun AgentsScreen(
         )
       }
     },
-    floatingActionButton = { CreateAgentFab(onClick = onCreateAgent) },
+    floatingActionButton = { CreateAgentFab(onClick = { viewModel.openBuilderChat(onOpenBuilderChat) }) },
   ) { padding ->
     LazyColumn(
       modifier = Modifier

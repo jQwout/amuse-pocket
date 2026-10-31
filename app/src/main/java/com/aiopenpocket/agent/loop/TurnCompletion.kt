@@ -3,6 +3,7 @@ package com.aiopenpocket.agent.loop
 // @trace streaming-llm-chat-6595a1
 // @trace structured-plan-engine-907066
 
+import com.aiopenpocket.agent.core.agent.BuilderAgent
 import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.plan.execution.PlanRunResult
@@ -133,6 +134,14 @@ internal suspend fun persistPlanStepOutputs(
 internal const val RENDER_CARD_TOOL = "render_card"
 
 /**
+ * Whether a tool result is an inline card for the chat: every `render_card` result, plus the one card the
+ * agent builder's `agent_draft` tool produces itself — the "Review your agent" card of a successful finish.
+ * Any other `agent_draft` result (get/update/validate) is data for the model and must not become a message.
+ */
+internal fun isCardResult(toolName: String, data: String): Boolean =
+  toolName == RENDER_CARD_TOOL || (toolName == BuilderAgent.DRAFT_TOOL && BuilderAgent.isReviewCard(data))
+
+/**
  * What a finished turn means. The other pole of the mode contract: [resolveTurnExecutionPlan]
  * decides HOW to run a turn, this structure — WHAT its result means.
  */
@@ -171,8 +180,7 @@ data class CompletedTurn(
  */
 fun resolveCompletedTurn(result: AgentResult): CompletedTurn {
   val cardSpecs = result.toolTrace
-    .filter { it.toolName == RENDER_CARD_TOOL }
-    .mapNotNull { (it.result as? ToolResult.Success)?.data }
+    .mapNotNull { (it.result as? ToolResult.Success)?.data?.takeIf { data -> isCardResult(it.toolName, data) } }
 
   // The iteration limit is a visible outcome, not silence: hitIterationLimit used not to be read here
   // at all. stoppedByToolBudget is a plan step's budget, CHAT/REFLECT/TUTOR have none; just in case,

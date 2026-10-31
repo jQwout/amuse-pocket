@@ -38,12 +38,12 @@
       "git": "98161c0"
     },
     "driven-ui-cards-0418d0": {
-      "hash": "d81d4609101e",
-      "git": "e28f42cb"
+      "hash": "cac1d406d31d",
+      "git": "271dac61"
     },
     "english-ui-on-the-demo-path-223241": {
-      "hash": "2a0e4daadc17",
-      "git": "5c80242e"
+      "hash": "0c72f7547d88",
+      "git": "271dac61"
     },
     "fonovye-hody-agenta-dde42d": {
       "hash": "2108e979cd44",
@@ -62,8 +62,8 @@
       "git": "ec7af5d1"
     },
     "mcp-tools-f77d9b": {
-      "hash": "cea6aa79e233",
-      "git": "3325046f"
+      "hash": "eb6a6be1c425",
+      "git": "271dac61"
     },
     "multi-agent-orchestration-27b8e3": {
       "hash": "df3f619804a9",
@@ -82,8 +82,8 @@
       "git": "97ca7fba"
     },
     "sam-segmentation-boxes-in-a-lesson-c3ea52": {
-      "hash": "0bf83f11dd1e",
-      "git": "271dac61"
+      "hash": "cf58070341aa",
+      "git": "9c00a0e5"
     },
     "screen-text-check-7c6d09": {
       "hash": "c80a9a2ff393",
@@ -94,12 +94,12 @@
       "git": "5ce3906"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "939e4c479bb1",
-      "git": "ec7af5d1"
+      "hash": "c58301c39d9d",
+      "git": "271dac61"
     },
     "structured-plan-engine-907066": {
-      "hash": "e14194e37371",
-      "git": "271dac61"
+      "hash": "4efad01cf07b",
+      "git": "9c00a0e5"
     },
     "swappable-persona-e5e65e": {
       "hash": "11aaa5d19303",
@@ -110,8 +110,8 @@
       "git": "e28f42cb"
     },
     "user-agent-builder-848153": {
-      "hash": "072bf0dff86a",
-      "git": "271dac61"
+      "hash": "a299b74faca3",
+      "git": "9c00a0e5"
     },
     "video-na-vhod-v-uroke-muse-spark-08ccdb": {
       "hash": "8c9fa9a6843d",
@@ -123,11 +123,11 @@
     },
     "vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53": {
       "hash": "121adcba9bd2",
-      "git": "271dac61"
+      "git": "9c00a0e5"
     },
     "yazykovoy-agent-repetitor-s-intervalnymi-povtoreniyami-4a9360": {
-      "hash": "f1dbaa822d5f",
-      "git": "b7563711"
+      "hash": "1224dc1209f6",
+      "git": "271dac61"
     }
   }
 }

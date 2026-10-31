@@ -76,4 +76,35 @@ class TurnCompletionTest {
     assertEquals(TurnTexts.ITERATION_LIMIT_NOTE, out.responseText)
     assertNull(out.blankError)
   }
+
+  // --- the builder chat's "Review your agent" card comes from agent_draft, not from render_card ---
+
+  private fun draftCall(data: String) =
+    ToolTrace(iteration = 1, toolName = "agent_draft", arguments = emptyMap(), result = ToolResult.Success(data))
+
+  private val reviewCard =
+    """{"template":"agent_review","params":{"agent_id":"my-agent-1","name":"N"},"status":"ready"}"""
+
+  @Test
+  fun `a successful agent_draft finish becomes the review card of the turn`() {
+    val out = resolveCompletedTurn(result("Your draft is ready.", listOf(draftCall(reviewCard))))
+
+    assertEquals(listOf(reviewCard), out.cardSpecs)
+  }
+
+  @Test
+  fun `other agent_draft results are data for the model, never a message`() {
+    val update = draftCall("""{"agent_id":"my-agent-1","draft":{"name":"N"},"problems":[]}""")
+
+    val out = resolveCompletedTurn(result("Next question.", listOf(update)))
+
+    assertEquals(emptyList<String>(), out.cardSpecs)
+  }
+
+  @Test
+  fun `a failed finish shows no card`() {
+    val failed = ToolTrace(iteration = 1, toolName = "agent_draft", arguments = emptyMap(), result = ToolResult.Error("not ready"))
+
+    assertEquals(emptyList<String>(), resolveCompletedTurn(result("What should it be called?", listOf(failed))).cardSpecs)
+  }
 }

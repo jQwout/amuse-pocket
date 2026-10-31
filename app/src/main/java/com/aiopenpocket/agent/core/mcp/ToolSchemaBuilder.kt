@@ -5,6 +5,7 @@ package com.aiopenpocket.agent.core.mcp
 import com.aiopenpocket.agent.core.llm.FunctionSchema
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
@@ -28,6 +29,34 @@ class ToolSchemaBuilder(private val toolName: String, private val toolDescriptio
 
   fun obj(name: String, description: String, required: Boolean = false) =
     addParam(name, "object", description, required)
+
+  fun boolean(name: String, description: String, required: Boolean = false) =
+    addParam(name, "boolean", description, required)
+
+  /**
+   * An array of strings. [enum], if given, constrains the ITEMS (JSON Schema `items.enum`), not the array
+   * itself, so the model's constrained decoding offers only the allowed values for each entry.
+   */
+  fun stringArray(
+    name: String,
+    description: String,
+    required: Boolean = false,
+    enum: List<String>? = null,
+  ) {
+    properties[name] = JsonObject(
+      mapOf(
+        "type" to JsonPrimitive("array"),
+        "description" to JsonPrimitive(description),
+        "items" to JsonObject(
+          buildMap {
+            put("type", JsonPrimitive("string"))
+            if (enum != null) put("enum", JsonArray(enum.map { JsonPrimitive(it) }))
+          },
+        ),
+      ),
+    )
+    if (required) this.required += name
+  }
 
   private fun addParam(
     name: String,
@@ -72,6 +101,28 @@ fun toolSchema(
 /** Read a non-blank string argument, or null. Replaces the `(args[k] as? JsonPrimitive)?.content` dance. */
 fun Map<String, JsonElement>.string(key: String): String? =
   (this[key] as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() }
+
+/**
+ * Read a list-of-strings argument, or null when the key is absent. Accepts a JSON array AND a
+ * comma-separated string: models fill an array parameter either way, and a tool that rejected the second
+ * form would make the model retry a call that was fine in meaning. Blank entries are dropped.
+ */
+fun Map<String, JsonElement>.stringList(key: String): List<String>? = when (val raw = this[key]) {
+  null, is JsonNull -> null
+  is JsonArray -> raw.mapNotNull { (it as? JsonPrimitive)?.content?.trim()?.takeIf { s -> s.isNotEmpty() } }
+  is JsonPrimitive -> raw.content.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+  else -> null
+}
+
+/** Read a boolean argument (accepts a JSON boolean or the strings "true"/"false"), or null. */
+fun Map<String, JsonElement>.boolean(key: String): Boolean? =
+  (this[key] as? JsonPrimitive)?.content?.trim()?.lowercase()?.let {
+    when (it) {
+      "true" -> true
+      "false" -> false
+      else -> null
+    }
+  }
 
 /** Read an integer argument (accepts numeric or string-numeric JSON values), or null. */
 fun Map<String, JsonElement>.int(key: String): Int? =
