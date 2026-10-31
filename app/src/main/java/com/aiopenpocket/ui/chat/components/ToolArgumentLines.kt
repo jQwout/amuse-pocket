@@ -69,6 +69,7 @@ private fun label(key: String): String = when (key.lowercase()) {
     "message", "text" -> tr("Текст", "Text")
     "path", "uri" -> tr("Файл", "File")
     "query" -> tr("Поиск", "Search")
+    "depth" -> tr("Глубина", "Depth")
     "term" -> tr("Слово", "Word")
     "translation" -> tr("Перевод", "Translation")
     "key" -> tr("Ключ", "Key")

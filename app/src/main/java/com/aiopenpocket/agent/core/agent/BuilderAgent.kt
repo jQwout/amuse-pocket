@@ -65,6 +65,7 @@ object BuilderAgent {
     "srs_tool" to ("учит слова по интервальным повторениям" to "teaches words with spaced repetition"),
     "load_skill" to ("подгружает готовый навык (бюджет, дневник, языки)" to "loads a ready-made skill (budget, diary, languages)"),
     "database_query" to ("читает данные приложения запросами SELECT" to "reads app data with SELECT queries"),
+    "web_search" to ("ищет свежие факты в интернете (каждый поиск стоит денег)" to "looks up fresh facts on the web (each search costs a little money)"),
   )
 
   private val MODE_PURPOSES: List<Triple<AgentMode, String, String>> = listOf(

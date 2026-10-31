@@ -186,6 +186,13 @@ object ToolCatalog {
       consequenceEn = "Reads the step count from the device sensor.",
     ),
     ToolCatalogEntry(
+      name = "web_search",
+      riskClass = RiskClass.READ,
+      permission = null,
+      consequenceRu = "Ищет в интернете свежие факты: текст запроса уходит в Meta. Каждый поиск стоит денег (около четверти цента плюс токены).",
+      consequenceEn = "Searches the web for fresh facts: the query text is sent to Meta. Each search costs money (about a quarter of a cent plus tokens).",
+    ),
+    ToolCatalogEntry(
       name = "load_skill",
       riskClass = RiskClass.READ,
       permission = null,

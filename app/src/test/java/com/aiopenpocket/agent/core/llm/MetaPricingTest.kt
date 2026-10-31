@@ -1,6 +1,7 @@
 package com.aiopenpocket.agent.core.llm
 
 // @trace vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53
+// @trace web-search-tool-c73ed8
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -40,6 +41,14 @@ class MetaPricingTest {
   @Test
   fun `SAM without a picture count is priced as one picture`() {
     assertEquals(0.0025, samCostUsd(null), 1e-12)
+  }
+
+  /** Web search is $2.50 per 1000 searches: a quarter of a cent each, on top of the tokens. */
+  @Test
+  fun `web search costs a quarter of a cent per search`() {
+    assertEquals(0.0025, webSearchCostUsd(1), 1e-12)
+    assertEquals(0.0075, webSearchCostUsd(3), 1e-12)
+    assertEquals(0.0, webSearchCostUsd(0), 1e-12)
   }
 
   /** Models without a line in the price list are "price unknown", not a made-up number. */

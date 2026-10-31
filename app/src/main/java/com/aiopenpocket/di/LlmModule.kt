@@ -5,6 +5,7 @@ package com.aiopenpocket.di
 // @trace kartinki-urokov-cherez-muse-image-fd6f8c
 // @trace video-na-vhod-v-uroke-muse-spark-08ccdb
 // @trace sam-segmentation-boxes-in-a-lesson-c3ea52
+// @trace web-search-tool-c73ed8
 
 import com.aiopenpocket.agent.core.llm.ImageGenClient
 import com.aiopenpocket.agent.core.llm.LlmClient
@@ -19,6 +20,8 @@ import com.aiopenpocket.agent.core.llm.ProviderFallbackChain
 import com.aiopenpocket.agent.core.llm.SegmentationClient
 import com.aiopenpocket.agent.core.llm.SelectedLlmProvider
 import com.aiopenpocket.agent.core.llm.VideoUnderstandingClient
+import com.aiopenpocket.agent.core.llm.WebSearchClient
+import com.aiopenpocket.agent.core.llm.preferredSparkId
 import com.aiopenpocket.data.repository.SettingsRepository
 import dev.zacsweers.metro.BindingContainer
 import dev.zacsweers.metro.ContributesTo
@@ -99,6 +102,25 @@ object LlmModule {
     engine = engine,
     apiKey = { metaKey(settingsRepository) },
     usageRecorder = usageRecorder,
+  )
+
+  /**
+   * Meta's hosted web search (the `web_search` tool of agents), on the person's Meta key. The model is the
+   * catalog's current Spark, read on every call; without a key the client sends nothing and the tool says
+   * "add your key".
+   */
+  @Provides
+  @SingleIn(AppScope::class)
+  fun provideWebSearchClient(
+    engine: HttpClientEngine,
+    settingsRepository: SettingsRepository,
+    usageRecorder: LlmUsageRecorder,
+    modelCatalogLoader: ModelCatalogLoader,
+  ): WebSearchClient = WebSearchClient(
+    engine = engine,
+    apiKey = { metaKey(settingsRepository) },
+    usageRecorder = usageRecorder,
+    model = { modelCatalogLoader.loadMeta().preferredSparkId() },
   )
 
   /**

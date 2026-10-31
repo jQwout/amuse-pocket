@@ -62,8 +62,8 @@
       "git": "ec7af5d1"
     },
     "mcp-tools-f77d9b": {
-      "hash": "eb6a6be1c425",
-      "git": "0eeb08d3"
+      "hash": "662fae4b9388",
+      "git": "ca62e3c0"
     },
     "multi-agent-orchestration-27b8e3": {
       "hash": "df3f619804a9",
@@ -128,6 +128,10 @@
     "vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53": {
       "hash": "d48f9d19891c",
       "git": "86f89103"
+    },
+    "web-search-tool-c73ed8": {
+      "hash": "64947132744e",
+      "git": "ca62e3c0"
     },
     "yazykovoy-agent-repetitor-s-intervalnymi-povtoreniyami-4a9360": {
       "hash": "1224dc1209f6",
