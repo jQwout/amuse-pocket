@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -185,7 +185,7 @@ private fun SkillRow(skill: Skill, loaded: Boolean, read: Boolean, onLoad: () ->
         ) {
             Text(skill.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = SceneInk)
             Text(" — ${skill.brief}", style = MaterialTheme.typography.bodyMedium, color = SceneInk.copy(alpha = 0.7f), maxLines = 1, modifier = Modifier.weight(1f))
-            Text("$CATALOG_LINE ${tr("ток.", "tokens")}", style = MaterialTheme.typography.labelMedium, color = SceneInk.copy(alpha = 0.6f), textAlign = TextAlign.End, modifier = Modifier.width(56.dp))
+            Text("$CATALOG_LINE ${tr("ток.", "tokens")}", style = MaterialTheme.typography.labelMedium, color = SceneInk.copy(alpha = 0.6f), textAlign = TextAlign.End, maxLines = 1, softWrap = false, modifier = Modifier.widthIn(min = 56.dp))
         }
         AnimatedVisibility(visible = loaded, enter = fadeIn() + expandVertically()) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 4.dp)) {

@@ -158,8 +158,10 @@ internal fun ContextBudgetScene() {
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
             color = if (over && !squeezed) error else primary,
-            minLines = 3,
-            maxLines = 3,
+            // Four lines are reserved so the block does not jump between the states; the longest one (the English
+            // "dropped out" line) needs all four, and with a hard cap of three its last words were cut off. No
+            // maxLines on purpose: a narrower screen or a larger font grows the block instead of clipping the text.
+            minLines = 4,
         )
         CTX_LAYERS.forEachIndexed { i, layer ->
             CtxRow(
