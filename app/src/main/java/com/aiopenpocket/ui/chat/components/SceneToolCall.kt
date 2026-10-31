@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aiopenpocket.i18n.tr
 import java.util.Locale
 
 /** The time on a chip: how a person writes it and how the model lays it out into the call's parameters. */
@@ -40,20 +41,35 @@ private class AlarmTime(val label: String, val hour: Int, val minute: Int)
 private val TIMES = listOf(AlarmTime("6:30", 6, 30), AlarmTime("7:00", 7, 0), AlarmTime("8:15", 8, 15))
 
 // Three boxes from top to bottom — that is the direction: model → app → model.
-private val HEADERS = listOf(
-    "Модель → приложению: вызов",
-    "Приложение → модели: результат",
-    "Модель → тебе: ответ",
+// Functions, not top-level vals: the language is read when the scene is drawn, not once at class load.
+private fun headers() = listOf(
+    tr("Модель → приложению: вызов", "Model → app: the call"),
+    tr("Приложение → модели: результат", "App → model: the result"),
+    tr("Модель → тебе: ответ", "Model → you: the answer"),
 )
 
-private val NOTES = listOf(
-    "Выбери время и жми «Отправить» — смотри, кто что делает.",
-    "Сама модель будильник не поставит — она только пишет вызов: инструмент и параметры.",
-    "Будильник ставит приложение — и возвращает результат обратно в разговор.",
-    "Модель только написала вызов, выполнило его приложение. Ответ — уже после результата.",
+private fun notes() = listOf(
+    tr("Выбери время и жми «Отправить» — смотри, кто что делает.", "Pick a time and tap “Send” to see who does what."),
+    tr(
+        "Сама модель будильник не поставит — она только пишет вызов: инструмент и параметры.",
+        "The model can't set the alarm itself. It only writes the call: a tool and its parameters.",
+    ),
+    tr(
+        "Будильник ставит приложение — и возвращает результат обратно в разговор.",
+        "The app sets the alarm and returns the result to the conversation.",
+    ),
+    tr(
+        "Модель только написала вызов, выполнило его приложение. Ответ — уже после результата.",
+        "The model only wrote the call. The app carried it out. The answer comes after the result.",
+    ),
 )
 
-private val BUTTONS = listOf("Отправить", "Выполнить в приложении", "Вернуть результат модели", "Сначала")
+private fun buttons() = listOf(
+    tr("Отправить", "Send"),
+    tr("Выполнить в приложении", "Run in the app"),
+    tr("Вернуть результат модели", "Return the result to the model"),
+    tr("Сначала", "Start over"),
+)
 
 /**
  * "A tool call": the user picks an alarm time and walks one call through with a button — the model writes the
@@ -70,14 +86,14 @@ internal fun ToolCallScene() {
     // The name, the action, the parameters and the result line — as in the app's real alarm tool.
     val contents = listOf(
         "{\"tool\": \"alarm\",\n \"action\": \"set_alarm\",\n \"hour\": ${time.hour}, \"minute\": ${time.minute}}",
-        "\"Будильник на $clock открыт\n в приложении часов.\"",
-        "Готово: будильник на ${time.label} стоит!",
+        tr("\"Будильник на $clock открыт\n в приложении часов.\"", "\"Alarm for $clock is open\n in the clock app.\""),
+        tr("Готово: будильник на ${time.label} стоит!", "Done: the alarm is set for ${time.label}!"),
     )
     val primary = MaterialTheme.colorScheme.primary
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            text = "Ты пишешь: «Поставь будильник на ${time.label}»",
+            text = tr("Ты пишешь: «Поставь будильник на ${time.label}»", "You write: “Set an alarm for ${time.label}”"),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
@@ -99,7 +115,7 @@ internal fun ToolCallScene() {
                     )
                 }
                 CallBox(
-                    header = HEADERS[index],
+                    header = headers()[index],
                     content = content,
                     lines = if (index == 0) 3 else 2,
                     mono = index < 2,
@@ -116,15 +132,15 @@ internal fun ToolCallScene() {
                 .padding(12.dp),
         ) {
             Text(
-                text = NOTES[step],
+                text = notes()[step],
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (step == 3) FontWeight.SemiBold else FontWeight.Normal,
                 color = SceneInk,
                 minLines = 3,
             )
         }
-        Button(onClick = { step = (step + 1) % BUTTONS.size }, modifier = Modifier.fillMaxWidth()) {
-            Text(BUTTONS[step])
+        Button(onClick = { step = (step + 1) % buttons().size }, modifier = Modifier.fillMaxWidth()) {
+            Text(buttons()[step])
         }
     }
 }
