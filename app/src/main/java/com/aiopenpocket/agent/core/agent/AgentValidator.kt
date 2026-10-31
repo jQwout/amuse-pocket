@@ -77,7 +77,7 @@ object AgentValidator {
    * kept in sync by hand until a later task exports it.
    */
   val KNOWN_WIDGET_TEMPLATES: Set<String> = setOf(
-    "todo_list", "weather_card", "timer", "chart_bar", "table", "form", "choice", "lesson_quiz",
+    "todo_list", "weather_card", "timer", "chart_bar", "table", "form", "choice", "multi_choice", "lesson_quiz",
     "lesson_complete", "switch", "notification_permission", "reminder", "image", "reveal",
     "concept", "example", "fill", "sort", "match", "scenario",
   )

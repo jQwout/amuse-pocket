@@ -105,6 +105,8 @@ fun RenderDrivenUiCard(
     // The Academy capstone (Task 23): a tap on the CTA of the lesson_complete card. Zero-arg — which
     // AgentSourceContext it means is decided by the caller (ChatScreen), not by the card engine.
     onOpenAgentBuilder: () -> Unit = {},
+    /** The agent builder chat's "Review your agent" card: opens the review screen of this draft. */
+    onOpenAgentReview: (String) -> Unit = {},
     onAction: (String, Boolean) -> Unit = { _, _ -> },
     observeHeartbeat: (String) -> Flow<HeartbeatEntity?> = { kotlinx.coroutines.flow.flowOf(null) },
     onCancelHeartbeat: (String) -> Unit = {},
@@ -149,6 +151,8 @@ fun RenderDrivenUiCard(
             is DrivenUiCard.ChartBarCard -> ChartBarCardView(card)
             is DrivenUiCard.FormCard -> FormCardView(card, onFormSubmitted)
             is DrivenUiCard.ChoiceCard -> ChoiceCardView(card, onChoiceSelected)
+            is DrivenUiCard.MultiChoiceCard -> MultiChoiceCardView(card, cardState, onCardStateChanged, onChoiceSelected)
+            is DrivenUiCard.AgentReviewCard -> AgentReviewCardView(card, onOpenAgentReview)
             is DrivenUiCard.LessonQuizCard -> LessonQuizCardView(card, onLessonQuizComplete, cardState, onCardStateChanged)
             is DrivenUiCard.LessonCompleteCard -> LessonCompleteCardView(card, onLessonComplete, onOpenAgentBuilder)
             is DrivenUiCard.SwitchCard -> SwitchCardView(card, onAction)

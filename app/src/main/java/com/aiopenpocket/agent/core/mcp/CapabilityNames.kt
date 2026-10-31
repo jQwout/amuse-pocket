@@ -42,6 +42,9 @@ object CapabilityNames {
     "step_counter" to ("Шагомер" to "Step counter"),
     "load_skill" to ("Навыки" to "Skills"),
     "database_query" to ("Запросы к базе" to "Database queries"),
+    // The hidden agent builder's own tool - not in KNOWN_TOOL_NAMES (a user's agent cannot hold it), but
+    // its calls show in the tool trace, which should not say "Agent draft" as a raw id.
+    "agent_draft" to ("Черновик агента" to "Agent draft"),
   )
 
   /** Shared actions of the file tools (agent sandbox and external files). Declared before [ACTIONS] — initialization order. */
@@ -96,6 +99,12 @@ object CapabilityNames {
       "all_words" to ("показать все слова" to "show all words"),
     ),
     "step_counter" to mapOf("snapshot" to ("узнать шаги" to "get steps")),
+    "agent_draft" to mapOf(
+      "get" to ("прочитать черновик" to "read the draft"),
+      "update" to ("обновить черновик" to "update the draft"),
+      "validate" to ("проверить черновик" to "check the draft"),
+      "finish" to ("завершить черновик" to "finish the draft"),
+    ),
   )
 
   /** Names of built-in skills ([com.aiopenpocket.agent.core.agent.AgentValidator.KNOWN_SKILL_IDS]). */

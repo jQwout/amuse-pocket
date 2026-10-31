@@ -67,6 +67,13 @@ class UserAgentRepository @Inject constructor(
   suspend fun get(id: String): AgentDefinition? =
     dao.get(id)?.let { runCatching { it.toDefinition() }.getOrNull() }?.withHooks()
 
+  /**
+   * This agent's own custom skill rows. [saveDraft] replaces the skill set wholesale, so a caller that
+   * edits only other fields (the builder chat's `agent_draft` tool) has to hand the current set back, or
+   * a save would silently delete skills the person added on the review screen.
+   */
+  suspend fun skillsOf(id: String): List<UserSkillEntity> = database.userSkillDao().getByAgent(id)
+
   /** Attaches this agent's currently-persisted [AgentHook]s (Task 8) — [UserAgentEntity.toDefinition] itself always returns `hooks = emptyList()`, since hooks live in their own table, not a column on this entity. */
   private suspend fun AgentDefinition.withHooks(): AgentDefinition = copy(hooks = hookRepository.getForAgent(id))
 

@@ -3,6 +3,7 @@ package com.aiopenpocket.di
 // @trace mcp-tools-f77d9b
 
 import com.aiopenpocket.agent.core.mcp.Tool
+import com.aiopenpocket.agent.tools.AgentDraftTool
 import com.aiopenpocket.agent.tools.AlarmTool
 import com.aiopenpocket.agent.tools.CalendarTool
 import com.aiopenpocket.agent.tools.DatabaseQueryTool
@@ -81,4 +82,10 @@ object AgentToolsModule {
   @Provides
   @IntoSet
   fun provideStorageTool(tool: StorageTool): Tool = tool
+
+  // Registered like every tool, but only the hidden Builder agent has it in its toolNames, and the tool
+  // itself refuses any other agent (see AgentDraftTool.execute).
+  @Provides
+  @IntoSet
+  fun provideAgentDraftTool(tool: AgentDraftTool): Tool = tool
 }

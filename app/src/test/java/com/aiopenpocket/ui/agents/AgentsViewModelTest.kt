@@ -9,6 +9,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.AgentSource
 import com.aiopenpocket.agent.core.agent.AgentStatus
+import com.aiopenpocket.agent.core.agent.BuilderAgent
 import com.aiopenpocket.agent.core.agent.DefaultAgentResolver
 import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.core.agent.UserAgentRepository
@@ -245,5 +246,46 @@ class AgentsViewModelTest {
     val second = awaitReady { secondId }
 
     assertEquals(first, second)
+  }
+
+  // --- "Create agent" opens a builder chat -------------------------------------------------------
+
+  @Test
+  fun `openBuilderChat creates a conversation bound to the hidden builder with a greeting`() = runTest(testDispatcher) {
+    var readyId: String? = null
+
+    vm.openBuilderChat { id -> readyId = id }
+
+    val conversationId = awaitReady { readyId }
+    assertEquals(BuilderAgent.ID, conversationRepository.getConversation(conversationId)?.agentId)
+    val messages = conversationRepository.getAllMessages(conversationId)
+    assertEquals(1, messages.size)
+    assertEquals("assistant", messages.single().role)
+    assertEquals(builderGreeting(), messages.single().content)
+  }
+
+  /** Every agent the person builds gets its own conversation, and so its own draft: no reuse, unlike an agent's chat. */
+  @Test
+  fun `openBuilderChat starts a new conversation every time`() = runTest(testDispatcher) {
+    var firstId: String? = null
+    var secondId: String? = null
+
+    vm.openBuilderChat { id -> firstId = id }
+    val first = awaitReady { firstId }
+    vm.openBuilderChat { id -> secondId = id }
+    val second = awaitReady { secondId }
+
+    assertTrue("a second builder chat must be a new conversation", first != second)
+  }
+
+  @Test
+  fun `the builder chat does not appear in the agent roster`() = runTest(testDispatcher) {
+    var readyId: String? = null
+    vm.openBuilderChat { id -> readyId = id }
+    awaitReady { readyId }
+
+    val roster = vm.roster.first()
+
+    assertTrue((roster.presets + roster.userAgents + roster.drafts).none { it.id == BuilderAgent.ID })
   }
 }

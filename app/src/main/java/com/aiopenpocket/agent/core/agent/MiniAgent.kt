@@ -39,6 +39,13 @@ data class MiniAgent(
    * language is usually Russian", is the wrong agent for them.
    */
   val systemPromptEn: String = systemPrompt,
+  /**
+   * Modes this agent offers, or null for the preset default (chat and reflection — see [toDefinition]).
+   * Only the hidden Builder narrows it: a builder chat has no use for a plan or a reflection pass.
+   */
+  val allowedModes: Set<AgentMode>? = null,
+  /** `render_card` templates this agent may draw, or null for all known ones — see [allowedModes]. */
+  val allowedWidgetTemplates: Set<String>? = null,
 ) {
   /** [name] on the UI language — chosen at call time, never cached. */
   val displayName: String get() = tr(name, nameEn)
@@ -261,7 +268,14 @@ object MiniAgentCatalog {
     ),
   )
 
-  fun get(id: String?): MiniAgent? = id?.let { target -> all.find { it.id == target } }
+  /**
+   * Also answers for the hidden [BuilderAgent], which is deliberately NOT in [all] (so no roster, picker
+   * or "every preset" test sees it) but must resolve like a preset: same lookup for the chat bound to it,
+   * the same display twins, and its id is reserved against user agents.
+   */
+  fun get(id: String?): MiniAgent? = id?.let { target ->
+    all.find { it.id == target } ?: BuilderAgent.agent.takeIf { it.id == target }
+  }
 }
 
 // @trace user-agent-builder-848153
@@ -324,9 +338,9 @@ fun MiniAgent.toDefinition(): AgentDefinition = AgentDefinition(
   // the builder. There used to be the full set here as one shared line, so Plan/Goal were offered to
   // EVERY preset regardless of meaning; the allowedModes field was ignored at runtime, and the mismatch
   // was invisible until filtering started to work.
-  allowedModes = setOf(AgentMode.CHAT, AgentMode.REFLECT),
+  allowedModes = allowedModes ?: setOf(AgentMode.CHAT, AgentMode.REFLECT),
   memoryPolicy = AgentMemoryPolicy(namespace = "agent:$id:", includeSharedProfile = true),
-  allowedWidgetTemplates = AgentValidator.KNOWN_WIDGET_TEMPLATES,
+  allowedWidgetTemplates = allowedWidgetTemplates ?: AgentValidator.KNOWN_WIDGET_TEMPLATES,
   hooks = emptyList(),
   stateKeyPrefixes = stateKeyPrefixes.toSet(),
   configVersion = 1L,

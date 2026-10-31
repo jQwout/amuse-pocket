@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.agent.AgentSource
+import com.aiopenpocket.agent.core.agent.BuilderAgent
 import com.aiopenpocket.agent.core.agent.displayDescription
 import com.aiopenpocket.agent.core.agent.displayName
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
@@ -70,6 +71,34 @@ class AgentsViewModel(
   private val opening = mutableSetOf<String>()
 
   /**
+   * Starts a NEW chat with the hidden Builder agent and hands its conversation id to [onReady]: the
+   * entry point of "Create agent" (the Agents FAB and the capstone lesson's "Open the builder").
+   * Never reuses an earlier builder chat: every agent the person builds gets its own conversation, and
+   * the draft is bound to that conversation id (see `AgentDraftTool.draftIdFor`).
+   *
+   * The first message is written here, not generated: the greeting asks the one thing the builder needs
+   * first (what the agent should do), so the chat opens with no model call and no key — the key is only
+   * asked for when the person answers.
+   */
+  fun openBuilderChat(onReady: (String) -> Unit) {
+    if (!opening.add(BuilderAgent.ID)) return
+    viewModelScope.launch {
+      try {
+        val builder = agentResolver.resolve(BuilderAgent.ID) ?: return@launch
+        val id = conversationRepository.createConversation(
+          title = tr("Новый агент", "New agent"),
+          personaId = userPreferencesRepository.getDefaultPersonaId(),
+          agentId = builder.id,
+        )
+        conversationRepository.addMessage(id, "assistant", builderGreeting())
+        onReady(id)
+      } finally {
+        opening.remove(BuilderAgent.ID)
+      }
+    }
+  }
+
+  /**
    * Opens the chat of agent [agentId] (tool scope + role) and hands its id to [onReady]. Reuses this
    * agent's existing chat if there is one — otherwise every repeated entry would spawn a new empty agent
    * chat in the conversation list ("agents spawn chats").
@@ -104,6 +133,12 @@ class AgentsViewModel(
     }
   }
 }
+
+/** The Builder chat's opening line: a short hello and the one free-text question the whole flow starts from. */
+internal fun builderGreeting(): String = tr(
+  "Привет! Давай соберём твоего агента. Что он должен делать? Расскажи своими словами, а дальше я задам пару коротких вопросов.",
+  "Hi! Let's build your agent. What should it do? Tell me in your own words, then I'll ask a few short questions.",
+)
 
 /**
  * The first message of an agent's chat: who this is, what it does, and an offer to start.
