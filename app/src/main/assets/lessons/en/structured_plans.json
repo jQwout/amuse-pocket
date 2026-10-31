@@ -1,0 +1,30 @@
+{
+  "id": "structured_plans",
+  "title": "Structured plans",
+  "description": "How an agent breaks a big task into checkable steps: plan approval, step statuses and the “done means proven” rule.",
+  "iconKey": "checklist",
+  "steps": [
+    { "type": "reveal", "question": "The task is big: collect data, process it, format it, send it. How do you keep an agent from getting lost halfway, or lying that it's “done”?", "answer": "Break the task into a plan of checkable steps. Each step runs in order, and “done” counts only with proof, not on the agent's word." },
+    { "type": "text", "text": "In the last two lessons you saw the plan card. Let's look at what stands behind it. The plan there is not a text promise but a real list of steps: each has its own check, and the engine walks the agent through them, marking what is done and what is stuck." },
+    { "type": "image", "asset": "lessons/images/generated/structured_plans-32ef8a0079.webp", "imagePrompt": "A planning board with three columns of cards. A small robot moves cards from the left column to the right one, and every card in the right column has a checkmark stamp and a small attached photo as proof.", "caption": "Done means proven" },
+    { "type": "concept", "term": "Structured plan", "definition": "A task broken into steps with an order and dependencies. Each step has a criterion for when it counts as done, and the engine tracks the status of each one.", "example": "The step “send the report” doesn't start until the step “collect the data” is marked done. The order enforces itself." },
+    { "type": "text", "text": "First the plan has to be approved. The agent writes the steps, and a plan card appears in the chat showing all the steps at once. You tap “Approve” and the work begins, or tap “Request changes” and the agent reshapes the plan. No step runs before approval. Agents you build yourself can use plans like this." },
+    { "type": "match", "instruction": "Match each step status to what it means:", "pairs": [
+      { "term": "Ready to run", "def": "The earlier steps are closed, so it can start" },
+      { "term": "Completed", "def": "Done, and the criterion is confirmed with proof" },
+      { "term": "Blocked", "def": "It won't go on by itself and needs your decision" }
+    ] },
+    { "type": "text", "text": "The key idea is checking by proof. A step doesn't count as done just because the agent said “did it.” The engine demands proof: a saved result that confirms the step's criterion. No proof, no checkmark: the step is tried again, up to two attempts in all, and then it is blocked. This protects you from “reported, but didn't do it.”" },
+    { "type": "animation", "scene": "step_evidence", "caption": "First tap “Submit” without proof and see what the engine does" },
+    { "type": "scenario", "situation": "The agent finishes a step and says “done,” but no saved result confirms the step's criterion.", "q": "What will the engine do with this step?", "options": ["Won't count it: gives another try, and then blocks the step", "Marks it completed, since the agent said it's done", "Quietly skips the step and goes on to the next"], "correct": 0, "explain": "Without proof, the criterion isn't met: the engine gives the step another try, and after a second failure blocks it and waits for you. The agent's words alone are not proof." },
+    { "type": "text", "text": "While a plan runs, its live card stays in the chat: you can see which steps are completed, which one is running now and which is stuck. From there you can pause the plan, resume it or cancel it, with the “Pause,” “Resume” and “Cancel” buttons, and “Open →” takes you to a detail screen with every step and its proof." },
+    { "type": "text", "text": "Some criteria only a person can confirm, for example “you checked the menu and you're happy with it.” Then the step stops with the note “This step is waiting for your confirmation,” and a “Confirm step” button appears on the card. Tap it, and that is the proof, so the plan goes on." },
+    { "type": "text", "text": "Practice. After the lesson, build an agent with “Create agent”: give it Memory and Reminders, and tick Plan mode in your answers to the Builder or in the Modes section of the “Review your agent” screen. In a chat with it, choose Plan and give it a multi-step task, for example “plan a three-day menu, save the shopping list and remind me on Saturday morning to go to the store.” Tap “Approve” on the card, watch the step statuses and open the detail screen." },
+    { "type": "text", "text": "In short. A structured plan is a task broken into steps with an order and a check. First you approve the plan on the card, then the engine walks the agent through the steps and marks statuses (“Ready to run,” “Completed,” “Blocked”). A step counts only with proof; if it fails in two attempts, it is blocked. The live card shows progress and gives you pause, resume and cancel." },
+    { "type": "quiz", "questions": [
+      { "q": "What makes a structured plan better than a plain text one?", "options": ["It has real steps with statuses and a check, not just a promise in text", "It runs much faster because some steps are skipped", "It needs no approval from you before it starts"], "correct": 0, "explain": "A structured plan tracks every step and demands proof, while text only describes intentions." },
+      { "q": "When does a plan step count as done?", "options": ["When its criterion is confirmed by saved proof", "As soon as the agent writes “done” in its reply", "A fixed time after the step starts"], "correct": 0, "explain": "The “done means proven” rule: without proof the criterion isn't met, so the step is tried again and then blocked." },
+      { "q": "What can you do with the live plan card in the chat?", "options": ["Watch the step statuses and pause, resume or cancel the plan", "Only watch passively, since it can't control the plan", "Add new steps right while it is running"], "correct": 0, "explain": "The card shows progress and gives control: pause, resume, cancel and a jump to the detail screen." }
+    ] }
+  ]
+}

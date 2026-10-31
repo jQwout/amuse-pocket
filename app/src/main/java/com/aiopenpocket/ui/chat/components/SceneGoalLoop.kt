@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 import kotlinx.coroutines.delay
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -53,11 +54,24 @@ import kotlin.math.roundToInt
 private class GoalTurn(val action: String, val evidence: String, val passed: List<Boolean>)
 
 // The lesson's example: a shopping list for borscht and a reminder for the evening.
-private val GOAL_CRITERIA = listOf("есть список", "в нём всё для борща", "напоминание на вечер")
-private val GOAL_TURNS = listOf(
-    GoalTurn("Список: картошка, капуста, морковь", "свёклы в списке нет", listOf(true, false, false)),
-    GoalTurn("Добавил свёклу, лук и томатную пасту", "продукты есть, напоминания нет", listOf(true, true, false)),
-    GoalTurn("Поставил напоминание «борщ» на 19:00", "напоминание стоит на 19:00", listOf(true, true, true)),
+// Functions, not top-level vals: tr() has to run when the scene is shown, in the current language.
+private fun goalCriteria() = listOf(
+    tr("есть список", "there is a list"),
+    tr("в нём всё для борща", "it has everything for borscht"),
+    tr("напоминание на вечер", "a reminder for the evening"),
+)
+private fun goalTurns() = listOf(
+    GoalTurn(tr("Список: картошка, капуста, морковь", "List: potatoes, cabbage, carrots"), tr("свёклы в списке нет", "no beets in the list"), listOf(true, false, false)),
+    GoalTurn(
+        tr("Добавил свёклу, лук и томатную пасту", "Added beets, onion and tomato paste"),
+        tr("продукты есть, напоминания нет", "groceries are there, no reminder yet"),
+        listOf(true, true, false),
+    ),
+    GoalTurn(
+        tr("Поставил напоминание «борщ» на 19:00", "Set a “borscht” reminder for 7:00 PM"),
+        tr("напоминание стоит на 19:00", "the reminder is set for 7:00 PM"),
+        listOf(true, true, true),
+    ),
 )
 private const val GOAL_ROW_H = 68
 
@@ -70,12 +84,14 @@ private const val GOAL_ROW_H = 68
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun GoalLoopScene() {
+    val turns = goalTurns()
+    val criteria = goalCriteria()
     var limit by rememberSaveable { mutableFloatStateOf(3f) } // three by default — as in the app
     var runs by rememberSaveable { mutableIntStateOf(0) }
     var attempted by remember { mutableIntStateOf(0) }
     var checked by remember { mutableIntStateOf(0) }
     val turnsLimit = limit.roundToInt()
-    val target = min(turnsLimit, GOAL_TURNS.size)
+    val target = min(turnsLimit, turns.size)
     LaunchedEffect(runs) {
         attempted = 0
         checked = 0
@@ -89,15 +105,15 @@ internal fun GoalLoopScene() {
     }
     val finished = runs > 0 && checked == target
     val running = runs > 0 && !finished
-    val last = GOAL_TURNS.getOrNull(checked - 1)
+    val last = turns.getOrNull(checked - 1)
     val reached = last?.passed?.all { it } == true
     val primary = MaterialTheme.colorScheme.primary
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Цель: список покупок для борща и напоминание на вечер", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        Text("Готово, когда:", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+        Text(tr("Цель: список покупок для борща и напоминание на вечер", "Goal: a shopping list for borscht and a reminder for tonight"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(tr("Готово, когда:", "Done when:"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            GOAL_CRITERIA.forEachIndexed { i, name ->
+            criteria.forEachIndexed { i, name ->
                 val ok = last?.passed?.get(i) == true
                 val bg by animateColorAsState(if (ok) ScenePalette[2] else Color.White, tween(300), label = "criterion")
                 Text(
@@ -109,9 +125,9 @@ internal fun GoalLoopScene() {
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Text("Лимит витков: $turnsLimit", style = MaterialTheme.typography.labelLarge, maxLines = 1)
+            Text(tr("Лимит витков: $turnsLimit", "Round limit: $turnsLimit"), style = MaterialTheme.typography.labelLarge, maxLines = 1)
             Text(
-                "страховка от вечной петли",
+                tr("страховка от вечной петли", "protects against an endless loop"),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.outline,
                 textAlign = TextAlign.End,
@@ -132,9 +148,9 @@ internal fun GoalLoopScene() {
         // Space for three iterations is always kept: the button under them does not slide while the loop spins.
         Column(
             verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.fillMaxWidth().height((GOAL_TURNS.size * GOAL_ROW_H + (GOAL_TURNS.size - 1) * 4).dp),
+            modifier = Modifier.fillMaxWidth().height((turns.size * GOAL_ROW_H + (turns.size - 1) * 4).dp),
         ) {
-            GOAL_TURNS.take(attempted).forEachIndexed { i, turn ->
+            turns.take(attempted).forEachIndexed { i, turn ->
                 val appear = remember { MutableTransitionState(false).apply { targetState = true } }
                 AnimatedVisibility(visibleState = appear, enter = fadeIn() + expandVertically()) {
                     GoalTurnRow(number = i + 1, turn = turn, checked = i < checked)
@@ -144,10 +160,22 @@ internal fun GoalLoopScene() {
         Text(
             text = when {
                 !finished -> " "
-                reached && turnsLimit > GOAL_TURNS.size -> "Цель на витке 3: каждый критерий закрыт доказательством — агент остановился сам, остаток лимита не понадобился"
-                reached -> "Цель на витке 3: каждый критерий закрыт доказательством — агент остановился сам, ровно в лимит"
+                reached && turnsLimit > turns.size -> tr(
+                    "Цель на витке 3: каждый критерий закрыт доказательством — агент остановился сам, остаток лимита не понадобился",
+                    "Goal reached on round 3: every criterion is closed with proof. The agent stopped by itself, and the rest of the limit wasn't needed",
+                )
+                reached -> tr(
+                    "Цель на витке 3: каждый критерий закрыт доказательством — агент остановился сам, ровно в лимит",
+                    "Goal reached on round 3: every criterion is closed with proof. The agent stopped by itself, right at the limit",
+                )
                 // As in the plan engine: having hit the limit, the step is not counted and waits for a person, without "done".
-                else -> "Лимит — $turnsLimit, витки кончились: не закрыто «${GOAL_CRITERIA.filterIndexed { i, _ -> last?.passed?.get(i) != true }.joinToString("», «")}». Шаг не засчитан и ждёт тебя — без притворного «готово»"
+                else -> {
+                    val open = criteria.filterIndexed { i, _ -> last?.passed?.get(i) != true }.joinToString(tr("», «", "”, “"))
+                    tr(
+                        "Лимит — $turnsLimit, витки кончились: не закрыто «$open». Шаг не засчитан и ждёт тебя — без притворного «готово»",
+                        "The limit is $turnsLimit and the rounds ran out. Not closed: “$open.” The step is not counted and waits for you, with no fake “done”",
+                    )
+                }
             },
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
@@ -158,9 +186,9 @@ internal fun GoalLoopScene() {
         Button(onClick = { runs++ }, enabled = !running, modifier = Modifier.fillMaxWidth()) {
             Text(
                 when {
-                    running -> "Агент крутит витки…"
-                    finished -> "Ещё раз"
-                    else -> "Запустить"
+                    running -> tr("Агент крутит витки…", "The agent is running rounds…")
+                    finished -> tr("Ещё раз", "Run again")
+                    else -> tr("Запустить", "Start")
                 },
             )
         }
@@ -179,7 +207,7 @@ private fun GoalTurnRow(number: Int, turn: GoalTurn, checked: Boolean) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Text(
-                text = "Виток $number",
+                text = tr("Виток $number", "Round $number"),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
                 color = SceneInk,
@@ -190,7 +218,7 @@ private fun GoalTurnRow(number: Int, turn: GoalTurn, checked: Boolean) {
         }
         Text(turn.action, style = MaterialTheme.typography.bodySmall, color = SceneInk, maxLines = 1)
         Text(
-            text = if (checked) "Сверка: ${turn.evidence}" else "Сверка: …",
+            text = if (checked) tr("Сверка: ${turn.evidence}", "Check: ${turn.evidence}") else tr("Сверка: …", "Check: …"),
             style = MaterialTheme.typography.labelSmall,
             color = if (checked && !turn.passed.all { it }) MaterialTheme.colorScheme.error else SceneInk.copy(alpha = 0.6f),
             maxLines = 1,
@@ -214,8 +242,8 @@ private fun GoalMarks(turn: GoalTurn, checked: Boolean) {
             ) {
                 when {
                     !checked -> Text("${i + 1}", style = MaterialTheme.typography.labelSmall, color = SceneInk.copy(alpha = 0.6f))
-                    ok -> Icon(Icons.Default.Check, contentDescription = "критерий ${i + 1} закрыт", tint = SceneInk, modifier = Modifier.size(14.dp))
-                    else -> Icon(Icons.Default.Close, contentDescription = "критерий ${i + 1} не закрыт", tint = error, modifier = Modifier.size(14.dp))
+                    ok -> Icon(Icons.Default.Check, contentDescription = tr("критерий ${i + 1} закрыт", "criterion ${i + 1} closed"), tint = SceneInk, modifier = Modifier.size(14.dp))
+                    else -> Icon(Icons.Default.Close, contentDescription = tr("критерий ${i + 1} не закрыт", "criterion ${i + 1} not closed"), tint = error, modifier = Modifier.size(14.dp))
                 }
             }
         }

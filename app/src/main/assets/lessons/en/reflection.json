@@ -1,0 +1,31 @@
+{
+  "id": "reflection",
+  "title": "Reflection",
+  "description": "The agent writes a draft first, then criticizes it and rewrites it: a loop for quality.",
+  "iconKey": "auto_awesome",
+  "steps": [
+    { "type": "reveal", "question": "You ask for an important letter, and instead of one answer the agent makes three passes. Why?", "answer": "Draft → critique → final: the agent found the weak spots in its first version and rewrote it. That is reflection." },
+    { "type": "text", "text": "The idea is simple, like an editor's: write a draft first, then reread it with fresh eyes, find the weak spots and rewrite. Only here the agent does all of it by itself, from a single request of yours. Muse Spark already reasons before each answer, but that thinking happens before the text exists. Reflection looks at a draft that is already written: some slips only show in finished text." },
+    { "type": "image", "asset": "lessons/images/generated/reflection-28ff558696.webp", "imagePrompt": "A small robot writer at a desk with three sheets of paper in a row: a messy draft, the same draft covered in red editing marks, and a clean final page.", "caption": "Draft, critique, final" },
+    { "type": "text", "text": "Reflect mode runs three phases: draft → critique → final. You see them right in the chat, one after another." },
+    { "type": "text", "text": "Phase 1 is the draft. The agent gives a first version of the answer to your request, in an ordinary turn. This isn't the end result. It's a rough version to work from." },
+    { "type": "text", "text": "Phase 2 is the critique. In a separate pass, the agent reads its own draft and names specific weak spots: factual errors, parts of the request it missed, unclear wording, filler. It criticizes honestly and doesn't rewrite yet." },
+    { "type": "text", "text": "Phase 3 is the final. The agent rewrites the answer and fixes what the critique found. What comes out is better than the first version, because it went through its own check." },
+    { "type": "animation", "scene": "draft_critique", "caption": "Tap “Critique,” then “Rewrite.” The letter is just an example, and the counter shows the price of each pass" },
+    { "type": "match", "instruction": "Match each phase of reflection to what happens in it:", "pairs": [
+      { "term": "Draft", "def": "A first version of the answer, a rough start" },
+      { "term": "Critique", "def": "The agent looks for weak spots without rewriting" },
+      { "term": "Final", "def": "The answer is rewritten using the notes" }
+    ] },
+    { "type": "text", "text": "How is this different from Plan mode? Plan mode decides WHAT to do: first a plan, then, after your “OK,” the work. Reflection doesn't add steps to the task. It runs an answer that already exists through its own critique, so the result gets BETTER. Different goals, different modes." },
+    { "type": "scenario", "situation": "Two requests: “what time is it in Tokyo?” and “write a polite refusal to an investor.”", "q": "Where is reflection worth it?", "options": ["The letter: quality matters more than speed, so three passes pay off", "Both: an extra check never hurts", "The time: it's easy to slip up with time zones"], "correct": 0, "explain": "Reflection means at least three calls to the model instead of one. For a quick fact that's a waste. For an important text it's worth it." },
+    { "type": "text", "text": "When should you turn reflection on? Where quality matters more than speed: a text, a letter, an explanation, a careful piece of wording. You pay for quality in time and cost: instead of one call to the model there are at least three (draft, critique, fix). For a quick question that's too much. For an important answer it's justified." },
+    { "type": "text", "text": "Practice. After the lesson, in a regular chat switch the mode to Reflect (the chip above the input field) and ask for something where quality matters, for example “write a short post on why Kotlin is nicer than Java.” Watch the draft → critique → final appear in the chat." },
+    { "type": "text", "text": "In short. Reflection is a draft → critique → final loop: the agent checks and improves its own answer. The draft and the final are written by the same ReAct engine as in a regular chat, and the critique is a separate call with no tools: at least three calls to the model instead of one. Use it where quality matters more than speed." },
+    { "type": "quiz", "questions": [
+      { "q": "What phases does Reflect mode consist of?", "options": ["Draft → critique → final", "Just one answer with no edits", "Critique → draft → final"], "correct": 0, "explain": "The agent writes a draft, criticizes it in a separate pass and rewrites it using the notes." },
+      { "q": "How is reflection different from Plan mode?", "options": ["Reflection makes the answer better, while Plan mode decides what to do", "In essence it isn't: they are two names for one mode", "Reflection works with no call to the model at all"], "correct": 0, "explain": "Different goals: Plan mode is about WHAT to do, reflection is about making the result BETTER." },
+      { "q": "When is reflection worth it, even though it is slower and costs more?", "options": ["When the quality of the answer matters more than speed", "Always, for every request without exception", "Only for short questions about facts"], "correct": 0, "explain": "Three passes instead of one cost time and money. That pays off for important answers, not for quick questions." }
+    ] }
+  ]
+}

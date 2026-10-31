@@ -41,14 +41,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 import kotlinx.coroutines.delay
 
 // The lesson's example: "sort out my mail and delete the junk". The email counts are for the example.
-private val GATE_PLAN = listOf(
-    "Прочитать входящие за месяц",
-    "Отписаться от 12 рассылок",
-    "Удалить 40 писем со спамом",
-    "Удалить всё старше года",
+// A function, not a top-level val: tr() has to run when the scene is shown, in the current language.
+private fun gatePlan() = listOf(
+    tr("Прочитать входящие за месяц", "Read the inbox for the month"),
+    tr("Отписаться от 12 рассылок", "Unsubscribe from 12 newsletters"),
+    tr("Удалить 40 писем со спамом", "Delete 40 spam emails"),
+    tr("Удалить всё старше года", "Delete everything older than a year"),
 )
 
 /**
@@ -58,24 +60,25 @@ private val GATE_PLAN = listOf(
  */
 @Composable
 internal fun PlanGateScene() {
+    val plan = gatePlan()
     var struck by rememberSaveable { mutableIntStateOf(0) }
     var approved by rememberSaveable { mutableStateOf(false) }
     var progress by remember { mutableIntStateOf(0) }
     LaunchedEffect(approved) {
         progress = 0
         if (!approved) return@LaunchedEffect
-        GATE_PLAN.indices.forEach { i ->
+        plan.indices.forEach { i ->
             // A crossed-out step is passed quickly: it is not run, only the skip is marked.
             delay(if (struck and (1 shl i) != 0) 300 else 750)
             progress = i + 1
         }
     }
-    val done = approved && progress == GATE_PLAN.size
-    val struckCount = GATE_PLAN.indices.count { struck and (1 shl it) != 0 }
+    val done = approved && progress == plan.size
+    val struckCount = plan.indices.count { struck and (1 shl it) != 0 }
     val primary = MaterialTheme.colorScheme.primary
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Задача: «разбери мою почту и удали лишнее»", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(tr("Задача: «разбери мою почту и удали лишнее»", "Task: “go through my email and delete the junk”"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         val gateBg by animateColorAsState(if (approved) primary.copy(alpha = 0.14f) else Color.White, tween(300), label = "gate")
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -88,7 +91,7 @@ internal fun PlanGateScene() {
             Icon(if (approved) Icons.Default.LockOpen else Icons.Default.Lock, contentDescription = null, tint = SceneInk, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))
             Text(
-                text = if (approved) "Гейт открыт: выполняю только одобренное" else "Гейт закрыт: инструменты выключены",
+                text = if (approved) tr("Гейт открыт: выполняю только одобренное", "Gate open: running only what was approved") else tr("Гейт закрыт: инструменты выключены", "Gate closed: tools are switched off"),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = SceneInk,
@@ -96,11 +99,11 @@ internal fun PlanGateScene() {
             )
         }
         Text(
-            "Агент: «Вот план. Вычеркни, с чем не согласен, — и скажи „ок“»",
+            tr("Агент: «Вот план. Вычеркни, с чем не согласен, — и скажи „ок“»", "Agent: “Here is the plan. Cross out what you disagree with, then say ‘OK’.”"),
             style = MaterialTheme.typography.bodyMedium,
             minLines = 2,
         )
-        GATE_PLAN.forEachIndexed { i, step ->
+        plan.forEachIndexed { i, step ->
             GateRow(
                 number = i + 1,
                 text = step,
@@ -112,11 +115,14 @@ internal fun PlanGateScene() {
         }
         Text(
             text = when {
-                !approved -> "Пока нет «ок», агент не тронул ни одного письма. Тапни шаг, чтобы вычеркнуть"
-                !done -> "Выполняю…"
-                struckCount == GATE_PLAN.size -> "Ты вычеркнул всё — агент ничего не сделал. Ни одного действия без твоего «ок»"
-                struckCount > 0 -> "Сделано ${GATE_PLAN.size - struckCount} из ${GATE_PLAN.size}, вычеркнутое не тронуто: курс поправлен до действий — бесплатно"
-                else -> "Всё по плану, 4 из 4. Удалённое уже не вернуть — поправить курс можно было только до «ок»"
+                !approved -> tr("Пока нет «ок», агент не тронул ни одного письма. Тапни шаг, чтобы вычеркнуть", "Until the “OK,” the agent has not touched a single email. Tap a step to cross it out")
+                !done -> tr("Выполняю…", "Running…")
+                struckCount == plan.size -> tr("Ты вычеркнул всё — агент ничего не сделал. Ни одного действия без твоего «ок»", "You crossed everything out, so the agent did nothing. Not one action without your “OK”")
+                struckCount > 0 -> tr(
+                    "Сделано ${plan.size - struckCount} из ${plan.size}, вычеркнутое не тронуто: курс поправлен до действий — бесплатно",
+                    "Done ${plan.size - struckCount} of ${plan.size}, the crossed-out steps are untouched: you corrected course before any action, for free",
+                )
+                else -> tr("Всё по плану, 4 из 4. Удалённое уже не вернуть — поправить курс можно было только до «ок»", "All as planned, 4 of 4. What is deleted can't be brought back: you could only correct course before the “OK”")
             },
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (done) FontWeight.SemiBold else FontWeight.Normal,
@@ -138,9 +144,9 @@ internal fun PlanGateScene() {
         ) {
             Text(
                 when {
-                    !approved -> "Одобрить"
-                    done -> "Сначала"
-                    else -> "Выполняю…"
+                    !approved -> tr("Одобрить", "Approve")
+                    done -> tr("Сначала", "Start over")
+                    else -> tr("Выполняю…", "Running…")
                 },
             )
         }
@@ -172,10 +178,10 @@ private fun GateRow(number: Int, text: String, struck: Boolean, approved: Boolea
             modifier = Modifier.weight(1f).alpha(if (struck) 0.45f else 1f),
         )
         when {
-            struck && reached -> Text("пропуск", style = MaterialTheme.typography.labelMedium, color = SceneInk.copy(alpha = 0.6f))
-            doneStep -> Icon(Icons.Default.Check, contentDescription = "сделано", tint = SceneInk, modifier = Modifier.size(20.dp))
-            approved && !struck -> Icon(Icons.Default.LockOpen, contentDescription = "открыт", tint = SceneInk.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
-            else -> Icon(Icons.Default.Lock, contentDescription = "под замком", tint = SceneInk.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
+            struck && reached -> Text(tr("пропуск", "skipped"), style = MaterialTheme.typography.labelMedium, color = SceneInk.copy(alpha = 0.6f))
+            doneStep -> Icon(Icons.Default.Check, contentDescription = tr("сделано", "done"), tint = SceneInk, modifier = Modifier.size(20.dp))
+            approved && !struck -> Icon(Icons.Default.LockOpen, contentDescription = tr("открыт", "unlocked"), tint = SceneInk.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
+            else -> Icon(Icons.Default.Lock, contentDescription = tr("под замком", "locked"), tint = SceneInk.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
         }
     }
 }

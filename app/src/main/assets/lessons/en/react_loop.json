@@ -1,0 +1,35 @@
+{
+  "id": "react_loop",
+  "title": "The agent loop: ReAct",
+  "description": "How an agent works inside: reason → act → observe, round and round — on a live example.",
+  "iconKey": "sync",
+  "steps": [
+    { "type": "text", "text": "We've said that an agent decides for itself which steps to take. But how does it decide? There is a concrete mechanism behind it: the ReAct loop. It stands for Reason + Act." },
+    { "type": "text", "text": "One pass of the loop has three parts. Think: what should I do now? Act: call a tool. Observe: see the result of that action. One such pass is called a round." },
+    { "type": "text", "text": "Then comes the key part: the loop. Based on what it saw, the agent thinks again: what now? Another action, another observation. And so on, round after round, until the task is solved." },
+    { "type": "animation", "scene": "react_loop", "caption": "Tap “Next step” and walk the agent around the loop: think → act → observe" },
+    { "type": "text", "text": "Let's play it out on a live example. You write: “remind me an hour before my meeting with Max.” Round 1: the agent thinks, “I don't know when the meeting is, I should check the calendar.” Action: the Calendar tool lists your events. Observation: “Meeting with Max — tomorrow at 3:00 PM.”" },
+    { "type": "text", "text": "Round 2: the agent thinks, “so the reminder should go off tomorrow at 2:00 PM.” Action: the Reminders tool schedules a notification. Observation: “scheduled.” Round 3: it has enough data, so it thinks, “I can answer now,” and writes to you: “I'll remind you tomorrow at 2:00 PM.” That is the ReAct loop in action." },
+    { "type": "text", "text": "Part of this loop is visible to you. When the agent calls a tool, a wrench icon appears in the chat header: “Show tools.” Tap it and a “Tool calls” panel opens, one line per action, for example “Calendar: show events → ok.” The model's thoughts are not there, only the actions and how they ended." },
+    { "type": "text", "text": "Why this trick is so strong. The model doesn't have to guess the whole plan up front. It adjusts as it goes, relying on the real result of every step." },
+    { "type": "reveal", "question": "What if a tool returns an error, or nothing at all?", "answer": "The agent sees that in the observation and tries another way: it changes the query, picks a different tool or asks you. That is the strength of the loop: it doesn't get stuck on the first failure." },
+    { "type": "concept", "term": "Loop limits", "definition": "So that an agent doesn't spin forever, the loop has an emergency brake. A normal turn has a technical ceiling of up to 10 rounds. Goal mode has its own limit: rounds per plan step, 3 by default and up to 10 in Settings. When the agent hits the limit, it doesn't loop forever and doesn't lie that it's “done.” It stops and says so.", "example": "If it runs out of rounds, it doesn't go silent or spin forever. It shows what it managed to do. More in the Goal mode lesson." },
+    { "type": "text", "text": "Two quick clarifications. First, ReAct has nothing to do with React.js. The names just happen to match. Second, the agent's “reasoning” isn't idle chatter: every thought leads to a specific action, and every action leads to an observation that moves the work forward." },
+    { "type": "text", "text": "Sometimes, before running the loop, the agent first builds an overall plan. That is Plan mode, and it has a lesson of its own. But even with a plan, the turn itself still runs in a circle: think → do → look." },
+    { "type": "sort", "instruction": "Put the steps of the Max example in order:", "items": [
+      "Called the calendar: meeting with Max tomorrow at 3:00 PM",
+      "Thought: I don't know when the meeting is, so I'll check the calendar",
+      "Replied: I'll remind you tomorrow at 2:00 PM",
+      "Called reminders: scheduled for 2:00 PM",
+      "Thought: so the reminder should be at 2:00 PM"
+    ], "correct": [1, 0, 4, 3, 2], "explain": "Think → act → observe, then around again: first it found the meeting time, then set the reminder, then replied." },
+    { "type": "text", "text": "Practice. After the lesson, give me a task in a regular chat that needs a tool, for example “remind me an hour before my next meeting” (this needs calendar access) or “set an alarm for 7:30 and remind me tonight to buy bread.” Then tap the wrench icon in the chat header. In “Tool calls” you'll see which actions I took and in what order. My thoughts between them are not shown to you. Those gaps are the rounds of the loop." },
+    { "type": "text", "text": "In short. An agent works in a ReAct loop: reason → act → observe, round after round, until the task is solved. Its actions are visible in the “Tool calls” panel. The strength is that the agent doesn't guess everything in advance. It adjusts to the real result of each step." },
+    { "type": "quiz", "questions": [
+      { "q": "What does ReAct stand for?", "options": ["Reason + Act: think, then do", "A framework like React.js", "A quick reaction to a message"], "correct": 0, "explain": "ReAct is an agent pattern: reasoning plus action." },
+      { "q": "What is one pass of the loop made of?", "options": ["Think → act → observe", "Think and answer right away", "Only calling a tool"], "correct": 0, "explain": "One ReAct pass: reasoning → action → observation, then repeat." },
+      { "q": "What does the “Tool calls” panel show?", "options": ["Which actions the agent took and how they ended", "All the model's thoughts between actions", "Only the final answer, with no actions"], "correct": 0, "explain": "One line per call: “Tool: action → ok or error.” The model's thoughts and arguments are not shown." },
+      { "q": "Why is ReAct a powerful trick?", "options": ["The agent adjusts as it goes, seeing real results", "It works even with no internet or cloud at all", "It always answers instantly, with no pauses between steps"], "correct": 0, "explain": "There's no need to guess everything at once: the agent corrects its steps from what it observes." }
+    ] }
+  ]
+}
