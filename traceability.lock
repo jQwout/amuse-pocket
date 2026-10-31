@@ -6,8 +6,8 @@
       "git": "661d682"
     },
     "agent-memory-05e545": {
-      "hash": "d040412d2bba",
-      "git": "48d4078"
+      "hash": "bb05c4cb743a",
+      "git": "c08de0e0"
     },
     "agent-skills-7189cc": {
       "hash": "e3296460a332",
@@ -18,8 +18,8 @@
       "git": "c08de0e0"
     },
     "app-settings-beb470": {
-      "hash": "7fd3c74b95f9",
-      "git": "97ca7fba"
+      "hash": "d7f8b230267e",
+      "git": "c08de0e0"
     },
     "approval-outcome-honesty-554a8c": {
       "hash": "0e60733f889a",
@@ -70,8 +70,12 @@
       "git": "b7563711"
     },
     "multi-chat-conversations-b3c93b": {
-      "hash": "19a3a422831f",
-      "git": "97ca7fba"
+      "hash": "2fb60a28bbb9",
+      "git": "c08de0e0"
+    },
+    "profile-screen-7354a7": {
+      "hash": "0ba0e1d58875",
+      "git": "c08de0e0"
     },
     "protsedurnye-animatsii-v-urokah-68b2bf": {
       "hash": "062d738f8af2",

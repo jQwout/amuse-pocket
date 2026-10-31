@@ -10,6 +10,7 @@ import com.aiopenpocket.agent.core.memory.entity.FactEntity
 import com.aiopenpocket.agent.core.memory.model.Episode
 import com.aiopenpocket.agent.core.memory.model.Fact
 import com.aiopenpocket.agent.core.memory.model.UserProfile
+import com.aiopenpocket.agent.core.memory.model.UserProfileKeys
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
@@ -174,13 +175,41 @@ class MemoryRepository(
   }
 
   suspend fun saveUserProfile(profile: UserProfile) {
-    upsertFact("user.name", profile.name.trim(), "profile")
-    upsertFact("user.preferred_address", profile.preferredAddress.trim(), "profile")
-    upsertFact("user.age", profile.age.trim(), "profile")
-    upsertFact("user.gender", profile.gender.trim(), "profile")
-    upsertFact("user.religion", profile.religion.trim(), "profile")
-    upsertFact("user.extra_info", profile.extraInfo.trim(), "profile")
+    upsertFact(UserProfileKeys.NAME, profile.name.trim(), UserProfileKeys.CATEGORY)
+    upsertFact(UserProfileKeys.ADDRESS, profile.preferredAddress.trim(), UserProfileKeys.CATEGORY)
+    upsertFact(UserProfileKeys.AGE, profile.age.trim(), UserProfileKeys.CATEGORY)
+    upsertFact(UserProfileKeys.GENDER, profile.gender.trim(), UserProfileKeys.CATEGORY)
+    upsertFact(UserProfileKeys.RELIGION, profile.religion.trim(), UserProfileKeys.CATEGORY)
+    upsertFact(UserProfileKeys.EXTRA_INFO, profile.extraInfo.trim(), UserProfileKeys.CATEGORY)
   }
+
+  /**
+   * The "about me" the person gave in onboarding, read back from the facts [saveUserProfile] wrote.
+   * Blank fields stay blank: a profile that was never filled is a valid state, not an error.
+   */
+  suspend fun getUserProfile(): UserProfile {
+    val byKey = getFactsByCategory(UserProfileKeys.CATEGORY).associate { it.key to it.value }
+    return UserProfile(
+      name = byKey[UserProfileKeys.NAME].orEmpty(),
+      preferredAddress = byKey[UserProfileKeys.ADDRESS].orEmpty(),
+      age = byKey[UserProfileKeys.AGE].orEmpty(),
+      gender = byKey[UserProfileKeys.GENDER].orEmpty(),
+      religion = byKey[UserProfileKeys.RELIGION].orEmpty(),
+      extraInfo = byKey[UserProfileKeys.EXTRA_INFO].orEmpty(),
+    )
+  }
+
+  /**
+   * What the assistant remembers about the PERSON: every fact outside an agent's private namespace
+   * (`agent:{id}:`), freshest first. The same cut [factsForPrompt] makes for a plain chat's prompt —
+   * an agent's working notes (budget rows, diary entries) are not facts about the user and must not
+   * show up on the Profile screen as if they were.
+   */
+  suspend fun getSharedFacts(): List<Fact> =
+    factDao.getAll().map { it.toDomain() }.filterNot { it.key.startsWith(AGENT_NAMESPACE_ROOT) }
+
+  /** Forgets one fact by its id. */
+  suspend fun deleteFact(id: String) = factDao.deleteById(id)
 
   suspend fun getRecentEpisodesForConversation(conversationId: String, limit: Int): List<Episode> =
     episodeDao.getRecentForConversation(conversationId, limit).map { it.toDomain() }

@@ -44,6 +44,7 @@ import com.aiopenpocket.ui.plan.PlanListRoute
 import com.aiopenpocket.ui.roadmap.LibraryScreen
 import com.aiopenpocket.ui.roadmap.RoadmapScreen
 import com.aiopenpocket.ui.scheduledworks.ScheduledWorksScreen
+import com.aiopenpocket.ui.profile.ProfileScreen
 import com.aiopenpocket.ui.settings.SettingsScreen
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import dev.zacsweers.metrox.viewmodel.LocalMetroViewModelFactory
@@ -220,6 +221,8 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onNavigateToRoadmap = { navigateToTab("roadmap") },
                                         onNavigateToSettings = { navigateToTab("settings") },
+                                        // The round avatar: the person's own data, not the key/model settings.
+                                        onNavigateToProfile = { navController.navigate("profile") },
                                         onNavigateToAgents = { navController.navigate("agents") },
                                     )
                                 }
@@ -371,6 +374,19 @@ class MainActivity : ComponentActivity() {
                                         onNavigateToScheduledWorks = { navController.navigate("scheduled_works") },
                                         onNavigateToHome = { navigateToTab("home") },
                                         onNavigateToRoadmap = { navigateToTab("roadmap") },
+                                    )
+                                }
+                                // @trace profile-screen-7354a7
+                                composable("profile") {
+                                    ProfileScreen(
+                                        onNavigateBack = { navController.popBackStack() },
+                                        // Pushed on top of Profile (not a tab switch): "Back" returns here.
+                                        onOpenSettings = {
+                                            navController.navigate("settings") { launchSingleTop = true }
+                                        },
+                                        onOpenMemoryGraph = {
+                                            navController.navigate("memory_graph") { launchSingleTop = true }
+                                        },
                                     )
                                 }
                                 composable("scheduled_works") {

@@ -86,30 +86,7 @@ class SettingsViewModel(
    */
   private fun loadUsage() {
     viewModelScope.launch {
-      val summary = withContext(Dispatchers.IO) {
-        runCatching {
-          val since = System.currentTimeMillis() - USAGE_WINDOW_MS
-          val totals = llmUsageDao.totalsSince(since)
-          val background = llmUsageDao.backgroundTotalsSince(since)
-          UsageSummary(
-            calls = totals.calls,
-            promptTokens = totals.promptTokens,
-            completionTokens = totals.completionTokens,
-            costUsd = totals.costUsd,
-            estimatedCalls = totals.estimatedCalls,
-            backgroundCalls = background.calls,
-            backgroundTokens = background.promptTokens + background.completionTokens,
-            byModel = llmUsageDao.totalsByModelSince(since).map {
-              UsageSummary.ModelUsage(
-                model = it.model,
-                calls = it.calls,
-                tokens = it.promptTokens + it.completionTokens,
-                costUsd = it.costUsd,
-              )
-            },
-          )
-        }.getOrNull()
-      }
+      val summary = llmUsageDao.weeklySummary()
       // A read failure leaves usage = null, i.e. the "no data yet" card: statistics are not a reason to show the
       // user an error on the settings screen.
       if (summary != null) _state.update { it.copy(usage = summary) }
@@ -125,11 +102,6 @@ class SettingsViewModel(
     val goalMaxIterations: Int,
     val chatFontScale: ChatFontScale,
   )
-
-  private companion object {
-    /** The summary window: a week. Enough to see weekdays and weekends, and short enough for "now". */
-    const val USAGE_WINDOW_MS = 7L * 24 * 60 * 60 * 1000
-  }
 
   /**
    * A selected model that is no longer in the catalog is reset to "AUTO".
