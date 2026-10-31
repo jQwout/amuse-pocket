@@ -42,6 +42,7 @@ object CapabilityNames {
     "step_counter" to ("Шагомер" to "Step counter"),
     "load_skill" to ("Навыки" to "Skills"),
     "database_query" to ("Запросы к базе" to "Database queries"),
+    "web_search" to ("Поиск в интернете" to "Web search"),
     // The hidden agent builder's own tool - not in KNOWN_TOOL_NAMES (a user's agent cannot hold it), but
     // its calls show in the tool trace, which should not say "Agent draft" as a raw id.
     "agent_draft" to ("Черновик агента" to "Agent draft"),

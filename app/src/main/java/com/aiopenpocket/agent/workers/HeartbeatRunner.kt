@@ -200,7 +200,8 @@ class HeartbeatRunner(
     // had stripped of every tool still woke up in the background holding the full background
     // allowlist. The interactive path (PrePromptAssembler) already scopes a bound agent even when its
     // set is empty; this is the same rule. Only an UNBOUND heartbeat (agent == null) gets the default.
-    val scopedToolNames = agent?.toolNames?.intersect(SAFE_TOOL_NAMES) ?: SAFE_TOOL_NAMES
+    // An unbound heartbeat has no author who chose to pay for searches, so it does not get web_search.
+    val scopedToolNames = agent?.toolNames?.intersect(SAFE_TOOL_NAMES) ?: (SAFE_TOOL_NAMES - PAID_TOOL_NAMES)
     val tools = toolRegistry.getSchemasFor(scopedToolNames)
 
     // interactiveApproval=false (Task 9): this is a headless WorkManager wakeup with no screen that
@@ -467,7 +468,15 @@ class HeartbeatRunner(
      */
     val SAFE_TOOL_NAMES = setOf(
       "memory_tool", "database_query", "calendar", "step_counter", "notifications", "storage_tool", "srs_tool",
+      "web_search",
     )
+
+    /**
+     * Tools whose only effect is spending money (web_search: a search fee + tokens, both logged): READ, so
+     * allowed in the background, but only for an agent whose author put them in toolNames - never as the
+     * default of an unbound heartbeat.
+     */
+    private val PAID_TOOL_NAMES = setOf("web_search")
 
     /** The "nothing to report" marker: such an answer of a background agent turn is neither written to the chat nor pushed. */
     const val HEARTBEAT_OK = "HEARTBEAT_OK"

@@ -17,6 +17,7 @@ import com.aiopenpocket.agent.tools.RenderCardTool
 import com.aiopenpocket.agent.tools.SrsTool
 import com.aiopenpocket.agent.tools.StepCounterTool
 import com.aiopenpocket.agent.tools.StorageTool
+import com.aiopenpocket.agent.tools.WebSearchTool
 import com.aiopenpocket.agent.tools.WorkManagerTool
 import dev.zacsweers.metro.BindingContainer
 import dev.zacsweers.metro.ContributesTo
@@ -82,6 +83,12 @@ object AgentToolsModule {
   @Provides
   @IntoSet
   fun provideStorageTool(tool: StorageTool): Tool = tool
+
+  // In the registry, so a plain chat (which gets every registered tool) has it; a user's agent gets it
+  // only if it lists web_search among its toolNames.
+  @Provides
+  @IntoSet
+  fun provideWebSearchTool(tool: WebSearchTool): Tool = tool
 
   // Registered like every tool, but only the hidden Builder agent has it in its toolNames, and the tool
   // itself refuses any other agent (see AgentDraftTool.execute).

@@ -22,6 +22,13 @@ class CapabilityNamesTest {
     }
   }
 
+  /** The tool-call row in the chat shows this label, not the raw id (the interface language is Russian by default in tests). */
+  @Test
+  fun `web search has a human label`() {
+    assertEquals("Поиск в интернете", CapabilityNames.tool("web_search"))
+    assertEquals("Поиск в интернете", CapabilityNames.call("web_search", mapOf("query" to JsonPrimitive("x"))))
+  }
+
   @Test
   fun `every built-in skill has its own title`() {
     AgentValidator.KNOWN_SKILL_IDS.forEach { id ->

@@ -26,6 +26,20 @@ private class SlowTool(private val hangMs: Long) : Tool {
   }
 }
 
+/** A tool that names its own, longer ceiling - like web_search, which waits for a network answer. */
+private class PatientTool(private val hangMs: Long, override val timeoutMs: Long) : Tool {
+  override val name = "patient_tool"
+  override val description = "waits"
+  override val schema = FunctionSchema(
+    function = FunctionSchema.FunctionDefinition(name = name, description = description, parameters = JsonObject(emptyMap())),
+  )
+
+  override suspend fun execute(arguments: Map<String, JsonElement>): ToolResult {
+    delay(hangMs)
+    return ToolResult.Success("done")
+  }
+}
+
 /** A tool that hangs FOREVER and swallows cancellation too, as tools did before the fix. */
 private class UncancellableTool : Tool {
   override val name = "stuck_tool"
@@ -75,6 +89,23 @@ class ToolExecutorTimeoutTest {
     val executor = executorWith(SlowTool(hangMs = ToolExecutor.TOOL_TIMEOUT_MS - 1_000))
 
     assertEquals(ToolResult.Success("наконец-то"), executor.execute("slow_tool", emptyMap()))
+  }
+
+  @Test
+  fun `a tool with its own longer ceiling is not cut at the default one`() = runTest {
+    val tool = PatientTool(hangMs = ToolExecutor.TOOL_TIMEOUT_MS + 10_000, timeoutMs = ToolExecutor.TOOL_TIMEOUT_MS + 30_000)
+
+    assertEquals(ToolResult.Success("done"), executorWith(tool).execute("patient_tool", emptyMap()))
+  }
+
+  @Test
+  fun `a tool with its own ceiling is still bounded by it`() = runTest {
+    val tool = PatientTool(hangMs = 100_000, timeoutMs = 40_000)
+
+    val result = executorWith(tool).execute("patient_tool", emptyMap())
+
+    assertTrue("expected Error, got $result", result is ToolResult.Error)
+    assertTrue("the error should name the real ceiling: $result", result.toString().contains("40s"))
   }
 
   @Test

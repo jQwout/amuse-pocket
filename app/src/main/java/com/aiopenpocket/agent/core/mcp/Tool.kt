@@ -43,5 +43,12 @@ interface Tool {
    */
   val returnsUntrustedContent: Boolean get() = false
 
+  /**
+   * Ceiling for one call of this tool, in ms. The default suits the local tools (DB, sensors, system
+   * services); a tool that makes a network round trip with a model run behind it (web search) says its
+   * own, or the executor would cut an honest answer off at 30 s.
+   */
+  val timeoutMs: Long get() = ToolExecutor.TOOL_TIMEOUT_MS
+
   suspend fun execute(arguments: Map<String, JsonElement>): ToolResult
 }

@@ -30,9 +30,9 @@ class ToolExecutor(
       // withTimeoutOrNull, not withTimeout: the latter throws TimeoutCancellationException, which is
       // itself a CancellationException — the branch below would catch it and rethrow it as "turn
       // cancelled", so one tool's timeout would kill the whole turn instead of returning an Error.
-      withTimeoutOrNull(TOOL_TIMEOUT_MS) { tool.execute(arguments) }
+      withTimeoutOrNull(tool.timeoutMs) { tool.execute(arguments) }
         ?: ToolResult.Error(
-          "Tool '$name' timed out after ${TOOL_TIMEOUT_MS / 1000}s and was aborted.",
+          "Tool '$name' timed out after ${tool.timeoutMs / 1000}s and was aborted.",
           recoverable = true,
         )
     } catch (e: CancellationException) {
@@ -45,8 +45,8 @@ class ToolExecutor(
 
   companion object {
     /**
-     * All tools here are local (DB, ContentResolver, system services) — they need seconds, not tens of
-     * seconds. The ceiling is chosen so it surely does not cut an honest slow call, yet does not turn a
+     * The default for the local tools (DB, ContentResolver, system services) — they need seconds, not tens
+     * of seconds. The one tool that goes online (web_search) overrides it through [Tool.timeoutMs]. The ceiling is chosen so it surely does not cut an honest slow call, yet does not turn a
      * hung one into an endless wait from the user's point of view.
      *
      * A SHARP EDGE IN TESTS. `withTimeoutOrNull` counts by the coroutine context's clock, and `runTest`

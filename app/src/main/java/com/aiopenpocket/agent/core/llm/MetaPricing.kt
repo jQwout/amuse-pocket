@@ -2,6 +2,7 @@ package com.aiopenpocket.agent.core.llm
 
 // @trace vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53
 // @trace sam-segmentation-boxes-in-a-lesson-c3ea52
+// @trace web-search-tool-c73ed8
 
 /**
  * Price of a direct Meta Model API call in USD by Meta's price list, or `null` for a model that is not
@@ -60,3 +61,13 @@ internal const val MUSE_IMAGE_PRICE_PER_IMAGE_USD = 0.01
 
 /** The cost of [images] returned images. A failed call returns none and costs nothing. */
 internal fun museImageCostUsd(images: Int): Double = images.coerceAtLeast(0) * MUSE_IMAGE_PRICE_PER_IMAGE_USD
+
+/**
+ * Meta's server-side `web_search` is billed per SEARCH on top of the tokens: $2.50 per 1000 searches
+ * (dev.meta.ai pricing, per the researcher's check of Nov 1, 2026; not seen on a live bill - no paid
+ * call was made). One `web_search_call` item in the response is one search.
+ */
+internal const val WEB_SEARCH_PRICE_PER_CALL_USD = 0.0025
+
+/** The search part of a web-search call's cost: [searches] `web_search_call` items. The tokens are priced separately. */
+internal fun webSearchCostUsd(searches: Int): Double = searches.coerceAtLeast(0) * WEB_SEARCH_PRICE_PER_CALL_USD

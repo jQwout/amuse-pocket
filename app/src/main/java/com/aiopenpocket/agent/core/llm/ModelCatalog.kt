@@ -76,6 +76,19 @@ fun trainsOnUserData(modelId: String): Boolean = modelId.endsWith(CONTRIBUTOR_SU
 
 private const val CONTRIBUTOR_SUFFIX = "-contributor"
 
+/**
+ * The Muse Spark the catalog ranks highest - the model for one-shot Meta calls that are not a chat turn
+ * (web search). Taken from the catalog rather than hard-coded, so a new Spark that goes to the top of
+ * `models_meta.json` is picked up with no second place to edit. Wonder is skipped on purpose: it costs
+ * 3-5 times as much and a lookup does not need it. Falls back to [FALLBACK_SPARK_MODEL] for a catalog
+ * with no Spark in it.
+ */
+fun ModelCatalog.preferredSparkId(): String =
+  models.firstOrNull { it.name.startsWith(SPARK_PREFIX) && !trainsOnUserData(it.name) }?.name ?: FALLBACK_SPARK_MODEL
+
+private const val SPARK_PREFIX = "muse-spark"
+internal const val FALLBACK_SPARK_MODEL = "muse-spark-1.3"
+
 @SingleIn(AppScope::class)
 @Inject
 class ModelCatalogLoader(
