@@ -7,14 +7,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -23,10 +19,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.i18n.tr
+import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
+import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MemoryGraphScreen(
   onNavigateBack: () -> Unit,
@@ -37,26 +34,21 @@ fun MemoryGraphScreen(
   MemoryGraphContent(state = state, onNavigateBack = onNavigateBack, onOpenChat = onOpenChat)
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MemoryGraphContent(
   state: MemoryGraphState,
   onNavigateBack: () -> Unit,
   onOpenChat: (String) -> Unit,
 ) {
-  Scaffold(
-    topBar = {
-      TopAppBar(
-        title = { Text(tr("Граф памяти", "Memory graph")) },
-        navigationIcon = {
-          IconButton(onClick = onNavigateBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = tr("Назад", "Back"))
-          }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-          containerColor = MaterialTheme.colorScheme.surface,
-        ),
-      )
+  // The same glass header on the aurora as Profile, which links here: a plain grey Material bar on a flat
+  // black page was the one screen on that path that looked like a different app.
+  AcademyCollapsingScaffold(
+    title = tr("Граф памяти", "Memory graph"),
+    glassState = rememberGlassState(),
+    navigationIcon = {
+      IconButton(onClick = onNavigateBack) {
+        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = tr("Назад", "Back"))
+      }
     },
   ) { padding ->
     Box(modifier = Modifier.fillMaxSize().padding(padding)) {
