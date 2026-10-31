@@ -144,7 +144,7 @@ internal fun DryRunSection(
   onSetExecutionMode: (ExecutionMode) -> Unit,
   onSendTestMessage: (String) -> Unit,
   testPendingApproval: ToolApprovalRequest? = null,
-  onResolveTestApproval: (approved: Boolean) -> Unit = {},
+  onResolveTestApproval: (requestId: String, approved: Boolean) -> Unit = { _, _ -> },
   onOpenSettings: (() -> Unit)? = null,
 ) {
   var testInput by remember { mutableStateOf("") }

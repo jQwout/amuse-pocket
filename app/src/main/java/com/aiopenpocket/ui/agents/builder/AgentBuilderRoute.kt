@@ -24,12 +24,6 @@ fun AgentBuilderRoute(
   // route resolves its nav arg down to this before falling back to MANUAL. Only read when
   // [agentId] is null (new draft) — see [AgentBuilderViewModel.start].
   sourceContext: AgentSourceContext = AgentSourceContext.MANUAL,
-  /**
-   * Opened from the builder chat's "Review your agent" card (`agent_builder/{agentId}?review=true`): the
-   * review screen should show instead of the first step. Not read yet - the review screen is built on its
-   * own branch and wires this parameter when it lands.
-   */
-  openReview: Boolean = false,
   onExit: () -> Unit,
   /**
    * Navigates to the chat by conversation id (like `onOpenChat` in `AgentDetailRoute`). null — after

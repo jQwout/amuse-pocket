@@ -335,6 +335,7 @@ private fun widgetTemplateLabel(template: String): String = when (template) {
   "table" -> tr("Таблица", "Table")
   "form" -> tr("Форма", "Form")
   "choice" -> tr("Выбор варианта", "Choice")
+  "multi_choice" -> tr("Выбор нескольких", "Multiple choice")
   "switch" -> tr("Переключатель", "Toggle")
   "notification_permission" -> tr("Разрешение на уведомления", "Notification permission")
   "reminder" -> tr("Напоминание", "Reminder")
