@@ -16,3 +16,10 @@
 # Orchestrator evidence (screenshots, logs) and assembled APKs.
 /orchestrator/evidence/
 /.build-outputs/
+
+# Documentation. The graph is wanted for code alone: markdown brought ~1150
+# Section nodes plus diagram nodes and MENTIONS edges, which crowd the view
+# without answering a question about the code. Delete these two lines to get
+# the doc-to-code links back.
+*.md
+*.mdx
