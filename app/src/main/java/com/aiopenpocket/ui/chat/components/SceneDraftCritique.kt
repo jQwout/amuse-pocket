@@ -47,25 +47,36 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aiopenpocket.i18n.tr
 
 /** A piece of the draft; [note] is the number of the critique remark aimed at it (null — no complaints about this piece). */
 private class DraftPiece(val text: String, val note: Int? = null)
 
 // The request from the lesson's scenario — a polite refusal to an investor. The draft has three typical flaws on purpose.
-private val DRAFT = listOf(
-    DraftPiece("Здравствуйте! "),
-    DraftPiece("Спасибо за письмо, мы очень-очень внимательно прочитали всё, что вы прислали. ", note = 0),
-    DraftPiece("Но нам это не подходит. ", note = 1),
-    DraftPiece("Может, как-нибудь потом.", note = 2),
+// Functions, not top-level vals: tr() has to run when the scene is shown, in the current language.
+private fun draftPieces() = listOf(
+    DraftPiece(tr("Здравствуйте! ", "Hello! ")),
+    DraftPiece(
+        tr("Спасибо за письмо, мы очень-очень внимательно прочитали всё, что вы прислали. ", "Thank you for your letter, we have very, very carefully read everything you sent us. "),
+        note = 0,
+    ),
+    DraftPiece(tr("Но нам это не подходит. ", "But this is not a fit for us. "), note = 1),
+    DraftPiece(tr("Может, как-нибудь потом.", "Maybe sometime later."), note = 2),
 )
-private const val REWRITTEN = "Здравствуйте! Спасибо за предложение. Сейчас мы не привлекаем инвестиции — " +
-    "команда занята запуском. Будем рады вернуться к разговору весной."
+private fun rewritten() = tr(
+    "Здравствуйте! Спасибо за предложение. Сейчас мы не привлекаем инвестиции — команда занята запуском. Будем рады вернуться к разговору весной.",
+    "Hello! Thank you for the proposal. We are not taking on investment right now, because the team is busy with a launch. We would be glad to pick the conversation up in spring.",
+)
 
 // The same kinds of weak spots the lesson names: superfluous, missing, unclear. A checklist item for each.
-private val NOTES = listOf("Лишнее: вода, письмо раздуто", "Упущено: нет причины — звучит резко", "Неясно: когда это «потом»?")
-private val CHECKS = listOf("коротко", "с причиной", "ясно")
+private fun notes() = listOf(
+    tr("Лишнее: вода, письмо раздуто", "Extra: filler, the letter is padded"),
+    tr("Упущено: нет причины — звучит резко", "Missing: no reason, so it sounds harsh"),
+    tr("Неясно: когда это «потом»?", "Unclear: when is “later”?"),
+)
+private fun checks() = listOf(tr("коротко", "short"), tr("с причиной", "has a reason"), tr("ясно", "clear"))
 private val MARKS = listOf(ScenePalette[4], ScenePalette[1], ScenePalette[3])
-private val REFLECTION_PHASES = listOf("Черновик", "Критика", "Итог")
+private fun reflectionPhases() = listOf(tr("Черновик", "Draft"), tr("Критика", "Critique"), tr("Итог", "Final"))
 private val FixedGreen = Color(0xFF2E7D32)
 
 /**
@@ -83,18 +94,18 @@ internal fun DraftCritiqueScene() {
     val notesAlpha by animateFloatAsState(if (phase >= 1) 1f else 0f, tween(300), label = "notes")
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Запрос: «напиши вежливый отказ инвестору»", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(tr("Запрос: «напиши вежливый отказ инвестору»", "Request: “write a polite refusal to an investor”"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-            REFLECTION_PHASES.forEachIndexed { index, name ->
+            reflectionPhases().forEachIndexed { index, name ->
                 PhasePill(name = name, reached = index <= phase, color = primary, modifier = Modifier.weight(1f))
             }
         }
         Text(
             text = buildAnnotatedString {
-                append("Вызовов модели: ${phase + 1}")
+                append(tr("Вызовов модели: ${phase + 1}", "Model calls: ${phase + 1}"))
                 if (phase > 0) {
                     withStyle(SpanStyle(color = error, fontWeight = FontWeight.Bold)) {
-                        append(if (phase == 1) "   +1 вызов" else "   +2 вызова")
+                        append(if (phase == 1) tr("   +1 вызов", "   +1 call") else tr("   +2 вызова", "   +2 calls"))
                     }
                 }
             },
@@ -104,9 +115,9 @@ internal fun DraftCritiqueScene() {
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White).padding(12.dp),
         ) {
-            Text(if (phase == 2) "Итог" else "Черновик", style = MaterialTheme.typography.labelMedium, color = SceneInk.copy(alpha = 0.6f))
+            Text(if (phase == 2) tr("Итог", "Final") else tr("Черновик", "Draft"), style = MaterialTheme.typography.labelMedium, color = SceneInk.copy(alpha = 0.6f))
             Text(
-                text = if (phase == 2) AnnotatedString(REWRITTEN) else draftText(marked = phase == 1, numberColor = error),
+                text = if (phase == 2) AnnotatedString(rewritten()) else draftText(marked = phase == 1, numberColor = error),
                 style = MaterialTheme.typography.bodyMedium,
                 color = SceneInk,
                 minLines = 5,
@@ -114,23 +125,23 @@ internal fun DraftCritiqueScene() {
         }
         // The remarks are visible only after the critique, but their space is always taken — the buttons do not jump.
         Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.alpha(notesAlpha)) {
-            NOTES.forEachIndexed { index, note -> NoteRow(number = index + 1, text = note, mark = MARKS[index], fixed = phase == 2) }
+            notes().forEachIndexed { index, note -> NoteRow(number = index + 1, text = note, mark = MARKS[index], fixed = phase == 2) }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-            CHECKS.forEach { label -> CheckChip(label = label, phase = phase, error = error, modifier = Modifier.weight(1f)) }
+            checks().forEach { label -> CheckChip(label = label, phase = phase, error = error, modifier = Modifier.weight(1f)) }
         }
         // Two buttons in their places: after the result the left one turns into "Start over" but does not move.
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(onClick = { phase = if (phase == 2) 0 else 1 }, enabled = phase != 1, modifier = Modifier.weight(1f)) {
-                Text(if (phase == 2) "Сначала" else "Критика")
+                Text(if (phase == 2) tr("Сначала", "Start over") else tr("Критика", "Critique"))
             }
-            Button(onClick = { phase = 2 }, enabled = phase == 1, modifier = Modifier.weight(1f)) { Text("Переписать") }
+            Button(onClick = { phase = 2 }, enabled = phase == 1, modifier = Modifier.weight(1f)) { Text(tr("Переписать", "Rewrite")) }
         }
         Text(
             text = when (phase) {
-                0 -> "Это первый проход. Нажми «Критика» — агент перечитает свой черновик"
-                1 -> "Критика нашла три слабых места — и пока ничего не переписала"
-                else -> "Итог лучше черновика, но это минимум три вызова модели вместо одного. Для важного письма — окупается"
+                0 -> tr("Это первый проход. Нажми «Критика» — агент перечитает свой черновик", "This is the first pass. Tap “Critique” and the agent rereads its own draft")
+                1 -> tr("Критика нашла три слабых места — и пока ничего не переписала", "The critique found three weak spots and has not rewritten anything yet")
+                else -> tr("Итог лучше черновика, но это минимум три вызова модели вместо одного. Для важного письма — окупается", "The final is better than the draft, but it takes at least three model calls instead of one. For an important letter, it pays off")
             },
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (phase == 2) FontWeight.SemiBold else FontWeight.Normal,
@@ -140,7 +151,7 @@ internal fun DraftCritiqueScene() {
 }
 
 private fun draftText(marked: Boolean, numberColor: Color): AnnotatedString = buildAnnotatedString {
-    DRAFT.forEach { piece ->
+    draftPieces().forEach { piece ->
         val note = piece.note
         if (!marked || note == null) {
             append(piece.text)

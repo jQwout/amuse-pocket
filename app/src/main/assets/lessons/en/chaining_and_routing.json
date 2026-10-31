@@ -1,0 +1,34 @@
+{
+  "id": "chaining_and_routing",
+  "title": "Patterns: chaining and routing",
+  "description": "Two basic building blocks of a workflow: prompt chaining and routing a task, with examples of where you already do this yourself.",
+  "iconKey": "alt_route",
+  "steps": [
+    { "type": "reveal", "question": "Ask a model to “write an article about our product” and you get something average and watery. Why does it come out better when you split it into two requests?", "answer": "Because in a single jump the model has to decide everything at once: what to write about and how. Split it, and after the first step you see the key points, fix them, and only then ask for the text. Each step is simpler, and you spot a mistake before the next step spends effort on it." },
+    { "type": "text", "text": "Workflows have standard building blocks, called patterns. Everyone who builds agents knows them. Let's look at the two most common: chaining and routing." },
+    { "type": "image", "asset": "lessons/images/generated/chaining_and_routing-f22df35193.webp", "imagePrompt": "A small factory line with three stations where a rough lump of clay becomes a sketch and then a finished vase. Next to it, a railway switch sends envelopes onto different tracks.", "caption": "Chaining passes work along, routing picks the path" },
+    { "type": "text", "text": "Prompt chaining is a chain: you cut a task into steps, and the output of one request becomes the input of the next." },
+    { "type": "text", "text": "An example. Ask for “write an article” right away and you get a mess. A chain works better: the first request is “draft the key points,” you check them, and the second is “expand the key points into the text.” Each step is simpler, and the result is clearly cleaner." },
+    { "type": "example", "label": "A two-step chain", "parts": [{"text": "“draft the key points of an article about X”", "role": "step 1", "note": "a small task, so the model gets it right more often"}, {"text": "you read and fix the key points", "role": "check", "note": "catching a miss now is the cheapest"}, {"text": "“expand these key points into the text”", "role": "step 2", "note": "the input is the output of the first step"}] },
+    { "type": "text", "text": "Why it works: the model doesn't carry everything in one jump. Each step is small and precise, and you can check and fix the intermediate result before the next step spends effort on it." },
+    { "type": "text", "text": "The second pattern is routing. It's sorting: first we classify the request, then send it down the right branch or to the right model." },
+    { "type": "text", "text": "An example: a simple question goes to a fast, cheap model, a hard one to a big, smart model. Or by topic: a question about a bill goes down one branch with one prompt, a question about delivery down another." },
+    { "type": "text", "text": "Remember the lesson “Muse Spark: fast or thoughtful”? Routing is a direct answer to it: there's no point in running a big thinking model on “what is 2+2.” The app doesn't sort requests for you: each agent runs on one model, and you choose it when you build the agent, Muse Spark for quick, cheap turns or Muse Wonder for long multi-step work. But in Meta's lineup, routing could look like this: simple requests go to a lighter model like Muse Glimmer, hard ones to Muse Spark. Sorting well saves both money and seconds." },
+    { "type": "animation", "scene": "chain_router", "caption": "In “Chain,” walk the sheet through the steps and fix the key points at the check. In “Routing,” pick an incoming request" },
+    { "type": "scenario", "situation": "Support gets both “where is my order?” and “explain clause 4.2 of the contract.”", "q": "Which pattern comes first here?", "options": ["Routing: first find out the type of question, then send it down its own branch", "Chaining: run both questions through the same three steps in a row", "Neither: one big prompt will answer both"], "correct": 0, "explain": "The questions are different in nature, so they need sorting first. Chaining helps INSIDE a branch: for the contract, for example, first find the clause, then explain it in plain words." },
+    { "type": "text", "text": "Patterns combine: routing first picks a branch, and inside the branch runs its own chain of steps. Big systems are built from blocks like these." },
+    { "type": "text", "text": "A common misconception: “patterns are something for programmers.” They aren't. When you ask for an outline, fix it, and then ask for the text, you are already chaining by hand. A pattern is just a name for a trick you already use." },
+    { "type": "match", "instruction": "Match each pattern to its idea:", "pairs": [
+      { "term": "Chaining", "def": "The output of a step is the input of the next" },
+      { "term": "Routing", "def": "Sorting a request to the right branch" },
+      { "term": "Combo", "def": "Routing outside, a chain inside" }
+    ] },
+    { "type": "text", "text": "Practice. After the lesson, try chaining by hand in a regular chat: ask me for a three-point outline of a post, fix one point, then ask me to write the text from the outline. Compare it with what you'd get from “just write it.”" },
+    { "type": "text", "text": "In short. Chaining: cut a task into steps, the output of one is the input of the next, so steps are simpler and the middle result can be checked. Routing: sort a request to the right branch or model, which is more accurate and cheaper. They combine: routing outside, chains inside." },
+    { "type": "quiz", "questions": [
+      { "q": "What is prompt chaining?", "options": ["A chain of steps: the output of one is the input of the next", "One big request with all the details at once", "Automatic choice of a model for the request"], "correct": 0, "explain": "Chaining splits a task into sequential steps." },
+      { "q": "What does routing do?", "options": ["Classifies a request and sends it down the right branch", "Blends the answers of several models into one", "Compresses the chat history so it fits the window"], "correct": 0, "explain": "Routing sorts a request to the right path or model." },
+      { "q": "How does routing save money?", "options": ["Simple requests go to fast, cheap models", "It compresses each request to spend fewer tokens", "It sends every request to the single cheapest model"], "correct": 0, "explain": "There's no need to run an expensive model on a simple question, so routing picks the model by the task." }
+    ] }
+  ]
+}

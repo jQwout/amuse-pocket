@@ -45,13 +45,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 import kotlinx.coroutines.delay
 
 // The lesson's chain: theses → your check → a text from the theses.
-private val CHAIN_STATIONS = listOf(
-    "Шаг 1 · модель" to "«составь тезисы статьи про наш продукт»",
-    "Проверка · ты" to "прочитай тезисы и вычеркни лишнее",
-    "Шаг 2 · модель" to "«разверни эти тезисы в текст»",
+// Functions, not top-level vals: tr() has to run when the scene is shown, in the current language.
+private fun chainStations() = listOf(
+    tr("Шаг 1 · модель", "Step 1 · model") to tr("«составь тезисы статьи про наш продукт»", "“draft the key points of an article about our product”"),
+    tr("Проверка · ты", "Check · you") to tr("прочитай тезисы и вычеркни лишнее", "read the key points and cross out the extra"),
+    tr("Шаг 2 · модель", "Step 2 · model") to tr("«разверни эти тезисы в текст»", "“expand these key points into the text”"),
 )
 private const val STATION_H = 100
 private const val STATION_GAP = 10
@@ -60,11 +62,24 @@ private const val PACKET_H = 40
 /** Requests, the router's label and the branch it sends them to. The branches are the lesson's: by difficulty and by topic. */
 private class RoutedAsk(val text: String, val tag: String, val lane: Int, val result: String)
 
-private val ROUTER_LANES = listOf("Быстрая модель" to "дёшево", "Ветка «доставка»" to "свой промпт", "Большая модель" to "дороже, умнее")
-private val ROUTER_ASKS = listOf(
-    RoutedAsk("Сколько будет 2+2?", "простое", 0, "Незачем гонять дорогую модель на «2+2» — сортировка экономит деньги и секунды"),
-    RoutedAsk("Где мой заказ?", "доставка", 1, "Вопрос про доставку — в свою ветку со своим промптом: точнее, чем один промпт на всё"),
-    RoutedAsk("Объясните пункт 4.2 договора", "сложное", 2, "Сложное — к большой модели. А внутри ветки своя цепочка: найти пункт → объяснить"),
+private fun routerLanes() = listOf(
+    tr("Быстрая модель", "Fast model") to tr("дёшево", "cheap"),
+    tr("Ветка «доставка»", "Delivery branch") to tr("свой промпт", "own prompt"),
+    tr("Большая модель", "Big model") to tr("дороже, умнее", "pricier, smarter"),
+)
+private fun routerAsks() = listOf(
+    RoutedAsk(
+        tr("Сколько будет 2+2?", "What is 2+2?"), tr("простое", "simple"), 0,
+        tr("Незачем гонять дорогую модель на «2+2» — сортировка экономит деньги и секунды", "No need to run an expensive model on “2+2”: sorting saves money and seconds"),
+    ),
+    RoutedAsk(
+        tr("Где мой заказ?", "Where is my order?"), tr("доставка", "delivery"), 1,
+        tr("Вопрос про доставку — в свою ветку со своим промптом: точнее, чем один промпт на всё", "A delivery question goes to its own branch with its own prompt: more precise than one prompt for everything"),
+    ),
+    RoutedAsk(
+        tr("Объясните пункт 4.2 договора", "Explain clause 4.2 of the contract"), tr("сложное", "hard"), 2,
+        tr("Сложное — к большой модели. А внутри ветки своя цепочка: найти пункт → объяснить", "Hard requests go to the big model. And inside the branch runs its own chain: find the clause → explain it"),
+    ),
 )
 
 /**
@@ -77,8 +92,8 @@ internal fun ChainRouterScene() {
     var routing by rememberSaveable { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = !routing, onClick = { routing = false }, label = { Text("Цепочка") })
-            FilterChip(selected = routing, onClick = { routing = true }, label = { Text("Роутинг") })
+            FilterChip(selected = !routing, onClick = { routing = false }, label = { Text(tr("Цепочка", "Chain")) })
+            FilterChip(selected = routing, onClick = { routing = true }, label = { Text(tr("Роутинг", "Routing")) })
         }
         if (routing) RouterPart() else ChainPart()
     }
@@ -105,22 +120,28 @@ private fun ChainPart() {
     )
     val packet = if (phase == 4) {
         buildAnnotatedString {
-            append(if (struck) "Статья: что умеет продукт и кому он нужен — без пустых обещаний" else "Статья: что умеет продукт, кому он нужен и почему он «лучший на рынке»")
+            append(
+                if (struck) {
+                    tr("Статья: что умеет продукт и кому он нужен — без пустых обещаний", "Article: what the product does and who needs it, no empty promises")
+                } else {
+                    tr("Статья: что умеет продукт, кому он нужен и почему он «лучший на рынке»", "Article: what the product does, who needs it and why it's “the best on the market”")
+                },
+            )
         }
     } else {
         buildAnnotatedString {
-            append("Тезисы: 1) что умеет продукт 2) кому он нужен ")
+            append(tr("Тезисы: 1) что умеет продукт 2) кому он нужен ", "Key points: 1) what the product does 2) who needs it "))
             // A doubtful thesis is marked red: that is the one to catch at the check.
             withStyle(SpanStyle(color = error, textDecoration = if (struck) TextDecoration.LineThrough else null)) {
-                append("3) «лучший на рынке»")
+                append(tr("3) «лучший на рынке»", "3) “the best on the market”"))
             }
         }
     }
 
-    Text("Задача: «напиши статью про наш продукт» — по шагам", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+    Text(tr("Задача: «напиши статью про наш продукт» — по шагам", "Task: “write an article about our product,” step by step"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
     Box(modifier = Modifier.fillMaxWidth().height((3 * STATION_H + 2 * STATION_GAP).dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(STATION_GAP.dp)) {
-            CHAIN_STATIONS.forEachIndexed { index, (role, task) ->
+            chainStations().forEachIndexed { index, (role, task) ->
                 val active = phase > 0 && station == index
                 Column(
                     modifier = Modifier
@@ -156,8 +177,8 @@ private fun ChainPart() {
     Text(
         text = when {
             phase < 4 -> " "
-            struck -> "Промах поймали на проверке — до того, как на него потратился шаг 2. Каждый шаг маленький и проверяемый"
-            else -> "Пустое «лучший на рынке» проскочило в статью — а вычеркнуть его на проверке стоило один тап"
+            struck -> tr("Промах поймали на проверке — до того, как на него потратился шаг 2. Каждый шаг маленький и проверяемый", "The slip was caught at the check, before step 2 spent effort on it. Every step is small and checkable")
+            else -> tr("Пустое «лучший на рынке» проскочило в статью — а вычеркнуть его на проверке стоило один тап", "The empty “best on the market” slipped into the article, and crossing it out at the check would have cost one tap")
         },
         style = MaterialTheme.typography.bodyMedium,
         fontWeight = FontWeight.SemiBold,
@@ -167,7 +188,7 @@ private fun ChainPart() {
     )
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         OutlinedButton(onClick = { struck = !struck }, enabled = phase == 2, modifier = Modifier.weight(1f)) {
-            Text(if (struck) "Вернуть" else "Вычеркнуть")
+            Text(if (struck) tr("Вернуть", "Restore") else tr("Вычеркнуть", "Cross out"))
         }
         Button(
             onClick = {
@@ -183,10 +204,10 @@ private fun ChainPart() {
         ) {
             Text(
                 when (phase) {
-                    0 -> "Запустить"
-                    3 -> "Пишу…"
-                    4 -> "Сначала"
-                    else -> "Дальше"
+                    0 -> tr("Запустить", "Start")
+                    3 -> tr("Пишу…", "Writing…")
+                    4 -> tr("Сначала", "Start over")
+                    else -> tr("Дальше", "Next")
                 },
             )
         }
@@ -208,12 +229,12 @@ private fun RouterPart() {
         delay(700)
         phase = 2
     }
-    val ask = ROUTER_ASKS.getOrNull(picked)
+    val ask = routerAsks().getOrNull(picked)
     val primary = MaterialTheme.colorScheme.primary
 
-    Text("Входящие — выбери, что придёт:", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+    Text(tr("Входящие — выбери, что придёт:", "Incoming requests: pick what arrives:"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        ROUTER_ASKS.forEachIndexed { index, item ->
+        routerAsks().forEachIndexed { index, item ->
             FilterChip(selected = picked == index, onClick = { picked = index; runs++ }, label = { Text(item.text) })
         }
     }
@@ -228,7 +249,7 @@ private fun RouterPart() {
             .padding(horizontal = 12.dp),
     ) {
         Text(
-            text = if (ask == null) "Роутер: жду запрос" else "Роутер: «${ask.text}»",
+            text = if (ask == null) tr("Роутер: жду запрос", "Router: waiting for a request") else tr("Роутер: «${ask.text}»", "Router: “${ask.text}”"),
             style = MaterialTheme.typography.bodyMedium,
             color = SceneInk,
             maxLines = 2,
@@ -246,7 +267,7 @@ private fun RouterPart() {
             }
         }
     }
-    ROUTER_LANES.forEachIndexed { index, (name, cost) ->
+    routerLanes().forEachIndexed { index, (name, cost) ->
         val lit = ask != null && phase >= 2 && ask.lane == index
         val background by animateColorAsState(if (lit) ScenePalette[2] else Color.White, tween(300), label = "lane")
         Row(

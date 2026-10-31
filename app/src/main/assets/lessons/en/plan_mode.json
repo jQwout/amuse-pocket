@@ -1,0 +1,25 @@
+{
+  "id": "plan_mode",
+  "title": "Plan mode",
+  "description": "The agent builds a plan first and waits for your “OK”: “think” kept apart from “do.”",
+  "iconKey": "checklist",
+  "steps": [
+    { "type": "reveal", "question": "You ask an agent: “go through my email and delete the junk.” What does a good agent do first?", "answer": "It doesn't delete a single message. It shows a plan first — what exactly it thinks is junk — and waits for your “OK.” That is Plan mode." },
+    { "type": "text", "text": "Plan mode means the agent first writes out a plan: the steps it intends to take. Only then does it carry them out." },
+    { "type": "image", "asset": "lessons/images/generated/plan_mode-65f4f9362f.webp", "imagePrompt": "A small robot holds up a clipboard with a checklist to a person and waits with a pause sign, before starting to sort a messy pile of envelopes.", "caption": "First the plan and your “OK,” then the work" },
+    { "type": "concept", "term": "Gate", "definition": "A lock between “think” and “do”: until you approve the plan, tools are switched off and the agent touches nothing.", "example": "The plan is ready → you tap “Approve” → only now does the agent start carrying it out." },
+    { "type": "text", "text": "The plan is shown to you for confirmation, so you can correct course before anything is done. If you change it, the agent rebuilds the plan." },
+    { "type": "animation", "scene": "plan_gate", "caption": "Tap a step to cross it out, then tap “Approve.” The number of emails is just an example" },
+    { "type": "text", "text": "The point is simple: we keep “think” apart from “do,” and on complex tasks that sharply cuts the number of mistakes. And notice that Plan mode isn't insurance against a silly model. It is insurance against the cost of a mistake. When actions touch real things — files, money, emails — confirming the plan is cheaper than cleaning up afterwards." },
+    { "type": "sort", "instruction": "Put the course of Plan mode in order:", "items": ["The agent carries out the steps", "You tap “Approve”", "The agent shows the plan", "You give a multi-part task", "The agent hands over the result"], "correct": [3, 2, 1, 0, 4], "explain": "Task → plan → your “OK” → work → result. Before the “OK,” no actions." },
+    { "type": "scenario", "situation": "Two tasks: “rename a hundred files in my project” and “how many days until New Year?”", "q": "Where is Plan mode really needed?", "options": ["With the files: a mistake is costly, so fix course before acting", "With the date: counting days is a hard multi-step task", "In both: a plan never hurts"], "correct": 0, "explain": "Plan mode is insurance against the cost of a mistake. A simple question doesn't need a gate. It's just an extra tap." },
+    { "type": "text", "text": "Practice. Plan mode is right here in the app, but only for agents you build yourself. Take your own agent or build a new one (Agents → Create agent). A chat with the Builder opens: it asks a few questions with tick boxes and ends on a “Review your agent” screen. Tick Plan in the Modes section there (or just tell the Builder you want it), then publish the agent. In a chat with that agent, choose Plan and give it a multi-part task. A plan card arrives, and no tool is touched until you tap “Approve.” Try “Request changes” too and see how the plan is rebuilt." },
+    { "type": "text", "text": "Under the hood, Plan mode now runs on a structured plan engine: a plan is not just text but a list of steps with statuses and a check. The plan card right in the chat lets you approve it, pause it, resume it or cancel it. What that changes is covered in a separate lesson, Structured plans." },
+    { "type": "text", "text": "In short. Plan mode: plan first → your “OK” → only then actions. The gate keeps tools switched off until you approve. Use it where a mistake is costly, and correct course before anything is done." },
+    { "type": "quiz", "questions": [
+      { "q": "What does Plan mode do?", "options": ["Builds a plan first, then carries it out", "Does everything at once, with no plan or questions", "Cancels the task if it is complex"], "correct": 0, "explain": "Plan mode separates planning from doing." },
+      { "q": "What does the agent do before the plan is approved?", "options": ["Carries out nothing and touches no tools", "It has already done it all and just awaits praise", "Carries out only the safe steps"], "correct": 0, "explain": "The gate: before your “OK,” no actions." },
+      { "q": "Why show the plan before the work, not after?", "options": ["Fixing course is cheaper before acting than cleaning up after", "So the user can see the agent isn't being lazy", "It makes the agent finish the task faster"], "correct": 0, "explain": "The gate exists because of the cost of a mistake: editing a plan is free, undoing actions is not." }
+    ] }
+  ]
+}

@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aiopenpocket.i18n.tr
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
@@ -43,21 +44,22 @@ import kotlin.math.sin
 /** One beat of the lesson's example: the loop phase (0 think, 1 act, 2 observe, 3 answer), the text and the round number. */
 private data class ReactBeat(val phase: Int, val text: String, val round: Int)
 
-private val PHASES = listOf("Думаю", "Действую", "Наблюдаю")
+// Display-time functions, not top-level vals: tr() has to run when the scene is shown, in the current language.
+private fun phases() = listOf(tr("Думаю", "Thinking"), tr("Действую", "Acting"), tr("Наблюдаю", "Observing"))
 private const val ANSWER = 3
 
 // The same example as in the lesson's text: a reminder an hour before the meeting with Max. There used to be
 // "notes" and "weather" here — the app has no such tools, and the learner could not repeat the example in the
 // chat. Any chat has the calendar and reminders, so the example reproduces as is.
-private val BEATS = listOf(
-    ReactBeat(0, "Не знаю, когда встреча, — гляну в календарь", 1),
-    ReactBeat(1, "Инструмент «Календарь»: показать события", 1),
-    ReactBeat(2, "Встреча с Максом — завтра в 15:00", 1),
-    ReactBeat(0, "Значит, напомнить надо завтра в 14:00", 2),
-    ReactBeat(1, "Инструмент «Напоминания»: на 14:00", 2),
-    ReactBeat(2, "Напоминание запланировано", 2),
-    ReactBeat(0, "Данных хватает — можно отвечать", 3),
-    ReactBeat(ANSWER, "Напомню завтра в 14:00 — за час до встречи с Максом", 3),
+private fun beats() = listOf(
+    ReactBeat(0, tr("Не знаю, когда встреча, — гляну в календарь", "I don't know when the meeting is, so I'll check the calendar"), 1),
+    ReactBeat(1, tr("Инструмент «Календарь»: показать события", "Calendar tool: show events"), 1),
+    ReactBeat(2, tr("Встреча с Максом — завтра в 15:00", "Meeting with Max: tomorrow at 3:00 PM"), 1),
+    ReactBeat(0, tr("Значит, напомнить надо завтра в 14:00", "So the reminder should be tomorrow at 2:00 PM"), 2),
+    ReactBeat(1, tr("Инструмент «Напоминания»: на 14:00", "Reminders tool: for 2:00 PM"), 2),
+    ReactBeat(2, tr("Напоминание запланировано", "Reminder scheduled"), 2),
+    ReactBeat(0, tr("Данных хватает — можно отвечать", "I have enough data, so I can answer"), 3),
+    ReactBeat(ANSWER, tr("Напомню завтра в 14:00 — за час до встречи с Максом", "I'll remind you tomorrow at 2:00 PM, an hour before the meeting with Max"), 3),
 )
 
 // The phases in a circle: "Thinking" on top, "Acting" bottom right, "Observing" bottom left.
@@ -71,8 +73,10 @@ private val ANGLES = listOf(-90f, 30f, 150f)
 @Composable
 internal fun ReactLoopScene() {
     var step by rememberSaveable { mutableIntStateOf(-1) }
-    val beat = BEATS.getOrNull(step)
-    val previousPhase = BEATS.getOrNull(step - 1)?.phase?.takeIf { it < ANSWER }
+    val beats = beats()
+    val phases = phases()
+    val beat = beats.getOrNull(step)
+    val previousPhase = beats.getOrNull(step - 1)?.phase?.takeIf { it < ANSWER }
     val travel = remember { Animatable(1f) }
     LaunchedEffect(step) {
         travel.snapTo(0f)
@@ -83,7 +87,7 @@ internal fun ReactLoopScene() {
     val onPrimary = MaterialTheme.colorScheme.onPrimary
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Задача: «напомни за час до встречи с Максом»", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(tr("Задача: «напомни за час до встречи с Максом»", "Task: “remind me an hour before my meeting with Max”"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Canvas(modifier = Modifier.fillMaxWidth().height(210.dp)) {
             val center = Offset(size.width / 2, size.height / 2 + 8.dp.toPx())
             val radius = min(size.width, size.height) / 2 - 30.dp.toPx()
@@ -101,7 +105,7 @@ internal fun ReactLoopScene() {
                 drawCircle(primary, 7.dp.toPx(), at(from + (to - from) * travel.value))
             }
 
-            PHASES.forEachIndexed { index, label ->
+            phases.forEachIndexed { index, label ->
                 val active = beat?.phase == index
                 val text = measurer.measure(
                     label,
@@ -129,7 +133,7 @@ internal fun ReactLoopScene() {
 
             val roundText = measurer.measure(
                 // "round" is the lesson's word for one turn of the loop (the limits are measured in it too).
-                if (beat == null) "старт" else "виток ${beat.round}",
+                if (beat == null) tr("старт", "start") else tr("виток ${beat.round}", "round ${beat.round}"),
                 TextStyle(fontSize = 13.sp, color = SceneInk.copy(alpha = 0.6f)),
             )
             drawText(roundText, topLeft = Offset(center.x - roundText.size.width / 2, center.y - roundText.size.height / 2))
@@ -144,21 +148,21 @@ internal fun ReactLoopScene() {
         ) {
             Text(
                 text = when {
-                    beat == null -> "Нажми «Запустить» и веди агента по кругу сам"
-                    beat.phase == ANSWER -> "Ответ: ${beat.text}"
-                    else -> "${PHASES[beat.phase]}: ${beat.text}"
+                    beat == null -> tr("Нажми «Запустить» и веди агента по кругу сам", "Tap “Start” and lead the agent around the loop yourself")
+                    beat.phase == ANSWER -> tr("Ответ: ${beat.text}", "Answer: ${beat.text}")
+                    else -> "${phases[beat.phase]}: ${beat.text}"
                 },
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = if (beat?.phase == ANSWER) FontWeight.SemiBold else FontWeight.Normal,
                 color = SceneInk,
             )
         }
-        Button(onClick = { step = if (step >= BEATS.lastIndex) -1 else step + 1 }, modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = { step = if (step >= beats.lastIndex) -1 else step + 1 }, modifier = Modifier.fillMaxWidth()) {
             Text(
                 when {
-                    step < 0 -> "Запустить"
-                    step >= BEATS.lastIndex -> "Сначала"
-                    else -> "Следующий шаг"
+                    step < 0 -> tr("Запустить", "Start")
+                    step >= beats.lastIndex -> tr("Сначала", "Start over")
+                    else -> tr("Следующий шаг", "Next step")
                 },
             )
         }

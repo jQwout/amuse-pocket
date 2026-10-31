@@ -42,22 +42,36 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 
 /** A plan step and the saved result the engine will accept as evidence for its criterion. */
 private class PlanStep(val title: String, val evidence: String)
 
 // The plan from the lesson's practice: find three articles, write out the main ideas, gather them into one list.
-private val PLAN = listOf(
-    PlanStep("Найти три статьи по теме", "3 ссылки сохранены"),
-    PlanStep("Выписать из каждой главную мысль", "3 выписки в заметке"),
-    PlanStep("Собрать мысли в один список", "список из 3 пунктов"),
+// Functions, not top-level vals: tr() has to run when the scene is shown, in the current language.
+private fun planSteps() = listOf(
+    PlanStep(tr("Найти три статьи по теме", "Find three articles on the topic"), tr("3 ссылки сохранены", "3 links saved")),
+    PlanStep(tr("Выписать из каждой главную мысль", "Write out the main idea of each"), tr("3 выписки в заметке", "3 excerpts in a note")),
+    PlanStep(tr("Собрать мысли в один список", "Gather the ideas into one list"), tr("список из 3 пунктов", "a list of 3 items")),
 )
+
+private fun evidenceHint() = tr("Жми «Сдать» у шага 1 — посмотрим, поверит ли движок на слово", "Tap “Submit” on step 1 and see whether the engine takes your word for it")
 
 /**
  * Step statuses — in the same words as on the real plan card in the chat (PlanCard): those are exactly what the
  * learner will see later. "Waiting" — until the previous step is done.
  */
-private enum class StepStatus(val label: String) { Waiting("Ожидает"), Ready("Готов к запуску"), Blocked("Заблокирован"), Verified("Завершён") }
+private enum class StepStatus {
+    Waiting, Ready, Blocked, Verified;
+
+    val label: String
+        get() = when (this) {
+            Waiting -> tr("Ожидает", "Waiting")
+            Ready -> tr("Готов к запуску", "Ready to run")
+            Blocked -> tr("Заблокирован", "Blocked")
+            Verified -> tr("Завершён", "Completed")
+        }
+}
 
 private val ProvenGreen = Color(0xFF2E7D32)
 
@@ -70,18 +84,19 @@ private fun Int.hasStep(index: Int) = (this and (1 shl index)) != 0
  */
 @Composable
 internal fun StepEvidenceScene() {
+    val plan = planSteps()
     // Bitmasks per step: evidence attached / checked / blocked.
     var attached by rememberSaveable { mutableIntStateOf(0) }
     var verified by rememberSaveable { mutableIntStateOf(0) }
     var blocked by rememberSaveable { mutableIntStateOf(0) }
-    var message by rememberSaveable { mutableStateOf("Жми «Сдать» у шага 1 — посмотрим, поверит ли движок на слово") }
+    var message by rememberSaveable { mutableStateOf(evidenceHint()) }
     var rejected by rememberSaveable { mutableStateOf(false) }
     val provenCount = verified.countOneBits()
     val error = MaterialTheme.colorScheme.error
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Ты — агент. План одобрен, выполняем по шагам", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        PLAN.forEachIndexed { index, step ->
+        Text(tr("Ты — агент. План одобрен, выполняем по шагам", "You are the agent. The plan is approved, so we run it step by step"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        plan.forEachIndexed { index, step ->
             val bit = 1 shl index
             val status = when {
                 verified.hasStep(index) -> StepStatus.Verified
@@ -96,7 +111,7 @@ internal fun StepEvidenceScene() {
                 attached = attached.hasStep(index),
                 onAttach = {
                     attached = attached or bit
-                    message = "Доказательство «${step.evidence}» приложено — теперь жми «Сдать»"
+                    message = tr("Доказательство «${step.evidence}» приложено — теперь жми «Сдать»", "Proof “${step.evidence}” attached. Now tap “Submit”")
                     rejected = false
                 },
                 onDone = {
@@ -104,17 +119,17 @@ internal fun StepEvidenceScene() {
                         verified = verified or bit
                         blocked = blocked and bit.inv()
                         rejected = false
-                        message = if (index == PLAN.lastIndex) {
-                            "План выполнен — каждый шаг с доказательством. На слово не верим"
+                        message = if (index == plan.lastIndex) {
+                            tr("План выполнен — каждый шаг с доказательством. На слово не верим", "The plan is done: every step has proof. We don't take anyone's word for it")
                         } else {
-                            "Шаг ${index + 1} завершён: критерий подтверждён. Открылся шаг ${index + 2}"
+                            tr("Шаг ${index + 1} завершён: критерий подтверждён. Открылся шаг ${index + 2}", "Step ${index + 1} completed: the criterion is confirmed. Step ${index + 2} is now open")
                         }
                     } else {
                         blocked = blocked or bit
                         rejected = true
                         // The real engine first gives the step another attempt and blocks after the second (the lesson
                         // says so); the scene squeezes both attempts into one tap.
-                        message = "Шаг ${index + 1}: «готово» без доказательства — не засчитано, шаг заблокирован"
+                        message = tr("Шаг ${index + 1}: «готово» без доказательства — не засчитано, шаг заблокирован", "Step ${index + 1}: “done” without proof is not counted, and the step is blocked")
                     }
                 },
             )
@@ -124,7 +139,7 @@ internal fun StepEvidenceScene() {
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White).padding(10.dp),
         ) {
             Text(
-                text = if (rejected) "Движок плана: сделал — докажи" else "Движок плана",
+                text = if (rejected) tr("Движок плана: сделал — докажи", "Plan engine: done means proven") else tr("Движок плана", "Plan engine"),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = if (rejected) error else SceneInk.copy(alpha = 0.6f),
@@ -133,22 +148,22 @@ internal fun StepEvidenceScene() {
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Text(
-                text = "Завершено: $provenCount из ${PLAN.size}",
+                text = tr("Завершено: $provenCount из ${plan.size}", "Completed: $provenCount of ${plan.size}"),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = if (provenCount == PLAN.size) ProvenGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (provenCount == plan.size) ProvenGreen else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
             TextButton(
                 onClick = {
                     attached = 0; verified = 0; blocked = 0; rejected = false
-                    message = "Жми «Сдать» у шага 1 — посмотрим, поверит ли движок на слово"
+                    message = evidenceHint()
                 },
                 enabled = attached != 0 || blocked != 0,
             ) {
                 Icon(Icons.Default.Replay, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(4.dp))
-                Text("Сначала")
+                Text(tr("Сначала", "Start over"))
             }
         }
     }
@@ -208,14 +223,14 @@ private fun StepCard(number: Int, step: PlanStep, status: StepStatus, attached: 
                 Icon(Icons.Default.AttachFile, contentDescription = null, tint = SceneInk.copy(alpha = if (attached || active) 0.8f else 0.35f), modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(4.dp))
                 Text(
-                    text = if (attached) step.evidence else "приложить доказательство",
+                    text = if (attached) step.evidence else tr("приложить доказательство", "attach proof"),
                     style = MaterialTheme.typography.labelMedium,
                     color = SceneInk.copy(alpha = if (attached || active) 1f else 0.4f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Button(onClick = onDone, enabled = active) { Text("Сдать") }
+            Button(onClick = onDone, enabled = active) { Text(tr("Сдать", "Submit")) }
         }
     }
 }
