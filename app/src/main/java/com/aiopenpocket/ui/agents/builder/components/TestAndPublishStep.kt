@@ -84,8 +84,6 @@ fun TestAndPublishStep(
    */
   contentPadding: PaddingValues = PaddingValues(),
 ) {
-  var testInput by remember { mutableStateOf("") }
-
   Column(
     modifier = modifier
       .verticalScroll(rememberScrollState())
@@ -103,6 +101,55 @@ fun TestAndPublishStep(
       modifier = Modifier.padding(top = 6.dp, bottom = 16.dp),
     )
 
+    DryRunSection(
+      executionMode = executionMode,
+      testStatus = testStatus,
+      testStreamingText = testStreamingText,
+      testToolTrace = testToolTrace,
+      onSetExecutionMode = onSetExecutionMode,
+      onSendTestMessage = onSendTestMessage,
+      testPendingApproval = testPendingApproval,
+      onResolveTestApproval = onResolveTestApproval,
+      onOpenSettings = onOpenSettings,
+    )
+
+    Spacer(modifier = Modifier.height(24.dp))
+    HorizontalDivider()
+    Spacer(modifier = Modifier.height(16.dp))
+    PublishBlock(
+      draft = draft,
+      canPublish = canPublish,
+      errors = errors,
+      isSaving = isSaving,
+      onPublish = onPublish,
+      onArchive = onArchive,
+      justPublished = justPublished,
+      onOpenChat = onOpenChat,
+    )
+  }
+}
+
+/**
+ * Test mode, the test message box, the run status, the approval bar and the tool trace: the dry run, as a
+ * block of its own so the review screen shows exactly the same one ([TestAndPublishStep] is the wizard's page).
+ * Owns the message draft; everything else comes from
+ * [com.aiopenpocket.ui.agents.builder.AgentBuilderTestViewModel] through the caller.
+ */
+@Composable
+internal fun DryRunSection(
+  executionMode: ExecutionMode,
+  testStatus: TurnStatus?,
+  testStreamingText: String,
+  testToolTrace: List<ToolTrace>,
+  onSetExecutionMode: (ExecutionMode) -> Unit,
+  onSendTestMessage: (String) -> Unit,
+  testPendingApproval: ToolApprovalRequest? = null,
+  onResolveTestApproval: (approved: Boolean) -> Unit = {},
+  onOpenSettings: (() -> Unit)? = null,
+) {
+  var testInput by remember { mutableStateOf("") }
+
+  Column {
     Text(text = tr("Режим проверки", "Test mode"), style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(8.dp))
     Row {
@@ -179,17 +226,36 @@ fun TestAndPublishStep(
       Spacer(modifier = Modifier.height(12.dp))
       ToolTracePanel(traces = testToolTrace, modifier = Modifier.testTag("agent_builder_tool_trace"))
     }
+  }
+}
 
-    Spacer(modifier = Modifier.height(24.dp))
-    HorizontalDivider()
-    Spacer(modifier = Modifier.height(16.dp))
-
+/**
+ * The publish gate: the "published" notice, the list of blockers, the Publish button and Archive. The wizard's
+ * last page and the review screen both end in this; the review screen passes [showPublishButton] = false
+ * and [showPublishedNotice] = false because it keeps those two in its fixed bottom bar, where a person who
+ * has scrolled the whole draft can still reach them.
+ */
+@Composable
+internal fun PublishBlock(
+  draft: AgentDraft,
+  canPublish: Boolean,
+  /** EVERY current issue, across all steps. */
+  errors: List<ValidationIssue>,
+  isSaving: Boolean,
+  onPublish: () -> Unit,
+  onArchive: () -> Unit,
+  justPublished: Boolean = false,
+  onOpenChat: (() -> Unit)? = null,
+  showPublishButton: Boolean = true,
+  showPublishedNotice: Boolean = true,
+) {
+  Column {
     Text(text = tr("Публикация", "Publishing"), style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(8.dp))
     // A success confirmation: without it "Publish" simply stopped spinning, and it was unclear whether the
     // agent had gone to the roster and where to go next.
-    val publishedUnchanged = justPublished && draft.status == AgentStatus.PUBLISHED
-    if (publishedUnchanged) {
+    val publishedUnchanged = isPublishedUnchanged(draft, justPublished)
+    if (publishedUnchanged && showPublishedNotice) {
       PublishedNotice(configVersion = draft.configVersion, onOpenChat = onOpenChat)
       Spacer(modifier = Modifier.height(12.dp))
     }
@@ -214,23 +280,8 @@ fun TestAndPublishStep(
     }
     // Right after publishing there is nothing to publish: "Publish changes" under "Agent published" looked
     // unfinished. Any edit clears justPublished — and the button comes back.
-    if (!publishedUnchanged) {
-      Button(
-        onClick = onPublish,
-        enabled = canPublish && !isSaving,
-        modifier = Modifier.testTag("agent_builder_publish"),
-      ) {
-        if (isSaving) {
-          CircularProgressIndicator(modifier = Modifier.size(16.dp).padding(end = 8.dp), strokeWidth = 2.dp)
-        }
-        Text(
-          if (draft.status == AgentStatus.PUBLISHED) {
-            tr("Опубликовать изменения", "Publish changes")
-          } else {
-            tr("Опубликовать", "Publish")
-          },
-        )
-      }
+    if (!publishedUnchanged && showPublishButton) {
+      PublishButton(draft = draft, enabled = canPublish && !isSaving, isSaving = isSaving, onPublish = onPublish)
     }
 
     // Archiving is available for a draft too: otherwise an abandoned draft stays in the "Drafts" section
@@ -253,9 +304,34 @@ fun TestAndPublishStep(
   }
 }
 
+/** The Publish button — one copy, used by the wizard's last page and the review screen's bottom bar. */
+@Composable
+internal fun PublishButton(draft: AgentDraft, enabled: Boolean, isSaving: Boolean, onPublish: () -> Unit) {
+  Button(
+    onClick = onPublish,
+    enabled = enabled,
+    modifier = Modifier.testTag("agent_builder_publish"),
+  ) {
+    if (isSaving) {
+      CircularProgressIndicator(modifier = Modifier.size(16.dp).padding(end = 8.dp), strokeWidth = 2.dp)
+    }
+    Text(
+      if (draft.status == AgentStatus.PUBLISHED) {
+        tr("Опубликовать изменения", "Publish changes")
+      } else {
+        tr("Опубликовать", "Publish")
+      },
+    )
+  }
+}
+
+/** Published just now and not edited since: the notice replaces the Publish button (see [PublishBlock]). */
+internal fun isPublishedUnchanged(draft: AgentDraft, justPublished: Boolean): Boolean =
+  justPublished && draft.status == AgentStatus.PUBLISHED
+
 /** The "published" badge with the version and, if the route can, a way into the agent's chat. */
 @Composable
-private fun PublishedNotice(configVersion: Long, onOpenChat: (() -> Unit)?) {
+internal fun PublishedNotice(configVersion: Long, onOpenChat: (() -> Unit)?) {
   Column(
     modifier = Modifier
       .fillMaxWidth()

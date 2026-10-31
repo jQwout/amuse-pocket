@@ -66,6 +66,45 @@ fun LoopModesStep(
       modifier = Modifier.padding(top = 6.dp, bottom = 20.dp),
     )
 
+    ModesFields(draft = draft, errors = errors, onUpdateDraft = onUpdateDraft)
+
+    Spacer(modifier = Modifier.height(24.dp))
+    Text(text = tr("Модель", "Model"), style = MaterialTheme.typography.titleMedium)
+    Text(
+      text = tr(
+        "На какой модели Muse работает этот агент. Если выбранной модели нет на вашем маршруте, агент работает на модели приложения.",
+        "Which Muse model this agent runs on. If your route doesn't offer it, the agent falls back to the app's model.",
+      ),
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
+    )
+    ModelChips(draft = draft, errors = errors, onUpdateDraft = onUpdateDraft)
+
+    Spacer(modifier = Modifier.height(20.dp))
+    Text(
+      text = tr(
+        "Режим по умолчанию — тот, в котором открывается новый чат с этим агентом.",
+        "The default mode is the one a new chat with this agent opens in.",
+      ),
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+  }
+}
+
+/**
+ * Allowed modes and the default mode as chips — the first half of [LoopModesStep], also a section of the
+ * review screen.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun ModesFields(
+  draft: AgentDraft,
+  errors: List<ValidationIssue>,
+  onUpdateDraft: ((AgentDraft) -> AgentDraft) -> Unit,
+) {
+  Column {
     Text(text = tr("Разрешённые режимы", "Allowed modes"), style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(8.dp))
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -104,18 +143,20 @@ fun LoopModesStep(
       }
     }
     ErrorText(errors, "defaultMode")
+  }
+}
 
-    Spacer(modifier = Modifier.height(24.dp))
-    Text(text = tr("Модель", "Model"), style = MaterialTheme.typography.titleMedium)
-    Text(
-      text = tr(
-        "На какой модели Muse работает этот агент. Если выбранной модели нет на вашем маршруте, агент работает на модели приложения.",
-        "Which Muse model this agent runs on. If your route doesn't offer it, the agent falls back to the app's model.",
-      ),
-      style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-      modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
-    )
+/**
+ * The model chips (Wonder / Spark / app default) with their inline error — the last block of
+ * [LoopModesStep], also a section of the review screen, where they must be visible without a tap.
+ */
+@Composable
+internal fun ModelChips(
+  draft: AgentDraft,
+  errors: List<ValidationIssue>,
+  onUpdateDraft: ((AgentDraft) -> AgentDraft) -> Unit,
+) {
+  Column {
     // Built per call, not as a static list: tr() must run when the text is shown.
     val modelOptions = listOf<Pair<String?, String>>(
       null to tr("Модель приложения", "App default"),
@@ -136,16 +177,6 @@ fun LoopModesStep(
       }
     }
     ErrorText(errors, "model")
-
-    Spacer(modifier = Modifier.height(20.dp))
-    Text(
-      text = tr(
-        "Режим по умолчанию — тот, в котором открывается новый чат с этим агентом.",
-        "The default mode is the one a new chat with this agent opens in.",
-      ),
-      style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
   }
 }
 

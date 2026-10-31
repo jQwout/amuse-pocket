@@ -291,8 +291,9 @@ class MainActivity : ComponentActivity() {
                                 composable(
                                     route = "agent_builder/{agentId}?review={review}",
                                     arguments = listOf(
-                                        // The builder chat's "Review your agent" card opens the draft with
-                                        // review=true; every other entry (edit, draft in the roster) omits it.
+                                        // The builder chat navigates to "agent_builder/{id}?review=true" once the draft
+                                        // validates, to open the one-page review instead of step 1. Every other entry
+                                        // (edit a draft, duplicate) keeps the plain route and the wizard.
                                         navArgument("review") {
                                             type = NavType.BoolType
                                             defaultValue = false

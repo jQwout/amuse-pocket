@@ -39,6 +39,11 @@ fun AgentBuilderRoute(
   onOpenChat: ((String) -> Unit)? = null,
   /** "Open Settings" on the test run's no-key message (the Meta key is entered there). */
   onOpenSettings: (() -> Unit)? = null,
+  /**
+   * Open on the one-page review of the draft instead of step 1 (nav argument `review=true`). The builder
+   * chat sends the person here once the draft validates; "Back to chat" is [onExit], which pops back to it.
+   */
+  openReview: Boolean = false,
 ) {
   val viewModel: AgentBuilderViewModel = metroViewModel()
   val testViewModel: AgentBuilderTestViewModel = metroViewModel()
@@ -56,7 +61,7 @@ fun AgentBuilderRoute(
 
   // Null agentId -> new draft, otherwise load the existing one. The LaunchedEffect restarts on a screen
   // rotation too — start itself cuts off the repeat (see AgentBuilderViewModel.startedWith).
-  LaunchedEffect(agentId, sourceContext) { viewModel.start(agentId, sourceContext) }
+  LaunchedEffect(agentId, sourceContext, openReview) { viewModel.start(agentId, sourceContext, openReview) }
 
   // Binds the TEST step's dedicated test conversation once the real draft id is known (a brand-new
   // draft's id is only generated once `start`'s coroutine finishes — see AgentBuilderViewModel.newDraft).
@@ -86,5 +91,6 @@ fun AgentBuilderRoute(
     onResolveTestApproval = testViewModel::resolveTestApproval,
     onOpenChat = onOpenChat?.let { open -> { agentsViewModel.openAgentChat(state.draft.id, open) } },
     onOpenSettings = onOpenSettings,
+    onEditStepByStep = viewModel::editStepByStep,
   )
 }

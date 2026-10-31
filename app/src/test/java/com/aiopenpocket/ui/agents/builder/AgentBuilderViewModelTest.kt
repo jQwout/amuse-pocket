@@ -22,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -585,5 +586,88 @@ class AgentBuilderViewModelTest {
 
     assertEquals(BuilderStep.IDENTITY, vm.state.value.step)
     assertFalse(vm.state.value.showErrors)
+  }
+
+  // --- review screen (route argument review=true) ---------------------------------------------------
+
+  /** Saves a valid draft through [vm] and returns its id, as the builder chat's draft tool would leave one. */
+  private fun TestScope.storedValidDraft(): String {
+    vm.newDraft()
+    val id = vm.state.value.draft.id
+    fillValidFields()
+    advanceUntilIdle()
+    return id
+  }
+
+  /** The chat navigates to `agent_builder/{id}?review=true`: the builder must open the review, not step 1. */
+  @Test
+  fun `start with openReview opens the stored draft in review mode`() = runTest(testDispatcher) {
+    val id = storedValidDraft()
+
+    val reviewing = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository)
+    reviewing.start(id, openReview = true)
+    advanceUntilIdle()
+
+    assertTrue("review view", reviewing.state.value.reviewMode)
+    assertEquals("the draft the chat left is what is shown", "Тестовый агент", reviewing.state.value.draft.name)
+    assertTrue("a valid draft can be published straight from the review", reviewing.state.value.canPublish)
+  }
+
+  /** Every other way into the builder (edit a draft, duplicate) keeps the wizard. */
+  @Test
+  fun `start without openReview opens the wizard`() = runTest(testDispatcher) {
+    val id = storedValidDraft()
+
+    val editing = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository)
+    editing.start(id)
+    advanceUntilIdle()
+
+    assertFalse(editing.state.value.reviewMode)
+    assertEquals(BuilderStep.IDENTITY, editing.state.value.step)
+  }
+
+  /** "Edit step by step" and "Edit rules": out of the review onto the asked wizard step, same draft. */
+  @Test
+  fun `editStepByStep leaves the review for the asked step and keeps the draft`() = runTest(testDispatcher) {
+    val id = storedValidDraft()
+    val reviewing = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository)
+    reviewing.start(id, openReview = true)
+    advanceUntilIdle()
+
+    reviewing.editStepByStep(BuilderStep.HOOKS)
+
+    assertFalse(reviewing.state.value.reviewMode)
+    assertEquals(BuilderStep.HOOKS, reviewing.state.value.step)
+    assertEquals("Тестовый агент", reviewing.state.value.draft.name)
+  }
+
+  /** The route calls start again on rotation: that must not throw the person back from the wizard into the review. */
+  @Test
+  fun `a repeated start with openReview does not undo Edit step by step`() = runTest(testDispatcher) {
+    val id = storedValidDraft()
+    val reviewing = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository)
+    reviewing.start(id, openReview = true)
+    advanceUntilIdle()
+    reviewing.editStepByStep()
+
+    reviewing.start(id, openReview = true)
+    advanceUntilIdle()
+
+    assertFalse(reviewing.state.value.reviewMode)
+  }
+
+  /** An edit made on the review page is the wizard's edit: validated at once and autosaved. */
+  @Test
+  fun `an edit in the review is validated and autosaved like a wizard edit`() = runTest(testDispatcher) {
+    val id = storedValidDraft()
+    val reviewing = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository)
+    reviewing.start(id, openReview = true)
+    advanceUntilIdle()
+
+    reviewing.updateDraft { it.copy(toolNames = it.toolNames + "render_card", name = "") }
+    assertFalse("blank name blocks Publish at once", reviewing.state.value.canPublish)
+    advanceUntilIdle()
+
+    assertEquals(setOf("memory_tool", "render_card"), userAgentRepository.get(id)?.toolNames)
   }
 }
