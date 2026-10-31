@@ -1,0 +1,31 @@
+{
+  "id": "agent_skills",
+  "title": "Agent skills",
+  "description": "How an agent loads skills on demand without bloating the context — three levels of disclosure.",
+  "iconKey": "extension",
+  "steps": [
+    { "type": "text", "text": "Imagine you want an agent that can keep a budget, a diary and a workout log, and help with languages. Stuffing all the detailed instructions into every request would be silly and expensive. We need a smarter way." },
+    { "type": "image", "asset": "lessons/images/generated/agent_skills-e10b341abf.webp", "imagePrompt": "A small friendly robot stands in front of a shelf of colorful cartridges and plugs one cartridge into a slot on its back, while the other cartridges wait on the shelf.", "caption": "A skill is loaded only when it's needed" },
+    { "type": "text", "text": "A skill (skill pack) is a packaged procedure or piece of knowledge that the agent loads on demand. It works like a swappable module: while it isn't needed, it sits aside and weighs nothing in the conversation." },
+    { "type": "text", "text": "Why not load everything at once? Remember the context window: every extra instruction takes up room in it and makes the request more expensive and slower. That's why skills are revealed gradually, in three levels." },
+    { "type": "text", "text": "Level 1 is the catalog. In the system prompt the agent always sees only a short list of skills: what each one does and when to use it. This costs almost nothing, yet the agent knows what it has in reserve." },
+    { "type": "text", "text": "Level 2 is loading. When a task fits a skill, the agent itself calls load_skill with its id, and the detailed instructions enter the context. Only what is really needed right now gets loaded." },
+    { "type": "text", "text": "Level 3 is resources: the data that the instructions refer to. For example, the “Budget” skill stores expenses as facts in memory. The agent fetches them with ordinary tools, and only when it gets to them. That way nothing unneeded ends up in the window." },
+    { "type": "animation", "scene": "skill_levels", "caption": "Tap a skill, then try “Load everything at once.” The token counts are an example for illustration" },
+    { "type": "text", "text": "Ready-made skills already exist: budget, diary, fitness, languages. They are built into the app. You can also add your own skill without any code. On the agent's review screen, which is where the builder chat ends, the “Skills, memory, cards” section has “Custom skill”: a name, when to use it and the instructions. The same field exists in the step-by-step form. The skill goes into the agent's catalog and is loaded the same way, on demand." },
+    { "type": "image", "asset": "lessons/images/skill_levels.svg", "caption": "Three levels of disclosure: a cheap catalog → instructions on request → resources on demand" },
+    { "type": "text", "text": "This technique is called progressive disclosure: the agent knows a little about everything and pulls out details only for a specific task. That way it stays both capable and light, and the context isn't clogged with things that aren't needed right now." },
+    { "type": "sort", "instruction": "Put the levels of skill disclosure in order:", "items": [
+      "The agent fetches the skill's data with tools",
+      "A short skills catalog in the system prompt",
+      "load_skill loads the detailed instructions"
+    ], "correct": [1, 2, 0], "explain": "First the cheap catalog, then the instructions loaded on demand, and only then the resources." },
+    { "type": "text", "text": "Practice. After the lesson, ask me in an ordinary chat to help with a budget, for example “I want to track my spending.” Then tap the wrench icon in the chat header. In “Tool calls” there will be a line “Skills: load ‘Budget’.” That's level 2 in action." },
+    { "type": "text", "text": "In short. A skill is a packaged ability that the agent loads on demand. It is revealed in three levels: a cheap catalog that is always in the prompt, detailed instructions through load_skill, and resources through ordinary tools, only when it gets to them. That way the agent stays capable without clogging the context with things not needed now, and you can add your own skill without code, on the agent's review screen." },
+    { "type": "quiz", "questions": [
+      { "q": "Why doesn't the agent keep the instructions of all skills in the context at once?", "options": ["It would take room in the window and make every request more expensive and slower", "The model technically can't hold more than one instruction at a time", "Skill instructions conflict and spoil each other's answers"], "correct": 0, "explain": "Every instruction takes up context, so only the needed skill is loaded, on demand." },
+      { "q": "What happens at level 2?", "options": ["The agent calls load_skill(id), and the skill's detailed instructions enter the context", "The agent shows the user a list of skills and waits for a choice", "The app downloads an update and recompiles with the new skill"], "correct": 0, "explain": "Level 2 is loading specific instructions by id, when the task fits them." },
+      { "q": "How do you add your own skill to an agent without code?", "options": ["In the builder: “Skills, memory, cards” → “Custom skill”", "Ask the developers to ship a new version", "Paste the instructions into every message you send"], "correct": 0, "explain": "“Custom skill” is on the agent's review screen: a name, when to use it and the instructions. It goes into the agent's catalog and is loaded on demand, like the built-in ones." }
+    ] }
+  ]
+}
