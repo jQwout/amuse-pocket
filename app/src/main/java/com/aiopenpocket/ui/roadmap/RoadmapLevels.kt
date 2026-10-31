@@ -356,4 +356,21 @@ fun lessonDisplayTitle(lessonId: String): String? =
   ROADMAP_LEVELS.find { it.id == lessonId }?.title
     ?: LIBRARY_ONLY_LESSONS[lessonId]?.let { tr(it.titleRu, it.titleEn) }
 
-enum class LevelStatus { LOCKED, CURRENT, COMPLETED }
+/**
+ * The status of every lesson on the path, in [order]: done ones are [LevelStatus.COMPLETED], the first
+ * one not done is [LevelStatus.CURRENT] (the suggested next lesson) and the rest are [LevelStatus.OPEN].
+ * Nothing is locked: any lesson opens in any order.
+ */
+fun pathStatuses(order: List<String>, done: Set<String>): Map<String, LevelStatus> {
+  val nextId = order.firstOrNull { it !in done }
+  return order.associateWith { id ->
+    when {
+      id in done -> LevelStatus.COMPLETED
+      id == nextId -> LevelStatus.CURRENT
+      else -> LevelStatus.OPEN
+    }
+  }
+}
+
+/** [OPEN]: not done yet and not the suggested next one — still opens; nothing on the path is locked. */
+enum class LevelStatus { OPEN, CURRENT, COMPLETED }

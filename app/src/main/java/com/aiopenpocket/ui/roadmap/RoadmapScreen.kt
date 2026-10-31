@@ -26,7 +26,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -36,7 +35,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -102,12 +100,12 @@ fun RoadmapScreen(
         Spacer(modifier = Modifier.height(24.dp))
       }
 
+      // Every lesson is open (owner, 31 Oct 2026): the theory is there to read, not a gate in front of the
+      // builder — locked levels kept a newcomer, or a judge, 29 lessons away from the capstone. The path
+      // still shows what is done and highlights the first lesson not done yet as the suggested next one.
+      val statuses = pathStatuses(ROADMAP_LEVELS.map { it.id }, progress)
       itemsIndexed(ROADMAP_LEVELS) { index, level ->
-        val status = when {
-          level.id in progress -> LevelStatus.COMPLETED
-          index == 0 || ROADMAP_LEVELS.getOrNull(index - 1)?.id in progress -> LevelStatus.CURRENT
-          else -> LevelStatus.LOCKED
-        }
+        val status = statuses.getValue(level.id)
 
         PathTimelineItem(
           level = level,
@@ -115,11 +113,9 @@ fun RoadmapScreen(
           isFirst = index == 0,
           isLast = index == ROADMAP_LEVELS.lastIndex,
           onClick = {
-            if (status != LevelStatus.LOCKED) {
-              // Lesson 1 = onboarding: open its screen; the other lessons are a chat.
-              if (level.id == "l1_welcome") onReopenOnboarding()
-              else viewModel.openLesson(level.id, onOpenLessonChat)
-            }
+            // Lesson 1 = onboarding: open its screen; the other lessons are a chat.
+            if (level.id == "l1_welcome") onReopenOnboarding()
+            else viewModel.openLesson(level.id, onOpenLessonChat)
           },
         )
       }
@@ -140,11 +136,10 @@ private fun PathTimelineItem(
   isLast: Boolean,
   onClick: () -> Unit,
 ) {
-  val isLocked = status == LevelStatus.LOCKED
   val lineColor = when (status) {
     LevelStatus.COMPLETED -> MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
     LevelStatus.CURRENT -> MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-    LevelStatus.LOCKED -> MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+    LevelStatus.OPEN -> MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
   }
 
   Row(
@@ -186,7 +181,6 @@ private fun PathTimelineItem(
     PathLevelCard(
       level = level,
       status = status,
-      isLocked = isLocked,
       onClick = onClick,
       modifier = Modifier
         .weight(1f)
@@ -240,17 +234,18 @@ private fun TimelineNode(
         )
       }
     }
-    LevelStatus.LOCKED -> {
+    LevelStatus.OPEN -> {
       Box(
         modifier = Modifier
           .size(36.dp)
-          .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), CircleShape),
+          .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), CircleShape)
+          .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), CircleShape),
         contentAlignment = Alignment.Center,
       ) {
         Icon(
-          imageVector = Icons.Default.Lock,
-          contentDescription = tr("Заблокировано", "Locked"),
-          tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+          imageVector = level.icon,
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
           modifier = Modifier.size(16.dp),
         )
       }
@@ -262,19 +257,13 @@ private fun TimelineNode(
 private fun PathLevelCard(
   level: RoadmapLevel,
   status: LevelStatus,
-  isLocked: Boolean,
   onClick: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  val alpha = if (isLocked) 0.45f else 1f
-
   Column(
     modifier = modifier
-      .alpha(alpha)
       .glassCardSurface(RoundedCornerShape(16.dp))
-      .then(
-        if (!isLocked) Modifier.clickable(onClick = onClick) else Modifier,
-      )
+      .clickable(onClick = onClick)
       .padding(16.dp),
   ) {
     Row(
@@ -288,7 +277,7 @@ private fun PathLevelCard(
       )
       if (status == LevelStatus.CURRENT) {
         Text(
-          text = tr("АКТИВНО", "ACTIVE"),
+          text = tr("ДАЛЬШЕ", "NEXT"),
           style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.primary,
           modifier = Modifier
