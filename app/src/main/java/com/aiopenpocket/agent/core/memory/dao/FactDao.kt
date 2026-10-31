@@ -17,6 +17,10 @@ interface FactDao {
   @Query("DELETE FROM facts WHERE `key` = :key")
   suspend fun deleteByKey(key: String)
 
+  /** One row by its id — the Profile screen's "forget this" removes exactly the fact the person tapped, not every row of a key. */
+  @Query("DELETE FROM facts WHERE id = :id")
+  suspend fun deleteById(id: String)
+
   /**
    * The whole fact memory, freshest first — the source for the word-by-word search
    * [com.aiopenpocket.agent.core.memory.repository.MemoryRepository.searchFacts].

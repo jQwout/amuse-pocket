@@ -104,30 +104,7 @@ internal fun HomePreviewScaffold(
                             actionIconContentColor = MaterialTheme.colorScheme.onSurface,
                         ),
                         actions = {
-                            IconButton(onClick = {}) {
-                                Icon(
-                                    imageVector = Icons.Default.History,
-                                    contentDescription = "История чатов",
-                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                                )
-                            }
-                            Box(
-                                modifier = Modifier
-                                  .size(40.dp)
-                                  .clip(CircleShape)
-                                  .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                                  .background(MaterialTheme.colorScheme.onPrimary)
-                                  .clickable(onClick = {}),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Person,
-                                    contentDescription = "Профиль",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(22.dp),
-                                )
-                            }
-                            Spacer(modifier = Modifier.size(12.dp))
+                            HomeTopBarActions(onNavigateToConversations = {}, onNavigateToProfile = {})
                         },
                     )
                 },

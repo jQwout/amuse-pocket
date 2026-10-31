@@ -72,6 +72,7 @@ fun HomeScreen(
     onNavigateToLibrary: () -> Unit,
     onNavigateToRoadmap: () -> Unit,
     onNavigateToSettings: () -> Unit,
+    onNavigateToProfile: () -> Unit,
     onNavigateToAgents: () -> Unit,
 ) {
     val glassState = rememberGlassState()
@@ -122,30 +123,10 @@ fun HomeScreen(
                         actionIconContentColor = MaterialTheme.colorScheme.onSurface,
                     ),
                     actions = {
-                        IconButton(onClick = onNavigateToConversations) {
-                            Icon(
-                                imageVector = Icons.Default.History,
-                                contentDescription = tr("История чатов", "Chat history"),
-                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                            )
-                        }
-                        Box(
-                            modifier = Modifier
-                              .size(40.dp)
-                              .clip(CircleShape)
-                              .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                              .background(MaterialTheme.colorScheme.onPrimary)
-                              .clickable(onClick = onNavigateToSettings),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = tr("Профиль", "Profile"),
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(22.dp),
-                            )
-                        }
-                        Spacer(modifier = Modifier.size(12.dp))
+                        HomeTopBarActions(
+                            onNavigateToConversations = onNavigateToConversations,
+                            onNavigateToProfile = onNavigateToProfile,
+                        )
                     },
                 )
             },

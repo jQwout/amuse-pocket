@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.shape.CircleShape
@@ -23,9 +24,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Hub
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -34,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -346,3 +351,42 @@ internal fun EmptyHint(text: String) {
     }
 }
 
+/**
+ * The top bar actions of Home: chat history and the round "Profile" avatar.
+ *
+ * The avatar opens the Profile screen, NOT Settings. It used to go to Settings, and a person looking for their
+ * own data ("I couldn't find my personal info", 31 Oct 2026) found a key field and a model picker instead.
+ * Settings is one tap further, on the gear inside Profile (and on the bottom bar's tools tab).
+ * @trace profile-screen-7354a7
+ */
+@Composable
+internal fun RowScope.HomeTopBarActions(
+    onNavigateToConversations: () -> Unit,
+    onNavigateToProfile: () -> Unit,
+) {
+    IconButton(onClick = onNavigateToConversations) {
+        Icon(
+            imageVector = Icons.Default.History,
+            contentDescription = tr("История чатов", "Chat history"),
+            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+        )
+    }
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+            .background(MaterialTheme.colorScheme.onPrimary)
+            .clickable(onClick = onNavigateToProfile)
+            .testTag("home_profile_avatar"),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Default.Person,
+            contentDescription = tr("Профиль", "Profile"),
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(22.dp),
+        )
+    }
+    Spacer(modifier = Modifier.size(12.dp))
+}
