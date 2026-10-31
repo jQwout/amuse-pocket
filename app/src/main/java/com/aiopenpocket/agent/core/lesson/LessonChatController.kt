@@ -15,6 +15,7 @@ import com.aiopenpocket.agent.core.llm.VideoUnderstandingClient
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.di.AppScope
 import com.aiopenpocket.i18n.tr
+import com.aiopenpocket.ui.roadmap.lessonDisplayTitle
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.withTimeoutOrNull
@@ -197,10 +198,13 @@ class LessonChatController(
    */
   suspend fun postCompletion(conversationId: String, lesson: Lesson) {
     // The card's texts are baked into the message in the language at the moment of publishing (like the
-    // lesson steps): lesson.title is already in that language — LessonRepository returns the English
-    // copy of the lesson if there is one.
+    // lesson steps). lesson.title is NOT reliably in that language: LessonRepository falls back to the
+    // Russian copy for a lesson without an English one, and the card then read "Lesson “<Russian title>”
+    // complete!". The roadmap's name for the lesson is always in the interface language (and matches the
+    // lesson files' titles), so it comes first; lesson.title only for a lesson the roadmap does not know.
+    val title = lessonDisplayTitle(lesson.id) ?: lesson.title
     val params = JSONObject()
-      .put("title", tr("Урок «${lesson.title}» пройден!", "Lesson “${lesson.title}” complete!"))
+      .put("title", tr("Урок «$title» пройден!", "Lesson “$title” complete!"))
       .put("subtitle", tr("Отличная работа.", "Great job."))
       .put("button_label", tr("Готово", "Done"))
     lesson.steps.lastOrNull()?.primaryAction?.let { action ->
