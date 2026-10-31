@@ -17,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -64,6 +65,9 @@ fun AcademyCollapsingScaffold(
     Scaffold(
       modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
       containerColor = effectiveContainer,
+      // Not contentColorFor(effectiveContainer): for Transparent that falls back to the ambient colour, which
+      // outside a Surface is black — every Text without its own colour came out dark on the dark aurora.
+      contentColor = contentColorFor(containerColor),
       topBar = {
         val bar: @Composable () -> Unit = {
           LargeTopAppBar(

@@ -6,16 +6,16 @@
       "git": "661d682"
     },
     "agent-memory-05e545": {
-      "hash": "dcf570132a26",
-      "git": "dba00395"
+      "hash": "8f5227775d1b",
+      "git": "21fba91e"
     },
     "agent-skills-7189cc": {
       "hash": "e3296460a332",
       "git": "0f1e9a5"
     },
     "ai-academy-onboarding-5d51bb": {
-      "hash": "dd7a7e96fc46",
-      "git": "c08de0e0"
+      "hash": "d30ce1727b9e",
+      "git": "21fba91e"
     },
     "app-settings-beb470": {
       "hash": "7ffff68e5e83",
@@ -26,8 +26,8 @@
       "git": "97ca7fba"
     },
     "background-tasks-15a34a": {
-      "hash": "97e03df3b5ca",
-      "git": "5530793"
+      "hash": "589f7d11a82a",
+      "git": "21fba91e"
     },
     "chat-font-size-setting-c72418": {
       "hash": "df096d1da66c",

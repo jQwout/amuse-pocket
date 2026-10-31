@@ -14,19 +14,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -37,11 +33,13 @@ import androidx.compose.ui.unit.dp
 import androidx.work.WorkInfo
 import com.aiopenpocket.agent.tools.WorkManagerTool
 import com.aiopenpocket.i18n.tr
+import com.aiopenpocket.ui.components.AcademyCollapsingScaffold
+import com.aiopenpocket.ui.components.glass.glassCardSurface
+import com.aiopenpocket.ui.components.glass.rememberGlassState
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.ui.util.formatDateTime
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScheduledWorksScreen(onNavigateBack: () -> Unit) {
   val viewModel = metroViewModel<ScheduledWorksViewModel>()
@@ -54,7 +52,6 @@ fun ScheduledWorksScreen(onNavigateBack: () -> Unit) {
   )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ScheduledWorksContent(
   works: List<ScheduledWorkItem>,
@@ -62,25 +59,30 @@ private fun ScheduledWorksContent(
   onNavigateBack: () -> Unit,
   onCancel: (ScheduledWorkItem) -> Unit,
 ) {
-  Scaffold(
-    topBar = {
-      TopAppBar(
-        title = { Text(tr("Запланированные задачи", "Scheduled tasks")) },
-        navigationIcon = {
-          IconButton(onClick = onNavigateBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = tr("Назад", "Back"))
-          }
-        },
-      )
+  // The glass header on the aurora, like Settings, which links here: the plain grey Material bar made this
+  // one screen look like a different app.
+  AcademyCollapsingScaffold(
+    title = tr("Запланированные задачи", "Scheduled tasks"),
+    glassState = rememberGlassState(),
+    navigationIcon = {
+      IconButton(onClick = onNavigateBack) {
+        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = tr("Назад", "Back"))
+      }
     },
   ) { padding ->
-    Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+    Box(modifier = Modifier.fillMaxSize()) {
       when {
-        isLoading -> CenteredText(tr("Загрузка...", "Loading..."))
-        works.isEmpty() -> CenteredText(tr("Нет активных задач", "No active tasks"))
+        isLoading -> CenteredText(tr("Загрузка...", "Loading..."), padding)
+        works.isEmpty() -> CenteredText(tr("Нет активных задач", "No active tasks"), padding)
+        // The scaffold paddings go into contentPadding, not .padding(): the list scrolls under the glass bar.
         else -> LazyColumn(
           modifier = Modifier.fillMaxSize(),
-          contentPadding = PaddingValues(16.dp),
+          contentPadding = PaddingValues(
+            start = 16.dp,
+            end = 16.dp,
+            top = padding.calculateTopPadding() + 8.dp,
+            bottom = padding.calculateBottomPadding() + 16.dp,
+          ),
           verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
           items(works, key = { it.id }) { work ->
@@ -93,18 +95,15 @@ private fun ScheduledWorksContent(
 }
 
 @Composable
-private fun CenteredText(text: String) {
-  Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+private fun CenteredText(text: String, padding: PaddingValues) {
+  Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
     Text(text, style = MaterialTheme.typography.bodyLarge)
   }
 }
 
 @Composable
 private fun WorkItemCard(work: ScheduledWorkItem, onCancel: () -> Unit) {
-  Card(
-    modifier = Modifier.fillMaxWidth(),
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-  ) {
+  Column(modifier = Modifier.fillMaxWidth().glassCardSurface(RoundedCornerShape(16.dp))) {
     Column(modifier = Modifier.padding(16.dp)) {
       Row(
         modifier = Modifier.fillMaxWidth(),
