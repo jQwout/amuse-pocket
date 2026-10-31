@@ -1,0 +1,38 @@
+{
+  "id": "rag",
+  "title": "RAG: answers from your own data",
+  "description": "Why the model doesn't know your files, and how finding the right pieces before it answers fixes that.",
+  "iconKey": "manage_search",
+  "steps": [
+    { "type": "reveal", "question": "A model was trained up to a certain point and hasn't read your notes from yesterday. How do you get an AI to answer from your personal files at all?", "answer": "You don't retrain the model. Before it answers, you find the right pieces in your documents and put them into the request. This technique is called RAG." },
+    { "type": "text", "text": "First, the problem. The model was trained on a huge pile of text, but only up to a certain point. That point is the training cutoff. It has no way of knowing your personal documents or anything that came out later. And if you ask it straight out, it may confidently make up an answer. That is a hallucination." },
+    { "type": "image", "asset": "lessons/images/generated/rag-db25b21a27.webp", "imagePrompt": "A friendly robot librarian pulls a few bookmarked pages from a shelf of personal notebooks and lays them next to a question card before writing an answer.", "caption": "First find the right pieces, then answer from them" },
+    { "type": "concept", "term": "RAG", "definition": "Retrieval-Augmented Generation: generation boosted by search. First find the right pieces in a collection of documents, then answer from them.", "example": "Asked about a deadline → the system found a piece of your notes → it answered from that." },
+    { "type": "text", "text": "The whole idea is in the name, and it has two parts. Retrieval means “found”: matching pieces were located in the collection. Generation means “generated”: an answer was written from them. First find, then answer, not the other way round." },
+    { "type": "text", "text": "How the collection is prepared. Documents are cut into small pieces ahead of time. Each piece is turned into an embedding, a set of numbers that captures its meaning: pieces with similar meaning get similar numbers. All of it goes into a special store, a vector database." },
+    { "type": "text", "text": "A fair note about this version of the app: full RAG over imported documents, with embeddings and a vector database, is not built in here yet. From here on we look at the technique itself: how it works and why it's useful." },
+    { "type": "example", "label": "What gets put into the prompt with RAG", "parts": [
+        { "text": "Working rules and persona", "role": "pre-prompt", "note": "a hidden block" },
+        { "text": "2–3 pieces found in the documents", "role": "context", "note": "only what's needed, not the whole collection" },
+        { "text": "Your question", "role": "request", "note": "what you asked" }
+      ] },
+    { "type": "animation", "scene": "rag", "caption": "Pick a question. The similarity of the pieces is an example: real RAG computes it from embeddings" },
+    { "type": "scenario", "situation": "You asked about a clause in a contract, and the search found nothing similar in the collection.", "q": "What should the agent do?", "options": ["Say honestly it found nothing, and invent nothing", "Invent a plausible answer that sounds convincing", "Answer with a generic phrase from its own memory"], "correct": 0, "explain": "Without found context, it must not invent anything: that is a direct path to hallucination. An honest “I didn't find it” is better." },
+    { "type": "fill", "template": "Search in RAG goes not by exact words but by ___", "answer": "meaning", "answers": ["meanings", "sense", "semantics"], "caseSensitive": false },
+    { "type": "sort", "instruction": "Put the RAG steps in order, from question to answer:", "items": ["Find the pieces close in meaning", "Turn the question into numbers", "The model answers from what was found", "Put the found pieces into the prompt"], "correct": [1, 0, 3, 2], "explain": "Question → numbers → search for close pieces → put into the prompt → answer." },
+    { "type": "match", "instruction": "Match each term with its description:", "pairs": [
+        { "term": "Retrieval", "def": "Found the right pieces in the collection" },
+        { "term": "Generation", "def": "An answer from the found text" },
+        { "term": "Embedding", "def": "Numbers that capture meaning" },
+        { "term": "Hallucination", "def": "A confidently made-up answer" }
+      ] },
+    { "type": "scenario", "situation": "The question: “what did I write about the project deadline in my Tuesday notes?”", "q": "Which question truly needs RAG?", "options": ["This one: the answer exists only in your document", "None: the model knows everything from training", "Only questions about the weather and the news"], "correct": 0, "explain": "The answer lives in a personal document. Without searching it, the model simply doesn't know it. That is the case for RAG." },
+    { "type": "text", "text": "Practice for a future document RAG. Take a question whose answer exists only in your document, and write down: which file would need to be indexed, which fragment the search should find, and what the agent must say if nothing is found. In the current version of the app, full embedding search over imported documents is not implemented yet." },
+    { "type": "text", "text": "In short. RAG = find what's needed, then answer. Documents are cut into pieces and turned into numbers (embeddings). For a question, the pieces closest in meaning are found and put into the prompt, and the model answers from them. You get fresh and personal knowledge, fewer made-up answers, and a visible source. In this app, indexing documents is not built in yet, but now you understand the technique." },
+    { "type": "quiz", "questions": [
+        { "q": "Does RAG retrain the model on your documents?", "options": ["No: the needed text is just put into the prompt for one specific answer", "Yes, the model trains on them and remembers the content forever", "Yes, but the retraining only works on pictures"], "correct": 0, "explain": "The model remembers nothing. For every question, the needed piece is searched for and put in again." },
+        { "q": "Is RAG when the model googles live?", "options": ["No: it searches a collection of documents prepared in advance", "Yes, every time it goes online for fresh pages", "Yes, but it only looks at Wikipedia and dictionaries"], "correct": 0, "explain": "RAG searches a prepared collection. Live web search is a separate tool." },
+        { "q": "What does the model get with RAG?", "options": ["Only the found piece and your question, not the whole collection", "The whole collection of documents, with every question", "Nothing: RAG works entirely without the model"], "correct": 0, "explain": "Only what's needed for this answer goes up, not the whole archive." }
+      ] }
+  ]
+}
