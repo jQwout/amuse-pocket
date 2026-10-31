@@ -43,33 +43,59 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 import kotlinx.coroutines.delay
 
 /** A step on the track: what was done, what the executor said while doing it and whether the step failed. */
 private class WfMove(val title: String, val note: String, val failed: Boolean = false)
 
 // The lesson's example: a photo of a document came in — recognize it, translate it, make a summary.
-private val RAIL_MOVES = listOf(
-    WfMove("Распознать текст", "шаг 1 по сценарию — распознаю"),
-    WfMove("Перевести", "шаг 2 по сценарию — перевожу"),
-    WfMove("Сделать выжимку", "шаг 3 по сценарию — сокращаю. Конец маршрута"),
-)
-private val RAIL_SURPRISE = listOf(
-    WfMove("Распознать текст", "вместо текста каша, а шага «повернуть фото» в сценарии нет", failed = true),
-)
+// Getters, not stored lists: tr() has to run when the scene is drawn, so a language switch is seen at once.
+private val RAIL_MOVES: List<WfMove>
+    get() = listOf(
+        WfMove(tr("Распознать текст", "Recognize the text"), tr("шаг 1 по сценарию — распознаю", "step 1 of the script — recognizing")),
+        WfMove(tr("Перевести", "Translate"), tr("шаг 2 по сценарию — перевожу", "step 2 of the script — translating")),
+        WfMove(tr("Сделать выжимку", "Make a summary"), tr("шаг 3 по сценарию — сокращаю. Конец маршрута", "step 3 of the script — summarizing. End of the route")),
+    )
+private val RAIL_SURPRISE: List<WfMove>
+    get() = listOf(
+        WfMove(
+            tr("Распознать текст", "Recognize the text"),
+            tr("вместо текста каша, а шага «повернуть фото» в сценарии нет", "garbage instead of text, and the script has no “rotate the photo” step"),
+            failed = true,
+        ),
+    )
 // Every time the agent talks through its choice: what it sees and which step it takes next.
-private val AGENT_MOVES = listOf(
-    WfMove("Распознать текст", "сначала нужен текст — выбираю «распознать»"),
-    WfMove("Перевести", "текст есть — выбираю «перевести»"),
-    WfMove("Сделать выжимку", "перевод готов — выбираю «выжимку». Цель достигнута, стоп"),
-)
-private val AGENT_SURPRISE = listOf(
-    WfMove("Распознать текст", "выбираю «распознать»… а вместо текста каша", failed = true),
-    WfMove("Повернуть фото", "похоже, фото вверх ногами — выбираю «повернуть»"),
-    WfMove("Распознать ещё раз", "теперь читается — снова выбираю «распознать»"),
-    WfMove("Перевести", "текст есть — выбираю «перевести»"),
-    WfMove("Сделать выжимку", "перевод готов — выбираю «выжимку». Цель достигнута, стоп"),
-)
+private val AGENT_MOVES: List<WfMove>
+    get() = listOf(
+        WfMove(tr("Распознать текст", "Recognize the text"), tr("сначала нужен текст — выбираю «распознать»", "I need the text first — choosing “recognize”")),
+        WfMove(tr("Перевести", "Translate"), tr("текст есть — выбираю «перевести»", "I have the text — choosing “translate”")),
+        WfMove(
+            tr("Сделать выжимку", "Make a summary"),
+            tr("перевод готов — выбираю «выжимку». Цель достигнута, стоп", "translation done — choosing “summary”. Goal reached, stop"),
+        ),
+    )
+private val AGENT_SURPRISE: List<WfMove>
+    get() = listOf(
+        WfMove(
+            tr("Распознать текст", "Recognize the text"),
+            tr("выбираю «распознать»… а вместо текста каша", "choosing “recognize”… but it's garbage instead of text"),
+            failed = true,
+        ),
+        WfMove(
+            tr("Повернуть фото", "Rotate the photo"),
+            tr("похоже, фото вверх ногами — выбираю «повернуть»", "the photo looks upside down — choosing “rotate”"),
+        ),
+        WfMove(
+            tr("Распознать ещё раз", "Recognize again"),
+            tr("теперь читается — снова выбираю «распознать»", "it's readable now — choosing “recognize” again"),
+        ),
+        WfMove(tr("Перевести", "Translate"), tr("текст есть — выбираю «перевести»", "I have the text — choosing “translate”")),
+        WfMove(
+            tr("Сделать выжимку", "Make a summary"),
+            tr("перевод готов — выбираю «выжимку». Цель достигнута, стоп", "translation done — choosing “summary”. Goal reached, stop"),
+        ),
+    )
 
 /** The agent with a surprise has the most steps: space is kept for them so the buttons do not jump. */
 private const val WF_MAX_ROWS = 5
@@ -106,13 +132,17 @@ internal fun WorkflowVsAgentScene() {
     val error = MaterialTheme.colorScheme.error
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Задача: прислали фото документа — нужен перевод и выжимка", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(tr("Задача: прислали фото документа — нужен перевод и выжимка", "The task: a photo of a document came in — it needs a translation and a summary"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = !agent, onClick = { agent = false }, label = { Text("Воркфлоу") })
-            FilterChip(selected = agent, onClick = { agent = true }, label = { Text("Агент") })
+            FilterChip(selected = !agent, onClick = { agent = false }, label = { Text(tr("Воркфлоу", "Workflow")) })
+            FilterChip(selected = agent, onClick = { agent = true }, label = { Text(tr("Агент", "Agent")) })
         }
         Text(
-            text = if (agent) "Агент выбирает шаги сам · решений: $shown" else "Шаги прописаны заранее · решений: 0",
+            text = if (agent) {
+                tr("Агент выбирает шаги сам · решений: $shown", "The agent picks the steps itself · decisions: $shown")
+            } else {
+                tr("Шаги прописаны заранее · решений: 0", "Steps are set in advance · decisions: 0")
+            },
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.outline,
             maxLines = 1,
@@ -123,7 +153,7 @@ internal fun WorkflowVsAgentScene() {
         ) {
             if (agent) {
                 if (shown == 0) {
-                    Text("Агент ещё не знает, какие будут шаги — решит по ходу", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                    Text(tr("Агент ещё не знает, какие будут шаги — решит по ходу", "The agent doesn't know the steps yet — it will decide as it goes"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
                 }
                 moves.take(shown).forEachIndexed { index, move -> WfRow(index + 1, move.title, reached = true, failed = move.failed) }
             } else {
@@ -143,8 +173,8 @@ internal fun WorkflowVsAgentScene() {
         ) {
             Text(
                 text = when {
-                    shown > 0 -> "${if (agent) "Агент" else "Воркфлоу"}: ${moves[shown - 1].note}"
-                    runs == 0 -> "Нажми «Запустить» — или подкинь сюрприз"
+                    shown > 0 -> "${if (agent) tr("Агент", "Agent") else tr("Воркфлоу", "Workflow")}: ${moves[shown - 1].note}"
+                    runs == 0 -> tr("Нажми «Запустить» — или подкинь сюрприз", "Tap “Run” — or throw in a surprise")
                     else -> "…"
                 },
                 style = MaterialTheme.typography.bodyMedium,
@@ -156,10 +186,10 @@ internal fun WorkflowVsAgentScene() {
         Text(
             text = when {
                 !done -> " "
-                !agent && !surprise -> "Те же шаги в том же порядке — предсказуемо и дёшево"
-                !agent -> "Рельсы встали: на такой случай ветки нет"
-                !surprise -> "Дошёл, но каждый шаг выбирал сам — и каждое решение стоит запроса к модели"
-                else -> "Сам вставил «повернуть фото» и дошёл — гибко. Но решений уже пять, и каждое стоит запроса"
+                !agent && !surprise -> tr("Те же шаги в том же порядке — предсказуемо и дёшево", "The same steps in the same order — predictable and cheap")
+                !agent -> tr("Рельсы встали: на такой случай ветки нет", "The rails stopped: there is no branch for this case")
+                !surprise -> tr("Дошёл, но каждый шаг выбирал сам — и каждое решение стоит запроса к модели", "It got there, but it chose every step itself — and every decision costs a model request")
+                else -> tr("Сам вставил «повернуть фото» и дошёл — гибко. Но решений уже пять, и каждое стоит запроса", "It added “rotate the photo” on its own and got there — flexible. But that is already five decisions, and each costs a request")
             },
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
@@ -168,18 +198,18 @@ internal fun WorkflowVsAgentScene() {
             maxLines = 2,
         )
         Text(
-            text = if (done) "Задача чёткая и повторяется — воркфлоу. План заранее неизвестен — агент" else " ",
+            text = if (done) tr("Задача чёткая и повторяется — воркфлоу. План заранее неизвестен — агент", "A clear, repeating task — workflow. A plan unknown in advance — agent") else " ",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.outline,
             minLines = 2,
             maxLines = 2,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(onClick = { surprise = false; runs++ }, modifier = Modifier.weight(1f)) { Text("Запустить") }
+            Button(onClick = { surprise = false; runs++ }, modifier = Modifier.weight(1f)) { Text(tr("Запустить", "Run")) }
             OutlinedButton(onClick = { surprise = true; runs++ }, modifier = Modifier.weight(1f)) {
                 Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(4.dp))
-                Text("Сюрприз")
+                Text(tr("Сюрприз", "Surprise"))
             }
         }
     }
@@ -219,7 +249,7 @@ private fun WfRow(number: Int, title: String, reached: Boolean, failed: Boolean)
         if (reached) {
             Icon(
                 imageVector = if (failed) Icons.Default.Close else Icons.Default.Check,
-                contentDescription = if (failed) "сорвался" else "готово",
+                contentDescription = if (failed) tr("сорвался", "failed") else tr("готово", "done"),
                 tint = if (failed) error else SceneInk,
                 modifier = Modifier.size(18.dp),
             )

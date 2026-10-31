@@ -1,0 +1,23 @@
+{
+  "id": "muse_image_draws",
+  "title": "How Muse Image draws",
+  "description": "Meta's image model plans first, then draws and checks. And why one prompt gives a new picture every time.",
+  "iconKey": "auto_awesome",
+  "steps": [
+    {"type": "text", "text": "Most of the illustrations in these lessons were drawn by Muse Image, Meta's image model. It doesn't take ready-made pictures from the internet. Every time, it draws something new from a text description — a prompt."},
+    {"type": "concept", "term": "A reasoning model for images", "definition": "Muse Image first plans the composition — what goes where — then draws and checks its draft. If something doesn't match the prompt, it fixes that part or redraws the whole picture.", "example": "Prompt: “a cat on a windowsill in the rain.” Plan: window, cat, raindrops. Check: no raindrops? Add them."},
+    {"type": "image", "asset": "lessons/images/generated/muse_image_draws-b2c5cd12e0.webp", "imagePrompt": "A robot artist at an easel making a rough pencil sketch of a cat on a windowsill, with the finished colorful painting of the same scene standing next to it.", "caption": "First a plan, then a drawing, then a check"},
+    {"type": "animation", "scene": "image_reasoning", "caption": "Step through the picture's path, then run it again: same prompt, new picture"},
+    {"type": "text", "text": "Did you notice? The same prompt gives a new picture every time. That's not a glitch: image generation has some randomness in it, like temperature in text models. So for a series of pictures in one style, you write the style into the prompt itself. That's how the illustrations for these lessons were made."},
+    {"type": "text", "text": "How do you write a prompt for a picture? Describe the scene: who, where, doing what, and the mood. Name the style. Say what you don't want — for example, “no text.” Letters in generated pictures often come out with mistakes."},
+    {"type": "scenario", "situation": "You're drawing five pictures for a presentation, and they all come out in different styles.", "q": "What helps?", "options": ["Describe the same style in every prompt", "Repeat the request until the style matches by chance", "Ask it to “do it like last time”"], "correct": 0, "explain": "The model doesn't remember earlier pictures. A shared style holds only if it's written into every prompt."},
+    {"type": "text", "text": "The “Draw it for me” button on lesson pictures works the same way. The app takes the step's prompt and adds the “about you” note from your profile — only that, plus the language. Your name, age and gender stay on the phone. Muse Image redraws the same idea around your life."},
+    {"type": "reveal", "question": "Why does every picture cost money, even one you didn't like?", "answer": "The model did all the work: it planned, drew and checked. You pay for the generation, not for the result. That's why the illustrations for the lessons were drawn in advance and ship inside the app: showing them is free and works offline."},
+    {"type": "text", "text": "In short. Muse Image is a reasoning model: it plans the composition, draws, and checks itself. One prompt gives a new picture every time, so you write the style of a series into every prompt. Every generation costs money — even one you didn't like."},
+    {"type": "quiz", "questions": [
+      {"q": "What does Muse Image do before it draws?", "options": ["Plans the composition of the scene", "Looks for a similar picture online", "Draws right away, with no plan"], "correct": 0, "explain": "First a plan — what goes where — then the drawing and a check."},
+      {"q": "Why does one prompt give different pictures?", "options": ["The model updates itself every time", "Generation has some randomness in it", "The model avoids repeating the last one"], "correct": 1, "explain": "As with text models, picture generation has randomness in it."},
+      {"q": "What is sent to the model by the “Draw it for me” button?", "options": ["Your name, age and profile photo", "Your whole chat history", "The step's prompt, “about you” and language"], "correct": 2, "explain": "Only the step's prompt, your “about you” note and the language. Everything else stays on the phone."}
+    ]}
+  ]
+}

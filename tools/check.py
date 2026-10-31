@@ -420,23 +420,17 @@ SCREEN_RU_EXEMPT = {
 _SCENES = "app/src/main/java/com/aiopenpocket/ui/chat/components/"
 SCREEN_RU_LESSON_ONLY = {
     _SCENES + "SceneChainRouter.kt": "chaining_and_routing",
-    _SCENES + "SceneConfidentWrong.kt": "hallucinations",
     _SCENES + "SceneContextBudget.kt": "context_engineering",
     _SCENES + "SceneContextWindow.kt": "memory_and_context",
-    _SCENES + "SceneDataFlow.kt": "privacy_and_reliability",
     _SCENES + "SceneDraftCritique.kt": "reflection",
     _SCENES + "SceneGoalLoop.kt": "goal_mode",
-    _SCENES + "SceneImageReasoning.kt": "muse_image_draws",
-    _SCENES + "SceneOpenWeights.kt": "open_weights_and_api",
     _SCENES + "ScenePlanGate.kt": "plan_mode",
     _SCENES + "SceneRag.kt": "rag",
     _SCENES + "SceneReactLoop.kt": "react_loop",
     _SCENES + "SceneRiskGate.kt": "tool_approval_and_limits",
     _SCENES + "SceneSkillLevels.kt": "agent_skills",
     _SCENES + "SceneStepEvidence.kt": "structured_plans",
-    _SCENES + "SceneThinkingModes.kt": "muse_spark_modes",
     _SCENES + "SceneToolCall.kt": "agent_tools",
-    _SCENES + "SceneWorkflowVsAgent.kt": "workflow_and_agent",
 }
 
 # After one of these a "(" is a plain parenthesis, not a call; after anything else that is an identifier
