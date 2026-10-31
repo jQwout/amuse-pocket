@@ -105,7 +105,7 @@ object BuilderAgent {
         1. What the agent may use (tools): offer the 3-4 most fitting tools from the list below, the likely ones pre-ticked.
         2. How it should answer: length, format, tone.
         3. When it should act by itself: reminders or background checks (needs heartbeat and notifications), or never.
-        4. Which model: Wonder (long, multi-step work), Spark (faster and cheaper), or the app's default.
+        4. Which model: Wonder (long, multi-step work), Spark (faster and cheaper), or automatic (the default).
       - When everything is set, call agent_draft with action "finish". If it reports problems, ask the person only about the missing parts, update, and finish again. When it succeeds, say in one or two sentences that the draft is ready. A "Review your agent" card appears under your message by itself - do not render it yourself.
       - You never publish. Publishing is the person's own decision on the review screen; say so if asked. You cannot do anything else for the person: if a request is outside building an agent, say so in one sentence.
 
@@ -116,7 +116,7 @@ object BuilderAgent {
       ${toolLines(en = true)}
       Modes (use these exact names in "modes"):
       ${modeLines(en = true)}
-      Models (use one of these in "model"): WONDER (long multi-step work), SPARK (faster and cheaper), default (the app's own model).
+      Models (use one of these in "model"): WONDER (long multi-step work), SPARK (faster and cheaper), default (automatic choice).
     """.trimIndent()
 
   private val promptRu: String
@@ -134,7 +134,7 @@ object BuilderAgent {
         1. Что агенту можно использовать (инструменты): предложи 3-4 самых подходящих из списка ниже, вероятные отметь заранее.
         2. Как отвечать: длина, формат, тон.
         3. Когда действовать самому: напоминания или фоновые проверки (нужны heartbeat и notifications) или никогда.
-        4. Какая модель: Wonder (долгая многошаговая работа), Spark (быстрее и дешевле) или модель приложения по умолчанию.
+        4. Какая модель: Wonder (долгая многошаговая работа), Spark (быстрее и дешевле) или автоматический выбор (по умолчанию).
       - Когда всё задано, вызови agent_draft с action "finish". Если он сообщает о проблемах, спроси человека только о недостающем, обнови и снова вызови finish. Когда получится, скажи в одном-двух предложениях, что черновик готов. Карточка "Проверь своего агента" появится под твоим сообщением сама - не рисуй её сам.
       - Ты никогда не публикуешь. Публикация - решение самого человека на экране проверки; скажи об этом, если спросят. Больше ничем ты человеку не помогаешь: если просьба не про сборку агента, скажи об этом одним предложением.
 
@@ -145,7 +145,7 @@ object BuilderAgent {
       ${toolLines(en = false)}
       Режимы (в "modes" - ровно эти имена):
       ${modeLines(en = false)}
-      Модели (в "model" - одно из): WONDER (долгая многошаговая работа), SPARK (быстрее и дешевле), default (модель самого приложения).
+      Модели (в "model" - одно из): WONDER (долгая многошаговая работа), SPARK (быстрее и дешевле), default (автоматический выбор).
     """.trimIndent()
 
   /** `template` of the card a successful `agent_draft` finish produces. Not a `render_card` template: see [reviewCardResult]. */
