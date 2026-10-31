@@ -24,22 +24,31 @@ import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.filled.ManageSearch
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.AltRoute
+import androidx.compose.material.icons.filled.Architecture
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.Construction
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Loop
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.TrackChanges
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.WavingHand
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -199,13 +208,18 @@ private fun LibraryLesson.displayDescription(): String {
   return tr(description, en)
 }
 
-private fun lessonIcon(key: String): ImageVector = when (key) {
+/**
+ * The icon for a lesson's `iconKey`, or null if no icon is mapped to it. Split from [lessonIcon] so a test can
+ * tell "mapped" from "fell back to the generic Article": nine lessons used to land there silently, because a
+ * JSON key nobody mapped looks exactly like a mapped one on screen.
+ */
+internal fun lessonIconOrNull(key: String): ImageVector? = when (key) {
   "flag" -> Icons.Default.Flag
   "checklist" -> Icons.Default.Checklist
   "loop", "cycle" -> Icons.Default.Loop
   "bolt", "speed" -> Icons.Default.Bolt
   "hub", "network" -> Icons.Default.Hub
-  "tree", "routing" -> Icons.Default.AccountTree
+  "tree", "routing", "account_tree" -> Icons.Default.AccountTree
   "shield", "privacy" -> Icons.Default.Shield
   "memory" -> Icons.Default.Memory
   "extension" -> Icons.Default.Extension
@@ -218,5 +232,16 @@ private fun lessonIcon(key: String): ImageVector = when (key) {
   "auto_awesome", "reflect" -> Icons.Default.AutoAwesome
   "book" -> Icons.AutoMirrored.Filled.MenuBook
   "videocam", "vision" -> Icons.Default.Videocam
-  else -> Icons.AutoMirrored.Filled.Article
+  "smart_toy" -> Icons.Default.SmartToy
+  "psychology" -> Icons.Default.Psychology
+  "alt_route" -> Icons.Default.AltRoute
+  "sync" -> Icons.Default.Sync
+  "alarm" -> Icons.Default.Alarm
+  "groups" -> Icons.Default.Groups
+  "construction" -> Icons.Default.Construction
+  "architecture" -> Icons.Default.Architecture
+  "waving_hand" -> Icons.Default.WavingHand
+  else -> null
 }
+
+private fun lessonIcon(key: String): ImageVector = lessonIconOrNull(key) ?: Icons.AutoMirrored.Filled.Article

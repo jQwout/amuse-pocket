@@ -266,10 +266,10 @@ val ROADMAP_LEVELS = listOf(
   RoadmapLevel(
     "build_your_agent",
     "Собери своего агента",
-    "Как все части курса складываются в собственного агента через конструктор из шести шагов.",
+    "Как все части курса складываются в собственного агента: чат с Конструктором, экран проверки и публикация.",
     Icons.Default.Build,
     titleEn = "Build your own agent",
-    descriptionEn = "How all the parts of the course come together into your own agent in a six-step builder.",
+    descriptionEn = "How all the parts of the course come together into your own agent: a chat with Builder, a review screen and publishing.",
   ),
   RoadmapLevel(
     "plan_mode",
