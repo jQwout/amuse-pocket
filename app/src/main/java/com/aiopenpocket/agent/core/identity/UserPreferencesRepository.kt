@@ -7,7 +7,6 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.aiopenpocket.di.AppScope
@@ -72,23 +71,6 @@ class UserPreferencesRepository(
       .map { prefs -> prefs[KEY_LANGUAGE] ?: DEFAULT_LANGUAGE }
       .first()
 
-  /** Goal-mode iteration limit (the ReAct loop until the goal is reached). 3 by default. */
-  val goalModeMaxIterations: Flow<Int> =
-    dataStore.data.map { prefs ->
-      prefs[KEY_GOAL_MODE_MAX_ITERATIONS] ?: DEFAULT_GOAL_MODE_MAX_ITERATIONS
-    }
-
-  suspend fun getGoalModeMaxIterations(): Int =
-    dataStore.data
-      .map { prefs -> prefs[KEY_GOAL_MODE_MAX_ITERATIONS] ?: DEFAULT_GOAL_MODE_MAX_ITERATIONS }
-      .first()
-
-  suspend fun setGoalModeMaxIterations(value: Int) {
-    dataStore.edit { prefs ->
-      prefs[KEY_GOAL_MODE_MAX_ITERATIONS] = value.coerceIn(1, GOAL_MODE_MAX_ITERATIONS_CAP)
-    }
-  }
-
   /** The chat message font size preset. Stored by enum name; an unknown value → MEDIUM. */
   val chatFontScale: Flow<ChatFontScale> =
     dataStore.data.map { prefs ->
@@ -136,14 +118,11 @@ class UserPreferencesRepository(
   companion object {
     const val DEFAULT_PERSONA_ID = "sharp_partner"
     const val DEFAULT_LANGUAGE = "ru"
-    const val DEFAULT_GOAL_MODE_MAX_ITERATIONS = 3
-    const val GOAL_MODE_MAX_ITERATIONS_CAP = 10
 
     private val KEY_ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
     private val KEY_DEFAULT_PERSONA_ID = stringPreferencesKey("default_persona_id")
     private val KEY_ROADMAP_PROGRESS = stringPreferencesKey("roadmap_progress")
     private val KEY_LANGUAGE = stringPreferencesKey("language")
-    private val KEY_GOAL_MODE_MAX_ITERATIONS = intPreferencesKey("goal_mode_max_iterations")
     private val KEY_CHAT_FONT_SCALE = stringPreferencesKey("chat_font_scale")
 
     /** Roadmap level id of the onboarding lesson; completed automatically after onboarding. */

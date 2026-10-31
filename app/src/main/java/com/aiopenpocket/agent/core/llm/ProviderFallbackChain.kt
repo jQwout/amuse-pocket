@@ -10,19 +10,16 @@ class ProviderFallbackChain(
   // A function rather than a ready map: the catalog is read again on every resolve, so a list fixed when
   // the graph is built cannot go stale.
   private val configsFor: (LlmProvider) -> List<ProviderConfig>,
-  // A lambda (not a value) — like apiKeyResolver in ProviderConfig: it is read again on every resolve(),
-  // so a model change in Settings is picked up from the very next turn, without rebuilding the DI graph.
-  private val preferredModel: () -> String? = { null },
 ) {
   /** A static map — for tests and for providers whose model list does not change at runtime. */
   constructor(
     configs: Map<LlmProvider, List<ProviderConfig>>,
-    preferredModel: () -> String? = { null },
-  ) : this({ configs[it].orEmpty() }, preferredModel)
+  ) : this({ configs[it].orEmpty() })
 
   /**
-   * Configs of ONLY the requested provider, in attempt order: the model the user chose first, the rest
-   * as a fallback by priority.
+   * Configs of ONLY the requested provider, in attempt order: the catalog's priority order, with the
+   * agent's own model family pulled to the front when it names one. There is no app-wide model choice any
+   * more (it left Settings on 31 Oct 2026: the model is the agent's own knob, the app default is automatic).
    *
    * There is no cross-provider branch here any more (it used to be `AUTO`): the provider is chosen
    * explicitly, and a request cannot silently go to another vendor. Fallback between MODELS of one
@@ -34,24 +31,14 @@ class ProviderFallbackChain(
     // cache written by a previous app version. A model without tools does not fail, it silently stops
     // calling tools, and from the outside that is "the agent got dumb", not a wrong setting. For the
     // same reason models that train on the user's data are filtered here too: a previous version's
-    // cache may still contain them, and a user who chose one would keep sending their data into it.
+    // cache may still contain them, and they would keep receiving the person's data.
     val base = configsFor(requested).filter { it.supportsTools && !trainsOnUserData(it.model) }
-    // "AUTO" is a settings sentinel, "not chosen by hand, go by priority", not a model name. The
-    // LlmProvider.AUTO mode is gone, but the string lives on in SettingsRepository as the default, and
-    // without an explicit check it would be silently looked up among the models (it would find none —
-    // harmless, but by accident).
-    val preferred = preferredModel()?.takeIf { it.isNotBlank() && it != "AUTO" }
-    // Compare ONLY by model name: base is already narrowed to one provider. Truncate AFTER the choice:
-    // the chosen model may be the last one in the catalog.
-    val (match, rest) = base.partition { it.model == preferred }
-    val ordered = match + rest
-    // The agent's own model goes in front of the user's app-wide choice (which stays as the first
-    // fallback). Only the single best catalog entry of the family is pulled forward: "Spark" means the
-    // newest Spark the active catalog lists, not every Spark. A family the active route does not have
-    // leaves the chain untouched, so a turn never fails over a model choice.
-    val agentFirst = agentModel?.let { m -> ordered.firstOrNull { m.matches(it.model) } }
-      ?: return ordered.take(MAX_ATTEMPTS)
-    return (listOf(agentFirst) + ordered.filter { it !== agentFirst }).take(MAX_ATTEMPTS)
+    // The agent's own model goes in front. Only the single best catalog entry of the family is pulled
+    // forward: "Spark" means the newest Spark the active catalog lists, not every Spark. A family the active
+    // route does not have leaves the chain untouched, so a turn never fails over a model choice.
+    val agentFirst = agentModel?.let { m -> base.firstOrNull { m.matches(it.model) } }
+      ?: return base.take(MAX_ATTEMPTS)
+    return (listOf(agentFirst) + base.filter { it !== agentFirst }).take(MAX_ATTEMPTS)
   }
 
   private companion object {

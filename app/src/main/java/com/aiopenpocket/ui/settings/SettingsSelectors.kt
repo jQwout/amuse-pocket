@@ -2,7 +2,7 @@ package com.aiopenpocket.ui.settings
 
 // @trace app-settings-beb470
 //
-// The settings selectors: one row shape (SettingsSelectorRow) for model, theme and persona, and the glass
+// The settings selectors: one row shape (SettingsSelectorRow) for theme, language, persona and the Profile entry, and the glass
 // sheet with the list of values that the row opens.
 
 import androidx.compose.foundation.background
@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -110,7 +111,7 @@ private fun SettingsSelectorRow(
   }
 }
 
-/** A value selector (model, theme). Opens a [SelectorSheet] — nothing drops down by itself. */
+/** A value selector (theme, language). Opens a [SelectorSheet] — nothing drops down by itself. */
 @Composable
 internal fun SelectorCard(
   label: String,
@@ -265,6 +266,25 @@ internal fun PersonaSelectorCard(
     icon = Icons.Default.Psychology,
     onClick = onClick,
     testTag = "settings_persona_selector",
+    modifier = modifier,
+  )
+}
+
+/**
+ * The way from Settings to the Profile screen: the person's own details and what the assistant remembers.
+ * The same row shape as the selectors, so it reads as the first of the family rather than a stray banner.
+ */
+@Composable
+internal fun ProfileEntryCard(
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  SettingsSelectorRow(
+    label = tr("ЛИЧНЫЕ ДАННЫЕ И ЧТО ПОМНИТ АССИСТЕНТ", "YOUR DETAILS AND WHAT THE ASSISTANT REMEMBERS"),
+    value = tr("Профиль", "Profile"),
+    icon = Icons.Default.Person,
+    onClick = onClick,
+    testTag = "settings_profile_entry",
     modifier = modifier,
   )
 }

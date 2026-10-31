@@ -169,6 +169,15 @@ class MainActivity : ComponentActivity() {
                                     restoreState = true
                                 }
                             }
+                            // Settings and Profile link to each other (the card, the gear). launchSingleTop only
+                            // dedups against the TOP entry, so a plain navigate would stack
+                            // Settings -> Profile -> Settings -> Profile ... one entry per round trip. If the target is
+                            // already in the stack, go back to it instead; navigate only when it is not.
+                            val openOrReturnTo: (String) -> Unit = { route ->
+                                if (!navController.popBackStack(route, inclusive = false)) {
+                                    navController.navigate(route) { launchSingleTop = true }
+                                }
+                            }
                             // The fade under the clock — ONE for the whole app, on top of NavHost: screens do not
                             // know about it and cannot forget to add it. It intercepts nothing (it is
                             // just a background), so lying on top is safe.
@@ -374,16 +383,17 @@ class MainActivity : ComponentActivity() {
                                         onNavigateToScheduledWorks = { navController.navigate("scheduled_works") },
                                         onNavigateToHome = { navigateToTab("home") },
                                         onNavigateToRoadmap = { navigateToTab("roadmap") },
+                                        onOpenProfile = { openOrReturnTo("profile") },
                                     )
                                 }
                                 // @trace profile-screen-7354a7
                                 composable("profile") {
                                     ProfileScreen(
                                         onNavigateBack = { navController.popBackStack() },
-                                        // Pushed on top of Profile (not a tab switch): "Back" returns here.
-                                        onOpenSettings = {
-                                            navController.navigate("settings") { launchSingleTop = true }
-                                        },
+                                        // Pushed on top of Profile (not a tab switch): "Back" returns here. If Settings
+                                        // is already beneath (Settings -> Profile -> gear), return to it rather than stack
+                                        // a second copy.
+                                        onOpenSettings = { openOrReturnTo("settings") },
                                         onOpenMemoryGraph = {
                                             navController.navigate("memory_graph") { launchSingleTop = true }
                                         },

@@ -149,6 +149,21 @@ class AgentDraftToolTest {
   }
 
   @Test
+  fun `goal_max_rounds is stored on the draft, kept by later updates and range checked`() = runTest {
+    fillDraft("modes" to list("CHAT", "GOAL"), "goal_max_rounds" to JsonPrimitive(6))
+    assertEquals(6, repository.get(draftId)!!.goalMaxRounds)
+
+    // A later update that does not mention it leaves it alone.
+    tool.execute(args("update", "name" to JsonPrimitive("Spending coach")))
+    assertEquals(6, repository.get(draftId)!!.goalMaxRounds)
+
+    // Out of range is refused and changes nothing.
+    val tooMany = tool.execute(args("update", "goal_max_rounds" to JsonPrimitive(11)))
+    assertTrue(tooMany is ToolResult.Error)
+    assertEquals(6, repository.get(draftId)!!.goalMaxRounds)
+  }
+
+  @Test
   fun `an array sent as a comma separated string is understood`() = runTest {
     fillDraft("tools" to JsonPrimitive("memory_tool, alarm"))
 

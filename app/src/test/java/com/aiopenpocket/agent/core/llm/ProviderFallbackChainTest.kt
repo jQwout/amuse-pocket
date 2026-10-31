@@ -14,43 +14,14 @@ class ProviderFallbackChainTest {
     apiKeyResolver = { "key" },
   )
 
-  private fun chainOf(vararg configs: ProviderConfig, preferred: String? = null) = ProviderFallbackChain(
+  private fun chainOf(vararg configs: ProviderConfig) = ProviderFallbackChain(
     configs = mapOf(LlmProvider.META to configs.toList()),
-    preferredModel = { preferred },
   )
 
   @Test
-  fun `preserves model order by priority when nothing is preferred`() {
+  fun `preserves model order by priority`() {
     val chain = chainOf(config("model-1"), config("model-2"), config("model-3"))
     assertEquals(listOf("model-1", "model-2", "model-3"), chain.resolve(LlmProvider.META).map { it.model })
-  }
-
-  /**
-   * The model choice in Settings takes effect: the chosen one goes first, the rest as fallback. The old
-   * check `it.name == LlmProvider.NIM` once silently sent a user back to the default model,
-   * although Settings showed them the chosen one.
-   */
-  @Test
-  fun `preferred model goes first, the rest stay as fallbacks`() {
-    val chain = chainOf(config("muse-spark-1.3"), config("muse-spark-1.2"), config("muse-wonder"), preferred = "muse-wonder")
-    assertEquals(
-      listOf("muse-wonder", "muse-spark-1.3", "muse-spark-1.2"),
-      chain.resolve(LlmProvider.META).map { it.model },
-    )
-  }
-
-  /** "AUTO" is the settings sentinel for "not chosen by hand", not a model name: the order stays by priority. */
-  @Test
-  fun `AUTO sentinel is not treated as a model name`() {
-    val chain = chainOf(config("model-1"), config("model-2"), preferred = "AUTO")
-    assertEquals(listOf("model-1", "model-2"), chain.resolve(LlmProvider.META).map { it.model })
-  }
-
-  /** A model missing from the catalog (withdrawn or left over from a previous version) does not break the order. */
-  @Test
-  fun `preferred model missing from the catalog is ignored`() {
-    val chain = chainOf(config("model-1"), config("model-2"), preferred = "anthropic/claude-sonnet-5")
-    assertEquals(listOf("model-1", "model-2"), chain.resolve(LlmProvider.META).map { it.model })
   }
 
   /**
@@ -61,15 +32,6 @@ class ProviderFallbackChainTest {
   fun `the attempt chain is capped`() {
     val huge = chainOf(*(1..300).map { config("vendor/model-$it") }.toTypedArray())
     assertEquals(5, huge.resolve(LlmProvider.META).size)
-  }
-
-  /** The ceiling must not cut off the CHOSEN model, even if it is the two-hundredth in the catalog. */
-  @Test
-  fun `a preferred model beyond the cap still goes first`() {
-    val huge = chainOf(*(1..300).map { config("vendor/model-$it") }.toTypedArray(), preferred = "vendor/model-200")
-    val resolved = huge.resolve(LlmProvider.META).map { it.model }
-    assertEquals("vendor/model-200", resolved.first())
-    assertEquals(5, resolved.size)
   }
 
   /**
@@ -83,24 +45,10 @@ class ProviderFallbackChainTest {
     assertEquals(listOf("with-tools"), chain.resolve(LlmProvider.META).map { it.model })
   }
 
-  /** Even if the user chose such a model earlier (the catalog has changed since). */
+  /** A cache written by a version without the filter may still hold a contributor model; it never enters the chain. */
   @Test
-  fun `a preferred model without tool support is not resurrected`() {
-    val chain = chainOf(config("no-tools", supportsTools = false), config("with-tools"), preferred = "no-tools")
-    assertEquals(listOf("with-tools"), chain.resolve(LlmProvider.META).map { it.model })
-  }
-
-  /**
-   * A cache written by a version without the filter may still hold a contributor model, and the user may
-   * have it chosen. It does not get into the chain either way.
-   */
-  @Test
-  fun `a model that trains on user data never enters the chain, even when preferred`() {
-    val chain = chainOf(
-      config("muse-spark-1.3-contributor"),
-      config("muse-spark-1.3"),
-      preferred = "muse-spark-1.3-contributor",
-    )
+  fun `a model that trains on user data never enters the chain`() {
+    val chain = chainOf(config("muse-spark-1.3-contributor"), config("muse-spark-1.3"))
     assertEquals(listOf("muse-spark-1.3"), chain.resolve(LlmProvider.META).map { it.model })
   }
 
@@ -113,12 +61,11 @@ class ProviderFallbackChainTest {
 
   private fun metaConfig(model: String) = config(model).copy(name = LlmProvider.META)
 
-  private fun metaChain(preferred: String? = null) = ProviderFallbackChain(
+  private fun metaChain() = ProviderFallbackChain(
     configs = mapOf(
       // The Meta catalog: ids without a vendor prefix, already sorted by priority.
       LlmProvider.META to listOf("muse-spark-1.3", "muse-spark-1.2", "muse-wonder-1.0").map(::metaConfig),
     ),
-    preferredModel = { preferred },
   )
 
   @Test
@@ -131,21 +78,21 @@ class ProviderFallbackChainTest {
   }
 
   @Test
-  fun `agent model SPARK pulls forward only the best Spark and beats the app-wide choice`() {
-    val chain = metaChain(preferred = "muse-wonder-1.0")
-    // The user's app-wide pick is Wonder, the agent wants Spark: the agent wins, Wonder stays as fallback.
+  fun `agent model SPARK pulls forward only the best Spark`() {
+    val chain = metaChain()
+    // Only the newest Spark moves to the front; the rest keep the catalog's priority order.
     assertEquals(
-      listOf("muse-spark-1.3", "muse-wonder-1.0", "muse-spark-1.2"),
+      listOf("muse-spark-1.3", "muse-spark-1.2", "muse-wonder-1.0"),
       chain.resolve(LlmProvider.META, AgentModel.SPARK).map { it.model },
     )
   }
 
   @Test
   fun `no agent model leaves the chain exactly as before`() {
-    val chain = metaChain(preferred = "muse-wonder-1.0")
+    val chain = metaChain()
     assertEquals(chain.resolve(LlmProvider.META), chain.resolve(LlmProvider.META, null))
     assertEquals(
-      listOf("muse-wonder-1.0", "muse-spark-1.3", "muse-spark-1.2"),
+      listOf("muse-spark-1.3", "muse-spark-1.2", "muse-wonder-1.0"),
       chain.resolve(LlmProvider.META).map { it.model },
     )
   }

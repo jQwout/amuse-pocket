@@ -93,8 +93,6 @@ data class ChatUiState(
    * covers that case since it only ever holds an AWAITING_APPROVAL plan.
    */
   val activePlanId: String? = null,
-  /** The goal-mode iteration limit (from settings). */
-  val goalMaxIterations: Int = 3,
   /** The message font size preset — from Settings, applied to the bubbles' text. */
   val chatFontScale: ChatFontScale = ChatFontScale.DEFAULT,
 
@@ -140,20 +138,18 @@ data class ChatUiState(
 
   companion object {
     /**
-     * A fresh state for conversation [id]: the conversation fields are reset, but the pref-derived ones
-     * ([chatFontScale], [goalMaxIterations] — from Settings) are KEPT. They are set by the reactive
+     * A fresh state for conversation [id]: the conversation fields are reset, but the pref-derived one
+     * ([chatFontScale] — from Settings) is KEPT. It is set by the reactive
      * collector in ChatViewModel.init, and a DataStore Flow does not re-emit an unchanged value — without
-     * carrying them over explicitly they would be stuck at the default after the very first conversation
+     * carrying it over explicitly it would be stuck at the default after the very first conversation
      * switch (the "changing the chat font size does not work" bug).
      */
     fun resetFor(
       id: String,
       chatFontScale: ChatFontScale,
-      goalMaxIterations: Int,
     ) = ChatUiState(
       conversationId = id,
       chatFontScale = chatFontScale,
-      goalMaxIterations = goalMaxIterations,
     )
   }
 }

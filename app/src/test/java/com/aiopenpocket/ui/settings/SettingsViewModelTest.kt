@@ -9,7 +9,6 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModel
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
-import com.aiopenpocket.agent.core.llm.ModelCatalogLoader
 import com.aiopenpocket.data.repository.SettingsRepository
 import com.aiopenpocket.agent.core.llm.usage.LlmUsageByModel
 import com.aiopenpocket.agent.core.llm.usage.LlmUsageDao
@@ -38,8 +37,8 @@ import org.robolectric.annotation.Config
 import com.aiopenpocket.testing.testDataStore
 
 /**
- * [SettingsViewModel] — the key and model choice logic: what is shown in the model list, what goes to
- * storage and when.
+ * [SettingsViewModel] — the key logic: what is shown in the key field, what goes to storage and when.
+ * (The model picker and the goal round limit left Settings on 31 Oct 2026.)
  *
  * The tests wait for state (`state.first { ... }` under a timeout), not `advanceUntilIdle`: the ViewModel
  * deliberately goes to `Dispatchers.IO` (prefs bring up the Keystore), and `runTest`'s virtual scheduler
@@ -53,7 +52,6 @@ class SettingsViewModelTest {
   private val testDispatcher = UnconfinedTestDispatcher()
   private val application = ApplicationProvider.getApplicationContext<Application>()
 
-  private val loader = ModelCatalogLoader(application)
   private lateinit var settings: FakeSettingsRepository
 
   /**
@@ -91,12 +89,6 @@ class SettingsViewModelTest {
       values["key_$provider"] = key
     }
 
-    override fun getSelectedModel(provider: String): String = values["model_$provider"] ?: "AUTO"
-
-    override fun setSelectedModel(model: String, provider: String) {
-      writes++
-      values["model_$provider"] = model
-    }
   }
 
   private var viewModelSeq = 0
@@ -120,7 +112,6 @@ class SettingsViewModelTest {
     val vm = SettingsViewModel(
       settingsRepository = settings,
       userPreferencesRepository = UserPreferencesRepository(testDataStore(application)),
-      modelCatalogLoader = loader,
       themeRepository = ThemeRepository(application),
       llmUsageDao = usageDao,
     )
@@ -153,11 +144,10 @@ class SettingsViewModelTest {
   @Test
   fun `до нажатия Сохранить в хранилище ничего не пишется`() = runTest {
     val vm = viewModel()
-    vm.await { it.availableModels.isNotEmpty() }
+    vm.await { it.personas.isNotEmpty() }
 
     vm.updateMetaKey("meta-test")
-    vm.updateModel("muse-wonder-1.0")
-    vm.await { it.selectedMetaModel == "muse-wonder-1.0" }
+    vm.await { it.metaKey == "meta-test" }
 
     assertEquals(0, settings.writes)
     assertNull(settings.values["key_META"])
@@ -168,26 +158,28 @@ class SettingsViewModelTest {
    * header looks like "the key is right, but Meta answers 401".
    */
   @Test
-  fun `Сохранить пишет ключ Meta обрезанным и выбранную модель`() = runTest {
+  fun `Сохранить пишет ключ Meta обрезанным и больше ничего в защищённое хранилище`() = runTest {
     val vm = viewModel()
-    vm.await { it.metaModels.contains("muse-wonder-1.0") }
+    vm.await { it.personas.isNotEmpty() }
 
     vm.updateMetaKey("  meta-test\n")
-    vm.updateModel("muse-wonder-1.0")
     vm.save()
     // The write went to IO (the Keystore encrypts on the calling thread), so we wait for confirmation:
     // the saved flag is raised only after a real write.
     vm.await { it.saved }
 
     assertEquals("meta-test", settings.values["key_META"])
-    assertEquals("muse-wonder-1.0", settings.values["model_META"])
+    // The model is no longer an app-wide setting: Save must not write one back, or a stale choice would
+    // outlive the picker that was removed.
+    assertEquals(setOf("key_META"), settings.values.keys)
+    assertEquals(1, settings.writes)
   }
 
   /** There is no other key to save: the OpenRouter field and its storage are gone. */
   @Test
   fun `Сохранить не пишет никакого ключа, кроме Meta`() = runTest {
     val vm = viewModel()
-    vm.await { it.availableModels.isNotEmpty() }
+    vm.await { it.personas.isNotEmpty() }
 
     vm.updateMetaKey("meta-test")
     vm.save()
@@ -196,24 +188,11 @@ class SettingsViewModelTest {
     assertEquals(setOf("key_META"), settings.values.keys.filter { it.startsWith("key_") }.toSet())
   }
 
-  /**
-   * The picker lists the static Meta catalog: direct-API ids, tools only, no vendor-trained variant.
-   */
-  @Test
-  fun `в выборе модели каталог Meta без contributor-версий`() = runTest {
-    val vm = viewModel()
-    val state = vm.await { it.metaModels.isNotEmpty() }
-
-    assertEquals("AUTO", state.availableModels.first())
-    assertTrue(state.availableModels.contains("muse-spark-1.3"))
-    assertTrue(state.availableModels.none { it.contains('/') || it.endsWith("-contributor") })
-  }
-
   /** The status line under the key field reacts to the field as the person types, before "Save". */
   @Test
   fun `индикатор ключа следует за полем ввода`() = runTest {
     val vm = viewModel()
-    assertFalse(vm.await { it.metaModels.isNotEmpty() }.hasKey)
+    assertFalse(vm.await { it.personas.isNotEmpty() }.hasKey)
 
     vm.updateMetaKey("meta-test")
     assertTrue(vm.state.value.hasKey)
@@ -231,31 +210,6 @@ class SettingsViewModelTest {
 
     assertEquals("meta-saved", state.metaKey)
     assertTrue(state.hasKey)
-  }
-
-  /**
-   * Meta retires models too. Settings must not show a withdrawn model as chosen: `save()` would write it
-   * back, and the provider chain would silently go to the first one by priority.
-   */
-  @Test
-  fun `выбранная модель, исчезнувшая из каталога, сбрасывается на AUTO`() = runTest {
-    settings.values["model_META"] = "muse-retired-9.9"
-
-    val vm = viewModel()
-    val state = vm.await { it.metaModels.isNotEmpty() }
-
-    assertEquals("AUTO", state.selectedMetaModel)
-  }
-
-  /** The same model that is in the catalog is not touched. */
-  @Test
-  fun `существующая модель остаётся выбранной`() = runTest {
-    settings.values["model_META"] = "muse-wonder-1.0"
-
-    val vm = viewModel()
-    val state = vm.await { it.metaModels.isNotEmpty() }
-
-    assertEquals("muse-wonder-1.0", state.selectedMetaModel)
   }
 
   /**

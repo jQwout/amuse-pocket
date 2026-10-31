@@ -28,6 +28,10 @@ data class UserAgentEntity(
   val systemPrompt: String,
   val toolNames: List<String>,
   val skillIds: List<String>,
+  /**
+   * [AgentMode.name] strings, plus at most one `goalMaxRounds=N` entry: see [AgentDefinition.goalMaxRounds]
+   * and [GOAL_ROUNDS_PREFIX] for why the limit rides in this list rather than a column of its own.
+   */
   val allowedModes: List<String>,
   val allowedWidgetTemplates: List<String>,
   /**
@@ -58,17 +62,29 @@ data class UserAgentEntity(
     toolNames = toolNames.toSet(),
     skillIds = skillIds.toSet(),
     defaultMode = AgentMode.valueOf(defaultMode),
-    allowedModes = allowedModes.map { AgentMode.valueOf(it) }.toSet(),
+    allowedModes = allowedModes.filterNot { it.startsWith(GOAL_ROUNDS_PREFIX) }.map { AgentMode.valueOf(it) }.toSet(),
     memoryPolicy = AgentMemoryPolicy(namespace = memoryNamespace, includeSharedProfile = includeSharedProfile),
     allowedWidgetTemplates = allowedWidgetTemplates.toSet(),
     hooks = emptyList(),
     stateKeyPrefixes = stateKeyPrefixes.toSet(),
     model = model,
+    goalMaxRounds = allowedModes.firstNotNullOfOrNull { entry ->
+      entry.takeIf { it.startsWith(GOAL_ROUNDS_PREFIX) }?.removePrefix(GOAL_ROUNDS_PREFIX)?.toIntOrNull()
+    },
     configVersion = configVersion,
     status = AgentStatus.valueOf(status),
   )
 
   companion object {
+    /**
+     * Marks the goal-round limit inside [allowedModes]. The limit is stored in the JSON list that column
+     * already holds, not in a new column, because a Room schema change here means a version bump, and
+     * until the first release a bump is a destructive fallback: every agent, chat and plan on the owner's
+     * phone is wiped for one small number. A limit only means something next to the GOAL mode it limits,
+     * so it belongs in that list. Revisit when the first release makes real migrations the policy.
+     */
+    const val GOAL_ROUNDS_PREFIX = "goalMaxRounds="
+
     /** Builds the row to persist for [definition] — a fresh insert or the next version of an existing row. */
     fun fromDefinition(definition: AgentDefinition, createdAt: Long, updatedAt: Long): UserAgentEntity = UserAgentEntity(
       id = definition.id,
@@ -78,7 +94,8 @@ data class UserAgentEntity(
       systemPrompt = definition.systemPrompt,
       toolNames = definition.toolNames.toList(),
       skillIds = definition.skillIds.toList(),
-      allowedModes = definition.allowedModes.map { it.name },
+      allowedModes = definition.allowedModes.map { it.name } +
+        listOfNotNull(definition.goalMaxRounds?.let { "$GOAL_ROUNDS_PREFIX$it" }),
       allowedWidgetTemplates = definition.allowedWidgetTemplates.toList(),
       stateKeyPrefixes = definition.stateKeyPrefixes.toList(),
       model = definition.model,

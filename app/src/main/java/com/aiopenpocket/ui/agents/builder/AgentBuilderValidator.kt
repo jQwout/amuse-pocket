@@ -34,6 +34,7 @@ object AgentBuilderValidator {
     "skillIds" to BuilderStep.CAPABILITIES,
     "allowedWidgetTemplates" to BuilderStep.CAPABILITIES,
     "defaultMode" to BuilderStep.LOOP,
+    "goalMaxRounds" to BuilderStep.LOOP,
     "hooks" to BuilderStep.HOOKS,
   )
 

@@ -21,10 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.Loop
-import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.Icons
@@ -278,72 +275,6 @@ internal fun ChatFontSizeCard(
         ),
         compact = true,
         fontScale = selected.scale,
-      )
-    }
-  }
-}
-
-@Composable
-internal fun GoalIterationsCard(
-  value: Int,
-  onChange: (Int) -> Unit,
-  modifier: Modifier = Modifier,
-) {
-  Row(
-    modifier = modifier
-      .fillMaxWidth()
-      .glassCardSurface(SettingsCardShape)
-      .padding(horizontal = 16.dp, vertical = 14.dp),
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    Box(
-      modifier = Modifier
-        .size(44.dp)
-        .clip(CircleShape)
-        .background(MaterialTheme.colorScheme.onPrimary),
-      contentAlignment = Alignment.Center,
-    ) {
-      Icon(
-        imageVector = Icons.Default.Loop,
-        contentDescription = null,
-        tint = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.size(22.dp),
-      )
-    }
-    Column(
-      modifier = Modifier
-        .weight(1f)
-        .padding(horizontal = 16.dp),
-    ) {
-      Text(
-        text = tr("Гоал-мод: лимит витков", "Goal mode: round limit"),
-        style = MaterialTheme.typography.bodyLarge,
-        color = MaterialTheme.colorScheme.onSurface,
-      )
-      Text(
-        text = tr("Сколько кругов петли агент сделает к цели", "How many loop rounds the agent makes toward the goal"),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-      )
-    }
-    IconButton(onClick = { onChange(value - 1) }, enabled = value > 1) {
-      Icon(
-        imageVector = Icons.Default.Remove,
-        contentDescription = tr("Меньше", "Fewer"),
-        tint = MaterialTheme.colorScheme.onSurface,
-      )
-    }
-    Text(
-      text = value.toString(),
-      style = MaterialTheme.typography.titleLarge,
-      color = MaterialTheme.colorScheme.primary,
-      modifier = Modifier.padding(horizontal = 8.dp),
-    )
-    IconButton(onClick = { onChange(value + 1) }, enabled = value < 10) {
-      Icon(
-        imageVector = Icons.Default.Add,
-        contentDescription = tr("Больше", "More"),
-        tint = MaterialTheme.colorScheme.onSurface,
       )
     }
   }
