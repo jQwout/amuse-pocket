@@ -16,6 +16,7 @@ import com.aiopenpocket.agent.core.mcp.ToolRegistry
 import com.aiopenpocket.agent.core.memory.dao.HeartbeatDao
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
+import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
 import com.aiopenpocket.agent.core.plan.execution.PlanRunRequest
 import com.aiopenpocket.agent.core.plan.execution.PlanRunResult
 import com.aiopenpocket.agent.core.plan.execution.PlanRunner
@@ -244,7 +245,7 @@ class HeartbeatRunner(
    * runnable, resumes exactly [target]'s step through [planRunner] with `background = true` (never
    * waits on UI approval — `PlanExecutor` already defaults `interactiveApproval` to false for a
    * background run), then hands the outcome to [handlePlanRunResult] to record/notify/reschedule.
-   * Never returns [FireOutcome.RETRY] — see [handlePlanRunResult]'s own kdoc for why.
+   * Returns [FireOutcome.RETRY] only for a failed step that still has attempts left — see [handlePlanRunResult].
    *
    * Pre-flight checks are this method's own responsibility, NOT duplicated inside [planRunner]/
    * `PlanExecutor` (which do not themselves reject a stale/disabled binding):
@@ -296,28 +297,37 @@ class HeartbeatRunner(
       return skip(hb, PLAN_RUN_ERROR)
     }
 
-    return handlePlanRunResult(hb, target, result)
+    return handlePlanRunResult(hb, target, result, attempt)
   }
 
   /**
    * Records/notifies/reschedules after [firePlanStep] resumes one step (design spec section 12.1:
-   * "progress/evidence → reschedule or terminal notification"). Always returns [FireOutcome.DONE] —
-   * NEVER [FireOutcome.RETRY] — for every [PlanRunOutcome]: `PlanExecutor`/`PlanRunBudget` already own
-   * the per-step retry budget, so a WorkManager-level retry here would be a second, conflicting retry
-   * mechanism layered on top of that one. The next attempt (if the plan stays ACTIVE) is a freshly
-   * re-armed heartbeat from [planScheduleSync], never this same job retrying itself — matching this
-   * task's own constraint: "one wake runs the due step(s) within budget... then re-schedules the next
-   * due step", not "retries the current one".
+   * "progress/evidence → reschedule or terminal notification"). The next step (if the plan stays
+   * ACTIVE) is a freshly re-armed heartbeat from [planScheduleSync], never this same job.
    *
-   * [PlanRunOutcome.FAILED] cancels [planScheduleSync] rather than re-arming it: a single failed
-   * attempt (retry budget not yet exhausted) and a genuinely exhausted retry budget are NOT
-   * distinguished here (`PlanRunner`/`PlanExecutor` return the identical outcome for both — see the
-   * Task 11 report's own note on this), and blindly re-syncing on EVERY failure risks an unbounded
-   * background heartbeat loop for a step that can never succeed. A human can always resume progress
-   * manually (design spec: "a step sitting in FAILED can still be retried back to READY manually") —
-   * [turnNotifier] tells them a plan step needs attention rather than failing silently forever.
+   * The one exception is [PlanRunOutcome.FAILED] while the step still has attempts left
+   * ([PlanRunBudget.maxRetriesPerStep]): one network blip or a 429 at night used to cancel the whole
+   * schedule and leave the plan ACTIVE with nothing armed — dead until someone ran GOAL by hand. Such a
+   * failure is handed back to WorkManager as [FireOutcome.RETRY], whose backoff gives the network time
+   * to come back. It stays bounded twice: by the step's own attempts and by [MAX_ATTEMPTS] of this job.
+   * Re-syncing instead would not be safe: a FAILED step stays selectable, its due time is already past,
+   * and a step whose attempts ARE exhausted would re-fire on a 0-delay loop.
+   *
+   * A failure with no attempts left cancels [planScheduleSync] as before, and [turnNotifier] tells the
+   * person a plan step needs attention (design spec: "a step sitting in FAILED can still be retried
+   * back to READY manually").
    */
-  private suspend fun handlePlanRunResult(hb: HeartbeatEntity, target: PlanHeartbeatTarget, result: PlanRunResult): FireOutcome {
+  private suspend fun handlePlanRunResult(
+    hb: HeartbeatEntity,
+    target: PlanHeartbeatTarget,
+    result: PlanRunResult,
+    attempt: Int,
+  ): FireOutcome {
+    if (result.outcome == PlanRunOutcome.FAILED && canRetryFailedStep(target, attempt)) {
+      // Before the chat write below: every retried attempt would otherwise leave its own error line there.
+      Log.w(TAG, "heartbeat ${hb.id} plan step '${target.stepId}' attempt=$attempt failed, retrying: ${result.blockedReason}")
+      return FireOutcome.RETRY
+    }
     // The step's answer goes to the plan's chat on ANY outcome, before the push (tapping the push must
     // open an already written answer). The background path used to write nothing to the chat: after
     // "Approve" the plan ran here, the card said "all steps done", and the result itself (a menu, a
@@ -368,6 +378,15 @@ class HeartbeatRunner(
       }
     }
     return FireOutcome.DONE
+  }
+
+  /** True iff the failed step is still FAILED with attempts left and this job may retry once more. */
+  private suspend fun canRetryFailedStep(target: PlanHeartbeatTarget, attempt: Int): Boolean {
+    if (attempt >= MAX_ATTEMPTS - 1) return false
+    val after = planRepository.snapshot(target.planId) ?: return false
+    if (after.plan.status != PlanStatus.ACTIVE) return false
+    val state = after.stepStates.find { it.stepId == target.stepId } ?: return false
+    return state.status == StepStatus.FAILED && state.attempts < PlanRunBudget().maxRetriesPerStep
   }
 
   /**

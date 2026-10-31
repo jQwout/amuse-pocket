@@ -70,7 +70,7 @@ class AgentBuilderScreenTest {
     onPublish: () -> Unit = {},
     onArchive: () -> Unit = {},
     testPendingApproval: ToolApprovalRequest? = null,
-    onResolveTestApproval: (Boolean) -> Unit = {},
+    onResolveTestApproval: (String, Boolean) -> Unit = { _, _ -> },
     onOpenChat: (() -> Unit)? = null,
   ) {
     composeTestRule.setContent {
@@ -487,7 +487,7 @@ class AgentBuilderScreenTest {
         riskClass = RiskClass.DESTRUCTIVE,
         arguments = emptyMap(),
       ),
-      onResolveTestApproval = { answer = it },
+      onResolveTestApproval = { _, approved -> answer = approved },
     )
 
     composeTestRule.onNodeWithText("Агенту нужно разрешение").assertExists()

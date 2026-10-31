@@ -40,6 +40,7 @@ import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.SingleIn
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -330,6 +331,36 @@ class PlanExecutor @Inject constructor(
       planEvent(planId, version, step.id, PlanEventType.STEP_STARTED, now, buildJsonObject { put("attempt", nextAttempt) }),
     )
 
+    // From here the row says EXECUTING, and only recordOutcome moves it on. Stop (cancellation) or an
+    // exception from the runner/verifier used to leave it EXECUTING with nobody to clear it: both
+    // selectors skip EXECUTING, so the plan stayed ACTIVE and never ran again on its own. The repair is
+    // the same one a dead process gets — PlanRecovery's evidence check (COMPLETED if this attempt left
+    // proof, BLOCKED for review otherwise), never a re-run of a step that may have had side effects.
+    try {
+      return runStartedStep(fresh, step, agent, budget, nextAttempt, nextDueAt, now, beforeStep.addedInstructions, executionMode, interactiveApproval, provider, hooks, hookRunId)
+    } catch (e: Throwable) {
+      withContext(NonCancellable) {
+        repository.snapshot(planId)?.let { PlanRecovery.recoverSnapshot(repository, it, clock()) }
+      }
+      throw e
+    }
+  }
+
+  private suspend fun runStartedStep(
+    fresh: PlanSnapshot,
+    step: PlanStep,
+    agent: AgentDefinition?,
+    budget: PlanRunBudget,
+    nextAttempt: Int,
+    nextDueAt: Long?,
+    now: Long,
+    addedInstructions: List<String>,
+    executionMode: ExecutionMode,
+    interactiveApproval: Boolean,
+    provider: LlmProvider,
+    hooks: List<AgentHook>,
+    hookRunId: String,
+  ): PlanStepExecutionResult {
     val allowedNames = resolveToolScope(agent?.toolNames ?: emptySet(), step.expectedTools)
     val schemas = toolRegistry.getSchemasFor(allowedNames)
     val systemBase = buildString {
@@ -341,7 +372,7 @@ class PlanExecutor @Inject constructor(
     // prompt only (buildStepMessages does not persist it anywhere) — never touches the approved
     // PlanVersion/PlanStep.instruction itself.
     val messages = buildStepMessages(
-      systemBase, agent, fresh, step, budget, nextAttempt, beforeStep.addedInstructions, nowMillis = clock(),
+      systemBase, agent, fresh, step, budget, nextAttempt, addedInstructions, nowMillis = clock(),
     )
 
     // Bind this step's tool calls to the plan's OWN agent/conversation, exactly like AgentLoopOrchestrator/

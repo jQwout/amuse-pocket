@@ -139,9 +139,13 @@ class AgentBuilderTestViewModel(
       if (convId == null) null else pending.firstOrNull { it.conversationId == convId }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-  /** The answer to [testPendingApproval]; a no-op if the request is already gone (timeout, the turn ended). */
-  fun resolveTestApproval(approved: Boolean) {
-    val request = testPendingApproval.value ?: return
+  /**
+   * The answer to [testPendingApproval] for the request the bar showed ([requestId]); a no-op if that
+   * request is already gone (timeout, the turn ended, a double tap after it was resolved) — the same
+   * rule as the chat's approval bar.
+   */
+  fun resolveTestApproval(requestId: String, approved: Boolean) {
+    val request = testPendingApproval.value?.takeIf { it.requestId == requestId } ?: return
     toolApprovalCoordinator.resolve(request.runId, request.requestId, approved)
   }
 

@@ -434,8 +434,8 @@ class ChatViewModel(
             is ChatIntent.AnalyzeLessonVideo -> analyzeLessonVideo(intent.videoPrompt, intent.video)
             is ChatIntent.SegmentLessonPhoto -> segmentLessonPhoto(intent.cardPrompt, intent.concept, intent.photo)
             is ChatIntent.AskDuringLesson -> askDuringLesson(intent.text)
-            is ChatIntent.ApproveToolCall -> resolveToolApproval(approved = true)
-            is ChatIntent.DenyToolCall -> resolveToolApproval(approved = false)
+            is ChatIntent.ApproveToolCall -> resolveToolApproval(intent.requestId, approved = true)
+            is ChatIntent.DenyToolCall -> resolveToolApproval(intent.requestId, approved = false)
         }
     }
 
@@ -443,10 +443,12 @@ class ChatViewModel(
      * Resolves `state.pendingToolApproval` (Task 9) — a no-op if it's already gone (timed out,
      * resolved by a background signal, or the run moved on). `resolve` itself checks the request's
      * own runId, so a stale request left over from an earlier, already-finished run of this same
-     * conversation can never be (mis)approved by a leftover reference here.
+     * conversation can never be (mis)approved by a leftover reference here. A tap meant for another
+     * request ([requestId] is the one the bar was drawn for) is dropped too.
      */
-    private fun resolveToolApproval(approved: Boolean) {
+    private fun resolveToolApproval(requestId: String, approved: Boolean) {
         val request = _state.value.pendingToolApproval ?: return
+        if (request.requestId != requestId) return
         toolApprovalCoordinator.resolve(request.runId, request.requestId, approved)
     }
 

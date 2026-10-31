@@ -112,6 +112,11 @@ class PrePromptAssembler @Inject constructor(
       // PromptContext.agent so later stages (TurnContextHolder/ReactLoopRunner — Task 5; FileTools'
       // sandbox root — Task 6) can reuse it instead of re-resolving mid-turn.
       val agent = agentResolver.resolve(conversation?.agentId)
+      // The chat names an agent that no longer resolves (a preset removed from the catalog, a USER row
+      // quarantined as undecodable). It is NOT a plain chat: null scope means "every tool on the device",
+      // and the old nutrition chats got exactly that after the preset was dropped. Fail closed: no tools,
+      // no skill catalog — the same answer HeartbeatRunner gives with AGENT_NOT_FOUND.
+      val agentLost = conversation?.agentId != null && agent == null
 
       // Memory facts under the agent's namespace (Task 5), if there is one: the scope is applied IN THE
       // QUERY, not as a post-filter AFTER .take(N) — otherwise someone else's/global facts could get into
@@ -195,6 +200,7 @@ class PrePromptAssembler @Inject constructor(
         // skills" — the prompt showed other agents' custom skills and told the model to call a tool the
         // agent does not have. The full catalog goes only to a plain chat without an agent.
         val skillCatalog = when {
+          agentLost -> ""
           agent == null -> skillRegistry.catalog(null)
           LOAD_SKILL_TOOL in agent.toolNames -> skillRegistry.catalog(agent.skillIds)
           else -> ""
@@ -302,7 +308,11 @@ class PrePromptAssembler @Inject constructor(
         // null ONLY for a plain chat (no bound agent) — that is what grants the full tool registry.
         // A bound agent always scopes to its own toolNames, even when empty: an agent that chose no
         // tools must get an empty scope, never fall through to every tool on the device.
-        toolNames = if (agent != null) agent.toolNames else null,
+        toolNames = when {
+          agent != null -> agent.toolNames
+          agentLost -> emptySet()
+          else -> null
+        },
         agentId = agent?.id,
         agent = agent,
       )
