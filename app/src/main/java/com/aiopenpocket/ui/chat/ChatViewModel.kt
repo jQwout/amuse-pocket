@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.work.WorkManager
 import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.agent.displayName
+import com.aiopenpocket.agent.core.agent.goalRoundsFor
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.lesson.LessonChatController
 import com.aiopenpocket.agent.core.lesson.LessonRepository
@@ -132,12 +133,6 @@ class ChatViewModel(
         // The lesson's SAM step leaves photos in cacheDir (camera originals, compressed copies for the result cards).
         // Whatever is old goes whenever a chat opens, so a learner's photo does not stay for good.
         viewModelScope.launch(Dispatchers.IO) { sweepLessonPhotos() }
-        // The goal-mode iteration limit from settings — kept in the state to be passed to the orchestrator.
-        viewModelScope.launch {
-            userPreferencesRepository.goalModeMaxIterations.collect { n ->
-                _state.update { it.copy(goalMaxIterations = n) }
-            }
-        }
         // The chat font size from settings — applied to the bubbles' text; changes on the fly.
         viewModelScope.launch {
             userPreferencesRepository.chatFontScale.collect { scale ->
@@ -272,10 +267,10 @@ class ChatViewModel(
         messagesJob?.cancel()
         sessionJob?.cancel()
         lessonBusy = false
-        // The pref-derived fields (font/iteration limit) are carried over into the new state — otherwise resetFor
-        // would reset them to the default, and the reactive collector from DataStore does not re-emit an
-        // unchanged value, so the setting would be stuck at the default.
-        _state.update { prev -> ChatUiState.resetFor(id, prev.chatFontScale, prev.goalMaxIterations) }
+        // The pref-derived font scale is carried over into the new state — otherwise resetFor would reset it
+        // to the default, and the reactive collector from DataStore does not re-emit an unchanged value, so
+        // the setting would be stuck at the default.
+        _state.update { prev -> ChatUiState.resetFor(id, prev.chatFontScale) }
         _inputText.value = "" // the input draft is not carried between conversations (resetFor used to do this)
         convIdFlow.value = id
         // A new chat (empty id): the conversation does not exist yet, ensureConversation creates it on send.
@@ -472,9 +467,9 @@ class ChatViewModel(
                 val convId = ensureConversation(text)
                 // Task 10 (structured-plan-engine-907066): planId=null — StructuredPlanOrchestrator resolves the
                 // conversation's plan itself (PLAN proposes/revises the current one; GOAL continues an ACTIVE
-                // one or proposes a new one if there is no approved plan yet). goalMaxIterations from settings
+                // one or proposes a new one if there is no approved plan yet). The bound agent's goal round limit
                 // maps onto maxLlmIterationsPerStep — the same "reasoning budget", just now per ONE plan step.
-                turnManager.launchTurn(convId, text, _state.value.agentMode, budget = goalRunBudget(_state.value.goalMaxIterations))
+                turnManager.launchTurn(convId, text, _state.value.agentMode, budget = goalRunBudget(goalRoundsFor(_state.value.agent)))
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -485,11 +480,11 @@ class ChatViewModel(
     }
 
     /**
-     * Task 10 (structured-plan-engine-907066): maps the user's "goal-mode iteration limit" setting
-     * (`ChatUiState.goalMaxIterations`, from [com.aiopenpocket.agent.core.identity.UserPreferencesRepository])
-     * onto [PlanRunBudget.maxLlmIterationsPerStep] — the closest surviving analogue now that a whole
-     * GOAL turn is no longer one bounded ReAct loop but a run over one plan STEP at a time. The
-     * Settings screen/repository for this value are unchanged; only where it lands downstream moved.
+     * Task 10 (structured-plan-engine-907066): maps the goal round limit onto
+     * [PlanRunBudget.maxLlmIterationsPerStep] — the closest surviving analogue now that a whole GOAL turn
+     * is no longer one bounded ReAct loop but a run over one plan STEP at a time. The limit is the bound
+     * agent's own ([goalRoundsFor]); a plain chat gets the default. It used to be an app-wide Settings
+     * value, moved onto the agent on 31 Oct 2026 (per-agent knobs belong to the agent).
      */
     private fun goalRunBudget(maxIterations: Int) = PlanRunBudget(maxLlmIterationsPerStep = maxIterations)
 

@@ -37,13 +37,10 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.FormatSize
-import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Loop
 import androidx.compose.material.icons.filled.Insights
-import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Remove
@@ -114,6 +111,7 @@ fun SettingsScreen(
   onNavigateToScheduledWorks: () -> Unit,
   onNavigateToHome: () -> Unit,
   onNavigateToRoadmap: () -> Unit,
+  onOpenProfile: () -> Unit,
 ) {
   val viewModel: SettingsViewModel = metroViewModel()
   val state by viewModel.state.collectAsState()
@@ -123,8 +121,6 @@ fun SettingsScreen(
 
   // A value is chosen everywhere through a glass sheet (as for the persona), not through a stock
   // DropdownMenu — see SettingsSelectorRow.
-  var showModelSheet by remember { mutableStateOf(false) }
-  val modelSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   var showThemeSheet by remember { mutableStateOf(false) }
   val themeSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   // The theme sheet lives outside the scrolling column, so the label↔enum mapping is lifted here (it used to
@@ -254,6 +250,15 @@ fun SettingsScreen(
     ) {
       Spacer(modifier = Modifier.height(8.dp))
 
+      // The person's own data lives on the Profile screen; without this card it was reachable only from the
+      // avatar on Home, and "where is my information" had no answer inside Settings.
+      ProfileEntryCard(
+        onClick = onOpenProfile,
+        modifier = Modifier.padding(horizontal = 20.dp),
+      )
+
+      Spacer(modifier = Modifier.height(20.dp))
+
       SettingsInfoCard(
         modifier = Modifier.padding(horizontal = 20.dp),
       )
@@ -287,24 +292,6 @@ fun SettingsScreen(
       ProviderRouteLine(
         hasKey = state.hasKey,
         modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-      )
-
-      Spacer(modifier = Modifier.height(28.dp))
-
-      SettingsSectionHeader(
-        icon = Icons.Default.Memory,
-        title = tr("МОДЕЛЬ", "MODEL"),
-        modifier = Modifier.padding(horizontal = 20.dp),
-      )
-      Spacer(modifier = Modifier.height(12.dp))
-      SelectorCard(
-        label = tr("ТЕКУЩАЯ МОДЕЛЬ", "CURRENT MODEL"),
-        selected = modelLabel(state.currentModel),
-        // The same icon as the section header — the row and the header read as one whole.
-        icon = Icons.Default.Memory,
-        onClick = { showModelSheet = true },
-        modifier = Modifier.padding(horizontal = 20.dp),
-        testTag = "settings_model_selector",
       )
 
       Spacer(modifier = Modifier.height(28.dp))
@@ -353,20 +340,6 @@ fun SettingsScreen(
         personaId = state.personaId,
         displayName = currentPersona?.displayName,
         onClick = { showPersonaSheet = true },
-        modifier = Modifier.padding(horizontal = 20.dp),
-      )
-
-      Spacer(modifier = Modifier.height(28.dp))
-
-      SettingsSectionHeader(
-        icon = Icons.Default.Flag,
-        title = tr("РЕЖИМЫ АГЕНТА", "AGENT MODES"),
-        modifier = Modifier.padding(horizontal = 20.dp),
-      )
-      Spacer(modifier = Modifier.height(12.dp))
-      GoalIterationsCard(
-        value = state.goalMaxIterations,
-        onChange = viewModel::updateGoalMaxIterations,
         modifier = Modifier.padding(horizontal = 20.dp),
       )
 
@@ -444,24 +417,6 @@ fun SettingsScreen(
 
       Spacer(modifier = Modifier.height(32.dp))
     }
-  }
-
-  if (showModelSheet) {
-    SelectorSheet(
-      title = tr("Выбор модели", "Choose a model"),
-      subtitle = tr(
-        "На чём агент будет думать. Быстрее — не всегда умнее.",
-        "What your agent thinks with. Faster isn't always smarter.",
-      ),
-      options = state.availableModels.map(::modelLabel),
-      selected = modelLabel(state.currentModel),
-      sheetState = modelSheetState,
-      onSelect = { label ->
-        state.availableModels.firstOrNull { modelLabel(it) == label }?.let(viewModel::updateModel)
-        showModelSheet = false
-      },
-      onDismiss = { showModelSheet = false },
-    )
   }
 
   if (showLanguageSheet) {
@@ -542,17 +497,3 @@ fun SettingsScreen(
     }
   }
 }
-
-/**
- * A model's name for a person: "muse-spark-1.3" → "Muse Spark 1.3", "AUTO" → "Auto — by priority". The id
- * stays the key in the settings and in the chain; here is only the caption — without the settings sentinel,
- * which tells the user nothing.
- */
-internal fun modelLabel(id: String): String {
-  if (id == "AUTO") return tr("Авто — по приоритету", "Auto — by priority")
-  return id.split('-')
-    // "30b" is the model size in billions of parameters, written as "30B".
-    .joinToString(" ") { part -> if (part.matches(SIZE_SUFFIX)) part.uppercase() else part.replaceFirstChar { it.uppercase() } }
-}
-
-private val SIZE_SUFFIX = Regex("\\d+b")

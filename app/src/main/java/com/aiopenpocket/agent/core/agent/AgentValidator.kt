@@ -181,6 +181,21 @@ object AgentValidator {
       issues += ValidationIssue("unknown_model", tr("Неизвестная модель '${definition.model}'", "Unknown model '${definition.model}'"), "model")
     }
 
+    // null = the default of 3 rounds. The builder only offers 1-10; this catches a value that came from the
+    // chat builder's tool or a stored row, so GOAL never runs with a zero or a runaway limit.
+    definition.goalMaxRounds?.let { rounds ->
+      if (rounds !in MIN_GOAL_ROUNDS..MAX_GOAL_ROUNDS) {
+        issues += ValidationIssue(
+          "goal_rounds_out_of_range",
+          tr(
+            "Лимит кругов цели — от $MIN_GOAL_ROUNDS до $MAX_GOAL_ROUNDS",
+            "The goal round limit must be between $MIN_GOAL_ROUNDS and $MAX_GOAL_ROUNDS",
+          ),
+          "goalMaxRounds",
+        )
+      }
+    }
+
     for (tool in definition.toolNames) {
       if (tool !in KNOWN_TOOL_NAMES) {
         issues += ValidationIssue("unknown_tool", tr("Неизвестный инструмент '$tool'", "Unknown tool '$tool'"), "toolNames")

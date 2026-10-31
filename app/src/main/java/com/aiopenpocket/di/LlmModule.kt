@@ -145,11 +145,10 @@ object LlmModule {
       }
     }
 
-    // Rebuilt on every resolve: cheap (a four-line asset), and a model change in Settings is then picked
-    // up from the very next turn.
+    // Rebuilt on every resolve: cheap (a four-line asset). The app-wide model is always automatic (catalog
+    // priority); an agent that wants a specific family says so through AgentModel.
     return ProviderFallbackChain(
       configsFor = { configsFor(modelCatalogLoader.loadMeta()) },
-      preferredModel = { settingsRepository.getSelectedModel(LlmProvider.META.name) },
     )
   }
 }

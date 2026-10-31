@@ -13,7 +13,7 @@ import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
 
 /**
- * The person's Meta Model API key and the model choice. Nothing is bundled: the key is whatever the person
+ * The person's Meta Model API key. Nothing is bundled: the key is whatever the person
  * entered in onboarding or Settings.
  *
  * An interface (the implementation is [EncryptedSettingsRepository]) not for the sake of an
@@ -27,15 +27,6 @@ interface SettingsRepository {
   fun getApiKey(provider: String): String
 
   fun setApiKey(provider: String, key: String)
-
-  /**
-   * The specific Meta model on route [provider] (`LlmProvider.name`). "AUTO" — go by priority from the
-   * catalog. Stored per provider so that a second route, if one ever returns, does not inherit an id
-   * its catalog does not know.
-   */
-  fun getSelectedModel(provider: String = "META"): String
-
-  fun setSelectedModel(model: String, provider: String = "META")
 
   companion object {
     /**
@@ -74,20 +65,9 @@ class EncryptedSettingsRepository(
     ).also { prefs ->
       // NVIDIA NIM was removed on Oct 25, 2026 and OpenRouter on Oct 30, 2026: nobody reads their keys and
       // choices any more, but on an updated device they would just stay there — a live key the user no
-      // longer knows about.
-      if (OBSOLETE_KEYS.any { prefs.contains(it) }) {
-        prefs.edit().apply { OBSOLETE_KEYS.forEach { remove(it) } }.apply()
-      }
+      // longer knows about. The Meta model choice joined them on Oct 31, 2026 (see OBSOLETE_META_MODEL).
+      purgeObsoleteKeys(prefs)
     }
-  }
-
-  private companion object {
-    const val OBSOLETE_NVIDIA_KEY = "api_key_NVIDIA"
-    const val OBSOLETE_PROVIDER = "selected_provider"
-    const val OBSOLETE_OPENROUTER_KEY = "api_key_OPENROUTER"
-    // The OpenRouter route's model choice lived under the bare name (ids like "meta/muse-spark-1.3").
-    const val OBSOLETE_OPENROUTER_MODEL = "selected_model"
-    val OBSOLETE_KEYS = listOf(OBSOLETE_NVIDIA_KEY, OBSOLETE_PROVIDER, OBSOLETE_OPENROUTER_KEY, OBSOLETE_OPENROUTER_MODEL)
   }
 
   override fun getApiKey(provider: String): String =
@@ -96,17 +76,28 @@ class EncryptedSettingsRepository(
   override fun setApiKey(provider: String, key: String) {
     prefs.edit().putString("api_key_$provider", key).apply()
   }
+}
 
-  override fun getSelectedModel(provider: String): String =
-    prefs.getString(selectedModelKey(provider), "AUTO") ?: "AUTO"
+private const val OBSOLETE_NVIDIA_KEY = "api_key_NVIDIA"
+private const val OBSOLETE_PROVIDER = "selected_provider"
+private const val OBSOLETE_OPENROUTER_KEY = "api_key_OPENROUTER"
+// The OpenRouter route's model choice lived under the bare name (ids like "meta/muse-spark-1.3").
+private const val OBSOLETE_OPENROUTER_MODEL = "selected_model"
+// The app-wide model picker left Settings on Oct 31, 2026 (the owner: the model is the agent's own knob, the
+// app default is always "automatic"). A person who had picked one must not stay pinned to it with no screen
+// to undo it, so the stored choice is erased and the chain goes by catalog priority again.
+private const val OBSOLETE_META_MODEL = "selected_model_META"
 
-  override fun setSelectedModel(model: String, provider: String) {
-    prefs.edit().putString(selectedModelKey(provider), model).apply()
+internal val OBSOLETE_KEYS = listOf(
+  OBSOLETE_NVIDIA_KEY, OBSOLETE_PROVIDER, OBSOLETE_OPENROUTER_KEY, OBSOLETE_OPENROUTER_MODEL, OBSOLETE_META_MODEL,
+)
+
+/**
+ * Erases the keys of features that no longer exist. A top-level function over plain [SharedPreferences] so a
+ * JVM test can run it: the encrypted file itself cannot be created without the Android Keystore.
+ */
+internal fun purgeObsoleteKeys(prefs: SharedPreferences) {
+  if (OBSOLETE_KEYS.any { prefs.contains(it) }) {
+    prefs.edit().apply { OBSOLETE_KEYS.forEach { remove(it) } }.apply()
   }
-
-  /**
-   * Not `selected_provider` or the bare `selected_model`: such keys are deleted every time the prefs are
-   * opened (NIM and OpenRouter legacy, see OBSOLETE_KEYS).
-   */
-  private fun selectedModelKey(provider: String): String = "selected_model_$provider"
 }

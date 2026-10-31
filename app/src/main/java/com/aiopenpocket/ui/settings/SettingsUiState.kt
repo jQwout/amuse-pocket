@@ -9,14 +9,8 @@ import com.aiopenpocket.ui.theme.ThemeMode
 data class SettingsUiState(
   /** The Meta Model API key the person entered. Empty — no model call can go out (see ModelKeyGate). */
   val metaKey: String = "",
-  /** The chosen Meta model ("AUTO" — by priority from the catalog). */
-  val selectedMetaModel: String = "AUTO",
-  /** Models of the Meta Model API (a static catalog), sorted by priority. */
-  val metaModels: List<String> = emptyList(),
   val personaId: String = "sharp_partner",
   val personas: List<String> = emptyList(),
-  /** The goal-mode iteration limit (the ReAct loop until the goal is reached). */
-  val goalMaxIterations: Int = 3,
   /** The chat message font size preset. */
   val chatFontScale: ChatFontScale = ChatFontScale.DEFAULT,
   /** The theme mode: Light/Dark/System. */
@@ -27,12 +21,6 @@ data class SettingsUiState(
 ) {
   /** Whether the key field holds a key right now — even before "Save": the status line reacts as the person types. */
   val hasKey: Boolean get() = metaKey.isNotBlank()
-
-  /** The model selector's options. */
-  val availableModels: List<String> get() = metaModels
-
-  /** The selected model. */
-  val currentModel: String get() = selectedMetaModel
 }
 
 /**

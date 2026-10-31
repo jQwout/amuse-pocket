@@ -8,8 +8,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -19,6 +22,7 @@ import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.hook.HookActionType
 import com.aiopenpocket.agent.core.hook.HookEvent
 import com.aiopenpocket.agent.core.llm.AgentModel
+import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.ui.agents.builder.components.ToolCatalog
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.ui.theme.ThemeMode
@@ -141,6 +145,44 @@ class AgentReviewScreenTest {
     composeTestRule.onNodeWithText("Пробный запуск").performScrollTo().performClick()
 
     composeTestRule.onNodeWithTag("agent_builder_preview").assertExists()
+  }
+
+  // --- goal round limit -------------------------------------------------------------------------------
+
+  /** The limit means nothing without GOAL, so the picker is not drawn for an agent that cannot run it. */
+  @Test
+  fun goal_round_picker_is_hidden_until_goal_is_an_allowed_mode() {
+    render()
+
+    composeTestRule.onNodeWithTag("builder_goal_rounds_3").assertDoesNotExist()
+  }
+
+  @Test
+  fun goal_round_picker_shows_the_default_and_a_tap_sets_the_agents_own_limit() {
+    render(initial = validDraft().copy(allowedModes = setOf(AgentMode.CHAT, AgentMode.GOAL)))
+
+    // Unset = the default of 3 is the selected chip.
+    composeTestRule.onNodeWithTag("builder_goal_rounds_3").performScrollTo().assertIsSelected()
+    composeTestRule.onNodeWithTag("builder_goal_rounds_6").performScrollTo().assertIsNotSelected()
+
+    composeTestRule.onNodeWithTag("builder_goal_rounds_6").performClick()
+
+    composeTestRule.runOnIdle { assertEquals(6, draft.goalMaxRounds) }
+    composeTestRule.onNodeWithTag("builder_goal_rounds_6").assertIsSelected()
+    composeTestRule.onNodeWithTag("builder_goal_rounds_3").assertIsNotSelected()
+  }
+
+  /** Turning the GOAL chip on in the same section brings the picker in, turning it off takes it away. */
+  @Test
+  fun tapping_the_goal_mode_chip_adds_and_removes_the_picker() {
+    render()
+
+    composeTestRule.onNodeWithTag("agent_builder_review_modes").performScrollTo()
+    composeTestRule.onAllNodesWithText("Цель")[0].performClick()
+    composeTestRule.onNodeWithTag("builder_goal_rounds_3").assertExists()
+
+    composeTestRule.onAllNodesWithText("Цель")[0].performClick()
+    composeTestRule.onNodeWithTag("builder_goal_rounds_3").assertDoesNotExist()
   }
 
   // --- tools ----------------------------------------------------------------------------------------

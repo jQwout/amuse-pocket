@@ -69,10 +69,6 @@ class OnboardingMetaKeyStepTest {
       writes++
       values["key_$provider"] = key
     }
-
-    override fun getSelectedModel(provider: String): String = "AUTO"
-
-    override fun setSelectedModel(model: String, provider: String) = Unit
   }
 
   /** The profile parsing is not under test here: it never gets a model. */

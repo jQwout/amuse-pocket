@@ -58,7 +58,7 @@ private val FieldShape = RoundedCornerShape(12.dp)
 
 /**
  * The Profile screen, opened by the round avatar on Home: the person's own data first (editable in place),
- * then what the assistant remembers about them, then the week's spend. The key, model, theme and language
+ * then what the assistant remembers about them, then the week's spend. The key, theme and language
  * stay in Settings, one tap away on the gear.
  */
 @Composable

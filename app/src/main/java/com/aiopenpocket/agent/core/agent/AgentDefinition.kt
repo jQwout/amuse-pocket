@@ -59,13 +59,31 @@ data class AgentDefinition(
   val stateKeyPrefixes: Set<String> = emptySet(),
   /**
    * [com.aiopenpocket.agent.core.llm.AgentModel.key] of the model this agent asks to run on, or null
-   * for "the app's model" (Settings -> model). Null is the default for new drafts and for every preset.
+   * for "the app's automatic choice" (priority order from the catalog). Null is the default for new drafts and for every preset.
    * A string key rather than the enum so a value from a newer build still loads; [AgentValidator]
    * rejects an unknown one at publish and the chain ignores it at run time.
    */
   val model: String? = null,
+  /**
+   * How many rounds of the loop GOAL mode may spend on one plan step for this agent, or null for
+   * [DEFAULT_GOAL_ROUNDS]. It lives on the agent, not in Settings: how long a goal may run depends on
+   * what the agent does (the owner, 31 Oct 2026: per-agent knobs belong to the agent). Read it through
+   * [goalRoundsFor], which also clamps a stored value from a newer or hand-edited build.
+   */
+  val goalMaxRounds: Int? = null,
   val configVersion: Long,
   val status: AgentStatus,
 ) {
   val enabled: Boolean get() = status == AgentStatus.PUBLISHED
 }
+
+/** GOAL-mode rounds when the agent sets none, and for a plain chat with no agent. */
+const val DEFAULT_GOAL_ROUNDS = 3
+
+/** Bounds of the builder's round picker; a stored value outside them is clamped, not trusted. */
+const val MIN_GOAL_ROUNDS = 1
+const val MAX_GOAL_ROUNDS = 10
+
+/** The GOAL-mode round limit a chat with [agent] runs under; [agent] is null for a plain chat. */
+fun goalRoundsFor(agent: AgentDefinition?): Int =
+  (agent?.goalMaxRounds ?: DEFAULT_GOAL_ROUNDS).coerceIn(MIN_GOAL_ROUNDS, MAX_GOAL_ROUNDS)

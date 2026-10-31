@@ -9,6 +9,9 @@ import com.aiopenpocket.agent.core.agent.AgentSource
 import com.aiopenpocket.agent.core.agent.AgentStatus
 import com.aiopenpocket.agent.core.agent.AgentValidator
 import com.aiopenpocket.agent.core.agent.BuilderAgent
+import com.aiopenpocket.agent.core.agent.DEFAULT_GOAL_ROUNDS
+import com.aiopenpocket.agent.core.agent.MAX_GOAL_ROUNDS
+import com.aiopenpocket.agent.core.agent.MIN_GOAL_ROUNDS
 import com.aiopenpocket.agent.core.agent.UserAgentRepository
 import com.aiopenpocket.agent.core.agent.ValidationIssue
 import com.aiopenpocket.agent.core.llm.AgentModel
@@ -16,6 +19,7 @@ import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.Tool
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.mcp.boolean
+import com.aiopenpocket.agent.core.mcp.int
 import com.aiopenpocket.agent.core.mcp.missingArg
 import com.aiopenpocket.agent.core.mcp.string
 import com.aiopenpocket.agent.core.mcp.stringList
@@ -88,6 +92,7 @@ class AgentDraftTool(
     // error, while execute() answers with the allowed values and lets the model retry.
     string("model", "WONDER, SPARK or default (the app's own model) (update)")
     boolean("include_shared_profile", "Whether the agent may read the person's shared profile; false by default (update)")
+    integer("goal_max_rounds", "How many loop rounds GOAL mode may spend on one plan step, $MIN_GOAL_ROUNDS to $MAX_GOAL_ROUNDS; 3 when unset (update)")
   }
 
   override val riskClass = RiskClass.WRITE
@@ -152,6 +157,10 @@ class AgentDraftTool(
     if (modelArg != null && model == null && !modelArg.equals(BuilderAgent.MODEL_DEFAULT, ignoreCase = true)) {
       problems += "Unknown model: $modelArg. Allowed models: ${BuilderAgent.ALLOWED_MODELS.joinToString(", ")}."
     }
+    val goalRounds = args.int("goal_max_rounds")
+    if (goalRounds != null && goalRounds !in MIN_GOAL_ROUNDS..MAX_GOAL_ROUNDS) {
+      problems += "goal_max_rounds must be between $MIN_GOAL_ROUNDS and $MAX_GOAL_ROUNDS."
+    }
     if (problems.isNotEmpty()) return ToolResult.Error(problems.joinToString(" "))
 
     val base = existing ?: newDraft(draftId)
@@ -161,6 +170,7 @@ class AgentDraftTool(
       systemPrompt = args.string("instructions")?.trim() ?: base.systemPrompt,
       toolNames = tools?.toSet() ?: base.toolNames,
       model = if (modelGiven) model else base.model,
+      goalMaxRounds = goalRounds ?: base.goalMaxRounds,
       memoryPolicy = base.memoryPolicy.copy(
         includeSharedProfile = args.boolean("include_shared_profile") ?: base.memoryPolicy.includeSharedProfile,
       ),
@@ -215,6 +225,7 @@ class AgentDraftTool(
           putJsonArray("modes") { draft.allowedModes.map { it.name }.sorted().forEach { add(JsonPrimitive(it)) } }
           put("model", draft.model ?: BuilderAgent.MODEL_DEFAULT)
           put("include_shared_profile", draft.memoryPolicy.includeSharedProfile)
+          put("goal_max_rounds", draft.goalMaxRounds ?: DEFAULT_GOAL_ROUNDS)
         },
       )
       // Problems are normal while the draft is being built; they tell the model what is still missing.

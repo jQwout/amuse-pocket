@@ -19,6 +19,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.agent.core.agent.DEFAULT_GOAL_ROUNDS
+import com.aiopenpocket.agent.core.agent.MAX_GOAL_ROUNDS
+import com.aiopenpocket.agent.core.agent.MIN_GOAL_ROUNDS
 import com.aiopenpocket.agent.core.agent.ValidationIssue
 import com.aiopenpocket.agent.core.llm.AgentModel
 import com.aiopenpocket.agent.loop.AgentMode
@@ -72,8 +75,8 @@ fun LoopModesStep(
     Text(text = tr("Модель", "Model"), style = MaterialTheme.typography.titleMedium)
     Text(
       text = tr(
-        "На какой модели Muse работает этот агент. Если выбранной модели нет на вашем маршруте, агент работает на модели приложения.",
-        "Which Muse model this agent runs on. If your route doesn't offer it, the agent falls back to the app's model.",
+        "На какой модели Muse работает этот агент. «Автоматически» — приложение выбирает модель само; так же, если выбранной модели нет на вашем маршруте.",
+        "Which Muse model this agent runs on. Automatic lets the app pick; it also does so if your route doesn't offer the one you chose.",
       ),
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -143,11 +146,39 @@ internal fun ModesFields(
       }
     }
     ErrorText(errors, "defaultMode")
+
+    // The round limit only means something while GOAL can run, so the control appears with the GOAL chip
+    // and goes with it. Lives here (not in LoopModesStep) so the one-page review shows it too.
+    if (AgentMode.GOAL in draft.allowedModes) {
+      Spacer(modifier = Modifier.height(20.dp))
+      Text(text = tr("Лимит кругов цели", "Goal round limit"), style = MaterialTheme.typography.titleMedium)
+      Text(
+        text = tr(
+          "Сколько кругов петли агент делает на одном шаге плана, прежде чем остановиться.",
+          "How many loop rounds the agent makes on one plan step before it stops.",
+        ),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
+      )
+      val current = draft.goalMaxRounds ?: DEFAULT_GOAL_ROUNDS
+      FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        (MIN_GOAL_ROUNDS..MAX_GOAL_ROUNDS).forEach { rounds ->
+          FilterChip(
+            selected = current == rounds,
+            onClick = { onUpdateDraft { it.copy(goalMaxRounds = rounds) } },
+            label = { Text(rounds.toString()) },
+            modifier = Modifier.testTag("builder_goal_rounds_$rounds"),
+          )
+        }
+      }
+      ErrorText(errors, "goalMaxRounds")
+    }
   }
 }
 
 /**
- * The model chips (Wonder / Spark / app default) with their inline error — the last block of
+ * The model chips (Wonder / Spark / automatic) with their inline error — the last block of
  * [LoopModesStep], also a section of the review screen, where they must be visible without a tap.
  */
 @Composable
@@ -159,7 +190,7 @@ internal fun ModelChips(
   Column {
     // Built per call, not as a static list: tr() must run when the text is shown.
     val modelOptions = listOf<Pair<String?, String>>(
-      null to tr("Модель приложения", "App default"),
+      null to tr("Автоматически", "Automatic"),
       AgentModel.WONDER.key to tr(
         "Muse Wonder — сильнейшая, для долгой работы в несколько шагов",
         "Muse Wonder — strongest, for long multi-step work",
@@ -184,7 +215,8 @@ internal fun ModelChips(
 fun agentModelShortLabel(key: String?): String = when (AgentModel.fromKey(key)) {
   AgentModel.WONDER -> "Muse Wonder"
   AgentModel.SPARK -> "Muse Spark"
-  null -> tr("Модель приложения", "App default")
+  // Short on purpose: it sits in a half-width stat tile, where the long form wrapped mid-word.
+  null -> tr("Авто", "Auto")
 }
 
 private fun modeLabel(mode: AgentMode): String = when (mode) {

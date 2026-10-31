@@ -401,4 +401,36 @@ class UserAgentRepositoryTest {
     val custom = draft(id = "fast-agent").copy(model = "SPARK")
     assertEquals("SPARK", repository.clonePreset(custom).model)
   }
+
+  /**
+   * The goal round limit rides inside the stored allowedModes list (no Room column - a schema change is a
+   * destructive wipe before release). It must come back as the number, and must NOT leak into the mode set,
+   * where `AgentMode.valueOf("goalMaxRounds=7")` would throw and the roster would drop the agent.
+   */
+  @Test
+  fun `goal round limit round-trips through Room without polluting the modes`() = runTest {
+    val goalAgent = draft(id = "goal-agent").copy(
+      defaultMode = AgentMode.GOAL,
+      allowedModes = setOf(AgentMode.CHAT, AgentMode.GOAL),
+      goalMaxRounds = 7,
+    )
+    repository.saveDraft(goalAgent)
+
+    val stored = repository.get("goal-agent")!!
+    assertEquals(7, stored.goalMaxRounds)
+    assertEquals(setOf(AgentMode.CHAT, AgentMode.GOAL), stored.allowedModes)
+    // Publishing re-writes the row: the limit must survive it, and so must the roster read.
+    assertEquals(7, repository.publish("goal-agent").goalMaxRounds)
+    assertEquals(7, repository.observePublished().first().single { it.id == "goal-agent" }.goalMaxRounds)
+  }
+
+  @Test
+  fun `an agent that never set a goal round limit stores none`() = runTest {
+    repository.saveDraft(draft(id = "plain-goal"))
+    assertNull(repository.get("plain-goal")?.goalMaxRounds)
+    // Clearing a previously set limit really clears it (not "keeps the old one").
+    repository.saveDraft(draft(id = "plain-goal").copy(goalMaxRounds = 5))
+    repository.saveDraft(draft(id = "plain-goal").copy(goalMaxRounds = null))
+    assertNull(repository.get("plain-goal")?.goalMaxRounds)
+  }
 }
