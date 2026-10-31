@@ -41,12 +41,26 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 
 // The events of one turn — the ones the lesson names, in the order a turn with a tool passes them.
-private val EVENTS = listOf("Перед ходом", "Перед инструментом", "После инструмента", "После хода", "Завершение")
+// Getters, not vals: the text is picked in the interface language when it is shown, not once at class load.
+private val EVENTS: List<String>
+    get() = listOf(
+        tr("Перед ходом", "Before turn"),
+        tr("Перед инструментом", "Before tool"),
+        tr("После инструмента", "After tool"),
+        tr("После хода", "After turn"),
+        tr("Завершение", "Completion"),
+    )
 
 // Rules: two on the same event (allow and deny "mail") and one that only writes to the log.
-private val RULES = listOf("Перед «почтой» → разрешить", "Перед «почтой» → запретить", "После хода → в журнал")
+private val RULES: List<String>
+    get() = listOf(
+        tr("Перед «почтой» → разрешить", "Before “Email” → allow"),
+        tr("Перед «почтой» → запретить", "Before “Email” → deny"),
+        tr("После хода → в журнал", "After turn → write to log"),
+    )
 private const val ALLOW = 0
 private const val DENY = 1
 private const val LOG = 2
@@ -64,16 +78,16 @@ private fun Int.on(rule: Int) = (this and (1 shl rule)) != 0
  * that — the scene must not teach that "Allow" bypasses the confirmation.
  */
 private fun outcome(index: Int, allow: Boolean, deny: Boolean, log: Boolean): String = when (index) {
-    0 -> "агент начал думать"
+    0 -> tr("агент начал думать", "the agent started thinking")
     1 -> when {
-        allow && deny -> "«разрешить» + «запретить» → запрет"
-        deny -> "«запретить» → вызов заблокирован"
-        allow -> "«разрешить» не обходит → ждём твоё «ок»"
-        else -> "почта: черновик Ане → ждём твоё «ок»"
+        allow && deny -> tr("«разрешить» + «запретить» → запрет", "“allow” + “deny” → deny")
+        deny -> tr("«запретить» → вызов заблокирован", "“deny” → the call is blocked")
+        allow -> tr("«разрешить» не обходит → ждём твоё «ок»", "“allow” doesn't bypass it → waiting for your “OK”")
+        else -> tr("почта: черновик Ане → ждём твоё «ок»", "email: a draft to Ann → waiting for your “OK”")
     }
-    2 -> if (deny) "пропущено — вызова не было" else "черновик открыт — после твоего «ок»"
-    3 -> if (log) "агент ответил · запись в журнал" else "агент ответил"
-    else -> "ход закрыт"
+    2 -> if (deny) tr("пропущено — вызова не было", "skipped: there was no call") else tr("черновик открыт — после твоего «ок»", "draft opened, after your “OK”")
+    3 -> if (log) tr("агент ответил · запись в журнал", "the agent replied · written to the log") else tr("агент ответил", "the agent replied")
+    else -> tr("ход закрыт", "the turn is closed")
 }
 
 /**
@@ -104,7 +118,7 @@ internal fun HookTimelineScene() {
     val error = MaterialTheme.colorScheme.error
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Задача: «напиши Ане, что опоздаю на 10 минут». Повесь правила и прогони ход.", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(tr("Задача: «напиши Ане, что опоздаю на 10 минут». Повесь правила и прогони ход.", "Task: “write to Ann that I will be 10 minutes late.” Attach the rules and run the turn."), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         RULES.forEachIndexed { index, rule ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -165,12 +179,24 @@ internal fun HookTimelineScene() {
         ) {
             Text(
                 text = when {
-                    !done && running -> "Ход идёт по событиям…"
-                    !done -> "Включи правила и жми «Прогнать ход»."
-                    allow && deny -> "Черновик не открылся: один «запретить» перевешивает любое «разрешить»."
-                    deny -> "Черновик не открылся: правило на «перед инструментом» остановило вызов."
-                    allow -> "«Разрешить» ничего не обошло: почта уходит наружу и всё равно ждала твоё «ок». Теперь включи «запретить»."
-                    else -> "Правил нет — почта всё равно спросила «ок»: это правило по умолчанию. Повесь хук и прогони снова."
+                    !done && running -> tr("Ход идёт по событиям…", "The turn is moving through its events…")
+                    !done -> tr("Включи правила и жми «Прогнать ход».", "Switch on some rules and tap “Run the turn.”")
+                    allow && deny -> tr(
+                        "Черновик не открылся: один «запретить» перевешивает любое «разрешить».",
+                        "The draft did not open: a single “deny” outweighs any “allow.”",
+                    )
+                    deny -> tr(
+                        "Черновик не открылся: правило на «перед инструментом» остановило вызов.",
+                        "The draft did not open: the “before tool” rule stopped the call.",
+                    )
+                    allow -> tr(
+                        "«Разрешить» ничего не обошло: почта уходит наружу и всё равно ждала твоё «ок». Теперь включи «запретить».",
+                        "“Allow” bypassed nothing: email leaves the phone, so it still waited for your “OK.” Now switch on “deny.”",
+                    )
+                    else -> tr(
+                        "Правил нет — почта всё равно спросила «ок»: это правило по умолчанию. Повесь хук и прогони снова.",
+                        "No rules, and email still asked for “OK”: that is the default rule. Attach a hook and run it again.",
+                    )
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (done) FontWeight.SemiBold else FontWeight.Normal,
@@ -179,7 +205,7 @@ internal fun HookTimelineScene() {
             )
         }
         Button(onClick = { run++ }, enabled = !running, modifier = Modifier.fillMaxWidth()) {
-            Text(if (done) "Прогнать ещё раз" else "Прогнать ход")
+            Text(if (done) tr("Прогнать ещё раз", "Run it again") else tr("Прогнать ход", "Run the turn"))
         }
     }
 }

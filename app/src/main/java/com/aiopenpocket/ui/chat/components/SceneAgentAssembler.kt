@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 import kotlinx.coroutines.delay
 
 /** A part of the agent: the label on the chip, what appears in the card and what is missing without it. */
@@ -53,19 +54,41 @@ private class AgentPart(val chip: String, val slot: String, val missing: String)
 // The same parts as the builder steps in the lesson. "Check" is played by the test button. The hook is as it
 // really gets built in the builder: a hook's condition is only "always" or "a tool from the list"; there is
 // no "before any write" hook there.
-private val PARTS = listOf(
-    AgentPart("Личность", "Домовёнок · своя память", "без личности агент безымянный и без своего отсека памяти"),
-    AgentPart("Инструкции", "«Коротко и по делу»", "без инструкций агент болтает не по делу"),
-    AgentPart("Инструменты", "напоминания, календарь", "без инструментов агент только говорит, а сделать ничего не может"),
-    AgentPart("Режим", "обычный ответ", "режим не выбран — сработает обычный ответ по умолчанию"),
-    AgentPart("Хуки", "перед «Напоминаниями» — спросить", "без хуков — только правила по умолчанию: запись идёт без вопроса"),
-)
+// A getter, not a val: the text is picked in the interface language when it is shown, not once at class load.
+private val PARTS: List<AgentPart>
+    get() = listOf(
+        AgentPart(
+            tr("Личность", "Identity"),
+            tr("Домовёнок · своя память", "Brownie · own memory"),
+            tr("без личности агент безымянный и без своего отсека памяти", "without an identity the agent has no name and no memory compartment of its own"),
+        ),
+        AgentPart(
+            tr("Инструкции", "Instructions"),
+            tr("«Коротко и по делу»", "“Short and to the point”"),
+            tr("без инструкций агент болтает не по делу", "without instructions the agent rambles off topic"),
+        ),
+        AgentPart(
+            tr("Инструменты", "Tools"),
+            tr("напоминания, календарь", "reminders, calendar"),
+            tr("без инструментов агент только говорит, а сделать ничего не может", "without tools the agent can only talk and cannot do anything"),
+        ),
+        AgentPart(
+            tr("Режим", "Mode"),
+            tr("обычный ответ", "plain reply"),
+            tr("режим не выбран — сработает обычный ответ по умолчанию", "no mode is chosen, so the plain default reply is used"),
+        ),
+        AgentPart(
+            tr("Хуки", "Hooks"),
+            tr("перед «Напоминаниями» — спросить", "before “Reminders”: ask first"),
+            tr("без хуков — только правила по умолчанию: запись идёт без вопроса", "without hooks only the default rules apply: a write goes through without asking"),
+        ),
+    )
 private const val PERSONA = 0
 private const val INSTRUCTIONS = 1
 private const val TOOLS = 2
 private const val MODE = 3
 private const val HOOKS = 4
-private const val TEST_REQUEST = "Напомни мне завтра купить хлеб"
+private val TEST_REQUEST: String get() = tr("Напомни мне завтра купить хлеб", "Remind me to buy bread tomorrow")
 private val DoneGreen = Color(0xFF2E7D32)
 
 private fun Int.hasPart(index: Int) = (this and (1 shl index)) != 0
@@ -74,10 +97,16 @@ private fun replyFor(parts: Int): String {
     val tools = parts.hasPart(TOOLS)
     val instructions = parts.hasPart(INSTRUCTIONS)
     return when {
-        tools && instructions -> "Поставил напоминание: завтра в 9:00 — купить хлеб."
-        tools -> "Поставил напоминание! Кстати, рассказать, какой хлеб полезнее? Могу и рецепт дать…"
-        instructions -> "Хорошо, не забудь завтра купить хлеб!"
-        else -> "Хлеб — это важно! Кстати, могу рассказать, какой хлеб полезнее, или дать рецепт…"
+        tools && instructions -> tr("Поставил напоминание: завтра в 9:00 — купить хлеб.", "Reminder set: tomorrow at 9:00, buy bread.")
+        tools -> tr(
+            "Поставил напоминание! Кстати, рассказать, какой хлеб полезнее? Могу и рецепт дать…",
+            "Reminder set! By the way, shall I tell you which bread is healthier? I can give you a recipe too…",
+        )
+        instructions -> tr("Хорошо, не забудь завтра купить хлеб!", "Okay, don't forget to buy bread tomorrow!")
+        else -> tr(
+            "Хлеб — это важно! Кстати, могу рассказать, какой хлеб полезнее, или дать рецепт…",
+            "Bread is important! By the way, I can tell you which bread is healthier, or give you a recipe…",
+        )
     }
 }
 
@@ -104,7 +133,7 @@ internal fun AgentAssemblerScene() {
     val firstMissing = PARTS.indices.firstOrNull { !parts.hasPart(it) }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Тапай части — агент соберётся в карточке", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(tr("Тапай части — агент соберётся в карточке", "Tap the parts: the agent assembles in the card"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             PARTS.forEachIndexed { index, part ->
                 FilterChip(selected = parts.hasPart(index), onClick = { parts = parts xor (1 shl index) }, label = { Text(part.chip) })
@@ -118,18 +147,21 @@ internal fun AgentAssemblerScene() {
             Spacer(Modifier.width(6.dp))
             Text(
                 when {
-                    tested < 0 -> "Проверить агента"
-                    stale -> "Части изменились — проверить"
-                    else -> "Проверить ещё раз"
+                    tested < 0 -> tr("Проверить агента", "Test the agent")
+                    stale -> tr("Части изменились — проверить", "Parts changed: test again")
+                    else -> tr("Проверить ещё раз", "Test again")
                 },
                 maxLines = 1,
             )
         }
         Text(
             text = if (firstMissing == null) {
-                "Все пять частей на месте — это и есть агент: сумма всего, что ты прошёл в курсе"
+                tr(
+                    "Все пять частей на месте — это и есть агент: сумма всего, что ты прошёл в курсе",
+                    "All five parts are in place. That is the agent: the sum of everything you have learned in the course",
+                )
             } else {
-                "Не хватает: ${PARTS[firstMissing].chip.lowercase()} — ${PARTS[firstMissing].missing}"
+                tr("Не хватает", "Missing") + ": ${PARTS[firstMissing].chip.lowercase()} — ${PARTS[firstMissing].missing}"
             },
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (firstMissing == null) FontWeight.SemiBold else FontWeight.Normal,
@@ -155,13 +187,13 @@ private fun AgentCard(parts: Int) {
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = if (persona) "Домовёнок" else "Безымянный агент",
+                text = if (persona) tr("Домовёнок", "Brownie") else tr("Безымянный агент", "Unnamed agent"),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = SceneInk,
                 modifier = Modifier.weight(1f),
             )
-            Text("частей: ${parts.countOneBits()}/${PARTS.size}", style = MaterialTheme.typography.labelMedium, color = SceneInk.copy(alpha = 0.6f))
+            Text(tr("частей", "parts") + ": ${parts.countOneBits()}/${PARTS.size}", style = MaterialTheme.typography.labelMedium, color = SceneInk.copy(alpha = 0.6f))
         }
         PARTS.forEachIndexed { index, part ->
             val filled = parts.hasPart(index)
@@ -179,7 +211,7 @@ private fun AgentCard(parts: Int) {
                     contentAlignment = Alignment.CenterStart,
                 ) {
                     Text(
-                        text = if (filled) part.slot else "пусто",
+                        text = if (filled) part.slot else tr("пусто", "empty"),
                         style = MaterialTheme.typography.bodySmall,
                         color = if (filled) SceneInk else SceneInk.copy(alpha = 0.35f),
                         maxLines = 1,
@@ -209,18 +241,18 @@ private fun TestPanel(tested: Int, thinking: Boolean, stale: Boolean) {
             .alpha(if (stale && !thinking) 0.5f else 1f),
     ) {
         Text(
-            text = "Тест: «$TEST_REQUEST»",
+            text = tr("Тест", "Test") + ": “$TEST_REQUEST”",
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.primary,
         )
-        val who = if (ran && tested.hasPart(PERSONA)) "Домовёнок" else "Агент"
-        val mode = if (ran && tested.hasPart(MODE)) "обычный ответ" else "режим по умолчанию"
+        val who = if (ran && tested.hasPart(PERSONA)) tr("Домовёнок", "Brownie") else tr("Агент", "Agent")
+        val mode = if (ran && tested.hasPart(MODE)) tr("обычный ответ", "plain reply") else tr("режим по умолчанию", "default mode")
         Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color.White).padding(10.dp)) {
             Text(
                 text = when {
-                    thinking -> "Агент думает…"
-                    !ran -> "Агента можно проверять на любом этапе сборки — даже пустого"
+                    thinking -> tr("Агент думает…", "The agent is thinking…")
+                    !ran -> tr("Агента можно проверять на любом этапе сборки — даже пустого", "You can test the agent at any stage of the build, even an empty one")
                     else -> "$who ($mode): ${replyFor(tested)}"
                 },
                 style = MaterialTheme.typography.bodyMedium,
@@ -238,19 +270,25 @@ private fun TestPanel(tested: Int, thinking: Boolean, stale: Boolean) {
                     ) {
                         Icon(Icons.Default.Alarm, contentDescription = null, tint = SceneInk, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Завтра, 9:00 — купить хлеб", style = MaterialTheme.typography.labelMedium, color = SceneInk, maxLines = 1)
+                        Text(tr("Завтра, 9:00 — купить хлеб", "Tomorrow, 9:00: buy bread"), style = MaterialTheme.typography.labelMedium, color = SceneInk, maxLines = 1)
                     }
                 } else {
-                    Text("Только слова: напоминания нет — нечем поставить", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = error, maxLines = 2)
+                    Text(tr("Только слова: напоминания нет — нечем поставить", "Only words: no reminder, because there is nothing to set it with"), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = error, maxLines = 2)
                 }
             }
         }
         Text(
             text = when {
                 !ran -> " "
-                hooks && tools -> "Хук «перед «Напоминаниями» — спросить»: агент спросил «Ставлю на 9:00?» и поставил после «Разрешить»"
-                hooks -> "Хук ждёт: охранять нечего — у агента нет «Напоминаний»"
-                tools -> "Хуков нет: напоминание — это запись, она идёт без вопроса. Спросит само только удаление или отправка"
+                hooks && tools -> tr(
+                    "Хук «перед «Напоминаниями» — спросить»: агент спросил «Ставлю на 9:00?» и поставил после «Разрешить»",
+                    "Hook “before ‘Reminders’: ask first”: the agent asked “Set it for 9:00?” and set it after “Allow”",
+                )
+                hooks -> tr("Хук ждёт: охранять нечего — у агента нет «Напоминаний»", "The hook waits: there is nothing to guard, because the agent has no “Reminders”")
+                tools -> tr(
+                    "Хуков нет: напоминание — это запись, она идёт без вопроса. Спросит само только удаление или отправка",
+                    "No hooks: a reminder is a write, so it goes through without a question. Only deleting or sending asks on its own",
+                )
                 else -> " "
             },
             style = MaterialTheme.typography.bodySmall,
