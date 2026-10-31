@@ -1,0 +1,29 @@
+{
+  "id": "open_weights_and_api",
+  "title": "Open weights and APIs",
+  "description": "Where a model really lives: on your own server or with the vendor. That decides who sees your data and who does the work.",
+  "iconKey": "shield",
+  "steps": [
+    {"type": "reveal", "question": "Where does the model actually “live” when you talk to it?", "answer": "A model is a file of weights: billions of numbers learned during training. That file sits on someone's computer with graphics cards. Either at the vendor's company, and then you reach the model over the network. Or at your place, if the weights are open and you can download them."},
+    {"type": "concept", "term": "Model weights", "definition": "The numbers that hold everything the model has learned. The model itself is the weights plus a program that uses them to compute an answer.", "example": "Open Llama weights can be downloaded as a file tens of gigabytes in size and run on your own server — with no internet and no vendor."},
+    {"type": "image", "asset": "lessons/images/generated/open_weights_and_api-d6fb8a243c.webp", "imagePrompt": "Two paths lead from a small smartphone: one goes to a home server box in a garage with a fan and a power cord, the other goes up through the sky to a big data center building standing on a cloud.", "caption": "Weights with you or with the vendor — that decides who sees your data"},
+    {"type": "text", "text": "Open weights: the model runs on your own hardware. Your data goes nowhere, and the vendor never sees it. But you need graphics cards, electricity, and people who will set it all up and keep it updated. This is how Llama works, Meta's open family."},
+    {"type": "text", "text": "API: the model stays with the vendor. You send a request over the network and pay for tokens. You need no hardware, just a key. But the provider sees everything you send. Muse Spark 1.3, which this app runs on, is available exactly this way."},
+    {"type": "animation", "scene": "open_weights", "caption": "Switch where the weights live, and watch who sees the request and who pays for the work"},
+    {"type": "text", "text": "There's one more detail: contributor versions. Muse Spark has variants where the vendor may learn from what you send. Your profile, diary and photos go through this app, so the app rules such versions out: they're not in the model choice, and not in the backup chain."},
+    {"type": "match", "instruction": "Match each term to what it means:", "pairs": [
+      {"term": "Open weights", "def": "The model runs on your server, and the data stays with you"},
+      {"term": "API", "def": "The model is with the vendor, you pay for tokens, no hardware needed"},
+      {"term": "Contributor version", "def": "The vendor may learn from your requests"},
+      {"term": "Model weights", "def": "The numbers where what it learned is stored"}
+    ]},
+    {"type": "scenario", "situation": "A hospital wants a model to read medical records, but its lawyers forbid sending records outside the hospital.", "q": "What should it choose?", "options": ["An open-weights model on its own server", "The strongest model through an API with a key", "A contributor version of a model through an API"], "correct": 0, "explain": "The records must not leave the hospital, so the model has to run there: open weights on its own server."},
+    {"type": "text", "text": "This app uses an API: a phone can't run a big model, and Muse Spark is stronger than anything that fits in a pocket. The price is that your request goes to the provider. So the app sends only what the answer needs, and only to Meta's models: the backup models are Muse too. Even Muse Spark Open, the open-weights model on Meta's list, reaches this app through the API like the rest."},
+    {"type": "text", "text": "In short. A model is its weights. Open weights run at your place: the data stays with you, but you need hardware and upkeep. With an API the model is with the vendor: convenient and strong, but the vendor sees the request, and you pay for tokens. Contributor versions also learn from your data — the app doesn't use them."},
+    {"type": "quiz", "questions": [
+      {"q": "What are model weights?", "options": ["The numbers where what it learned is stored", "A database of the model's ready answers", "A price per thousand tokens"], "correct": 0, "explain": "The weights are the model: the numbers it learned during training."},
+      {"q": "What do you need to run an open-weights model yourself?", "options": ["Just an API key from the vendor", "Your own server with graphics cards", "A powerful phone, and that's it"], "correct": 1, "explain": "Open weights are computed on your own hardware. You need graphics cards and someone to set it all up."},
+      {"q": "Why doesn't the app use contributor versions?", "options": ["They cost more than regular versions", "They answer more slowly", "The vendor may learn from requests"], "correct": 2, "explain": "Your profile, diary and photos go through the app, and they must not be used to train someone else's model."}
+    ]}
+  ]
+}

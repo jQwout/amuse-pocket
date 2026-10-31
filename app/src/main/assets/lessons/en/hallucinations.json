@@ -1,0 +1,28 @@
+{
+  "id": "hallucinations",
+  "title": "When the model gets it wrong",
+  "description": "Why a model confidently makes things up, and how to catch those answers.",
+  "iconKey": "target",
+  "steps": [
+    { "type": "text", "text": "Sometimes a model answers smoothly and confidently, and the fact turns out to be made up. This is called a hallucination. And the sneaky part: you can't tell a made-up fact from a true one by the tone." },
+    { "type": "text", "text": "Where does it come from? The model doesn't keep a database of checked facts. It predicts the next word from what appeared most often in training. If a plausible continuation exists but the real fact doesn't, it will still write something that sounds right." },
+    { "type": "image", "asset": "lessons/images/hallucination.svg", "caption": "Truth and invention come out with the same confidence — check what matters" },
+    { "type": "text", "text": "So a model's confidence is not a sign that it's right. It will name a real date and a nonexistent one with the same cheer, and invent a quote or a link. It sounds convincing for exactly one reason: the words were chosen to read “the way people usually write.”" },
+    { "type": "animation", "scene": "confident_wrong", "caption": "Check each answer, then switch on “if you're not sure, say so.” The article in the example is made up on purpose" },
+    { "type": "text", "text": "Where the risk is highest: exact numbers, dates, names, quotes, links and recent events. Where you need a specific fact rather than a general sense, the chance of invention goes up sharply." },
+    { "type": "text", "text": "What to do. Double-check what matters: ask the question another way, or compare with a trusted source. If you asked for a source, check it yourself: open it and find that passage, because a model can invent a link too. Tools help as well: when an agent takes a fact from your calendar instead of from its head, there is no room for invention. Searching your own documents is covered by the lesson “RAG: answers from your own data” in the Library." },
+    { "type": "text", "text": "And remember where it matters. For a draft, ideas and explanations, hallucinations hardly get in the way. They become a problem where a mistake is costly — in facts you're going to rely on." },
+    { "type": "scenario", "situation": "The model confidently gave an exact date, a quote and a link to an article.", "q": "What do you do with this answer?", "options": [
+      "Check it: dates, quotes and links are the main zone of inventions",
+      "Trust it — the tone is confident, so the fact is checked",
+      "Ask for a source — if it named one, it must be true"
+    ], "correct": 0, "explain": "Confidence guarantees nothing, and exact facts are the highest-risk zone." },
+    { "type": "text", "text": "Practice. My basic rules already include the line “if you don't know, say so.” Permission to doubt is the first defense against inventions. But it reduces them; it doesn't remove them. After the lesson, ask me a niche fact in a regular chat — for example, the exact founding date of a small town. Ask for a source and check it yourself: is that passage really there?" },
+    { "type": "text", "text": "In short. A model predicts what is plausible, not what a fact base says, so truth and invention sound equally confident. The risk is highest in numbers, dates, names, quotes and links. Check what matters, and where you can, let the agent get a fact from a tool instead of “from its head.”" },
+    { "type": "quiz", "questions": [
+      { "q": "Why does a model confidently produce something made up?", "options": ["It predicts a plausible continuation instead of checking a fact base", "It deceives on purpose, to seem smarter and more useful", "It has no internet access, so it has to make things up"], "correct": 0, "explain": "The model generates the most likely text, and plausible is not the same as true." },
+      { "q": "Can you trust a confident tone?", "options": ["No — truth and invention sound equally confident", "Yes, a confident tone means the fact is checked", "Yes, if the answer is long and neatly formatted"], "correct": 0, "explain": "Tone has nothing to do with truth: confidence doesn't prove a fact." },
+      { "q": "Where are hallucinations most dangerous?", "options": ["In exact facts — numbers, dates, names, quotes and links", "In drafts, sketches and brainstorming for ideas", "In requests to reword a finished text"], "correct": 0, "explain": "Risk and the cost of a mistake are highest where you need a specific, checkable fact." }
+    ] }
+  ]
+}

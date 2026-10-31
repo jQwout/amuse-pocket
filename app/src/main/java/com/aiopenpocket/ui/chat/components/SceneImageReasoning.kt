@@ -55,6 +55,8 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aiopenpocket.i18n.AppLanguage
+import com.aiopenpocket.i18n.tr
 import kotlin.random.Random
 
 /** A plan box: a caption and a place on the canvas in fractions of the width and the height. The caption is on the right so it does not overlap the neighbour. */
@@ -65,10 +67,28 @@ private class SketchPicture(val parts: List<SketchPart>, val fix: Rect, val drop
 
 private class SketchPrompt(val chip: String, val text: String, val issue: String, val fixNote: String)
 
-private val PROMPTS = listOf(
-    SketchPrompt("Кот и дождь", "кот на подоконнике в дождь", "нет капель!", "В промпте дождь, а капель нет — модель перерисовала только окно, остальное не тронула"),
-    SketchPrompt("Маяк на закате", "маяк на закате", "небо дневное!", "В промпте закат, а небо дневное — модель перерисовала только небо, маяк и море не тронула"),
-)
+// A getter, not a stored list: tr() has to run when the scene is drawn, so a language switch is seen at once.
+private val PROMPTS: List<SketchPrompt>
+    get() = listOf(
+        SketchPrompt(
+            tr("Кот и дождь", "Cat in the rain"),
+            tr("кот на подоконнике в дождь", "a cat on a windowsill in the rain"),
+            tr("нет капель!", "no raindrops!"),
+            tr(
+                "В промпте дождь, а капель нет — модель перерисовала только окно, остальное не тронула",
+                "The prompt says rain, but there are no drops — the model redrew only the window and left the rest alone",
+            ),
+        ),
+        SketchPrompt(
+            tr("Маяк на закате", "Sunset lighthouse"),
+            tr("маяк на закате", "a lighthouse at sunset"),
+            tr("небо дневное!", "daytime sky!"),
+            tr(
+                "В промпте закат, а небо дневное — модель перерисовала только небо, маяк и море не тронула",
+                "The prompt says sunset, but the sky is daytime — the model redrew only the sky and left the lighthouse and sea alone",
+            ),
+        ),
+    )
 
 private fun Random.between(from: Float, to: Float) = from + nextFloat() * (to - from)
 
@@ -84,12 +104,13 @@ private fun catSketch(seed: Int): SketchPicture {
     val catX = if (catLeft) sill.left + 0.02f else sill.right - catW - 0.02f
     val glass = Rect(window.left + 0.02f, window.top + 0.03f, window.right - 0.02f, window.bottom - 0.03f)
     val parts = mutableListOf(
-        SketchPart("окно", window), SketchPart("подоконник", sill), SketchPart("кот", Rect(catX, sill.top - 0.3f, catX + catW, sill.top)),
-        SketchPart("капли", glass, tagRight = true),
+        SketchPart(tr("окно", "window"), window), SketchPart(tr("подоконник", "sill"), sill),
+        SketchPart(tr("кот", "cat"), Rect(catX, sill.top - 0.3f, catX + catW, sill.top)),
+        SketchPart(tr("капли", "drops"), glass, tagRight = true),
     )
     if (rnd.nextBoolean()) {
         val px = if (catLeft) sill.right - 0.1f else sill.left + 0.03f
-        parts += SketchPart("цветок", Rect(px, sill.top - 0.17f, px + 0.07f, sill.top))
+        parts += SketchPart(tr("цветок", "flower"), Rect(px, sill.top - 0.17f, px + 0.07f, sill.top))
     }
     return SketchPicture(parts, glass, List(18) { Offset(rnd.nextFloat(), rnd.nextFloat()) })
 }
@@ -104,13 +125,13 @@ private fun lighthouseSketch(seed: Int): SketchPicture {
     val sunY = horizon - rnd.between(0.02f, 0.1f)
     val sky = Rect(0f, 0f, 1f, horizon)
     val parts = mutableListOf(
-        SketchPart("небо: закат", sky), SketchPart("море", Rect(0f, horizon, 1f, 1f), tagRight = true),
-        SketchPart("маяк", Rect(towerX, rnd.between(0.12f, 0.22f), towerX + towerW, horizon + 0.14f)),
-        SketchPart("солнце", Rect(sunX - 0.05f, sunY - 0.08f, sunX + 0.05f, sunY + 0.08f)),
+        SketchPart(tr("небо: закат", "sky: sunset"), sky), SketchPart(tr("море", "sea"), Rect(0f, horizon, 1f, 1f), tagRight = true),
+        SketchPart(tr("маяк", "lighthouse"), Rect(towerX, rnd.between(0.12f, 0.22f), towerX + towerW, horizon + 0.14f)),
+        SketchPart(tr("солнце", "sun"), Rect(sunX - 0.05f, sunY - 0.08f, sunX + 0.05f, sunY + 0.08f)),
     )
     if (rnd.nextBoolean()) {
         val bx = if (towerX > 0.45f) rnd.between(0.05f, 0.3f) else rnd.between(0.55f, 0.8f)
-        parts += SketchPart("лодка", Rect(bx, horizon + 0.12f, bx + 0.12f, horizon + 0.26f))
+        parts += SketchPart(tr("лодка", "boat"), Rect(bx, horizon + 0.12f, bx + 0.12f, horizon + 0.26f))
     }
     return SketchPicture(parts, sky, emptyList())
 }
@@ -133,7 +154,7 @@ internal fun ImageReasoningScene() {
         if (stage > 0) phase.animateTo(1f, tween(listOf(0, 1000, 1300, 1800)[stage], easing = LinearEasing))
     }
     val prompt = PROMPTS[promptIndex]
-    val picture = remember(promptIndex, seed) { if (promptIndex == 0) catSketch(seed) else lighthouseSketch(seed) }
+    val picture = remember(promptIndex, seed, AppLanguage.code) { if (promptIndex == 0) catSketch(seed) else lighthouseSketch(seed) }
     val p = phase.value
     // "Drawing": for the first third the plan boxes are still there — it shows which plan is being drawn, then they melt into the picture.
     val reveal = if (stage == 2) ((p - 0.3f) / 0.7f).coerceIn(0f, 1f) else if (stage == 3) 1f else 0f
@@ -148,7 +169,7 @@ internal fun ImageReasoningScene() {
                 FilterChip(selected = promptIndex == index, onClick = { promptIndex = index; stage = 0 }, label = { Text(item.chip) })
             }
         }
-        Text("Промпт: «${prompt.text}»", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(tr("Промпт: «${prompt.text}»", "Prompt: “${prompt.text}”"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 10f).clip(RoundedCornerShape(12.dp)).background(Color.White)) {
             // The picture layer: it shows up at the "Drawing" step.
             Canvas(modifier = Modifier.matchParentSize().alpha(reveal)) {
@@ -174,12 +195,12 @@ internal fun ImageReasoningScene() {
                         val y = r.top + r.height * fixK
                         drawLine(primary, Offset(r.left, y), Offset(r.right, y), strokeWidth = 2.dp.toPx())
                     }
-                    tag(measurer, if (fixed) "исправлено только здесь" else prompt.issue, r, false, if (fixed) primary else error, 1f)
+                    tag(measurer, if (fixed) tr("исправлено только здесь", "fixed only here") else prompt.issue, r, false, if (fixed) primary else error, 1f)
                 }
             }
             if (stage == 0) {
                 Text(
-                    "Пустой холст: модель ещё не начала",
+                    tr("Пустой холст: модель ещё не начала", "Empty canvas: the model hasn't started yet"),
                     style = MaterialTheme.typography.bodyMedium,
                     color = SceneInk.copy(alpha = 0.5f),
                     textAlign = TextAlign.Center,
@@ -194,23 +215,30 @@ internal fun ImageReasoningScene() {
                     if (stage == 3) checked = true
                 },
                 modifier = Modifier.weight(1f),
-            ) { Text(listOf("1 · План", "2 · Рисунок", "3 · Проверка", "Сначала")[stage]) }
+            ) { Text(listOf(tr("1 · План", "1 · Plan"), tr("2 · Рисунок", "2 · Drawing"), tr("3 · Проверка", "3 · Check"), tr("Сначала", "Start over"))[stage]) }
             // A new random seed — a new plan, and a drawing from it right away: the same prompt, a different picture.
-            OutlinedButton(onClick = { seed = Random.nextInt(); variant++; stage = 2 }) { Text("Ещё раз") }
+            OutlinedButton(onClick = { seed = Random.nextInt(); variant++; stage = 2 }) { Text(tr("Ещё раз", "Again")) }
         }
         Text(
             text = when (stage) {
-                0 -> "Нажми «План»: Muse Image не рисует сразу, а сначала раскладывает, где что будет"
-                1 -> "План: где что встанет. Это набросок композиции, ещё не картинка"
-                2 -> if (variant > 1) "Вариант $variant: промпт тот же — а план и картинка новые. Проверим?" else "Рисунок по плану готов. Но всё ли из промпта на месте?"
-                else -> if (p < 1f) "Проверка: модель сверяет свой рисунок с промптом…" else prompt.fixNote
+                0 -> tr("Нажми «План»: Muse Image не рисует сразу, а сначала раскладывает, где что будет", "Tap “Plan”: Muse Image doesn't draw right away, it first lays out what goes where")
+                1 -> tr("План: где что встанет. Это набросок композиции, ещё не картинка", "The plan: what goes where. It's a sketch of the composition, not a picture yet")
+                2 -> if (variant > 1) {
+                    tr("Вариант $variant: промпт тот же — а план и картинка новые. Проверим?", "Version $variant: same prompt — new plan and new picture. Shall we check?")
+                } else {
+                    tr("Рисунок по плану готов. Но всё ли из промпта на месте?", "The drawing from the plan is ready. But is everything from the prompt there?")
+                }
+                else -> if (p < 1f) tr("Проверка: модель сверяет свой рисунок с промптом…", "Check: the model compares its drawing with the prompt…") else prompt.fixNote
             },
             style = MaterialTheme.typography.bodyMedium,
             minLines = 3,
         )
         AnimatedVisibility(visible = checked, enter = fadeIn()) {
             Text(
-                "Muse Image планирует, рисует и проверяет себя — а тот же промпт каждый раз даёт новую картинку",
+                tr(
+                    "Muse Image планирует, рисует и проверяет себя — а тот же промпт каждый раз даёт новую картинку",
+                    "Muse Image plans, draws and checks itself — and the same prompt gives a new picture every time",
+                ),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = primary,

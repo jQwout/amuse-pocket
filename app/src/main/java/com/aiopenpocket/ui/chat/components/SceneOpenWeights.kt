@@ -55,16 +55,19 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aiopenpocket.i18n.tr
 
 /** A panel row: what changes when the weights move. */
 private class WeightsFact(val label: String, val mine: String, val vendor: String)
 
-private val FACTS = listOf(
-    WeightsFact("Кто видит данные", "только ты", "ты и Meta"),
-    WeightsFact("Что нужно", "видеокарта, сервер", "только ключ API"),
-    WeightsFact("Как платишь", "железо и свет", "за токены"),
-    WeightsFact("Обновления", "ставишь сам", "делает вендор"),
-)
+// A getter, not a stored list: tr() has to run when the scene is drawn, so a language switch is seen at once.
+private val FACTS: List<WeightsFact>
+    get() = listOf(
+        WeightsFact(tr("Кто видит данные", "Who sees the data"), tr("только ты", "only you"), tr("ты и Meta", "you and Meta")),
+        WeightsFact(tr("Что нужно", "What you need"), tr("видеокарта, сервер", "a GPU, a server"), tr("только ключ API", "just an API key")),
+        WeightsFact(tr("Как платишь", "How you pay"), tr("железо и свет", "hardware and power"), tr("за токены", "for tokens")),
+        WeightsFact(tr("Обновления", "Updates"), tr("ставишь сам", "you install them"), tr("делает вендор", "the vendor does it")),
+    )
 
 private val Mine = ScenePalette[2]
 private val Vendor = ScenePalette[0]
@@ -94,9 +97,9 @@ internal fun OpenWeightsScene() {
     val measurer = rememberTextMeasurer()
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Где лежат веса модели — у тебя или у Meta?", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(tr("Где лежат веса модели — у тебя или у Meta?", "Where do the model's weights live — with you or with Meta?"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            listOf("У тебя", "У Meta (API)").forEachIndexed { index, label ->
+            listOf(tr("У тебя", "With you"), tr("У Meta (API)", "With Meta (API)")).forEachIndexed { index, label ->
                 SegmentedButton(
                     selected = api == (index == 1),
                     onClick = {
@@ -141,10 +144,10 @@ internal fun OpenWeightsScene() {
                 cornerRadius = CornerRadius(6.dp.toPx()),
                 style = if (copy) Stroke(2.dp.toPx()) else faint,
             )
-            label(measurer, "телефон", phone + Offset(0f, 24.dp.toPx()))
-            label(measurer, "твой сервер", server + Offset(0f, 22.dp.toPx()))
-            label(measurer, "облако Meta", cloud + Offset(0f, 20.dp.toPx()))
-            label(measurer, "обучение", training + Offset(0f, 18.dp.toPx()))
+            label(measurer, tr("телефон", "phone"), phone + Offset(0f, 24.dp.toPx()))
+            label(measurer, tr("твой сервер", "your server"), server + Offset(0f, 22.dp.toPx()))
+            label(measurer, tr("облако Meta", "Meta cloud"), cloud + Offset(0f, 20.dp.toPx()))
+            label(measurer, tr("обучение", "training"), training + Offset(0f, 18.dp.toPx()))
 
             // The request dot: there, then the answer back. With contributor a copy separates at the cloud and goes off to the right.
             val t = trip.value
@@ -156,12 +159,12 @@ internal fun OpenWeightsScene() {
         }
         FACTS.forEachIndexed { index, fact ->
             val warn = copy && index == 0
-            FactRow(fact.label, if (warn) "Meta, может учиться" else if (api) fact.vendor else fact.mine, if (warn) Warn else if (api) Vendor else Mine)
+            FactRow(fact.label, if (warn) tr("Meta, может учиться", "Meta, may learn from it") else if (api) fact.vendor else fact.mine, if (warn) Warn else if (api) Vendor else Mine)
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f).alpha(if (api) 1f else 0.45f)) {
-                Text("contributor-версия", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                Text("Только у API: вендор может учиться на том, что ты шлёшь", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                Text(tr("contributor-версия", "contributor version"), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text(tr("Только у API: вендор может учиться на том, что ты шлёшь", "API only: the vendor may learn from what you send"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
             }
             Switch(checked = copy, onCheckedChange = { contributor = it }, enabled = api)
         }
@@ -175,9 +178,9 @@ internal fun OpenWeightsScene() {
         ) {
             Text(
                 text = when {
-                    copy -> "Копия запроса может уйти в обучение модели. Это приложение такие версии отфильтровывает"
-                    api -> "Веса у Meta: нужен только ключ, платишь за токены — но вендор видит всё, что ты отправил"
-                    else -> "Веса у тебя: данные никуда не уходят, но видеокарта, счёт за свет и обновления — на тебе"
+                    copy -> tr("Копия запроса может уйти в обучение модели. Это приложение такие версии отфильтровывает", "A copy of the request may go into training the model. This app filters such versions out")
+                    api -> tr("Веса у Meta: нужен только ключ, платишь за токены — но вендор видит всё, что ты отправил", "The weights are with Meta: you need only a key and pay for tokens — but the vendor sees everything you send")
+                    else -> tr("Веса у тебя: данные никуда не уходят, но видеокарта, счёт за свет и обновления — на тебе", "The weights are with you: data goes nowhere, but the GPU, the power bill and the updates are up to you")
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = SceneInk,
@@ -186,7 +189,7 @@ internal fun OpenWeightsScene() {
         }
         AnimatedVisibility(visible = visited == 3, enter = fadeIn()) {
             Text(
-                "Где лежат веса — решает, кто видит твои данные и кто делает всю работу",
+                tr("Где лежат веса — решает, кто видит твои данные и кто делает всю работу", "Where the weights live decides who sees your data and who does all the work"),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = primary,

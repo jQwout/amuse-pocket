@@ -1,0 +1,26 @@
+{
+  "id": "temperature_and_randomness",
+  "title": "Why answers vary",
+  "description": "What temperature is, and why the same request gives different answers.",
+  "iconKey": "thermostat",
+  "steps": [
+    { "type": "text", "text": "You ask the same question twice and get two different answers. That's not a glitch. A model has some randomness built in, and a setting called temperature controls it." },
+    { "type": "text", "text": "Remember: a model produces text one word at a time, each time choosing the next word from many options with different chances. Temperature decides how boldly it moves away from the most likely option." },
+    { "type": "animation", "scene": "temperature", "caption": "The numbers are an example: a real model has thousands of options. Move the slider and drag a word" },
+    { "type": "text", "text": "Low temperature: the model almost always takes the most likely option. Answers are predictable, steady, close to repeating themselves. That's good for facts, code and instructions — where you need accuracy, not imagination." },
+    { "type": "text", "text": "High temperature: the model more often picks less obvious words. Answers are more varied and lively, but riskier: more unexpected turns and a bigger chance of going off track. That's for ideas, writing and brainstorming." },
+    { "type": "text", "text": "This is why different runs of the same request differ — and why you can use it: run a question several times and pick the best answer. That has a lesson of its own, “Arena and agent swarms.”" },
+    { "type": "scenario", "situation": "You need to word a precise clause of a contract about payment.", "q": "Which temperature fits better here?", "options": [
+      "Low — you need accuracy and predictability",
+      "High — let it word things more boldly",
+      "Any — it doesn't affect this"
+    ], "correct": 0, "explain": "For facts, code and legal wording, spread does harm — keep the answer near the most likely option." },
+    { "type": "text", "text": "Practice. After the lesson, ask me the same creative question twice in a regular chat — for example, “think of a name for a bakery.” Compare the answers: the difference between the runs is temperature at work." },
+    { "type": "text", "text": "Remember the main point: different answers don't mean “the model contradicts itself.” They are randomness that has been tuned. Need stability? Expect an even tone. Need freshness? Let the spread run wider." },
+    { "type": "quiz", "questions": [
+      { "q": "Why does the same request give different answers?", "options": ["Word choice has some randomness, which temperature controls", "The model forgets its last answer each time and writes anew", "A different model from the chain handles the request each time"], "correct": 0, "explain": "Temperature sets how far the model moves from the most likely word — that is where the variety comes from." },
+      { "q": "When is low temperature the right choice?", "options": ["When you need accuracy and predictability — facts, code, instructions", "When you want creative brainstorming and unexpected ideas", "When you want the answer to come out longer and more detailed"], "correct": 0, "explain": "Low temperature keeps the answer near the most likely option — it's about accuracy." },
+      { "q": "You asked twice for a bakery name and got different ones. What does that mean?", "options": ["That's how randomness works: you can pick the best run", "The model broke and contradicts itself", "The first answer was a mistake, and the model fixed it"], "correct": 0, "explain": "Spread from temperature makes runs differ, and you can pick the best of them. The arena is built on that — we'll reach it at the end of the course." }
+    ] }
+  ]
+}

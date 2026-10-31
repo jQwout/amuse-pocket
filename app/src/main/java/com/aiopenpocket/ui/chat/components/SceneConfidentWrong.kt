@@ -38,17 +38,36 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.aiopenpocket.i18n.tr
 
 /** A model answer: the text, what the check will show (true, made up or an honest "not sure") and the caption for the result. */
 private class ModelClaim(val text: String, val verdict: String, val truthful: Boolean, val note: String)
 
 // As in the lesson: a date, a quote and a link to an article. The first two are real facts, the article is made up for the example.
-private val CLAIMS = listOf(
-    ModelClaim("Гагарин полетел в космос 12 апреля 1961 года.", "Правда", true, "Дата сходится с энциклопедией"),
-    ModelClaim("Перед стартом Гагарин сказал: «Поехали!»", "Правда", true, "Есть в записи переговоров"),
-    ModelClaim("Подробнее — в статье «Тайны первой орбиты», журнал «Космос и люди», 1987.", "Выдумка", false, "Такой статьи нет — ссылку сочинили"),
-)
-private val HONEST_CLAIM = ModelClaim("Точную статью не назову — не уверен. Лучше проверь в источнике.", "Честно", true, "Сомнение вместо выдумки")
+// Getters, not stored lists: tr() has to run when the scene is drawn, so a language switch is seen at once.
+private val CLAIMS: List<ModelClaim>
+    get() = listOf(
+        ModelClaim(
+            tr("Гагарин полетел в космос 12 апреля 1961 года.", "Yuri Gagarin flew into space on 12 April 1961."),
+            tr("Правда", "True"), true, tr("Дата сходится с энциклопедией", "The date matches the encyclopedia"),
+        ),
+        ModelClaim(
+            tr("Перед стартом Гагарин сказал: «Поехали!»", "Before launch Gagarin said: “Let's go!”"),
+            tr("Правда", "True"), true, tr("Есть в записи переговоров", "It's in the radio recording"),
+        ),
+        ModelClaim(
+            tr(
+                "Подробнее — в статье «Тайны первой орбиты», журнал «Космос и люди», 1987.",
+                "More in the article “Secrets of the First Orbit,” Space and People magazine, 1987.",
+            ),
+            tr("Выдумка", "Made up"), false, tr("Такой статьи нет — ссылку сочинили", "There is no such article — the reference was invented"),
+        ),
+    )
+private val HONEST_CLAIM: ModelClaim
+    get() = ModelClaim(
+        tr("Точную статью не назову — не уверен. Лучше проверь в источнике.", "I can't name the exact article — I'm not sure. Better check the source."),
+        tr("Честно", "Honest"), true, tr("Сомнение вместо выдумки", "Doubt instead of invention"),
+    )
 private const val INVENTED = 2
 private const val SURE = 0.95f
 private const val UNSURE = 0.3f
@@ -66,9 +85,9 @@ internal fun ConfidentWrongScene() {
     val allChecked = checkedCount == CLAIMS.size
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Три ответа модели — тон у всех одинаково уверенный. Где выдумка?", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(tr("Три ответа модели — тон у всех одинаково уверенный. Где выдумка?", "Three model answers, all in an equally confident tone. Which one is made up?"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Text("Дописать в запрос: «если не уверен — так и скажи»", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            Text(tr("Дописать в запрос: «если не уверен — так и скажи»", "Add to the request: “if you're not sure, say so”"), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
             Switch(
                 checked = allowDoubt,
                 onCheckedChange = {
@@ -88,10 +107,10 @@ internal fun ConfidentWrongScene() {
         }
         Text(
             text = when {
-                checkedCount == 0 -> "Угадай по тону, где выдумка, — а потом проверь все три"
-                !allChecked -> "Проверено $checkedCount из ${CLAIMS.size}"
-                allowDoubt -> "С разрешением сомневаться модель сказала «не уверен» вместо выдумки"
-                else -> "Тон одинаково уверенный — правда это или нет, видно только после проверки"
+                checkedCount == 0 -> tr("Угадай по тону, где выдумка, — а потом проверь все три", "Guess by the tone which one is made up — then check all three")
+                !allChecked -> tr("Проверено $checkedCount из ${CLAIMS.size}", "Checked $checkedCount of ${CLAIMS.size}")
+                allowDoubt -> tr("С разрешением сомневаться модель сказала «не уверен» вместо выдумки", "With permission to doubt, the model said “not sure” instead of inventing")
+                else -> tr("Тон одинаково уверенный — правда это или нет, видно только после проверки", "The tone is equally confident — only a check shows whether it's true")
             },
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
@@ -100,7 +119,7 @@ internal fun ConfidentWrongScene() {
         TextButton(onClick = { checked = 0 }, enabled = checkedCount > 0, modifier = Modifier.align(Alignment.End)) {
             Icon(Icons.Default.Replay, contentDescription = null, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(4.dp))
-            Text("Сначала")
+            Text(tr("Сначала", "Start over"))
         }
     }
 }
@@ -120,7 +139,7 @@ private fun ClaimCard(claim: ModelClaim, confidence: Float, isChecked: Boolean, 
     ) {
         Text(claim.text, color = SceneInk, style = MaterialTheme.typography.bodyMedium, minLines = 2, modifier = Modifier.padding(end = 6.dp))
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Text("уверенность", color = SceneInk.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall)
+            Text(tr("уверенность", "confidence"), color = SceneInk.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall)
             Spacer(Modifier.width(6.dp))
             // The truth and the fabrication have a scale of the same color: they cannot be told apart by it — that is the whole trick.
             Box(
@@ -152,7 +171,7 @@ private fun ClaimCard(claim: ModelClaim, confidence: Float, isChecked: Boolean, 
                         Text(claim.verdict, color = accent, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                     }
                 } else {
-                    TextButton(onClick = onCheck) { Text("Проверить") }
+                    TextButton(onClick = onCheck) { Text(tr("Проверить", "Check")) }
                 }
             }
         }

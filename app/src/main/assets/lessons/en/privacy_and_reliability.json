@@ -1,0 +1,31 @@
+{
+  "id": "privacy_and_reliability",
+  "title": "Privacy and reliability",
+  "description": "What goes to the cloud, what stays with you, and what to do when things fail.",
+  "iconKey": "shield",
+  "steps": [
+    { "type": "reveal", "question": "When I answer you, what really leaves your phone for a server?", "answer": "Not your whole database. Files and memory are stored on the device, but for an answer the app picks what is needed — your profile, fitting facts, the chat history, and what tools returned in this turn, such as calendar events — and puts it into the request. Meta, whose model answers the request, sees that chosen context. Nobody sees the whole database." },
+    { "type": "text", "text": "Remember the lesson “Memory and context”: short-term memory is the window of the current chat, while long-term memory (facts about you), the profile and the action log live on the device and survive new chats. One side of that matters here — which of all this leaves the phone at all." },
+    { "type": "image", "asset": "lessons/images/generated/privacy_and_reliability-0311eeef0a.webp", "imagePrompt": "A smartphone drawn as a small cozy house with a safe inside that keeps notes and photos. Only one sealed envelope flies out of the chimney toward a cloud in the sky.", "caption": "Your data lives with you — only what the answer needs goes to the cloud" },
+    { "type": "text", "text": "The principle is simple: by default your data lives with you, and only what is needed for the answer right now goes to the cloud." },
+    { "type": "animation", "scene": "data_flow", "caption": "Tap the data and see where it goes; below, break the request and see what the app does" },
+    { "type": "text", "text": "Take this principle with you. If you ever build your own agent, ask yourself first: which data goes to the model provider, and which must stay with the user? That's the first question serious customers ask." },
+    { "type": "match", "instruction": "Match each kind of data to how it's used:", "pairs": [
+      { "term": "The whole local database", "def": "Stays on the device and is never sent as a whole" },
+      { "term": "Selected facts and episodes", "def": "May end up in the prompt of a specific answer" },
+      { "term": "Current chat history", "def": "Sent to the model within the context window" },
+      { "term": "A tool's result: calendar, file", "def": "Goes to the model in the same turn as the request" }
+    ] },
+    { "type": "text", "text": "But the request itself travels over the network — and sometimes it fails. That's a normal part of working with AI." },
+    { "type": "text", "text": "There are many causes: no key set, the request limit used up, a timeout, no internet, or a problem at the provider." },
+    { "type": "concept", "term": "Fallback", "definition": "Backup models: if the first one fails, the app automatically tries the next model on the list so that an answer still arrives. Here all the backups are Muse too, and the request never goes to another vendor.", "example": "Muse Spark 1.3 returned a rate-limit error → the request quietly went to Muse Spark 1.2." },
+    { "type": "scenario", "situation": "A turn that sets a reminder broke off halfway, and you tap “Retry.”", "q": "What should you keep in mind?", "options": ["The turn starts from scratch — actions along the way may run a second time", "Retry will continue exactly where it broke off", "Retry will only reread the old answer from a cache"], "correct": 0, "explain": "“Retry” restarts the whole turn — the reminder may be created twice." },
+    { "type": "text", "text": "Practice. After the lesson, open Settings: there you can see your key, the current model and the choice of Muse model. The app puts in a backup model by itself if the main one fails — that is the fallback. And in the chat, notice the “Retry” button under a failed answer — now you know it restarts the whole turn." },
+    { "type": "text", "text": "In short. The whole database — files, facts, memory — is stored on the device. What goes to the cloud is not all of it but the context picked for one specific answer: the pre-prompt, the needed facts, the history and tool results. Meta, whose model answers, sees it. Network failures are a normal part of the work: backup Muse models stand in for one that fails, with no network the app shows an honest error, and “Retry” runs the turn from scratch, so actions along the way may repeat." },
+    { "type": "quiz", "questions": [
+      { "q": "What is true about the app's local memory?", "options": ["The whole database is stored locally, but chosen facts may go to the model in a request", "Since the database is local, no fact from it ever leaves the device", "With every answer, the provider gets a full copy of the whole local database"], "correct": 0, "explain": "The whole database is stored locally. For a specific answer the app passes only the chosen context, not the whole database." },
+      { "q": "How is short-term memory different from long-term memory?", "options": ["Short-term is the current chat's window, long-term is facts about you on the device", "No difference — it's one memory under different names", "Short-term is stored in the cloud, long-term is in the current chat"], "correct": 0, "explain": "Short-term memory lives within a conversation, and long-term memory keeps facts about you between chats." },
+      { "q": "What does the app do if the model doesn't answer?", "options": ["Tries the next Muse model on the list", "Quietly sends the request to another company's model", "Deletes the chat and starts a new conversation"], "correct": 0, "explain": "The fallback is backup Muse models. The request never goes to another company." }
+    ] }
+  ]
+}

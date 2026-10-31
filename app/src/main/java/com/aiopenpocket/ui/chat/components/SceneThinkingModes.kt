@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aiopenpocket.i18n.tr
 
 /** One run: time and tokens (an example, not a measurement), the answer, the verdict and a short rating for the table. */
 private class ThinkRun(val seconds: Int, val tokens: Int, val answer: String, val verdict: String, val mark: String, val good: Boolean)
@@ -50,30 +51,67 @@ private class ThinkRun(val seconds: Int, val tokens: Int, val answer: String, va
 /** A question and how long its thinking is (a share of the bar's width): a simple one has almost nothing to think about. */
 private class ThinkAsk(val chip: String, val text: String, val depth: Float, val runs: List<ThinkRun>)
 
-private val ASKS = listOf(
-    ThinkAsk(
-        "Столица Франции?", "Столица Франции?", 0.35f,
-        listOf(
-            ThinkRun(1, 20, "Париж", "Верно и сразу — для простого вопроса Instant и есть умный выбор", "верно", true),
-            ThinkRun(5, 400, "Париж", "Тот же «Париж» — только токенов в 20 раз больше", "верно", true),
-            ThinkRun(20, 1500, "Париж", "Снова «Париж» — 1500 токенов вместо 20. Думать было не о чем", "верно", true),
+// Getters, not stored lists: tr() has to run when the scene is drawn, so a language switch is seen at once.
+private val ASKS: List<ThinkAsk>
+    get() = listOf(
+        ThinkAsk(
+            tr("Столица Франции?", "Capital of France?"), tr("Столица Франции?", "What is the capital of France?"), 0.35f,
+            listOf(
+                ThinkRun(
+                    1, 20, tr("Париж", "Paris"),
+                    tr("Верно и сразу — для простого вопроса Instant и есть умный выбор", "Right, and right away — for a simple question Instant is the smart choice"),
+                    tr("верно", "right"), true,
+                ),
+                ThinkRun(
+                    5, 400, tr("Париж", "Paris"),
+                    tr("Тот же «Париж» — только токенов в 20 раз больше", "The same “Paris” — just 20 times more tokens"),
+                    tr("верно", "right"), true,
+                ),
+                ThinkRun(
+                    20, 1500, tr("Париж", "Paris"),
+                    tr("Снова «Париж» — 1500 токенов вместо 20. Думать было не о чем", "“Paris” again — 1500 tokens instead of 20. There was nothing to think about"),
+                    tr("верно", "right"), true,
+                ),
+            ),
         ),
-    ),
-    ThinkAsk(
-        "План тренировок", "Составь план тренировок на неделю с учётом больного колена", 1f,
-        listOf(
-            ThinkRun(2, 150, "Пн — бег, Ср — приседания, Пт — прыжки", "Поверхностно: колено не учтено. Тут стоит дать модели подумать", "мелко", false),
-            ThinkRun(25, 3000, "7 дней: плавание, велотренажёр, упражнения без ударной нагрузки, дни отдыха", "Колено учтено — но дольше и дороже", "хорошо", true),
-            ThinkRun(60, 9000, "Сравнил три плана и взял лучший: щадящая нагрузка, замены упражнений, отдых", "Самый продуманный план — и самый дорогой", "отлично", true),
+        ThinkAsk(
+            tr("План тренировок", "Workout plan"),
+            tr("Составь план тренировок на неделю с учётом больного колена", "Make a workout plan for the week, taking a bad knee into account"),
+            1f,
+            listOf(
+                ThinkRun(
+                    2, 150, tr("Пн — бег, Ср — приседания, Пт — прыжки", "Mon — running, Wed — squats, Fri — jumping"),
+                    tr("Поверхностно: колено не учтено. Тут стоит дать модели подумать", "Shallow: the knee isn't taken into account. Here it's worth letting the model think"),
+                    tr("мелко", "shallow"), false,
+                ),
+                ThinkRun(
+                    25, 3000,
+                    tr(
+                        "7 дней: плавание, велотренажёр, упражнения без ударной нагрузки, дни отдыха",
+                        "7 days: swimming, stationary bike, low-impact exercises, rest days",
+                    ),
+                    tr("Колено учтено — но дольше и дороже", "The knee is taken into account — but slower and costlier"),
+                    tr("хорошо", "good"), true,
+                ),
+                ThinkRun(
+                    60, 9000,
+                    tr(
+                        "Сравнил три плана и взял лучший: щадящая нагрузка, замены упражнений, отдых",
+                        "Compared three plans and took the best: gentle load, exercise swaps, rest",
+                    ),
+                    tr("Самый продуманный план — и самый дорогой", "The most thought-out plan — and the most expensive"),
+                    tr("отлично", "excellent"), true,
+                ),
+            ),
         ),
-    ),
-)
+    )
 
-private val MODES = listOf(
-    "Instant" to "отвечает сразу, без долгих размышлений",
-    "Thinking" to "сначала рассуждает шаг за шагом",
-    "Contemplating" to "несколько рассуждений параллельно",
-)
+private val MODES: List<Pair<String, String>>
+    get() = listOf(
+        "Instant" to tr("отвечает сразу, без долгих размышлений", "answers right away, with no long reasoning"),
+        "Thinking" to tr("сначала рассуждает шаг за шагом", "reasons step by step first"),
+        "Contemplating" to tr("несколько рассуждений параллельно", "several lines of reasoning in parallel"),
+    )
 
 /** The lengths of Contemplating's three parallel reasonings relative to one — different, as with different agents. */
 private val LANES = listOf(0.8f, 1f, 0.65f)
@@ -117,13 +155,13 @@ internal fun ThinkingModesScene() {
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         // The modes are a switch of the Meta AI app; through the API, as in this app, Muse Spark always thinks.
-        Text("Режимы Muse Spark в Meta AI: выбери, сколько думать", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(tr("Режимы Muse Spark в Meta AI: выбери, сколько думать", "Muse Spark modes in Meta AI: choose how much to think"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             ASKS.forEachIndexed { index, item ->
                 FilterChip(selected = askIndex == index, enabled = !running, onClick = { askIndex = index; shown = -1 }, label = { Text(item.chip) })
             }
         }
-        Text("Вопрос: «${ask.text}»", style = MaterialTheme.typography.bodyMedium, minLines = 2)
+        Text(tr("Вопрос: «${ask.text}»", "Question: “${ask.text}”"), style = MaterialTheme.typography.bodyMedium, minLines = 2)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             MODES.forEachIndexed { index, (name, _) ->
                 FilterChip(selected = mode == index, enabled = !running, onClick = { mode = index; shown = -1 }, label = { Text(name) })
@@ -134,7 +172,7 @@ internal fun ThinkingModesScene() {
             onClick = { shown = askIndex * 3 + mode; finished = -1; runId++ },
             enabled = !running,
             modifier = Modifier.fillMaxWidth(),
-        ) { Text("Спросить") }
+        ) { Text(tr("Спросить", "Ask")) }
         Canvas(modifier = Modifier.fillMaxWidth().height(96.dp)) {
             val start = Offset(14.dp.toPx(), size.height * 0.58f)
             val finish = Offset(size.width - 14.dp.toPx(), size.height * 0.58f)
@@ -144,7 +182,7 @@ internal fun ThinkingModesScene() {
             val depth = if (shown >= 0) ASKS[shown / 3].depth else ask.depth
             val grow = (p / 0.8f).coerceAtMost(1f)
             val merge = ((p - 0.8f) / 0.2f).coerceIn(0f, 1f)
-            val title = when (activeMode) { 0 -> "без размышлений — сразу к ответу"; 1 -> "размышления"; else -> "три рассуждения параллельно" }
+            val title = when (activeMode) { 0 -> tr("без размышлений — сразу к ответу", "no reasoning — straight to the answer"); 1 -> tr("размышления", "reasoning"); else -> tr("три рассуждения параллельно", "three lines of reasoning in parallel") }
             drawText(measurer.measure(title, TextStyle(fontSize = 11.sp, color = SceneInk.copy(alpha = 0.6f))), topLeft = Offset(start.x, 0f))
             if (activeMode == 0) {
                 drawLine(primary, start, lerp(start, finish, p), strokeWidth = 3.dp.toPx())
@@ -174,9 +212,9 @@ internal fun ThinkingModesScene() {
         ) {
             Text(
                 text = when {
-                    run == null -> "Выбери режим и нажми «Спросить»"
-                    !done -> listOf("Отвечает…", "Размышляет…", "Три рассуждения идут параллельно…")[shown % 3]
-                    else -> "Ответ: ${run.answer}"
+                    run == null -> tr("Выбери режим и нажми «Спросить»", "Pick a mode and tap “Ask”")
+                    !done -> listOf(tr("Отвечает…", "Answering…"), tr("Размышляет…", "Reasoning…"), tr("Три рассуждения идут параллельно…", "Three lines of reasoning run in parallel…"))[shown % 3]
+                    else -> tr("Ответ: ${run.answer}", "Answer: ${run.answer}")
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
@@ -190,7 +228,7 @@ internal fun ThinkingModesScene() {
                 minLines = 2,
             )
         }
-        Text("Время и токены — пример, не замер", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+        Text(tr("Время и токены — пример, не замер", "Time and tokens are an example, not a measurement"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
         MODES.forEachIndexed { index, (name, _) ->
             val key = askIndex * 3 + index
             val live = shown == key
@@ -202,8 +240,8 @@ internal fun ThinkingModesScene() {
             }
             ResultRow(
                 name = name,
-                time = if (share > 0f) "≈ ${(r.seconds * share).toInt().coerceAtLeast(1)} с" else "—",
-                tokens = if (share > 0f) "≈ ${(r.tokens * share).toInt()} ток." else "—",
+                time = if (share > 0f) "≈ ${(r.seconds * share).toInt().coerceAtLeast(1)} ${tr("с", "s")}" else "—",
+                tokens = if (share > 0f) "≈ ${(r.tokens * share).toInt()} ${tr("ток.", "tokens")}" else "—",
                 mark = if (share >= 1f) r.mark else "",
                 good = r.good,
                 active = live,
@@ -211,7 +249,7 @@ internal fun ThinkingModesScene() {
         }
         AnimatedVisibility(visible = Integer.bitCount(ran) >= 2, enter = fadeIn()) {
             Text(
-                "Размышления стоят токенов и времени — режим выбирают под задачу",
+                tr("Размышления стоят токенов и времени — режим выбирают под задачу", "Reasoning costs tokens and time — you pick the mode to fit the task"),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = primary,
