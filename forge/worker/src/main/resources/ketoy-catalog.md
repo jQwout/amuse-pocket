@@ -7,6 +7,7 @@ Anything not listed here fails the build with UnregisteredComposable, Unregister
 Layout: Box, Column, Row, FlowRow, FlowColumn, Spacer, Scaffold, Surface, Card
 Lists and grids: LazyColumn, LazyRow, LazyVerticalGrid, LazyHorizontalGrid, HorizontalPager, VerticalPager
 Text and input: Text, TextField, Checkbox, Switch
+Text ALWAYS with an explicit color (`Text(text = ..., color = Color(0xFF1C1B1F))`; `Color.White` inside Button): the default color renders transparent in the host.
 Buttons: Button, IconButton
 Media: Image, Icon, AsyncImage, Canvas
 Other: TopAppBar (needs @OptIn(ExperimentalMaterial3Api::class)), AlertDialog, ModalBottomSheet, HorizontalDivider, VerticalDivider

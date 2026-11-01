@@ -40,7 +40,10 @@ fun WaterTrackerScreen() { ... }
    network I/O, no `GlobalScope`, `runBlocking`, no `LaunchedEffect` that reaches outside the screen.
 4. No other files: one screen, one file. Small private helper composables in the same file are fine
    (annotate them `@KetoyComposable @Composable`, without `@KetoyEntryPoint`).
-5. Prefer named arguments: `Text(text = "Glasses: $count", fontSize = 18.sp)`.
+5. Prefer named arguments: `Text(text = "Glasses: $count", fontSize = 18.sp, color = Color(0xFF1C1B1F))`.
+   EVERY `Text` MUST pass an explicit `color`: the host renders a text without one as transparent
+   (laid out, never drawn). Dark text `Color(0xFF1C1B1F)` on cards, `Color.White` inside a `Button`,
+   `Color(0xFF49454F)` for secondary lines. Never rely on the default color.
 6. Keep it small and robust: a clear layout, a few state variables, simple lambdas. A boring screen
    that compiles beats an ambitious one that does not. Aim for under 150 lines.
 7. Do not use icons (`Icon`, `Icons.*`): the app registers no icon set. Use text labels.
