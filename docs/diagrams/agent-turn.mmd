@@ -1,0 +1,36 @@
+flowchart TD
+    U(["You send a message"]) --> TM["Turn manager<br/>the turn survives leaving the chat"]
+    TM --> PR["Prompt assembly, stable to volatile<br/>base · language · role · skills · instructions<br/>· plan · current time · memory"]
+    PR --> MODE{"Mode"}
+    MODE -->|Chat| LLM
+    MODE -->|Reflect| RF["Draft → critique → revise<br/>the revise pass may only read"]
+    MODE -->|Plan| PL["Planner proposes steps"]
+    MODE -->|Goal| GL["Runs the approved plan<br/>step by step, 1–10 rounds per step"]
+    RF --> LLM
+    GL --> LLM
+    PL --> PC(["Plan card: you approve or edit"])
+    LLM["Muse Spark on Meta Model API<br/>streams text and tool calls"] --> TC{"Tool calls?"}
+    TC -->|no| ANS(["Answer in chat"])
+    TC -->|yes| HK["Agent rules<br/>(before-tool hooks)"]
+    HK --> POL{"Execution policy<br/>tool risk × run mode"}
+    POL -->|read / write| EX["Run the tool on the phone<br/>JSON args validated, timeout"]
+    POL -->|delete / send off the phone| ASK{"Ask you in chat"}
+    POL -->|dry run| SIM["Simulated:<br/>nothing really happens"]
+    POL -->|a rule says no| DEN["Denied"]
+    ASK -->|yes| EX
+    ASK -->|"no, or a background run"| DEN
+    EX --> OBS["Result goes back to the model"]
+    SIM --> OBS
+    DEN --> OBS
+    OBS --> LEFT{"Rounds left?"}
+    LEFT -->|"yes (up to 10)"| LLM
+    LEFT -->|no| WRAP["One last call without tools:<br/>what is done, what is not"]
+    WRAP --> ANS
+    classDef you fill:#D4F06A,stroke:#D4F06A,color:#10160C
+    classDef meta fill:#22301C,stroke:#D4F06A,stroke-width:2px,color:#F4FAE8
+    classDef gate fill:#2E2616,stroke:#F2B45A,stroke-width:2px,color:#FBEFD9
+    classDef stop fill:#2E1A1A,stroke:#E07A6E,color:#F8E1DE
+    class U,ANS,PC you
+    class LLM meta
+    class POL,ASK gate
+    class DEN stop
