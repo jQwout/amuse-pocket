@@ -195,6 +195,8 @@ fun ChatScreen(
     onOpenPlanDetail: (String) -> Unit = {},
     // "Open Settings" on the no-key error line: the Meta key is entered there (see ModelKeyGate).
     onOpenSettings: () -> Unit = {},
+    // Opened by the phone's assistant button (route chat/new?voice=true): listen at once, read the reply aloud.
+    voiceAssistant: Boolean = false,
 ) {
     val glassState = rememberGlassState()
     val viewModel: ChatViewModel = metroViewModel()
@@ -216,6 +218,7 @@ fun ChatScreen(
 
     LaunchedEffect(conversationId) {
         viewModel.setConversationId(conversationId)
+        if (voiceAssistant) viewModel.handleIntent(ChatIntent.EnterVoiceAssistant)
     }
 
     // Actions of switch cards. The template is retired (RETIRED_CARD_TEMPLATES): the model cannot create new
@@ -876,6 +879,8 @@ fun ChatScreen(
                                     voiceState = state.voiceState,
                                     onVoiceToggle = { viewModel.handleIntent(ChatIntent.ToggleVoiceInput) },
                                     onPermissionDenied = { viewModel.handleIntent(ChatIntent.ClearVoiceError) },
+                                    autoListen = state.autoListen,
+                                    onAutoListenStarted = { viewModel.handleIntent(ChatIntent.AutoListenStarted) },
                                 )
                             }
                         }

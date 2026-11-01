@@ -144,7 +144,8 @@ class MainActivity : ComponentActivity() {
                                         popUpTo("onboarding") { inclusive = true }
                                         launchSingleTop = true
                                     }
-                                    navController.navigate("chat/new") {
+                                    // voice=true: the chat starts listening at once and reads the reply aloud.
+                                    navController.navigate("chat/new?voice=true") {
                                         launchSingleTop = true
                                     }
                                 }
@@ -404,11 +405,22 @@ class MainActivity : ComponentActivity() {
                                         onNavigateBack = { navController.popBackStack() },
                                     )
                                 }
-                                composable("chat/{conversationId}") { backStackEntry ->
+                                composable(
+                                    route = "chat/{conversationId}?voice={voice}",
+                                    arguments = listOf(
+                                        // @trace voice-assistant-mode-a81a99
+                                        // Only the assistant button sets it; every other "chat/<id>" keeps false.
+                                        navArgument("voice") {
+                                            type = NavType.BoolType
+                                            defaultValue = false
+                                        },
+                                    ),
+                                ) { backStackEntry ->
                                     val conversationId =
                                         backStackEntry.arguments?.getString("conversationId") ?: "new"
                                     ChatScreen(
                                         conversationId = if (conversationId == "new") "" else conversationId,
+                                        voiceAssistant = backStackEntry.arguments?.getBoolean("voice") ?: false,
                                         onNavigateBack = { navController.popBackStack() },
                                         onOpenAgentDetail = { agentId ->
                                             navController.navigate("agent/$agentId")

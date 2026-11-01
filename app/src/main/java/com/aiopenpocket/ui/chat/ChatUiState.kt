@@ -70,6 +70,8 @@ data class ChatUiState(
   val title: String? = null,
   val voiceState: VoiceInputState = VoiceInputState.Idle,
   val voiceError: String? = null,
+  /** The chat was opened as the phone's assistant: start listening once, as soon as the composer is up. */
+  val autoListen: Boolean = false,
 
   /**
    * A tool call in THIS conversation's active run is waiting for the user's approval (a risky

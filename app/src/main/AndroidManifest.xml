@@ -23,6 +23,10 @@
         <intent>
             <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
         </intent>
+        <!-- So that TextToSpeech finds the phone's speech engine on Android 11+ (replies read aloud). -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
     </queries>
 
     <application

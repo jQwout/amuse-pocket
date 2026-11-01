@@ -45,6 +45,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,6 +80,10 @@ internal fun ChatInput(
     voiceState: VoiceInputState,
     onVoiceToggle: () -> Unit,
     onPermissionDenied: () -> Unit,
+    // The chat was opened by the phone's assistant button: start listening as if the mic had been tapped,
+    // permission request included. onAutoListenStarted is called first, so it starts only once.
+    autoListen: Boolean = false,
+    onAutoListenStarted: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -101,6 +106,13 @@ internal fun ChatInput(
         } else {
             pendingStart = true
             micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    LaunchedEffect(autoListen) {
+        if (autoListen) {
+            onAutoListenStarted()
+            handleMicTap()
         }
     }
 

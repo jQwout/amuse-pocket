@@ -27,6 +27,7 @@ import com.aiopenpocket.agent.core.llm.VideoUnderstandingClient
 import com.aiopenpocket.agent.core.llm.missingKeyMessage
 import com.aiopenpocket.agent.core.memory.dao.HeartbeatDao
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
+import com.aiopenpocket.agent.core.memory.model.Message
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.memory.repository.MemoryRepository
 import com.aiopenpocket.agent.core.plan.execution.PlanCommands
@@ -47,6 +48,7 @@ import com.aiopenpocket.ui.chat.components.bundledAssetPath
 import com.aiopenpocket.voice.input.VoiceInputController
 import com.aiopenpocket.voice.input.VoiceInputState
 import com.aiopenpocket.voice.input.appLanguageToBcp47
+import com.aiopenpocket.voice.output.VoiceReplySpeaker
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
@@ -63,6 +65,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -84,6 +87,7 @@ class ChatViewModel(
     private val lessonChatController: LessonChatController,
     private val memoryRepository: MemoryRepository,
     private val voiceController: VoiceInputController,
+    private val replySpeaker: VoiceReplySpeaker,
     private val heartbeatDao: HeartbeatDao,
     private val agentResolver: AgentResolver,
     private val toolApprovalCoordinator: ToolApprovalCoordinator,
@@ -129,6 +133,15 @@ class ChatViewModel(
     /** A guard against re-entry on a lesson step (a quick double tap on "Next"/a quiz). */
     private var lessonBusy = false
 
+    // @trace voice-assistant-mode-a81a99
+    // Voice assistant mode. [voiceAssistant]: the chat was opened by the
+    // phone's assistant button, so what is said is sent at once. [inputByVoice]: the text in the composer
+    // was dictated. [speakRepliesAfter]: the send time of a spoken question; the first reply written after it
+    // is read aloud. Plain fields, not state: nothing on screen depends on them.
+    private var voiceAssistant = false
+    private var inputByVoice = false
+    private var speakRepliesAfter: Long? = null
+
     init {
         // The lesson's SAM step leaves photos in cacheDir (camera originals, compressed copies for the result cards).
         // Whatever is old goes whenever a chat opens, so a learner's photo does not stay for good.
@@ -152,6 +165,9 @@ class ChatViewModel(
         viewModelScope.launch {
             voiceController.transcripts.collect { transcript ->
                 _inputText.update { appendTranscript(it, transcript) }
+                inputByVoice = true
+                // Called as the phone's assistant, the person is not going to tap Send: what they said is the message.
+                if (voiceAssistant && !_state.value.lessonMode) sendMessage()
             }
         }
         // The tool-approval bar (Task 9): the coordinator publishes pending requests GLOBALLY (for all
@@ -257,6 +273,7 @@ class ChatViewModel(
 
     override fun onCleared() {
         voiceController.release()
+        replySpeaker.release()
         super.onCleared()
     }
 
@@ -385,7 +402,11 @@ class ChatViewModel(
 
     fun handleIntent(intent: ChatIntent) {
         when (intent) {
-            is ChatIntent.UpdateInput -> { _inputText.value = intent.text }
+            is ChatIntent.UpdateInput -> {
+                _inputText.value = intent.text
+                // A dictated draft wiped by hand: whatever is typed next is not a spoken question.
+                if (intent.text.isBlank()) inputByVoice = false
+            }
             is ChatIntent.SendMessage -> sendMessage()
             is ChatIntent.CancelRequest -> cancel()
             is ChatIntent.RetryRequest -> retry()
@@ -400,6 +421,14 @@ class ChatViewModel(
 
             is ChatIntent.ToggleVoiceInput -> toggleVoiceInput()
             is ChatIntent.CancelVoiceInput -> voiceController.cancel()
+            is ChatIntent.EnterVoiceAssistant -> {
+                // Once per screen: a rotation recreates the composition, not this ViewModel.
+                if (!voiceAssistant) {
+                    voiceAssistant = true
+                    _state.update { it.copy(autoListen = true) }
+                }
+            }
+            is ChatIntent.AutoListenStarted -> _state.update { it.copy(autoListen = false) }
             is ChatIntent.ClearVoiceError -> {
                 voiceController.clearError()
                 _state.update { it.copy(voiceError = null) }
@@ -451,6 +480,8 @@ class ChatViewModel(
         when (_state.value.voiceState) {
             is VoiceInputState.Listening -> voiceController.stop()
             else -> viewModelScope.launch {
+                // The person is about to speak: the previous reply must not talk over them (or into the microphone).
+                replySpeaker.stop()
                 val tag = appLanguageToBcp47(userPreferencesRepository.getLanguage())
                 voiceController.start(tag)
             }
@@ -461,8 +492,16 @@ class ChatViewModel(
         val text = _inputText.value.trim()
         if (text.isEmpty()) return
         _inputText.value = ""
+        val spoken = inputByVoice
+        inputByVoice = false
+        replySpeaker.stop()
         viewModelScope.launch {
             try {
+                speakRepliesAfter = if (spoken && userPreferencesRepository.speakVoiceReplies.first()) {
+                    System.currentTimeMillis()
+                } else {
+                    null
+                }
                 // The "chat/new" route gives an empty id — the conversation is created BEFORE launchTurn: the session is keyed by id.
                 val convId = ensureConversation(text)
                 // Task 10 (structured-plan-engine-907066): planId=null — StructuredPlanOrchestrator resolves the
@@ -849,22 +888,40 @@ class ChatViewModel(
                                 // The answer reached the feed — the clean session is no longer needed (clears the "done" badge
                                 // in the list; markSeen itself will not touch an error/canRetry).
                                 if (arrived && status.insertedMessageId != null) {
+                                    speakIfAsked(messages.firstOrNull { it.id == status.insertedMessageId })
                                     turnManager.markSeen(convId)
                                 }
                             }
 
-                            is TurnStatus.Failed -> _state.update {
-                                it.copy(
-                                    isLoading = false,
-                                    toolTrace = trace,
-                                    error = status.message,
-                                    errorNeedsKey = status.needsKey,
-                                    canRetry = status.canRetry,
-                                )
+                            is TurnStatus.Failed -> {
+                                speakRepliesAfter = null
+                                _state.update {
+                                    it.copy(
+                                        isLoading = false,
+                                        toolTrace = trace,
+                                        error = status.message,
+                                        errorNeedsKey = status.needsKey,
+                                        canRetry = status.canRetry,
+                                    )
+                                }
                             }
                         }
                     }
             }
+        }
+    }
+
+    /**
+     * Reads [reply] aloud if it answers a question asked by voice (sent at or after [speakRepliesAfter]).
+     * Only the first such reply: a plan's later steps write into the chat in the background, and a voice that
+     * suddenly starts reading them minutes later would be a surprise.
+     */
+    private fun speakIfAsked(reply: Message?) {
+        val after = speakRepliesAfter ?: return
+        if (reply == null || reply.role != "assistant" || reply.createdAt < after) return
+        speakRepliesAfter = null
+        viewModelScope.launch {
+            replySpeaker.speak(reply.content, appLanguageToBcp47(userPreferencesRepository.getLanguage()))
         }
     }
 
