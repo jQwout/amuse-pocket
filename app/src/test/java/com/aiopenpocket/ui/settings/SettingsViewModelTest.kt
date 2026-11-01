@@ -108,10 +108,13 @@ class SettingsViewModelTest {
     override suspend fun backgroundTotalsSince(since: Long) = emptyTotals
   }
 
+  /** One preferences store per test, so a test can read back what the ViewModel wrote. */
+  private val preferences = UserPreferencesRepository(testDataStore(application))
+
   private fun viewModel(usageDao: LlmUsageDao = emptyUsageDao): SettingsViewModel {
     val vm = SettingsViewModel(
       settingsRepository = settings,
-      userPreferencesRepository = UserPreferencesRepository(testDataStore(application)),
+      userPreferencesRepository = preferences,
       themeRepository = ThemeRepository(application),
       llmUsageDao = usageDao,
     )
@@ -170,14 +173,15 @@ class SettingsViewModelTest {
 
     assertEquals("meta-test", settings.values["key_META"])
     // The model is no longer an app-wide setting: Save must not write one back, or a stale choice would
-    // outlive the picker that was removed.
-    assertEquals(setOf("key_META"), settings.values.keys)
-    assertEquals(1, settings.writes)
+    // outlive the picker that was removed. The forge token (empty here) is the one other secret Save writes.
+    assertEquals(setOf("key_META", "key_FORGE"), settings.values.keys)
+    assertEquals("", settings.values["key_FORGE"])
+    assertEquals(2, settings.writes)
   }
 
-  /** There is no other key to save: the OpenRouter field and its storage are gone. */
+  /** There is no other model key to save: the OpenRouter field and its storage are gone (the forge token is not a model key). */
   @Test
-  fun `Сохранить не пишет никакого ключа, кроме Meta`() = runTest {
+  fun `Сохранить не пишет никакого ключа модели, кроме Meta`() = runTest {
     val vm = viewModel()
     vm.await { it.personas.isNotEmpty() }
 
@@ -185,7 +189,59 @@ class SettingsViewModelTest {
     vm.save()
     vm.await { it.saved }
 
-    assertEquals(setOf("key_META"), settings.values.keys.filter { it.startsWith("key_") }.toSet())
+    assertEquals(setOf("key_META", "key_FORGE"), settings.values.keys.filter { it.startsWith("key_") }.toSet())
+  }
+
+  /** The forge address goes to DataStore trimmed, the token to the encrypted store trimmed, and only on Save. */
+  @Test
+  fun `Сохранить пишет адрес кузницы в DataStore и токен в защищённое хранилище`() = runTest {
+    val vm = viewModel()
+    vm.await { it.personas.isNotEmpty() }
+
+    vm.updateForgeGatewayUrl("  http://forge-mock.test:8080/\n")
+    vm.updateForgeToken("  forge-token-mock\n")
+    // Typing alone writes nothing, like the model key.
+    assertEquals(0, settings.writes)
+    assertEquals("", preferences.getForgeGatewayUrl())
+    assertFalse(vm.state.value.saved)
+
+    vm.save()
+    vm.await { it.saved }
+
+    assertEquals("forge-token-mock", settings.values["key_FORGE"])
+    assertEquals("http://forge-mock.test:8080/", preferences.getForgeGatewayUrl())
+    assertEquals("http://forge-mock.test:8080/", preferences.forgeGatewayUrl.first())
+  }
+
+  /** What was saved comes back into the fields on the next visit to Settings. */
+  @Test
+  fun `сохранённые адрес и токен кузницы показываются при входе`() = runTest {
+    settings.values["key_FORGE"] = "forge-token-saved"
+    preferences.setForgeGatewayUrl("http://saved-forge.test")
+
+    val state = viewModel().await { it.forgeToken.isNotEmpty() && it.forgeGatewayUrl.isNotEmpty() }
+
+    assertEquals("forge-token-saved", state.forgeToken)
+    assertEquals("http://saved-forge.test", state.forgeGatewayUrl)
+  }
+
+  /** Editing the forge fields after a save takes the "Saved" mark off, like every other field. */
+  @Test
+  fun `правка полей кузницы снимает отметку Сохранено`() = runTest {
+    val vm = viewModel()
+    vm.await { it.personas.isNotEmpty() }
+    vm.save()
+    vm.await { it.saved }
+
+    vm.updateForgeGatewayUrl("http://changed.test")
+    assertFalse(vm.state.value.saved)
+    vm.save()
+    vm.await { it.saved }
+    vm.updateForgeToken("changed-token")
+
+    assertFalse(vm.state.value.saved)
+    assertEquals("http://changed.test", vm.state.value.forgeGatewayUrl)
+    assertEquals("changed-token", vm.state.value.forgeToken)
   }
 
   /** The status line under the key field reacts to the field as the person types, before "Save". */

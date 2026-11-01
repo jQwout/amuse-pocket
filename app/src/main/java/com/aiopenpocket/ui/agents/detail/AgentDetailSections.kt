@@ -418,7 +418,7 @@ private fun shortRiskLabel(risk: RiskClass): String = when (risk) {
  * right. Shared by the sections (so far applied to "Tools"; the others migrate in their own slices).
  */
 @Composable
-private fun AgentSectionHeader(
+internal fun AgentSectionHeader(
   icon: ImageVector,
   label: String,
   trailing: String? = null,

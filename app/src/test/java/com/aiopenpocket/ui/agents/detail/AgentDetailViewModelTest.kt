@@ -13,6 +13,9 @@ import com.aiopenpocket.agent.core.agent.DefaultAgentResolver
 import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.core.agent.UserAgentRepository
 import com.aiopenpocket.agent.core.agent.toDefinition
+import com.aiopenpocket.agent.core.forge.ForgeGatewayConfig
+import com.aiopenpocket.agent.core.forge.ForgedScreenStore
+import com.aiopenpocket.agent.core.forge.ScreenForgeClient
 import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.hook.AgentHookRepository
 import com.aiopenpocket.agent.core.hook.AgentHookRunEntity
@@ -39,6 +42,9 @@ import com.aiopenpocket.agent.core.skill.UserSkillRepository
 import com.aiopenpocket.data.database.AppDatabase
 import com.aiopenpocket.data.repository.AgentFilesRepository
 import com.aiopenpocket.ui.agents.builder.components.ToolCatalog
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -124,6 +130,12 @@ class AgentDetailViewModelTest {
     agentFilesRepository = agentFilesRepository,
     planRepository = planRepository,
     userSkillRepository = userSkillRepository,
+    // The forge is not what this class tests: a real store, and a gateway that answers 404 to everything.
+    forgedScreenStore = ForgedScreenStore(RuntimeEnvironment.getApplication()),
+    screenForgeClient = ScreenForgeClient(MockEngine { respond("", HttpStatusCode.NotFound) }) {
+      ForgeGatewayConfig("http://forge.test", "token")
+    },
+    application = RuntimeEnvironment.getApplication(),
   )
 
   @After

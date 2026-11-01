@@ -91,6 +91,19 @@ class UserPreferencesRepository(
     }
   }
 
+  // @trace cloud-forged-screens-40d702
+  /** Address of the forge gateway (screens written in the cloud). Empty = not set; a debug build then falls back to the emulator's host. The token lives in the encrypted settings, not here. */
+  val forgeGatewayUrl: Flow<String> =
+    dataStore.data.map { prefs -> prefs[KEY_FORGE_GATEWAY_URL] ?: "" }
+
+  suspend fun getForgeGatewayUrl(): String = forgeGatewayUrl.first()
+
+  suspend fun setForgeGatewayUrl(url: String) {
+    dataStore.edit { prefs ->
+      prefs[KEY_FORGE_GATEWAY_URL] = url.trim()
+    }
+  }
+
   suspend fun setDefaultPersonaId(personaId: String) {
     dataStore.edit { prefs ->
       prefs[KEY_DEFAULT_PERSONA_ID] = personaId
@@ -124,6 +137,7 @@ class UserPreferencesRepository(
     private val KEY_ROADMAP_PROGRESS = stringPreferencesKey("roadmap_progress")
     private val KEY_LANGUAGE = stringPreferencesKey("language")
     private val KEY_CHAT_FONT_SCALE = stringPreferencesKey("chat_font_scale")
+    private val KEY_FORGE_GATEWAY_URL = stringPreferencesKey("forge_gateway_url")
 
     /** Roadmap level id of the onboarding lesson; completed automatically after onboarding. */
     const val ONBOARDING_LEVEL_ID = "l1_welcome"

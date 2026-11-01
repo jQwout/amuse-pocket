@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?><!--
    Data extraction rules for Android 12+ (API 31+). For older versions it is backup_rules.xml, which must be
-   edited IN SYNC: the project's minSdk is 24, so both files really are in effect.
+   edited IN SYNC: the project's minSdk is 26, so both files really are in effect.
 
    Two different reasons to exclude something, and they must not be confused:
 

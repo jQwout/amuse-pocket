@@ -8,6 +8,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import com.aiopenpocket.BuildConfig
 import com.aiopenpocket.ui.agents.AgentsViewModel
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
@@ -60,5 +61,12 @@ fun AgentDetailRoute(
     onNavigateBack = onNavigateBack,
     onOpenPlan = onOpenPlan,
     onOpenPlanList = { onOpenPlanList(agentId) },
+    // @trace cloud-forged-screens-40d702
+    onForgeDraftChange = viewModel::updateForgeDraft,
+    onForgeBuild = viewModel::buildScreen,
+    onForgeAnswer = viewModel::answerForge,
+    onForgeUpdate = viewModel::updateScreen,
+    onForgeRemove = viewModel::removeScreen,
+    onForgeLoadSample = if (BuildConfig.DEBUG) viewModel::loadSampleScreen else null,
   )
 }

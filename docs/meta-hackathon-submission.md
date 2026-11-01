@@ -58,6 +58,8 @@
 
 Запасной вариант, если Meta Model API в день записи не ответит: 0:35–1:15 — только ползунок кадров и сцена «Цикл ReAct».
 
+**Кандидат сцены (1 ноя, сделано в окне):** 2:15–2:50 → карточка собранного агента, секция «Cloud-forged screen»: ввод «a water tracker with 8 glasses and a reset button» → Queued → Working (ускорить) → экран появляется внутри приложения, тап по кнопке в нём; «make the glasses blue» → version 2. Подпись: *Muse Spark · coding agent in the cloud · Ketoy bundle, no app update*. Голос: «And it can grow. Ask for a screen — a coding agent on Muse writes it, compiles it in the cloud, and the app renders it. No update, no store.» Требует: ключ Meta с биллингом на воркере, шлюз на Fly (или на ПК), воркер запущен на ПК.
+
 ## 3. Текст для судей (EN)
 
 **Project name:** AI Open Pocket
@@ -123,9 +125,11 @@ Kotlin, Jetpack Compose, Metro DI, Ktor (SSE streaming), Room, WorkManager. ~49k
 > Meta Model API (обещаны в заявке), перевод остального курса на английский, агенты, которые видят
 > и рисуют. Выбор — за владельцем, это про подачу, а не про код.
 
+**Cloud-forged screens** *(Nov 1–2)* — an agent built on the phone gets a screen of its own without an app update: the person describes it on the agent's card, a worker runs our own tool-calling loop on Muse Spark (file and Gradle tools) until the screen compiles, the Ketoy compiler turns it into a signed bundle, and the app renders it over the air. Gateway on Ktor (Fly.io), worker in Kotlin, the agent asks back when the request is unclear. (`6484fd2f`..)
+
 ### What's next
 
-English and other languages for the whole course via Muse Spark; SAM 3.1 and Voice Transcribe through Meta Model API; agents that see and draw; Play Store release.
+English and other languages for the whole course via Muse Spark; SAM 3.1 and Voice Transcribe through Meta Model API; agents that see and draw; the forge worker on a permanent machine with capabilities that let forged screens read the agent's data; Play Store release.
 
 ### Built with
 
