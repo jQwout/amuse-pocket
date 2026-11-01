@@ -176,6 +176,9 @@ class WriteScreenTool(
             throw ToolError("The source must declare `fun $name(` - the function name has to equal the file's name argument.")
         }
         FORBIDDEN.firstOrNull { it.first.containsMatchIn(source) }?.let { throw ToolError("Not allowed in a Ketoy screen: ${it.second}.") }
+        if (Regex("""@Composable""").findAll(source).count() > 1) {
+            throw ToolError("Not allowed in a Ketoy screen: more than one @Composable function - inline the helper into the entry function (helper composables crash the interpreter at runtime).")
+        }
 
         val normalized = withPackage(source)
         val dir = sandbox.resolve(GENERATED_DIR)
@@ -210,6 +213,12 @@ class WriteScreenTool(
         private val FORBIDDEN = listOf(
             Regex("""^\s*import\s+android\.""", RegexOption.MULTILINE) to "android.* imports (Android APIs are unavailable in the sandbox)",
             Regex("""\bGlobalScope\b""") to "GlobalScope",
+            // One function per screen: helper composables with parameters crash the interpreter at runtime.
+            Regex("""\bclickable\b""") to "Modifier.clickable - use a Button",
+            Regex("""\(\s*\)\s*->\s*Unit|:\s*\([^)]*\)\s*->""") to "lambda parameters - keep every tap handler inline in the entry function",
+            // Ranges compile but the KBC interpreter has no Int.rangeTo: the screen crashes the app at runtime.
+            Regex("""\d\s*\.\.\s*[\d(a-zA-Z]|\)\s*\.\.|\buntil\b|\bdownTo\b|\bstep\b|\.indices\b|\brangeTo\b""") to
+                "ranges (.., until, downTo, step, .indices) - they compile but crash the app at runtime; loop with repeat(n) { i -> } or forEachIndexed",
             Regex("""\brunBlocking\b""") to "runBlocking",
             Regex("""::class\.java|import\s+kotlin\.reflect|import\s+java\.lang\.reflect""") to "reflection",
             Regex("""^\s*import\s+java\.(io|nio|net)\.""", RegexOption.MULTILINE) to "java.io / java.nio / java.net (no file or network access)",

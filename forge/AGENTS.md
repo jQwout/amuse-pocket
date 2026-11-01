@@ -38,18 +38,28 @@ fun WaterTrackerScreen() { ... }
    fails with `UnregisteredComposable` / `UnregisteredCall` / `NonKbcConstructor`.
 3. No `android.*` imports, no `Log`, `Toast` or `Context`, no reflection (`::class.java`), no file or
    network I/O, no `GlobalScope`, `runBlocking`, no `LaunchedEffect` that reaches outside the screen.
-4. No other files: one screen, one file. Small private helper composables in the same file are fine
-   (annotate them `@KetoyComposable @Composable`, without `@KetoyEntryPoint`).
+4. ONE function, ONE file. No helper composables, no functions with parameters, no lambda
+   parameters, no `Modifier.clickable`. The interpreter crashes the app at runtime (register out of
+   bounds) when a helper composable takes parameters and renders content - it compiles, then kills
+   the app. Everything lives inside the entry function; a tappable thing is a `Button`; repeated
+   cells are `repeat(n) { i -> ... }` inline.
 5. Prefer named arguments: `Text(text = "Glasses: $count", fontSize = 18.sp, color = Color(0xFF1C1B1F))`.
    EVERY `Text` MUST pass an explicit `color`: the host renders a text without one as transparent
    (laid out, never drawn). Dark text `Color(0xFF1C1B1F)` on cards, `Color.White` inside a `Button`,
    `Color(0xFF49454F)` for secondary lines. Never rely on the default color.
 6. Keep it small and robust: a clear layout, a few state variables, simple lambdas. A boring screen
    that compiles beats an ambitious one that does not. Aim for under 150 lines.
+   Four buttons in a row leave room for 1-3 characters each: use a digit, a short word or one emoji,
+   never "Empty" (it wraps into two lines on a phone).
 7. Do not use icons (`Icon`, `Icons.*`): the app registers no icon set. Use text labels.
 8. Buttons need `Button(onClick = { ... }) { Text(text = "...") }`. Lambdas that change state are
    fine: `onClick = { count += 1 }`. `var x by remember { ... }` needs the `getValue` / `setValue`
    imports from `androidx.compose.runtime`.
+9. NO RANGES, EVER: `0..7`, `0 until 8`, `downTo`, `step`, `.indices`, `rangeTo` all COMPILE but
+   CRASH the app at runtime (`KBCException: no method rangeTo on Integer`). `write_screen` rejects
+   them. Loops: `repeat(8) { i -> ... }` for a count, `items.forEach { }` / `forEachIndexed` for a
+   list. Build lists with `listOf(...)`. Example rows of buttons: `repeat(2) { row -> Row { repeat(4)
+   { col -> val i = row * 4 + col; Button(...) { Text(...) } } } }`.
 
 ## Known compiler limits (verified against Ketoy 0.4.20-alpha)
 

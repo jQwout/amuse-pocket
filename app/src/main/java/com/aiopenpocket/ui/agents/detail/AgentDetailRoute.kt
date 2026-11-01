@@ -67,6 +67,8 @@ fun AgentDetailRoute(
     onForgeAnswer = viewModel::answerForge,
     onForgeUpdate = viewModel::updateScreen,
     onForgeRemove = viewModel::removeScreen,
+    onForgeRenderStarted = viewModel::forgedRenderStarted,
+    onForgeRenderStopped = viewModel::forgedRenderStopped,
     onForgeLoadSample = if (BuildConfig.DEBUG) viewModel::loadSampleScreen else null,
   )
 }

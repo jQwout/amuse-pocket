@@ -36,7 +36,7 @@ object PromptBuilder {
             val entry = job.previousEntryPoint
             append("\nThis is an UPDATE of an existing screen")
             if (entry != null) append(" (function ").append(entry).append("; keep this name)")
-            append(". Change it as requested and keep everything else. Its current source:\n```kotlin\n")
+            append(". Apply ONLY the requested change. Everything else stays exactly as it is - every button (Reset included), every line of text, every state variable - unless the request says to remove it. Its current source:\n```kotlin\n")
             append(previous.trim()).append("\n```\n")
         }
         if (job.exchanges.isNotEmpty()) {

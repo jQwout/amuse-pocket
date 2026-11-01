@@ -303,7 +303,25 @@ class AgentDetailViewModel(
 
   /** Reads the persisted state for [agentId] and resumes polling when a job is still in flight. */
   private suspend fun loadForged(agentId: String) {
-    val forged = forgedScreenStore.load(agentId)
+    var forged = forgedScreenStore.load(agentId)
+    // A rendering flag left behind means the last render of this bundle took the process down (see
+    // ForgedScreenStore.markRendering). Take the screen down instead of composing it again: the person
+    // gets an honest card with "Try again" (a new job) and "Remove", not a crash loop.
+    val crashedJob = forgedScreenStore.renderingFlag(agentId)
+    if (crashedJob != null) {
+      forgedScreenStore.clearRendering(agentId)
+      if (forged is ForgedScreenState.Ready && forged.jobId == crashedJob) {
+        forged = ForgedScreenState.Failed(
+          jobId = forged.jobId,
+          request = forged.request,
+          message = tr(
+            "Этот экран уронил приложение при прошлом открытии и снят с показа. Попроси другой вариант.",
+            "This screen crashed the app the last time it opened and was taken down. Ask for another version.",
+          ),
+        )
+        forgedScreenStore.save(agentId, forged)
+      }
+    }
     val bundle = (forged as? ForgedScreenState.Ready)?.let { forgedScreenStore.readBundle(agentId, it.fileName) }
     val configured = screenForgeClient.isConfigured()
     _state.update { it.copy(forged = forged, forgedBundle = bundle, forgeConfigured = configured) }
@@ -312,6 +330,18 @@ class AgentDetailViewModel(
 
   fun updateForgeDraft(text: String) {
     _state.update { it.copy(forgedDraft = text) }
+  }
+
+  /** Called by the section right before the bundle composes; synchronous, see [ForgedScreenStore.markRendering]. */
+  fun forgedRenderStarted(jobId: String) {
+    val agentId = agentIdFlow.value ?: return
+    forgedScreenStore.markRendering(agentId, jobId)
+  }
+
+  /** Called when the rendered bundle leaves composition normally. Synchronous, see [ForgedScreenStore.clearRendering]. */
+  fun forgedRenderStopped() {
+    val agentId = agentIdFlow.value ?: return
+    forgedScreenStore.clearRendering(agentId)
   }
 
   /** Sends the draft as a new job. A [ForgedScreenState.Failed] "Try again" lands here too. */

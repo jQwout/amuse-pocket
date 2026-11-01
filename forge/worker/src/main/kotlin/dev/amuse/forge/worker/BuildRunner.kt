@@ -27,12 +27,16 @@ class GradleBuildRunner(
 
     override fun run(forgeDir: Path): BuildResult {
         val startedAt = System.currentTimeMillis()
+        // One id per build, so two screens of the same agent never share a bundle id: the app's
+        // runtime caches parsed bundles by id, and an update under the old id kept showing the old screen.
+        val bundleId = "forge_$startedAt"
+        val bundlePath = "screens/build/ketoy-bundles/$bundleId.ktx"
         val command = if (windows) {
             listOf(forgeDir.resolve("gradlew.bat").toString())
         } else {
             // `sh gradlew` works even where the checkout lost the executable bit.
             listOf("sh", forgeDir.resolve("gradlew").toString())
-        } + listOf(":screens:ketoyBundle", "--console=plain")
+        } + listOf(":screens:ketoyBundle", "--console=plain", "-PforgeBundleId=$bundleId")
 
         log.info("build: {}", command.joinToString(" "))
         val process = try {
@@ -67,16 +71,17 @@ class GradleBuildRunner(
             return BuildResult(false, summarize(output, forgeDir, "The build timed out after $timeoutMinutes minutes and was stopped."), null)
         }
         val exit = process.exitValue()
-        val bundle = forgeDir.resolve(BUNDLE_PATH)
+        val bundle = forgeDir.resolve(bundlePath)
         val fresh = Files.isRegularFile(bundle) && Files.getLastModifiedTime(bundle).toMillis() >= startedAt - 2_000
         return when {
             exit == 0 && fresh -> BuildResult(true, summarize(output, forgeDir, null), bundle)
-            exit == 0 -> BuildResult(false, summarize(output, forgeDir, "Gradle succeeded but produced no new bundle at $BUNDLE_PATH."), null)
+            exit == 0 -> BuildResult(false, summarize(output, forgeDir, "Gradle succeeded but produced no new bundle at $bundlePath."), null)
             else -> BuildResult(false, summarize(output, forgeDir, null), null)
         }
     }
 
     companion object {
+        /** Where the template build (`./gradlew :screens:ketoyBundle` without a property) lands; the worker's own builds use a per-build id. */
         const val BUNDLE_PATH = "screens/build/ketoy-bundles/agent.ktx"
         private const val KEEP_LINES = 600
         private const val TAIL_LINES = 60

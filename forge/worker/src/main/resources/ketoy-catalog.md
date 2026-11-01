@@ -14,7 +14,7 @@ Other: TopAppBar (needs @OptIn(ExperimentalMaterial3Api::class)), AlertDialog, M
 
 NOT available (the build fails): OutlinedButton, TextButton, FloatingActionButton, OutlinedTextField, RadioButton, Slider,
 CircularProgressIndicator, LinearProgressIndicator, NavigationBar, TabRow, DropdownMenu, Chip. Build them from
-Box/Row/Surface/Card/Button with `Modifier.clickable` and `background`.
+Box/Row/Surface/Card/Button with `background`; taps only through `Button` (no `Modifier.clickable`).
 
 ## Constructors you may call
 
@@ -27,7 +27,7 @@ User-defined `data class`, `enum class`, `sealed interface` and plain classes ar
 
 padding (all/horizontal/vertical/start-top-end-bottom, named args work), fillMaxWidth, fillMaxHeight, fillMaxSize,
 size, width, height, widthIn, heightIn, wrapContentWidth/Height/Size, background(color, shape), clip(shape),
-border(width, color, shape), shadow, clipToBounds, blur, clickable { }, alpha, offset, zIndex, testTag,
+border(width, color, shape), shadow, clipToBounds, blur, alpha, offset, zIndex, testTag,
 weight (inside Row/Column only), verticalScroll(rememberScrollState()), horizontalScroll(rememberScrollState()).
 Shapes: RoundedCornerShape(dp), CircleShape, RectangleShape.
 
@@ -56,5 +56,7 @@ String/Int/Boolean/Dp/Color/data class/List parameters, callback lambdas, and `c
 
 ## Forbidden (hard compile errors)
 
+Ranges of any kind (`0..7`, `until`, `downTo`, `step`, `.indices`): they compile but crash the app at runtime (no Int.rangeTo in the interpreter). Loop with `repeat(n) { i -> }` or `forEachIndexed`.
+Helper composables, functions with parameters, lambda parameters, `Modifier.clickable`: they compile but crash the interpreter at runtime. ONE function, everything inline, taps through `Button`.
 android.* APIs (Log, Context, Toast), reflection (::class.java, kotlin.reflect), java.io / File, GlobalScope, runBlocking,
 network calls, LaunchedEffect with external APIs, ViewModels, any composable or function not listed above.
