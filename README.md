@@ -55,9 +55,10 @@ chat and it keeps going. Inside, the same loop runs for every agent — the mode
 reads their results, and repeats until it can answer.
 
 ```mermaid
+%%{init: {"flowchart": {"htmlLabels": false}}}%%
 flowchart TD
-    U(["You send a message"]) --> TM["<b>Turn manager</b><br/>the turn survives leaving the chat"]
-    TM --> PR["<b>Prompt assembly</b>, stable to volatile<br/>base · language · role · skills · instructions<br/>· plan · current time · memory"]
+    U(["You send a message"]) --> TM["Turn manager<br/>the turn survives leaving the chat"]
+    TM --> PR["Prompt assembly, stable to volatile<br/>base · language · role · skills · instructions<br/>· plan · current time · memory"]
     PR --> MODE{"Mode"}
     MODE -->|Chat| LLM
     MODE -->|Reflect| RF["Draft → critique → revise<br/>the revise pass may only read"]
@@ -66,10 +67,10 @@ flowchart TD
     RF --> LLM
     GL --> LLM
     PL --> PC(["Plan card: you approve or edit"])
-    LLM["<b>Muse Spark</b> on Meta Model API<br/>streams text and tool calls"] --> TC{"Tool calls?"}
+    LLM["Muse Spark on Meta Model API<br/>streams text and tool calls"] --> TC{"Tool calls?"}
     TC -->|no| ANS(["Answer in chat"])
     TC -->|yes| HK["Agent rules<br/>(before-tool hooks)"]
-    HK --> POL{"<b>Execution policy</b><br/>tool risk × run mode"}
+    HK --> POL{"Execution policy<br/>tool risk × run mode"}
     POL -->|read / write| EX["Run the tool on the phone<br/>JSON args validated, timeout"]
     POL -->|delete / send off the phone| ASK{"Ask you in chat"}
     POL -->|dry run| SIM["Simulated:<br/>nothing really happens"]
@@ -102,17 +103,18 @@ An agent is one immutable snapshot. Editing and publishing again produces a new 
 that is already running never sees half an edit.
 
 ```mermaid
+%%{init: {"flowchart": {"htmlLabels": false}}}%%
 flowchart LR
-    A(("<b>Agent</b>"))
-    A --- ID["<b>Identity</b><br/>name · description · icon"]
-    A --- IN["<b>Instructions</b><br/>checked against Meta's<br/>prompting guide"]
-    A --- TO["<b>Tools</b><br/>16 tools, each<br/>with a risk class"]
-    A --- SK["<b>Skills</b><br/>instructions loaded<br/>only when needed"]
-    A --- MO["<b>Modes</b><br/>chat · reflect · plan · goal"]
-    A --- MD["<b>Model</b><br/>automatic · Muse Spark<br/>· Muse Wonder"]
-    A --- ME["<b>Memory</b><br/>its own namespace<br/>+ optional shared profile"]
-    A --- RU["<b>Rules</b> (hooks)<br/>12 lifecycle events →<br/>instruct · ask · allow · deny · log · stop"]
-    A --- UI["<b>Cards</b><br/>which UI cards it may<br/>draw in chat"]
+    A(("Agent"))
+    A --- ID["Identity<br/>name · description · icon"]
+    A --- IN["Instructions<br/>checked against Meta's<br/>prompting guide"]
+    A --- TO["Tools<br/>16 tools, each<br/>with a risk class"]
+    A --- SK["Skills<br/>instructions loaded<br/>only when needed"]
+    A --- MO["Modes<br/>chat · reflect · plan · goal"]
+    A --- MD["Model<br/>automatic · Muse Spark<br/>· Muse Wonder"]
+    A --- ME["Memory<br/>its own namespace<br/>+ optional shared profile"]
+    A --- RU["Rules (hooks)<br/>12 lifecycle events →<br/>instruct · ask · allow · deny · log · stop"]
+    A --- UI["Cards<br/>which UI cards it may<br/>draw in chat"]
 ```
 
 The tools: memory, the agent's own storage, files, files you pick on the phone, database, UI cards,
@@ -123,14 +125,15 @@ and each risky one needs your explicit consent.
 And this is how one gets from an idea to your roster:
 
 ```mermaid
+%%{init: {"flowchart": {"htmlLabels": false}}}%%
 flowchart LR
-    CH["<b>Chat with Builder</b><br/>Muse Spark asks 3–4 options<br/>at a time and fills the draft"] --> DR["Draft"]
-    FM["<b>Step-by-step form</b><br/>identity · instructions · tools<br/>· modes · rules · test"] --> DR
+    CH["Chat with Builder<br/>Muse Spark asks 3–4 options<br/>at a time and fills the draft"] --> DR["Draft"]
+    FM["Step-by-step form<br/>identity · instructions · tools<br/>· modes · rules · test"] --> DR
     DR --> VA{"Validator"}
     VA -->|"names what is wrong"| DR
-    VA -->|ok| RV["<b>Review screen</b><br/>every field visible and editable"]
-    RV --> DRY["<b>Dry run</b><br/>reads are real,<br/>everything else is simulated"]
-    DRY --> PUB(["<b>Publish</b>"])
+    VA -->|ok| RV["Review screen<br/>every field visible and editable"]
+    RV --> DRY["Dry run<br/>reads are real,<br/>everything else is simulated"]
+    DRY --> PUB(["Publish"])
     PUB --> RUN["Runs in chat, reminders<br/>and background check-ins"]
 ```
 
