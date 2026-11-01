@@ -56,7 +56,7 @@ Every message you send becomes one *turn*. The turn belongs to the app, not to t
 chat and it keeps going. Inside, the same loop runs for every agent — the model thinks, calls tools,
 reads their results, and repeats until it can answer.
 
-<p align="center"><img src="docs/images/diagram-agent-turn.png" width="640" alt="One agent turn: prompt assembly, the mode, Muse Spark, tool calls through the execution policy and your approval, up to 10 rounds, then the answer"/></p>
+<p align="center"><img src="docs/images/diagram-agent-turn.png" width="860" alt="One agent turn: prompt assembly, the mode, Muse Spark, tool calls through the execution policy and your approval, up to 10 rounds, then the answer"/></p>
 
 Four things keep this loop honest:
 
@@ -74,7 +74,7 @@ Four things keep this loop honest:
 An agent is one immutable snapshot. Editing and publishing again produces a new version, so a turn
 that is already running never sees half an edit.
 
-<p align="center"><img src="docs/images/diagram-agent-anatomy.png" width="760" alt="What an agent is made of: identity, instructions, model; tools, skills, cards; modes, memory, rules"/></p>
+<p align="center"><img src="docs/images/diagram-agent-anatomy.png" width="860" alt="What an agent is made of: identity, instructions, model; tools, skills, cards; modes, memory, rules"/></p>
 
 The tools: memory, the agent's own storage, files, files you pick on the phone, database, UI cards,
 notifications and reminders, background check-ins, scheduled work, calendar, alarm, email drafts,
@@ -83,7 +83,7 @@ and each risky one needs your explicit consent.
 
 And this is how one gets from an idea to your roster:
 
-<p align="center"><img src="docs/images/diagram-agent-lifecycle.png" width="440" alt="From idea to roster: Builder chat or the form, draft, validator, review, dry run, publish"/></p>
+<p align="center"><img src="docs/images/diagram-agent-lifecycle.png" width="520" alt="From idea to roster: Builder chat or the form, draft, validator, review, dry run, publish"/></p>
 
 The Builder can only write a draft. Publishing is always a person tapping a button.
 
