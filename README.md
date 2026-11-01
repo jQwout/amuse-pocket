@@ -41,12 +41,14 @@ for your yes.
 
 ## What it does
 
-| | |
-| --- | --- |
-| 🛠️ **Build** | Describe the agent in a chat: Muse Spark asks a few questions at a time, with 3–4 options to tick, and writes the draft. Review every field on one screen, dry-run it, publish. |
-| 🤖 **Run** | Agents live on the phone: a tool-calling loop, layered memory, web search, reminders, background check-ins, and a plan engine whose steps are checked against evidence. |
-| 🎓 **Learn** | 31 short lessons, from "what is an AI" to building your own agent, each with an interactive scene you can touch. Meta's models work live inside some of them. |
-| 🔒 **Stay in control** | Reading and writing just happen. Deleting or sending anything off the device always asks you in chat, and is never done in the background. |
+- 🛠️ **Build.** Describe the agent in a chat: Muse Spark asks a few questions at a time, with 3–4
+  options to tick, and writes the draft. Review every field on one screen, dry-run it, publish.
+- 🤖 **Run.** Agents live on the phone: a tool-calling loop, layered memory, web search, reminders,
+  background check-ins, and a plan engine whose steps are checked against evidence.
+- 🎓 **Learn.** 31 short lessons, from "what is an AI" to building your own agent, each with an
+  interactive scene you can touch. Meta's models work live inside some of them.
+- 🔒 **Stay in control.** Reading and writing just happen. Deleting or sending anything off the device
+  always asks you in chat, and is never done in the background.
 
 ## How an agent turn works
 
@@ -54,37 +56,7 @@ Every message you send becomes one *turn*. The turn belongs to the app, not to t
 chat and it keeps going. Inside, the same loop runs for every agent — the model thinks, calls tools,
 reads their results, and repeats until it can answer.
 
-```mermaid
-%%{init: {"flowchart": {"htmlLabels": false}}}%%
-flowchart TD
-    U(["You send a message"]) --> TM["Turn manager<br/>the turn survives leaving the chat"]
-    TM --> PR["Prompt assembly, stable to volatile<br/>base · language · role · skills · instructions<br/>· plan · current time · memory"]
-    PR --> MODE{"Mode"}
-    MODE -->|Chat| LLM
-    MODE -->|Reflect| RF["Draft → critique → revise<br/>the revise pass may only read"]
-    MODE -->|Plan| PL["Planner proposes steps"]
-    MODE -->|Goal| GL["Runs the approved plan<br/>step by step, 1–10 rounds per step"]
-    RF --> LLM
-    GL --> LLM
-    PL --> PC(["Plan card: you approve or edit"])
-    LLM["Muse Spark on Meta Model API<br/>streams text and tool calls"] --> TC{"Tool calls?"}
-    TC -->|no| ANS(["Answer in chat"])
-    TC -->|yes| HK["Agent rules<br/>(before-tool hooks)"]
-    HK --> POL{"Execution policy<br/>tool risk × run mode"}
-    POL -->|read / write| EX["Run the tool on the phone<br/>JSON args validated, timeout"]
-    POL -->|delete / send off the phone| ASK{"Ask you in chat"}
-    POL -->|dry run| SIM["Simulated:<br/>nothing really happens"]
-    POL -->|a rule says no| DEN["Denied"]
-    ASK -->|yes| EX
-    ASK -->|"no, or a background run"| DEN
-    EX --> OBS["Result goes back to the model"]
-    SIM --> OBS
-    DEN --> OBS
-    OBS --> LEFT{"Rounds left?"}
-    LEFT -->|"yes (up to 10)"| LLM
-    LEFT -->|no| WRAP["One last call without tools:<br/>what is done, what is not"]
-    WRAP --> ANS
-```
+<p align="center"><img src="docs/images/diagram-agent-turn.png" width="640" alt="One agent turn: prompt assembly, the mode, Muse Spark, tool calls through the execution policy and your approval, up to 10 rounds, then the answer"/></p>
 
 Four things keep this loop honest:
 
@@ -102,20 +74,7 @@ Four things keep this loop honest:
 An agent is one immutable snapshot. Editing and publishing again produces a new version, so a turn
 that is already running never sees half an edit.
 
-```mermaid
-%%{init: {"flowchart": {"htmlLabels": false}}}%%
-flowchart LR
-    A(("Agent"))
-    A --- ID["Identity<br/>name · description · icon"]
-    A --- IN["Instructions<br/>checked against Meta's<br/>prompting guide"]
-    A --- TO["Tools<br/>16 tools, each<br/>with a risk class"]
-    A --- SK["Skills<br/>instructions loaded<br/>only when needed"]
-    A --- MO["Modes<br/>chat · reflect · plan · goal"]
-    A --- MD["Model<br/>automatic · Muse Spark<br/>· Muse Wonder"]
-    A --- ME["Memory<br/>its own namespace<br/>+ optional shared profile"]
-    A --- RU["Rules (hooks)<br/>12 lifecycle events →<br/>instruct · ask · allow · deny · log · stop"]
-    A --- UI["Cards<br/>which UI cards it may<br/>draw in chat"]
-```
+<p align="center"><img src="docs/images/diagram-agent-anatomy.png" width="760" alt="What an agent is made of: identity, instructions, model; tools, skills, cards; modes, memory, rules"/></p>
 
 The tools: memory, the agent's own storage, files, files you pick on the phone, database, UI cards,
 notifications and reminders, background check-ins, scheduled work, calendar, alarm, email drafts,
@@ -124,20 +83,11 @@ and each risky one needs your explicit consent.
 
 And this is how one gets from an idea to your roster:
 
-```mermaid
-%%{init: {"flowchart": {"htmlLabels": false}}}%%
-flowchart LR
-    CH["Chat with Builder<br/>Muse Spark asks 3–4 options<br/>at a time and fills the draft"] --> DR["Draft"]
-    FM["Step-by-step form<br/>identity · instructions · tools<br/>· modes · rules · test"] --> DR
-    DR --> VA{"Validator"}
-    VA -->|"names what is wrong"| DR
-    VA -->|ok| RV["Review screen<br/>every field visible and editable"]
-    RV --> DRY["Dry run<br/>reads are real,<br/>everything else is simulated"]
-    DRY --> PUB(["Publish"])
-    PUB --> RUN["Runs in chat, reminders<br/>and background check-ins"]
-```
+<p align="center"><img src="docs/images/diagram-agent-lifecycle.png" width="440" alt="From idea to roster: Builder chat or the form, draft, validator, review, dry run, publish"/></p>
 
 The Builder can only write a draft. Publishing is always a person tapping a button.
+
+<sub>The diagrams are drawn from Mermaid sources in <a href="docs/diagrams"><code>docs/diagrams/</code></a>.</sub>
 
 ## Built on Meta models
 

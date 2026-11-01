@@ -1,0 +1,15 @@
+flowchart TD
+    CH["Chat with Builder<br/>Muse Spark asks 3–4 options<br/>at a time and fills the draft"] --> DR["Draft"]
+    FM["Step-by-step form<br/>identity · instructions · tools<br/>· modes · rules · test"] --> DR
+    DR --> VA{"Validator"}
+    VA -->|"names what is wrong"| DR
+    VA -->|ok| RV["Review screen<br/>every field visible and editable"]
+    RV --> DRY["Dry run<br/>reads are real,<br/>everything else is simulated"]
+    DRY --> PUB(["Publish"])
+    PUB --> RUN["Runs in chat, reminders<br/>and background check-ins"]
+    classDef you fill:#D4F06A,stroke:#D4F06A,color:#10160C
+    classDef meta fill:#22301C,stroke:#D4F06A,stroke-width:2px,color:#F4FAE8
+    classDef gate fill:#2E2616,stroke:#F2B45A,stroke-width:2px,color:#FBEFD9
+    class PUB you
+    class CH meta
+    class VA,DRY gate

@@ -1,0 +1,30 @@
+flowchart TB
+    A(("Agent"))
+    subgraph WHO["Who it is"]
+        direction TB
+        ID["Identity<br/>name · description · icon"]
+        IN["Instructions<br/>checked against Meta's<br/>prompting guide"]
+        MD["Model<br/>automatic · Muse Spark<br/>· Muse Wonder"]
+    end
+    subgraph CAN["What it can do"]
+        direction TB
+        TO["Tools<br/>16 tools, each<br/>with a risk class"]
+        SK["Skills<br/>instructions loaded<br/>only when needed"]
+        UI["Cards<br/>which UI cards it may<br/>draw in chat"]
+    end
+    subgraph HOW["How it behaves"]
+        direction TB
+        MO["Modes<br/>chat · reflect · plan · goal"]
+        ME["Memory<br/>its own namespace<br/>+ optional shared profile"]
+        RU["Rules (hooks)<br/>12 lifecycle events →<br/>instruct · ask · allow<br/>· deny · log · stop"]
+    end
+    A --> WHO
+    A --> CAN
+    A --> HOW
+    ID ~~~ IN ~~~ MD
+    TO ~~~ SK ~~~ UI
+    MO ~~~ ME ~~~ RU
+    classDef core fill:#D4F06A,stroke:#D4F06A,color:#10160C
+    classDef risk fill:#2E2616,stroke:#F2B45A,stroke-width:2px,color:#FBEFD9
+    class A core
+    class TO,RU risk
