@@ -18,6 +18,11 @@ data class SettingsUiState(
   /** Spend over the last week. `null` — not read from disk yet. */
   val usage: UsageSummary? = null,
   val saved: Boolean = false,
+  // @trace cloud-forged-screens-40d702
+  /** Address of the forge gateway (cloud-forged screens). Empty = the debug default, or nothing in release. */
+  val forgeGatewayUrl: String = "",
+  /** Bearer token the gateway expects from the app. Stored next to the model key, encrypted. */
+  val forgeToken: String = "",
 ) {
   /** Whether the key field holds a key right now — even before "Save": the status line reacts as the person types. */
   val hasKey: Boolean get() = metaKey.isNotBlank()

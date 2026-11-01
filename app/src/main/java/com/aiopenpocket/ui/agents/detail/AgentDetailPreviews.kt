@@ -8,15 +8,19 @@ package com.aiopenpocket.ui.agents.detail
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.core.agent.toDefinition
+import com.aiopenpocket.agent.core.forge.ForgedScreenState
 import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.hook.HookActionType
 import com.aiopenpocket.agent.core.hook.HookEvent
@@ -211,4 +215,61 @@ internal fun HooksSectionPreview() {
       HooksSection(hooks = samplePreviewState().hooks)
     }
   }
+}
+
+// @trace cloud-forged-screens-40d702
+/**
+ * The cloud-forged-screen section on the REAL [ForgedScreenSection], one state at a time. A ready bundle
+ * is drawn by a stand-in: the Ketoy interpreter needs a real VM and runtime that Robolectric (and the
+ * Studio preview) cannot give, and what these frames guard is the section's own layout.
+ */
+@Composable
+internal fun ForgedScreenSectionPreviewFrame(
+  state: ForgedScreenState,
+  configured: Boolean = true,
+  draft: String = "",
+  bundle: ByteArray? = if (state is ForgedScreenState.Ready) byteArrayOf(1, 2, 3) else null,
+) {
+  MyApplicationTheme(mode = ThemeMode.DARK) {
+    Box(
+      modifier = Modifier
+        .fillMaxWidth()
+        .background(MaterialTheme.colorScheme.background)
+        .padding(16.dp),
+    ) {
+      ForgedScreenSection(
+        state = state,
+        bundle = bundle,
+        draft = draft,
+        configured = configured,
+        onDraftChange = {},
+        onBuild = {},
+        onAnswer = {},
+        onUpdate = {},
+        onRemove = {},
+        renderBundle = { ready, _ ->
+          Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+              text = "Ketoy stand-in: ${ready.entryPoint} v${ready.version}",
+              color = MaterialTheme.colorScheme.onBackground,
+            )
+          }
+        },
+      )
+    }
+  }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF0A0A0A, heightDp = 360)
+@Composable
+internal fun ForgedScreenSectionNonePreview() {
+  ForgedScreenSectionPreviewFrame(state = ForgedScreenState.None, draft = "A water tracker with 8 glasses and a reset button")
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF0A0A0A, heightDp = 240)
+@Composable
+internal fun ForgedScreenSectionWorkingPreview() {
+  ForgedScreenSectionPreviewFrame(
+    state = ForgedScreenState.Working("job-preview-1", "A water tracker with 8 glasses", "Compiling the screen"),
+  )
 }

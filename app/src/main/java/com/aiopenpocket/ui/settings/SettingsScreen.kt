@@ -30,6 +30,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Cloud
+import com.aiopenpocket.di.KetoyModule
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Bolt
@@ -293,6 +295,46 @@ fun SettingsScreen(
         hasKey = state.hasKey,
         modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
       )
+
+      Spacer(modifier = Modifier.height(28.dp))
+
+      // @trace cloud-forged-screens-40d702
+      // The forge: a gateway plus a worker that writes and compiles agent screens in the cloud. Both
+      // fields are the person's: nothing is bundled into any build (T4 forbids key-like BuildConfig
+      // fields); a debug build only knows the emulator's host as a default address.
+      SettingsSectionHeader(
+        icon = Icons.Default.Cloud,
+        title = tr("ЭКРАНЫ ИЗ ОБЛАКА", "CLOUD-FORGED SCREENS"),
+        modifier = Modifier.padding(horizontal = 20.dp),
+      )
+      Spacer(modifier = Modifier.height(12.dp))
+      Column(
+        modifier = Modifier.padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+      ) {
+        TextField(
+          value = state.forgeGatewayUrl,
+          onValueChange = viewModel::updateForgeGatewayUrl,
+          label = { Text(tr("Адрес кузницы", "Forge address")) },
+          placeholder = { Text(KetoyModule.DEBUG_BASE_URL.ifBlank { "https://amuse-forge.fly.dev" }) },
+          singleLine = true,
+          modifier = Modifier.fillMaxWidth().testTag("settings_forge_url"),
+        )
+        ApiKeyField(
+          label = tr("Токен кузницы", "Forge token"),
+          value = state.forgeToken,
+          onValueChange = viewModel::updateForgeToken,
+          modifier = Modifier.testTag("settings_forge_token"),
+        )
+        Text(
+          text = tr(
+            "Агент в облаке пишет экран на Compose, кузница собирает его в подписанный бандл, приложение показывает в карточке агента. Без обновления приложения.",
+            "An agent in the cloud writes a screen in Compose, the forge compiles it into a signed bundle, and the app shows it on the agent's card. No app update.",
+          ),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+        )
+      }
 
       Spacer(modifier = Modifier.height(28.dp))
 

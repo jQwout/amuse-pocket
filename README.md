@@ -49,6 +49,8 @@ for your yes.
   interactive scene you can touch. Meta's models work live inside some of them.
 - 🔒 **Stay in control.** Reading and writing just happen. Deleting or sending anything off the device
   always asks you in chat, and is never done in the background.
+- ☁️ **Forge a screen.** Describe the screen an agent should have; a coding agent on Muse writes it in
+  Compose in the cloud, and the app renders it over the air. No app update.
 
 ## How an agent turn works
 
@@ -88,6 +90,27 @@ And this is how one gets from an idea to your roster:
 The Builder can only write a draft. Publishing is always a person tapping a button.
 
 <sub>The diagrams are drawn from Mermaid sources in <a href="docs/diagrams"><code>docs/diagrams/</code></a>.</sub>
+
+## Cloud-forged screens
+
+An agent built on the phone can get a screen of its own without an app update. On the agent's card,
+describe it ("a water tracker with 8 glasses and a reset button"). The app queues a job at the
+**forge gateway**; a **worker** on a machine with the Android SDK runs our own tool-calling loop on
+Muse Spark - the same ReAct shape as the agent loop, with file and Gradle tools instead of phone
+tools - until the screen compiles; the [Ketoy](https://ketoy.dev) compiler turns it into a signed
+bundle; the app downloads the bundle, checks its hash and signature, and renders it natively with
+Ketoy's runtime. If the agent needs to know something first, it asks, and you answer from the same
+card. "Update" sends the current screen's source back with your change.
+
+```
+phone ──POST job──▶ gateway (Ktor, Fly.io) ◀──long-poll── worker (Muse Spark + Gradle + Ketoy)
+      ◀─poll/.ktx──                        ──.ktx──────▶
+```
+
+What has to agree on both sides: the forge's Ed25519 public key (shipped in the app's assets), the
+Ketoy version, and the entry-point name the worker reports. The gateway token and address are yours,
+entered in Settings; nothing is bundled into any build. The forge itself is a separate Gradle build
+in [`forge/`](forge/README.md): the compiler plugin pins Kotlin 2.0.21, the app stays on Kotlin 2.3.
 
 ## Built on Meta models
 

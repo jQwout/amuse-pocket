@@ -35,7 +35,7 @@ fun formatSchedule(
   }
 }
 
-/** "at 14:30" today, "at 24.10 14:30" on another day. SimpleDateFormat, not java.time: minSdk 24 without desugaring. */
+/** "at 14:30" today, "at 24.10 14:30" on another day. SimpleDateFormat, not java.time: minSdk 26 without desugaring. */
 private fun formatFireTime(fireAt: Long, now: Long, zone: TimeZone): String {
   fun fmt(pattern: String) = SimpleDateFormat(pattern, Locale.ROOT).apply { timeZone = zone }
   val day = fmt("yyyyMMdd")

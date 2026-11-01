@@ -47,6 +47,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.displayName
+import com.aiopenpocket.agent.core.forge.ForgedScreenState
 import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.agents.iconFor
 import com.aiopenpocket.ui.components.glass.auroraBackground
@@ -75,6 +76,17 @@ fun AgentDetailScreen(
   onNavigateBack: () -> Unit,
   onOpenPlan: (String) -> Unit = {},
   onOpenPlanList: () -> Unit = {},
+  // @trace cloud-forged-screens-40d702
+  onForgeDraftChange: (String) -> Unit = {},
+  onForgeBuild: () -> Unit = {},
+  onForgeAnswer: (String) -> Unit = {},
+  onForgeUpdate: () -> Unit = {},
+  onForgeRemove: () -> Unit = {},
+  onForgeLoadSample: (() -> Unit)? = null,
+  /** How a ready bundle is drawn; the app passes the Ketoy interpreter, previews a stand-in. */
+  renderForgedBundle: @Composable (ForgedScreenState.Ready, ByteArray) -> Unit = { ready, bytes ->
+    ForgedKetoyScreen(entryPoint = ready.entryPoint, bundle = bytes)
+  },
 ) {
   // The route (AgentDetailRoute) shows this content full screen; here is the content itself: the aurora
   // background, the compact header with ✕, the Overview/Files tabs and the scrollable content. The old
@@ -157,6 +169,20 @@ fun AgentDetailScreen(
               InvalidCapabilitiesBanner()
             }
             Spacer(modifier = Modifier.height(20.dp))
+            ForgedScreenSection(
+              state = state.forged,
+              bundle = state.forgedBundle,
+              draft = state.forgedDraft,
+              configured = state.forgeConfigured,
+              onDraftChange = onForgeDraftChange,
+              onBuild = onForgeBuild,
+              onAnswer = onForgeAnswer,
+              onUpdate = onForgeUpdate,
+              onRemove = onForgeRemove,
+              onLoadSample = onForgeLoadSample,
+              renderBundle = renderForgedBundle,
+            )
+            Spacer(modifier = Modifier.height(24.dp))
             StatTiles(state = state)
             Spacer(modifier = Modifier.height(24.dp))
             PromptSection(agent = agent)

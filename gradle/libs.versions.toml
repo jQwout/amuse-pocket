@@ -1,13 +1,15 @@
 [versions]
+ketoy = "0.4.20-alpha"
+ktor = "3.0.1"
 agp = "8.9.1"
 coreKtx = "1.18.0"
 junit = "4.13.2"
 junitVersion = "1.3.0"
 espressoCore = "3.7.0"
-lifecycleRuntimeKtx = "2.8.7"
-lifecycleViewmodelCompose = "2.8.7"
-lifecycleRuntimeCompose = "2.8.7"
-lifecycleLivedataKtx = "2.8.7"
+lifecycleRuntimeKtx = "2.10.0"
+lifecycleViewmodelCompose = "2.10.0"
+lifecycleRuntimeCompose = "2.10.0"
+lifecycleLivedataKtx = "2.10.0"
 activityCompose = "1.10.1"
 kotlin = "2.3.0"
 composeBom = "2026.05.00"
@@ -37,6 +39,15 @@ workManager = "2.10.0"
 documentfile = "1.0.1"
 
 [libraries]
+ketoy-bom = { group = "dev.ketoy.vm", name = "ketoy-bom", version.ref = "ketoy" }
+ketoy-runtime = { group = "dev.ketoy.vm", name = "ketoy-runtime" }
+ketoy-adapters-material3 = { group = "dev.ketoy.vm", name = "ketoy-adapters-material3" }
+ketoy-capabilities-core = { group = "dev.ketoy.vm", name = "ketoy-capabilities-core" }
+ktor-client-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
+ktor-client-android = { group = "io.ktor", name = "ktor-client-android", version.ref = "ktor" }
+ktor-client-content-negotiation = { group = "io.ktor", name = "ktor-client-content-negotiation", version.ref = "ktor" }
+ktor-serialization-kotlinx-json = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
+ktor-client-mock = { group = "io.ktor", name = "ktor-client-mock", version.ref = "ktor" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }

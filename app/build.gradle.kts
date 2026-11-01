@@ -14,7 +14,7 @@ android {
 
   defaultConfig {
     applicationId = "com.aistudio.aiopenpocket.hzwpqy"
-    minSdk = 24
+    minSdk = 26
     targetSdk = 36
     versionCode = 1
     versionName = "1.0"
@@ -69,6 +69,13 @@ android {
       jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
     }
   }
+  // @trace cloud-forged-screens-40d702
+  // Ketoy brings bouncycastle (Ed25519 bundle signatures) and jspecify, both shipping the same
+  // multi-release manifest; without this exclude mergeDebugJavaResource stops the build.
+  packaging {
+    resources.excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+  }
+
   buildFeatures {
     compose = true
     buildConfig = true
@@ -131,11 +138,17 @@ dependencies {
   implementation(libs.androidx.work.runtime)
   implementation(libs.androidx.documentfile)
   // Ktor Client Dependencies
-  implementation("io.ktor:ktor-client-core:2.3.11")
-  implementation("io.ktor:ktor-client-android:2.3.11")
-  implementation("io.ktor:ktor-client-content-negotiation:2.3.11")
-  implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.11")
-  implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+  implementation(libs.ktor.client.core)
+  implementation(libs.ktor.client.android)
+  implementation(libs.ktor.client.content.negotiation)
+  implementation(libs.ktor.serialization.kotlinx.json)
+  implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+  // Ketoy renders cloud-forged screens (.ktx bundles). It brings Ktor 3, which is why the app moved to Ktor 3.
+  implementation(platform(libs.ketoy.bom))
+  implementation(libs.ketoy.runtime)
+  implementation(libs.ketoy.adapters.material3)
+  // Core capabilities (dispatchers, flows, storage): a bundle may list them even for a screen with local state only.
+  implementation(libs.ketoy.capabilities.core)
   // Markdown rendering (mikepenz multiplatform-markdown-renderer, Material 3 flavor)
   implementation("com.mikepenz:multiplatform-markdown-renderer:0.41.0")
   implementation("com.mikepenz:multiplatform-markdown-renderer-m3:0.41.0")
@@ -145,7 +158,7 @@ dependencies {
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
   // Swaps the Ktor transport in the OpenAiCompatClient tests (fallback along the model chain) — no network.
-  testImplementation("io.ktor:ktor-client-mock:2.3.11")
+  testImplementation(libs.ktor.client.mock)
   testImplementation(libs.robolectric)
   testImplementation(libs.androidx.work.testing)
   testImplementation(libs.roborazzi)
