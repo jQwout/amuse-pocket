@@ -20,6 +20,13 @@ sealed class ChatIntent {
   /** Cancel recording: drop the recognition without inserting text (the trash button in the recording bar). */
   data object CancelVoiceInput : ChatIntent()
   data object ClearVoiceError : ChatIntent()
+  /**
+   * The chat was opened by the phone's assistant button: listen right away, send what was said without
+   * waiting for a tap, and read the reply aloud.
+   */
+  data object EnterVoiceAssistant : ChatIntent()
+  /** The composer has started the listening that [EnterVoiceAssistant] asked for; do not start it again. */
+  data object AutoListenStarted : ChatIntent()
 
   /** Change the agent mode (Chat/Plan/Goal). Replaces the old plan-mode boolean toggle. */
   data class SetMode(val mode: AgentMode) : ChatIntent()

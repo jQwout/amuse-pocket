@@ -18,8 +18,8 @@
       "git": "21fba91e"
     },
     "app-settings-beb470": {
-      "hash": "7ffff68e5e83",
-      "git": "86f89103"
+      "hash": "f97efcd35502",
+      "git": "22c86347"
     },
     "approval-outcome-honesty-554a8c": {
       "hash": "0e60733f889a",
@@ -74,8 +74,8 @@
       "git": "c08de0e0"
     },
     "profile-screen-7354a7": {
-      "hash": "fb3b9fe831b4",
-      "git": "86f89103"
+      "hash": "1de11e27aac7",
+      "git": "22c86347"
     },
     "protsedurnye-animatsii-v-urokah-68b2bf": {
       "hash": "a3736033176a",
@@ -86,8 +86,8 @@
       "git": "97ca7fba"
     },
     "sam-segmentation-boxes-in-a-lesson-c3ea52": {
-      "hash": "6bafba566f33",
-      "git": "cf9588b9"
+      "hash": "4563a05641e1",
+      "git": "22c86347"
     },
     "screen-text-check-7c6d09": {
       "hash": "c4c3af4e3ce1",
@@ -98,12 +98,12 @@
       "git": "5ce3906"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "c58301c39d9d",
-      "git": "0eeb08d3"
+      "hash": "50f4a808c581",
+      "git": "22c86347"
     },
     "structured-plan-engine-907066": {
-      "hash": "a7f86cf63199",
-      "git": "86f89103"
+      "hash": "c94abca46b92",
+      "git": "22c86347"
     },
     "swappable-persona-e5e65e": {
       "hash": "11aaa5d19303",
@@ -121,13 +121,17 @@
       "hash": "8c9fa9a6843d",
       "git": "ec7af5d1"
     },
+    "voice-assistant-mode-a81a99": {
+      "hash": "b8dcfa1e693c",
+      "git": "22c86347"
+    },
     "voice-input-1a0dfd": {
       "hash": "453672d36dab",
       "git": "48d4078"
     },
     "vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53": {
-      "hash": "c5ddf29046e7",
-      "git": "cf9588b9"
+      "hash": "6fa8cc7abf69",
+      "git": "22c86347"
     },
     "web-search-tool-c73ed8": {
       "hash": "ba287fef9ff8",

@@ -22,6 +22,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -48,6 +49,7 @@ class SettingsViewModel(
           metaKey = settingsRepository.getApiKey("META"),
           personaId = userPreferencesRepository.getDefaultPersonaId(),
           chatFontScale = userPreferencesRepository.getChatFontScale(),
+          speakVoiceReplies = userPreferencesRepository.speakVoiceReplies.first(),
         )
       }
       _state.update {
@@ -55,6 +57,7 @@ class SettingsViewModel(
           metaKey = loaded.metaKey,
           personaId = loaded.personaId,
           chatFontScale = loaded.chatFontScale,
+          speakVoiceReplies = loaded.speakVoiceReplies,
           themeMode = themeRepository.mode.value,
           personas = PersonaCatalog.all.map { it.id },
         )
@@ -84,6 +87,7 @@ class SettingsViewModel(
     val metaKey: String,
     val personaId: String,
     val chatFontScale: ChatFontScale,
+    val speakVoiceReplies: Boolean,
   )
 
   fun updateMetaKey(key: String) {
@@ -104,6 +108,12 @@ class SettingsViewModel(
    */
   fun updateLanguage(code: String) {
     viewModelScope.launch { userPreferencesRepository.setLanguage(code) }
+  }
+
+  /** Applied right away, like the theme: a switch that waits for "Save" looks broken. */
+  fun updateSpeakVoiceReplies(value: Boolean) {
+    _state.update { it.copy(speakVoiceReplies = value) }
+    viewModelScope.launch { userPreferencesRepository.setSpeakVoiceReplies(value) }
   }
 
   /** The theme is applied right away (reactively through ThemeRepository), not by the "Save" button. */

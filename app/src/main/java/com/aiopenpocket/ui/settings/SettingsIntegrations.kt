@@ -110,17 +110,20 @@ internal fun IntegrationsSection(modifier: Modifier = Modifier) {
   }
 }
 
+// internal: the voice assistant row (SettingsVoiceAssistant) is the same "status or a button" shape.
 @Composable
-private fun IntegrationRow(
+internal fun IntegrationRow(
   icon: ImageVector,
   title: String,
   subtitle: String,
   granted: Boolean,
   onRequest: (() -> Unit)?,
   grantedLabel: String = tr("Разрешено", "Allowed"),
+  requestLabel: String = tr("Разрешить", "Allow"),
+  modifier: Modifier = Modifier,
 ) {
   Row(
-    modifier = Modifier
+    modifier = modifier
       .fillMaxWidth()
       .glassCardSurface(SettingsCardShape)
       .padding(horizontal = 16.dp, vertical = 14.dp),
@@ -167,7 +170,7 @@ private fun IntegrationRow(
         ),
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
       ) {
-        Text(text = tr("Разрешить", "Allow"), style = MaterialTheme.typography.labelLarge)
+        Text(text = requestLabel, style = MaterialTheme.typography.labelLarge)
       }
       else -> StatusChip(text = tr("Не разрешено", "Not allowed"), granted = false)
     }

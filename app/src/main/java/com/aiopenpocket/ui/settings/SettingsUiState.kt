@@ -13,6 +13,8 @@ data class SettingsUiState(
   val personas: List<String> = emptyList(),
   /** The chat message font size preset. */
   val chatFontScale: ChatFontScale = ChatFontScale.DEFAULT,
+  /** Read a reply aloud when the question was asked by voice (voice-assistant-mode-a81a99). */
+  val speakVoiceReplies: Boolean = true,
   /** The theme mode: Light/Dark/System. */
   val themeMode: ThemeMode = ThemeMode.SYSTEM,
   /** Spend over the last week. `null` — not read from disk yet. */

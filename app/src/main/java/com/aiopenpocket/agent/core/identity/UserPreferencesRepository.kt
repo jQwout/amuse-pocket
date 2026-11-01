@@ -1,6 +1,7 @@
 package com.aiopenpocket.agent.core.identity
 
 // @trace app-settings-beb470
+// @trace voice-assistant-mode-a81a99
 
 import android.content.Context
 import androidx.datastore.core.DataStore
@@ -85,6 +86,19 @@ class UserPreferencesRepository(
     }
   }
 
+  /**
+   * Whether a reply to a question asked by voice is read aloud. On by default: someone who called the app
+   * as the phone's assistant usually is not looking at the screen.
+   */
+  val speakVoiceReplies: Flow<Boolean> =
+    dataStore.data.map { prefs -> prefs[KEY_SPEAK_VOICE_REPLIES] ?: true }
+
+  suspend fun setSpeakVoiceReplies(value: Boolean) {
+    dataStore.edit { prefs ->
+      prefs[KEY_SPEAK_VOICE_REPLIES] = value
+    }
+  }
+
   suspend fun setLanguage(code: String) {
     dataStore.edit { prefs ->
       prefs[KEY_LANGUAGE] = code
@@ -124,6 +138,7 @@ class UserPreferencesRepository(
     private val KEY_ROADMAP_PROGRESS = stringPreferencesKey("roadmap_progress")
     private val KEY_LANGUAGE = stringPreferencesKey("language")
     private val KEY_CHAT_FONT_SCALE = stringPreferencesKey("chat_font_scale")
+    private val KEY_SPEAK_VOICE_REPLIES = booleanPreferencesKey("speak_voice_replies")
 
     /** Roadmap level id of the onboarding lesson; completed automatically after onboarding. */
     const val ONBOARDING_LEVEL_ID = "l1_welcome"

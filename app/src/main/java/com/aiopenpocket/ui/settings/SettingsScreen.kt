@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Psychology
@@ -354,6 +355,20 @@ fun SettingsScreen(
       ChatFontSizeCard(
         selected = state.chatFontScale,
         onSelect = viewModel::updateChatFontScale,
+        modifier = Modifier.padding(horizontal = 20.dp),
+      )
+
+      Spacer(modifier = Modifier.height(28.dp))
+
+      SettingsSectionHeader(
+        icon = Icons.Default.Mic,
+        title = tr("ГОЛОСОВОЙ ПОМОЩНИК", "VOICE ASSISTANT"),
+        modifier = Modifier.padding(horizontal = 20.dp),
+      )
+      Spacer(modifier = Modifier.height(12.dp))
+      VoiceAssistantSection(
+        speakReplies = state.speakVoiceReplies,
+        onSpeakRepliesChange = viewModel::updateSpeakVoiceReplies,
         modifier = Modifier.padding(horizontal = 20.dp),
       )
 
