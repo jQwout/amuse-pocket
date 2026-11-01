@@ -44,7 +44,8 @@ for your yes.
 - 🛠️ **Build.** Describe the agent in a chat: Muse Spark asks a few questions at a time, with 3–4
   options to tick, and writes the draft. Review every field on one screen, dry-run it, publish.
 - 🤖 **Run.** Agents live on the phone: a tool-calling loop, layered memory, web search, reminders,
-  background check-ins, and a plan engine whose steps are checked against evidence.
+  background check-ins, and a plan engine whose steps are checked against evidence. The app can also
+  be the phone's voice assistant and read its replies aloud.
 - 🎓 **Learn.** 31 short lessons, from "what is an AI" to building your own agent, each with an
   interactive scene you can touch. Meta's models work live inside some of them.
 - 🔒 **Stay in control.** Reading and writing just happen. Deleting or sending anything off the device
@@ -198,6 +199,39 @@ code that changed since its reason was last confirmed.
 Kotlin, Jetpack Compose, Metro DI, Ktor (SSE streaming), Room, WorkManager, Coil. Tests: JUnit,
 Robolectric and Roborazzi screenshot tests; `.github/workflows/android.yml` builds the app and runs
 them.
+
+## Before and during the hackathon
+
+The Meta Global AI Developer Hackathon window is Oct 27 – Nov 4, 2026. Dates are in git:
+`git log --since=2026-10-27` lists what was built inside the window (134 of 575 commits as of Nov 1).
+
+**Before (up to Oct 26).** The platform already existed: the agent loop with tools and memory, the
+step-by-step builder, the lesson engine with its interactive scenes, and the plan engine. Meta models
+arrived on Oct 23–26: Muse Spark through OpenRouter, course images by Muse Image, the video lesson on
+Muse Spark, the four lessons about Meta's models, a first direct Meta Model API route, and the English
+interface on the demo path with three lessons translated.
+
+**During (Oct 27 – Nov 4).**
+
+- **Meta Model API only.** OpenRouter and every bundled key are gone. Chat, Muse Image and video input
+  all go to `api.meta.ai` on the key the person enters (`795af599`, `dddbcdd6`).
+- **SAM 3.1** in "How a model sees": name a thing in a photo and SAM outlines every instance of it
+  (`8a7b4343`).
+- **The Builder chat.** Describe the agent in a chat with a hidden Builder agent on Muse Spark, then
+  review every field on one screen (`0eeb08d3`, `3a9884cd`).
+- **Meta's agent guidance.** Everything under "Following Meta's agent guidance" above: prompt order for
+  the prefix cache, reasoning effort per mode, an answer at the step limit, errors the model can act on,
+  the prompting checklist, Wonder or Spark per agent, capped self-wakeups (`3325046f`..`26565af2`).
+- **Web search** through Meta's hosted `web_search` tool, always with sources (`cf9588b9`).
+- **Voice assistant.** The app can be the phone's assistant: the assist button opens a chat that is
+  already listening, sends what was said, and reads the reply aloud (`8c91a07b`).
+- **The whole course in English**: 31 lessons and their scenes, up from 3 (`59cd9b70`..`86f89103`).
+  Every lesson on the Path now opens in any order (`c08de0e0`).
+- **Profile**: the person's own data and what the assistant remembers about them (`683f3f41`).
+- **Fixes from device runs on Android 9 and 14**, among them: a request that expired unseen in the
+  background is no longer reported as declined (`56916ad3`), and Allow approves exactly what was shown
+  (`9c00a0e5`).
+- **The orchestrator** in `orchestrator/` and the one check command `tools/check.py`.
 
 ## How it was built
 

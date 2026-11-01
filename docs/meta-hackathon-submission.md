@@ -45,18 +45,23 @@
 
 ## 2. Сценарий ролика (3:00)
 
-Запись с эмулятора, 1080p. Ожидание ответов модели вырезаем или ускоряем с пометкой «sped up». Подпись модели — внизу кадра в момент её работы.
+Пересобран 2 ноя: **каждая сцена — сделанное в окне 27 окт — 4 ноя** (коммит в скобках; судьи сверят по git). Запись с эмулятора или Pixel, 1080p, интерфейс на английском. Ожидание ответов модели вырезаем или ускоряем с пометкой «sped up». Подпись модели — внизу кадра в момент её работы.
 
 | Время | Что на экране | Подпись | Голос (EN) |
 | --- | --- | --- | --- |
-| 0:00–0:15 | Главный экран: «Путь», «Агенты» | — | Remember the "For Dummies" books? They didn't lecture you about Windows — they walked you through it. AI Open Pocket does that for AI agents: you build a real one, on Meta's models, right on your phone. |
-| 0:15–0:35 | Урок «Модели Meta: кто есть кто», сцена-линейка | — | First, learn. Short interactive lessons explain Meta's models — Muse Spark, Muse Image, SAM, Llama — and how an agent is built from them. |
-| 0:35–1:15 | Урок «Как модель видит»: ползунок кадров 1 → 4; «Показать на примере» → ответ в чате | Muse Spark · video understanding | Video becomes frames, and frames become tokens. One tap sends a clip to Muse Spark — it lists what it sees and names the one thing it isn't sure about. Live, not a mock-up. |
-| 1:15–2:15 | Конец курса → «Открыть конструктор» → имя и роль → инструкции → инструменты («Память», «Напоминания», «Почта») → режим → пробный прогон → «Опубликовать» | Muse Spark · agent brain | Then, build. The builder turns the lessons into a real agent: a role, instructions, tools, a mode, rules. A dry run simulates every action before anything touches the phone. Every agent you build thinks with Muse Spark. |
-| 2:15–2:50 | Чат агента: «remind me in 2 minutes to call mom» → «Напоминания: поставить → ок»; «email Masha the meeting moves to Friday» → «Агенту нужно разрешение · Покидает устройство» → «Разрешить»; уведомление приходит | Muse Spark · tool call | And it runs. Every action is visible. Reading and writing just happen; deleting or sending anything off the phone always waits for my OK. Two minutes later — the reminder, on time. |
-| 2:50–3:00 | Логотип, слоган | — | AI Open Pocket — learn Meta's models, build agents on them. Built solo on Muse Spark and Muse Image. |
+| 0:00–0:12 | Главный экран на английском, аватар «Профиль» | — | Remember the "For Dummies" books? They didn't lecture you about Windows — they walked you through it. AI Open Pocket does that for AI agents, on Meta's models, right on your phone. |
+| 0:12–0:40 | Урок «How a model sees», шаг SAM: фото-пример → слово «cup» → рамки вокруг каждой чашки (`8a7b4343`) | SAM 3.1 · Meta Model API | First, learn. Every lesson is something you touch. Name a thing in a photo, and SAM 3.1 finds every one of them. A model doesn't see a picture — it sees what it found in it. |
+| 0:40–1:30 | «Create agent» → Builder-чат: «an agent that keeps my week on track» → Muse Spark задаёт вопросы с вариантами-галочками → черновик → экран ревью: чек-лист инструкций, выбор Wonder/Spark (`0eeb08d3`, `3a9884cd`, `790b7553`, `bead99cb`) → пробный прогон → «Publish» | Muse Spark · Builder agent | Then, build. You don't fill in forms — you describe the agent, and a builder agent on Muse Spark asks what it needs, a few options at a time. You review every field on one page, pick Wonder for long work or Spark for speed, dry-run it, and publish. |
+| 1:30–2:05 | Чат агента: вопрос о свежем событии → строка «web_search» → ответ со ссылками на источники (`cf9588b9`) | Muse Spark · Meta web_search | And it runs. It reads the web through Meta's own search tool and always shows where a fact came from. |
+| 2:05–2:35 | **Если экраны из облака слиты в mvp:** в карточке агента секция экрана → описание → экран появляется в приложении, обновлять ничего не надо (`83b156ee`). **Иначе:** напоминание через 2 минуты → оно приходит | Muse Spark · coding worker | It can even build itself a screen: Muse Spark writes it, it's compiled in the cloud, and it lands in the app — no update, no store. |
+| 2:35–2:55 | Удержание «Домой» → чат уже слушает → вопрос голосом → ответ звучит вслух (`8c91a07b`) | Muse Spark · voice assistant | And it's your phone's assistant now: hold Home, ask, and hear the answer. |
+| 2:55–3:00 | Логотип, слоган | — | AI Open Pocket — learn Meta's models, build agents on them. Built solo during the hackathon on Muse Spark, SAM 3.1 and the Meta Model API. |
 
-Запасной вариант, если Meta Model API в день записи не ответит: 0:35–1:15 — только ползунок кадров и сцена «Цикл ReAct».
+**Что НЕ показывать** (сделано до 27 окт): ползунок кадров и разбор видео в «How a model sees», рисование Muse Image и «Draw it for me», пошаговый конструктор старого вида, сцены температуры и токенов. Подтверждение «Allow» можно в кадре, если оно случится само, но не как отдельную сцену.
+
+**Запасной вариант**, если Meta Model API в день записи не ответит: 0:12–0:40 оставить, 0:40–2:35 — экран ревью уже собранного агента и записанный заранее прогон.
+
+**Перед записью проверить на устройстве:** голосовой помощник (чтение вслух ещё не видели живьём), экраны из облака (шлюз и воркер запущены на ПК), web_search с источниками.
 
 ## 3. Текст для судей (EN)
 
@@ -107,25 +112,26 @@ Kotlin, Jetpack Compose, Metro DI, Ktor (SSE streaming), Room, WorkManager. ~49k
 
 ### Before / during the hackathon
 
-*Обязательный раздел: судьи должны различить вклад, иначе дисквалификация. Черновик от оркестратора 27 окт, цифры из git; формулировки — за владельцем.*
+*Обязательный раздел: судьи должны различить вклад, иначе дисквалификация. Обновлено 2 ноя по git; тот же текст — раздел «Before and during the hackathon» в README.*
 
-**Before the hackathon** *(up to Oct 26)* — the platform existed: the agent loop, the builder, the on-device tools, the lesson engine, Meta models through OpenRouter (Oct 24, `b83db81`), lesson images by Muse Image (`c17a968`, `85979eb`), the video-input lesson on Muse Spark (`682649c`), an interactive scene in every lesson and the four Meta-model lessons (Oct 25, `ff190fd`), NVIDIA NIM removed so the whole app runs on Muse (`197306c`), **the direct Meta Model API route with the key entered by the user** (Oct 26, `256dd03`), and the English interface on the demo path with three lessons translated (Oct 26, `3b3ca8d`; the rest of the course stayed Russian).
+**Before the hackathon** *(up to Oct 26)* — the platform already existed: the agent loop with tools and memory, the step-by-step builder, the lesson engine with its interactive scenes, and the plan engine. Meta models arrived on Oct 23–26: Muse Spark through OpenRouter, course images by Muse Image, the video lesson on Muse Spark, the four lessons about Meta's models, a first direct Meta Model API route, and the English interface on the demo path with three lessons translated.
 
-**Built during the hackathon** *(Oct 27 – Nov 4, commits `0f1e9a5`..)* — from Oct 30, the app talks only to the Meta Model API with a key the person enters in onboarding or Settings (OpenRouter and every bundled key removed). As of Oct 27, 26 commits: the Settings and Scheduled-tasks screens fully in English (`5530793`, `657c1e2`), every source comment and tool README translated, `DrivenUiCardViews`/`SettingsCards`/`RoadmapScreen` split up, dead code and manifest lint cleared, and a criteria-driven orchestrator with one check command over the whole project — build, 1091 unit tests, traceability, key scans of the sources and of the built APK, the English side of every `tr()` pair (`d8a8f7a`, `e92d7d6`, `20b1c0d`).
+**Built during the hackathon** *(Oct 27 – Nov 4; `git log --since=2026-10-27`, 134 of 575 commits as of Nov 1)*:
 
-> **Внимание, решение за владельцем.** По состоянию на 27 окт в окне нет ни одной
-> пользовательской возможности, которую судья увидел бы в демо: окно — это перевод двух экранов,
-> перевод комментариев, рефакторинг и внутренний оркестратор. Вся продуктовая часть на моделях Meta
-> (включая прямой Meta Model API, главный аргумент Stage 1) закоммичена 23–26 окт, то есть **до**
-> окна, и даты видны в git. Гайд обещает немедленную дисквалификацию, если вклад в окне не
-> различить, а сценарий ролика сейчас показывает ровно то, что сделано до 27 окт. Нужна заметная
-> продуктовая работа в окне 28 окт — 4 ноя: кандидаты — SAM 3.1 и Voice Transcribe через прямой
-> Meta Model API (обещаны в заявке), перевод остального курса на английский, агенты, которые видят
-> и рисуют. Выбор — за владельцем, это про подачу, а не про код.
+- **Meta Model API only** — OpenRouter and every bundled key removed; chat, Muse Image and video input go to `api.meta.ai` on the key the person enters (`795af599`, `dddbcdd6`).
+- **SAM 3.1** in "How a model sees": name a thing in a photo and SAM outlines every instance of it (`8a7b4343`).
+- **The Builder chat** — describe the agent to a hidden Builder agent on Muse Spark, then review every field on one screen (`0eeb08d3`, `3a9884cd`).
+- **Meta's agent guidance applied to the loop** — prompt order for the prefix cache, reasoning effort per mode, an answer at the step limit, errors the model can act on, a prompting checklist, Wonder or Spark per agent, capped self-wakeups (`3325046f`..`26565af2`).
+- **Web search** through Meta's hosted `web_search` tool, always with sources (`cf9588b9`).
+- **Voice assistant** — the app can be the phone's assistant; it listens at once and reads the reply aloud (`8c91a07b`).
+- **The whole course in English** — 31 lessons and their scenes, up from 3; every lesson opens in any order.
+- **Profile** — the person's own data and what the assistant remembers (`683f3f41`).
+- **Fixes from device runs on Android 9 and 14** — e.g. an approval that expired unseen is no longer reported as declined (`56916ad3`).
+- **An orchestrator** that coordinated the work against written criteria, with one check command (`tools/check.py`).
 
 ### What's next
 
-English and other languages for the whole course via Muse Spark; SAM 3.1 and Voice Transcribe through Meta Model API; agents that see and draw; Play Store release.
+SAM 3.1 masks on top of the boxes; Muse Voice Transcribe in place of the phone's recognizer; more languages for the course via Muse Spark; Play Store release.
 
 ### Built with
 
