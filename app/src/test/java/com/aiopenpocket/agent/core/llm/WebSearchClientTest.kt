@@ -103,7 +103,8 @@ class WebSearchClientTest {
     assertEquals("Bearer sk-test", auth)
     val sent = Json.parseToJsonElement(body).jsonObject
     // Meta answers 400 to a top-level field it does not know, so the key set is pinned, not just the values.
-    assertEquals(setOf("model", "input", "instructions", "tools", "max_tool_calls", "store", "reasoning"), sent.keys)
+    assertEquals(setOf("model", "input", "instructions", "tools", "max_tool_calls", "store", "reasoning", "include"), sent.keys)
+    assertEquals("web_search_call.results", sent.getValue("include").jsonArray.single().jsonPrimitive.content)
     assertEquals("muse-spark-1.3", sent.getValue("model").jsonPrimitive.content)
     assertEquals("when was Muse Spark announced", sent.getValue("input").jsonPrimitive.content)
     assertFalse(sent.getValue("store").jsonPrimitive.boolean)
@@ -181,6 +182,46 @@ class WebSearchClientTest {
     assertEquals("Paris.", found.text)
     assertTrue(found.sources.isEmpty())
     assertEquals(0, found.searches)
+  }
+
+  /**
+   * The shape a live muse-spark-1.3 answer had (1 Nov 2026): a `phase: "commentary"` message before the search, the
+   * answer after it, and no url_citation anywhere — the pages are only in the search call's `results`.
+   */
+  private val liveShaped = """
+    {"status":"completed","output":[
+      {"type":"reasoning","summary":[]},
+      {"type":"message","phase":"commentary","content":[{"type":"output_text","text":"Checking current sources.","annotations":[]}]},
+      {"type":"web_search_call","status":"completed","action":{"type":"search","query":"latest kotlin"},
+       "results":[
+         {"type":"text_result","title":"Kotlin releases","url":"https://kotlinlang.org/docs/releases.html","snippet":"..."},
+         {"type":"text_result","title":"","url":"https://github.com/JetBrains/kotlin/releases","snippet":"..."},
+         {"type":"text_result","title":"Kotlin releases again","url":"https://kotlinlang.org/docs/releases.html","snippet":"..."}
+       ]},
+      {"type":"reasoning","summary":[]},
+      {"type":"message","content":[{"type":"output_text","text":"Kotlin 2.4.21 is the latest stable release.","annotations":[]}]}
+    ],"usage":{"input_tokens":2965,"output_tokens":418}}
+  """.trimIndent()
+
+  @Test
+  fun `the commentary before the search is not part of the answer`() = runTest {
+    val found = (client(answering(liveShaped)).search("latest kotlin") as WebSearchResult.Found).answer
+
+    assertEquals("Kotlin 2.4.21 is the latest stable release.", found.text)
+  }
+
+  @Test
+  fun `with no citations the retrieved pages become the sources, deduplicated, title falling back to the host`() = runTest {
+    val found = (client(answering(liveShaped)).search("latest kotlin") as WebSearchResult.Found).answer
+
+    assertEquals(
+      listOf(
+        WebSource("Kotlin releases", "https://kotlinlang.org/docs/releases.html"),
+        WebSource("github.com", "https://github.com/JetBrains/kotlin/releases"),
+      ),
+      found.sources,
+    )
+    assertEquals(1, found.searches)
   }
 
   @Test

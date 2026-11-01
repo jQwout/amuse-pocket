@@ -234,6 +234,8 @@ class WebSearchClient(
     val instructions: String,
     val tools: List<WebSearchToolParam>,
     val maxToolCalls: Int,
+    /** The pages each search retrieved: the fallback source list when the answer cites none (see the parser). */
+    val include: List<String> = listOf("web_search_call.results"),
     val store: Boolean = false,
     val reasoning: ReasoningParam = ReasoningParam(),
   )
@@ -282,22 +284,31 @@ internal object WebSearchResponseParser {
 
     val texts = mutableListOf<String>()
     val sources = LinkedHashMap<String, WebSource>()
+    // Every page the search retrieved (`include: ["web_search_call.results"]`). Only a fallback: the cited ones
+    // above are what the answer rests on, but a live muse-spark-1.3 answer (1 Nov 2026) came back with no
+    // url_citation at all, and an answer with no links is one the person cannot check.
+    val retrieved = LinkedHashMap<String, WebSource>()
     var searches = 0
     for (item in root.array("output")) {
       val obj = item as? JsonObject ?: continue
       when (obj.string("type")) {
-        "web_search_call" -> searches++
-        "message" -> for (part in obj.array("content")) {
+        "web_search_call" -> {
+          searches++
+          for (result in obj.array("results")) {
+            val r = result as? JsonObject ?: continue
+            r.webSourceOrNull()?.let { retrieved.putIfAbsent(it.url, it) }
+          }
+        }
+        // `phase: "commentary"` is the model's narration before it searches ("Checking current sources..."), not
+        // the answer: seen live, and gluing it on top made the answer start with it.
+        "message" -> if (obj.string("phase") != "commentary") for (part in obj.array("content")) {
           val partObj = part as? JsonObject ?: continue
           if (partObj.string("type") != "output_text") continue
           partObj.string("text")?.trim()?.takeIf { it.isNotEmpty() }?.let { texts += it }
           for (annotation in partObj.array("annotations")) {
             val a = annotation as? JsonObject ?: continue
             if (a.string("type") != "url_citation") continue
-            val url = a.string("url")?.trim().orEmpty()
-            // Only web links: the model will print this as a link, and a `javascript:` or `file:` one is not a source.
-            if (!url.startsWith("http://") && !url.startsWith("https://")) continue
-            sources.getOrPut(url) { WebSource(a.string("title")?.trim().orEmpty().ifEmpty { hostOf(url) }, url) }
+            a.webSourceOrNull()?.let { sources.putIfAbsent(it.url, it) }
           }
         }
       }
@@ -306,7 +317,7 @@ internal object WebSearchResponseParser {
     val errorMessage = (root["error"] as? JsonObject)?.string("message")
     return ParsedResponse(
       text = texts.joinToString("\n\n"),
-      sources = sources.values.toList(),
+      sources = (sources.ifEmpty { retrieved }).values.toList(),
       searches = searches,
       usage = usageOf(root["usage"] as? JsonObject),
       failure = if (failed || errorMessage != null) (errorMessage ?: "unknown error") else null,
@@ -333,6 +344,13 @@ internal object WebSearchResponseParser {
       completionTokens = usage.int("output_tokens") ?: 0,
       promptTokensDetails = (usage["input_tokens_details"] as? JsonObject)?.int("cached_tokens")?.let(::PromptTokensDetails),
     )
+  }
+
+  /** A `url`/`title` pair as a source; only web links: the model prints it as a link, and a `javascript:` one is not a source. */
+  private fun JsonObject.webSourceOrNull(): WebSource? {
+    val url = string("url")?.trim().orEmpty()
+    if (!url.startsWith("http://") && !url.startsWith("https://")) return null
+    return WebSource(string("title")?.trim().orEmpty().ifEmpty { hostOf(url) }, url)
   }
 
   private fun hostOf(url: String): String = url.substringAfter("://").substringBefore('/').substringBefore('?').ifEmpty { url }
