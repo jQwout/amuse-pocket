@@ -187,4 +187,19 @@ class ForgedScreenStoreTest {
   private fun assertRejected(block: suspend () -> Unit) {
     assertThrows(IllegalArgumentException::class.java) { kotlinx.coroutines.runBlocking { block() } }
   }
+
+  @Test
+  fun `the rendering flag survives until cleared and names the job`() = runTest {
+    assertNull(store.renderingFlag("agent-a"))
+    store.markRendering("agent-a", "job-77")
+    assertEquals("job-77", store.renderingFlag("agent-a"))
+    assertNull(store.renderingFlag("agent-b"))
+    store.clearRendering("agent-a")
+    assertNull(store.renderingFlag("agent-a"))
+    // clear() takes the flag down with everything else.
+    store.markRendering("agent-a", "job-78")
+    store.clear("agent-a")
+    assertNull(store.renderingFlag("agent-a"))
+  }
+
 }

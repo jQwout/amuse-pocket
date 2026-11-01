@@ -21,8 +21,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -59,6 +64,12 @@ fun ForgedScreenSection(
   modifier: Modifier = Modifier,
   /** Debug builds only: renders the bundled sample without a gateway. Null hides the chip. */
   onLoadSample: (() -> Unit)? = null,
+  /**
+   * Crash sentinel hooks (see `ForgedScreenStore.markRendering`): [onRenderStarted] runs synchronously
+   * in composition right before the bundle composes, [onRenderStopped] when it leaves composition.
+   */
+  onRenderStarted: (String) -> Unit = {},
+  onRenderStopped: () -> Unit = {},
 ) {
   Column(modifier = modifier.fillMaxWidth()) {
     AgentSectionHeader(
@@ -99,16 +110,30 @@ fun ForgedScreenSection(
         onCancel = onRemove,
       )
 
-      is ForgedScreenState.Ready -> ReadyCard(
-        state = state,
-        bundle = bundle,
-        draft = draft,
-        configured = configured,
-        onDraftChange = onDraftChange,
-        onUpdate = onUpdate,
-        onRemove = onRemove,
-        renderBundle = renderBundle,
-      )
+      is ForgedScreenState.Ready -> {
+        // Before the bundle composes, not after: an interpreter exception in the first composition
+        // kills the process, and the flag is what turns the next launch into a failure card.
+        remember(state.jobId) { onRenderStarted(state.jobId); Unit }
+        // The interpreter fails in the first composition when it fails at all. Two drawn frames later
+        // the screen counts as alive and the flag comes down - otherwise a process killed while the
+        // card is open (a reinstall, a swipe from recents) would read as a crash on the next launch.
+        LaunchedEffect(state.jobId) {
+          withFrameNanos { }
+          withFrameNanos { }
+          onRenderStopped()
+        }
+        DisposableEffect(state.jobId) { onDispose { onRenderStopped() } }
+        ReadyCard(
+          state = state,
+          bundle = bundle,
+          draft = draft,
+          configured = configured,
+          onDraftChange = onDraftChange,
+          onUpdate = onUpdate,
+          onRemove = onRemove,
+          renderBundle = renderBundle,
+        )
+      }
 
       is ForgedScreenState.Failed -> FailedCard(
         message = state.message,
@@ -257,7 +282,9 @@ private fun ReadyCard(
           .testTag("forged_screen"),
       ) {
         if (bundle != null) {
-          renderBundle(state, bundle)
+          // A new job is a new screen: key on the job so the interpreter is recreated, not recomposed
+          // with the previous bundle's state (the entry point name is usually the same).
+          key(state.jobId) { renderBundle(state, bundle) }
         } else {
           Text(
             text = tr("Бандл не найден на диске.", "The bundle is missing on disk."),

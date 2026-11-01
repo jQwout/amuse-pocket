@@ -690,4 +690,48 @@ class AgentDetailViewModelForgeTest {
     assertEquals(ForgedScreenState.None, store.load(agentId))
     assertEquals(emptyList<String>(), gateway.log.toList())
   }
+
+  @Test
+  fun `a rendering flag left behind takes the screen down instead of composing it again`() = runTest(testDispatcher) {
+    createAgent()
+    val fileName = store.writeBundle(agentId, "job-crashed-9", ByteArray(8) { 1 })
+    store.save(agentId, ForgedScreenState.Ready("job-crashed-9", "a tracker", "CrashScreen", 1, fileName))
+    // What the section writes right before the bundle composes; the process then died.
+    store.markRendering(agentId, "job-crashed-9")
+
+    val state = open()
+
+    val failed = state.forged as ForgedScreenState.Failed
+    assertEquals("job-crashed-9", failed.jobId)
+    assertEquals("a tracker", failed.request)
+    assertTrue(failed.message, failed.message.contains("crashed") || failed.message.contains("уронил"))
+    assertNull(state.forgedBundle)
+    assertNull(store.renderingFlag(agentId))
+    assertEquals(failed, store.load(agentId))
+    assertEquals(emptyList<String>(), gateway.log.toList())
+  }
+
+  @Test
+  fun `a flag for another job leaves a Ready screen alone`() = runTest(testDispatcher) {
+    createAgent()
+    val fileName = store.writeBundle(agentId, "job-fine-1", ByteArray(8) { 2 })
+    store.save(agentId, ForgedScreenState.Ready("job-fine-1", "a tracker", "FineScreen", 1, fileName))
+    store.markRendering(agentId, "job-older-0")
+
+    val state = open()
+
+    assertEquals("job-fine-1", (state.forged as ForgedScreenState.Ready).jobId)
+    assertNull(store.renderingFlag(agentId))
+  }
+
+  @Test
+  fun `render hooks write and clear the flag for the current agent`() = runTest(testDispatcher) {
+    createAgent()
+    open()
+    vm.forgedRenderStarted("job-live-3")
+    assertEquals("job-live-3", store.renderingFlag(agentId))
+    vm.forgedRenderStopped()
+    assertNull(store.renderingFlag(agentId))
+  }
+
 }

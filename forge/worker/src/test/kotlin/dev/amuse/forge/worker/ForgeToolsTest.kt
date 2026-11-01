@@ -199,4 +199,27 @@ class ForgeToolsTest {
         assertContains(summary, "noise line 79")
         assertFalse(summary.contains("> Task"))
     }
+
+    @Test
+    fun `write_screen rejects ranges because the interpreter cannot run them`() {
+        for (range in listOf("for (i in 0..7) {}", "for (i in 0 until 8) {}", "for (i in 7 downTo 0) {}", "val r = (0..7).step(2)", "list.indices.forEach {}", "(0 until n).map { it }")) {
+            val result = write(source = SCREEN_SOURCE.replace("fun WaterTrackerScreen() {", "fun WaterTrackerScreen() {\n    $range"))
+            assertContains(result, "ranges", message = range)
+        }
+        // A plain decimal, a string with dots and a safe-call chain are not ranges.
+        val ok = write(source = SCREEN_SOURCE.replace("fun WaterTrackerScreen() {", "fun WaterTrackerScreen() {\n    val v = 1.5\n    val s = \"wait...\"\n    repeat(8) { i -> val n = i + 1 }"))
+        assertContains(ok, "OK")
+    }
+
+
+    @Test
+    fun `write_screen rejects helper composables, lambda parameters and clickable`() {
+        val helper = "@KetoyComposable\n@Composable\nfun Cell(n: Int) { }\n"
+        assertContains(write(source = helper + SCREEN_SOURCE), "more than one @Composable")
+        val lambdaParam = SCREEN_SOURCE.replace("fun WaterTrackerScreen() {", "fun WaterTrackerScreen() {\n    val tap: () -> Unit = {}")
+        assertContains(write(source = lambdaParam), "lambda parameters")
+        val clickable = SCREEN_SOURCE.replace("fun WaterTrackerScreen() {", "fun WaterTrackerScreen() {\n    val m = Modifier.clickable { }")
+        assertContains(write(source = clickable), "clickable")
+    }
+
 }

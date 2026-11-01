@@ -72,6 +72,37 @@ class ForgedScreenStore(private val application: Application) {
     Unit
   }
 
+  /**
+   * Crash sentinel. A bundle that compiled can still throw inside Ketoy's interpreter while it
+   * composes (a range the interpreter has no method for, say), and such an exception kills the whole
+   * process - Compose has no error boundary. So the section writes this flag right BEFORE the bundle
+   * composes and removes it two drawn frames later (and again when the screen leaves composition). A
+   * flag still present on the next load means the first render never finished: the screen is taken
+   * down instead of crashing again. A crash in a later tap handler is not caught - a known gap.
+   *
+   * Synchronous and tiny on purpose: it must be on disk before the first composition of the bundle,
+   * which is why it cannot wait for an IO coroutine.
+   */
+  fun markRendering(agentId: String, jobId: String) {
+    runCatching {
+      val dir = agentDir(agentId).also { it.mkdirs() }
+      File(dir, RENDERING_FLAG).writeText(safe(jobId))
+    }
+  }
+
+  /**
+   * Synchronous like [markRendering]: "Update" disposes the old screen and composes the new one in
+   * the same frame, and an asynchronous clear could land after the new mark and delete it.
+   */
+  fun clearRendering(agentId: String) {
+    runCatching { File(agentDir(agentId), RENDERING_FLAG).delete() }
+  }
+
+  /** The job that was being rendered when the process last died, or null when the last render ended normally. */
+  suspend fun renderingFlag(agentId: String): String? = withContext(Dispatchers.IO) {
+    File(agentDir(agentId), RENDERING_FLAG).takeIf { it.isFile }?.readText()?.trim()?.takeIf { it.isNotBlank() }
+  }
+
   private fun stateFile(agentId: String) = File(agentDir(agentId), STATE_FILE)
 
   private fun agentDir(agentId: String) = File(File(application.filesDir, DIR_NAME), safe(agentId))
@@ -85,6 +116,7 @@ class ForgedScreenStore(private val application: Application) {
   companion object {
     const val DIR_NAME = "forged_screens"
     const val STATE_FILE = "state.json"
+    const val RENDERING_FLAG = "rendering.flag"
     private val SAFE_ID = Regex("[A-Za-z0-9_.-]+")
   }
 }

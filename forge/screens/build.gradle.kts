@@ -35,7 +35,9 @@ dependencies {
 ketoy {
     // Library mode: the bundle is a product of this module, not an asset of an app.
     exportFromAppModule.set(false)
-    bundleId.set("agent")
+    // Every build gets its own id (the worker passes -PforgeBundleId=...): the app's Ketoy runtime
+    // caches parsed bundles by id, and a second screen under the same id showed the first one.
+    bundleId.set((project.findProperty("forgeBundleId") as String?)?.takeIf { it.isNotBlank() } ?: "agent")
     bundleVariant.set("release")
     capabilityRegistryFile.set(rootProject.file("ketoy-capabilities.json"))
     minAppVersion.set(0)

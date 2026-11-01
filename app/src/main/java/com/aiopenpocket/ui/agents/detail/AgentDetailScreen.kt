@@ -83,6 +83,8 @@ fun AgentDetailScreen(
   onForgeUpdate: () -> Unit = {},
   onForgeRemove: () -> Unit = {},
   onForgeLoadSample: (() -> Unit)? = null,
+  onForgeRenderStarted: (String) -> Unit = {},
+  onForgeRenderStopped: () -> Unit = {},
   /** How a ready bundle is drawn; the app passes the Ketoy interpreter, previews a stand-in. */
   renderForgedBundle: @Composable (ForgedScreenState.Ready, ByteArray) -> Unit = { ready, bytes ->
     ForgedKetoyScreen(entryPoint = ready.entryPoint, bundle = bytes)
@@ -180,6 +182,8 @@ fun AgentDetailScreen(
               onUpdate = onForgeUpdate,
               onRemove = onForgeRemove,
               onLoadSample = onForgeLoadSample,
+              onRenderStarted = onForgeRenderStarted,
+              onRenderStopped = onForgeRenderStopped,
               renderBundle = renderForgedBundle,
             )
             Spacer(modifier = Modifier.height(24.dp))
