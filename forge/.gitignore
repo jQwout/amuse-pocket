@@ -1,0 +1,16 @@
+# Private signing key of the forge: lives on the worker machine only. The public half is
+# committed here and shipped in the app's assets.
+keys/*-private.key
+# Compiled bundles are build artifacts; the one the app ships for its debug sample is
+# copied into app/src/debug/assets by hand.
+**/build/
+**/*.ktx
+.gradle/
+.kotlin/
+.idea/
+local.properties
+# Per-job scratch of the worker
+jobs/
+# Screens the worker writes per job; the bundle and the gateway keep them, git does not
+screens/src/main/kotlin/dev/amuse/forge/screens/generated/
+*.log
