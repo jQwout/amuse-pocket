@@ -26,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -71,8 +72,11 @@ fun MarketSkillPickerSheet(
     onDismiss()
   }
 
+  // Fully open at once: half-open (the default first stop) left "Add to agent" below the fold on the
+  // emulator, and a person who had read the instruction had to drag the sheet up to find the button.
   ModalBottomSheet(
     onDismissRequest = ::dismiss,
+    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     containerColor = MaterialTheme.colorScheme.surface,
   ) {
     MarketSkillPickerContent(
