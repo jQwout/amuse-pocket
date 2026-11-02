@@ -94,8 +94,9 @@ fun Application.forgeModule(store: JobStore, tokens: ForgeTokens, longPollMaxSec
             }
             get("${ForgeRoutes.BUNDLES}/{file}") {
                 val id = call.parameters["file"].orEmpty().removeSuffix(".ktx")
-                val job = store.get(id)
-                val bytes = store.bundleBytes(id)
+                // The job is looked up before anything touches the disk, and only our own id shape reaches a path.
+                val job = id.takeIf { JobStore.isValidId(it) }?.let { store.get(it) }
+                val bytes = if (job?.artifact != null) store.bundleBytes(id) else null
                 if (job?.artifact == null || bytes == null) {
                     call.respondText("No bundle for this job", status = HttpStatusCode.NotFound)
                 } else {

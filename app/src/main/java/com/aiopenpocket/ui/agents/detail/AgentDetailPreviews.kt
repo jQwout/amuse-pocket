@@ -20,6 +20,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.core.agent.toDefinition
+import com.aiopenpocket.agent.core.forge.ForgedAgentUi
 import com.aiopenpocket.agent.core.forge.ForgedScreenState
 import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.hook.HookActionType
@@ -238,15 +239,17 @@ internal fun ForgedScreenSectionPreviewFrame(
         .padding(16.dp),
     ) {
       ForgedScreenSection(
-        state = state,
-        bundle = bundle,
+        ui = ForgedAgentUi(state = state, bundle = bundle, customUiEnabled = state !is ForgedScreenState.None, loaded = true),
         draft = draft,
         configured = configured,
+        onSetCustomUi = {},
         onDraftChange = {},
-        onBuild = {},
+        onRequestChange = {},
+        onRegenerate = {},
+        onRetry = {},
         onAnswer = {},
-        onUpdate = {},
         onRemove = {},
+        onOpenUi = {},
         renderBundle = { ready, _ ->
           Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(

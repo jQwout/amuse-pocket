@@ -24,6 +24,8 @@ import java.util.UUID
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import com.aiopenpocket.BuildConfig
+import com.aiopenpocket.agent.core.forge.ForgedScreenRepository
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filterNotNull
@@ -50,6 +52,7 @@ class AgentBuilderViewModel(
   private val agentResolver: AgentResolver,
   private val skillRegistry: SkillRegistry,
   private val userSkillRepository: UserSkillRepository,
+  private val forgedScreenRepository: ForgedScreenRepository,
 ) : ViewModel() {
 
   private val _state = MutableStateFlow(AgentBuilderUiState(draft = AgentDraft.new(id = "")))
@@ -281,12 +284,25 @@ class AgentBuilderViewModel(
             draft = it.draft.copy(status = published.status, configVersion = published.configVersion),
           )
         }
+        // @trace cloud-forged-screens-40d702
+        // "Own interface": the forge is asked right after the agent exists, from its name, description
+        // and instructions. The chat keeps working while it is built; the card shows the progress.
+        if (BuildConfig.DEBUG) android.util.Log.d("ForgeUi", "published ${draft.id}: customUi=${_state.value.customUi}")
+        if (_state.value.customUi) {
+          forgedScreenRepository.setCustomUiEnabled(draft.id, enabled = true, definition = published)
+        }
       } catch (e: Exception) {
         // The exception text is not shown: these are the repository's `require` messages in English, with
         // codes and ids. The local validation above has already filtered out everything fixable on the steps.
         _state.update { it.copy(isSaving = false, saveError = ERROR_PUBLISH) }
       }
     }
+  }
+
+  /** The review page's "Chat / Own interface (beta)" choice, applied on publish. */
+  fun setCustomUi(enabled: Boolean) {
+    if (BuildConfig.DEBUG) android.util.Log.d("ForgeUi", "builder setCustomUi($enabled) for ${_state.value.draft.id}")
+    _state.update { it.copy(customUi = enabled) }
   }
 
   /** Archives the current agent — the row survives (status only), matching [UserAgentRepository.archive]. */

@@ -222,4 +222,23 @@ class ForgeToolsTest {
         assertContains(write(source = clickable), "clickable")
     }
 
+
+    @Test
+    fun `write_screen ignores strings and comments when it looks for forbidden code`() {
+        val harmless = SCREEN_SOURCE.replace(
+            "fun WaterTrackerScreen() {",
+            "// a @Composable helper would crash: 0..7, until, clickable\n/* step */\nfun WaterTrackerScreen() {\n    val label = \"next step: 1..8 until done\"\n    val raw = \"\"\"downTo .indices @Composable\"\"\"",
+        )
+        assertContains(write(source = harmless), "OK")
+        assertContains(write(source = SCREEN_SOURCE.replace("fun WaterTrackerScreen() {", "fun WaterTrackerScreen() {\n    val s = \"x\"\n    repeat(2) { i -> val r = i until 4 }")), "ranges")
+    }
+
+
+    @Test
+    fun `write_screen rejects numeric conversions, derivedStateOf and nullables`() {
+        for (bad in listOf("val f = count.toFloat()", "val d = derivedStateOf { 1 }", "var name: String? = null", "val x = maybe ?: 0")) {
+            assertContains(write(source = SCREEN_SOURCE.replace("fun WaterTrackerScreen() {", "fun WaterTrackerScreen() {\n    $bad")), "Not allowed", message = bad)
+        }
+    }
+
 }

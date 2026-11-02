@@ -1,6 +1,7 @@
 package com.aiopenpocket.di
 
 import android.app.Application
+import com.aiopenpocket.agent.core.forge.ForgedScreenRepository
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.plan.execution.PlanRecovery
 import com.aiopenpocket.agent.workers.HeartbeatRunner
@@ -21,9 +22,14 @@ interface AppGraph : ViewModelGraph {
     val heartbeatRunner: HeartbeatRunner
     val planRecovery: PlanRecovery
 
-    /** Ketoy host runtime and loader, handed to Compose once in `MainActivity` as composition locals. */
+    /**
+     * Ketoy host runtime and loader, read lazily by `ForgedBundleHost` the first time a forged screen
+     * renders (not at start-up: most launches never open one), plus the forge state shared by the
+     * builder, the chat, the agent card and the full-screen interface.
+     */
     val ketoyRuntime: KetoyRuntime
     val ketoyBundleLoader: KetoyBundleLoader
+    val forgedScreenRepository: ForgedScreenRepository
 
     @DependencyGraph.Factory
     fun interface Factory {

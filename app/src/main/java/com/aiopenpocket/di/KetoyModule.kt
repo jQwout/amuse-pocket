@@ -5,6 +5,8 @@ package com.aiopenpocket.di
 import android.app.Application
 import com.aiopenpocket.BuildConfig
 import com.aiopenpocket.agent.core.forge.ForgeGatewayConfig
+import com.aiopenpocket.agent.core.forge.ForgedScreenRepository
+import com.aiopenpocket.agent.core.forge.ForgedScreenStore
 import com.aiopenpocket.agent.core.forge.ScreenForgeClient
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.data.repository.SettingsRepository
@@ -21,6 +23,8 @@ import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.SingleIn
 import io.ktor.client.engine.HttpClientEngine
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Ketoy host wiring: the runtime that interprets `.ktx` bundles and the client of the forge gateway.
@@ -77,9 +81,19 @@ object KetoyModule {
     settingsRepository: SettingsRepository,
     userPreferencesRepository: UserPreferencesRepository,
   ): ScreenForgeClient = ScreenForgeClient(engine) {
-    ForgeGatewayConfig(
-      baseUrl = userPreferencesRepository.getForgeGatewayUrl().trim().ifBlank { DEBUG_BASE_URL },
-      token = settingsRepository.getApiKey(TOKEN_PROVIDER).trim(),
-    )
+    // On IO: the token lives in EncryptedSharedPreferences, whose first read brings up the Keystore,
+    // and the poller asks for the config every few seconds from a Main-dispatched coroutine.
+    withContext(Dispatchers.IO) {
+      ForgeGatewayConfig(
+        baseUrl = userPreferencesRepository.getForgeGatewayUrl().trim().ifBlank { DEBUG_BASE_URL },
+        token = settingsRepository.getApiKey(TOKEN_PROVIDER).trim(),
+      )
+    }
   }
+
+  /** App-scoped: a forge job keeps being polled while the person moves between screens. */
+  @Provides
+  @SingleIn(AppScope::class)
+  fun provideForgedScreenRepository(store: ForgedScreenStore, client: ScreenForgeClient): ForgedScreenRepository =
+    ForgedScreenRepository(store, client)
 }

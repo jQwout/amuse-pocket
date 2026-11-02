@@ -202,4 +202,41 @@ class ForgedScreenStoreTest {
     assertNull(store.renderingFlag("agent-a"))
   }
 
+  @Test
+  fun `the own-interface switch round-trips per agent and the file is the switch`() = runTest {
+    assertFalse(store.isCustomUiEnabled("agent-a"))
+
+    store.setCustomUiEnabled("agent-a", true)
+
+    assertTrue(store.isCustomUiEnabled("agent-a"))
+    assertTrue(File(agentDir("agent-a"), ForgedScreenStore.CUSTOM_UI_FLAG).isFile)
+    // Another agent is untouched.
+    assertFalse(store.isCustomUiEnabled("agent-b"))
+
+    store.setCustomUiEnabled("agent-a", false)
+
+    assertFalse(store.isCustomUiEnabled("agent-a"))
+    assertFalse(File(agentDir("agent-a"), ForgedScreenStore.CUSTOM_UI_FLAG).exists())
+  }
+
+  @Test
+  fun `switching off an agent that never had the switch is not an error`() = runTest {
+    store.setCustomUiEnabled("agent-fresh", false)
+    assertFalse(store.isCustomUiEnabled("agent-fresh"))
+  }
+
+  @Test
+  fun `the switch is independent of the screen state, and clear drops it with everything else`() = runTest {
+    store.save("agent-a", ForgedScreenState.Working("job-x", "req"))
+    store.setCustomUiEnabled("agent-a", true)
+    // Saving None deletes only state.json: the person's choice outlives "no screen yet".
+    store.save("agent-a", ForgedScreenState.None)
+    assertTrue(store.isCustomUiEnabled("agent-a"))
+
+    store.clear("agent-a")
+
+    assertFalse(store.isCustomUiEnabled("agent-a"))
+    assertFalse(agentDir("agent-a").exists())
+  }
+
 }
