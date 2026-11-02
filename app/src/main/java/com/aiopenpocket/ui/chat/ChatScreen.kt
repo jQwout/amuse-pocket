@@ -140,6 +140,7 @@ import com.aiopenpocket.agent.core.plan.model.PlanSnapshot
 import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.i18n.tr
+import com.aiopenpocket.ui.forge.ForgedUiBanner
 import com.aiopenpocket.agent.core.agent.BuilderAgent
 import com.aiopenpocket.ui.agents.AgentsViewModel
 import com.aiopenpocket.ui.agents.builder.components.riskClassLabel
@@ -195,6 +196,8 @@ fun ChatScreen(
     onOpenPlanDetail: (String) -> Unit = {},
     // "Open Settings" on the no-key error line: the Meta key is entered there (see ModelKeyGate).
     onOpenSettings: () -> Unit = {},
+    /** Opens the agent's own forged interface (`agent_ui/{agentId}`) from the banner. */
+    onOpenAgentUi: (String) -> Unit = {},
 ) {
     val glassState = rememberGlassState()
     val viewModel: ChatViewModel = metroViewModel()
@@ -698,6 +701,14 @@ fun ChatScreen(
                         }
                     }
                 }
+
+                // @trace cloud-forged-screens-40d702
+                // The agent's own interface: "being built, use the chat meanwhile" or "ready - open".
+                ForgedUiBanner(
+                    agentId = state.agentId,
+                    onOpenUi = onOpenAgentUi,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
 
                 // Context/tokens — a thin progress bar under the header. Shown while there are statistics (including
                 // during loading — then the previous turn's context is visible).

@@ -2,6 +2,30 @@ package com.aiopenpocket.ui.agents.builder
 
 // @trace user-agent-builder-848153
 
+import com.aiopenpocket.agent.core.forge.ForgeGatewayConfig
+import com.aiopenpocket.agent.core.forge.ForgedScreenRepository
+import com.aiopenpocket.agent.core.forge.ForgedScreenStore
+import com.aiopenpocket.agent.core.forge.ScreenForgeClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.client.engine.mock.respondError
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.TextContent
+import io.ktor.http.headersOf
+import com.aiopenpocket.agent.core.forge.ForgedScreenState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import java.util.concurrent.CopyOnWriteArrayList
+import org.robolectric.RuntimeEnvironment
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
@@ -89,7 +113,7 @@ class AgentBuilderViewModelTest {
     agentResolver = DefaultAgentResolver(userAgentRepository)
     userSkillRepository = UserSkillRepository(db.userSkillDao())
     skillRegistry = SkillRegistry(emptySet(), userSkillRepository)
-    vm = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository)
+    vm = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository, forgedScreenRepository())
   }
 
   @After
@@ -177,7 +201,7 @@ class AgentBuilderViewModelTest {
     fillValidFields()
     advanceUntilIdle()
 
-    val editing = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository)
+    val editing = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository, forgedScreenRepository())
     editing.start(id)
     advanceUntilIdle()
     assertTrue(editing.nextStep())
@@ -357,7 +381,7 @@ class AgentBuilderViewModelTest {
 
     // A brand new instance, as if the old one were destroyed and recreated (rotation / process death) -
     // it must not rely on any in-memory state from `vm`, only on what the repository has stored.
-    val recreated = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository)
+    val recreated = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository, forgedScreenRepository())
     recreated.loadExisting(id)
     advanceUntilIdle()
 
@@ -444,7 +468,7 @@ class AgentBuilderViewModelTest {
     assertEquals(AgentStatus.PUBLISHED, userAgentRepository.get(id)?.status)
     assertEquals("# Как бегать", userSkillRepository.getForAgent(id).single().instructionsMarkdown)
 
-    val recreated = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository)
+    val recreated = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository, forgedScreenRepository())
     recreated.loadExisting(id)
     advanceUntilIdle()
     assertEquals("running-plan", recreated.state.value.draft.customSkills.single().id)
@@ -498,7 +522,7 @@ class AgentBuilderViewModelTest {
     }
     advanceUntilIdle()
 
-    val recreated = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository)
+    val recreated = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository, forgedScreenRepository())
     recreated.loadExisting(id)
     advanceUntilIdle()
     assertEquals("hook-1", recreated.state.value.draft.hooks.single().id)
@@ -604,7 +628,7 @@ class AgentBuilderViewModelTest {
   fun `start with openReview opens the stored draft in review mode`() = runTest(testDispatcher) {
     val id = storedValidDraft()
 
-    val reviewing = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository)
+    val reviewing = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository, forgedScreenRepository())
     reviewing.start(id, openReview = true)
     advanceUntilIdle()
 
@@ -618,7 +642,7 @@ class AgentBuilderViewModelTest {
   fun `start without openReview opens the wizard`() = runTest(testDispatcher) {
     val id = storedValidDraft()
 
-    val editing = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository)
+    val editing = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository, forgedScreenRepository())
     editing.start(id)
     advanceUntilIdle()
 
@@ -630,7 +654,7 @@ class AgentBuilderViewModelTest {
   @Test
   fun `editStepByStep leaves the review for the asked step and keeps the draft`() = runTest(testDispatcher) {
     val id = storedValidDraft()
-    val reviewing = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository)
+    val reviewing = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository, forgedScreenRepository())
     reviewing.start(id, openReview = true)
     advanceUntilIdle()
 
@@ -645,7 +669,7 @@ class AgentBuilderViewModelTest {
   @Test
   fun `a repeated start with openReview does not undo Edit step by step`() = runTest(testDispatcher) {
     val id = storedValidDraft()
-    val reviewing = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository)
+    val reviewing = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository, forgedScreenRepository())
     reviewing.start(id, openReview = true)
     advanceUntilIdle()
     reviewing.editStepByStep()
@@ -660,7 +684,7 @@ class AgentBuilderViewModelTest {
   @Test
   fun `an edit in the review is validated and autosaved like a wizard edit`() = runTest(testDispatcher) {
     val id = storedValidDraft()
-    val reviewing = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository)
+    val reviewing = AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository, forgedScreenRepository())
     reviewing.start(id, openReview = true)
     advanceUntilIdle()
 
@@ -669,5 +693,136 @@ class AgentBuilderViewModelTest {
     advanceUntilIdle()
 
     assertEquals(setOf("memory_tool", "render_card"), userAgentRepository.get(id)?.toolNames)
+  }
+
+  /** A forge that never answers: the builder tests are not about forged screens. */
+  private fun forgedScreenRepository(): ForgedScreenRepository = ForgedScreenRepository(
+    store = ForgedScreenStore(RuntimeEnvironment.getApplication()),
+    client = ScreenForgeClient(MockEngine { respondError(HttpStatusCode.NotFound) }) { ForgeGatewayConfig("", "") },
+  )
+
+  // --- own interface (cloud-forged screens) ---------------------------------------------------------
+
+  /**
+   * A gateway the test owns: counts `POST /v1/jobs`, hands out one job id and then leaves the status
+   * poll hanging, so the repository's poller parks (no virtual-time spin under `advanceUntilIdle`).
+   */
+  private class ScriptedForge {
+    val submitBodies = CopyOnWriteArrayList<String>()
+    val engine = MockEngine { request ->
+      when {
+        request.method == HttpMethod.Post && request.url.encodedPath == "/v1/jobs" -> {
+          submitBodies += (request.body as TextContent).text
+          respond("""{"jobId":"job-built-1"}""", HttpStatusCode.Accepted, headersOf(HttpHeaders.ContentType, "application/json"))
+        }
+
+        request.method == HttpMethod.Get -> awaitCancellation()
+        else -> respondError(HttpStatusCode.NotFound)
+      }
+    }
+  }
+
+  /** The builder wired to [forge] through a repository whose scope is the test's. */
+  private fun builderWithForge(forge: ScriptedForge, store: ForgedScreenStore): Pair<AgentBuilderViewModel, ForgedScreenRepository> {
+    val forgedRepo = ForgedScreenRepository(
+      store = store,
+      client = ScreenForgeClient(forge.engine) { ForgeGatewayConfig("http://forge.test", "token") },
+      scope = CoroutineScope(testDispatcher + SupervisorJob()),
+      pollIntervalMs = 10L,
+    )
+    return AgentBuilderViewModel(userAgentRepository, agentResolver, skillRegistry, userSkillRepository, forgedRepo) to forgedRepo
+  }
+
+  /** The store and the client run on IO, which the test scheduler does not track: wait in real time. */
+  private suspend fun <T> inRealTime(block: suspend () -> T): T = withContext(Dispatchers.Default) { withTimeout(10_000) { block() } }
+
+  @Test
+  fun `publishing with the own interface switched on turns the switch on in the store and asks the forge for the screen`() = runTest(testDispatcher) {
+    val forge = ScriptedForge()
+    val store = ForgedScreenStore(RuntimeEnvironment.getApplication())
+    val (builder, forged) = builderWithForge(forge, store)
+    builder.newDraft()
+    val id = builder.state.value.draft.id
+    builder.updateDraft {
+      it.copy(
+        name = "Тестовый агент",
+        description = "Агент для проверки builder-а.",
+        iconKey = "sparkles",
+        systemPrompt = "Ты — тестовый агент для unit-тестов.",
+        toolNames = setOf("memory_tool"),
+      )
+    }
+    builder.setCustomUi(true)
+    advanceUntilIdle()
+
+    builder.publish()
+    advanceUntilIdle()
+
+    val requested = inRealTime { forged.observe(id).first { it.state is ForgedScreenState.Requested } }
+    assertEquals("job-built-1", requested.state.jobId)
+    assertTrue(requested.customUiEnabled)
+    assertTrue(inRealTime { store.isCustomUiEnabled(id) })
+    // Exactly one job, built from the PUBLISHED agent.
+    val sent = Json.parseToJsonElement(forge.submitBodies.single()).jsonObject
+    assertEquals(id, sent.getValue("agentId").jsonPrimitive.content)
+    assertEquals("Тестовый агент", sent.getValue("agentName").jsonPrimitive.content)
+    assertTrue(sent.getValue("request").jsonPrimitive.content.contains("Тестовый агент"))
+    assertEquals(AgentStatus.PUBLISHED, userAgentRepository.get(id)?.status)
+  }
+
+  @Test
+  fun `publishing with the own interface left off submits nothing and leaves the switch off`() = runTest(testDispatcher) {
+    val forge = ScriptedForge()
+    val store = ForgedScreenStore(RuntimeEnvironment.getApplication())
+    val (builder, _) = builderWithForge(forge, store)
+    builder.newDraft()
+    val id = builder.state.value.draft.id
+    builder.updateDraft {
+      it.copy(
+        name = "Тестовый агент",
+        description = "Агент для проверки builder-а.",
+        iconKey = "sparkles",
+        systemPrompt = "Ты — тестовый агент для unit-тестов.",
+        toolNames = setOf("memory_tool"),
+      )
+    }
+    advanceUntilIdle()
+
+    builder.publish()
+    advanceUntilIdle()
+    assertEquals(AgentStatus.PUBLISHED, builder.state.value.draft.status)
+    // Real time passes: the positive test above shows a request would have left within it.
+    inRealTime { delay(400) }
+
+    assertTrue(forge.submitBodies.isEmpty())
+    assertFalse(inRealTime { store.isCustomUiEnabled(id) })
+  }
+
+  @Test
+  fun `switching the own interface on and back off before publishing submits nothing`() = runTest(testDispatcher) {
+    val forge = ScriptedForge()
+    val store = ForgedScreenStore(RuntimeEnvironment.getApplication())
+    val (builder, _) = builderWithForge(forge, store)
+    builder.newDraft()
+    val id = builder.state.value.draft.id
+    builder.updateDraft {
+      it.copy(
+        name = "Тестовый агент",
+        description = "Агент для проверки builder-а.",
+        iconKey = "sparkles",
+        systemPrompt = "Ты — тестовый агент для unit-тестов.",
+        toolNames = setOf("memory_tool"),
+      )
+    }
+    builder.setCustomUi(true)
+    builder.setCustomUi(false)
+    advanceUntilIdle()
+
+    builder.publish()
+    advanceUntilIdle()
+    inRealTime { delay(400) }
+
+    assertTrue(forge.submitBodies.isEmpty())
+    assertFalse(inRealTime { store.isCustomUiEnabled(id) })
   }
 }

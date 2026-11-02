@@ -49,8 +49,9 @@ for your yes.
   interactive scene you can touch. Meta's models work live inside some of them.
 - 🔒 **Stay in control.** Reading and writing just happen. Deleting or sending anything off the device
   always asks you in chat, and is never done in the background.
-- ☁️ **Forge a screen.** Describe the screen an agent should have; a coding agent on Muse writes it in
-  Compose in the cloud, and the app renders it over the air. No app update.
+- ☁️ **Give it an interface.** Tick "Own interface (beta)" when you publish an agent: a coding agent on
+  Muse writes it a screen of its own in Compose, in the cloud, and the app renders it over the air.
+  No app update.
 
 ## How an agent turn works
 
@@ -93,14 +94,17 @@ The Builder can only write a draft. Publishing is always a person tapping a butt
 
 ## Cloud-forged screens
 
-An agent built on the phone can get a screen of its own without an app update. On the agent's card,
-describe it ("a water tracker with 8 glasses and a reset button"). The app queues a job at the
-**forge gateway**; a **worker** on a machine with the Android SDK runs our own tool-calling loop on
-Muse Spark - the same ReAct shape as the agent loop, with file and Gradle tools instead of phone
-tools - until the screen compiles; the [Ketoy](https://ketoy.dev) compiler turns it into a signed
-bundle; the app downloads the bundle, checks its hash and signature, and renders it natively with
-Ketoy's runtime. If the agent needs to know something first, it asks, and you answer from the same
-card. "Update" sends the current screen's source back with your change.
+An agent built on the phone can get a screen of its own without an app update. On the review page
+of the builder you choose where the agent lives: in the chat, or in its **own interface (beta)**.
+Publish, and the app queues a job at the **forge gateway** from the agent's name, description and
+instructions; the chat says "your interface is being built - use the chat meanwhile" and keeps
+working. A **worker** on a machine with the Android SDK runs our own tool-calling loop on Muse
+Spark - the same ReAct shape as the agent loop, with file and Gradle tools instead of phone tools -
+until one minimal screen compiles; the [Ketoy](https://ketoy.dev) compiler turns it into a signed
+bundle; the app downloads the bundle, checks its hash and signature, and from then on opens the
+agent in that screen, full screen, with the chat one tap away. The agent's card keeps the levers:
+the Chat / Own interface switch, "add a reset button" (the worker gets the current source back),
+Regenerate, and the agent's own question if the request was unclear.
 
 ```
 phone ──POST job──▶ gateway (Ktor, Fly.io) ◀──long-poll── worker (Muse Spark + Gradle + Ketoy)

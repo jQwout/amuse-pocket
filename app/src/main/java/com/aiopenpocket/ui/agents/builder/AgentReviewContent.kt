@@ -84,6 +84,8 @@ internal fun AgentReviewContent(
   modifier: Modifier = Modifier,
   /** The wizard's floating islands (see [AgentBuilderScreen]): the page scrolls under them. */
   contentPadding: PaddingValues = PaddingValues(),
+  /** "Chat / Own interface (beta)" - see [AgentBuilderUiState.customUi]. */
+  onSetCustomUi: (Boolean) -> Unit = {},
 ) {
   val draft = state.draft
   val errors = state.errors
@@ -198,6 +200,8 @@ internal fun AgentReviewContent(
       onArchive = onArchive,
       justPublished = state.justPublished,
       onOpenChat = onOpenChat,
+      customUi = state.customUi,
+      onSetCustomUi = onSetCustomUi,
       showPublishButton = false,
       showPublishedNotice = false,
     )

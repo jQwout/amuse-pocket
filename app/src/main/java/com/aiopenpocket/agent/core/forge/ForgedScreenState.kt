@@ -7,14 +7,19 @@ import kotlinx.serialization.Serializable
 
 /**
  * What the app knows about one agent's forged screen. Exactly one of these per agent, persisted as
- * JSON by [ForgedScreenStore]; the job's `request` rides along in every case so "Update" and
- * "Try again" can prefill the field after a restart.
+ * JSON by [ForgedScreenStore]; the job's `request` rides along in every case so "Try again" can
+ * resend it after a restart, and `previousJobId` so a retried UPDATE still carries the screen it
+ * changes (without it the change text would be sent as a request for a brand-new screen).
  */
 @Serializable
 sealed interface ForgedScreenState {
 
   /** The job the state refers to, when there is one. */
   val jobId: String?
+    get() = null
+
+  /** The screen this job changes, for an "Update"; null for a screen built from scratch. */
+  val previousJobId: String?
     get() = null
 
   /** No screen asked for, or the last one removed. */
@@ -28,7 +33,7 @@ sealed interface ForgedScreenState {
   data class Requested(
     override val jobId: String,
     val request: String,
-    val previousJobId: String? = null,
+    override val previousJobId: String? = null,
   ) : ForgedScreenState
 
   /** The agent needs an answer before it can go on. */
@@ -38,6 +43,7 @@ sealed interface ForgedScreenState {
     override val jobId: String,
     val request: String,
     val question: String,
+    override val previousJobId: String? = null,
   ) : ForgedScreenState
 
   /** The worker is writing and compiling; [message] is its latest progress line, if any. */
@@ -47,6 +53,7 @@ sealed interface ForgedScreenState {
     override val jobId: String,
     val request: String,
     val message: String? = null,
+    override val previousJobId: String? = null,
   ) : ForgedScreenState
 
   /** A bundle is on disk ([fileName] under the agent's folder) and renders [entryPoint]. */
@@ -67,13 +74,14 @@ sealed interface ForgedScreenState {
     override val jobId: String? = null,
     val request: String,
     val message: String,
+    override val previousJobId: String? = null,
   ) : ForgedScreenState
 
   /** True while the gateway should be polled. */
   val isInFlight: Boolean
     get() = this is Requested || this is Working
 
-  /** The last request text, for prefilling. */
+  /** The last request text, for prefilling and retrying. */
   val lastRequest: String
     get() = when (this) {
       None -> ""

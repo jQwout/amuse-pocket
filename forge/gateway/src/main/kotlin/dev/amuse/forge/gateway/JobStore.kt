@@ -85,7 +85,8 @@ class JobStore(
 
     suspend fun create(request: CreateJobRequest): Job = mutex.withLock {
         val t = now()
-        val previous = request.previousJobId?.let { jobs[it] }
+        // An update may only build on a screen of the same agent: the previous source is handed to the worker.
+        val previous = request.previousJobId?.let { jobs[it] }?.takeIf { it.agentId == request.agentId }
         val job = Job(
             jobId = newId(),
             agentId = request.agentId,
@@ -216,9 +217,9 @@ class JobStore(
     private fun readSource(jobId: String): String? =
         File(jobDir(jobId), SOURCE_FILE).takeIf { it.isFile }?.readText()
 
-    /** 1 for an agent's first screen; every later job of that agent counts up, done or not. */
+    /** 1 for an agent's first screen; a failed or abandoned job does not use a number up. */
     private fun nextVersionLocked(agentId: String): Int =
-        (jobs.values.filter { it.agentId == agentId }.maxOfOrNull { it.version } ?: 0) + 1
+        (jobs.values.filter { it.agentId == agentId && it.status == JobStatus.DONE }.maxOfOrNull { it.version } ?: 0) + 1
 
     private fun jobDir(jobId: String) = File(File(dataDir, "jobs"), jobId)
 
@@ -239,6 +240,10 @@ class JobStore(
         const val BUNDLE_FILE = "bundle.ktx"
         const val SOURCE_FILE = "source.kt"
         private const val POLL_STEP_MILLIS = 500L
+
+        private val ID_RULE = Regex("[A-Za-z0-9_-]{1,64}")
+
+        fun isValidId(id: String): Boolean = ID_RULE.matches(id)
 
         fun sha256Hex(bytes: ByteArray): String =
             MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }

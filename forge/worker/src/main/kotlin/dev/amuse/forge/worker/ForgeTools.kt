@@ -175,8 +175,10 @@ class WriteScreenTool(
         if (!Regex("""fun\s+${Regex.escape(name)}\s*\(""").containsMatchIn(source)) {
             throw ToolError("The source must declare `fun $name(` - the function name has to equal the file's name argument.")
         }
-        FORBIDDEN.firstOrNull { it.first.containsMatchIn(source) }?.let { throw ToolError("Not allowed in a Ketoy screen: ${it.second}.") }
-        if (Regex("""@Composable""").findAll(source).count() > 1) {
+        // Matched against code only: a string like "next step" or a comment mentioning @Composable is not a violation.
+        val code = codeOnly(source)
+        FORBIDDEN.firstOrNull { it.first.containsMatchIn(code) }?.let { throw ToolError("Not allowed in a Ketoy screen: ${it.second}.") }
+        if (Regex("""@Composable""").findAll(code).count() > 1) {
             throw ToolError("Not allowed in a Ketoy screen: more than one @Composable function - inline the helper into the entry function (helper composables crash the interpreter at runtime).")
         }
 
@@ -197,6 +199,39 @@ class WriteScreenTool(
         "ERROR: ${e.message}"
     } catch (e: java.io.IOException) {
         "ERROR: could not write the file: ${e.message}"
+    }
+
+    /** The source without string literals and comments, so the static checks see only code. */
+    internal fun codeOnly(source: String): String {
+        val out = StringBuilder(source.length)
+        var i = 0
+        val n = source.length
+        while (i < n) {
+            val c = source[i]
+            when {
+                source.startsWith("\"\"\"", i) -> {
+                    val end = source.indexOf("\"\"\"", i + 3)
+                    out.append("\"\"")
+                    i = if (end < 0) n else end + 3
+                }
+                c == '"' -> {
+                    var j = i + 1
+                    while (j < n && source[j] != '"') { if (source[j] == '\\') j++; j++ }
+                    out.append("\"\"")
+                    i = (j + 1).coerceAtMost(n)
+                }
+                source.startsWith("//", i) -> {
+                    val end = source.indexOf('\n', i)
+                    i = if (end < 0) n else end
+                }
+                source.startsWith("/*", i) -> {
+                    val end = source.indexOf("*/", i + 2)
+                    i = if (end < 0) n else end + 2
+                }
+                else -> { out.append(c); i++ }
+            }
+        }
+        return out.toString()
     }
 
     private fun withPackage(source: String): String {
@@ -220,6 +255,10 @@ class WriteScreenTool(
             Regex("""\d\s*\.\.\s*[\d(a-zA-Z]|\)\s*\.\.|\buntil\b|\bdownTo\b|\bstep\b|\.indices\b|\brangeTo\b""") to
                 "ranges (.., until, downTo, step, .indices) - they compile but crash the app at runtime; loop with repeat(n) { i -> } or forEachIndexed",
             Regex("""\brunBlocking\b""") to "runBlocking",
+            // Seen live: Int.toFloat() has no interpreter method; derivedStateOf and nullables render as the text null.
+            Regex("""\.to(Float|Double|Long|Int)\(\)""") to "numeric conversions (toFloat/toDouble/toLong/toInt) - keep every number an Int and use string templates",
+            Regex("""\bderivedStateOf\b""") to "derivedStateOf - compute the value inline where it is shown",
+            Regex("""\bnull\b|\?\.|\?:""") to "nullable values (null, ?., ?:) - the interpreter shows them as the text null; use plain Int/String/Boolean state",
             Regex("""::class\.java|import\s+kotlin\.reflect|import\s+java\.lang\.reflect""") to "reflection",
             Regex("""^\s*import\s+java\.(io|nio|net)\.""", RegexOption.MULTILINE) to "java.io / java.nio / java.net (no file or network access)",
             Regex("""^\s*import\s+kotlin\.io\.""", RegexOption.MULTILINE) to "kotlin.io (no file access)",

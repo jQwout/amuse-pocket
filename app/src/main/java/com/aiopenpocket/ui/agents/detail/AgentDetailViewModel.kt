@@ -41,16 +41,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import android.app.Application
-import com.aiopenpocket.agent.core.forge.ForgeCreateJobRequest
-import com.aiopenpocket.agent.core.forge.ForgeJobStatus
-import com.aiopenpocket.agent.core.forge.ForgeResult
-import com.aiopenpocket.agent.core.forge.ForgedScreenState
-import com.aiopenpocket.agent.core.forge.ForgedScreenStore
-import com.aiopenpocket.agent.core.forge.ScreenForgeClient
+import com.aiopenpocket.agent.core.forge.ForgedAgentUi
+import com.aiopenpocket.agent.core.forge.ForgedScreenRepository
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -123,13 +116,11 @@ data class AgentDetailState(
   /** Message from the most recently FAILED action (duplicate/toggle/archive/reload), or null. */
   val actionError: String? = null,
   // @trace cloud-forged-screens-40d702
-  /** The agent's cloud-forged screen: what the person asked for and where the job stands. */
-  val forged: ForgedScreenState = ForgedScreenState.None,
-  /** The downloaded bundle for [ForgedScreenState.Ready]; null until read from disk. */
-  val forgedBundle: ByteArray? = null,
-  /** The request field as typed, kept here so a recomposition does not lose it. */
+  /** The agent's forged interface - the switch, the job, the bundle - observed from ForgedScreenRepository. */
+  val forged: ForgedAgentUi = ForgedAgentUi(),
+  /** The change-request field as typed, kept here so a recomposition does not lose it. */
   val forgedDraft: String = "",
-  /** False until Settings has a gateway address and token: the Build button stays disabled. */
+  /** False until Settings has a gateway address and token: the forge buttons stay disabled. */
   val forgeConfigured: Boolean = false,
 )
 
@@ -197,17 +188,11 @@ class AgentDetailViewModel(
   private val agentFilesRepository: AgentFilesRepository,
   private val planRepository: PlanRepository,
   private val userSkillRepository: UserSkillRepository,
-  private val forgedScreenStore: ForgedScreenStore,
-  private val screenForgeClient: ScreenForgeClient,
+  private val forgedScreenRepository: ForgedScreenRepository,
   private val application: Application,
 ) : ViewModel() {
 
   private val agentIdFlow = MutableStateFlow<String?>(null)
-
-  // @trace cloud-forged-screens-40d702
-  /** How often the gateway is asked about a job in flight; tests shorten it. */
-  internal var forgePollIntervalMs: Long = 3_000L
-  private var forgePollJob: Job? = null
 
   private val _state = MutableStateFlow(AgentDetailState())
   val state: StateFlow<AgentDetailState> = _state.asStateFlow()
@@ -222,6 +207,13 @@ class AgentDetailViewModel(
     // re-establishes itself when agentId changes, reload() neither touches nor duplicates it.
     viewModelScope.launch {
       plansFlow().collect { rows -> _state.update { it.copy(plans = rows) } }
+    }
+    // The forged interface (cloud-forged screens): the same live-subscription shape as the two above.
+    viewModelScope.launch {
+      forgedFlow().collect { ui -> _state.update { it.copy(forged = ui) } }
+    }
+    viewModelScope.launch {
+      agentIdFlow.collect { id -> if (id != null) _state.update { it.copy(forgeConfigured = forgedScreenRepository.isConfigured()) } }
     }
   }
 
@@ -288,7 +280,6 @@ class AgentDetailViewModel(
             hasInvalidCapabilities = invalid,
           )
         }
-        if (definition != null) loadForged(id)
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
@@ -301,106 +292,57 @@ class AgentDetailViewModel(
   // Cloud-forged screen (@trace cloud-forged-screens-40d702)
   // ---------------------------------------------------------------------------------------------
 
-  /** Reads the persisted state for [agentId] and resumes polling when a job is still in flight. */
-  private suspend fun loadForged(agentId: String) {
-    var forged = forgedScreenStore.load(agentId)
-    // A rendering flag left behind means the last render of this bundle took the process down (see
-    // ForgedScreenStore.markRendering). Take the screen down instead of composing it again: the person
-    // gets an honest card with "Try again" (a new job) and "Remove", not a crash loop.
-    val crashedJob = forgedScreenStore.renderingFlag(agentId)
-    if (crashedJob != null) {
-      forgedScreenStore.clearRendering(agentId)
-      if (forged is ForgedScreenState.Ready && forged.jobId == crashedJob) {
-        forged = ForgedScreenState.Failed(
-          jobId = forged.jobId,
-          request = forged.request,
-          message = tr(
-            "Этот экран уронил приложение при прошлом открытии и снят с показа. Попроси другой вариант.",
-            "This screen crashed the app the last time it opened and was taken down. Ask for another version.",
-          ),
-        )
-        forgedScreenStore.save(agentId, forged)
-      }
-    }
-    val bundle = (forged as? ForgedScreenState.Ready)?.let { forgedScreenStore.readBundle(agentId, it.fileName) }
-    val configured = screenForgeClient.isConfigured()
-    _state.update { it.copy(forged = forged, forgedBundle = bundle, forgeConfigured = configured) }
-    if (forged.isInFlight) startForgePolling(agentId, forged.jobId!!)
-  }
+  /**
+   * The agent's forged interface is app-wide state (ForgedScreenRepository): this screen only observes
+   * it, like the heartbeats and the plans, and forwards the person's actions.
+   */
+  @OptIn(ExperimentalCoroutinesApi::class)
+  private fun forgedFlow(): Flow<ForgedAgentUi> = agentIdFlow
+    .flatMapLatest { id -> if (id == null) flowOf(ForgedAgentUi()) else forgedScreenRepository.observe(id) }
 
   fun updateForgeDraft(text: String) {
     _state.update { it.copy(forgedDraft = text) }
   }
 
-  /** Called by the section right before the bundle composes; synchronous, see [ForgedScreenStore.markRendering]. */
-  fun forgedRenderStarted(jobId: String) {
+  /** The person's switch: chat or the agent's own interface. Switching on asks the forge when there is nothing yet. */
+  fun setCustomUi(enabled: Boolean) {
     val agentId = agentIdFlow.value ?: return
-    forgedScreenStore.markRendering(agentId, jobId)
+    forgedScreenRepository.setCustomUiEnabled(agentId, enabled, _state.value.definition)
   }
 
-  /** Called when the rendered bundle leaves composition normally. Synchronous, see [ForgedScreenStore.clearRendering]. */
-  fun forgedRenderStopped() {
-    val agentId = agentIdFlow.value ?: return
-    forgedScreenStore.clearRendering(agentId)
+  /** A fresh screen from the agent's identity - also what "Build the screen" does when there is none. */
+  fun regenerateScreen() {
+    val definition = _state.value.definition ?: return
+    forgedScreenRepository.requestAgentUi(definition)
   }
-
-  /** Sends the draft as a new job. A [ForgedScreenState.Failed] "Try again" lands here too. */
-  fun buildScreen() = submitForgeJob(previousJobId = null)
 
   /** Sends the draft as a change to the current screen: the worker gets the old source back. */
-  fun updateScreen() = submitForgeJob(previousJobId = (_state.value.forged as? ForgedScreenState.Ready)?.jobId)
-
-  private fun submitForgeJob(previousJobId: String?) {
+  fun requestScreenChange() {
     val agentId = agentIdFlow.value ?: return
     val definition = _state.value.definition ?: return
-    val request = _state.value.forgedDraft.trim().ifBlank { _state.value.forged.lastRequest }.trim()
-    if (request.isBlank()) return
-    viewModelScope.launch {
-      val result = screenForgeClient.submit(
-        ForgeCreateJobRequest(
-          agentId = agentId,
-          agentName = definition.displayName,
-          agentDescription = definition.displayDescription,
-          request = request,
-          previousJobId = previousJobId,
-        ),
-      )
-      when (result) {
-        is ForgeResult.Ok -> {
-          setForged(agentId, ForgedScreenState.Requested(result.value, request, previousJobId), bundle = null)
-          _state.update { it.copy(forgedDraft = "") }
-          startForgePolling(agentId, result.value)
-        }
-        is ForgeResult.Failed -> setForged(agentId, ForgedScreenState.Failed(null, request, result.message), bundle = null)
-      }
-    }
+    val change = _state.value.forgedDraft.trim()
+    if (change.isBlank()) return
+    forgedScreenRepository.requestChange(agentId, definition, change)
+    _state.update { it.copy(forgedDraft = "") }
+  }
+
+  /** "Try again" on a failed job: the same request, with the screen it was changing, if any. */
+  fun retryScreen() {
+    val agentId = agentIdFlow.value ?: return
+    val definition = _state.value.definition ?: return
+    forgedScreenRepository.retry(agentId, definition)
   }
 
   /** The person answers the agent's question; the job queues again and polling resumes. */
   fun answerForge(text: String) {
     val agentId = agentIdFlow.value ?: return
-    val current = _state.value.forged as? ForgedScreenState.NeedsInfo ?: return
-    if (text.isBlank()) return
-    viewModelScope.launch {
-      when (val result = screenForgeClient.answer(current.jobId, text.trim())) {
-        is ForgeResult.Ok -> {
-          setForged(agentId, ForgedScreenState.Requested(current.jobId, current.request), bundle = null)
-          startForgePolling(agentId, current.jobId)
-        }
-        is ForgeResult.Failed -> _state.update { it.copy(actionError = result.message) }
-      }
-    }
+    forgedScreenRepository.answer(agentId, text) { message -> _state.update { it.copy(actionError = message) } }
   }
 
   /** Forgets the screen, the job and the bundle on disk. Also what "Cancel" does while a job runs. */
   fun removeScreen() {
     val agentId = agentIdFlow.value ?: return
-    forgePollJob?.cancel()
-    forgePollJob = null
-    viewModelScope.launch {
-      forgedScreenStore.clear(agentId)
-      _state.update { it.copy(forged = ForgedScreenState.None, forgedBundle = null) }
-    }
+    forgedScreenRepository.remove(agentId)
   }
 
   /**
@@ -408,6 +350,7 @@ class AgentDetailViewModel(
    * gateway. Nothing is persisted - a restart forgets it.
    */
   fun loadSampleScreen() {
+    val agentId = agentIdFlow.value ?: return
     viewModelScope.launch {
       val bytes = runCatching {
         withContext(Dispatchers.IO) { application.assets.open(SAMPLE_BUNDLE_ASSET).use { it.readBytes() } }
@@ -416,95 +359,7 @@ class AgentDetailViewModel(
         _state.update { it.copy(actionError = tr("Пример не найден в сборке.", "The sample is missing from this build.")) }
         return@launch
       }
-      _state.update {
-        it.copy(
-          forged = ForgedScreenState.Ready(
-            jobId = "sample",
-            request = tr("Пример из сборки", "Bundled sample"),
-            entryPoint = SAMPLE_ENTRY_POINT,
-            version = 0,
-            fileName = "sample.ktx",
-          ),
-          forgedBundle = bytes,
-        )
-      }
-    }
-  }
-
-  private suspend fun setForged(agentId: String, state: ForgedScreenState, bundle: ByteArray?) {
-    forgedScreenStore.save(agentId, state)
-    _state.update { it.copy(forged = state, forgedBundle = bundle) }
-  }
-
-  /**
-   * Asks the gateway about [jobId] until it ends. Runs in [viewModelScope], so leaving the screen stops
-   * it; coming back ([loadForged]) starts it again from the persisted state. Five transport failures
-   * in a row, or fifteen minutes, end it with a [ForgedScreenState.Failed] the person can retry.
-   */
-  private fun startForgePolling(agentId: String, jobId: String) {
-    forgePollJob?.cancel()
-    forgePollJob = viewModelScope.launch {
-      var failures = 0
-      var polls = 0
-      val startedAt = System.currentTimeMillis()
-      while (isActive) {
-        val current = _state.value.forged
-        if (current.jobId != jobId || !current.isInFlight) return@launch
-        val request = current.lastRequest
-        when (val result = screenForgeClient.status(jobId)) {
-          is ForgeResult.Failed -> {
-            failures++
-            if (failures >= MAX_POLL_FAILURES) {
-              setForged(agentId, ForgedScreenState.Failed(jobId, request, result.message), bundle = null)
-              return@launch
-            }
-          }
-          is ForgeResult.Ok -> {
-            failures = 0
-            val view = result.value
-            when (view.status) {
-              ForgeJobStatus.QUEUED, ForgeJobStatus.ACCEPTED -> Unit
-              ForgeJobStatus.WORKING ->
-                setForged(agentId, ForgedScreenState.Working(jobId, request, view.message), bundle = null)
-              ForgeJobStatus.NEEDS_INFO -> {
-                setForged(agentId, ForgedScreenState.NeedsInfo(jobId, request, view.question.orEmpty()), bundle = null)
-                return@launch
-              }
-              ForgeJobStatus.FAILED -> {
-                val message = view.message ?: tr("Кузница не справилась с этим экраном.", "The forge could not make this screen.")
-                setForged(agentId, ForgedScreenState.Failed(jobId, request, message), bundle = null)
-                return@launch
-              }
-              ForgeJobStatus.DONE -> {
-                val artifact = view.artifact
-                if (artifact == null) {
-                  setForged(agentId, ForgedScreenState.Failed(jobId, request, tr("Кузница отчиталась без бандла.", "The forge reported done without a bundle.")), bundle = null)
-                  return@launch
-                }
-                when (val download = screenForgeClient.downloadBundle(artifact)) {
-                  is ForgeResult.Failed ->
-                    setForged(agentId, ForgedScreenState.Failed(jobId, request, download.message), bundle = null)
-                  is ForgeResult.Ok -> {
-                    val fileName = forgedScreenStore.writeBundle(agentId, jobId, download.value)
-                    setForged(
-                      agentId,
-                      ForgedScreenState.Ready(jobId, request, artifact.entryPoint, artifact.version, fileName),
-                      bundle = download.value,
-                    )
-                  }
-                }
-                return@launch
-              }
-            }
-          }
-        }
-        polls++
-        if (System.currentTimeMillis() - startedAt > MAX_POLL_MILLIS) {
-          setForged(agentId, ForgedScreenState.Failed(jobId, request, tr("Кузница молчит уже 15 минут. Попробуй ещё раз.", "The forge has been silent for 15 minutes. Try again.")), bundle = null)
-          return@launch
-        }
-        delay(if (polls > SLOW_POLL_AFTER) forgePollIntervalMs * 2 else forgePollIntervalMs)
-      }
+      forgedScreenRepository.showSample(agentId, bytes, tr("Пример из сборки", "Bundled sample"))
     }
   }
 

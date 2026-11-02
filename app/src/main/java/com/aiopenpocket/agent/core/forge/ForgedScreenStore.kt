@@ -103,6 +103,17 @@ class ForgedScreenStore(private val application: Application) {
     File(agentDir(agentId), RENDERING_FLAG).takeIf { it.isFile }?.readText()?.trim()?.takeIf { it.isNotBlank() }
   }
 
+  /** The person's switch "open this agent in its own interface"; a file so it goes with [clear]. */
+  suspend fun isCustomUiEnabled(agentId: String): Boolean = withContext(Dispatchers.IO) {
+    File(agentDir(agentId), CUSTOM_UI_FLAG).isFile
+  }
+
+  suspend fun setCustomUiEnabled(agentId: String, enabled: Boolean) = withContext(Dispatchers.IO) {
+    val file = File(agentDir(agentId).also { it.mkdirs() }, CUSTOM_UI_FLAG)
+    if (enabled) file.writeText("on") else file.delete()
+    Unit
+  }
+
   private fun stateFile(agentId: String) = File(agentDir(agentId), STATE_FILE)
 
   private fun agentDir(agentId: String) = File(File(application.filesDir, DIR_NAME), safe(agentId))
@@ -117,6 +128,7 @@ class ForgedScreenStore(private val application: Application) {
     const val DIR_NAME = "forged_screens"
     const val STATE_FILE = "state.json"
     const val RENDERING_FLAG = "rendering.flag"
+    const val CUSTOM_UI_FLAG = "custom_ui.flag"
     private val SAFE_ID = Regex("[A-Za-z0-9_.-]+")
   }
 }

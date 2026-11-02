@@ -58,7 +58,7 @@
 
 Запасной вариант, если Meta Model API в день записи не ответит: 0:35–1:15 — только ползунок кадров и сцена «Цикл ReAct».
 
-**Кандидат сцены (1 ноя, сделано в окне):** 2:15–2:50 → карточка собранного агента, секция «Cloud-forged screen»: ввод «a water tracker with 8 glasses and a reset button» → Queued → Working (ускорить) → экран появляется внутри приложения, тап по кнопке в нём; «make the glasses blue» → version 2. Подпись: *Muse Spark · coding agent in the cloud · Ketoy bundle, no app update*. Голос: «And it can grow. Ask for a screen — a coding agent on Muse writes it, compiles it in the cloud, and the app renders it. No update, no store.» Требует: ключ Meta с биллингом на воркере, шлюз на Fly (или на ПК), воркер запущен на ПК.
+**Кандидат сцены (1–2 ноя, сделано в окне):** в конце сцены конструктора (1:15–2:15) на странице обзора — выбор «Own interface · beta» → Publish; в чате плашка «Your interface is being built — use the chat meanwhile» (ускорить); плашка «ready · Open» → полноэкранный интерфейс агента, тап по кнопке в нём, кнопка «Chat» рядом; на карточке агента «add a reset button» → Update → version 2 на месте. Подпись: *Muse Spark · coding agent in the cloud · Ketoy bundle, no app update*. Голос: «And it can grow. Tick "own interface" — a coding agent on Muse writes the screen, compiles it in the cloud, and the app renders it. No update, no store.» Требует: ключ Meta с биллингом на воркере, шлюз на Fly (или на ПК), воркер запущен на ПК.
 
 ## 3. Текст для судей (EN)
 

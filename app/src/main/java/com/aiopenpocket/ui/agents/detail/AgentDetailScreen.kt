@@ -47,7 +47,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.displayName
+import androidx.compose.material.icons.filled.Cloud
 import com.aiopenpocket.agent.core.forge.ForgedScreenState
+import com.aiopenpocket.ui.forge.ForgedBundleHost
 import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.agents.iconFor
 import com.aiopenpocket.ui.components.glass.auroraBackground
@@ -77,17 +79,18 @@ fun AgentDetailScreen(
   onOpenPlan: (String) -> Unit = {},
   onOpenPlanList: () -> Unit = {},
   // @trace cloud-forged-screens-40d702
+  onOpenUi: () -> Unit = {},
+  onForgeSetCustomUi: (Boolean) -> Unit = {},
   onForgeDraftChange: (String) -> Unit = {},
-  onForgeBuild: () -> Unit = {},
+  onForgeRequestChange: () -> Unit = {},
+  onForgeRegenerate: () -> Unit = {},
+  onForgeRetry: () -> Unit = {},
   onForgeAnswer: (String) -> Unit = {},
-  onForgeUpdate: () -> Unit = {},
   onForgeRemove: () -> Unit = {},
   onForgeLoadSample: (() -> Unit)? = null,
-  onForgeRenderStarted: (String) -> Unit = {},
-  onForgeRenderStopped: () -> Unit = {},
   /** How a ready bundle is drawn; the app passes the Ketoy interpreter, previews a stand-in. */
   renderForgedBundle: @Composable (ForgedScreenState.Ready, ByteArray) -> Unit = { ready, bytes ->
-    ForgedKetoyScreen(entryPoint = ready.entryPoint, bundle = bytes)
+    ForgedBundleHost(agentId = state.definition?.id.orEmpty(), ready = ready, bundle = bytes)
   },
 ) {
   // The route (AgentDetailRoute) shows this content full screen; here is the content itself: the aurora
@@ -139,6 +142,19 @@ fun AgentDetailScreen(
             FilesSection(files = state.files)
           } else {
             Spacer(modifier = Modifier.height(8.dp))
+            // An agent with its own interface opens there; the chat stays one tap away (and is the
+            // only door while the screen is still being built).
+            if (state.forged.showsCustomUi) {
+              Button(
+                onClick = onOpenUi,
+                modifier = Modifier.fillMaxWidth().testTag("agent_detail_open_ui"),
+              ) {
+                Icon(Icons.Default.Cloud, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(tr("Открыть интерфейс", "Open interface"))
+              }
+              Spacer(modifier = Modifier.height(8.dp))
+            }
             Button(
               onClick = onOpenChat,
               modifier = Modifier.fillMaxWidth().testTag("agent_detail_open_chat"),
@@ -172,18 +188,18 @@ fun AgentDetailScreen(
             }
             Spacer(modifier = Modifier.height(20.dp))
             ForgedScreenSection(
-              state = state.forged,
-              bundle = state.forgedBundle,
+              ui = state.forged,
               draft = state.forgedDraft,
               configured = state.forgeConfigured,
+              onSetCustomUi = onForgeSetCustomUi,
               onDraftChange = onForgeDraftChange,
-              onBuild = onForgeBuild,
+              onRequestChange = onForgeRequestChange,
+              onRegenerate = onForgeRegenerate,
+              onRetry = onForgeRetry,
               onAnswer = onForgeAnswer,
-              onUpdate = onForgeUpdate,
               onRemove = onForgeRemove,
+              onOpenUi = onOpenUi,
               onLoadSample = onForgeLoadSample,
-              onRenderStarted = onForgeRenderStarted,
-              onRenderStopped = onForgeRenderStopped,
               renderBundle = renderForgedBundle,
             )
             Spacer(modifier = Modifier.height(24.dp))

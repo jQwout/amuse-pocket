@@ -55,6 +55,14 @@ fun WaterTrackerScreen() { ... }
 8. Buttons need `Button(onClick = { ... }) { Text(text = "...") }`. Lambdas that change state are
    fine: `onClick = { count += 1 }`. `var x by remember { ... }` needs the `getValue` / `setValue`
    imports from `androidx.compose.runtime`.
+10. NUMBERS ARE Int, NOTHING IS NULLABLE: `toFloat()`, `toDouble()`, `toLong()`, `toInt()` crash the
+   app at runtime (`no method toFloat on Integer`); `derivedStateOf`, nullable state (`null`, `?.`,
+   `?:`) render as the text "null". Keep every counter an Int, compute values inline in the `Text`
+   that shows them (`"Left: ${goal - spent}"`), and never declare a nullable variable.
+11. Contrast: the host draws the screen on a LIGHT surface (0xFFF7F6F2) in every theme. Dark text
+   (rule 5) on light backgrounds only: a card or row background must be a light tint such as
+   `Color(0xFFEDE7F6)`, `Color(0xFFE3F2FD)` or `Color.White` - NEVER a dark background colour, and
+   never dark text on a dark card. Buttons keep their own colours.
 9. NO RANGES, EVER: `0..7`, `0 until 8`, `downTo`, `step`, `.indices`, `rangeTo` all COMPILE but
    CRASH the app at runtime (`KBCException: no method rangeTo on Integer`). `write_screen` rejects
    them. Loops: `repeat(8) { i -> ... }` for a count, `items.forEach { }` / `forEachIndexed` for a

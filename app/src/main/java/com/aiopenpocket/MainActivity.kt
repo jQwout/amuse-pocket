@@ -35,6 +35,7 @@ import com.aiopenpocket.ui.agents.AgentsScreen
 import com.aiopenpocket.ui.agents.builder.AgentBuilderRoute
 import com.aiopenpocket.ui.agents.builder.AgentSourceContext
 import com.aiopenpocket.ui.agents.detail.AgentDetailRoute
+import com.aiopenpocket.ui.forge.AgentUiRoute
 import com.aiopenpocket.ui.home.HomeScreen
 import com.aiopenpocket.ui.memory.MemoryGraphScreen
 import com.aiopenpocket.ui.memory.MemoryPageScreen
@@ -47,8 +48,6 @@ import com.aiopenpocket.ui.scheduledworks.ScheduledWorksScreen
 import com.aiopenpocket.ui.profile.ProfileScreen
 import com.aiopenpocket.ui.settings.SettingsScreen
 import com.aiopenpocket.ui.theme.MyApplicationTheme
-import dev.ketoy.runtime.compose.LocalKetoyBundleLoader
-import dev.ketoy.runtime.compose.LocalKetoyRuntime
 import dev.zacsweers.metrox.viewmodel.LocalMetroViewModelFactory
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.onEach
@@ -97,10 +96,6 @@ class MainActivity : ComponentActivity() {
         setContent {
             CompositionLocalProvider(
                 LocalMetroViewModelFactory provides appGraph.metroViewModelFactory,
-                // @trace cloud-forged-screens-40d702
-                // The Ketoy runtime renders forged screens anywhere below; one provider, not one per screen.
-                LocalKetoyRuntime provides appGraph.ketoyRuntime,
-                LocalKetoyBundleLoader provides appGraph.ketoyBundleLoader,
             ) {
                 val themeMode by remember { appGraph.themeRepository.mode }.collectAsState()
                 MyApplicationTheme(mode = themeMode) {
@@ -252,11 +247,23 @@ class MainActivity : ComponentActivity() {
                                         onNavigateBack = { navController.popBackStack() },
                                     )
                                 }
+                                // @trace cloud-forged-screens-40d702
+                                // The agent's own forged interface, full screen; the chat is one tap away from it.
+                                composable("agent_ui/{agentId}") { backStackEntry ->
+                                    val agentId = backStackEntry.arguments?.getString("agentId") ?: ""
+                                    AgentUiRoute(
+                                        agentId = agentId,
+                                        onOpenChat = { id -> navController.navigate("chat/$id") },
+                                        onOpenAgentDetail = { id -> navController.navigate("agent/$id") },
+                                        onNavigateBack = { navController.popBackStack() },
+                                    )
+                                }
                                 composable("agent/{agentId}") { backStackEntry ->
                                     val agentId = backStackEntry.arguments?.getString("agentId") ?: ""
                                     AgentDetailRoute(
                                         agentId = agentId,
                                         onOpenChat = { id -> navController.navigate("chat/$id") },
+                                        onOpenUi = { id -> navController.navigate("agent_ui/$id") },
                                         onNavigateToBuilder = { id -> navController.navigate("agent_builder/$id") },
                                         onNavigateBack = { navController.popBackStack() },
                                         onOpenPlan = { planId -> navController.navigate("plan/$planId") },
@@ -416,6 +423,7 @@ class MainActivity : ComponentActivity() {
                                     ChatScreen(
                                         conversationId = if (conversationId == "new") "" else conversationId,
                                         onNavigateBack = { navController.popBackStack() },
+                                        onOpenAgentUi = { id -> navController.navigate("agent_ui/$id") },
                                         onOpenAgentDetail = { agentId ->
                                             navController.navigate("agent/$agentId")
                                         },

@@ -58,5 +58,7 @@ String/Int/Boolean/Dp/Color/data class/List parameters, callback lambdas, and `c
 
 Ranges of any kind (`0..7`, `until`, `downTo`, `step`, `.indices`): they compile but crash the app at runtime (no Int.rangeTo in the interpreter). Loop with `repeat(n) { i -> }` or `forEachIndexed`.
 Helper composables, functions with parameters, lambda parameters, `Modifier.clickable`: they compile but crash the interpreter at runtime. ONE function, everything inline, taps through `Button`.
+Numeric conversions (`toFloat()`, `toDouble()`, `toLong()`, `toInt()`) crash at runtime; `derivedStateOf` and nullable values (`null`, `?.`, `?:`) render as the text "null". Ints only, computed inline.
+Dark backgrounds for cards or rows: the screen sits on a light surface; use light tints (0xFFEDE7F6, 0xFFE3F2FD, White) with dark text.
 android.* APIs (Log, Context, Toast), reflection (::class.java, kotlin.reflect), java.io / File, GlobalScope, runBlocking,
 network calls, LaunchedEffect with external APIs, ViewModels, any composable or function not listed above.
