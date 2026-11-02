@@ -7,6 +7,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.HttpTimeoutConfig
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.header
 import io.ktor.client.request.preparePost
@@ -64,7 +65,7 @@ class OpenAiCompatClient(
     install(HttpTimeout) {
       connectTimeoutMillis = CONNECT_TIMEOUT_MS
       socketTimeoutMillis = SOCKET_IDLE_TIMEOUT_MS
-      requestTimeoutMillis = HttpTimeout.INFINITE_TIMEOUT_MS
+      requestTimeoutMillis = HttpTimeoutConfig.INFINITE_TIMEOUT_MS
     }
   }
 

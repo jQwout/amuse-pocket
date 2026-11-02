@@ -8,6 +8,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import com.aiopenpocket.BuildConfig
 import com.aiopenpocket.ui.agents.AgentsViewModel
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
@@ -35,6 +36,8 @@ fun AgentDetailRoute(
   onNavigateBack: () -> Unit,
   onOpenPlan: (String) -> Unit = {},
   onOpenPlanList: (String) -> Unit = {},
+  /** Opens the agent's own forged interface (`agent_ui/{agentId}`). */
+  onOpenUi: (String) -> Unit = {},
 ) {
   val viewModel: AgentDetailViewModel = metroViewModel()
   val agentsViewModel: AgentsViewModel = metroViewModel()
@@ -60,5 +63,15 @@ fun AgentDetailRoute(
     onNavigateBack = onNavigateBack,
     onOpenPlan = onOpenPlan,
     onOpenPlanList = { onOpenPlanList(agentId) },
+    // @trace cloud-forged-screens-40d702
+    onOpenUi = { onOpenUi(agentId) },
+    onForgeSetCustomUi = viewModel::setCustomUi,
+    onForgeDraftChange = viewModel::updateForgeDraft,
+    onForgeRequestChange = viewModel::requestScreenChange,
+    onForgeRegenerate = viewModel::regenerateScreen,
+    onForgeRetry = viewModel::retryScreen,
+    onForgeAnswer = viewModel::answerForge,
+    onForgeRemove = viewModel::removeScreen,
+    onForgeLoadSample = if (BuildConfig.DEBUG) viewModel::loadSampleScreen else null,
   )
 }

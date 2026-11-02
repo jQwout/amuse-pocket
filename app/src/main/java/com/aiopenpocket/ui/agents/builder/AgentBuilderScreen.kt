@@ -104,6 +104,8 @@ fun AgentBuilderScreen(
   onOpenChat: (() -> Unit)? = null,
   /** "Open Settings" on the test run's no-key message; null — no button. */
   onOpenSettings: (() -> Unit)? = null,
+  /** The review page's "Chat / Own interface (beta)" choice. */
+  onSetCustomUi: (Boolean) -> Unit = {},
   /**
    * Leaves the review screen for the wizard on the given step ("Edit step by step", "Edit rules").
    * "Back to chat" on the review screen is [onExit]: the route pops to wherever the review was opened from.
@@ -172,6 +174,7 @@ fun AgentBuilderScreen(
             onEditStepByStep = onEditStepByStep,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(top = topPad, bottom = bottomPad),
+            onSetCustomUi = onSetCustomUi,
           )
         } else {
           BuilderStepContent(
@@ -190,6 +193,7 @@ fun AgentBuilderScreen(
             onOpenChat = onOpenChat,
             onOpenSettings = onOpenSettings,
             contentPadding = PaddingValues(top = topPad, bottom = bottomPad),
+            onSetCustomUi = onSetCustomUi,
           )
         }
       }
@@ -306,6 +310,7 @@ private fun BuilderStepContent(
   onOpenChat: (() -> Unit)?,
   onOpenSettings: (() -> Unit)?,
   contentPadding: PaddingValues,
+  onSetCustomUi: (Boolean) -> Unit = {},
 ) {
   // Validation "on the button": a step's inline errors are shown only after "Next" has run into them
   // (see AgentBuilderUiState.showErrors). Otherwise a fresh draft greeted the user with red lines under
@@ -378,6 +383,8 @@ private fun BuilderStepContent(
       onResolveTestApproval = onResolveTestApproval,
       onOpenChat = onOpenChat,
       onOpenSettings = onOpenSettings,
+      customUi = state.customUi,
+      onSetCustomUi = onSetCustomUi,
       modifier = Modifier.fillMaxSize(),
       contentPadding = contentPadding,
     )

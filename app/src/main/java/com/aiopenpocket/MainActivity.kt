@@ -35,6 +35,7 @@ import com.aiopenpocket.ui.agents.AgentsScreen
 import com.aiopenpocket.ui.agents.builder.AgentBuilderRoute
 import com.aiopenpocket.ui.agents.builder.AgentSourceContext
 import com.aiopenpocket.ui.agents.detail.AgentDetailRoute
+import com.aiopenpocket.ui.forge.AgentUiRoute
 import com.aiopenpocket.ui.home.HomeScreen
 import com.aiopenpocket.ui.memory.MemoryGraphScreen
 import com.aiopenpocket.ui.memory.MemoryPageScreen
@@ -247,11 +248,23 @@ class MainActivity : ComponentActivity() {
                                         onNavigateBack = { navController.popBackStack() },
                                     )
                                 }
+                                // @trace cloud-forged-screens-40d702
+                                // The agent's own forged interface, full screen; the chat is one tap away from it.
+                                composable("agent_ui/{agentId}") { backStackEntry ->
+                                    val agentId = backStackEntry.arguments?.getString("agentId") ?: ""
+                                    AgentUiRoute(
+                                        agentId = agentId,
+                                        onOpenChat = { id -> navController.navigate("chat/$id") },
+                                        onOpenAgentDetail = { id -> navController.navigate("agent/$id") },
+                                        onNavigateBack = { navController.popBackStack() },
+                                    )
+                                }
                                 composable("agent/{agentId}") { backStackEntry ->
                                     val agentId = backStackEntry.arguments?.getString("agentId") ?: ""
                                     AgentDetailRoute(
                                         agentId = agentId,
                                         onOpenChat = { id -> navController.navigate("chat/$id") },
+                                        onOpenUi = { id -> navController.navigate("agent_ui/$id") },
                                         onNavigateToBuilder = { id -> navController.navigate("agent_builder/$id") },
                                         onNavigateBack = { navController.popBackStack() },
                                         onOpenPlan = { planId -> navController.navigate("plan/$planId") },
@@ -422,6 +435,7 @@ class MainActivity : ComponentActivity() {
                                         conversationId = if (conversationId == "new") "" else conversationId,
                                         voiceAssistant = backStackEntry.arguments?.getBoolean("voice") ?: false,
                                         onNavigateBack = { navController.popBackStack() },
+                                        onOpenAgentUi = { id -> navController.navigate("agent_ui/$id") },
                                         onOpenAgentDetail = { agentId ->
                                             navController.navigate("agent/$agentId")
                                         },

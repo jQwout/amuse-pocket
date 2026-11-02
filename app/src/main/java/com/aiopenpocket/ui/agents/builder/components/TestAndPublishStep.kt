@@ -17,6 +17,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -75,6 +76,9 @@ fun TestAndPublishStep(
   onOpenChat: (() -> Unit)? = null,
   /** "Open Settings" under the no-key message of a test run; null — no button. */
   onOpenSettings: (() -> Unit)? = null,
+  /** "Chat / Own interface (beta)" - cloud-forged screens; null hides the choice. */
+  customUi: Boolean = false,
+  onSetCustomUi: ((Boolean) -> Unit)? = null,
   modifier: Modifier = Modifier,
   /**
    * Paddings for the wizard's floating glass islands (their heights are measured in AgentBuilderScreen).
@@ -125,6 +129,8 @@ fun TestAndPublishStep(
       onArchive = onArchive,
       justPublished = justPublished,
       onOpenChat = onOpenChat,
+      customUi = customUi,
+      onSetCustomUi = onSetCustomUi,
     )
   }
 }
@@ -248,8 +254,17 @@ internal fun PublishBlock(
   onOpenChat: (() -> Unit)? = null,
   showPublishButton: Boolean = true,
   showPublishedNotice: Boolean = true,
+  /** "Chat / Own interface (beta)" - cloud-forged screens; null hides the choice. */
+  customUi: Boolean = false,
+  onSetCustomUi: ((Boolean) -> Unit)? = null,
 ) {
   Column {
+    if (onSetCustomUi != null) {
+      Text(text = tr("Интерфейс", "Interface"), style = MaterialTheme.typography.titleMedium)
+      Spacer(modifier = Modifier.height(8.dp))
+      InterfaceChoice(customUi = customUi, onSetCustomUi = onSetCustomUi)
+      Spacer(modifier = Modifier.height(20.dp))
+    }
     Text(text = tr("Публикация", "Publishing"), style = MaterialTheme.typography.titleMedium)
     Spacer(modifier = Modifier.height(8.dp))
     // A success confirmation: without it "Publish" simply stopped spinning, and it was unclear whether the
@@ -401,5 +416,43 @@ private fun TestRunStatus(status: TurnStatus?, replyText: String, onOpenSettings
         TextButton(onClick = onOpenSettings) { Text(tr("Открыть настройки", "Open Settings")) }
       }
     }
+  }
+}
+
+// @trace cloud-forged-screens-40d702
+/**
+ * Where the agent lives: the chat (default) or a screen of its own, written by a coding agent in the
+ * cloud right after publishing. Beta: the person is told the screen takes a minute or two and that
+ * the chat works meanwhile.
+ */
+@Composable
+internal fun InterfaceChoice(customUi: Boolean, onSetCustomUi: (Boolean) -> Unit) {
+  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+      FilterChip(
+        selected = !customUi,
+        onClick = { onSetCustomUi(false) },
+        label = { Text(tr("Чат", "Chat")) },
+        modifier = Modifier.testTag("agent_builder_ui_chat"),
+      )
+      FilterChip(
+        selected = customUi,
+        onClick = { onSetCustomUi(true) },
+        label = { Text(tr("Свой интерфейс · бета", "Own interface · beta")) },
+        modifier = Modifier.testTag("agent_builder_ui_custom"),
+      )
+    }
+    Text(
+      text = if (customUi) {
+        tr(
+          "После публикации агент в облаке напишет этому агенту собственный экран на Compose. Это займёт минуту-две; пока можно пользоваться чатом.",
+          "After publishing, an agent in the cloud writes this agent a screen of its own in Compose. It takes a minute or two; the chat works meanwhile.",
+        )
+      } else {
+        tr("Агент открывается в чате.", "The agent opens in the chat.")
+      },
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+    )
   }
 }
