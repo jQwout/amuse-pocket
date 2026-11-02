@@ -10,6 +10,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.WorkManager
 import com.aiopenpocket.agent.core.agent.AgentResolver
+import com.aiopenpocket.agent.core.agent.AgentRouteChoices
+import com.aiopenpocket.agent.core.agent.RouteChoice
+import com.aiopenpocket.agent.core.agent.displayName
 import com.aiopenpocket.agent.core.agent.displayName
 import com.aiopenpocket.agent.core.agent.goalRoundsFor
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
@@ -90,6 +93,7 @@ class ChatViewModel(
     private val replySpeaker: VoiceReplySpeaker,
     private val heartbeatDao: HeartbeatDao,
     private val agentResolver: AgentResolver,
+    private val routeChoices: AgentRouteChoices,
     private val toolApprovalCoordinator: ToolApprovalCoordinator,
     private val context: Context,
 ) : ViewModel() {
@@ -168,6 +172,19 @@ class ChatViewModel(
                 inputByVoice = true
                 // Called as the phone's assistant, the person is not going to tap Send: what they said is the message.
                 if (voiceAssistant && !_state.value.lessonMode) sendMessage()
+            }
+        }
+        // @trace agent-router-dc2233
+        // The person's agents: what the router picker offers and how a routed answer is signed.
+        viewModelScope.launch {
+            agentResolver.observeRoster().collect { roster ->
+                val agents = roster.filter { it.enabled }.map { RouteAgent(it.id, it.displayName) }
+                _state.update { state ->
+                    // An agent picked in the picker and then removed: back to the router, not to an agent that is gone.
+                    val choice = state.routeChoice
+                    val stillThere = choice !is RouteChoice.Fixed || agents.any { it.id == choice.agentId }
+                    state.copy(routeAgents = agents, routeChoice = if (stillThere) choice else RouteChoice.Auto)
+                }
             }
         }
         // The tool-approval bar (Task 9): the coordinator publishes pending requests GLOBALLY (for all
@@ -287,7 +304,13 @@ class ChatViewModel(
         // The pref-derived font scale is carried over into the new state — otherwise resetFor would reset it
         // to the default, and the reactive collector from DataStore does not re-emit an unchanged value, so
         // the setting would be stuck at the default.
-        _state.update { prev -> ChatUiState.resetFor(id, prev.chatFontScale) }
+        // The roster is carried over for the same reason: its Room flow does not re-emit an unchanged list.
+        _state.update { prev ->
+            ChatUiState.resetFor(id, prev.chatFontScale).copy(
+                routeAgents = prev.routeAgents,
+                routeChoice = if (id.isBlank()) RouteChoice.Auto else routeChoices.get(id),
+            )
+        }
         _inputText.value = "" // the input draft is not carried between conversations (resetFor used to do this)
         convIdFlow.value = id
         // A new chat (empty id): the conversation does not exist yet, ensureConversation creates it on send.
@@ -441,6 +464,11 @@ class ChatViewModel(
                 currentConversationId()?.let { turnManager.invalidateRetry(it) }
                 _state.update { it.copy(agentMode = intent.mode, canRetry = false) }
             }
+            // @trace agent-router-dc2233
+            is ChatIntent.SetRouteChoice -> {
+                currentConversationId()?.let { routeChoices.set(it, intent.choice) }
+                _state.update { it.copy(routeChoice = intent.choice) }
+            }
             is ChatIntent.ApprovePlan -> approvePlanCommand(intent.planId, intent.version)
             is ChatIntent.RequestPlanChanges -> requestPlanChanges(intent.planId, intent.version, intent.feedback)
             is ChatIntent.PausePlan -> runPlanCommand { planCommands.pause(intent.planId) }
@@ -504,6 +532,8 @@ class ChatViewModel(
                 }
                 // The "chat/new" route gives an empty id — the conversation is created BEFORE launchTurn: the session is keyed by id.
                 val convId = ensureConversation(text)
+                // The picker's choice reaches the turn through AgentRouteChoices (a turn outlives this screen).
+                routeChoices.set(convId, _state.value.routeChoice)
                 // Task 10 (structured-plan-engine-907066): planId=null — StructuredPlanOrchestrator resolves the
                 // conversation's plan itself (PLAN proposes/revises the current one; GOAL continues an ACTIVE
                 // one or proposes a new one if there is no approved plan yet). The bound agent's goal round limit
@@ -854,18 +884,22 @@ class ChatViewModel(
                 if (session == null) {
                     // No session (there was no turn / it was cancelled / seen) — only clear the indication,
                     // the rest of the state (messages, statistics) is not touched.
-                    _state.update { it.copy(isLoading = false) }
+                    _state.update { it.copy(isLoading = false, routedAgentName = null) }
                     return@collectLatest
                 }
                 combine(
                     session.status,
                     session.toolTrace,
                     _state.map { it.messages }.distinctUntilChanged(),
-                ) { status, trace, messages -> Triple(status, trace, messages) }
-                    .collect { (status, trace, messages) ->
+                    session.routedAgent,
+                ) { status, trace, messages, routed -> TurnView(status, trace, messages, routed?.agentName) }
+                    .collect { (status, trace, messages, routedName) ->
                         when (status) {
                             is TurnStatus.Running -> _state.update {
-                                it.copy(isLoading = true, toolTrace = trace, error = null, errorNeedsKey = false, canRetry = false)
+                                it.copy(
+                                    isLoading = true, toolTrace = trace, error = null, errorNeedsKey = false, canRetry = false,
+                                    routedAgentName = routedName,
+                                )
                             }
 
                             is TurnStatus.Completed -> {
@@ -874,6 +908,7 @@ class ChatViewModel(
                                 _state.update {
                                     it.copy(
                                         isLoading = !arrived,
+                                        routedAgentName = routedName.takeIf { !arrived },
                                         toolTrace = trace,
                                         error = status.error,
                                         errorNeedsKey = false,
@@ -898,6 +933,7 @@ class ChatViewModel(
                                 _state.update {
                                     it.copy(
                                         isLoading = false,
+                                        routedAgentName = null,
                                         toolTrace = trace,
                                         error = status.message,
                                         errorNeedsKey = status.needsKey,
@@ -1055,3 +1091,11 @@ private fun VoiceInputState.ErrorReason.toUserMessage(): String = when (this) {
     VoiceInputState.ErrorReason.Busy -> tr("Распознаватель занят, попробуй ещё раз", "The recognizer is busy, try again")
     VoiceInputState.ErrorReason.Other -> tr("Не удалось распознать речь", "Couldn't recognize speech")
 }
+
+/** One projection of a turn session for [ChatViewModel.observeSession]; [routedName] — who the router picked. */
+private data class TurnView(
+    val status: TurnStatus,
+    val trace: List<com.aiopenpocket.agent.loop.ToolTrace>,
+    val messages: List<Message>,
+    val routedName: String?,
+)

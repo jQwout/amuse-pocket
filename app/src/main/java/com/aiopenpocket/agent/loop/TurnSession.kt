@@ -64,6 +64,10 @@ class TurnSession internal constructor(
   internal val toolTraceFlow = MutableStateFlow<List<ToolTrace>>(emptyList())
   val toolTrace: StateFlow<List<ToolTrace>> = toolTraceFlow.asStateFlow()
 
+  /** The agent the router picked for the current turn of an unbound chat, or null (agent-router-dc2233). */
+  internal val routedAgentFlow = MutableStateFlow<AgentEvent.AgentRouted?>(null)
+  val routedAgent: StateFlow<AgentEvent.AgentRouted?> = routedAgentFlow.asStateFlow()
+
   @Volatile internal var job: Job? = null
   internal val streamBuffer = StreamingTextBuffer(monotonicNowMs)
   @Volatile internal var responseStartTime = 0L

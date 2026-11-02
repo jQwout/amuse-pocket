@@ -30,6 +30,8 @@ sealed class ChatIntent {
 
   /** Change the agent mode (Chat/Plan/Goal). Replaces the old plan-mode boolean toggle. */
   data class SetMode(val mode: AgentMode) : ChatIntent()
+  /** Who answers in a chat bound to no agent: the router, the plain assistant or one agent (agent-router-dc2233). */
+  data class SetRouteChoice(val choice: com.aiopenpocket.agent.core.agent.RouteChoice) : ChatIntent()
 
   /**
    * Task 5 (structured-plan-engine-907066): typed plan commands — they go straight to

@@ -3,10 +3,12 @@ package com.aiopenpocket.agent.core.prompt
 // @trace streaming-llm-chat-6595a1
 // @trace user-agent-builder-848153
 // @trace structured-plan-engine-907066
+// @trace agent-router-dc2233
 
 import com.aiopenpocket.agent.core.agent.localizedSystemPrompt
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.AgentResolver
+import com.aiopenpocket.agent.core.agent.RoutedAgentContext
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.core.memory.model.Fact
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
@@ -16,6 +18,7 @@ import com.aiopenpocket.agent.core.skill.SkillRegistry
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -111,12 +114,15 @@ class PrePromptAssembler @Inject constructor(
       // EXACTLY ONCE here (preset or custom, via AgentResolver) — the resulting snapshot is exposed on
       // PromptContext.agent so later stages (TurnContextHolder/ReactLoopRunner — Task 5; FileTools'
       // sandbox root — Task 6) can reuse it instead of re-resolving mid-turn.
-      val agent = agentResolver.resolve(conversation?.agentId)
+      // An unbound chat may have an agent picked for THIS turn by the router (agent-router-dc2233); a bound
+      // chat always keeps its own agent.
+      val agentId = conversation?.agentId ?: currentCoroutineContext()[RoutedAgentContext]?.agentId
+      val agent = agentResolver.resolve(agentId)
       // The chat names an agent that no longer resolves (a preset removed from the catalog, a USER row
       // quarantined as undecodable). It is NOT a plain chat: null scope means "every tool on the device",
       // and the old nutrition chats got exactly that after the preset was dropped. Fail closed: no tools,
       // no skill catalog — the same answer HeartbeatRunner gives with AGENT_NOT_FOUND.
-      val agentLost = conversation?.agentId != null && agent == null
+      val agentLost = agentId != null && agent == null
 
       // Memory facts under the agent's namespace (Task 5), if there is one: the scope is applied IN THE
       // QUERY, not as a post-filter AFTER .take(N) — otherwise someone else's/global facts could get into

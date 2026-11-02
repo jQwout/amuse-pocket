@@ -248,4 +248,11 @@ sealed class AgentEvent {
    * `canRetry` banner.
    */
   data class PlanBlocked(val planId: String, val reason: String) : AgentEvent()
+
+  /**
+   * The router (agent-router-dc2233) handed this turn of an unbound chat to [agentId]. Sent once, before
+   * anything else of the turn, so the screen can say who is answering while the answer is still coming;
+   * `TurnManager` also stamps the answer's message with [agentId].
+   */
+  data class AgentRouted(val agentId: String, val agentName: String) : AgentEvent()
 }

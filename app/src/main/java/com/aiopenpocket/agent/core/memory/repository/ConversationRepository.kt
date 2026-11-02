@@ -196,6 +196,7 @@ class ConversationRepository(
     content: String,
     toolCallsJson: String? = null,
     cardSpec: String? = null,
+    agentId: String? = null,
   ): String {
     val id = UUID.randomUUID().toString()
     messageDao.insert(
@@ -206,6 +207,7 @@ class ConversationRepository(
         content = content,
         toolCallsJson = toolCallsJson,
         cardSpec = cardSpec,
+        agentId = agentId,
       ),
     )
     // A message is conversation activity: bump updatedAt so the "last chat" and the list order reflect real
@@ -251,6 +253,7 @@ class ConversationRepository(
     toolCallsJson = toolCallsJson,
     cardSpec = cardSpec,
     cardState = cardState,
+    agentId = agentId,
     createdAt = createdAt,
   )
 

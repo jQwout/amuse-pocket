@@ -3,6 +3,7 @@ package com.aiopenpocket.ui.chat
 // @trace streaming-llm-chat-6595a1
 // @trace user-agent-builder-848153
 // @trace structured-plan-engine-907066
+// @trace agent-router-dc2233
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -152,6 +153,8 @@ import com.aiopenpocket.ui.chat.components.LessonControlBar
 import com.aiopenpocket.ui.chat.components.MessageBubble
 import com.aiopenpocket.ui.chat.components.MicButton
 import com.aiopenpocket.ui.chat.components.ModeSelector
+import com.aiopenpocket.ui.chat.components.RoutePickerChip
+import com.aiopenpocket.ui.chat.components.RoutedAgentLabel
 import com.aiopenpocket.ui.chat.components.availableModesFor
 import com.aiopenpocket.ui.chat.components.ResponseStatsBar
 import com.aiopenpocket.ui.chat.components.ToolApprovalBar
@@ -535,6 +538,10 @@ fun ChatScreen(
                     val onOpenAgentBuilderTap = remember(message.id) {
                         { agentsViewModel.openBuilderChat(onOpenBuilderChat) }
                     }
+                    // @trace agent-router-dc2233
+                    if (message.role == "assistant") {
+                        state.routedNameOf(message)?.let { RoutedAgentLabel(it) }
+                    }
                     MessageBubble(
                         message = message,
                         onDelete = onDelete,
@@ -564,6 +571,7 @@ fun ChatScreen(
                         // The subscription to the streaming text is LOCAL to this item: token deltas recompose only the
                         // bubble, not the whole screen.
                         val streamingText by viewModel.streamingText.collectAsState()
+                        state.routedAgentName?.let { RoutedAgentLabel(it) }
                         StreamingBubble(
                             text = streamingText,
                             showCursor = streamingText.isNotEmpty(),
@@ -828,6 +836,19 @@ fun ChatScreen(
                                 enabled = !state.isLoading,
                                 available = availableModesFor(state.agent),
                                 onSelect = { viewModel.handleIntent(ChatIntent.SetMode(it)) },
+                                // @trace agent-router-dc2233
+                                trailing = if (state.canRoute && state.routeAgents.isNotEmpty()) {
+                                    {
+                                        RoutePickerChip(
+                                            choice = state.routeChoice,
+                                            agents = state.routeAgents,
+                                            enabled = !state.isLoading,
+                                            onSelect = { viewModel.handleIntent(ChatIntent.SetRouteChoice(it)) },
+                                        )
+                                    }
+                                } else {
+                                    null
+                                },
                             )
                         }
                         // While recording, the input field is replaced by a recording panel (as in Telegram/Claude): cancel on
@@ -1009,6 +1030,7 @@ internal fun ChatModeSelectorBar(
     enabled: Boolean,
     available: List<AgentMode>,
     onSelect: (AgentMode) -> Unit,
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     GlassSurface(
         state = glassState,
@@ -1017,7 +1039,7 @@ internal fun ChatModeSelectorBar(
             .padding(horizontal = 12.dp)
             .padding(bottom = 6.dp),
     ) {
-        ModeSelector(selected = selected, enabled = enabled, available = available, onSelect = onSelect)
+        ModeSelector(selected = selected, enabled = enabled, available = available, onSelect = onSelect, trailing = trailing)
     }
 }
 

@@ -5,8 +5,14 @@ package com.aiopenpocket.di
 // @trace structured-plan-engine-907066
 // @trace vybor-provaydera-i-zhivoy-katalog-modeley-fe9a53
 // @trace approval-outcome-honesty-554a8c
+// @trace agent-router-dc2233
 
+import com.aiopenpocket.agent.core.agent.AgentRouteChoices
+import com.aiopenpocket.agent.core.agent.AgentRouter
+import com.aiopenpocket.agent.core.agent.RoutedAgentContext
+import com.aiopenpocket.agent.core.agent.displayName
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
+import com.aiopenpocket.agent.loop.AgentEvent
 import com.aiopenpocket.agent.loop.AgentLoopOrchestrator
 import com.aiopenpocket.agent.loop.AgentMode
 import com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator
@@ -31,6 +37,8 @@ import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 
 @ContributesTo(AppScope::class)
@@ -43,6 +51,9 @@ object TurnModule {
     orchestrator: AgentLoopOrchestrator,
     reflectionOrchestrator: ReflectionOrchestrator,
     structuredPlanOrchestrator: StructuredPlanOrchestrator,
+    router: AgentRouter,
+    routeChoices: AgentRouteChoices,
+    conversationRepository: ConversationRepository,
   ): TurnExecutor =
     TurnExecutor { conversationId, message, provider, mode, planId, budget, systemPromptExtra, executionMode ->
       // The dispatch point by mode (not in ChatViewModel, as on the old branch): the manager has already
@@ -54,11 +65,19 @@ object TurnModule {
       // point they were unreachable anyway. CHAT/TUTOR — as before, the main loop; this branch needs no
       // planId/budget (AgentLoopOrchestrator.execute does not take them at all).
       when (mode) {
-        AgentMode.REFLECT -> reflectionOrchestrator.execute(conversationId, message, provider, executionMode)
+        AgentMode.REFLECT -> routed(router, routeChoices, conversationRepository, conversationId, message) {
+          reflectionOrchestrator.execute(conversationId, message, provider, executionMode)
+        }
         // PLAN's propose() only ever sees internal control schemas (never action tools), so PREVIEW
         // vs LIVE is a no-op there; GOAL actually executes step tools, so executionMode must reach it.
         AgentMode.PLAN -> structuredPlanOrchestrator.propose(conversationId, message, provider)
         AgentMode.GOAL -> structuredPlanOrchestrator.executeGoal(conversationId, planId, message, provider, budget, executionMode)
+        AgentMode.CHAT -> routed(router, routeChoices, conversationRepository, conversationId, message) {
+          orchestrator.execute(
+            conversationId, message, provider, mode,
+            systemPromptExtra = systemPromptExtra, executionMode = executionMode,
+          )
+        }
         else -> orchestrator.execute(
           conversationId, message, provider, mode,
           systemPromptExtra = systemPromptExtra, executionMode = executionMode,
@@ -69,14 +88,42 @@ object TurnModule {
       }.flowOn(ReasoningEffortContext(reasoningEffortFor(mode)))
     }
 
+  /**
+   * A CHAT/REFLECT turn of a chat bound to no agent first asks [router] who should answer (agent-router-dc2233).
+   * A pick runs [turn] as that agent's turn — [RoutedAgentContext] reaches PrePromptAssembler — and is
+   * announced with [AgentEvent.AgentRouted]; no pick runs [turn] as the plain assistant, as before. A bound
+   * chat and a lesson never route: their agent is already decided.
+   */
+  private fun routed(
+    router: AgentRouter,
+    routeChoices: AgentRouteChoices,
+    conversationRepository: ConversationRepository,
+    conversationId: String,
+    message: String,
+    turn: () -> kotlinx.coroutines.flow.Flow<AgentEvent>,
+  ) = flow {
+    val conversation = conversationRepository.getConversation(conversationId)
+    val agent = if (conversation == null || conversation.agentId != null || conversation.isTutorial) {
+      null
+    } else {
+      router.pick(message, routeChoices.get(conversationId))
+    }
+    if (agent == null) {
+      emitAll(turn())
+    } else {
+      emit(AgentEvent.AgentRouted(agent.id, agent.displayName))
+      emitAll(turn().flowOn(RoutedAgentContext(agent.id)))
+    }
+  }
+
   @Provides
   @SingleIn(AppScope::class)
   fun provideTurnPersistence(repository: ConversationRepository): TurnPersistence = object : TurnPersistence {
     override suspend fun addUserMessage(conversationId: String, text: String): String =
       repository.addMessage(conversationId, "user", text)
 
-    override suspend fun addAssistantMessage(conversationId: String, text: String, cardSpec: String?): String =
-      repository.addMessage(conversationId, "assistant", text, cardSpec = cardSpec)
+    override suspend fun addAssistantMessage(conversationId: String, text: String, cardSpec: String?, agentId: String?): String =
+      repository.addMessage(conversationId, "assistant", text, cardSpec = cardSpec, agentId = agentId)
 
     // The title goes into a push notification, so it is the display title: a lesson chat is stored under the
     // lesson id (how_model_sees) and the notification must name the lesson instead.

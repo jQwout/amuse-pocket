@@ -2,6 +2,7 @@ package com.aiopenpocket.ui.chat.components
 
 // @trace streaming-llm-chat-6595a1
 // @trace user-agent-builder-848153
+// @trace agent-router-dc2233
 //
 // The chat screen's bars: search, mode selection, tool confirmation, voice recording and lesson control.
 // Moved out of ChatScreen.kt — each is self-contained and talks to the screen only through parameters, so
@@ -166,6 +167,8 @@ internal fun ModeSelector(
     enabled: Boolean,
     available: List<AgentMode>,
     onSelect: (AgentMode) -> Unit,
+    /** After the mode chips: who answers in a chat bound to no agent (agent-router-dc2233). */
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
@@ -177,6 +180,7 @@ internal fun ModeSelector(
         available.forEach { mode ->
             ModeChip(modeLabel(mode), selected == mode, enabled) { onSelect(mode) }
         }
+        trailing?.invoke()
     }
 }
 
