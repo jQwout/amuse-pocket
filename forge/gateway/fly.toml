@@ -1,6 +1,6 @@
 # Fly.io app for the gateway. First time: `fly launch --no-deploy` (accept this file), then
 #   fly volumes create forge_data --size 1 --region fra
-#   fly secrets set FORGE_CLIENT_TOKEN=... FORGE_WORKER_TOKEN=...
+#   fly secrets set FORGE_CLIENT_TOKEN=... FORGE_WORKER_TOKEN=... FORGE_ADMIN_TOKEN=... META_API_KEY=...
 #   ./gradlew :gateway:fatJar && fly deploy
 # The worker long-polls, so the machine must not auto-stop. After the demo: fly scale count 0.
 app = "amuse-forge"
@@ -12,6 +12,7 @@ primary_region = "fra"
 [env]
   PORT = "8080"
   FORGE_DATA_DIR = "/data"
+  FORGE_PUBLIC_URL = "https://amuse-forge.fly.dev"
 
 [http_service]
   internal_port = 8080
