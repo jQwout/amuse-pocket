@@ -86,5 +86,6 @@ fun AgentBuilderRoute(
     onOpenChat = onOpenChat?.let { open -> { agentsViewModel.openAgentChat(state.draft.id, open) } },
     onOpenSettings = onOpenSettings,
     onEditStepByStep = viewModel::editStepByStep,
+    onSetCustomUi = viewModel::setCustomUi,
   )
 }

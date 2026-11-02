@@ -17,6 +17,7 @@ import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import dev.zacsweers.metro.binding
+import com.aiopenpocket.di.KetoyModule
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,6 +51,8 @@ class SettingsViewModel(
           personaId = userPreferencesRepository.getDefaultPersonaId(),
           chatFontScale = userPreferencesRepository.getChatFontScale(),
           speakVoiceReplies = userPreferencesRepository.speakVoiceReplies.first(),
+          forgeGatewayUrl = userPreferencesRepository.getForgeGatewayUrl(),
+          forgeToken = settingsRepository.getApiKey(KetoyModule.TOKEN_PROVIDER),
         )
       }
       _state.update {
@@ -58,6 +61,8 @@ class SettingsViewModel(
           personaId = loaded.personaId,
           chatFontScale = loaded.chatFontScale,
           speakVoiceReplies = loaded.speakVoiceReplies,
+          forgeGatewayUrl = loaded.forgeGatewayUrl,
+          forgeToken = loaded.forgeToken,
           themeMode = themeRepository.mode.value,
           personas = PersonaCatalog.all.map { it.id },
         )
@@ -88,10 +93,21 @@ class SettingsViewModel(
     val personaId: String,
     val chatFontScale: ChatFontScale,
     val speakVoiceReplies: Boolean,
+    val forgeGatewayUrl: String = "",
+    val forgeToken: String = "",
   )
 
   fun updateMetaKey(key: String) {
     _state.update { it.copy(metaKey = key, saved = false) }
+  }
+
+  // @trace cloud-forged-screens-40d702
+  fun updateForgeGatewayUrl(url: String) {
+    _state.update { it.copy(forgeGatewayUrl = url, saved = false) }
+  }
+
+  fun updateForgeToken(token: String) {
+    _state.update { it.copy(forgeToken = token, saved = false) }
   }
 
   fun updatePersona(personaId: String) {
@@ -143,10 +159,12 @@ class SettingsViewModel(
       // trim: a key is usually pasted from the clipboard, and a trailing space or newline would go into the
       // Authorization header — from the outside that looks like "the key is right, but Meta answers 401".
       settingsRepository.setApiKey("META", current.metaKey.trim())
+      settingsRepository.setApiKey(KetoyModule.TOKEN_PROVIDER, current.forgeToken.trim())
     }
     // "Saved" is shown only after the actual write to DataStore (suspend), not before it.
     userPreferencesRepository.setDefaultPersonaId(current.personaId)
     userPreferencesRepository.setChatFontScale(current.chatFontScale)
+    userPreferencesRepository.setForgeGatewayUrl(current.forgeGatewayUrl.trim())
     // ...and only if the user did not manage to change the fields during the write (otherwise we would lie
     // "Saved"). The whole state is compared (without the saved flag): any new settings field gets into the
     // check automatically, without adding a clause by hand. Lying "saved" about a changed state is worse

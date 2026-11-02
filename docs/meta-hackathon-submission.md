@@ -63,6 +63,8 @@
 
 **Перед записью проверить на устройстве:** голосовой помощник (чтение вслух ещё не видели живьём), экраны из облака (шлюз и воркер запущены на ПК), web_search с источниками.
 
+**Кандидат сцены (1–2 ноя, сделано в окне):** в конце сцены конструктора (1:15–2:15) на странице обзора — выбор «Own interface · beta» → Publish; в чате плашка «Your interface is being built — use the chat meanwhile» (ускорить); плашка «ready · Open» → полноэкранный интерфейс агента, тап по кнопке в нём, кнопка «Chat» рядом; на карточке агента «add a reset button» → Update → version 2 на месте. Подпись: *Muse Spark · coding agent in the cloud · Ketoy bundle, no app update*. Голос: «And it can grow. Tick "own interface" — a coding agent on Muse writes the screen, compiles it in the cloud, and the app renders it. No update, no store.» Требует: ключ Meta с биллингом на воркере, шлюз на Fly (или на ПК), воркер запущен на ПК.
+
 ## 3. Текст для судей (EN)
 
 **Project name:** AI Open Pocket
@@ -129,9 +131,11 @@ Kotlin, Jetpack Compose, Metro DI, Ktor (SSE streaming), Room, WorkManager. ~49k
 - **Fixes from device runs on Android 9 and 14** — e.g. an approval that expired unseen is no longer reported as declined (`56916ad3`).
 - **An orchestrator** that coordinated the work against written criteria, with one check command (`tools/check.py`).
 
+**Cloud-forged screens** *(Nov 1–2)* — an agent built on the phone gets a screen of its own without an app update: the person describes it on the agent's card, a worker runs our own tool-calling loop on Muse Spark (file and Gradle tools) until the screen compiles, the Ketoy compiler turns it into a signed bundle, and the app renders it over the air. Gateway on Ktor (Fly.io), worker in Kotlin, the agent asks back when the request is unclear. (`6484fd2f`..)
+
 ### What's next
 
-SAM 3.1 masks on top of the boxes; Muse Voice Transcribe in place of the phone's recognizer; more languages for the course via Muse Spark; Play Store release.
+English and other languages for the whole course via Muse Spark; SAM 3.1 masks on top of the boxes; Muse Voice Transcribe in place of the phone's recognizer; agents that see and draw; the forge worker on a permanent machine with capabilities that let forged screens read the agent's data; Play Store release.
 
 ### Built with
 

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?><!--
    Auto backup rules for Android 11 and older (API < 31). On 31+ data_extraction_rules.xml is in effect —
-   keeping both files in agreement is mandatory: the project's minSdk is 24, so this path is alive, not legacy.
+   keeping both files in agreement is mandatory: the project's minSdk is 26, so this path is alive (API 26-30), not legacy.
 
    The template comment from Android Studio claimed the opposite ("ignored for devices older than API 31") —
    that is about the OTHER file. Here it is the other way round: this one works exactly below 31.

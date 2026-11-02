@@ -30,8 +30,8 @@ class AssistSession(context: Context) : VoiceInteractionSession(context) {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
         // startAssistantActivity starts an activity in the assistant's context (it works even over the lock
-        // screen), but it was added only in API 26. On 24–25 (minSdk=24) it is missing — we fall back to
-        // a normal start: the intent already has FLAG_ACTIVITY_NEW_TASK, so it starts from the session's
+        // screen), but it was added only in API 26. minSdk is 26 now, so the fallback below is dead code kept
+        // from the minSdk-24 days: a normal start: the intent already has FLAG_ACTIVITY_NEW_TASK, so it starts from the session's
         // context.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startAssistantActivity(intent)

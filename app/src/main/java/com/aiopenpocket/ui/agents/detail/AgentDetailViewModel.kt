@@ -40,6 +40,11 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import android.app.Application
+import com.aiopenpocket.agent.core.forge.ForgedAgentUi
+import com.aiopenpocket.agent.core.forge.ForgedScreenRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -110,6 +115,13 @@ data class AgentDetailState(
   val hasInvalidCapabilities: Boolean = false,
   /** Message from the most recently FAILED action (duplicate/toggle/archive/reload), or null. */
   val actionError: String? = null,
+  // @trace cloud-forged-screens-40d702
+  /** The agent's forged interface - the switch, the job, the bundle - observed from ForgedScreenRepository. */
+  val forged: ForgedAgentUi = ForgedAgentUi(),
+  /** The change-request field as typed, kept here so a recomposition does not lose it. */
+  val forgedDraft: String = "",
+  /** False until Settings has a gateway address and token: the forge buttons stay disabled. */
+  val forgeConfigured: Boolean = false,
 )
 
 /** [AgentSource.USER] only — presets are read-only Kotlin and can never be edited in place. */
@@ -176,6 +188,8 @@ class AgentDetailViewModel(
   private val agentFilesRepository: AgentFilesRepository,
   private val planRepository: PlanRepository,
   private val userSkillRepository: UserSkillRepository,
+  private val forgedScreenRepository: ForgedScreenRepository,
+  private val application: Application,
 ) : ViewModel() {
 
   private val agentIdFlow = MutableStateFlow<String?>(null)
@@ -193,6 +207,13 @@ class AgentDetailViewModel(
     // re-establishes itself when agentId changes, reload() neither touches nor duplicates it.
     viewModelScope.launch {
       plansFlow().collect { rows -> _state.update { it.copy(plans = rows) } }
+    }
+    // The forged interface (cloud-forged screens): the same live-subscription shape as the two above.
+    viewModelScope.launch {
+      forgedFlow().collect { ui -> _state.update { it.copy(forged = ui) } }
+    }
+    viewModelScope.launch {
+      agentIdFlow.collect { id -> if (id != null) _state.update { it.copy(forgeConfigured = forgedScreenRepository.isConfigured()) } }
     }
   }
 
@@ -264,6 +285,81 @@ class AgentDetailViewModel(
       } catch (e: Exception) {
         _state.update { it.copy(isLoading = false, actionError = tr("Не удалось загрузить агента.", "Couldn't load the agent.")) }
       }
+    }
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Cloud-forged screen (@trace cloud-forged-screens-40d702)
+  // ---------------------------------------------------------------------------------------------
+
+  /**
+   * The agent's forged interface is app-wide state (ForgedScreenRepository): this screen only observes
+   * it, like the heartbeats and the plans, and forwards the person's actions.
+   */
+  @OptIn(ExperimentalCoroutinesApi::class)
+  private fun forgedFlow(): Flow<ForgedAgentUi> = agentIdFlow
+    .flatMapLatest { id -> if (id == null) flowOf(ForgedAgentUi()) else forgedScreenRepository.observe(id) }
+
+  fun updateForgeDraft(text: String) {
+    _state.update { it.copy(forgedDraft = text) }
+  }
+
+  /** The person's switch: chat or the agent's own interface. Switching on asks the forge when there is nothing yet. */
+  fun setCustomUi(enabled: Boolean) {
+    val agentId = agentIdFlow.value ?: return
+    forgedScreenRepository.setCustomUiEnabled(agentId, enabled, _state.value.definition)
+  }
+
+  /** A fresh screen from the agent's identity - also what "Build the screen" does when there is none. */
+  fun regenerateScreen() {
+    val definition = _state.value.definition ?: return
+    forgedScreenRepository.requestAgentUi(definition)
+  }
+
+  /** Sends the draft as a change to the current screen: the worker gets the old source back. */
+  fun requestScreenChange() {
+    val agentId = agentIdFlow.value ?: return
+    val definition = _state.value.definition ?: return
+    val change = _state.value.forgedDraft.trim()
+    if (change.isBlank()) return
+    forgedScreenRepository.requestChange(agentId, definition, change)
+    _state.update { it.copy(forgedDraft = "") }
+  }
+
+  /** "Try again" on a failed job: the same request, with the screen it was changing, if any. */
+  fun retryScreen() {
+    val agentId = agentIdFlow.value ?: return
+    val definition = _state.value.definition ?: return
+    forgedScreenRepository.retry(agentId, definition)
+  }
+
+  /** The person answers the agent's question; the job queues again and polling resumes. */
+  fun answerForge(text: String) {
+    val agentId = agentIdFlow.value ?: return
+    forgedScreenRepository.answer(agentId, text) { message -> _state.update { it.copy(actionError = message) } }
+  }
+
+  /** Forgets the screen, the job and the bundle on disk. Also what "Cancel" does while a job runs. */
+  fun removeScreen() {
+    val agentId = agentIdFlow.value ?: return
+    forgedScreenRepository.remove(agentId)
+  }
+
+  /**
+   * Debug builds: renders `assets/ketoy/hello.ktx`, the template bundle the forge produced, without a
+   * gateway. Nothing is persisted - a restart forgets it.
+   */
+  fun loadSampleScreen() {
+    val agentId = agentIdFlow.value ?: return
+    viewModelScope.launch {
+      val bytes = runCatching {
+        withContext(Dispatchers.IO) { application.assets.open(SAMPLE_BUNDLE_ASSET).use { it.readBytes() } }
+      }.getOrNull()
+      if (bytes == null) {
+        _state.update { it.copy(actionError = tr("Пример не найден в сборке.", "The sample is missing from this build.")) }
+        return@launch
+      }
+      forgedScreenRepository.showSample(agentId, bytes, tr("Пример из сборки", "Bundled sample"))
     }
   }
 
@@ -415,6 +511,12 @@ class AgentDetailViewModel(
   }
 
   companion object {
+    // @trace cloud-forged-screens-40d702
+    const val SAMPLE_BUNDLE_ASSET = "ketoy/hello.ktx"
+    const val SAMPLE_ENTRY_POINT = "HelloForgeScreen"
+    private const val MAX_POLL_FAILURES = 5
+    private const val MAX_POLL_MILLIS = 15 * 60 * 1000L
+    private const val SLOW_POLL_AFTER = 20
     /** Cap on how many recent `agent_hook_runs` rows the Hooks section shows per hook (the repository itself keeps up to 100 — see [AgentHookRepository.KEEP_RUNS]). */
     private const val RECENT_RUNS_SHOWN = 5
   }

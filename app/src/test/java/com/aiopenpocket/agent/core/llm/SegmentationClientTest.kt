@@ -12,6 +12,8 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import io.ktor.utils.io.ByteChannel
+import io.ktor.utils.io.availableForRead
+import io.ktor.utils.io.close
 import io.ktor.utils.io.writeStringUtf8
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
@@ -61,6 +63,23 @@ class SegmentationClientTest {
     val calls = mutableListOf<LlmCallUsage>()
     override suspend fun record(usage: LlmCallUsage) {
       calls += usage
+    }
+  }
+
+  /**
+   * Resets the connection after the client has read what was written. In Ktor 3 `availableForRead` THROWS once the
+   * client has cancelled the channel (it did, having read `response.completed`), and a throw in this free-standing
+   * coroutine would surface as an uncaught exception in whichever test runs next — hence the catch.
+   */
+  private fun dropTheLineOnceDrained(channel: ByteChannel) {
+    CoroutineScope(Dispatchers.Default).launch {
+      try {
+        while (channel.availableForRead > 0) delay(10)
+        delay(100)
+        channel.close(java.io.IOException("connection reset"))
+      } catch (e: java.io.IOException) {
+        // The client has already cancelled the channel: there is no line left to drop.
+      }
     }
   }
 
@@ -416,7 +435,9 @@ class SegmentationClientTest {
     val sam = client(usage) {
       val channel = ByteChannel(autoFlush = true)
       channel.writeStringUtf8(delta(record.take(20)))
-      channel.close(java.io.IOException("connection reset"))
+      // Ktor 3: a channel closed WITH a cause before the client has attached loses the cause (the reader just sees
+      // the end), so the line drops mid-read, as on a real connection.
+      dropTheLineOnceDrained(channel)
       respond(channel, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "text/event-stream"))
     }
 
@@ -436,11 +457,7 @@ class SegmentationClientTest {
       val channel = ByteChannel(autoFlush = true)
       channel.writeStringUtf8(streamOf(record))
       // The line drops only after the client has read everything that was sent.
-      CoroutineScope(Dispatchers.Default).launch {
-        while (channel.availableForRead > 0) delay(10)
-        delay(100)
-        channel.close(java.io.IOException("connection reset"))
-      }
+      dropTheLineOnceDrained(channel)
       respond(channel, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "text/event-stream"))
     }
 

@@ -254,4 +254,7 @@ data class AgentBuilderUiState(
    * "step" would sit inside that walk where it does not belong.
    */
   val reviewMode: Boolean = false,
+  // @trace cloud-forged-screens-40d702
+  /** "Own interface (beta)": on publish the forge is asked for the agent's own screen. */
+  val customUi: Boolean = false,
 )

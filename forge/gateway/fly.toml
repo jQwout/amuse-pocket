@@ -1,0 +1,29 @@
+# Fly.io app for the gateway. First time: `fly launch --no-deploy` (accept this file), then
+#   fly volumes create forge_data --size 1 --region fra
+#   fly secrets set FORGE_CLIENT_TOKEN=... FORGE_WORKER_TOKEN=...
+#   ./gradlew :gateway:fatJar && fly deploy
+# The worker long-polls, so the machine must not auto-stop. After the demo: fly scale count 0.
+app = "amuse-forge"
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  FORGE_DATA_DIR = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+[mounts]
+  source = "forge_data"
+  destination = "/data"

@@ -13,6 +13,11 @@ import com.aiopenpocket.agent.core.agent.DefaultAgentResolver
 import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.core.agent.UserAgentRepository
 import com.aiopenpocket.agent.core.agent.toDefinition
+import com.aiopenpocket.agent.core.forge.ForgeGatewayConfig
+import com.aiopenpocket.agent.core.forge.ForgedScreenRepository
+import com.aiopenpocket.agent.core.forge.ForgedScreenState
+import com.aiopenpocket.agent.core.forge.ForgedScreenStore
+import com.aiopenpocket.agent.core.forge.ScreenForgeClient
 import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.hook.AgentHookRepository
 import com.aiopenpocket.agent.core.hook.AgentHookRunEntity
@@ -39,11 +44,17 @@ import com.aiopenpocket.agent.core.skill.UserSkillRepository
 import com.aiopenpocket.data.database.AppDatabase
 import com.aiopenpocket.data.repository.AgentFilesRepository
 import com.aiopenpocket.ui.agents.builder.components.ToolCatalog
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -92,6 +103,7 @@ class AgentDetailViewModelTest {
   private lateinit var agentFilesRepository: AgentFilesRepository
   private lateinit var planRepository: PlanRepository
   private lateinit var userSkillRepository: UserSkillRepository
+  private lateinit var forgedRepository: ForgedScreenRepository
   private lateinit var vm: AgentDetailViewModel
   private var now = 10_000L
 
@@ -110,6 +122,14 @@ class AgentDetailViewModelTest {
     agentFilesRepository = AgentFilesRepository(RuntimeEnvironment.getApplication())
     planRepository = PlanRepository(db, db.planDao()) { now }
     userSkillRepository = UserSkillRepository(db.userSkillDao())
+    forgedRepository = ForgedScreenRepository(
+      store = ForgedScreenStore(RuntimeEnvironment.getApplication()),
+      client = ScreenForgeClient(MockEngine { respond("", HttpStatusCode.NotFound) }) {
+        ForgeGatewayConfig("http://forge.test", "token")
+      },
+      // The repository's own scope runs on the test dispatcher so the test controls it.
+      scope = CoroutineScope(testDispatcher),
+    )
     vm = viewModelWith(ToolRegistry(setOf(FakeTool("memory_tool", RiskClass.WRITE))))
   }
 
@@ -124,6 +144,10 @@ class AgentDetailViewModelTest {
     agentFilesRepository = agentFilesRepository,
     planRepository = planRepository,
     userSkillRepository = userSkillRepository,
+    // The forge is mostly not what this class tests: a real repository over a real store, and a gateway
+    // that answers 404 to everything. The one test that looks at it feeds it through [forgedRepository].
+    forgedScreenRepository = forgedRepository,
+    application = RuntimeEnvironment.getApplication(),
   )
 
   @After
@@ -480,5 +504,72 @@ class AgentDetailViewModelTest {
     assertEquals(0, state.activePlansCount)
     assertEquals(0, state.pausedPlansCount)
     assertEquals(0, state.completedPlansCount)
+  }
+
+  // --- Cloud-forged screen: the card mirrors the app-wide repository -------------------------------
+
+  /** The store and the sample asset are read on IO, which the test scheduler does not track: wait in real time. */
+  private suspend fun awaitForged(predicate: (AgentDetailState) -> Boolean): AgentDetailState =
+    withContext(Dispatchers.Default) { withTimeout(10_000) { vm.state.first(predicate) } }
+
+  @Test
+  fun `state forged mirrors what the repository shows for the selected agent`() = runTest(testDispatcher) {
+    vm.select("budget")
+    awaitForged { it.definition != null && it.forged.loaded }
+    assertEquals(ForgedScreenState.None, vm.state.value.forged.state)
+
+    // Written straight into the repository, not through the ViewModel: the card must follow it.
+    forgedRepository.showSample("budget", byteArrayOf(9, 8, 7), "repository-made request")
+
+    val state = awaitForged { (it.forged.state as? ForgedScreenState.Ready)?.jobId == ForgedScreenRepository.SAMPLE_JOB_ID }
+    assertEquals("repository-made request", (state.forged.state as ForgedScreenState.Ready).request)
+    assertTrue(state.forged.bundle!!.contentEquals(byteArrayOf(9, 8, 7)))
+    // Another agent's screen is not this card's business.
+    forgedRepository.showSample("other-agent", byteArrayOf(1), "other request")
+    assertEquals("repository-made request", (vm.state.value.forged.state as ForgedScreenState.Ready).request)
+  }
+
+  @Test
+  fun `loadSampleScreen puts the bundled sample into the repository as Ready sample`() = runTest(testDispatcher) {
+    vm.select("budget")
+    awaitForged { it.definition != null && it.forged.loaded }
+
+    vm.loadSampleScreen()
+
+    val state = awaitForged { (it.forged.state as? ForgedScreenState.Ready)?.jobId == ForgedScreenRepository.SAMPLE_JOB_ID }
+    val ready = state.forged.state as ForgedScreenState.Ready
+    assertEquals(AgentDetailViewModel.SAMPLE_ENTRY_POINT, ready.entryPoint)
+    val shipped = File("src/debug/assets/ketoy/hello.ktx").readBytes()
+    assertTrue("the sample asset must not be empty", shipped.isNotEmpty())
+    assertTrue(state.forged.bundle!!.contentEquals(shipped))
+    // The same flow the repository hands to every other screen.
+    assertEquals(state.forged, forgedRepository.observe("budget").value)
+  }
+
+  @Test
+  fun `the forge is configured on the card when Settings has an address and a token`() = runTest(testDispatcher) {
+    vm.select("budget")
+
+    val state = awaitForged { it.definition != null && it.forgeConfigured }
+
+    assertTrue(state.forgeConfigured)
+  }
+
+  @Test
+  fun `the chat or own interface switch goes to the repository and comes back through the state`() = runTest(testDispatcher) {
+    vm.select("budget")
+    awaitForged { it.definition != null && it.forged.loaded }
+    assertFalse(vm.state.value.forged.customUiEnabled)
+
+    vm.setCustomUi(true)
+
+    // The gateway of this class answers 404 to everything, so the screen it asked for ends Failed: what
+    // matters here is that the switch is on, persisted, and the request really left the ViewModel.
+    val state = awaitForged { it.forged.customUiEnabled && it.forged.state is ForgedScreenState.Failed }
+    assertTrue(state.forged.showsCustomUi.not())
+    assertTrue(kotlinx.coroutines.runBlocking { ForgedScreenStore(RuntimeEnvironment.getApplication()).isCustomUiEnabled("budget") })
+
+    vm.setCustomUi(false)
+    assertFalse(awaitForged { !it.forged.customUiEnabled }.forged.customUiEnabled)
   }
 }
