@@ -61,6 +61,8 @@ fun CapabilitiesStep(
   availableSkillIds: Set<String>,
   onUpdateDraft: ((AgentDraft) -> AgentDraft) -> Unit,
   modifier: Modifier = Modifier,
+  /** Opens the market's skill picker (`MarketSkillPickerSheet`, hosted by the route); null hides the button. */
+  onPickFromMarket: (() -> Unit)? = null,
   /**
    * Paddings for the wizard's floating glass islands (their heights are measured in AgentBuilderScreen).
    * Applied AFTER verticalScroll — then the content scrolls UNDER the glass and there is something for
@@ -94,6 +96,7 @@ fun CapabilitiesStep(
       errors = errors,
       availableSkillIds = availableSkillIds,
       onUpdateDraft = onUpdateDraft,
+      onPickFromMarket = onPickFromMarket,
     )
     Spacer(modifier = Modifier.height(24.dp))
   }
@@ -190,6 +193,7 @@ internal fun CapabilitiesExtras(
   errors: List<ValidationIssue>,
   availableSkillIds: Set<String>,
   onUpdateDraft: ((AgentDraft) -> AgentDraft) -> Unit,
+  onPickFromMarket: (() -> Unit)? = null,
 ) {
   Column {
     Text(text = tr("Навыки", "Skills"), style = MaterialTheme.typography.titleMedium)
@@ -217,6 +221,16 @@ internal fun CapabilitiesExtras(
         }
       },
     )
+
+    // @trace skill-from-the-market-in-the-agent-builder-acd66a
+    // A shared skill from the market lands in the draft the same way a hand-typed one does (whole, with
+    // its body), so everything downstream (autosave, validator, publish) treats the two alike.
+    if (onPickFromMarket != null) {
+      Spacer(modifier = Modifier.height(8.dp))
+      TextButton(onClick = onPickFromMarket, modifier = Modifier.testTag("agent_builder_pick_from_market")) {
+        Text(tr("Выбрать из маркета", "Pick from the market"))
+      }
+    }
 
     Spacer(modifier = Modifier.height(8.dp))
     CustomSkillEditor(

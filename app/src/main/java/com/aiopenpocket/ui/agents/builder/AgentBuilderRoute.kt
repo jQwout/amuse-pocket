@@ -6,7 +6,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import com.aiopenpocket.ui.agents.AgentsViewModel
+import com.aiopenpocket.ui.agents.builder.market.MarketSkillPickerSheet
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 /**
@@ -65,6 +69,10 @@ fun AgentBuilderRoute(
     }
   }
 
+  // @trace skill-from-the-market-in-the-agent-builder-acd66a
+  // The market picker is a sheet over the wizard, hosted here because it needs its own ViewModel.
+  var marketPickerOpen by rememberSaveable { mutableStateOf(false) }
+
   AgentBuilderScreen(
     state = state,
     availableSkillIds = availableSkillIds,
@@ -87,5 +95,18 @@ fun AgentBuilderRoute(
     onOpenSettings = onOpenSettings,
     onEditStepByStep = viewModel::editStepByStep,
     onSetCustomUi = viewModel::setCustomUi,
+    onPickFromMarket = { marketPickerOpen = true },
   )
+
+  if (marketPickerOpen) {
+    MarketSkillPickerSheet(
+      agentId = state.draft.id,
+      takenIds = availableSkillIds + state.draft.skillIds,
+      onAdd = { skill ->
+        // Whole, like a hand-typed skill (see CapabilitiesExtras): the body lives in customSkills, the id in skillIds.
+        viewModel.updateDraft { d -> d.copy(customSkills = d.customSkills + skill, skillIds = d.skillIds + skill.id) }
+      },
+      onDismiss = { marketPickerOpen = false },
+    )
+  }
 }

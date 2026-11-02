@@ -9,6 +9,7 @@ import com.aiopenpocket.agent.core.forge.ForgedScreenRepository
 import com.aiopenpocket.agent.core.forge.ForgedScreenStore
 import com.aiopenpocket.agent.core.forge.ScreenForgeClient
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
+import com.aiopenpocket.agent.core.market.MarketClient
 import com.aiopenpocket.data.repository.SettingsRepository
 import dev.ketoy.adapters.material3.registerGeneratedAdapters
 import dev.ketoy.adapters.material3.registerGeneratedConstructors
@@ -87,6 +88,25 @@ object KetoyModule {
       ForgeGatewayConfig(
         baseUrl = userPreferencesRepository.getForgeGatewayUrl().trim().ifBlank { DEBUG_BASE_URL },
         token = settingsRepository.getApiKey(TOKEN_PROVIDER).trim(),
+      )
+    }
+  }
+
+  // @trace skill-from-the-market-in-the-agent-builder-acd66a
+  /**
+   * The market shares the gateway with the forge, so it shares the address too. No token: its routes
+   * are public, and the client falls back to the deployed gateway when Settings has no address.
+   */
+  @Provides
+  @SingleIn(AppScope::class)
+  fun provideMarketClient(
+    engine: HttpClientEngine,
+    userPreferencesRepository: UserPreferencesRepository,
+  ): MarketClient = MarketClient(engine) {
+    withContext(Dispatchers.IO) {
+      ForgeGatewayConfig(
+        baseUrl = userPreferencesRepository.getForgeGatewayUrl().trim().ifBlank { DEBUG_BASE_URL },
+        token = "",
       )
     }
   }

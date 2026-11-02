@@ -16,6 +16,7 @@ import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import java.util.UUID
 
 internal val Context.userPreferencesDataStore: DataStore<Preferences> by preferencesDataStore(
   name = "user_preferences",
@@ -118,6 +119,21 @@ class UserPreferencesRepository(
     }
   }
 
+  // @trace skill-from-the-market-in-the-agent-builder-acd66a
+  /**
+   * One random id per install of the app, sent with market installs so the gateway counts each install
+   * once. Minted on first use and never derived from the person or the device: it is a counter key, not
+   * an identity.
+   */
+  suspend fun getOrCreateMarketInstallId(): String {
+    dataStore.data.map { prefs -> prefs[KEY_MARKET_INSTALL_ID] }.first()?.takeIf { it.isNotBlank() }?.let { return it }
+    val fresh = UUID.randomUUID().toString()
+    dataStore.edit { prefs ->
+      if (prefs[KEY_MARKET_INSTALL_ID].isNullOrBlank()) prefs[KEY_MARKET_INSTALL_ID] = fresh
+    }
+    return dataStore.data.map { prefs -> prefs[KEY_MARKET_INSTALL_ID] ?: fresh }.first()
+  }
+
   suspend fun setDefaultPersonaId(personaId: String) {
     dataStore.edit { prefs ->
       prefs[KEY_DEFAULT_PERSONA_ID] = personaId
@@ -153,6 +169,7 @@ class UserPreferencesRepository(
     private val KEY_CHAT_FONT_SCALE = stringPreferencesKey("chat_font_scale")
     private val KEY_SPEAK_VOICE_REPLIES = booleanPreferencesKey("speak_voice_replies")
     private val KEY_FORGE_GATEWAY_URL = stringPreferencesKey("forge_gateway_url")
+    private val KEY_MARKET_INSTALL_ID = stringPreferencesKey("market_install_id")
 
     /** Roadmap level id of the onboarding lesson; completed automatically after onboarding. */
     const val ONBOARDING_LEVEL_ID = "l1_welcome"
