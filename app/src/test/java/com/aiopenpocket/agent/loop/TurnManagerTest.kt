@@ -93,7 +93,7 @@ class TurnManagerTest {
       return id
     }
 
-    override suspend fun addAssistantMessage(conversationId: String, text: String, cardSpec: String?): String {
+    override suspend fun addAssistantMessage(conversationId: String, text: String, cardSpec: String?, agentId: String?): String {
       val id = "m${nextId++}"
       rows += Row(id, conversationId, "assistant", text, cardSpec)
       return id

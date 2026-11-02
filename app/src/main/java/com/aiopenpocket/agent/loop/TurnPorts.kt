@@ -39,7 +39,8 @@ fun interface TurnExecutor {
 /** The little of ConversationRepository that a turn needs: write messages and read the title. */
 interface TurnPersistence {
   suspend fun addUserMessage(conversationId: String, text: String): String
-  suspend fun addAssistantMessage(conversationId: String, text: String, cardSpec: String?): String
+  /** [agentId] — the agent the router picked for this turn of an unbound chat (agent-router-dc2233), else null. */
+  suspend fun addAssistantMessage(conversationId: String, text: String, cardSpec: String?, agentId: String? = null): String
   suspend fun conversationTitle(conversationId: String): String?
 }
 

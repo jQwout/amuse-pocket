@@ -4,6 +4,7 @@ package com.aiopenpocket.agent.loop
 // @trace user-agent-builder-848153
 // @trace structured-plan-engine-907066
 // @trace approval-outcome-honesty-554a8c
+// @trace agent-router-dc2233
 
 import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.agent.core.AgentLog
@@ -364,6 +365,7 @@ class TurnManager(
     val convId = session.conversationId
     resetStreaming(session)
     session.toolTraceFlow.value = emptyList()
+    session.routedAgentFlow.value = null
     session.responseStartTime = System.currentTimeMillis()
     session.statusFlow.value = TurnStatus.Running
     session.lastMode = mode
@@ -483,6 +485,7 @@ class TurnManager(
           )
         }
         is AgentEvent.PlanBlocked -> finishPlanMessage(session, event.reason)
+        is AgentEvent.AgentRouted -> session.routedAgentFlow.value = event
 
         // Refine the progress with the tool name (EXECUTING_TOOL showed a generic text a moment earlier).
         is AgentEvent.ToolStarted -> session.streamingTextFlow.value = TurnTexts.toolProgress(event.name, event.args)
@@ -542,13 +545,14 @@ class TurnManager(
     // Task 15 (structured-plan-engine-907066) removed the mode-dependent branches from
     // resolveCompletedTurn together with the old prompt-only PLAN/GOAL, so it no longer needs mode.
     val outcome = resolveCompletedTurn(result)
+    val routedAgentId = session.routedAgentFlow.value?.agentId
     val insertedId = if (outcome.responseText.isNotBlank() || outcome.cardSpecs.isNotEmpty()) {
-      persistence.addAssistantMessage(convId, outcome.responseText, outcome.cardSpecs.firstOrNull())
+      persistence.addAssistantMessage(convId, outcome.responseText, outcome.cardSpecs.firstOrNull(), routedAgentId)
     } else {
       null
     }
     outcome.cardSpecs.drop(1).forEach { spec ->
-      persistence.addAssistantMessage(convId, "", spec)
+      persistence.addAssistantMessage(convId, "", spec, routedAgentId)
     }
 
     session.toolTraceFlow.value = result.toolTrace

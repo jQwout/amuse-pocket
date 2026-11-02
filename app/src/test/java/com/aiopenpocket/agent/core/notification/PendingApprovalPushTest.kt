@@ -87,7 +87,7 @@ class PendingApprovalPushTest {
 
   private class FakePersistence(private val title: String?) : TurnPersistence {
     override suspend fun addUserMessage(conversationId: String, text: String) = "u1"
-    override suspend fun addAssistantMessage(conversationId: String, text: String, cardSpec: String?) = "a1"
+    override suspend fun addAssistantMessage(conversationId: String, text: String, cardSpec: String?, agentId: String?) = "a1"
     override suspend fun conversationTitle(conversationId: String): String? = title
   }
 

@@ -11,5 +11,7 @@ data class Message(
   val cardSpec: String? = null,
   /** The user's state inside an interactive card (a lesson quiz's answers); see MessageEntity.cardState. */
   val cardState: String? = null,
+  /** The agent the router picked to write this answer; see MessageEntity.agentId. */
+  val agentId: String? = null,
   val createdAt: Long,
 )

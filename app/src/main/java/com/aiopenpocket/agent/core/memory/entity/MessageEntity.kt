@@ -37,5 +37,10 @@ data class MessageEntity(
    * survive leaving the lesson, which the composition's own saved state does not.
    */
   val cardState: String? = null,
+  /**
+   * The agent that wrote this answer when the router picked one for a turn of a chat bound to no agent
+   * (agent-router-dc2233) — the chat shows its name over the bubble. Null for everything else.
+   */
+  val agentId: String? = null,
   val createdAt: Long = System.currentTimeMillis(),
 )

@@ -3,8 +3,10 @@ package com.aiopenpocket.ui.chat
 // @trace streaming-llm-chat-6595a1
 // @trace user-agent-builder-848153
 // @trace structured-plan-engine-907066
+// @trace agent-router-dc2233
 
 import com.aiopenpocket.agent.core.agent.AgentDefinition
+import com.aiopenpocket.agent.core.agent.RouteChoice
 import com.aiopenpocket.agent.core.lesson.Lesson
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.core.memory.model.Message
@@ -32,6 +34,9 @@ data class ResponseStats(
  * always in sync with the repository regardless of which turn/path last called `saveProposal`.
  */
 data class PendingPlanApproval(val planId: String, val version: Int)
+
+/** One of the person's agents as the router picker and the "who answered" label show it. */
+data class RouteAgent(val id: String, val name: String)
 
 data class ChatUiState(
   val conversationId: String? = null,
@@ -121,7 +126,23 @@ data class ChatUiState(
    * Sharing one slot made each owner's write undo the other's, depending on which flow was delivered last.
    */
   val lessonStepProblem: String? = null,
+  /**
+   * Who answers in a chat bound to no agent (agent-router-dc2233): the router, the plain assistant or one
+   * agent the person picked. Shown only where [canRoute].
+   */
+  val routeChoice: RouteChoice = RouteChoice.Auto,
+  /** The person's agents, for the picker and to name the agent over a routed answer. */
+  val routeAgents: List<RouteAgent> = emptyList(),
+  /** The agent the router picked for the turn now running, shown over the bubble before the answer lands. */
+  val routedAgentName: String? = null,
 ) {
+  /** The chat may route: it is bound to no agent and is not a lesson. */
+  val canRoute: Boolean get() = agentId == null && !isTutorial
+
+  /** The name to show over a routed answer [message], or null. */
+  fun routedNameOf(message: Message): String? =
+    message.agentId?.let { id -> routeAgents.firstOrNull { it.id == id }?.name }
+
   /**
    * The lesson cursor moved: the next step was shown, or the completion card. The step's problem
    * ([lessonStepProblem]) goes with the step it was about; left drawn, "This step needs a Meta Model API key"

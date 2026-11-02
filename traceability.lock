@@ -9,6 +9,10 @@
       "hash": "8f5227775d1b",
       "git": "21fba91e"
     },
+    "agent-router-dc2233": {
+      "hash": "dfe25474989b",
+      "git": "031a0c83"
+    },
     "agent-skills-7189cc": {
       "hash": "e3296460a332",
       "git": "0f1e9a5"
@@ -22,8 +26,8 @@
       "git": "22c86347"
     },
     "approval-outcome-honesty-554a8c": {
-      "hash": "0e60733f889a",
-      "git": "97ca7fba"
+      "hash": "7af7f7200c6f",
+      "git": "031a0c83"
     },
     "background-tasks-15a34a": {
       "hash": "589f7d11a82a",
@@ -46,16 +50,16 @@
       "git": "cf9588b9"
     },
     "fonovye-hody-agenta-dde42d": {
-      "hash": "2108e979cd44",
-      "git": "97ca7fba"
+      "hash": "69922cdba3ff",
+      "git": "031a0c83"
     },
     "glass-design-system-21a3fe": {
       "hash": "e31d2fa036cc",
       "git": "e4e70fe4"
     },
     "heartbeat-napominalki-agenta-5f0442": {
-      "hash": "7169f74a130e",
-      "git": "ba1d1017"
+      "hash": "b1feaf2f5cc4",
+      "git": "031a0c83"
     },
     "kartinki-urokov-cherez-muse-image-fd6f8c": {
       "hash": "7b70a194a778",
@@ -70,8 +74,8 @@
       "git": "b7563711"
     },
     "multi-chat-conversations-b3c93b": {
-      "hash": "2fb60a28bbb9",
-      "git": "c08de0e0"
+      "hash": "811d35a45809",
+      "git": "031a0c83"
     },
     "profile-screen-7354a7": {
       "hash": "1de11e27aac7",
@@ -86,8 +90,8 @@
       "git": "97ca7fba"
     },
     "sam-segmentation-boxes-in-a-lesson-c3ea52": {
-      "hash": "4563a05641e1",
-      "git": "22c86347"
+      "hash": "39000d10ea69",
+      "git": "031a0c83"
     },
     "screen-text-check-7c6d09": {
       "hash": "c4c3af4e3ce1",
@@ -98,12 +102,12 @@
       "git": "5ce3906"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "50f4a808c581",
-      "git": "22c86347"
+      "hash": "52c59e96739b",
+      "git": "031a0c83"
     },
     "structured-plan-engine-907066": {
-      "hash": "c94abca46b92",
-      "git": "22c86347"
+      "hash": "5d97584a2544",
+      "git": "031a0c83"
     },
     "swappable-persona-e5e65e": {
       "hash": "11aaa5d19303",
@@ -114,16 +118,16 @@
       "git": "c08de0e0"
     },
     "user-agent-builder-848153": {
-      "hash": "3eeed582086e",
-      "git": "cf9588b9"
+      "hash": "158d8670a5f2",
+      "git": "031a0c83"
     },
     "video-na-vhod-v-uroke-muse-spark-08ccdb": {
       "hash": "8c9fa9a6843d",
       "git": "ec7af5d1"
     },
     "voice-assistant-mode-a81a99": {
-      "hash": "b8dcfa1e693c",
-      "git": "22c86347"
+      "hash": "c74105a9c24c",
+      "git": "031a0c83"
     },
     "voice-input-1a0dfd": {
       "hash": "453672d36dab",
