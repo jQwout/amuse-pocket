@@ -1,0 +1,21 @@
+flowchart TD
+    START(["The loop needs the model"]) --> KEY{"Meta key<br/>in Settings?"}
+    KEY -->|no| NOKEY(["Add your Meta API key<br/>no call, no guessing"])
+    KEY -->|yes| CHAIN["Model chain<br/>the agent's own model first, then the catalog;<br/>-contributor and tool-less models removed"]
+    CHAIN --> REQ["POST /chat/completions<br/>stream: true · tools · reasoning_effort per mode<br/>stable prompt prefix for Meta's cache"]
+    REQ --> RES{"What came back"}
+    RES -->|stream| OUT(["Text and tool calls to the loop<br/>tokens priced from Meta's list"])
+    RES -->|"429 · 500 · 503"| WAIT["Back off, honour Retry-After<br/>the same model, up to 3 tries,<br/>20 s of waiting per turn"]
+    WAIT --> REQ
+    RES -->|"still down, or the<br/>wait does not fit"| NEXT["The next model in the chain<br/>up to 5 models"]
+    NEXT --> REQ
+    RES -->|"401 · 402 · 403<br/>key or balance"| KEYERR(["Stop: say what is wrong<br/>with the key · Retry"])
+    RES -->|"broke after the<br/>first words"| MID(["No switch mid-answer<br/>Retry"])
+    classDef you fill:#D4F06A,stroke:#D4F06A,color:#10160C
+    classDef meta fill:#22301C,stroke:#D4F06A,stroke-width:2px,color:#F4FAE8
+    classDef gate fill:#2E2616,stroke:#F2B45A,stroke-width:2px,color:#FBEFD9
+    classDef stop fill:#2E1A1A,stroke:#E07A6E,color:#F8E1DE
+    class START,OUT you
+    class REQ meta
+    class WAIT,NEXT gate
+    class NOKEY,KEYERR,MID stop

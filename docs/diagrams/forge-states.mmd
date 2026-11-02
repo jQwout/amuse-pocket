@@ -1,0 +1,18 @@
+flowchart TB
+    NONE(["No screen"]) -->|"publish with<br/>own interface"| REQ["Requested<br/>queued at the gateway"]
+    REQ -->|"the worker<br/>took it"| WORK["Working<br/>writing · compiling"]
+    WORK -->|"bundle downloaded,<br/>hash + signature ok"| READY(["Ready<br/>opens full screen"])
+    WORK -->|"one question"| ASK["Needs info<br/>the question on the card"]
+    ASK -->|"you answer"| REQ
+    WORK -->|"no compile · timeout<br/>· bad checksum"| FAIL["Failed<br/>the reason, in your language"]
+    READY -.->|"crashed the app<br/>last time it opened"| FAIL
+    READY -->|"change it ·<br/>regenerate"| REQ
+    FAIL -->|"try again"| REQ
+    classDef you fill:#D4F06A,stroke:#D4F06A,color:#10160C
+    classDef cloud fill:#15232A,stroke:#7CC7DB,stroke-width:2px,color:#E3F4F8
+    classDef gate fill:#2E2616,stroke:#F2B45A,stroke-width:2px,color:#FBEFD9
+    classDef stop fill:#2E1A1A,stroke:#E07A6E,color:#F8E1DE
+    class READY you
+    class REQ,WORK cloud
+    class ASK gate
+    class FAIL stop

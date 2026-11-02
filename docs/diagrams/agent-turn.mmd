@@ -1,6 +1,10 @@
 flowchart TD
-    U(["You send a message"]) --> TM["Turn manager<br/>the turn survives leaving the chat"]
-    TM --> PR["Prompt assembly, stable to volatile<br/>base · language · role · skills · instructions<br/>· plan · current time · memory"]
+    U(["You send a message<br/>typed or spoken"]) --> TM["Turn manager<br/>the turn survives leaving the chat"]
+    TM --> BOUND{"Chat bound<br/>to an agent?"}
+    BOUND -->|yes| PR
+    BOUND -->|"no: home chat,<br/>voice assistant"| RT["Agent router<br/>one Muse Spark call, low effort, 8 s<br/>names an agent or none"]
+    RT -->|"an agent, or none:<br/>the plain assistant"| PR
+    PR["Prompt assembly, stable to volatile<br/>base · language · role · skills · instructions<br/>· plan · current time · memory"]
     PR --> MODE{"Mode"}
     MODE -->|Chat| LLM
     MODE -->|Reflect| RF["Draft → critique → revise<br/>the revise pass may only read"]
@@ -10,7 +14,7 @@ flowchart TD
     GL --> LLM
     PL --> PC(["Plan card: you approve or edit"])
     LLM["Muse Spark on Meta Model API<br/>streams text and tool calls"] --> TC{"Tool calls?"}
-    TC -->|no| ANS(["Answer in chat"])
+    TC -->|no| ANS(["Answer in chat<br/>read aloud in voice mode"])
     TC -->|yes| HK["Agent rules<br/>(before-tool hooks)"]
     HK --> POL{"Execution policy<br/>tool risk × run mode"}
     POL -->|read / write| EX["Run the tool on the phone<br/>JSON args validated, timeout"]
@@ -31,6 +35,6 @@ flowchart TD
     classDef gate fill:#2E2616,stroke:#F2B45A,stroke-width:2px,color:#FBEFD9
     classDef stop fill:#2E1A1A,stroke:#E07A6E,color:#F8E1DE
     class U,ANS,PC you
-    class LLM meta
+    class LLM,RT meta
     class POL,ASK gate
     class DEN stop

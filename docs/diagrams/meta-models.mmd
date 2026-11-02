@@ -1,0 +1,33 @@
+flowchart LR
+    subgraph APP["In the app"]
+        direction TB
+        A1["Agent turns · the router<br/>Builder chat · reflection · plans"]
+        A2["Lesson: Muse Spark<br/>watches a short video"]
+        A3["web_search tool<br/>fresh facts with links"]
+        A4["Lesson: SAM outlines<br/>a thing you name in a photo"]
+        A5["Course pictures<br/>a scene redrawn for you"]
+    end
+    subgraph API["api.meta.ai/v1 · your key, nothing else"]
+        direction TB
+        E1["/chat/completions<br/>stream · tools · reasoning_effort"]
+        E2["/responses<br/>hosted web_search"]
+        E3["/responses<br/>segmentation"]
+        E4["/images/generations"]
+    end
+    subgraph MOD["Models"]
+        direction TB
+        M1["muse-spark-1.3 → 1.2 → 1.1<br/>muse-wonder-1.0 for long work"]
+        M2["sam-3.1"]
+        M3["muse-image-1.0"]
+    end
+    A1 --> E1
+    A2 -->|"video_url part"| E1
+    A3 --> E2
+    A4 --> E3
+    A5 --> E4
+    E1 --> M1
+    E2 --> M1
+    E3 --> M2
+    E4 --> M3
+    classDef meta fill:#22301C,stroke:#D4F06A,stroke-width:2px,color:#F4FAE8
+    class M1,M2,M3 meta
