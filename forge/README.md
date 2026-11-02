@@ -67,3 +67,17 @@ worker  POST /v1/worker/jobs/{id}/artifact  -> done, with the bundle
 ```
 
 Two bearer tokens: `FORGE_CLIENT_TOKEN` for the app, `FORGE_WORKER_TOKEN` for the worker.
+
+Limits (`ForgeLimits`): JSON bodies up to 64 KB (the artifact upload up to 32 MB), `Content-Length`
+required, 20 new jobs per hour per IP (every job spends paid model calls), request text up to 4000
+characters, an answer up to 2000. An artifact only lands on a job a worker holds (`409` otherwise).
+On Fly (`FLY_APP_NAME` set) the client IP comes from the proxy's `Fly-Client-IP`.
+
+It also serves the remote config (`GET /v1/config`, public; written with `FORGE_ADMIN_TOKEN`):
+see `docs/remote-config.md`.
+
+With `META_API_KEY` the market also reviews every package with Muse Spark, draws covers with Muse
+Image and answers plain-words search (see "AI features" in `docs/market-api.md`).
+
+The same service also hosts the market (publish and install agents and skills): see
+`docs/market-api.md` and, for the app side, `docs/market-app-integration.md`.
