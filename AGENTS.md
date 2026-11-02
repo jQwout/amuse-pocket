@@ -29,8 +29,8 @@ tools, one iteration).
   scene ids are listed in `LESSON_ANIMATION_SCENES` (`agent/core/lesson/LessonAnimationScenes.kt`).
 - Images: Muse Image draws them ahead of time with `tools/lesson-images/pregenerate.py`. The files are
   bundled in `assets/lessons/images/generated/` and referenced by the step's `asset` field. Steps
-  without an asset are drawn on the device by `LessonImageGenerator`. «Нарисуй под меня» (“Draw it
-  for me”) redraws a picture around the learner's profile; only the free-text "about me" field
+  without an asset are drawn on the device by `LessonImageGenerator`. “Draw it for
+  me” redraws a picture around the learner's profile; only the free-text "about me" field
   leaves the phone (`LessonImagePersonalization`).
 - Video: `how_model_sees` has a `video` step. Muse Spark watches a bundled sample
   (`assets/lessons/videos/`) or a clip the learner records (`LessonChatController.postVideoAnswer` →
@@ -128,7 +128,7 @@ DESTRUCTIVE / EXTERNAL):
 | `load_skill` | pulls a skill's full instructions on demand | READ |
 
 Tools cannot open runtime-permission dialogs. They check permissions through
-`agent/tools/PermissionUtils.kt`, and the user grants them beforehand in Settings → «ИНТЕГРАЦИИ».
+`agent/tools/PermissionUtils.kt`, and the user grants them beforehand in Settings → Integrations.
 
 **Policy, approval, hooks (`agent/core/policy/`, `agent/core/hook/`).**
 `ExecutionPolicy.evaluate` decides once per call:
@@ -149,7 +149,7 @@ even after the per-run cap of 50 hook firings is spent.
 
 **Prompt.** `agent/core/prompt/PrePromptAssembler.kt` builds the system prompt in this order:
 1. `assets/prompts/system_base.md`, plus `tutorial.md` for tutorial chats
-2. «Сейчас» (current local time and time zone)
+2. “Now” (current local time and time zone)
 3. language
 4. persona *or* the bound agent's role
 5. skill catalog
@@ -240,8 +240,7 @@ never in the repo's own `gradle.properties`.
 
 `traceability.yaml` is a hand-edited registry of features. Each entry has a frozen `id`, a
 `title`, and a `rationale` that explains **why** the feature exists. Code links to it with
-`// @trace <id>` markers (`.traceignore` excludes docs). The workflow is in `CLAUDE.md` and the
-`trace` skill. In short:
+`// @trace <id>` markers (`.traceignore` excludes docs). In short:
 - Run `traxer check` before committing.
 - For a new feature, run `traxer id`, add a registry entry and a `@trace` marker.
 - Add a `Trace: <id>` trailer to the commit.
@@ -256,7 +255,7 @@ Never strip `@trace` markers while refactoring.
   is the path the hackathon judges walk. Every user-visible string goes through `tr(ru, en)`
   (`i18n/AppLanguage.kt`): a bare literal on a screen reaches an English reader in Russian, which is
   how a whole screen stayed Russian under a green check until 27 Oct 2026. Russian addresses the user
-  informally as «ты» — keep that voice, and write the English side as English, not as a calque of it.
+  informally (the familiar form) — keep that voice, and write the English side as English, not as a calque of it.
 - **Comments explain why**, not what. Most are in Russian; some KDoc is in English. Edit files with
   Russian text using an editor or tool that preserves UTF-8, not ad-hoc `sed`/`perl` byte edits.
 - **Database, pre-release.** `AppDatabase` is schema version 11 with 18 entities. `DatabaseBindings`
