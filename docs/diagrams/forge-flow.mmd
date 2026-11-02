@@ -1,0 +1,33 @@
+sequenceDiagram
+    autonumber
+    actor P as You
+    participant A as App
+    participant G as Gateway
+    participant W as Worker
+    participant M as Muse Spark
+    P->>A: Publish, "Own interface"
+    A->>G: POST /v1/jobs
+    G-->>A: 202 · jobId
+    A-->>P: "Being built,<br/>use the chat meanwhile"
+    W->>G: GET /v1/worker/next<br/>(long poll, 25 s)
+    G-->>W: the job + earlier source
+    loop ≤ 25 calls · 15 min · 3 failed builds
+        W->>M: chat + 5 tools
+        M-->>W: write_screen · build_bundle · finish
+        W->>W: Gradle + Ketoy:<br/>errors go back to the model
+    end
+    alt the request is unclear
+        W->>G: needs_info + a question
+        A-->>P: the question on the card
+        P->>A: your answer
+        A->>G: POST …/answer, queued again
+    else it compiles
+        W->>G: signed .ktx + source
+    end
+    loop every 3 s, then 6 s
+        A->>G: GET /v1/jobs/{id}
+    end
+    G-->>A: done · url · sha256 · entry point
+    A->>G: GET /v1/bundles/{id}.ktx
+    A->>A: SHA-256 + Ed25519 check
+    A-->>P: The agent opens in its own screen

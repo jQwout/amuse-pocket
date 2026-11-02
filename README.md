@@ -9,6 +9,7 @@ agents but too shy to ask.**
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.3-7F52FF?logo=kotlin&logoColor=white)
 ![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-UI-4285F4?logo=jetpackcompose&logoColor=white)
 ![Meta Muse](https://img.shields.io/badge/Meta-Muse%20Spark%20%C2%B7%20Image%20%C2%B7%20SAM-0467DF?logo=meta&logoColor=white)
+![Ketoy](https://img.shields.io/badge/Ketoy-screens%20over%20the%20air-7CC7DB)
 ![License: MIT](https://img.shields.io/badge/License-MIT-lightgrey)
 
 <br/>
@@ -28,6 +29,14 @@ agents but too shy to ask.**
 <img src="docs/images/agent-detail.jpg" width="200" alt="One agent: tools, skills, rules and its instructions"/>
 </details>
 
+<br/>
+
+[How it fits together](#how-it-fits-together) ·
+[The agent loop](#the-agent-loop) ·
+[Working with Meta](#working-with-meta) ·
+[Screens from the cloud](#screens-from-the-cloud) ·
+[Build and run](#build-and-run)
+
 </div>
 
 AI Open Pocket is an Android platform for building AI agents on Meta's Muse models, with learning
@@ -44,36 +53,67 @@ for your yes.
 - 🛠️ **Build.** Describe the agent in a chat: Muse Spark asks a few questions at a time, with 3–4
   options to tick, and writes the draft. Review every field on one screen, dry-run it, publish.
 - 🤖 **Run.** Agents live on the phone: a tool-calling loop, layered memory, web search, reminders,
-  background check-ins, and a plan engine whose steps are checked against evidence. The app can also
-  be the phone's voice assistant and read its replies aloud.
+  background check-ins, and a plan engine whose steps are checked against evidence.
+- 🧭 **Just ask.** The home chat and the voice assistant need no agent picked: Muse Spark hands each
+  message to the agent whose job it is ("remind me…" goes to Reminders), or answers itself.
+- 🎙️ **Talk to it.** The app can be the phone's voice assistant: the assist button opens a chat that
+  is already listening, and the answer is read aloud.
+- ☁️ **Give it an interface.** Tick "Own interface (beta)" when you publish: a coding agent on Muse
+  writes the agent a screen of its own in Compose, in the cloud, and the app renders it over the air.
+  No app update.
 - 🎓 **Learn.** 31 short lessons, from "what is an AI" to building your own agent, each with an
   interactive scene you can touch. Meta's models work live inside some of them.
 - 🔒 **Stay in control.** Reading and writing just happen. Deleting or sending anything off the device
   always asks you in chat, and is never done in the background.
-- ☁️ **Give it an interface.** Tick "Own interface (beta)" when you publish an agent: a coding agent on
-  Muse writes it a screen of its own in Compose, in the cloud, and the app renders it over the air.
-  No app update.
 
-## How an agent turn works
+## How it fits together
 
-Every message you send becomes one *turn*. The turn belongs to the app, not to the screen: leave the
-chat and it keeps going. Inside, the same loop runs for every agent — the model thinks, calls tools,
+Three places, one key. **The phone** runs the agents: the router, the loop, the tools and your
+approvals all live in the app, and so does your data. **Meta's Model API** is the only place a model
+runs; the app talks to nothing else, on the key you entered. **The forge** is optional: a small
+server you run yourself, where a coding agent on the same Muse model writes screens for your agents.
+
+<p align="center"><img src="docs/images/diagram-architecture.png" width="760" alt="The phone (router, agent loop, on-device tools, the agent's own screen), Meta Model API (Muse Spark and Wonder, web_search, SAM 3.1, Muse Image) and the forge (gateway and worker)"/></p>
+
+## The agent loop
+
+Every message becomes one *turn*. The same loop runs for every agent — the model thinks, calls tools,
 reads their results, and repeats until it can answer.
 
-<p align="center"><img src="docs/images/diagram-agent-turn.png" width="860" alt="One agent turn: prompt assembly, the mode, Muse Spark, tool calls through the execution policy and your approval, up to 10 rounds, then the answer"/></p>
+<p align="center"><img src="docs/images/diagram-agent-turn.png" width="860" alt="One agent turn: turn manager, the router for unbound chats, prompt assembly, the mode, Muse Spark, tool calls through the execution policy and your approval, up to 10 rounds, then the answer"/></p>
 
-Four things keep this loop honest:
+Step by step:
 
-- **Risk classes.** Every tool call is `READ`, `WRITE`, `DESTRUCTIVE` or `EXTERNAL`. The last two
-  always wait for a person, no rule can remove that floor, and a background run simply denies them.
-- **Errors the model can act on.** A failed tool, a timeout or arguments that are not valid JSON come
-  back as a tool result that names the real problem, so the model can fix its next call.
-- **Every run ends with an answer.** At the round limit the model gets one tool-less call to say what
-  it did and what is left.
-- **Plans are checked.** In Goal mode each plan step is verified against what the tools actually
-  returned before it counts as done.
+1. **The turn belongs to the app, not to the screen.** A turn manager in the application scope owns
+   the stream, the tool loop and the final write to the database. Leave the chat, lock the phone —
+   the answer is there when you come back, and a turn that needs you sends a notification.
+2. **Who answers.** A chat opened from an agent's card is bound to that agent. The home chat and the
+   voice assistant are not, so before the turn starts the **router** makes one short Muse Spark call
+   (low reasoning effort, no tools, 8 seconds at most): it sees each agent's name, job and tools and
+   names one id, or `none`. Anything else — an unknown id, two ids, a timeout, an error — means the
+   plain assistant answers; routing is never the reason a message goes unanswered. The chip next to
+   the mode chips can also fix the choice: "auto", "no agent" or one agent. The answer is labelled
+   "→ Reminders", so you see who took it.
+3. **The prompt is assembled from stable to volatile:** base rules, language, the agent's role, the
+   catalog of its skills, its instructions, then the plan, the current time and what memory recalls.
+   The order is deliberate: Meta caches the shared prefix, so the stable part is not paid for twice.
+4. **The mode decides the shape of the turn.** Chat goes straight to the model. Reflect drafts,
+   critiques and revises (the revision may only read). Plan asks a planner for steps and shows them as
+   a card you approve or edit. Goal runs an approved plan step by step, and each step is checked
+   against what the tools actually returned before it counts as done.
+5. **The model streams text and tool calls.** Text appears as it is written; tool calls are collected
+   and run between rounds.
+6. **Every tool call passes the agent's rules and the execution policy.** Each tool has a risk class:
+   `READ`, `WRITE`, `DESTRUCTIVE` or `EXTERNAL`. Reads and writes run on the phone with validated JSON
+   arguments and a timeout. Deleting or sending off the phone waits for your "yes" in the chat; no rule
+   can remove that floor, and a background run simply denies it. A dry run simulates everything but
+   reads.
+7. **Errors go back to the model as results.** A failed tool, a timeout or arguments that are not
+   valid JSON return a message that names the real problem, so the next call can fix it.
+8. **Every run ends with an answer.** After 10 rounds the model gets one last call without tools to
+   say what is done and what is not.
 
-## What an agent is made of
+### What an agent is made of
 
 An agent is one immutable snapshot. Editing and publishing again produces a new version, so a turn
 that is already running never sees half an edit.
@@ -91,51 +131,45 @@ And this is how one gets from an idea to your roster:
 
 The Builder can only write a draft. Publishing is always a person tapping a button.
 
-<sub>The diagrams are drawn from Mermaid sources in <a href="docs/diagrams"><code>docs/diagrams/</code></a>.</sub>
+## Working with Meta
 
-## Cloud-forged screens
+Every model call goes to the **Meta Model API** (`api.meta.ai/v1`) on the key you enter, and nowhere
+else. There is no other provider, no bundled key and no silent switch to another vendor.
 
-An agent built on the phone can get a screen of its own without an app update. On the review page
-of the builder you choose where the agent lives: in the chat, or in its **own interface (beta)**.
-Publish, and the app queues a job at the **forge gateway** from the agent's name, description and
-instructions; the chat says "your interface is being built - use the chat meanwhile" and keeps
-working. A **worker** on a machine with the Android SDK runs our own tool-calling loop on Muse
-Spark - the same ReAct shape as the agent loop, with file and Gradle tools instead of phone tools -
-until one minimal screen compiles; the [Ketoy](https://ketoy.dev) compiler turns it into a signed
-bundle; the app downloads the bundle, checks its hash and signature, and from then on opens the
-agent in that screen, full screen, with the chat one tap away. The agent's card keeps the levers:
-the Chat / Own interface switch, "add a reset button" (the worker gets the current source back),
-Regenerate, and the agent's own question if the request was unclear.
+<p align="center"><img src="docs/images/diagram-meta-models.png" width="820" alt="Which part of the app uses which Meta endpoint and model: chat completions for agents and video, the Responses API for web search and SAM 3.1, image generations for Muse Image"/></p>
 
-```
-phone ──POST job──▶ gateway (Ktor, Fly.io) ◀──long-poll── worker (Muse Spark + Gradle + Ketoy)
-      ◀─poll/.ktx──                        ──.ktx──────▶
-```
-
-What has to agree on both sides: the forge's Ed25519 public key (shipped in the app's assets), the
-Ketoy version, and the entry-point name the worker reports. The gateway token and address are yours,
-entered in Settings; nothing is bundled into any build. The forge itself is a separate Gradle build
-in [`forge/`](forge/README.md): the compiler plugin pins Kotlin 2.0.21, the app stays on Kotlin 2.3.
-
-## Built on Meta models
-
-- **Muse Spark** — the brain of every agent: the tool loop, reflection, plans, the Builder chat,
-  onboarding and every lesson question. In the "How a model sees" lesson it also watches a short video
-  and explains what it saw and what it is unsure about.
+- **Muse Spark** is the brain of every agent: the tool loop, reflection, plans, the router, the
+  Builder chat, onboarding and every lesson question. In the "How a model sees" lesson it also
+  watches a short video and says what it saw and what it is unsure about.
 - **Muse Wonder** — an agent built for long multi-step work can run on it instead, as Meta's agent
-  guide suggests.
-- **Web search** — Meta's hosted `web_search` tool, reached through the Responses API, gives agents
-  fresh facts with links to the pages they came from.
-- **Muse Image** — illustrates the course (generated ahead of time and bundled, so lessons work
-  offline) and redraws a lesson scene around the learner on request.
+  guide suggests. The model is the agent's own setting; the app default is automatic.
+- **Web search** is Meta's hosted `web_search` tool, reached through the Responses API: an agent gets
+  fresh facts back with the pages they came from, and quotes them as links.
 - **SAM 3.1** — in the same lesson you name one thing in a photo (yours or a bundled example) and SAM
   outlines every instance of it.
+- **Muse Image** illustrates the course (generated ahead of time and bundled, so lessons work
+  offline) and redraws a lesson scene around the learner on request.
 
-Every model call goes to the **Meta Model API** (`api.meta.ai`) and nowhere else: `muse-spark-1.3`,
-`muse-spark-1.2`, `muse-spark-1.1` and `muse-wonder-1.0`. Fallback happens only between those models.
-Model variants that the vendor trains on (`-contributor`) are filtered out everywhere. Without a key
-the app does not guess or fall back: every model action says "add your Meta API key" and points to
-Settings.
+### One model call
+
+<p align="center"><img src="docs/images/diagram-meta-call.png" width="820" alt="One model call: no key means no call; the model chain; POST chat completions; retries with backoff on 429/500/503; the next model; stop on key errors; no switch mid-answer"/></p>
+
+- **No key, no call.** Without a key every model action says "add your Meta API key" and points to
+  Settings. The app does not guess and does not fall back to anything.
+- **A chain of Meta models, not of vendors:** `muse-spark-1.3`, `1.2`, `1.1` and `muse-wonder-1.0`,
+  with the agent's own model first. Model versions the vendor trains on (`-contributor`) and models
+  without tool calling are removed from the chain wherever it is built.
+- **Transient errors are retried the way Meta's error guide says.** 429, 500 and 503 ask the same
+  model again with exponential backoff and honour `Retry-After`, up to three tries and 20 seconds of
+  waiting per turn. Only then does the chain move to the next model, five at most.
+- **Some errors stop at once.** A rejected key or an empty balance (401, 402, 403) would fail on every
+  model, so the turn stops and says what is wrong with the key. And once the first words of an answer
+  are on screen, the app never switches model mid-answer; you get a Retry button instead.
+- **Reasoning effort per mode:** `low` for lesson questions and the router, `medium` for chat, `high`
+  for planning and self-critique.
+- **Every call is metered.** Meta reports tokens; the app prices them from Meta's price list (the
+  cached part of the prompt at its own price, web searches and SAM pictures per call) and shows the
+  week's spend on your Profile.
 
 <details>
 <summary><b>Following Meta's agent guidance</b></summary>
@@ -143,11 +177,9 @@ Settings.
 The agent loop was checked against the Meta Model API docs (tool calling, reasoning, prompt caching,
 error handling, agent frameworks) and the Muse Code permission model:
 
-- **Stable prompt prefix.** The system prompt runs from stable to volatile (base, language, role,
-  skills, instructions, then plan, current time, memory), so Meta's automatic prefix cache survives
-  from turn to turn.
-- **Reasoning effort per mode.** Lesson questions run at `low`, chat at `medium`, planning and
-  self-critique at `high`, instead of leaving the level to the model.
+- **Stable prompt prefix.** The system prompt runs from stable to volatile, so Meta's automatic prefix
+  cache survives from turn to turn.
+- **Reasoning effort per mode,** instead of leaving the level to the model.
 - **Every run ends with an answer.** At the step limit the model gets one tool-less call to say what is
   done and what is not.
 - **Errors the model can act on.** A failed tool, a timeout or arguments that are not valid JSON go back
@@ -160,19 +192,78 @@ error handling, agent frameworks) and the Muse Code permission model:
   consent, and the Instructions step checks the prompt against Meta's prompting guide (role, format,
   length, tone).
 - **The right model for the job.** A built agent can run on Muse Wonder (long multi-step work) or
-  Muse Spark (faster and cheaper), as Meta's agent guide suggests.
+  Muse Spark (faster and cheaper).
 
 </details>
 
-## Your key, your quota
+### Your key, your quota
 
 - **Enter your own Meta Model API key in onboarding or in Settings. Nothing is bundled.** The key is
   stored in `EncryptedSharedPreferences` behind an Android Keystore master key and goes only to Meta.
 - No key lives in this repository, and no key is compiled into any build, debug included: the build
   has no step that copies `.env` or anything else into `BuildConfig`. `tools/check.py` fails if one
   ever comes back, and scans the built APK for provider keys.
-- Every model call is metered in a weekly spend card on your Profile. Meta reports tokens only, so the
-  app prices Meta calls (and each web search) from Meta's price list.
+
+## Screens from the cloud
+
+A chat is not the right interface for every agent. A water tracker wants eight glasses to tap, a
+budget agent wants a few numbers and a button. So an agent built on the phone can get **a screen of
+its own, written by another agent, delivered without an app update.**
+
+On the builder's review page you choose where the agent lives: in the chat, or in its **own interface
+(beta)**. Publish, and the rest happens on its own:
+
+<p align="center"><img src="docs/images/diagram-forge-flow.png" width="860" alt="The forge sequence: the app posts a job, the worker long-polls it, the coding agent on Muse Spark writes and compiles the screen, may ask one question, uploads a signed bundle; the app polls, downloads, checks hash and signature, and opens the screen"/></p>
+
+**The gateway** (`forge/gateway`, Ktor, runs on Fly.io or locally) is a job queue and a bundle store
+with two bearer tokens: one for the app, one for the worker. It never runs a model.
+
+**The worker** (`forge/worker`) is a JVM app on any machine with the Android SDK. It long-polls the
+gateway for the next job and hands it to **the coding agent**: our own tool-calling loop on Muse
+Spark, the same ReAct shape as the agent loop on the phone, with five tools instead of phone tools —
+`list_files`, `read_file`, `write_screen`, `build_bundle`, `finish`. The model sees the agent's name,
+description and instructions, the Ketoy catalog of what may be used, and its rules in
+[`forge/AGENTS.md`](forge/AGENTS.md).
+
+- **Every limit lives in code, not in the prompt:** 25 model calls, 15 minutes, three failed builds in
+  a row, three replies that call no tool. Whichever trips first ends the job as failed, with the tail
+  of the last build log, so you see why.
+- **The compiler is the reviewer.** `build_bundle` runs Gradle and the [Ketoy](https://ketoy.dev)
+  compiler; the first error goes back to the model as the tool's result, and it fixes the code.
+- **Rules learned the hard way are enforced before the build.** Ketoy interprets the screen at run
+  time, and some code compiles but crashes the interpreter: ranges like `0..7`, `toFloat()`, nullable
+  values, lambda parameters. `write_screen` rejects them before the build, with a sentence that says
+  what to write instead.
+- **One question, if it really needs one.** When the request is unclear the agent finishes with
+  `needs_info`; the question appears on the agent's card, your answer queues the job again.
+- **Changes build on the last screen.** An update such as "add a reset button" sends the current
+  source back to the agent, so it edits rather than starts over; Regenerate starts from scratch.
+
+**The phone** never trusts a download it cannot check:
+
+- The gateway reports the bundle's SHA-256; a download that does not match is refused.
+- The worker signs every bundle with an Ed25519 key that lives only on the worker machine. The app
+  ships the public key; a bundle signed with anything else renders the app's own fallback, not the
+  screen.
+- A crash sentinel guards the interpreter. Compose has no error boundary, so a flag is written right
+  before the bundle renders and cleared once it has loaded. If the process dies in between, the next
+  launch shows "this screen crashed the app" with Try again and Remove, not a crash loop.
+- Polling runs in the application scope, like turns: every 3 seconds, then every 6, and it gives up
+  after 15 minutes or 5 network failures in a row.
+
+<p align="center"><img src="docs/images/diagram-forge-states.png" width="520" alt="The states of an agent's screen on the phone: requested, working, needs info, ready, failed, with the transitions between them"/></p>
+
+Once the screen is **Ready**, the agent opens in it, full screen, with the chat one tap away. The
+agent's card keeps the controls: the Chat / Interface switch, Update (describe a change), Regenerate,
+Remove, and the agent's question if it has one.
+
+What has to agree on both sides: the Ketoy version (0.4.20-alpha), the forge's public key (shipped in
+the app's assets) and the entry-point name the worker reports. The gateway address and token are
+yours, entered in Settings; nothing is bundled into any build. The forge is a separate Gradle build in
+[`forge/`](forge/README.md) because the Ketoy compiler plugin pins Kotlin 2.0.21 while the app is on
+Kotlin 2.3; the app only needs Ketoy's runtime.
+
+<sub>All diagrams are drawn from Mermaid sources in <a href="docs/diagrams"><code>docs/diagrams/</code></a>.</sub>
 
 ## Build and run
 
@@ -195,25 +286,32 @@ From the command line:
 ./gradlew :app:testDebugUnitTest
 ```
 
+For screens from the cloud, run the gateway and a worker as described in
+[`forge/README.md`](forge/README.md), then enter the gateway address and token in Settings.
+
 ## Project layout
 
-All code is in the `app` module, under `app/src/main/java/com/aiopenpocket/`:
+All app code is in the `app` module, under `app/src/main/java/com/aiopenpocket/`:
 
 | Package | What lives there |
 | --- | --- |
 | `agent/loop` | One agent turn: the tool-calling loop, reflection, plan orchestration, `TurnManager` (turns survive leaving the chat screen) |
-| `agent/core/llm` | Streaming client for Meta Model API, web search, the model catalog, Meta pricing |
+| `agent/core/llm` | Streaming client for Meta Model API, web search, SAM, Muse Image, the model catalog, Meta pricing |
+| `agent/core/agent` | User-built agents and the agent router |
 | `agent/core/mcp`, `agent/tools` | On-device tools: JSON schemas, validation, risk classes, the approval flow |
 | `agent/core/plan` | The structured plan engine |
-| `agent/core/agent`, `skill`, `hook`, `policy` | User-built agents, skills, rules (hooks) and the execution policy |
+| `agent/core/skill`, `hook`, `policy` | Skills, rules (hooks) and the execution policy |
 | `agent/core/memory`, `profile`, `prompt` | Memory layers, user profile, prompt assembly |
+| `agent/core/forge`, `ui/forge` | Screens from the cloud: the gateway client, job state, the Ketoy host |
 | `agent/core/lesson` | Lessons as strict step contracts in chat |
 | `agent/workers` | WorkManager: reminders and background check-ins |
+| `voice` | The voice assistant session |
 | `ui/` | Jetpack Compose screens: chat, agents and the builder, the course, profile, settings |
 | `i18n/` | Interface language: Russian and English side by side in one `tr(ru, en)` call |
 
 Lessons are JSON in `app/src/main/assets/lessons/`; the model catalog is in
-`app/src/main/assets/config/`.
+`app/src/main/assets/config/`. The forge (`contract`, `gateway`, `worker`, `screens`) is its own
+Gradle build in `forge/`.
 
 ## Traceability
 
@@ -223,14 +321,14 @@ code that changed since its reason was last confirmed.
 
 ## Stack
 
-Kotlin, Jetpack Compose, Metro DI, Ktor (SSE streaming), Room, WorkManager, Coil. Tests: JUnit,
+Kotlin, Jetpack Compose, Metro DI, Ktor (SSE streaming), Room, WorkManager, Coil, Ketoy. Tests: JUnit,
 Robolectric and Roborazzi screenshot tests; `.github/workflows/android.yml` builds the app and runs
 them.
 
 ## Before and during the hackathon
 
 The Meta Global AI Developer Hackathon window is Oct 27 – Nov 4, 2026. Dates are in git:
-`git log --since=2026-10-27` lists what was built inside the window (134 of 575 commits as of Nov 1).
+`git log --since=2026-10-27` lists what was built inside the window.
 
 **Before (up to Oct 26).** The platform already existed: the agent loop with tools and memory, the
 step-by-step builder, the lesson engine with its interactive scenes, and the plan engine. Meta models
@@ -252,6 +350,10 @@ interface on the demo path with three lessons translated.
 - **Web search** through Meta's hosted `web_search` tool, always with sources (`cf9588b9`).
 - **Voice assistant.** The app can be the phone's assistant: the assist button opens a chat that is
   already listening, sends what was said, and reads the reply aloud (`8c91a07b`).
+- **The agent router.** The home chat and the voice assistant hand each message to the right agent
+  (`9e511fb9`).
+- **Screens from the cloud.** A coding agent on Muse Spark writes an agent its own screen, delivered
+  as a signed Ketoy bundle (`2786546c`, merged in `a9a07336`).
 - **The whole course in English**: 31 lessons and their scenes, up from 3 (`59cd9b70`..`86f89103`).
   Every lesson on the Path now opens in any order (`c08de0e0`).
 - **Profile**: the person's own data and what the assistant remembers about them (`683f3f41`).
