@@ -1,42 +1,29 @@
 package com.aiopenpocket.voice
 
 // @trace voice-input-1a0dfd
+// @trace voice-assistant-mode-a81a99
 
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.service.voice.VoiceInteractionSession
-import com.aiopenpocket.MainActivity
+import com.aiopenpocket.ui.assistant.AssistantActivity
 
 /**
  * The voice assistant session.
  *
- * We do not show an assistant overlay of our own — instead, when invoked, we open the app on a new chat
- * right away and hide the session.
+ * The session's own window stays empty: when invoked, it starts [AssistantActivity], a translucent window
+ * over the current app that listens at once and answers in place, and hides itself.
  */
 class AssistSession(context: Context) : VoiceInteractionSession(context) {
 
     override fun onShow(args: Bundle?, showFlags: Int) {
         super.onShow(args, showFlags)
-        openNewChat()
-        // Remove the (empty) session UI right away — the user sees only our app.
+        // startAssistantActivity starts the activity in the assistant's context (API 26+, minSdk is 26).
+        startAssistantActivity(
+            Intent(context, AssistantActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+        )
         hide()
-    }
-
-    private fun openNewChat() {
-        val intent = Intent(context, MainActivity::class.java).apply {
-            action = MainActivity.ACTION_OPEN_NEW_CHAT
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        }
-        // startAssistantActivity starts an activity in the assistant's context (it works even over the lock
-        // screen), but it was added only in API 26. minSdk is 26 now, so the fallback below is dead code kept
-        // from the minSdk-24 days: a normal start: the intent already has FLAG_ACTIVITY_NEW_TASK, so it starts from the session's
-        // context.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startAssistantActivity(intent)
-        } else {
-            context.startActivity(intent)
-        }
     }
 }
