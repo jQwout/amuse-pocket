@@ -190,13 +190,13 @@ fun ExampleCardView(card: DrivenUiCard.ExampleCard) {
     }
 }
 
-/** How many misses on a fill step we tolerate before showing the answer and letting the learner move on. */
-private const val FILL_MISSES_BEFORE_REVEAL = 2
+/** How many misses on a fill or sort step we tolerate before showing the answer and letting the learner move on. */
+private const val MISSES_BEFORE_REVEAL = 2
 
 /**
  * "fill": fill in the gap. A correct input advances the lesson (like a passed quiz).
  *
- * After [FILL_MISSES_BEFORE_REVEAL] misses the card shows the answer and a "Next" button: fill has no "Next"
+ * After [MISSES_BEFORE_REVEAL] misses the card shows the answer and a "Next" button: fill has no "Next"
  * of its own, and a learner who did not guess the exact word used to be stuck in the lesson forever. A
  * peeked answer advances the lesson the same way as a solved one — the point of the step is to read the
  * right word, not an exam.
@@ -243,7 +243,7 @@ fun FillCardView(card: DrivenUiCard.FillCard, onSolved: () -> Unit) {
                 placeholder = { Text(tr("Впиши пропущенное слово", "Type the missing word")) },
                 modifier = Modifier.fillMaxWidth(),
             )
-            if (misses >= FILL_MISSES_BEFORE_REVEAL) {
+            if (misses >= MISSES_BEFORE_REVEAL) {
                 Text(
                     tr("Правильно: «${card.answer}»", "Correct answer: “${card.answer}”"),
                     style = MaterialTheme.typography.bodyMedium,
@@ -256,7 +256,7 @@ fun FillCardView(card: DrivenUiCard.FillCard, onSolved: () -> Unit) {
             Button(onClick = { check() }, enabled = input.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
                 Text(tr("Проверить", "Check"))
             }
-            if (misses >= FILL_MISSES_BEFORE_REVEAL) {
+            if (misses >= MISSES_BEFORE_REVEAL) {
                 OutlinedButton(
                     onClick = { revealed = true; solved = true; wrong = false; onSolved() },
                     modifier = Modifier.fillMaxWidth(),
@@ -286,13 +286,19 @@ fun SortCardView(card: DrivenUiCard.SortCard, onSolved: () -> Unit) {
     // correct must be a full permutation of the items' indexes. If it is broken (out of range, duplicates,
     // the wrong length — a frequent defect of an LLM card or an authoring mistake in a lesson), we degrade
     // to the original order so the step stays solvable with "Check" instead of getting stuck forever.
-    val target = remember(card) {
+    val targetIndexes = remember(card) {
         val n = card.items.size
         val isPermutation = card.correct.size == n && card.correct.toSet() == (0 until n).toSet()
-        if (isPermutation) card.correct.map { card.items[it] } else card.items
+        if (isPermutation) card.correct else card.items.indices.toList()
     }
+    val target = remember(targetIndexes) { targetIndexes.map { card.items[it] } }
     var solved by rememberSaveable(card) { mutableStateOf(false) }
+    // Same way out as fill: a learner who cannot find the order was stuck on "Check" forever (seen on a
+    // phone, 3 Nov 2026). The counters are saveable so a rotation does not hide the way out again.
+    var revealed by rememberSaveable(card) { mutableStateOf(false) }
+    var misses by rememberSaveable(card) { mutableIntStateOf(0) }
     var wrong by remember(card) { mutableStateOf(false) }
+    val inPlace = order.indices.count { card.items[order[it]] == target[it] }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (card.instruction.isNotBlank()) {
@@ -323,21 +329,42 @@ fun SortCardView(card: DrivenUiCard.SortCard, onSolved: () -> Unit) {
         }
         if (solved) {
             if (card.explain.isNotBlank()) {
-                Text("✓ ${card.explain}", style = MaterialTheme.typography.bodySmall, color = CardSuccessGreen)
+                // A shown order gets no green checkmark: honest that it was read, not found.
+                if (revealed) {
+                    Text(card.explain, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    Text("✓ ${card.explain}", style = MaterialTheme.typography.bodySmall, color = CardSuccessGreen)
+                }
             }
         } else {
             if (wrong) {
-                Text(tr("Пока не тот порядок — переставь и проверь снова", "Not the right order yet — rearrange and check again"), style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error)
+                Text(
+                    tr(
+                        "На своём месте $inPlace из ${order.size} — переставь и проверь снова",
+                        "$inPlace of ${order.size} in the right place — rearrange and check again",
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
             Button(
                 onClick = {
                     // The displayed strings are compared (not the indexes): with duplicates in items any visually identical
                     // order counts — as before.
-                    if (order.map { card.items[it] } == target) { solved = true; wrong = false; onSolved() } else wrong = true
+                    if (order.map { card.items[it] } == target) { solved = true; wrong = false; onSolved() } else { wrong = true; misses++ }
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(tr("Проверить", "Check")) }
+            if (misses >= MISSES_BEFORE_REVEAL) {
+                OutlinedButton(
+                    onClick = {
+                        order.clear()
+                        order.addAll(targetIndexes)
+                        revealed = true; solved = true; wrong = false; onSolved()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(tr("Показать порядок", "Show the order")) }
+            }
         }
     }
 }
