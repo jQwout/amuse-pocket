@@ -29,8 +29,11 @@ import com.aiopenpocket.ui.theme.LimeSignal
 import kotlin.math.PI
 import kotlin.math.sin
 
-/** What the assistant is doing; the orb shows it: calm, voice bars, or a turning arc. */
-enum class OrbState { IDLE, LISTENING, THINKING }
+/**
+ * What the assistant is doing; the orb shows it: calm, voice bars, a turning arc, or taller bars while its
+ * own voice speaks (a call, voice-call-mode-54cb49).
+ */
+enum class OrbState { IDLE, LISTENING, THINKING, SPEAKING }
 
 // The app's lime-on-ink palette: a glowing lime core on a near-black sphere.
 private val CoreHighlight = Color(0xFFF1FBD0)
@@ -151,20 +154,24 @@ fun AssistantOrb(
             style = Stroke(width = 1.dp.toPx()),
         )
 
-        if (state == OrbState.LISTENING) {
+        if (state == OrbState.LISTENING || state == OrbState.SPEAKING) {
             clipRect(center.x - orbR, center.y - orbR, center.x + orbR, center.y + orbR) {
-                drawVoiceBars(center, orbR, bars)
+                drawVoiceBars(center, orbR, bars, loud = state == OrbState.SPEAKING)
             }
         }
     }
 }
 
-private fun DrawScope.drawVoiceBars(center: Offset, orbR: Float, progress: List<Float>) {
+private fun DrawScope.drawVoiceBars(center: Offset, orbR: Float, progress: List<Float>, loud: Boolean) {
     val barW = orbR * 0.09f
     val gap = orbR * 0.045f
     val startX = center.x - (6 * barW + 5 * gap) / 2f
     val minH = listOf(0.14f, 0.22f, 0.32f, 0.32f, 0.22f, 0.14f)
-    val maxH = listOf(0.28f, 0.50f, 0.70f, 0.70f, 0.50f, 0.28f)
+    val maxH = if (loud) {
+        listOf(0.42f, 0.62f, 0.82f, 0.82f, 0.62f, 0.42f)
+    } else {
+        listOf(0.28f, 0.50f, 0.70f, 0.70f, 0.50f, 0.28f)
+    }
     for (i in 0 until 6) {
         val h = (minH[i] + (maxH[i] - minH[i]) * progress[i]) * orbR * 2
         drawRoundRect(

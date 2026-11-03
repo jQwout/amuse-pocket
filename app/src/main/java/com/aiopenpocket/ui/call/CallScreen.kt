@@ -9,11 +9,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,6 +22,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
@@ -43,14 +40,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -65,7 +58,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -75,33 +68,41 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
 import com.aiopenpocket.i18n.tr
+import com.aiopenpocket.ui.assistant.AssistantOrb
+import com.aiopenpocket.ui.assistant.OrbState
 import com.aiopenpocket.ui.chat.components.LessonPhotoCapture
 import com.aiopenpocket.ui.chat.components.ToolApprovalBar
 import com.aiopenpocket.ui.chat.components.newPhotoCaptureUri
-import com.aiopenpocket.ui.components.glass.auroraBackground
+import com.aiopenpocket.ui.theme.LimeSignal
 import com.aiopenpocket.voice.call.CallPhase
 import com.aiopenpocket.voice.call.CallSpeaker
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import java.io.File
 
 /**
- * The call screen, built like a phone call: the voice orb, one line of words under it, and four round
- * buttons — photo, mute, repeat, hang up. The whole conversation is not on screen: it is in the chat once
- * the call ends, and a call is listened to, not read (owner, 4 Nov 2026: the first version, with a glass
- * transcript card, read like a chat with a microphone).
+ * The call screen, built like a phone call and dressed like the voice overlay: the app's lime-on-ink orb
+ * (AssistantOrb, ported from the owner's earlier assistant) on a dark ink backdrop, one line of large white
+ * words under it, and four round buttons — photo, mute, repeat, hang up. The whole conversation is not on
+ * screen: it is in the chat once the call ends, and a call is listened to, not read (owner, 4 Nov 2026: the
+ * first version, a flat circle over a glass transcript card, "looked like nothing", and their earlier app
+ * did it far better).
  *
  * The words under the orb are whatever matters now: what the person is saying while they speak, the
  * sentence being read word by word while the agent speaks, otherwise the last reply (a tap reads it
- * again). A tap anywhere else cuts the agent off. [onHangUp] gets the conversation id (null if nothing
- * was said), so the caller can open the chat with the whole call in it.
+ * again). A tap anywhere else cuts the agent off. Always dark, whatever the app theme: a call is a stage,
+ * and the overlay it sits next to is dark too. [onHangUp] gets the conversation id (null if nothing was
+ * said), so the caller can open the chat with the whole call in it.
  */
 @Composable
 fun CallScreen(
@@ -135,13 +136,11 @@ fun CallScreen(
   Box(
     modifier = Modifier
       .fillMaxSize()
-      .auroraBackground()
+      .background(Brush.verticalGradient(0f to InkTop, 0.55f to Ink, 1f to Color.Black))
       .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { viewModel.tap() }
       .testTag("call_screen"),
   ) {
-    // A Box is not a Surface and sets no content colour: without this the title fell back to Compose's
-    // default black, unreadable on the dark aurora (emulator, 3 Nov 2026).
-    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onBackground) {
+    CompositionLocalProvider(LocalContentColor provides Color.White) {
       Column(
         modifier = Modifier
           .fillMaxSize()
@@ -152,19 +151,20 @@ fun CallScreen(
         Text(
           text = state.title ?: tr("Звонок с ассистентом", "Call with the assistant"),
           style = MaterialTheme.typography.titleMedium,
+          color = Color.White.copy(alpha = 0.75f),
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
         )
         Text(
           text = phaseLabel(state),
           style = MaterialTheme.typography.labelLarge,
-          color = MaterialTheme.colorScheme.primary,
+          color = LimeSignal,
           modifier = Modifier.padding(top = 4.dp).testTag("call_phase"),
         )
 
         Spacer(Modifier.weight(1f))
-        VoiceOrb(phase = state.phase, paused = state.micPaused || state.micMuted || state.needsMicPermission)
-        Spacer(Modifier.height(32.dp))
+        AssistantOrb(state = orbState(state), size = 280.dp)
+        Spacer(Modifier.height(8.dp))
 
         CallWords(state, onReplay = viewModel::replay)
 
@@ -172,7 +172,7 @@ fun CallScreen(
           Text(
             text = it,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.error,
+            color = NoticeRed,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 8.dp).testTag("call_notice"),
           )
@@ -187,7 +187,7 @@ fun CallScreen(
 
         if (state.photoPath != null || state.photoLoading) {
           PhotoChip(path = state.photoPath, loading = state.photoLoading, onRemove = viewModel::removePhoto)
-          Spacer(Modifier.height(12.dp))
+          Spacer(Modifier.height(16.dp))
         }
         state.pendingApproval?.let { request ->
           ToolApprovalBar(
@@ -195,16 +195,17 @@ fun CallScreen(
             onApprove = { viewModel.resolveApproval(approved = true) },
             onDeny = { viewModel.resolveApproval(approved = false) },
           )
-          Spacer(Modifier.height(12.dp))
+          Spacer(Modifier.height(16.dp))
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.Top) {
+        Row(horizontalArrangement = Arrangement.spacedBy(22.dp), verticalAlignment = Alignment.Top) {
           PhotoButton(onOpening = viewModel::onPhotoPickerOpening, onPicked = viewModel::onPhotoPicked)
           CallButton(
             icon = if (state.micMuted) Icons.Default.MicOff else Icons.Default.Mic,
             label = if (state.micMuted) tr("Включить", "Unmute") else tr("Без звука", "Mute"),
             onClick = viewModel::toggleMute,
             tag = "call_mute",
+            toggled = state.micMuted,
           )
           CallButton(
             icon = Icons.Default.Replay,
@@ -219,7 +220,7 @@ fun CallScreen(
             onClick = hangUp,
             tag = "call_hang_up",
             size = 64.dp,
-            container = HANG_UP_RED,
+            container = HangUpRed,
           )
         }
         Text(
@@ -229,11 +230,20 @@ fun CallScreen(
             " "
           },
           style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier.padding(top = 8.dp),
+          color = Color.White.copy(alpha = 0.5f),
+          modifier = Modifier.padding(top = 10.dp),
         )
       }
     }
+  }
+}
+
+private fun orbState(state: CallUiState): OrbState = when {
+  state.needsMicPermission || state.micPaused -> OrbState.IDLE
+  else -> when (state.phase) {
+    CallPhase.SPEAKING -> OrbState.SPEAKING
+    CallPhase.THINKING, CallPhase.WAITING_APPROVAL -> OrbState.THINKING
+    CallPhase.LISTENING -> if (state.micMuted) OrbState.IDLE else OrbState.LISTENING
   }
 }
 
@@ -249,98 +259,122 @@ private fun phaseLabel(state: CallUiState): String = when {
   }
 }
 
+/** Which kind of words are under the orb; a change of kind crossfades, the words inside update live. */
+private enum class WordsKind { HEARING, SPEAKING, THINKING, REPLY, HINT }
+
 /**
- * The words under the orb: the person's last phrase in small type, and in large type what matters now —
- * what they are saying, the sentence being read (said words bright, the rest dim), what the agent is
- * doing, or the last reply, which a tap reads again. Always three lines high, so the screen does not jump.
+ * The words under the orb: the person's last phrase in small italics, and in large type what matters now —
+ * what they are saying, the sentence being read (said words bright, the rest dim), what the agent is doing,
+ * or the last reply, which a tap reads again. A fixed height, so the orb above does not jump.
  */
 @Composable
 private fun CallWords(state: CallUiState, onReplay: () -> Unit) {
-  val color = MaterialTheme.colorScheme.onBackground
-  val dim = color.copy(alpha = 0.45f)
   val heard = state.heard
   val caption = state.caption.takeIf { state.phase == CallPhase.SPEAKING }
-  val micOff = state.micPaused || state.micMuted || state.needsMicPermission
-  val listeningLive = state.phase == CallPhase.LISTENING && !heard.isNullOrBlank()
+  val kind = when {
+    state.phase == CallPhase.LISTENING && !heard.isNullOrBlank() -> WordsKind.HEARING
+    caption != null -> WordsKind.SPEAKING
+    state.phase == CallPhase.THINKING -> WordsKind.THINKING
+    state.phase == CallPhase.LISTENING && state.reply.isNotBlank() -> WordsKind.REPLY
+    else -> WordsKind.HINT
+  }
 
   Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
     Text(
-      text = state.said?.takeUnless { listeningLive }?.let { tr("Ты: $it", "You: $it") } ?: " ",
-      style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      text = state.said?.takeUnless { kind == WordsKind.HEARING } ?: " ",
+      fontSize = 15.sp,
+      fontStyle = FontStyle.Italic,
+      color = Color.White.copy(alpha = 0.55f),
       textAlign = TextAlign.Center,
       maxLines = 1,
       overflow = TextOverflow.Ellipsis,
     )
-    Spacer(Modifier.height(8.dp))
-    val replayable = !listeningLive && caption == null && state.phase == CallPhase.LISTENING && state.reply.isNotBlank()
-    val words: AnnotatedString = when {
-      listeningLive -> AnnotatedString(heard.orEmpty())
-      caption != null -> buildAnnotatedString {
-        val said = if (caption.spokenTo == CallSpeaker.Caption.UNKNOWN) caption.text.length else caption.spokenTo
-        withStyle(SpanStyle(color = color)) { append(caption.text.take(said)) }
-        withStyle(SpanStyle(color = dim)) { append(caption.text.drop(said)) }
+    Spacer(Modifier.height(10.dp))
+    Crossfade(targetState = kind, animationSpec = tween(250), label = "callWords") { shown ->
+      val micOff = state.micPaused || state.micMuted || state.needsMicPermission
+      val words: AnnotatedString = when (shown) {
+        WordsKind.HEARING -> AnnotatedString(heard.orEmpty())
+        WordsKind.SPEAKING -> buildAnnotatedString {
+          val text = caption?.text.orEmpty()
+          val said = caption?.spokenTo?.takeUnless { it == CallSpeaker.Caption.UNKNOWN } ?: text.length
+          withStyle(SpanStyle(color = Color.White)) { append(text.take(said)) }
+          withStyle(SpanStyle(color = Color.White.copy(alpha = 0.3f))) { append(text.drop(said)) }
+        }
+        WordsKind.THINKING -> AnnotatedString(state.activity ?: "")
+        WordsKind.REPLY -> AnnotatedString(state.reply)
+        WordsKind.HINT -> AnnotatedString(
+          if (micOff) tr("Микрофон выключен", "The microphone is off") else tr("Говори, я слушаю", "Go ahead, I'm listening"),
+        )
       }
-      state.phase == CallPhase.THINKING -> AnnotatedString(state.activity ?: "…")
-      replayable -> AnnotatedString(state.reply)
-      micOff -> AnnotatedString(tr("Микрофон выключен", "The microphone is off"))
-      else -> AnnotatedString(tr("Говори, я слушаю", "Go ahead, I'm listening"))
-    }
-    Text(
-      text = words,
-      style = MaterialTheme.typography.titleLarge,
-      color = if (listeningLive || caption != null) color else dim,
-      textAlign = TextAlign.Center,
-      minLines = 3,
-      maxLines = 3,
-      overflow = TextOverflow.Ellipsis,
-      modifier = Modifier
-        .fillMaxWidth()
-        .then(if (replayable) Modifier.clickable(onClick = onReplay) else Modifier)
-        .testTag("call_words"),
-    )
-    if (replayable) {
-      Text(
-        text = tr("Коснись, чтобы послушать ещё раз", "Tap to hear it again"),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(top = 4.dp),
-      )
+      Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+          .fillMaxWidth()
+          .heightIn(min = WORDS_HEIGHT)
+          .then(if (shown == WordsKind.REPLY) Modifier.clickable(onClick = onReplay) else Modifier),
+      ) {
+        Text(
+          text = words,
+          fontSize = 24.sp,
+          lineHeight = 31.sp,
+          fontWeight = FontWeight.SemiBold,
+          color = when (shown) {
+            WordsKind.HEARING, WordsKind.SPEAKING -> Color.White
+            WordsKind.REPLY -> Color.White.copy(alpha = 0.8f)
+            else -> Color.White.copy(alpha = 0.45f)
+          },
+          textAlign = TextAlign.Center,
+          maxLines = 3,
+          overflow = TextOverflow.Ellipsis,
+          modifier = Modifier.fillMaxWidth().testTag("call_words"),
+        )
+        if (shown == WordsKind.REPLY) {
+          Text(
+            text = tr("Коснись, чтобы послушать ещё раз", "Tap to hear it again"),
+            style = MaterialTheme.typography.bodySmall,
+            color = LimeSignal.copy(alpha = 0.8f),
+            modifier = Modifier.padding(top = 6.dp),
+          )
+        }
+      }
     }
   }
 }
 
-/** A round call button with its label under it, like a phone's in-call buttons. */
+/**
+ * A round call button with its label under it, like a phone's in-call buttons: frosted white on the ink,
+ * solid white when [toggled] (mute on), or the [container] colour (hang up).
+ */
 @Composable
 private fun CallButton(
   icon: ImageVector,
   label: String,
   onClick: () -> Unit,
   tag: String,
-  size: Dp = 56.dp,
+  size: Dp = 58.dp,
   enabled: Boolean = true,
+  toggled: Boolean = false,
   container: Color? = null,
 ) {
-  Column(horizontalAlignment = Alignment.CenterHorizontally) {
-    if (container != null) {
-      FilledIconButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier.size(size).testTag(tag),
-        colors = IconButtonDefaults.filledIconButtonColors(containerColor = container, contentColor = Color.White),
-      ) { Icon(icon, contentDescription = label, modifier = Modifier.size(28.dp)) }
-    } else {
-      FilledTonalIconButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier.size(size).testTag(tag),
-      ) { Icon(icon, contentDescription = label) }
+  val background = container ?: if (toggled) Color.White else Color.White.copy(alpha = 0.12f)
+  val tint = if (toggled && container == null) Ink else Color.White
+  Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.alpha(if (enabled) 1f else 0.35f)) {
+    Box(
+      contentAlignment = Alignment.Center,
+      modifier = Modifier
+        .size(size)
+        .clip(CircleShape)
+        .background(background)
+        .clickable(enabled = enabled, onClick = onClick)
+        .testTag(tag),
+    ) {
+      Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(if (container != null) 30.dp else 26.dp))
     }
     Text(
       text = label,
       style = MaterialTheme.typography.labelSmall,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-      modifier = Modifier.padding(top = 4.dp),
+      color = Color.White.copy(alpha = 0.6f),
+      modifier = Modifier.padding(top = 6.dp),
     )
   }
 }
@@ -393,78 +427,43 @@ private fun PhotoButton(onOpening: () -> Unit, onPicked: (Uri?) -> Unit) {
 /** The photo waiting for the next phrase: a thumbnail, what will happen to it, and an "x". */
 @Composable
 private fun PhotoChip(path: String?, loading: Boolean, onRemove: () -> Unit) {
-  Surface(
-    shape = RoundedCornerShape(12.dp),
-    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
-    modifier = Modifier.testTag("call_photo_chip"),
+  Row(
+    verticalAlignment = Alignment.CenterVertically,
+    modifier = Modifier
+      .clip(RoundedCornerShape(16.dp))
+      .background(Color.White.copy(alpha = 0.1f))
+      .padding(6.dp)
+      .testTag("call_photo_chip"),
   ) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(6.dp)) {
-      Box(contentAlignment = Alignment.Center, modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp))) {
-        if (path != null) {
-          AsyncImage(
-            model = File(path),
-            contentDescription = tr("Фото для агента", "Photo for the agent"),
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-          )
-        } else if (loading) {
-          CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-        }
-      }
-      Text(
-        text = tr("Фото уйдёт с твоей следующей фразой", "The photo goes with your next phrase"),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(horizontal = 10.dp),
-      )
-      IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
-        Icon(Icons.Default.Close, contentDescription = tr("Убрать фото", "Remove the photo"), modifier = Modifier.size(18.dp))
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp).clip(RoundedCornerShape(10.dp))) {
+      if (path != null) {
+        AsyncImage(
+          model = File(path),
+          contentDescription = tr("Фото для агента", "Photo for the agent"),
+          contentScale = ContentScale.Crop,
+          modifier = Modifier.fillMaxSize(),
+        )
+      } else if (loading) {
+        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = LimeSignal)
       }
     }
-  }
-}
-
-/**
- * The voice indicator: it breathes slowly while listening, pulses while the agent speaks, dims while it
- * thinks. Colour and motion only, no waveform: the platform recognizer does not hand out the audio.
- */
-@Composable
-private fun VoiceOrb(phase: CallPhase, paused: Boolean) {
-  val transition = rememberInfiniteTransition(label = "orb")
-  val period = when (phase) {
-    CallPhase.SPEAKING -> 420
-    CallPhase.LISTENING -> 1400
-    else -> 2200
-  }
-  val pulse by transition.animateFloat(
-    initialValue = 0.92f,
-    targetValue = if (paused) 0.92f else 1.08f,
-    animationSpec = infiniteRepeatable(tween(period, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-    label = "pulse",
-  )
-  val accent = MaterialTheme.colorScheme.primary
-  Box(contentAlignment = Alignment.Center, modifier = Modifier.size(200.dp)) {
-    Box(
-      modifier = Modifier
-        .size(200.dp)
-        .scale(pulse)
-        .alpha(if (phase == CallPhase.THINKING || paused) 0.25f else 0.35f)
-        .background(accent, CircleShape),
+    Text(
+      text = tr("Фото уйдёт с твоей следующей фразой", "The photo goes with your next phrase"),
+      style = MaterialTheme.typography.bodySmall,
+      color = Color.White.copy(alpha = 0.8f),
+      modifier = Modifier.padding(horizontal = 10.dp),
     )
-    Box(
-      modifier = Modifier
-        .size(120.dp)
-        .background(accent.copy(alpha = if (paused) 0.4f else 1f), CircleShape),
-      contentAlignment = Alignment.Center,
-    ) {
-      Icon(
-        imageVector = if (paused) Icons.Default.MicOff else Icons.Default.Mic,
-        contentDescription = null,
-        tint = MaterialTheme.colorScheme.onPrimary,
-        modifier = Modifier.size(48.dp),
-      )
+    IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
+      Icon(Icons.Default.Close, contentDescription = tr("Убрать фото", "Remove the photo"), tint = Color.White, modifier = Modifier.size(18.dp))
     }
   }
 }
 
-private val HANG_UP_RED = Color(0xFFD93025)
+/** The ink of the overlay and the orb's sphere, a touch lifted at the top so the orb's halo has room. */
+private val Ink = Color(0xFF0B100C)
+private val InkTop = Color(0xFF18210F)
+private val HangUpRed = Color(0xFFD93025)
+private val NoticeRed = Color(0xFFFFB4A9)
+
+/** Three lines of the large words plus the "tap to hear it again" line. */
+private val WORDS_HEIGHT = 120.dp
