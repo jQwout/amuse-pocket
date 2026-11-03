@@ -54,6 +54,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.localizedSystemPrompt
 import com.aiopenpocket.agent.core.agent.AgentDefinition
+import com.aiopenpocket.agent.core.agent.AgentStatus
+import com.aiopenpocket.agent.core.agent.displayName
+import com.aiopenpocket.ui.agents.DeleteAgentButton
 import com.aiopenpocket.agent.core.hook.AgentHookRunEntity
 import com.aiopenpocket.agent.core.hook.HookActionType
 import com.aiopenpocket.agent.core.mcp.CapabilityNames
@@ -81,8 +84,9 @@ internal fun ActionsRow(
   onArchive: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
+  Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
   FlowRow(
-    modifier = modifier.fillMaxWidth(),
+    modifier = Modifier.fillMaxWidth(),
     horizontalArrangement = Arrangement.spacedBy(10.dp),
     verticalArrangement = Arrangement.spacedBy(10.dp),
   ) {
@@ -99,9 +103,17 @@ internal fun ActionsRow(
         modifier = Modifier.testTag("agent_detail_action_toggle_enabled"),
       )
     }
-    if (state.canArchive) {
-      ActionChip(label = tr("Архивировать", "Archive"), onClick = onArchive, modifier = Modifier.testTag("agent_detail_action_archive"))
-    }
+  }
+  // Apart from the chips and red: deleting is not one more everyday action (owner, 3 Nov 2026).
+  val definition = state.definition
+  if (state.canArchive && definition != null) {
+    DeleteAgentButton(
+      name = definition.displayName,
+      isDraft = definition.status == AgentStatus.DRAFT,
+      onConfirm = onArchive,
+      modifier = Modifier.testTag("agent_detail_action_archive"),
+    )
+  }
   }
 }
 

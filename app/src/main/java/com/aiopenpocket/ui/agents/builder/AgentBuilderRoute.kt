@@ -88,7 +88,8 @@ fun AgentBuilderRoute(
       testViewModel.sendTestMessage(text, state.draft.defaultMode, state.executionMode)
     },
     onPublish = viewModel::publish,
-    onArchive = viewModel::archive,
+    // "Delete" leaves the screen of an agent that no longer exists.
+    onArchive = { viewModel.archive(onDone = onExit) },
     testPendingApproval = testPendingApproval,
     onResolveTestApproval = testViewModel::resolveTestApproval,
     onOpenChat = onOpenChat?.let { open -> { agentsViewModel.openAgentChat(state.draft.id, open) } },

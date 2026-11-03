@@ -23,8 +23,8 @@ import dev.zacsweers.metrox.viewmodel.metroViewModel
  *   opens the builder ALREADY on that draft (`agent_builder/{clonedId}`) — the "prefilled-clone" the
  *   Task 21 brief asks for, reusing the existing (unmodified) edit route rather than a new one.
  * - `onEdit`: opens the builder directly on this (necessarily [com.aiopenpocket.agent.core.agent.AgentSource.USER]) agent's own id.
- * - `onArchive`/`onToggleEnabled`: no navigation at all — [AgentDetailViewModel] mutates in place and
- *   reloads its own state; the screen just re-renders.
+ * - `onToggleEnabled`: no navigation at all — [AgentDetailViewModel] mutates in place and reloads its
+ *   own state; the screen just re-renders. `onArchive` ("Delete agent") goes back once it is done.
  * - `onOpenPlan`/`onOpenPlanList` (Task 12): open `plan/{planId}`/`plans/{agentId}` — the latter
  *   already closes over THIS route's own `agentId`, matching `onOpenChat`'s own shape.
  */
@@ -59,7 +59,7 @@ fun AgentDetailRoute(
     onDuplicate = { viewModel.duplicate(onReady = onNavigateToBuilder) },
     onEdit = { onNavigateToBuilder(agentId) },
     onToggleEnabled = viewModel::toggleEnabled,
-    onArchive = viewModel::archive,
+    onArchive = { viewModel.archive(onDone = onNavigateBack) },
     onNavigateBack = onNavigateBack,
     onOpenPlan = onOpenPlan,
     onOpenPlanList = { onOpenPlanList(agentId) },

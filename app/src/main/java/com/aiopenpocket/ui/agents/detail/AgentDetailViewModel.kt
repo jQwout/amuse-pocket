@@ -495,13 +495,15 @@ class AgentDetailViewModel(
   }
 
   /** Archives the current (necessarily USER) agent — the row is kept, only the status changes. */
-  fun archive() {
+  fun archive(onDone: () -> Unit = {}) {
     val definition = _state.value.definition ?: return
     if (definition.source != AgentSource.USER) return
     viewModelScope.launch {
       try {
         userAgentRepository.archive(definition.id)
         reload()
+        // The agent is gone from every list: staying on its screen looked as if nothing happened.
+        onDone()
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
