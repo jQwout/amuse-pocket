@@ -2,9 +2,12 @@ package com.aiopenpocket.ui.call
 
 // @trace voice-call-mode-54cb49
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
+import com.aiopenpocket.agent.core.llm.ChatImages
 import com.aiopenpocket.agent.core.llm.ReasoningEffort
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator
@@ -29,6 +32,7 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -42,6 +46,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class CallUiState(
   val phase: CallPhase = CallPhase.LISTENING,
@@ -61,6 +66,10 @@ data class CallUiState(
   val micMuted: Boolean = false,
   /** What the voice is reading right now, for the running caption. */
   val caption: CallSpeaker.Caption? = null,
+  /** A photo taken or picked during the call; it goes with the next phrase, then is cleared. */
+  val photoPath: String? = null,
+  /** The photo is being copied and downscaled. */
+  val photoLoading: Boolean = false,
   val needsMicPermission: Boolean = false,
   val pendingApproval: ToolApprovalRequest? = null,
   val title: String? = null,
@@ -79,6 +88,7 @@ data class CallUiState(
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
 @ViewModelKey
 class CallViewModel(
+  private val context: Context,
   private val conversationRepository: ConversationRepository,
   private val turnManager: TurnManager,
   private val userPreferencesRepository: UserPreferencesRepository,
@@ -95,6 +105,8 @@ class CallViewModel(
   private var started = false
   private var ended = false
   private var micGranted = false
+  /** The camera or the gallery is open over the call: nobody is talking to it, so it does not listen. */
+  private var pickingPhoto = false
   /** The recognizer's and the voice's language, from Settings; null until read (no listening before it). */
   private var language: String? = null
 
@@ -196,6 +208,37 @@ class CallViewModel(
     say(reply)
   }
 
+  /** The camera or the gallery is about to open over the call. */
+  fun onPhotoPickerOpening() {
+    pickingPhoto = true
+    syncMic()
+  }
+
+  /**
+   * The camera or the gallery closed; [uri] is the photo, or null when the person backed out. The photo is
+   * copied and downscaled like a chat attachment (ChatImages) and goes with the next phrase.
+   */
+  fun onPhotoPicked(uri: Uri?) {
+    pickingPhoto = false
+    syncMic()
+    if (uri == null) return
+    _state.update { it.copy(photoLoading = true) }
+    viewModelScope.launch {
+      val path = withContext(Dispatchers.IO) { ChatImages.import(context, uri) }
+      _state.update {
+        it.copy(
+          photoLoading = false,
+          photoPath = path ?: it.photoPath,
+          notice = if (path == null) tr("Не получилось открыть это фото", "Couldn't open that photo") else it.notice,
+        )
+      }
+    }
+  }
+
+  fun removePhoto() {
+    _state.update { it.copy(photoPath = null) }
+  }
+
   fun resolveApproval(approved: Boolean) {
     val request = _state.value.pendingApproval ?: return
     toolApprovalCoordinator.resolve(request.runId, request.requestId, approved)
@@ -236,7 +279,7 @@ class CallViewModel(
 
   private fun micWanted(): Boolean =
     started && !ended && micGranted && language != null && !_state.value.micPaused && !_state.value.micMuted &&
-      loop.wantsMic
+      !pickingPhoto && loop.wantsMic
 
   /** Turns the microphone on or off to match the floor. Called after every change that can affect it. */
   private fun syncMic() {
@@ -320,7 +363,8 @@ class CallViewModel(
     feed = SentenceFeed()
     errorStreak = 0
     silentStarts = 0
-    _state.update { it.copy(said = text, heard = null, reply = "", activity = null, notice = null) }
+    val photo = _state.value.photoPath
+    _state.update { it.copy(said = text, heard = null, reply = "", activity = null, notice = null, photoPath = null) }
     update { it.userSaid() }
     sendJob?.cancel()
     sendJob = viewModelScope.launch {
@@ -334,7 +378,9 @@ class CallViewModel(
         awaitingReply = true
         turnSeen = false
         launchedAt = System.currentTimeMillis()
-        turnManager.launchTurn(id, text, AgentMode.CHAT, systemPromptExtra = CALL_PROMPT, effort = ReasoningEffort.LOW)
+        turnManager.launchTurn(
+          id, text, AgentMode.CHAT, systemPromptExtra = CALL_PROMPT, imagePath = photo, effort = ReasoningEffort.LOW,
+        )
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
