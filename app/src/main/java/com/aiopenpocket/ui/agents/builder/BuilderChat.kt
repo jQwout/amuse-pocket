@@ -15,6 +15,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -131,9 +133,19 @@ class BuilderChatHost(
 
 val LocalBuilderChatHost = staticCompositionLocalOf<BuilderChatHost?> { null }
 
-/** The passport pinned under the builder chat's header: one line folded, every row unfolded. */
+/**
+ * The passport pinned under the builder chat's header: one line folded, every row unfolded. Once the agent
+ * is published the chat can no longer change it (agent_draft refuses), so the bar says so and offers the
+ * two ways on: the agent's own chat, or the review screen to change it. Without them an old builder chat
+ * with an unanswered card was a dead end (owner, Pixel, 3 Nov 2026).
+ */
 @Composable
-fun BuilderPassportBar(draft: AgentDefinition?, modifier: Modifier = Modifier) {
+fun BuilderPassportBar(
+  draft: AgentDefinition?,
+  modifier: Modifier = Modifier,
+  onOpenAgentChat: (String) -> Unit = {},
+  onEdit: (String) -> Unit = {},
+) {
   var expanded by rememberSaveable { mutableStateOf(false) }
   val rows = draft?.let(AgentPassport::rows)
   val filled = rows?.count { it.filled } ?: 0
@@ -170,6 +182,25 @@ fun BuilderPassportBar(draft: AgentDefinition?, modifier: Modifier = Modifier) {
         contentDescription = if (expanded) tr("Свернуть паспорт", "Fold the passport") else tr("Развернуть паспорт", "Unfold the passport"),
         tint = MaterialTheme.colorScheme.onSurfaceVariant,
       )
+    }
+    if (draft != null && draft.status == AgentStatus.PUBLISHED) {
+      Text(
+        text = tr(
+          "Агент опубликован: из этого чата его уже не поменять.",
+          "The agent is published: this chat can't change it any more.",
+        ),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 4.dp),
+      )
+      Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+        Button(onClick = { onOpenAgentChat(draft.id) }, modifier = Modifier.weight(1f)) {
+          Text(tr("Открыть чат", "Open its chat"), maxLines = 1)
+        }
+        OutlinedButton(onClick = { onEdit(draft.id) }, modifier = Modifier.weight(1f)) {
+          Text(tr("Изменить", "Change it"), maxLines = 1)
+        }
+      }
     }
     if (expanded) {
       if (rows == null) {

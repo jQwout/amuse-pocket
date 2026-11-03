@@ -735,7 +735,11 @@ fun ChatScreen(
                             )
                         }
                         if (isBuilderChat && !searchActive) {
-                            BuilderPassportBar(draft = builderState.draft)
+                            BuilderPassportBar(
+                                draft = builderState.draft,
+                                onOpenAgentChat = { agentId -> agentsViewModel.openAgentChat(agentId, onOpenBuilderChat) },
+                                onEdit = onOpenAgentReview,
+                            )
                         }
                     }
                 }

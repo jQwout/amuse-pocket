@@ -145,7 +145,8 @@ class AgentDraftTool(
     // a published agent on its own screen.
     if (existing != null && existing.status != AgentStatus.DRAFT) {
       return ToolResult.Error(
-        "This agent is already published, so it can't be changed from the chat. Tell the person to edit it on the review screen.",
+        "This agent is already published, so it can't be changed from the chat. Tell the person in one sentence to use " +
+          "the buttons above the chat: 'Open its chat' to talk to the agent, 'Change it' to edit it. Ask nothing more.",
         recoverable = false,
       )
     }
@@ -222,7 +223,11 @@ class AgentDraftTool(
         "There is no draft yet. Call update with the name, description and instructions first.",
       )
     if (draft.status != AgentStatus.DRAFT) {
-      return ToolResult.Error("This agent is already published; the person can open it from the roster.", recoverable = false)
+      return ToolResult.Error(
+        "This agent is already published. Tell the person in one sentence to use the buttons above the chat: " +
+          "'Open its chat' to talk to the agent, 'Change it' to edit it. Ask nothing more.",
+        recoverable = false,
+      )
     }
     val issues = AgentValidator.validate(draft)
     if (issues.isNotEmpty()) {
