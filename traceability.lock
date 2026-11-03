@@ -38,8 +38,8 @@
       "git": "2464f21"
     },
     "cloud-forged-screens-40d702": {
-      "hash": "532466f5cdda",
-      "git": "9e511fb9"
+      "hash": "8edd011ad2b8",
+      "git": "ca77277b"
     },
     "desktop-genai-client-4c63b6": {
       "hash": "315eba16e382",
@@ -69,6 +69,14 @@
       "hash": "7b70a194a778",
       "git": "ec7af5d1"
     },
+    "market-ai-8f3b21": {
+      "hash": "76786fad4356",
+      "git": "ca77277b"
+    },
+    "market-translation-6c2e94": {
+      "hash": "bb0d308d824a",
+      "git": "ca77277b"
+    },
     "mcp-tools-f77d9b": {
       "hash": "662fae4b9388",
       "git": "ca62e3c0"
@@ -89,6 +97,10 @@
       "hash": "a3736033176a",
       "git": "ecb93193"
     },
+    "remote-config-2403cd": {
+      "hash": "68afe5db5e29",
+      "git": "ca77277b"
+    },
     "rezhim-refleksii-fca3c4": {
       "hash": "a984a0ec30c8",
       "git": "97ca7fba"
@@ -100,6 +112,14 @@
     "screen-text-check-7c6d09": {
       "hash": "c4c3af4e3ce1",
       "git": "ecb93193"
+    },
+    "skill-from-the-market-in-the-agent-builder-acd66a": {
+      "hash": "d77036d343b9",
+      "git": "aaaa1cd8"
+    },
+    "skill-market-5d1e7a": {
+      "hash": "87baf819d2d1",
+      "git": "ca77277b"
     },
     "smena-temy-svetlaya-temnaya-sistemnaya-palitra-lime-ink-paper-005bc6": {
       "hash": "04b2d9a608e8",
@@ -122,16 +142,16 @@
       "git": "c08de0e0"
     },
     "user-agent-builder-848153": {
-      "hash": "520ecbe83086",
-      "git": "9e511fb9"
+      "hash": "bd8aa5c8cc52",
+      "git": "24f8b494"
     },
     "video-na-vhod-v-uroke-muse-spark-08ccdb": {
       "hash": "8c9fa9a6843d",
       "git": "ec7af5d1"
     },
     "voice-assistant-mode-a81a99": {
-      "hash": "63e1ce7c43ad",
-      "git": "9e511fb9"
+      "hash": "7843c00a155f",
+      "git": "ca77277b"
     },
     "voice-input-1a0dfd": {
       "hash": "35632dd40e6a",

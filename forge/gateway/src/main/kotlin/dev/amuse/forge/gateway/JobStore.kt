@@ -57,6 +57,13 @@ data class Job(
     )
 }
 
+/** What an artifact upload came to; see [JobStore.attachArtifact]. */
+sealed interface AttachResult {
+    data class Done(val job: Job) : AttachResult
+    data class NotHeld(val job: Job) : AttachResult
+    data object NotFound : AttachResult
+}
+
 /**
  * The queue and the bundle store: a map guarded by one mutex, mirrored to `dataDir/jobs/<id>/`
  * (`job.json`, `bundle.ktx`, `source.kt`) so a restart of the gateway loses nothing. Small enough
@@ -181,9 +188,14 @@ class JobStore(
         updated
     }
 
-    /** The worker delivered: store the bytes and the source, mark DONE with a verifiable artifact. */
-    suspend fun attachArtifact(jobId: String, upload: WorkerArtifactUpload): Job? = mutex.withLock {
-        val job = jobs[jobId] ?: return@withLock null
+    /**
+     * The worker delivered: store the bytes and the source, mark DONE with a verifiable artifact.
+     * Only a job a worker holds (ACCEPTED or WORKING) takes an artifact: a queued job was never
+     * handed out, and a finished one keeps the bundle the app may already have verified.
+     */
+    suspend fun attachArtifact(jobId: String, upload: WorkerArtifactUpload): AttachResult = mutex.withLock {
+        val job = jobs[jobId] ?: return@withLock AttachResult.NotFound
+        if (job.status != JobStatus.ACCEPTED && job.status != JobStatus.WORKING) return@withLock AttachResult.NotHeld(job)
         val bytes = Base64.getDecoder().decode(upload.bundleBase64)
         val dir = jobDir(jobId).also { it.mkdirs() }
         File(dir, BUNDLE_FILE).writeBytes(bytes)
@@ -206,7 +218,7 @@ class JobStore(
         )
         jobs[jobId] = updated
         persist(updated)
-        updated
+        AttachResult.Done(updated)
     }
 
     suspend fun bundleBytes(jobId: String): ByteArray? = mutex.withLock {

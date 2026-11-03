@@ -111,6 +111,9 @@ fun AgentBuilderScreen(
    * "Back to chat" on the review screen is [onExit]: the route pops to wherever the review was opened from.
    */
   onEditStepByStep: (BuilderStep) -> Unit = {},
+  // @trace skill-from-the-market-in-the-agent-builder-acd66a
+  /** "Pick from the market" on the CAPABILITIES step; null hides it (previews, screenshot tests). The sheet is the route's. */
+  onPickFromMarket: (() -> Unit)? = null,
   modifier: Modifier = Modifier,
 ) {
   if (state.isLoading) {
@@ -194,6 +197,7 @@ fun AgentBuilderScreen(
             onOpenSettings = onOpenSettings,
             contentPadding = PaddingValues(top = topPad, bottom = bottomPad),
             onSetCustomUi = onSetCustomUi,
+            onPickFromMarket = onPickFromMarket,
           )
         }
       }
@@ -311,6 +315,7 @@ private fun BuilderStepContent(
   onOpenSettings: (() -> Unit)?,
   contentPadding: PaddingValues,
   onSetCustomUi: (Boolean) -> Unit = {},
+  onPickFromMarket: (() -> Unit)? = null,
 ) {
   // Validation "on the button": a step's inline errors are shown only after "Next" has run into them
   // (see AgentBuilderUiState.showErrors). Otherwise a fresh draft greeted the user with red lines under
@@ -345,6 +350,7 @@ private fun BuilderStepContent(
       availableSkillIds = availableSkillIds,
       onUpdateDraft = onUpdateDraft,
       modifier = Modifier.fillMaxSize(),
+      onPickFromMarket = onPickFromMarket,
       contentPadding = contentPadding,
     )
 

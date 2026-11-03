@@ -61,6 +61,8 @@ fun CapabilitiesStep(
   availableSkillIds: Set<String>,
   onUpdateDraft: ((AgentDraft) -> AgentDraft) -> Unit,
   modifier: Modifier = Modifier,
+  /** Opens the market's skill picker (`MarketSkillPickerSheet`, hosted by the route); null hides the button. */
+  onPickFromMarket: (() -> Unit)? = null,
   /**
    * Paddings for the wizard's floating glass islands (their heights are measured in AgentBuilderScreen).
    * Applied AFTER verticalScroll — then the content scrolls UNDER the glass and there is something for
@@ -94,6 +96,7 @@ fun CapabilitiesStep(
       errors = errors,
       availableSkillIds = availableSkillIds,
       onUpdateDraft = onUpdateDraft,
+      onPickFromMarket = onPickFromMarket,
     )
     Spacer(modifier = Modifier.height(24.dp))
   }
@@ -190,6 +193,7 @@ internal fun CapabilitiesExtras(
   errors: List<ValidationIssue>,
   availableSkillIds: Set<String>,
   onUpdateDraft: ((AgentDraft) -> AgentDraft) -> Unit,
+  onPickFromMarket: (() -> Unit)? = null,
 ) {
   Column {
     Text(text = tr("Навыки", "Skills"), style = MaterialTheme.typography.titleMedium)
@@ -218,6 +222,16 @@ internal fun CapabilitiesExtras(
       },
     )
 
+    // @trace skill-from-the-market-in-the-agent-builder-acd66a
+    // A shared skill from the market lands in the draft the same way a hand-typed one does (whole, with
+    // its body), so everything downstream (autosave, validator, publish) treats the two alike.
+    if (onPickFromMarket != null) {
+      Spacer(modifier = Modifier.height(8.dp))
+      TextButton(onClick = onPickFromMarket, modifier = Modifier.testTag("agent_builder_pick_from_market")) {
+        Text(tr("Выбрать из маркета", "Pick from the market"))
+      }
+    }
+
     Spacer(modifier = Modifier.height(8.dp))
     CustomSkillEditor(
       existingIds = availableSkillIds + draft.skillIds,
@@ -237,37 +251,60 @@ internal fun CapabilitiesExtras(
       onToggleSharedProfile = { checked -> onUpdateDraft { it.copy(includeSharedProfile = checked) } },
     )
 
-    Spacer(modifier = Modifier.height(20.dp))
-    Text(text = tr("Шаблоны карточек", "Card templates"), style = MaterialTheme.typography.titleMedium)
-    Spacer(modifier = Modifier.height(4.dp))
-    Text(
-      text = tr("Какие карточки агент может показывать в чате.", "Which cards the agent can show in the chat."),
-      style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    Spacer(modifier = Modifier.height(8.dp))
-    ErrorText(errors, "allowedWidgetTemplates")
-    // The Academy lesson templates (quiz, gap, matching…) are drawn by the lesson itself, bypassing
-    // render_card — an ordinary agent does not need them, and they have no place in the choice. One
-    // already ticked (e.g. on a copy) stays visible, or it could not be unticked.
-    // Retired ones ("Weather", "Switch") are no longer accepted by render_card — offering them would mean
-    // a choice that turns into an error in the chat.
-    val offeredTemplates = AgentValidator.KNOWN_WIDGET_TEMPLATES
-      .filter { (it !in LESSON_CARD_TEMPLATES && it !in RETIRED_CARD_TEMPLATES) || it in draft.allowedWidgetTemplates }
-      .sortedBy(::widgetTemplateLabel)
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-      offeredTemplates.forEach { template ->
-        val selected = template in draft.allowedWidgetTemplates
-        FilterChip(
-          selected = selected,
-          onClick = {
-            onUpdateDraft { d ->
-              d.copy(allowedWidgetTemplates = if (selected) d.allowedWidgetTemplates - template else d.allowedWidgetTemplates + template)
-            }
-          },
-          label = { Text(widgetTemplateLabel(template)) },
-        )
-      }
+    Spacer(modifier = Modifier.height(12.dp))
+    CardTemplatesExpander(draft = draft, errors = errors, onUpdateDraft = onUpdateDraft)
+  }
+}
+
+/**
+ * Which `render_card` templates the agent may draw in the chat. Folded by default: a new draft already
+ * carries the general set, so the choice is fine-tuning, not a step a person has to take — twenty-one chips
+ * (owner, 3 Nov 2026: "not key") buried the skills and memory above them. An error on the field unfolds it,
+ * or Publish would be blocked with nothing on screen to fix.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CardTemplatesExpander(
+  draft: AgentDraft,
+  errors: List<ValidationIssue>,
+  onUpdateDraft: ((AgentDraft) -> AgentDraft) -> Unit,
+) {
+  var expanded by remember { mutableStateOf(false) }
+  val hasError = errors.any { it.field == "allowedWidgetTemplates" }
+  val open = expanded || hasError
+  ExpanderHeader(
+    title = tr("Шаблоны карточек", "Card templates"),
+    expanded = open,
+    onClick = { expanded = !expanded },
+  )
+  if (!open) return
+  Text(
+    text = tr("Какие карточки агент может показывать в чате.", "Which cards the agent can show in the chat."),
+    style = MaterialTheme.typography.bodySmall,
+    color = MaterialTheme.colorScheme.onSurfaceVariant,
+  )
+  Spacer(modifier = Modifier.height(8.dp))
+  ErrorText(errors, "allowedWidgetTemplates")
+  // The Academy lesson templates (quiz, gap, matching…) are drawn by the lesson itself, bypassing
+  // render_card — an ordinary agent does not need them, and they have no place in the choice. One
+  // already ticked (e.g. on a copy) stays visible, or it could not be unticked.
+  // Retired ones ("Weather", "Switch") are no longer accepted by render_card — offering them would mean
+  // a choice that turns into an error in the chat.
+  val offeredTemplates = AgentValidator.KNOWN_WIDGET_TEMPLATES
+    .filter { (it !in LESSON_CARD_TEMPLATES && it !in RETIRED_CARD_TEMPLATES) || it in draft.allowedWidgetTemplates }
+    .sortedBy(::widgetTemplateLabel)
+  FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    offeredTemplates.forEach { template ->
+      val selected = template in draft.allowedWidgetTemplates
+      FilterChip(
+        selected = selected,
+        onClick = {
+          onUpdateDraft { d ->
+            d.copy(allowedWidgetTemplates = if (selected) d.allowedWidgetTemplates - template else d.allowedWidgetTemplates + template)
+          }
+        },
+        label = { Text(widgetTemplateLabel(template)) },
+      )
     }
   }
 }
