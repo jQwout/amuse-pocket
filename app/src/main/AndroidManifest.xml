@@ -59,6 +59,16 @@
             </intent-filter>
         </activity>
 
+        <!-- The assistant button opens this over the current app (AssistSession starts it). -->
+        <activity
+            android:name="com.aiopenpocket.ui.assistant.AssistantActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/Theme.MyApplication.Assistant"
+            android:windowSoftInputMode="adjustResize" />
+
         <!-- The camera writes the lesson clip into our cacheDir (not the gallery) — it needs a content URI for the file. -->
         <provider
             android:name="androidx.core.content.FileProvider"
