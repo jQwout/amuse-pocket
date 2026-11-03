@@ -9,6 +9,7 @@ package com.aiopenpocket.agent.loop
 import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.agent.core.AgentLog
 import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.llm.ReasoningEffort
 import com.aiopenpocket.agent.core.llm.missingKeyMessage
 import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
 import com.aiopenpocket.agent.core.policy.ExecutionMode
@@ -132,11 +133,13 @@ class TurnManager(
     budget: PlanRunBudget = PlanRunBudget(),
     systemPromptExtra: String? = null,
     executionMode: ExecutionMode = ExecutionMode.LIVE,
+    // Not kept for "Retry": a retried turn runs at its mode's level, which is never worse, only slower.
+    effort: ReasoningEffort? = null,
   ) {
     scope.launch {
       startTurn(
         conversationId, userText, mode, planId, budget,
-        persistUserMessage = true, systemPromptExtra = systemPromptExtra, executionMode = executionMode,
+        persistUserMessage = true, systemPromptExtra = systemPromptExtra, executionMode = executionMode, effort = effort,
       )
     }
   }
@@ -278,6 +281,7 @@ class TurnManager(
     persistUserMessage: Boolean,
     systemPromptExtra: String? = null,
     executionMode: ExecutionMode = ExecutionMode.LIVE,
+    effort: ReasoningEffort? = null,
   ) {
     // Acquired BEFORE the mutex: acquire calls into Android (starts a service), and there is no reason
     // to hold the manager's mutex over it — the mutex only serializes job swaps. A refusal by the
@@ -298,7 +302,7 @@ class TurnManager(
       session.job = scope.launch {
         try {
           previous.joinAll()
-          runTurn(session, userText, mode, planId, budget, persistUserMessage, systemPromptExtra, executionMode)
+          runTurn(session, userText, mode, planId, budget, persistUserMessage, systemPromptExtra, executionMode, effort)
         } finally {
           // finally, not the tail of runTurn: a cancellation (Stop, a new turn) must release the protection
           // too, or the service with its notification would outlive the turn it was started for.
@@ -361,6 +365,7 @@ class TurnManager(
     persistUserMessage: Boolean,
     systemPromptExtra: String? = null,
     executionMode: ExecutionMode = ExecutionMode.LIVE,
+    effort: ReasoningEffort? = null,
   ) {
     val convId = session.conversationId
     resetStreaming(session)
@@ -395,7 +400,7 @@ class TurnManager(
         finishFailed(session, missingKeyMessage(), needsKey = true)
         return
       }
-      collectTurnEvents(session, userText, mode, planId, budget, systemPromptExtra, executionMode)
+      collectTurnEvents(session, userText, mode, planId, budget, systemPromptExtra, executionMode, effort)
     } catch (e: CancellationException) {
       // Stop / a new turn: cancellation is the normal path.
       throw e
@@ -415,10 +420,13 @@ class TurnManager(
     budget: PlanRunBudget,
     systemPromptExtra: String? = null,
     executionMode: ExecutionMode = ExecutionMode.LIVE,
+    effort: ReasoningEffort? = null,
   ) {
     // The provider comes from Settings on every turn. There used to be a hard-wired NIM here marked
     // "remove later" — keeping it would have made the provider choice a control without effect.
-    val flow = executor.execute(session.conversationId, userText, selectedProvider(), mode, planId, budget, systemPromptExtra, executionMode)
+    val flow = executor.execute(
+      session.conversationId, userText, selectedProvider(), mode, planId, budget, systemPromptExtra, executionMode, effort,
+    )
     flow.collect { event ->
       when (event) {
         is AgentEvent.TextDelta ->

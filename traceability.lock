@@ -10,8 +10,8 @@
       "git": "21fba91e"
     },
     "agent-router-dc2233": {
-      "hash": "674afe3bebe9",
-      "git": "9e511fb9"
+      "hash": "8bb6312029e7",
+      "git": "645e16c4"
     },
     "agent-skills-7189cc": {
       "hash": "e3296460a332",
@@ -26,8 +26,8 @@
       "git": "22c86347"
     },
     "approval-outcome-honesty-554a8c": {
-      "hash": "7af7f7200c6f",
-      "git": "031a0c83"
+      "hash": "7ee1d020b205",
+      "git": "645e16c4"
     },
     "background-tasks-15a34a": {
       "hash": "589f7d11a82a",
@@ -54,8 +54,8 @@
       "git": "c04aad79"
     },
     "fonovye-hody-agenta-dde42d": {
-      "hash": "69922cdba3ff",
-      "git": "031a0c83"
+      "hash": "56cb73157eb3",
+      "git": "645e16c4"
     },
     "glass-design-system-21a3fe": {
       "hash": "e31d2fa036cc",
@@ -110,8 +110,8 @@
       "git": "9e511fb9"
     },
     "structured-plan-engine-907066": {
-      "hash": "9e71a7d467d3",
-      "git": "9e511fb9"
+      "hash": "8c47f141a83d",
+      "git": "645e16c4"
     },
     "swappable-persona-e5e65e": {
       "hash": "11aaa5d19303",
@@ -130,8 +130,12 @@
       "git": "ec7af5d1"
     },
     "voice-assistant-mode-a81a99": {
-      "hash": "63e1ce7c43ad",
-      "git": "9e511fb9"
+      "hash": "71c48180f609",
+      "git": "645e16c4"
+    },
+    "voice-call-mode-54cb49": {
+      "hash": "c78c45c1c0ff",
+      "git": "645e16c4"
     },
     "voice-input-1a0dfd": {
       "hash": "35632dd40e6a",

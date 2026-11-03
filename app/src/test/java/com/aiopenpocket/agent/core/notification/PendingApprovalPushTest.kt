@@ -9,6 +9,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.aiopenpocket.agent.core.AgentLog
 import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.llm.ReasoningEffort
 import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
 import com.aiopenpocket.agent.core.policy.ExecutionMode
@@ -79,6 +80,7 @@ class PendingApprovalPushTest {
       budget: PlanRunBudget,
       systemPromptExtra: String?,
       executionMode: ExecutionMode,
+      effort: ReasoningEffort?,
     ): Flow<AgentEvent> = flow {
       emit(AgentEvent.ToolApprovalRequired(request))
       awaitCancellation()

@@ -39,8 +39,14 @@ object TurnTexts {
    */
   val TOOL_PROGRESS: String get() = tr("Использую инструмент…", "Using a tool…")
 
+  private val TOOL_PROGRESS_PREFIX: String get() = tr("Использую инструмент: ", "Using a tool: ")
+
   fun toolProgress(toolName: String, arguments: Map<String, JsonElement> = emptyMap()): String =
-    tr("Использую инструмент: ", "Using a tool: ") + "${CapabilityNames.call(toolName, arguments)}…"
+    TOOL_PROGRESS_PREFIX + "${CapabilityNames.call(toolName, arguments)}…"
+
+  /** Whether the stream shows one of the progress lines above rather than the model's own words (a call must not read it aloud). */
+  fun isToolProgress(streamText: String): Boolean =
+    streamText == TOOL_PROGRESS || streamText.startsWith(TOOL_PROGRESS_PREFIX)
 
   /** The turn failed for a reason other than the model (a DB write, an unexpected exception): details go to the log. */
   val TURN_FAILED: String get() = tr("Что-то пошло не так — попробуй ещё раз.", "Something went wrong — try again.")
