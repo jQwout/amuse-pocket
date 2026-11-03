@@ -13,6 +13,7 @@ import com.aiopenpocket.agent.tools.FileTools
 import com.aiopenpocket.agent.tools.HeartbeatTool
 import com.aiopenpocket.agent.tools.MemoryTools
 import com.aiopenpocket.agent.tools.NotificationsTool
+import com.aiopenpocket.agent.tools.PhotoOutlineTool
 import com.aiopenpocket.agent.tools.RenderCardTool
 import com.aiopenpocket.agent.tools.SrsTool
 import com.aiopenpocket.agent.tools.StepCounterTool
@@ -89,6 +90,11 @@ object AgentToolsModule {
   @Provides
   @IntoSet
   fun provideWebSearchTool(tool: WebSearchTool): Tool = tool
+
+  // Same as web_search: a plain chat has it, a user's agent only if its author picked it.
+  @Provides
+  @IntoSet
+  fun providePhotoOutlineTool(tool: PhotoOutlineTool): Tool = tool
 
   // Registered like every tool, but only the hidden Builder agent has it in its toolNames, and the tool
   // itself refuses any other agent (see AgentDraftTool.execute).

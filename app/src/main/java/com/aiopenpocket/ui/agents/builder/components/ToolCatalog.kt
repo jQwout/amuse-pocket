@@ -192,6 +192,14 @@ object ToolCatalog {
       consequenceRu = "Ищет в интернете свежие факты: текст запроса уходит в Meta. Каждый поиск стоит денег (около четверти цента плюс токены).",
       consequenceEn = "Searches the web for fresh facts: the query text is sent to Meta. Each search costs money (about a quarter of a cent plus tokens).",
     ),
+    // @trace photo-outline-tool-8dec5b
+    ToolCatalogEntry(
+      name = "outline_photo",
+      riskClass = RiskClass.READ,
+      permission = null,
+      consequenceRu = "Обводит рамками на фото из чата то, что назовёт агент (модель SAM 3.1): фото уходит в Meta. Каждое обведение стоит четверть цента.",
+      consequenceEn = "Draws boxes on the chat photo around what the agent names (the SAM 3.1 model): the photo is sent to Meta. Each outline costs a quarter of a cent.",
+    ),
     ToolCatalogEntry(
       name = "load_skill",
       riskClass = RiskClass.READ,

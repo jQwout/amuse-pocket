@@ -24,6 +24,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.intOrNull
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 
 /**
  * Drives the steps of a JSON lesson as a STRICT contract right in the chat: code decides the order of
@@ -96,7 +97,7 @@ class LessonChatController(
       conversationId,
       "assistant",
       "",
-      cardSpec = buildSegmentResultCardSpec(found, photo),
+      cardSpec = buildSegmentResultCardSpec(found, photo.file, photo.width, photo.height),
     )
     return null
   }
@@ -284,34 +285,6 @@ class LessonChatController(
     return JSONObject().put("template", "lesson_segment").put("params", params).toString()
   }
 
-  /**
-   * The result card: the photo that was sent, in the grid SAM answered in, and a box per match. Each box
-   * keeps the `w`/`h` the model reported — the drawing scales by those, not by what we believe we sent.
-   *
-   * Masks are NOT stored here: a raw payload is tens of kilobytes per object, and what to do with masks
-   * is stage 2. At most [MAX_RESULT_BOXES] boxes are kept; `total` still says how many there were.
-   */
-  private fun buildSegmentResultCardSpec(found: SegmentationResult.Success, photo: PreparedPhoto): String {
-    val boxes = JSONArray()
-    found.records.take(MAX_RESULT_BOXES).forEach { record ->
-      val box = record.box
-      val json = JSONObject()
-        .put("id", record.id)
-        .put("x1", box.x1).put("y1", box.y1).put("x2", box.x2).put("y2", box.y2)
-        .put("w", box.width).put("h", box.height)
-      box.confidence?.let { json.put("c", it) }
-      boxes.put(json)
-    }
-    val params = JSONObject()
-      .put("image_url", Uri.fromFile(photo.file).toString())
-      .put("image_w", photo.width)
-      .put("image_h", photo.height)
-      .put("concept", found.concept)
-      .put("total", found.records.size)
-      .put("boxes", boxes)
-    return JSONObject().put("template", "lesson_segment_result").put("params", params).toString()
-  }
-
   // imageKey is the short form: lessons/images/{key}.svg. An explicit asset takes priority.
   private fun LessonStep.bundledImageAsset(): String =
     asset.ifBlank { imageKey.takeIf { it.isNotBlank() }?.let { "lessons/images/$it.svg" } ?: "" }
@@ -397,8 +370,38 @@ class LessonChatController(
 
   private companion object {
     const val STEP_IMAGE_WAIT_MS = 20_000L
-
-    /** A crowd photo can return hundreds of objects; a card with that many frames is unreadable. */
-    const val MAX_RESULT_BOXES = 50
   }
+}
+
+/** A crowd photo can return hundreds of objects; a card with that many frames is unreadable. */
+private const val MAX_RESULT_BOXES = 50
+
+/**
+ * The result card: the photo that was sent ([photo], [width] x [height] — the grid SAM answered in), and a
+ * box per match. Each box keeps the `w`/`h` the model reported — the drawing scales by those, not by what we
+ * believe we sent. Shared by the lesson's "segment" step and the agents' `outline_photo` tool.
+ *
+ * Masks are NOT stored here: a raw payload is tens of kilobytes per object, and what to do with masks
+ * is stage 2. At most [MAX_RESULT_BOXES] boxes are kept; `total` still says how many there were.
+ */
+// @trace photo-outline-tool-8dec5b
+internal fun buildSegmentResultCardSpec(found: SegmentationResult.Success, photo: File, width: Int, height: Int): String {
+  val boxes = JSONArray()
+  found.records.take(MAX_RESULT_BOXES).forEach { record ->
+    val box = record.box
+    val json = JSONObject()
+      .put("id", record.id)
+      .put("x1", box.x1).put("y1", box.y1).put("x2", box.x2).put("y2", box.y2)
+      .put("w", box.width).put("h", box.height)
+    box.confidence?.let { json.put("c", it) }
+    boxes.put(json)
+  }
+  val params = JSONObject()
+    .put("image_url", Uri.fromFile(photo).toString())
+    .put("image_w", width)
+    .put("image_h", height)
+    .put("concept", found.concept)
+    .put("total", found.records.size)
+    .put("boxes", boxes)
+  return JSONObject().put("template", "lesson_segment_result").put("params", params).toString()
 }
