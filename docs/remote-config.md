@@ -39,7 +39,7 @@ curl -X PUT https://amuse-forge.fly.dev/v1/admin/config \
   ],
   "features": { "market": true, "forge": true, "web_search": true },
   "notice": { "id": "judging-2026", "level": "info",
-              "text": { "en": "Thanks for trying AI Open Pocket!", "ru": "Спасибо, что попробовали!" } }
+              "text": { "en": "Thanks for trying AI Open Pocket!", "ru": "<the same, in Russian>" } }
 }
 ```
 

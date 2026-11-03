@@ -339,38 +339,39 @@ interface on the demo path with three lessons translated.
 **During (Oct 27 – Nov 4).**
 
 - **Meta Model API only.** OpenRouter and every bundled key are gone. Chat, Muse Image and video input
-  all go to `api.meta.ai` on the key the person enters (`795af599`, `dddbcdd6`).
+  all go to `api.meta.ai` on the key the person enters (`95368fd7`, `e5e760f4`).
 - **SAM 3.1** in "How a model sees": name a thing in a photo and SAM outlines every instance of it
-  (`8a7b4343`).
+  (`ebf5cb5d`).
 - **The Builder chat.** Describe the agent in a chat with a hidden Builder agent on Muse Spark, then
-  review every field on one screen (`0eeb08d3`, `3a9884cd`).
+  review every field on one screen (`f651ae72`, `d16accc0`).
 - **Meta's agent guidance.** Everything under "Following Meta's agent guidance" above: prompt order for
   the prefix cache, reasoning effort per mode, an answer at the step limit, errors the model can act on,
-  the prompting checklist, Wonder or Spark per agent, capped self-wakeups (`3325046f`..`26565af2`).
-- **Web search** through Meta's hosted `web_search` tool, always with sources (`cf9588b9`).
+  the prompting checklist, Wonder or Spark per agent, capped self-wakeups (`cf749c45`..`1901653d`).
+- **Web search** through Meta's hosted `web_search` tool, always with sources (`80ba8d30`).
 - **Voice assistant.** The app can be the phone's assistant: the assist button opens a chat that is
-  already listening, sends what was said, and reads the reply aloud (`8c91a07b`).
+  already listening, sends what was said, and reads the reply aloud (`58a9b17f`).
 - **The agent router.** The home chat and the voice assistant hand each message to the right agent
-  (`9e511fb9`).
+  (`90dd818a`).
 - **Screens from the cloud.** A coding agent on Muse Spark writes an agent its own screen, delivered
-  as a signed Ketoy bundle (`2786546c`, merged in `a9a07336`).
-- **The whole course in English**: 31 lessons and their scenes, up from 3 (`59cd9b70`..`86f89103`).
-  Every lesson on the Path now opens in any order (`c08de0e0`).
-- **Profile**: the person's own data and what the assistant remembers about them (`683f3f41`).
+  as a signed Ketoy bundle (`f9cff965`, merged in `42ff285a`).
+- **The whole course in English**: 31 lessons and their scenes, up from 3 (`c3192b51`..`391c5eff`).
+  Every lesson on the Path now opens in any order (`2b4aad50`).
+- **Profile**: the person's own data and what the assistant remembers about them (`8b2bd280`).
 - **Fixes from device runs on Android 9 and 14**, among them: a request that expired unseen in the
-  background is no longer reported as declined (`56916ad3`), and Allow approves exactly what was shown
-  (`9c00a0e5`).
-- **The orchestrator** in `orchestrator/` and the one check command `tools/check.py`.
+  background is no longer reported as declined (`1f0305a7`), and Allow approves exactly what was shown
+  (`2de101bf`).
+- **The orchestrator** and the one check command `tools/check.py`.
 
 ## How it was built
 
-`orchestrator/` holds the working notes of the agent that coordinated the work: the acceptance criteria
-(`CRITERIA.md`), the roadmap, and a journal of every cycle, including what was checked on a device and
-what was not. `python tools/check.py` grades the project against those criteria in one command.
+A coordinating agent ran the work in short cycles. It split the roadmap into tasks of one to three
+hours, gave each to an implementer agent in its own git worktree, had an independent verifier try to
+fail the result, and merged only what passed. `python tools/check.py` grades the project against the
+acceptance criteria in one command, and `traxer check` keeps every feature in `traceability.yaml` tied
+to its code. The coordinator's working notes are kept out of this repository.
 
-Before publication the history was rewritten once to drop an old build artifact. Commit hashes quoted
-inside `orchestrator/` refer to the earlier private history; `orchestrator/COMMIT_MAP.txt` maps each of
-them to its commit here.
+The history was rewritten before publication and once more on Nov 3, 2026, to drop those notes.
+Commit dates are unchanged.
 
 ## License
 

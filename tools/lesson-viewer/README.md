@@ -10,7 +10,7 @@ Another lessons directory:
 
     ./gradlew -p tools/lesson-viewer run -Dlessons.dir=<path>
 
-Edit a lesson's JSON → the «Перечитать» (reload) button in the window. No rebuild needed.
+Edit a lesson's JSON → the Reload button in the window. No rebuild needed.
 
 ## What it shows
 
@@ -44,6 +44,3 @@ Tests:
 - `LessonAnswersTest` — parsing of the correct answers, including broken keys
 - `LessonImagesLoadTest` — all lesson images exist and parse
 - `RoadmapOrderTest` — the lesson order matches `ROADMAP_LEVELS` in the app
-
-Design: `docs/superpowers/specs/2026-07-25-lesson-viewer-design.md`
-Plan: `docs/superpowers/plans/2026-07-25-lesson-viewer.md`
