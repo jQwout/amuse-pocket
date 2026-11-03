@@ -19,6 +19,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,8 +35,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalContentColor
@@ -56,7 +59,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -65,6 +72,7 @@ import com.aiopenpocket.ui.chat.components.ToolApprovalBar
 import com.aiopenpocket.ui.components.glass.GlassCard
 import com.aiopenpocket.ui.components.glass.auroraBackground
 import com.aiopenpocket.voice.call.CallPhase
+import com.aiopenpocket.voice.call.CallSpeaker
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 /**
@@ -132,10 +140,12 @@ fun CallScreen(
         )
 
         Spacer(Modifier.weight(0.6f))
-        VoiceOrb(phase = state.phase, paused = state.micPaused || state.needsMicPermission)
-        Spacer(Modifier.weight(0.4f))
+        VoiceOrb(phase = state.phase, paused = state.micPaused || state.micMuted || state.needsMicPermission)
+        Spacer(Modifier.weight(0.2f))
+        RunningCaption(caption = state.caption.takeIf { state.phase == CallPhase.SPEAKING })
+        Spacer(Modifier.weight(0.2f))
 
-        CallTranscript(state)
+        CallTranscript(state, onReplay = viewModel::replay)
 
         state.activity?.let {
           Text(
@@ -172,18 +182,41 @@ fun CallScreen(
         }
 
         Spacer(Modifier.height(24.dp))
-        FilledIconButton(
-          onClick = hangUp,
-          modifier = Modifier.size(72.dp).testTag("call_hang_up"),
-          colors = IconButtonDefaults.filledIconButtonColors(containerColor = HANG_UP_RED, contentColor = Color.White),
-        ) {
-          Icon(Icons.Default.CallEnd, contentDescription = tr("Завершить звонок", "Hang up"), modifier = Modifier.size(32.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(32.dp), verticalAlignment = Alignment.CenterVertically) {
+          FilledTonalIconButton(
+            onClick = viewModel::toggleMute,
+            modifier = Modifier.size(56.dp).testTag("call_mute"),
+          ) {
+            Icon(
+              imageVector = if (state.micMuted) Icons.Default.MicOff else Icons.Default.Mic,
+              contentDescription = if (state.micMuted) {
+                tr("Включить микрофон", "Unmute the microphone")
+              } else {
+                tr("Выключить микрофон", "Mute the microphone")
+              },
+            )
+          }
+          FilledIconButton(
+            onClick = hangUp,
+            modifier = Modifier.size(72.dp).testTag("call_hang_up"),
+            colors = IconButtonDefaults.filledIconButtonColors(containerColor = HANG_UP_RED, contentColor = Color.White),
+          ) {
+            Icon(Icons.Default.CallEnd, contentDescription = tr("Завершить звонок", "Hang up"), modifier = Modifier.size(32.dp))
+          }
+          FilledTonalIconButton(
+            onClick = viewModel::replay,
+            enabled = state.reply.isNotBlank(),
+            modifier = Modifier.size(56.dp).testTag("call_replay"),
+          ) {
+            Icon(Icons.Default.Replay, contentDescription = tr("Повторить ответ", "Say the reply again"))
+          }
         }
         Text(
-          text = if (state.phase == CallPhase.SPEAKING || state.phase == CallPhase.THINKING) {
-            tr("Коснись экрана, чтобы перебить", "Tap the screen to interrupt")
-          } else {
-            " "
+          text = when {
+            state.phase == CallPhase.SPEAKING || state.phase == CallPhase.THINKING ->
+              tr("Коснись экрана, чтобы перебить", "Tap the screen to interrupt")
+            state.reply.isNotBlank() -> tr("Коснись ответа, чтобы послушать ещё раз", "Tap the reply to hear it again")
+            else -> " "
           },
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -196,6 +229,7 @@ fun CallScreen(
 
 private fun phaseLabel(state: CallUiState): String = when {
   state.needsMicPermission -> tr("Нет доступа к микрофону", "No microphone access")
+  state.micMuted && state.phase == CallPhase.LISTENING -> tr("Микрофон выключен", "Microphone muted")
   state.micPaused -> tr("На паузе", "Paused")
   else -> when (state.phase) {
     CallPhase.LISTENING -> tr("Слушаю…", "Listening…")
@@ -205,9 +239,39 @@ private fun phaseLabel(state: CallUiState): String = when {
   }
 }
 
-/** The person's words while they speak; otherwise their last phrase and the agent's reply under it. */
+/**
+ * The running caption: the piece the voice is reading, with the words already said in full colour and
+ * the rest dimmed, word by word as the engine reports them. An engine that reports no word ranges gets
+ * the whole piece in full colour. Nothing (but the same height) while the voice is quiet, so the screen
+ * does not jump.
+ */
 @Composable
-private fun CallTranscript(state: CallUiState) {
+private fun RunningCaption(caption: CallSpeaker.Caption?) {
+  val color = MaterialTheme.colorScheme.onBackground
+  val text = caption?.let {
+    buildAnnotatedString {
+      val said = if (it.spokenTo == CallSpeaker.Caption.UNKNOWN) it.text.length else it.spokenTo
+      withStyle(SpanStyle(color = color)) { append(it.text.take(said)) }
+      withStyle(SpanStyle(color = color.copy(alpha = 0.4f))) { append(it.text.drop(said)) }
+    }
+  } ?: AnnotatedString("")
+  Text(
+    text = text,
+    style = MaterialTheme.typography.titleLarge,
+    textAlign = TextAlign.Center,
+    minLines = 3,
+    maxLines = 3,
+    overflow = TextOverflow.Ellipsis,
+    modifier = Modifier.fillMaxWidth().testTag("call_caption"),
+  )
+}
+
+/**
+ * The person's words while they speak; otherwise their last phrase and the agent's reply under it. A tap
+ * on the reply reads it again ([onReplay]).
+ */
+@Composable
+private fun CallTranscript(state: CallUiState, onReplay: () -> Unit) {
   GlassCard(modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp, max = 260.dp)) {
     Column(
       modifier = Modifier
@@ -217,7 +281,7 @@ private fun CallTranscript(state: CallUiState) {
     ) {
       val heard = state.heard
       // "Listening" only when the microphone really is on: under "No microphone access" it contradicted the label.
-      val micOff = state.micPaused || state.needsMicPermission
+      val micOff = state.micPaused || state.micMuted || state.needsMicPermission
       when {
         state.phase == CallPhase.LISTENING && !heard.isNullOrBlank() ->
           Text(heard, style = MaterialTheme.typography.titleMedium, modifier = Modifier.testTag("call_heard"))
@@ -238,7 +302,11 @@ private fun CallTranscript(state: CallUiState) {
             )
           }
           if (state.reply.isNotBlank()) {
-            Text(state.reply, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.testTag("call_reply"))
+            Text(
+              state.reply,
+              style = MaterialTheme.typography.bodyLarge,
+              modifier = Modifier.clickable(onClick = onReplay).testTag("call_reply"),
+            )
           }
         }
       }

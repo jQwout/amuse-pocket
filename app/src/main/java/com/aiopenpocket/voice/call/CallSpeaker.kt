@@ -35,6 +35,27 @@ class CallSpeaker(
   /** True while anything is queued or being read. Set at once by [say] and [stop], on the main thread. */
   val speaking: StateFlow<Boolean> = _speaking.asStateFlow()
 
+  private val _caption = MutableStateFlow<Caption?>(null)
+
+  /**
+   * The piece being read right now and how far into it the voice is: the call screen's running caption.
+   * Kept after the voice goes quiet (the screen shows it only while [speaking]); [stop] clears it.
+   */
+  val caption: StateFlow<Caption?> = _caption.asStateFlow()
+
+  /**
+   * [spokenTo] is the end of the word being read, as the engine reports it (`onRangeStart`), or
+   * [UNKNOWN] when the engine reports no word ranges: then the whole piece is shown as said.
+   */
+  data class Caption(val text: String, val spokenTo: Int = UNKNOWN) {
+    companion object {
+      const val UNKNOWN = -1
+    }
+  }
+
+  /** The text of every utterance handed to the engine and not finished yet, by id. Main thread only. */
+  private val chunkTexts = HashMap<String, String>()
+
   private val mainHandler = Handler(Looper.getMainLooper())
   private var tts: TextToSpeech? = null
   private var ready = false
@@ -82,8 +103,10 @@ class CallSpeaker(
     runOnMain {
       waiting.clear()
       inFlight.clear()
+      chunkTexts.clear()
       tts?.stop()
       _speaking.value = false
+      _caption.value = null
     }
   }
 
@@ -91,6 +114,7 @@ class CallSpeaker(
     runOnMain {
       waiting.clear()
       inFlight.clear()
+      chunkTexts.clear()
       tts?.stop()
       tts?.shutdown()
       tts = null
@@ -149,7 +173,11 @@ class CallSpeaker(
     for (chunk in speechChunks(text, TextToSpeech.getMaxSpeechInputLength())) {
       val id = "call-${nextId++}"
       inFlight += id
-      if (engine.speak(chunk, TextToSpeech.QUEUE_ADD, null, id) == TextToSpeech.ERROR) inFlight -= id
+      chunkTexts[id] = chunk
+      if (engine.speak(chunk, TextToSpeech.QUEUE_ADD, null, id) == TextToSpeech.ERROR) {
+        inFlight -= id
+        chunkTexts -= id
+      }
     }
     _speaking.value = inFlight.isNotEmpty()
   }
@@ -157,7 +185,17 @@ class CallSpeaker(
   // Callbacks arrive on the engine's binder thread. An id that [stop] already forgot is ignored, so a
   // late "done" of a cut-off sentence cannot end the next reply early.
   private val progress = object : UtteranceProgressListener() {
-    override fun onStart(utteranceId: String?) = Unit
+    override fun onStart(utteranceId: String?) {
+      runOnMain { utteranceId?.let(chunkTexts::get)?.let { _caption.value = Caption(it) } }
+    }
+
+    // Not every engine reports word ranges; Google's does. Without them the caption shows the whole piece.
+    override fun onRangeStart(utteranceId: String?, start: Int, end: Int, frame: Int) {
+      runOnMain {
+        utteranceId?.let(chunkTexts::get)?.let { _caption.value = Caption(it, spokenTo = end.coerceIn(0, it.length)) }
+      }
+    }
+
     override fun onDone(utteranceId: String?) = finished(utteranceId)
     override fun onStop(utteranceId: String?, interrupted: Boolean) = finished(utteranceId)
 
@@ -168,6 +206,7 @@ class CallSpeaker(
 
   private fun finished(utteranceId: String?) {
     runOnMain {
+      utteranceId?.let(chunkTexts::remove)
       if (utteranceId != null && inFlight.remove(utteranceId) && inFlight.isEmpty() && waiting.isEmpty()) {
         _speaking.value = false
       }

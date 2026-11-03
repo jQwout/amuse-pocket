@@ -57,6 +57,10 @@ data class CallUiState(
   val notice: String? = null,
   /** Listening stopped (errors in a row, or a long silence); a tap starts it again. */
   val micPaused: Boolean = false,
+  /** The person muted the microphone with the button; only the button unmutes it. */
+  val micMuted: Boolean = false,
+  /** What the voice is reading right now, for the running caption. */
+  val caption: CallSpeaker.Caption? = null,
   val needsMicPermission: Boolean = false,
   val pendingApproval: ToolApprovalRequest? = null,
   val title: String? = null,
@@ -125,6 +129,7 @@ class CallViewModel(
     viewModelScope.launch { voice.state.collect(::onVoiceState) }
     viewModelScope.launch { voice.transcripts.collect(::onUserSaid) }
     viewModelScope.launch { speaker.speaking.collect { now -> update { it.speaking(now) } } }
+    viewModelScope.launch { speaker.caption.collect { caption -> _state.update { it.copy(caption = caption) } } }
     // Only this conversation's requests: TurnManager runs turns of several chats at once.
     viewModelScope.launch {
       combine(convIdFlow, toolApprovalCoordinator.pending) { id, pending ->
@@ -168,6 +173,29 @@ class CallViewModel(
     }
   }
 
+  /**
+   * The mute button. Muted, the call never listens, whoever has the floor; the agent still answers and
+   * speaks. Unmuting starts afresh, as a tap on a paused microphone does.
+   */
+  fun toggleMute() {
+    val muted = !_state.value.micMuted
+    errorStreak = 0
+    silentStarts = 0
+    _state.update { it.copy(micMuted = muted, micPaused = false, heard = null, notice = null) }
+    syncMic()
+  }
+
+  /**
+   * Reads the agent's last reply aloud again (a tap on the reply, or the repeat button). Not while a turn
+   * is still being read as it is written: the rest of it would be read on top.
+   */
+  fun replay() {
+    val reply = _state.value.reply
+    if (reply.isBlank() || (loop.turnRunning && loop.readsReply)) return
+    speaker.stop()
+    say(reply)
+  }
+
   fun resolveApproval(approved: Boolean) {
     val request = _state.value.pendingApproval ?: return
     toolApprovalCoordinator.resolve(request.runId, request.requestId, approved)
@@ -207,7 +235,8 @@ class CallViewModel(
   }
 
   private fun micWanted(): Boolean =
-    started && !ended && micGranted && language != null && !_state.value.micPaused && loop.wantsMic
+    started && !ended && micGranted && language != null && !_state.value.micPaused && !_state.value.micMuted &&
+      loop.wantsMic
 
   /** Turns the microphone on or off to match the floor. Called after every change that can affect it. */
   private fun syncMic() {
