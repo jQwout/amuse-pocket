@@ -7,6 +7,18 @@ package com.aiopenpocket.ui.chat.components
 
 import android.content.pm.PackageManager
 import android.Manifest
+import android.net.Uri
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import java.io.File
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -84,6 +96,12 @@ internal fun ChatInput(
     // permission request included. onAutoListenStarted is called first, so it starts only once.
     autoListen: Boolean = false,
     onAutoListenStarted: () -> Unit = {},
+    // A photo for the next message (photos-in-chat-bca88e). Null [onAttachImage] = no photo button
+    // (lessons): only chats that can send a photo offer one.
+    attachedImagePath: String? = null,
+    attachingImage: Boolean = false,
+    onAttachImage: ((Uri) -> Unit)? = null,
+    onRemoveImage: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -143,6 +161,10 @@ internal fun ChatInput(
                 )
                 .padding(horizontal = 12.dp, vertical = 10.dp),
         ) {
+            if (attachingImage || attachedImagePath != null) {
+                AttachedPhoto(path = attachedImagePath, loading = attachingImage, onRemove = onRemoveImage)
+                Spacer(Modifier.height(8.dp))
+            }
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
@@ -177,6 +199,10 @@ internal fun ChatInput(
                 }
                 Spacer(Modifier.width(4.dp))
                 MicButton(state = voiceState, onClick = ::handleMicTap, modifier = Modifier.size(36.dp))
+                if (onAttachImage != null) {
+                    Spacer(Modifier.width(4.dp))
+                    PhotoButton(onPicked = onAttachImage, modifier = Modifier.size(36.dp))
+                }
                 Spacer(Modifier.weight(1f))
                 // Clear the field — shown only when there is text.
                 if (value.isNotBlank()) {
@@ -199,7 +225,8 @@ internal fun ChatInput(
                     }
                 } else {
                     // A round button: filled with the accent when there is something to send; dimmed otherwise (as in the mockup).
-                    val canSend = value.isNotBlank()
+                    // A photo alone can be sent too (it goes with a default question); not while it is still being prepared.
+                    val canSend = (value.isNotBlank() || attachedImagePath != null) && !attachingImage
                     IconButton(
                         // Sending hides the keyboard: the field loses focus -> the IME hides.
                         onClick = { focusManager.clearFocus(); onSend() },
@@ -286,6 +313,94 @@ internal fun FullScreenComposer(
                     Spacer(Modifier.width(8.dp))
                     Icon(Icons.AutoMirrored.Default.Send, contentDescription = null, modifier = Modifier.size(18.dp))
                 }
+            }
+        }
+    }
+}
+
+/**
+ * The photo button of the input (photos-in-chat-bca88e): a small menu, gallery or camera. The
+ * gallery is the system photo picker, which needs no storage permission; the camera writes into the app's
+ * own cache file, the same way the SAM lesson takes its photo.
+ */
+@Composable
+private fun PhotoButton(onPicked: (Uri) -> Unit, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    var menuOpen by remember { mutableStateOf(false) }
+    var captureUri by remember { mutableStateOf<Uri?>(null) }
+    val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) onPicked(uri)
+    }
+    val camera = rememberLauncherForActivityResult(LessonPhotoCapture()) { saved ->
+        captureUri?.takeIf { saved }?.let(onPicked)
+        captureUri = null
+    }
+    Box {
+        IconButton(onClick = { menuOpen = true }, modifier = modifier) {
+            Icon(
+                Icons.Default.AddPhotoAlternate,
+                contentDescription = tr("Приложить фото", "Attach a photo"),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenuItem(
+                text = { Text(tr("Из галереи", "From gallery")) },
+                leadingIcon = { Icon(Icons.Default.PhotoLibrary, contentDescription = null) },
+                onClick = {
+                    menuOpen = false
+                    gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(tr("Сфотографировать", "Take a photo")) },
+                leadingIcon = { Icon(Icons.Default.PhotoCamera, contentDescription = null) },
+                onClick = {
+                    menuOpen = false
+                    val uri = newPhotoCaptureUri(context)
+                    captureUri = uri
+                    // No camera app at all is rare, but launching into nothing must not crash the chat.
+                    runCatching { camera.launch(uri) }.onFailure { captureUri = null }
+                },
+            )
+        }
+    }
+}
+
+/** The attached photo above the text: a thumbnail with an "x", or a spinner while it is being prepared. */
+@Composable
+private fun AttachedPhoto(path: String?, loading: Boolean, onRemove: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
+    Box(modifier = Modifier.size(72.dp)) {
+        if (loading || path == null) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize().clip(shape).background(MaterialTheme.colorScheme.surfaceVariant),
+            ) { CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp) }
+        } else {
+            AsyncImage(
+                model = File(path),
+                contentDescription = tr("Приложенное фото", "Attached photo"),
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().clip(shape),
+            )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(3.dp)
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .clickable(onClick = onRemove),
+            ) {
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = tr("Убрать фото", "Remove the photo"),
+                    tint = Color.White,
+                    modifier = Modifier.size(14.dp),
+                )
             }
         }
     }

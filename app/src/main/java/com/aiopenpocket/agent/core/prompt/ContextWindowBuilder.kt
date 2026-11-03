@@ -81,7 +81,7 @@ object ContextWindowBuilder {
     }
 
   private fun Message.toPromptMessage() =
-    PrePromptAssembler.PromptMessage(role, contentForModel(), toolCallsJson)
+    PrePromptAssembler.PromptMessage(role, contentForModel(), toolCallsJson, imagePath)
 
   /**
    * A reflection answer is stored whole — draft, critique, result: the chat renders all three phases.

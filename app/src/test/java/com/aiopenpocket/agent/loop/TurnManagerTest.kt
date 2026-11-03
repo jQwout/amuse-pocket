@@ -87,7 +87,7 @@ class TurnManagerTest {
     val rows = mutableListOf<Row>()
     private var nextId = 0
 
-    override suspend fun addUserMessage(conversationId: String, text: String): String {
+    override suspend fun addUserMessage(conversationId: String, text: String, imagePath: String?): String {
       val id = "m${nextId++}"
       rows += Row(id, conversationId, "user", text, null)
       return id

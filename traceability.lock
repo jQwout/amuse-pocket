@@ -6,12 +6,12 @@
       "git": "661d682"
     },
     "agent-memory-05e545": {
-      "hash": "8f5227775d1b",
-      "git": "21fba91e"
+      "hash": "e8f2b364bcc1",
+      "git": "645e16c4"
     },
     "agent-router-dc2233": {
-      "hash": "674afe3bebe9",
-      "git": "9e511fb9"
+      "hash": "a4dd19fed504",
+      "git": "645e16c4"
     },
     "agent-skills-7189cc": {
       "hash": "e3296460a332",
@@ -26,8 +26,8 @@
       "git": "22c86347"
     },
     "approval-outcome-honesty-554a8c": {
-      "hash": "7af7f7200c6f",
-      "git": "031a0c83"
+      "hash": "4d5523ba344f",
+      "git": "645e16c4"
     },
     "background-tasks-15a34a": {
       "hash": "589f7d11a82a",
@@ -54,8 +54,8 @@
       "git": "c04aad79"
     },
     "fonovye-hody-agenta-dde42d": {
-      "hash": "69922cdba3ff",
-      "git": "031a0c83"
+      "hash": "9a243657d046",
+      "git": "645e16c4"
     },
     "glass-design-system-21a3fe": {
       "hash": "e31d2fa036cc",
@@ -78,8 +78,12 @@
       "git": "b7563711"
     },
     "multi-chat-conversations-b3c93b": {
-      "hash": "811d35a45809",
-      "git": "031a0c83"
+      "hash": "e92c93fe32b8",
+      "git": "645e16c4"
+    },
+    "photos-in-chat-bca88e": {
+      "hash": "9c45edc5c3f1",
+      "git": "645e16c4"
     },
     "profile-screen-7354a7": {
       "hash": "1de11e27aac7",
@@ -94,8 +98,8 @@
       "git": "97ca7fba"
     },
     "sam-segmentation-boxes-in-a-lesson-c3ea52": {
-      "hash": "4e2b68d3b424",
-      "git": "9e511fb9"
+      "hash": "10976bba4f4b",
+      "git": "645e16c4"
     },
     "screen-text-check-7c6d09": {
       "hash": "c4c3af4e3ce1",
@@ -106,12 +110,12 @@
       "git": "5ce3906"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "cb2d0907f684",
-      "git": "9e511fb9"
+      "hash": "3f366b7aba54",
+      "git": "645e16c4"
     },
     "structured-plan-engine-907066": {
-      "hash": "9e71a7d467d3",
-      "git": "9e511fb9"
+      "hash": "0743b9d90d93",
+      "git": "645e16c4"
     },
     "swappable-persona-e5e65e": {
       "hash": "11aaa5d19303",
@@ -122,8 +126,8 @@
       "git": "c08de0e0"
     },
     "user-agent-builder-848153": {
-      "hash": "520ecbe83086",
-      "git": "9e511fb9"
+      "hash": "015d224ba51e",
+      "git": "645e16c4"
     },
     "video-na-vhod-v-uroke-muse-spark-08ccdb": {
       "hash": "8c9fa9a6843d",

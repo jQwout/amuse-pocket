@@ -13,5 +13,7 @@ data class Message(
   val cardState: String? = null,
   /** The agent the router picked to write this answer; see MessageEntity.agentId. */
   val agentId: String? = null,
+  /** A photo attached to this user message; see MessageEntity.imagePath. */
+  val imagePath: String? = null,
   val createdAt: Long,
 )

@@ -73,7 +73,7 @@ class AgentLoopOrchestrator(
       ?: withSuffix
     val messages = mutableListOf<ChatMessage>()
     messages += ChatMessage(role = "system", content = systemContent)
-    messages += context.history.map { it.toChatMessage() }
+    messages += context.history.toChatMessages()
     // The caller persists the user message to DB before calling execute(),
     // so it's already included in context.history via ContextWindowBuilder.
 
@@ -131,6 +131,25 @@ enum class AgentState { IDLE, STREAMING, EXECUTING_TOOL, FINISHED, ERROR }
 // all orchestrators (chat / supervisor / plan executor).
 internal fun PrePromptAssembler.PromptMessage.toChatMessage(): ChatMessage =
   ChatMessage(role = role, content = content)
+
+/**
+ * The history for a turn that may carry a photo (photos-in-chat-bca88e). Only the newest user
+ * message sends its photo: that is the one the person is asking about, and re-sending every earlier photo
+ * would bill all of them again on every turn. An earlier photo leaves a note in its message instead, so the
+ * model knows one was shown and can refer to what it said about it.
+ */
+internal fun List<PrePromptAssembler.PromptMessage>.toChatMessages(): List<ChatMessage> {
+  val current = indexOfLast { it.role == "user" }
+  return mapIndexed { i, m ->
+    when {
+      m.imagePath == null -> m.toChatMessage()
+      i == current -> m.toChatMessage().copy(imagePath = m.imagePath)
+      else -> ChatMessage(role = m.role, content = (m.content + EARLIER_PHOTO_NOTE).trim())
+    }
+  }
+}
+
+private const val EARLIER_PHOTO_NOTE = "\n[A photo was attached to this message earlier in the chat.]"
 
 data class AgentResult(
   /**

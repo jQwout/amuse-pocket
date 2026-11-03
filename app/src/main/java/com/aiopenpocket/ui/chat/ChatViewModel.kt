@@ -25,6 +25,7 @@ import com.aiopenpocket.agent.core.lesson.RESULT_COPY_MAX_AGE_MS
 import com.aiopenpocket.agent.core.lesson.aboutMeFrom
 import com.aiopenpocket.agent.core.lesson.prepareSegmentPhoto
 import com.aiopenpocket.agent.core.lesson.sweepPhotoFolder
+import com.aiopenpocket.agent.core.llm.ChatImages
 import com.aiopenpocket.agent.core.llm.SegmentationFailure
 import com.aiopenpocket.agent.core.llm.VideoUnderstandingClient
 import com.aiopenpocket.agent.core.llm.missingKeyMessage
@@ -431,6 +432,8 @@ class ChatViewModel(
                 if (intent.text.isBlank()) inputByVoice = false
             }
             is ChatIntent.SendMessage -> sendMessage()
+            is ChatIntent.AttachImage -> attachImage(intent.uri)
+            is ChatIntent.RemoveAttachedImage -> _state.update { it.copy(attachedImagePath = null) }
             is ChatIntent.CancelRequest -> cancel()
             is ChatIntent.RetryRequest -> retry()
             is ChatIntent.ToggleToolTrace -> _state.update { it.copy(showToolTrace = !it.showToolTrace) }
@@ -516,10 +519,34 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * Copies the picked photo into the app's files off the main thread (photos-in-chat-bca88e): the
+     * picker's URI stops resolving later, and a phone photo is downscaled before it is ever sent.
+     */
+    private fun attachImage(uri: android.net.Uri) {
+        _state.update { it.copy(attachingImage = true) }
+        viewModelScope.launch {
+            val path = withContext(Dispatchers.IO) { ChatImages.import(context, uri) }
+            _state.update {
+                it.copy(
+                    attachingImage = false,
+                    attachedImagePath = path ?: it.attachedImagePath,
+                    error = if (path == null) tr("Не получилось открыть это фото.", "Couldn't open that photo.") else it.error,
+                )
+            }
+        }
+    }
+
     private fun sendMessage() {
-        val text = _inputText.value.trim()
+        if (_state.value.attachingImage) return
+        val imagePath = _state.value.attachedImagePath
+        // A photo alone is a question too: it goes with a default one, visible in the chat like any other text.
+        val text = _inputText.value.trim().ifEmpty {
+            if (imagePath != null) tr("Что на фото?", "What's in this photo?") else ""
+        }
         if (text.isEmpty()) return
         _inputText.value = ""
+        _state.update { it.copy(attachedImagePath = null) }
         val spoken = inputByVoice
         inputByVoice = false
         replySpeaker.stop()
@@ -538,7 +565,11 @@ class ChatViewModel(
                 // conversation's plan itself (PLAN proposes/revises the current one; GOAL continues an ACTIVE
                 // one or proposes a new one if there is no approved plan yet). The bound agent's goal round limit
                 // maps onto maxLlmIterationsPerStep — the same "reasoning budget", just now per ONE plan step.
-                turnManager.launchTurn(convId, text, _state.value.agentMode, budget = goalRunBudget(goalRoundsFor(_state.value.agent)))
+                turnManager.launchTurn(
+                    convId, text, _state.value.agentMode,
+                    budget = goalRunBudget(goalRoundsFor(_state.value.agent)),
+                    imagePath = imagePath,
+                )
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {

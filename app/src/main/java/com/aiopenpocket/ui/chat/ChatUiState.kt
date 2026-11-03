@@ -77,6 +77,10 @@ data class ChatUiState(
   val voiceError: String? = null,
   /** The chat was opened as the phone's assistant: start listening once, as soon as the composer is up. */
   val autoListen: Boolean = false,
+  /** The photo attached to the next message, already copied into the app's files (photos-in-chat-bca88e). */
+  val attachedImagePath: String? = null,
+  /** The picked photo is being copied and downscaled; Send waits for it. */
+  val attachingImage: Boolean = false,
 
   /**
    * A tool call in THIS conversation's active run is waiting for the user's approval (a risky

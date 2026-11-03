@@ -913,6 +913,19 @@ fun ChatScreen(
                                     onPermissionDenied = { viewModel.handleIntent(ChatIntent.ClearVoiceError) },
                                     autoListen = state.autoListen,
                                     onAutoListenStarted = { viewModel.handleIntent(ChatIntent.AutoListenStarted) },
+                                    // @trace photos-in-chat-bca88e
+                                    // Chat and Reflection turns send the photo; the plan engine builds its own
+                                    // messages and would drop it, so Plan/Goal (and lessons) offer no photo button.
+                                    attachedImagePath = state.attachedImagePath,
+                                    attachingImage = state.attachingImage,
+                                    onAttachImage = if (!state.isTutorial &&
+                                        (state.agentMode == AgentMode.CHAT || state.agentMode == AgentMode.REFLECT)
+                                    ) {
+                                        { uri -> viewModel.handleIntent(ChatIntent.AttachImage(uri)) }
+                                    } else {
+                                        null
+                                    },
+                                    onRemoveImage = { viewModel.handleIntent(ChatIntent.RemoveAttachedImage) },
                                 )
                             }
                         }

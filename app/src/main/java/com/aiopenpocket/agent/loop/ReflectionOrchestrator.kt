@@ -90,7 +90,7 @@ class ReflectionOrchestrator(
     tap(AgentEvent.StateChanged(AgentState.STREAMING))
     tap(AgentEvent.TextDelta("✍️ **Черновик**\n"))
     val draftMessages = mutableListOf(ChatMessage(role = "system", content = context.systemPrompt))
-    draftMessages += context.history.map { it.toChatMessage() }
+    draftMessages += context.history.toChatMessages()
     // The memory/file tools inside this turn must see the same agent snapshot that the scoped
     // tools/schemas see (Task 5) — without this wrapper TurnContextHolder would stay empty for the
     // whole REFLECT turn, and remember_fact/search_memory would work in the GLOBAL namespace even for
@@ -118,7 +118,7 @@ class ReflectionOrchestrator(
     // repeat the deeds.
     tap(AgentEvent.TextDelta(FINAL_HEADING))
     val reviseMessages = mutableListOf(ChatMessage(role = "system", content = context.systemPrompt))
-    reviseMessages += context.history.map { it.toChatMessage() }
+    reviseMessages += context.history.toChatMessages()
     reviseMessages += ChatMessage(
       role = "user",
       content = buildReviseInstruction(draft.text, critique, draft.toolTrace, executionMode),
