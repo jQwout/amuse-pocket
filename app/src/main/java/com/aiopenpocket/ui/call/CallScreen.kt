@@ -38,9 +38,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -106,84 +108,88 @@ fun CallScreen(
       .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { viewModel.tap() }
       .testTag("call_screen"),
   ) {
-    Column(
-      modifier = Modifier
-        .fillMaxSize()
-        .systemBarsPadding()
-        .padding(horizontal = 24.dp, vertical = 16.dp),
-      horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-      Text(
-        text = state.title ?: tr("Звонок с ассистентом", "Call with the assistant"),
-        style = MaterialTheme.typography.titleMedium,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-      )
-      Text(
-        text = phaseLabel(state),
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(top = 4.dp).testTag("call_phase"),
-      )
-
-      Spacer(Modifier.weight(0.6f))
-      VoiceOrb(phase = state.phase, paused = state.micPaused || state.needsMicPermission)
-      Spacer(Modifier.weight(0.4f))
-
-      CallTranscript(state)
-
-      state.activity?.let {
+    // A Box is not a Surface and sets no content colour: without this the title fell back to Compose's
+    // default black, unreadable on the dark aurora (emulator, 3 Nov 2026).
+    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onBackground) {
+      Column(
+        modifier = Modifier
+          .fillMaxSize()
+          .systemBarsPadding()
+          .padding(horizontal = 24.dp, vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+      ) {
         Text(
-          text = it,
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          text = state.title ?: tr("Звонок с ассистентом", "Call with the assistant"),
+          style = MaterialTheme.typography.titleMedium,
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
-          modifier = Modifier.padding(top = 8.dp),
         )
-      }
-      state.notice?.let {
         Text(
-          text = it,
-          style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.error,
-          textAlign = TextAlign.Center,
-          modifier = Modifier.padding(top = 8.dp).testTag("call_notice"),
+          text = phaseLabel(state),
+          style = MaterialTheme.typography.labelLarge,
+          color = MaterialTheme.colorScheme.primary,
+          modifier = Modifier.padding(top = 4.dp).testTag("call_phase"),
         )
-      }
-      if (state.needsMicPermission) {
-        Button(
-          onClick = { micPermission.launch(Manifest.permission.RECORD_AUDIO) },
+
+        Spacer(Modifier.weight(0.6f))
+        VoiceOrb(phase = state.phase, paused = state.micPaused || state.needsMicPermission)
+        Spacer(Modifier.weight(0.4f))
+
+        CallTranscript(state)
+
+        state.activity?.let {
+          Text(
+            text = it,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 8.dp),
+          )
+        }
+        state.notice?.let {
+          Text(
+            text = it,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 8.dp).testTag("call_notice"),
+          )
+        }
+        if (state.needsMicPermission) {
+          Button(
+            onClick = { micPermission.launch(Manifest.permission.RECORD_AUDIO) },
+            modifier = Modifier.padding(top = 8.dp),
+          ) { Text(tr("Разрешить микрофон", "Allow the microphone")) }
+        }
+
+        state.pendingApproval?.let { request ->
+          ToolApprovalBar(
+            request = request,
+            onApprove = { viewModel.resolveApproval(approved = true) },
+            onDeny = { viewModel.resolveApproval(approved = false) },
+          )
+        }
+
+        Spacer(Modifier.height(24.dp))
+        FilledIconButton(
+          onClick = hangUp,
+          modifier = Modifier.size(72.dp).testTag("call_hang_up"),
+          colors = IconButtonDefaults.filledIconButtonColors(containerColor = HANG_UP_RED, contentColor = Color.White),
+        ) {
+          Icon(Icons.Default.CallEnd, contentDescription = tr("Завершить звонок", "Hang up"), modifier = Modifier.size(32.dp))
+        }
+        Text(
+          text = if (state.phase == CallPhase.SPEAKING || state.phase == CallPhase.THINKING) {
+            tr("Коснись экрана, чтобы перебить", "Tap the screen to interrupt")
+          } else {
+            " "
+          },
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.padding(top = 8.dp),
-        ) { Text(tr("Разрешить микрофон", "Allow the microphone")) }
-      }
-
-      state.pendingApproval?.let { request ->
-        ToolApprovalBar(
-          request = request,
-          onApprove = { viewModel.resolveApproval(approved = true) },
-          onDeny = { viewModel.resolveApproval(approved = false) },
         )
       }
-
-      Spacer(Modifier.height(24.dp))
-      FilledIconButton(
-        onClick = hangUp,
-        modifier = Modifier.size(72.dp).testTag("call_hang_up"),
-        colors = IconButtonDefaults.filledIconButtonColors(containerColor = HANG_UP_RED, contentColor = Color.White),
-      ) {
-        Icon(Icons.Default.CallEnd, contentDescription = tr("Завершить звонок", "Hang up"), modifier = Modifier.size(32.dp))
-      }
-      Text(
-        text = if (state.phase == CallPhase.SPEAKING || state.phase == CallPhase.THINKING) {
-          tr("Коснись экрана, чтобы перебить", "Tap the screen to interrupt")
-        } else {
-          " "
-        },
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(top = 8.dp),
-      )
     }
   }
 }
@@ -210,12 +216,14 @@ private fun CallTranscript(state: CallUiState) {
       verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
       val heard = state.heard
+      // "Listening" only when the microphone really is on: under "No microphone access" it contradicted the label.
+      val micOff = state.micPaused || state.needsMicPermission
       when {
         state.phase == CallPhase.LISTENING && !heard.isNullOrBlank() ->
           Text(heard, style = MaterialTheme.typography.titleMedium, modifier = Modifier.testTag("call_heard"))
         state.phase == CallPhase.LISTENING && state.reply.isBlank() ->
           Text(
-            tr("Говори, я слушаю", "Go ahead, I'm listening"),
+            if (micOff) tr("Микрофон выключен", "The microphone is off") else tr("Говори, я слушаю", "Go ahead, I'm listening"),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
