@@ -65,7 +65,7 @@ class RenderCardTool(
     "notification_permission — карточка запроса разрешения на уведомления, params необязательны: {title, description, button_label}. " +
     "reminder — живая карточка напоминания/heartbeat, params: {heartbeat_id} (id из ответа тула heartbeat). " +
     "multi_choice — вопрос с несколькими отмечаемыми вариантами и кнопкой «Далее», params: " +
-    "{question, options (2-4 коротких подписи), preselected (индексы заранее отмеченных), min, max}; " +
+    "{question, hint (необязательная строка под вопросом), options (2-4 коротких подписи), preselected (индексы заранее отмеченных), min, max}; " +
     "ответ человека придёт его следующим сообщением — отмеченные подписи через запятую."
   override val schema = toolSchema(name, description) {
     string("template", "ID шаблона карточки", required = true, enum = CARD_TEMPLATES)

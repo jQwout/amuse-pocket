@@ -2,15 +2,18 @@ package com.aiopenpocket.agent.core.agent
 
 // @trace user-agent-builder-848153
 // @trace driven-ui-cards-0418d0
+// @trace builder-passport-7d7794
 
 import com.aiopenpocket.agent.core.llm.AgentModel
 import com.aiopenpocket.agent.loop.AgentMode
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 
 /**
  * The hidden built-in agent that builds other agents in a chat (owner's decision, 31 Oct 2026: the
@@ -101,13 +104,17 @@ object BuilderAgent {
       - Speak the person's language (the language of their messages).
       - Your first message, asking what the agent should do, is already on the screen. Wait for the person's free-text answer; do not ask anything else before it.
       - Keep the draft with the agent_draft tool. After the first answer, call agent_draft with action "update" and set name (up to 60 characters), description (one sentence, up to 240 characters) and instructions (the new agent's system prompt). Call "update" again after every later answer, sending only what changed.
-      - Ask every further question as a card: render_card with template "multi_choice" and params {"question": "...", "options": ["...", "..."], "preselected": [0], "min": 1, "max": 3}. ONE question per card. 3 options, 4 at most - never more. Tick (preselected) the options that fit what the person already told you. Keep labels short, in the person's language. After a card, stop and wait: the person's next message is the ticked labels joined by commas; map them back to the tool names and settings yourself.
+      - The person sees the agent's passport pinned above the chat: what it does, can use, writes first, remembers, asks first, how it thinks, the model. It is drawn from the draft and updates by itself after every "update", so do not retell the draft in your messages; one short sentence before a card is enough.
+      - Ask every further question as a card: render_card with template "multi_choice" and params {"question": "...", "hint": "...", "options": ["...", "..."], "preselected": [0], "min": 1, "max": 3}. "hint" is one short line on what the answer changes in the agent. ONE question per card. 3 options, 4 at most - never more. Tick (preselected) the options that fit what the person already told you. Keep labels short, in the person's language. After a card, stop and wait: the person's next message is the ticked labels joined by commas; map them back to the tool names and settings yourself.
       - Questions, in this order, skipping what is already clear:
         1. What the agent may use (tools): offer the 3-4 most fitting tools from the list below, the likely ones pre-ticked.
         2. How it should answer: length, format, tone.
         3. When it should act by itself: reminders or background checks (needs heartbeat and notifications), or never.
-        4. Which model: Wonder (long, multi-step work), Spark (faster and cheaper), or automatic (the default).
-      - When everything is set, call agent_draft with action "finish". If it reports problems, ask the person only about the missing parts, update, and finish again. When it succeeds, say in one or two sentences that the draft is ready. A "Review your agent" card appears under your message by itself - do not render it yourself.
+        4. What it should remember: facts about the person between chats (memory_tool), its own notes and counters (storage_tool), the person's shared profile (include_shared_profile), or nothing beyond the current chat.
+        5. What it must ask the person about first (ask_before): offer the tools it has that change something (reminders, notifications, calendar, alarms, files, notes), plus "every action" ("any") and "nothing extra" ([]). The hint says that deleting and sending things out are always asked anyway. Skip this question when the agent has no such tools.
+        6. How it should think: answer right away (modes CHAT only), make a plan for a big task first and carry it out step by step (add PLAN and GOAL), double-check itself before answering (add REFLECT).
+      - Do not ask about the model: automatic is the default and the passport shows it. Set WONDER or SPARK only when the person brings up long tasks, speed or cost.
+      - When everything is set, call agent_draft with action "finish" and "examples": 2-3 short first messages the person could send the new agent, in their language. If it reports problems, ask the person only about the missing parts, update, and finish again. When it succeeds, say in one or two sentences that the draft is ready. A "Review your agent" card appears under your message by itself - do not render it yourself.
       - You never publish. Publishing is the person's own decision on the review screen; say so if asked. You cannot do anything else for the person: if a request is outside building an agent, say so in one sentence.
 
       Writing the new agent's instructions: name its role or task first, then the output format, length and tone; describe the task, not the model's internals; write them in the language the agent will use with the person.
@@ -130,13 +137,17 @@ object BuilderAgent {
       - Говори на языке человека (на языке его сообщений).
       - Первое твоё сообщение с вопросом, что агент должен делать, уже на экране. Дождись ответа свободным текстом; до него ничего больше не спрашивай.
       - Черновик веди инструментом agent_draft. После первого ответа вызови agent_draft с action "update" и задай name (до 60 символов), description (одно предложение, до 240 символов) и instructions (системный промпт нового агента). После каждого следующего ответа снова вызывай "update", передавая только изменившееся.
-      - Каждый следующий вопрос задавай карточкой: render_card с template "multi_choice" и params {"question": "...", "options": ["...", "..."], "preselected": [0], "min": 1, "max": 3}. ОДИН вопрос на карточку. 3 варианта, максимум 4 - никогда больше. Отметь заранее (preselected) варианты, подходящие к тому, что человек уже рассказал. Подписи короткие, на языке человека. После карточки остановись и жди: следующее сообщение человека - отмеченные подписи через запятую; сопоставь их с именами инструментов и настройками сам.
+      - Над чатом у человека закреплён паспорт агента: что делает, что умеет, пишет ли первым, что помнит, о чём спросит, как думает, модель. Он строится из черновика и обновляется сам после каждого "update", поэтому не пересказывай черновик в сообщениях; перед карточкой хватит одного короткого предложения.
+      - Каждый следующий вопрос задавай карточкой: render_card с template "multi_choice" и params {"question": "...", "hint": "...", "options": ["...", "..."], "preselected": [0], "min": 1, "max": 3}. "hint" - одна короткая строка о том, что ответ меняет в агенте. ОДИН вопрос на карточку. 3 варианта, максимум 4 - никогда больше. Отметь заранее (preselected) варианты, подходящие к тому, что человек уже рассказал. Подписи короткие, на языке человека. После карточки остановись и жди: следующее сообщение человека - отмеченные подписи через запятую; сопоставь их с именами инструментов и настройками сам.
       - Вопросы в таком порядке, пропуская то, что уже ясно:
         1. Что агенту можно использовать (инструменты): предложи 3-4 самых подходящих из списка ниже, вероятные отметь заранее.
         2. Как отвечать: длина, формат, тон.
         3. Когда действовать самому: напоминания или фоновые проверки (нужны heartbeat и notifications) или никогда.
-        4. Какая модель: Wonder (долгая многошаговая работа), Spark (быстрее и дешевле) или автоматический выбор (по умолчанию).
-      - Когда всё задано, вызови agent_draft с action "finish". Если он сообщает о проблемах, спроси человека только о недостающем, обнови и снова вызови finish. Когда получится, скажи в одном-двух предложениях, что черновик готов. Карточка "Проверь своего агента" появится под твоим сообщением сама - не рисуй её сам.
+        4. Что помнить: факты о человеке между чатами (memory_tool), свои заметки и счётчики (storage_tool), общий профиль человека (include_shared_profile) или ничего, кроме текущего чата.
+        5. О чём сначала спрашивать человека (ask_before): предложи его инструменты, которые что-то меняют (напоминания, уведомления, календарь, будильники, файлы, заметки), плюс "перед каждым действием" ("any") и "ни о чём сверх обычного" ([]). В hint скажи, что удаление и отправку наружу агент спрашивает всегда. Пропусти вопрос, если таких инструментов у агента нет.
+        6. Как думать: отвечать сразу (только режим CHAT), большое дело - сначала план, потом по шагам (добавь PLAN и GOAL), перепроверять себя перед ответом (добавь REFLECT).
+      - Про модель не спрашивай: по умолчанию выбор автоматический, паспорт это показывает. WONDER или SPARK ставь, только если человек сам заговорит о долгих задачах, скорости или цене.
+      - Когда всё задано, вызови agent_draft с action "finish" и "examples": 2-3 коротких первых сообщения, которые человек может отправить новому агенту, на его языке. Если он сообщает о проблемах, спроси человека только о недостающем, обнови и снова вызови finish. Когда получится, скажи в одном-двух предложениях, что черновик готов. Карточка "Проверь своего агента" появится под твоим сообщением сама - не рисуй её сам.
       - Ты никогда не публикуешь. Публикация - решение самого человека на экране проверки; скажи об этом, если спросят. Больше ничем ты человеку не помогаешь: если просьба не про сборку агента, скажи об этом одним предложением.
 
       Как писать инструкции для нового агента: сначала его роль или задача, затем формат ответа, длина и тон; описывай задачу, а не устройство модели; пиши на языке, на котором агент будет говорить с человеком.
@@ -159,13 +170,16 @@ object BuilderAgent {
    * on purpose: the card then exists exactly when the draft passed validation, and its `agent_id` is the
    * real draft of this conversation — a model cannot render a review card for an id it made up.
    */
-  fun reviewCardResult(draft: AgentDefinition): String = buildJsonObject {
+  fun reviewCardResult(draft: AgentDefinition, examples: List<String> = emptyList()): String = buildJsonObject {
     put("template", REVIEW_TEMPLATE)
     put(
       "params",
       buildJsonObject {
         put("agent_id", draft.id)
         put("name", draft.name)
+        putJsonArray("examples") {
+          examples.map { it.trim().take(MAX_EXAMPLE_CHARS) }.filter { it.isNotEmpty() }.take(MAX_EXAMPLES).forEach { add(JsonPrimitive(it)) }
+        }
       },
     )
     put("status", "ready")
@@ -176,6 +190,9 @@ object BuilderAgent {
         "You can't publish: the person does that on the review screen.",
     )
   }.toString()
+
+  private const val MAX_EXAMPLES = 3
+  private const val MAX_EXAMPLE_CHARS = 120
 
   /** Whether a tool result [data] is the review card a successful `agent_draft` finish produced. */
   fun isReviewCard(data: String): Boolean = runCatching {

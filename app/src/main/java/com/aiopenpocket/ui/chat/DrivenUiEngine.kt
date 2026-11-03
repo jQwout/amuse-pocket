@@ -38,13 +38,20 @@ sealed class DrivenUiCard {
         val preselected: Set<Int>,
         val min: Int,
         val max: Int,
+        /** One line under the question on what the answer changes (the agent builder's "why I ask"); may be blank. */
+        val hint: String = "",
     ) : DrivenUiCard()
     /**
      * The "Review your agent" card the agent builder chat ends with: a tap opens the review screen for
      * [agentId]. Not a template a model can ask for through render_card: the draft tool's finish result
      * produces it (see AgentDraftTool), so [agentId] is always a real draft of this conversation.
      */
-    data class AgentReviewCard(val agentId: String, val name: String) : DrivenUiCard()
+    data class AgentReviewCard(
+        val agentId: String,
+        val name: String,
+        /** First things to say to the new agent, written by the builder at finish (builder-passport-7d7794). */
+        val examples: List<String> = emptyList(),
+    ) : DrivenUiCard()
     data class LessonQuizCard(val questions: List<QuizQuestion>) : DrivenUiCard()
     /** [primaryAction] is non-null ONLY for the AI Academy capstone's real completion card (Task 23) — see [DrivenUiEngine.parseJsonString]'s `lesson_complete` branch and `LessonChatController.postCompletion`. */
     data class LessonCompleteCard(val title: String, val subtitle: String, val buttonLabel: String, val primaryAction: LessonPrimaryAction? = null) : DrivenUiCard()
@@ -177,6 +184,7 @@ object DrivenUiEngine {
             preselected = preselected,
             min = min,
             max = max,
+            hint = p.optString("hint", "").trim(),
         )
     }
 
@@ -252,6 +260,7 @@ object DrivenUiEngine {
                 else DrivenUiCard.AgentReviewCard(
                     agentId = id,
                     name = p.optString("name", "").ifBlank { tr("Новый агент", "New agent") },
+                    examples = p.array("examples").toStringList().filter { it.isNotBlank() },
                 )
             }
             "lesson_quiz" -> DrivenUiCard.LessonQuizCard(

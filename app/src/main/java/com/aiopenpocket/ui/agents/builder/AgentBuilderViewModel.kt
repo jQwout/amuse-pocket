@@ -306,7 +306,7 @@ class AgentBuilderViewModel(
   }
 
   /** Archives the current agent — the row survives (status only), matching [UserAgentRepository.archive]. */
-  fun archive() {
+  fun archive(onDone: () -> Unit = {}) {
     viewModelScope.launch {
       val id = _state.value.draft.id
       _state.update { it.copy(isSaving = true) }
@@ -315,6 +315,7 @@ class AgentBuilderViewModel(
         _state.update {
           it.copy(isSaving = false, saveError = null, draft = it.draft.copy(status = AgentStatus.ARCHIVED))
         }
+        onDone()
       } catch (e: Exception) {
         _state.update { it.copy(isSaving = false, saveError = ERROR_ARCHIVE) }
       }

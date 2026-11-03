@@ -37,6 +37,7 @@ import com.aiopenpocket.agent.core.policy.ToolApprovalRequest
 import com.aiopenpocket.agent.loop.ToolTrace
 import com.aiopenpocket.agent.loop.TurnStatus
 import com.aiopenpocket.i18n.tr
+import com.aiopenpocket.ui.agents.DeleteAgentButton
 import com.aiopenpocket.ui.chat.components.ToolApprovalBar
 import com.aiopenpocket.ui.chat.components.ToolTracePanel
 import com.aiopenpocket.ui.agents.builder.AgentBuilderValidator
@@ -303,18 +304,15 @@ internal fun PublishBlock(
     // forever with nothing to remove it. The meaning of the action is the same (the row survives, it
     // leaves the lists) — so for a draft the button promises an archive too: the old "Delete draft" lied,
     // the row stayed in the database.
+    // To the person it is a delete (nothing shows the row again), so it says so, in red, after a confirmation.
     if (draft.status != AgentStatus.ARCHIVED) {
-      Spacer(modifier = Modifier.height(8.dp))
-      TextButton(onClick = onArchive, modifier = Modifier.testTag("agent_builder_archive")) {
-        Text(
-          text = if (draft.status == AgentStatus.PUBLISHED) {
-            tr("Архивировать агента", "Archive agent")
-          } else {
-            tr("Архивировать черновик", "Archive draft")
-          },
-          color = MaterialTheme.colorScheme.error,
-        )
-      }
+      Spacer(modifier = Modifier.height(16.dp))
+      DeleteAgentButton(
+        name = draft.name.ifBlank { tr("Без имени", "Untitled") },
+        isDraft = draft.status != AgentStatus.PUBLISHED,
+        onConfirm = onArchive,
+        modifier = Modifier.testTag("agent_builder_archive"),
+      )
     }
   }
 }

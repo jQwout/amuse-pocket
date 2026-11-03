@@ -2,17 +2,22 @@ package com.aiopenpocket.agent.tools
 
 // @trace user-agent-builder-848153
 // @trace driven-ui-cards-0418d0
+// @trace builder-passport-7d7794
 
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.aiopenpocket.agent.core.agent.AgentPassport
 import com.aiopenpocket.agent.core.agent.AgentStatus
 import com.aiopenpocket.agent.core.agent.AgentValidator
 import com.aiopenpocket.agent.core.agent.BuilderAgent
 import com.aiopenpocket.agent.core.agent.MiniAgentCatalog
 import com.aiopenpocket.agent.core.agent.UserAgentRepository
 import com.aiopenpocket.agent.core.agent.toDefinition
+import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.hook.AgentHookRepository
+import com.aiopenpocket.agent.core.hook.HookActionType
+import com.aiopenpocket.agent.core.hook.HookEvent
 import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.ToolResult
 import com.aiopenpocket.agent.core.skill.UserSkillEntity
@@ -27,6 +32,9 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -322,5 +330,75 @@ class AgentDraftToolTest {
     assertEquals(RiskClass.READ, tool.riskFor(args("get")))
     assertEquals(RiskClass.READ, tool.riskFor(args("finish")))
     assertEquals(RiskClass.WRITE, tool.riskFor(emptyMap()))
+  }
+
+  // --- ask_before and the passport (builder-passport-7d7794) ---
+
+  @Test
+  fun `ask_before becomes one approval rule, replaced by the next answer and removed by an empty one`() = runTest {
+    fillDraft("tools" to list("calendar", "heartbeat"), "ask_before" to list("calendar"))
+
+    val first = repository.get(draftId)!!
+    assertEquals(setOf("calendar"), AgentPassport.askBeforeTools(first))
+    val rule = first.hooks.single()
+    assertEquals(HookEvent.BEFORE_TOOL, rule.event)
+    assertEquals(HookActionType.REQUIRE_APPROVAL, rule.actionType)
+
+    tool.execute(args("update", "ask_before" to list(AgentPassport.ANY_TOOL)))
+    val second = repository.get(draftId)!!
+    assertEquals(1, second.hooks.size)
+    assertEquals("always", second.hooks.single().conditionType)
+
+    tool.execute(args("update", "ask_before" to list()))
+    assertTrue(repository.get(draftId)!!.hooks.isEmpty())
+  }
+
+  @Test
+  fun `ask_before keeps a rule the person added on the review screen`() = runTest {
+    fillDraft("tools" to list("calendar"))
+    val own = AgentHook(
+      id = "own-rule", agentId = draftId, event = HookEvent.BEFORE_TURN, conditionType = "always",
+      conditionJson = "{}", actionType = HookActionType.LOG, actionJson = """{"text":"hi"}""", priority = 1, enabled = true,
+    )
+    repository.saveDraft(repository.get(draftId)!!.copy(hooks = listOf(own)))
+
+    tool.execute(args("update", "ask_before" to list("calendar")))
+
+    assertEquals(setOf("own-rule", AgentDraftTool.askBeforeHookId(draftId)), repository.get(draftId)!!.hooks.map { it.id }.toSet())
+  }
+
+  @Test
+  fun `an unknown tool in ask_before saves nothing`() = runTest {
+    fillDraft("tools" to list("calendar"))
+
+    val result = tool.execute(args("update", "ask_before" to list("launch_rockets")))
+
+    assertTrue(result is ToolResult.Error)
+    assertTrue(repository.get(draftId)!!.hooks.isEmpty())
+  }
+
+  @Test
+  fun `finish puts the examples on the review card`() = runTest {
+    fillDraft("tools" to list("memory_tool"))
+
+    val result = tool.execute(args("finish", "examples" to list("What did I spend today?", " ", "Plan my week")))
+
+    assertTrue(result.message(), result is ToolResult.Success)
+    val params = Json.parseToJsonElement(result.message()).jsonObject["params"]!!.jsonObject
+    assertEquals(listOf("What did I spend today?", "Plan my week"), params["examples"]!!.jsonArray.map { (it as JsonPrimitive).content })
+  }
+
+  @Test
+  fun `the passport reads what the draft really holds`() = runTest {
+    fillDraft("tools" to list("memory_tool", "heartbeat"), "modes" to list("CHAT", "REFLECT"), "ask_before" to list("heartbeat"))
+
+    val rows = AgentPassport.rows(repository.get(draftId)!!)
+
+    assertTrue(rows.all { it.filled })
+    assertTrue(rows.any { "Tracks what I spend." == it.value })
+    assertEquals(7, rows.size)
+    // An empty draft says what is still missing instead of pretending.
+    val empty = AgentPassport.rows(repository.get(draftId)!!.copy(description = "", toolNames = emptySet()))
+    assertEquals(2, empty.count { !it.filled })
   }
 }

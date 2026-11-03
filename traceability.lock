@@ -33,21 +33,25 @@
       "hash": "589f7d11a82a",
       "git": "21fba91e"
     },
+    "builder-passport-7d7794": {
+      "hash": "9b6c13241762",
+      "git": "c317fbc0"
+    },
     "chat-font-size-setting-c72418": {
       "hash": "df096d1da66c",
       "git": "2464f21"
     },
     "cloud-forged-screens-40d702": {
-      "hash": "8edd011ad2b8",
-      "git": "ca77277b"
+      "hash": "0c26b3b63992",
+      "git": "e8229519"
     },
     "desktop-genai-client-4c63b6": {
       "hash": "315eba16e382",
       "git": "98161c0"
     },
     "driven-ui-cards-0418d0": {
-      "hash": "6b30a750607d",
-      "git": "6cad9ef4"
+      "hash": "14673f5ad582",
+      "git": "9aa5131a"
     },
     "english-ui-on-the-demo-path-223241": {
       "hash": "ed619ee5dd05",
@@ -114,8 +118,8 @@
       "git": "ecb93193"
     },
     "skill-from-the-market-in-the-agent-builder-acd66a": {
-      "hash": "220ca53d647f",
-      "git": "c56c1510"
+      "hash": "2957ec51fda6",
+      "git": "e8229519"
     },
     "skill-market-5d1e7a": {
       "hash": "87baf819d2d1",
@@ -130,8 +134,8 @@
       "git": "9e511fb9"
     },
     "structured-plan-engine-907066": {
-      "hash": "9e71a7d467d3",
-      "git": "9e511fb9"
+      "hash": "c5167144e3a9",
+      "git": "e8229519"
     },
     "swappable-persona-e5e65e": {
       "hash": "11aaa5d19303",
@@ -142,8 +146,8 @@
       "git": "c08de0e0"
     },
     "user-agent-builder-848153": {
-      "hash": "bd8aa5c8cc52",
-      "git": "24f8b494"
+      "hash": "1d16625946a9",
+      "git": "4e41596f"
     },
     "video-na-vhod-v-uroke-muse-spark-08ccdb": {
       "hash": "8c9fa9a6843d",

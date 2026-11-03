@@ -68,6 +68,15 @@ class UserAgentRepository @Inject constructor(
     dao.get(id)?.let { runCatching { it.toDefinition() }.getOrNull() }?.withHooks()
 
   /**
+   * One agent as it changes, whatever its status (null while the row does not exist). The builder chat's
+   * passport watches its draft with it (builder-passport-7d7794). Hooks are re-read on every emission:
+   * [saveDraft]/[publish] write them in the same transaction as the agent row, so the row's change is
+   * the signal for both.
+   */
+  fun observe(id: String): Flow<AgentDefinition?> =
+    dao.observe(id).map { row -> row?.let { runCatching { it.toDefinition() }.getOrNull() }?.withHooks() }
+
+  /**
    * This agent's own custom skill rows. [saveDraft] replaces the skill set wholesale, so a caller that
    * edits only other fields (the builder chat's `agent_draft` tool) has to hand the current set back, or
    * a save would silently delete skills the person added on the review screen.
