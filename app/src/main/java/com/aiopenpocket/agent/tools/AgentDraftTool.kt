@@ -2,9 +2,11 @@ package com.aiopenpocket.agent.tools
 
 // @trace user-agent-builder-848153
 // @trace driven-ui-cards-0418d0
+// @trace builder-passport-7d7794
 
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.AgentMemoryPolicy
+import com.aiopenpocket.agent.core.agent.AgentPassport
 import com.aiopenpocket.agent.core.agent.AgentSource
 import com.aiopenpocket.agent.core.agent.AgentStatus
 import com.aiopenpocket.agent.core.agent.AgentValidator
@@ -14,6 +16,9 @@ import com.aiopenpocket.agent.core.agent.MAX_GOAL_ROUNDS
 import com.aiopenpocket.agent.core.agent.MIN_GOAL_ROUNDS
 import com.aiopenpocket.agent.core.agent.UserAgentRepository
 import com.aiopenpocket.agent.core.agent.ValidationIssue
+import com.aiopenpocket.agent.core.hook.AgentHook
+import com.aiopenpocket.agent.core.hook.HookActionType
+import com.aiopenpocket.agent.core.hook.HookEvent
 import com.aiopenpocket.agent.core.llm.AgentModel
 import com.aiopenpocket.agent.core.mcp.RiskClass
 import com.aiopenpocket.agent.core.mcp.Tool
@@ -53,12 +58,15 @@ import kotlinx.serialization.json.putJsonArray
  * ### Actions
  *
  * - `get` - the draft so far plus the allowed values.
- * - `update` - set any of name / description / instructions / tools / modes / model / include_shared_profile.
+ * - `update` - set any of name / description / instructions / tools / modes / model / include_shared_profile /
+ *   ask_before. `ask_before` is stored as ONE approval rule (a BEFORE_TOOL hook, [askBeforeHookId]) the
+ *   person also sees and edits on the review screen, so the chat and the form describe the same agent.
  *   All-or-nothing: if any tool, mode or model is not allowed, NOTHING is saved and the error lists the
  *   allowed values, so the model corrects the call instead of building on a half-applied one.
  * - `validate` - the draft's problems, from [AgentValidator] (the same rules publishing uses).
  * - `finish` - validate; on problems return them (the model asks about the missing parts), on success
- *   return the "Review your agent" card, which the chat draws from this result (see
+ *   return the "Review your agent" card with the model's `examples` (what to say to the new agent), which
+ *   the chat draws from this result (see
  *   [isReviewCard]; `resolveCompletedTurn` picks it up).
  */
 @Inject
@@ -71,7 +79,7 @@ class AgentDraftTool(
   override val name = BuilderAgent.DRAFT_TOOL
   override val description =
     "Builds a draft of a new agent for the person you are talking to. Actions: get (read the draft), " +
-    "update (set name, description, instructions, tools, modes, model, include_shared_profile - send only " +
+    "update (set name, description, instructions, tools, modes, model, include_shared_profile, ask_before - send only " +
     "what changed), validate (list what is still missing), finish (check the draft and show the person the " +
     "'Review your agent' card). The draft is private to this chat. You cannot publish: the person does that " +
     "on the review screen. Unknown tools, modes or models are rejected with the list of allowed values."
@@ -92,6 +100,13 @@ class AgentDraftTool(
     // error, while execute() answers with the allowed values and lets the model retry.
     string("model", "WONDER, SPARK or default (the app's own model) (update)")
     boolean("include_shared_profile", "Whether the agent may read the person's shared profile; false by default (update)")
+    stringArray(
+      "ask_before",
+      "Tools the agent must get the person's OK for before every use, or [\"${AgentPassport.ANY_TOOL}\"] for every action, " +
+        "or [] for no extra checks (deleting and sending things out are always asked anyway); replaces the list (update)",
+      enum = ALLOWED_TOOLS + AgentPassport.ANY_TOOL,
+    )
+    stringArray("examples", "2-3 short things the person could say to the new agent first, in their language (finish)")
     integer("goal_max_rounds", "How many loop rounds GOAL mode may spend on one plan step, $MIN_GOAL_ROUNDS to $MAX_GOAL_ROUNDS; 3 when unset (update)")
   }
 
@@ -118,7 +133,7 @@ class AgentDraftTool(
       ACTION_GET -> ToolResult.Success(snapshot(draftId, userAgents.get(draftId)).toString())
       ACTION_UPDATE -> update(draftId, arguments)
       ACTION_VALIDATE -> ToolResult.Success(snapshot(draftId, userAgents.get(draftId)).toString())
-      ACTION_FINISH -> finish(draftId)
+      ACTION_FINISH -> finish(draftId, arguments.stringList("examples").orEmpty())
       else -> ToolResult.Error("Unknown action: $action. Use get, update, validate or finish.")
     }
   }
@@ -157,6 +172,11 @@ class AgentDraftTool(
     if (modelArg != null && model == null && !modelArg.equals(BuilderAgent.MODEL_DEFAULT, ignoreCase = true)) {
       problems += "Unknown model: $modelArg. Allowed models: ${BuilderAgent.ALLOWED_MODELS.joinToString(", ")}."
     }
+    val askBefore = args.stringList("ask_before")
+    val unknownAsk = askBefore.orEmpty().filter { it != AgentPassport.ANY_TOOL && it !in AgentValidator.KNOWN_TOOL_NAMES }
+    if (unknownAsk.isNotEmpty()) {
+      problems += "Unknown tools in ask_before: ${unknownAsk.joinToString(", ")}. Use tool names or \"${AgentPassport.ANY_TOOL}\"."
+    }
     val goalRounds = args.int("goal_max_rounds")
     if (goalRounds != null && goalRounds !in MIN_GOAL_ROUNDS..MAX_GOAL_ROUNDS) {
       problems += "goal_max_rounds must be between $MIN_GOAL_ROUNDS and $MAX_GOAL_ROUNDS."
@@ -184,13 +204,19 @@ class AgentDraftTool(
       )
     }
 
+    if (askBefore != null) {
+      // Only the chat's own rule is replaced: a rule the person added on the review screen stays.
+      val others = next.hooks.filter { it.id != askBeforeHookId(draftId) }
+      next = next.copy(hooks = others + listOfNotNull(askBeforeHook(draftId, askBefore.toSet())))
+    }
+
     // saveDraft replaces the custom skills wholesale: hand the current set back so a skill the person
     // added on the review screen survives a chat edit.
     val saved = userAgents.saveDraft(next, skills = userAgents.skillsOf(draftId))
     return ToolResult.Success(snapshot(draftId, saved).toString())
   }
 
-  private suspend fun finish(draftId: String): ToolResult {
+  private suspend fun finish(draftId: String, examples: List<String>): ToolResult {
     val draft = userAgents.get(draftId)
       ?: return ToolResult.Error(
         "There is no draft yet. Call update with the name, description and instructions first.",
@@ -205,7 +231,7 @@ class AgentDraftTool(
           ". Ask the person only about the missing parts, update the draft, then call finish again.",
       )
     }
-    return ToolResult.Success(BuilderAgent.reviewCardResult(draft))
+    return ToolResult.Success(BuilderAgent.reviewCardResult(draft, examples))
   }
 
   /** What the model reads back after get/update/validate: the draft as it is stored and what is still wrong. */
@@ -226,6 +252,7 @@ class AgentDraftTool(
           put("model", draft.model ?: BuilderAgent.MODEL_DEFAULT)
           put("include_shared_profile", draft.memoryPolicy.includeSharedProfile)
           put("goal_max_rounds", draft.goalMaxRounds ?: DEFAULT_GOAL_ROUNDS)
+          putJsonArray("ask_before") { AgentPassport.askBeforeTools(draft).sorted().forEach { add(JsonPrimitive(it)) } }
         },
       )
       // Problems are normal while the draft is being built; they tell the model what is still missing.
@@ -255,6 +282,26 @@ class AgentDraftTool(
     fun draftIdFor(conversationId: String): String? {
       val core = conversationId.lowercase().filter { it in 'a'..'z' || it in '0'..'9' }.take(40)
       return if (core.isEmpty()) null else "my-agent-$core"
+    }
+
+    /** Id of the one approval rule `ask_before` writes; derived, so a repeated update replaces it. */
+    fun askBeforeHookId(draftId: String): String = "$draftId-ask-before"
+
+    /** The `ask_before` rule: approval before [tools] (or before any tool), or null for an empty list. */
+    private fun askBeforeHook(draftId: String, tools: Set<String>): AgentHook? {
+      if (tools.isEmpty()) return null
+      val any = AgentPassport.ANY_TOOL in tools
+      return AgentHook(
+        id = askBeforeHookId(draftId),
+        agentId = draftId,
+        event = HookEvent.BEFORE_TOOL,
+        conditionType = if (any) "always" else "tool_name_in",
+        conditionJson = if (any) "{}" else buildJsonObject { putJsonArray("names") { tools.sorted().forEach { add(JsonPrimitive(it)) } } }.toString(),
+        actionType = HookActionType.REQUIRE_APPROVAL,
+        actionJson = "{}",
+        priority = 0,
+        enabled = true,
+      )
     }
 
     /** An empty draft: no name yet, private memory, chat mode only and the general cards (`GENERAL_CARD_TEMPLATES`). */

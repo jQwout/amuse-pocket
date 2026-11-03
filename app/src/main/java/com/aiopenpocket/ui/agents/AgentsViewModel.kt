@@ -136,8 +136,10 @@ class AgentsViewModel(
 
 /** The Builder chat's opening line: a short hello and the one free-text question the whole flow starts from. */
 internal fun builderGreeting(): String = tr(
-  "Привет! Давай соберём твоего агента. Что он должен делать? Расскажи своими словами, а дальше я задам пару коротких вопросов.",
-  "Hi! Let's build your agent. What should it do? Tell me in your own words, then I'll ask a few short questions.",
+  "Привет! Давай соберём твоего агента. Что он должен делать? Расскажи своими словами, а дальше я задам несколько коротких вопросов. " +
+    "Каким он получается, видно в паспорте агента над чатом: нажми на него, чтобы развернуть.",
+  "Hi! Let's build your agent. What should it do? Tell me in your own words, then I'll ask a few short questions. " +
+    "The agent passport above the chat shows what it is turning into: tap it to unfold.",
 )
 
 /**

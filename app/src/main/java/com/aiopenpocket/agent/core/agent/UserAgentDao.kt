@@ -17,6 +17,9 @@ interface UserAgentDao {
   @Query("SELECT * FROM user_agents WHERE id = :id")
   suspend fun get(id: String): UserAgentEntity?
 
+  @Query("SELECT * FROM user_agents WHERE id = :id")
+  fun observe(id: String): Flow<UserAgentEntity?>
+
   @Query("SELECT * FROM user_agents WHERE status = 'PUBLISHED' ORDER BY updatedAt DESC")
   fun observePublished(): Flow<List<UserAgentEntity>>
 

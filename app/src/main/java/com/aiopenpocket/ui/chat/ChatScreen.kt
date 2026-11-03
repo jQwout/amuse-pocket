@@ -144,6 +144,10 @@ import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.forge.ForgedUiBanner
 import com.aiopenpocket.agent.core.agent.BuilderAgent
 import com.aiopenpocket.ui.agents.AgentsViewModel
+import com.aiopenpocket.ui.agents.builder.BuilderChatHost
+import com.aiopenpocket.ui.agents.builder.BuilderChatViewModel
+import com.aiopenpocket.ui.agents.builder.BuilderPassportBar
+import com.aiopenpocket.ui.agents.builder.LocalBuilderChatHost
 import com.aiopenpocket.ui.agents.builder.components.riskClassLabel
 import com.aiopenpocket.ui.agents.builder.components.riskColor
 import com.aiopenpocket.ui.chat.components.ChatInput
@@ -211,6 +215,24 @@ fun ChatScreen(
     val agentsViewModel: AgentsViewModel = metroViewModel()
     val state by viewModel.state.collectAsState()
     val scope = rememberCoroutineScope()
+
+    // @trace builder-passport-7d7794
+    // The builder chat's live draft: the passport under the header and the last card's Publish.
+    val isBuilderChat = state.agentId == BuilderAgent.ID
+    val builderViewModel: BuilderChatViewModel = metroViewModel()
+    val builderState by builderViewModel.state.collectAsState()
+    LaunchedEffect(isBuilderChat, state.conversationId) {
+        if (isBuilderChat) state.conversationId?.let(builderViewModel::bind)
+    }
+    val builderHost = if (isBuilderChat) {
+        BuilderChatHost(
+            state = builderState,
+            onPublish = builderViewModel::publish,
+            onOpenAgentChat = { agentId -> agentsViewModel.openAgentChat(agentId, onOpenBuilderChat) },
+        )
+    } else {
+        null
+    }
 
     // The heights of the floating glass bars (header/composer) are measured via onSizeChanged in the layout
     // below and turned into the feed's contentPadding (so messages scroll UNDER the bars, while the edge
@@ -545,6 +567,7 @@ fun ChatScreen(
                     if (message.role == "assistant") {
                         state.routedNameOf(message)?.let { RoutedAgentLabel(it) }
                     }
+                    CompositionLocalProvider(LocalBuilderChatHost provides builderHost) {
                     MessageBubble(
                         message = message,
                         onDelete = onDelete,
@@ -568,6 +591,7 @@ fun ChatScreen(
                         segmentingPrompts = state.segmentingPrompts,
                         onLessonSegment = onLessonSegment,
                     )
+                    }
                 }
                 if (hasStreamingItem) {
                     item(key = "streaming") {
@@ -709,6 +733,9 @@ fun ChatScreen(
                                     containerColor = Color.Transparent,
                                 ),
                             )
+                        }
+                        if (isBuilderChat && !searchActive) {
+                            BuilderPassportBar(draft = builderState.draft)
                         }
                     }
                 }

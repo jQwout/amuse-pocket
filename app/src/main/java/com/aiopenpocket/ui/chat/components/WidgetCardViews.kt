@@ -37,6 +37,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aiopenpocket.i18n.tr
+import com.aiopenpocket.agent.core.agent.AgentStatus
+import com.aiopenpocket.ui.agents.builder.LocalBuilderChatHost
+import com.aiopenpocket.ui.agents.builder.PassportRows
+import com.aiopenpocket.ui.agents.builder.PublishFromChatDialog
 import java.util.Locale
 import kotlinx.coroutines.delay
 import org.json.JSONObject
@@ -506,6 +510,13 @@ fun MultiChoiceCardView(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        if (card.hint.isNotBlank()) {
+            Text(
+                text = card.hint,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         if (final == null) {
             Text(
                 text = when {
@@ -572,36 +583,99 @@ fun MultiChoiceCardView(
     }
 }
 
-/** The "Review your agent" card the agent builder chat ends with: opens the review screen for the draft. */
+/**
+ * The "Review your agent" card the agent builder chat ends with. Inside the builder chat
+ * ([LocalBuilderChatHost], builder-passport-7d7794) it shows the whole agent: the passport from the live
+ * draft, what to say to it first, and Publish right here; the review screen stays one tap away for
+ * changes and a test run. Anywhere else (previews, an old card with no host) it is the plain
+ * "open the review" card.
+ */
 @Composable
 fun AgentReviewCardView(
     card: DrivenUiCard.AgentReviewCard,
     onOpen: (String) -> Unit,
 ) {
+    val host = LocalBuilderChatHost.current
+    val draft = host?.state?.draft?.takeIf { it.id == card.agentId }
+    var confirming by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         CardTitleRow(icon = Icons.Default.SmartToy, title = tr("Проверь своего агента", "Review your agent"))
         CardDivider()
         Text(
-            text = card.name,
+            text = draft?.name ?: card.name,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
         )
-        Text(
-            text = tr(
-                "Черновик готов. Посмотри все настройки, поправь что нужно и опубликуй.",
-                "The draft is ready. Look over every setting, change what you want, then publish.",
-            ),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.outline,
-        )
-        Button(
-            onClick = { onOpen(card.agentId) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("agent_review_open"),
-        ) {
-            Text(tr("Открыть проверку", "Review your agent"))
+        if (draft == null) {
+            Text(
+                text = tr(
+                    "Черновик готов. Посмотри все настройки, поправь что нужно и опубликуй.",
+                    "The draft is ready. Look over every setting, change what you want, then publish.",
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline,
+            )
+        } else {
+            PassportRows(draft)
         }
+        if (card.examples.isNotEmpty()) {
+            CardDivider()
+            Text(
+                text = tr("Попробуй сказать ему:", "Try saying to it:"),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            card.examples.forEach { example ->
+                Text(text = "«$example»", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        val published = draft != null && draft.status == AgentStatus.PUBLISHED
+        when {
+            host == null || draft == null -> Unit
+            published -> {
+                Text(
+                    text = tr("Опубликован: агент уже в «Моих агентах».", "Published: the agent is in “My agents”."),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Button(
+                    onClick = { host.onOpenAgentChat(draft.id) },
+                    modifier = Modifier.fillMaxWidth().testTag("agent_review_open_chat"),
+                ) { Text(tr("Открыть чат с агентом", "Open a chat with the agent")) }
+            }
+            draft.status == AgentStatus.DRAFT -> {
+                host.state.publishError?.let {
+                    Text(text = it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
+                Button(
+                    onClick = { confirming = true },
+                    enabled = !host.state.publishing,
+                    modifier = Modifier.fillMaxWidth().testTag("agent_review_publish"),
+                ) { Text(tr("Опубликовать", "Publish")) }
+            }
+        }
+        val reviewLabel = if (host != null && draft != null) tr("Проверить и изменить", "Test and change") else tr("Открыть проверку", "Review your agent")
+        if (host != null && draft != null) {
+            OutlinedButton(
+                onClick = { onOpen(card.agentId) },
+                modifier = Modifier.fillMaxWidth().testTag("agent_review_open"),
+            ) { Text(reviewLabel) }
+        } else {
+            Button(
+                onClick = { onOpen(card.agentId) },
+                modifier = Modifier.fillMaxWidth().testTag("agent_review_open"),
+            ) { Text(reviewLabel) }
+        }
+    }
+    if (confirming && draft != null && host != null) {
+        PublishFromChatDialog(
+            draft = draft,
+            onConfirm = {
+                confirming = false
+                host.onPublish()
+            },
+            onDismiss = { confirming = false },
+        )
     }
 }
 
