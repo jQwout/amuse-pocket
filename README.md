@@ -343,13 +343,23 @@ interface on the demo path with three lessons translated.
 - **SAM 3.1** in "How a model sees": name a thing in a photo and SAM outlines every instance of it
   (`ebf5cb5d`).
 - **The Builder chat.** Describe the agent in a chat with a hidden Builder agent on Muse Spark, then
-  review every field on one screen (`f651ae72`, `d16accc0`).
+  review every field on one screen (`f651ae72`, `d16accc0`). An agent passport pinned above the chat
+  shows the agent as it is being built, read from the stored draft (what it does, can use, remembers,
+  asks first, how it thinks); the Builder also asks about memory, permissions and planning, and the
+  last card publishes after a confirmation (`9aa5131a`). Deleting your own agent is a clear button
+  with a confirmation (`e8229519`).
 - **Meta's agent guidance.** Everything under "Following Meta's agent guidance" above: prompt order for
   the prefix cache, reasoning effort per mode, an answer at the step limit, errors the model can act on,
   the prompting checklist, Wonder or Spark per agent, capped self-wakeups (`cf749c45`..`1901653d`).
 - **Web search** through Meta's hosted `web_search` tool, always with sources (`80ba8d30`).
-- **Voice assistant.** The app can be the phone's assistant: the assist button opens a chat that is
-  already listening, sends what was said, and reads the reply aloud (`58a9b17f`).
+- **Voice assistant.** The app can be the phone's assistant (`58a9b17f`). The assist button opens a
+  translucent sheet over whatever app is on screen: an orb listens, the question goes to the right
+  agent, and the answer is shown in place and read aloud, with "Open in chat" (`c65274aa`).
+- **Voice call.** A call with the assistant from any chat: it listens phrase by phrase, answers
+  aloud sentence by sentence while the model is still writing, and the whole call stays in the chat
+  (`7476fdcb`).
+- **Photos in chat.** Attach a photo from the gallery or the camera; Muse Spark sees it, and only the
+  newest photo is sent again on later turns (`6d27ebea`).
 - **The agent router.** The home chat and the voice assistant hand each message to the right agent
   (`90dd818a`).
 - **Screens from the cloud.** A coding agent on Muse Spark writes an agent its own screen, delivered
@@ -357,6 +367,10 @@ interface on the demo path with three lessons translated.
 - **The whole course in English**: 31 lessons and their scenes, up from 3 (`c3192b51`..`391c5eff`).
   Every lesson on the Path now opens in any order (`2b4aad50`).
 - **Profile**: the person's own data and what the assistant remembers about them (`8b2bd280`).
+- **Skill market.** A market of agents and skills on the forge gateway, contributed by Uros Basaric:
+  publishing, search, installs, reports, covers by Muse Image and a safety review of every package by
+  Muse Spark (`7fddb6a6`). In the app, the builder picks a skill from it and shows the review and the
+  full instruction before adding it (`1ce2b0ac`).
 - **Fixes from device runs on Android 9 and 14**, among them: a request that expired unseen in the
   background is no longer reported as declined (`1f0305a7`), and Allow approves exactly what was shown
   (`2de101bf`).
