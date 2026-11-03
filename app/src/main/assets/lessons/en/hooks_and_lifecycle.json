@@ -24,7 +24,7 @@
     { "type": "quiz", "questions": [
       { "q": "What is a hook in an agent?", "options": ["A no-code rule: on a turn event, do an action", "A Kotlin script that the user writes by hand", "An Android permission setting for the app"], "correct": 0, "explain": "A hook is a rule on a phase of the turn: a condition plus an action from ready-made blocks." },
       { "q": "A tool has both an allow and a block attached. Which one wins?", "options": ["The block: it outweighs any allow", "The allow: it always has priority", "Whichever rule was added to the agent last"], "correct": 0, "explain": "A single block that fires always outweighs an allow. That is the safe default." },
-      { "q": "What does the hook engine NOT do?", "options": ["Call a tool itself: it only decides, the turn acts", "Add an extra instruction to the prompt", "Stop the turn or require confirmation"], "correct": 0, "explain": "The engine is pure and deterministic: it combines rules into a decision, and the turn itself carries it out." },
+      { "q": "What does the hook engine NOT do?", "options": ["Call the model or a tool itself: it only decides", "Add an extra instruction to the prompt", "Stop the turn or require confirmation"], "correct": 0, "explain": "The engine is pure and deterministic: it combines rules into a decision, and the turn itself carries it out." },
       { "q": "An “Allow” hook is attached to “Email.” Will the agent ask for your “OK” before a message?", "options": ["Yes: the default rule can't be bypassed", "No: the hook removes the question", "Only the first time"], "correct": 0, "explain": "Email goes outside the app, and that always waits for your “OK.” “Allow” does not cancel the default rules." }
     ] }
   ]
