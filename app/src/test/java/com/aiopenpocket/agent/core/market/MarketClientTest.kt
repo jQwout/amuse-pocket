@@ -19,6 +19,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -176,6 +177,18 @@ class MarketClientTest {
     val message = failed(client(answering("No such listing", HttpStatusCode.NotFound)).listing("lst_gone"))
 
     says(message, "больше нет", "no longer on the market")
+  }
+
+  /**
+   * The gateway on Fly predates the market and answers 404 to the catalog itself. The owner chose to keep the
+   * button without deploying, so a tap has to read as "not switched on yet", not as a skill that vanished.
+   */
+  @Test
+  fun `a gateway without the market says it is not available yet, not that a skill is gone`() = runTest {
+    val message = failed(client(answering("Not found", HttpStatusCode.NotFound)).searchSkills(null))
+
+    says(message, "пока недоступен", "not available yet")
+    assertFalse(message.contains("больше нет") || message.contains("no longer"))
   }
 
   @Test

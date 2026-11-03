@@ -63,7 +63,10 @@ class MarketClient(
       parameter("page", page)
       parameter("limit", limit)
     }
-    if (!response.status.isSuccess()) return@call failure(response)
+    // A 404 on the catalog itself means a gateway without the market routes (the build on Fly before the
+    // market shipped; the owner chose, 3 Nov 2026, to keep the button and not deploy for now): the honest
+    // sentence is "not available yet", not "this skill is gone".
+    if (!response.status.isSuccess()) return@call failure(response, notFound = MARKET_NOT_AVAILABLE)
     ForgeResult.Ok(json.decodeFromString<MarketListingPage>(response.bodyAsText()))
   }
 
@@ -110,18 +113,15 @@ class MarketClient(
     }
   }
 
-  private suspend fun failure(response: HttpResponse): ForgeResult.Failed {
+  private suspend fun failure(response: HttpResponse, notFound: () -> String = SKILL_GONE): ForgeResult.Failed {
     val detail = runCatching { response.bodyAsText().take(200).trim() }.getOrNull()?.takeIf { it.isNotBlank() }
-    return ForgeResult.Failed(httpFailureText(response.status.value, detail))
+    return ForgeResult.Failed(httpFailureText(response.status.value, detail, notFound))
   }
 
-  private fun httpFailureText(status: Int, detail: String?): String {
+  private fun httpFailureText(status: Int, detail: String?, notFound: () -> String): String {
     val suffix = detail?.let { " ($it)" }.orEmpty()
     return when {
-      status == 404 -> tr(
-        "Этого навыка в маркете больше нет.",
-        "This skill is no longer on the market.",
-      )
+      status == 404 -> notFound()
       status == 429 -> tr(
         "Слишком много запросов к маркету, попробуй чуть позже.",
         "Too many requests to the market, try again in a bit.",
@@ -143,6 +143,16 @@ class MarketClient(
 
   companion object {
     private const val TAG = "MarketClient"
+
+    /** 404 on one listing: it was there and is not any more. */
+    private val SKILL_GONE: () -> String = {
+      tr("Этого навыка в маркете больше нет.", "This skill is no longer on the market.")
+    }
+
+    /** 404 on the catalog: this gateway has no market at all (yet). */
+    private val MARKET_NOT_AVAILABLE: () -> String = {
+      tr("Маркет пока недоступен. Загляни позже.", "The market is not available yet. Check back later.")
+    }
     private const val CONNECT_TIMEOUT_MS = 10_000L
     private const val REQUEST_TIMEOUT_MS = 30_000L
     const val DEFAULT_PAGE_SIZE = 20
