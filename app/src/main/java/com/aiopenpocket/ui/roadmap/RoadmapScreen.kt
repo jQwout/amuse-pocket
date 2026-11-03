@@ -274,11 +274,15 @@ private fun PathLevelCard(
         text = level.title,
         style = MaterialTheme.typography.titleMedium,
         color = if (status == LevelStatus.CURRENT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+        // The title takes what is left, so a long title wraps instead of squeezing the badge into a column of letters.
+        modifier = Modifier.weight(1f),
       )
       if (status == LevelStatus.CURRENT) {
         Text(
           text = tr("ДАЛЬШЕ", "NEXT"),
           style = MaterialTheme.typography.labelSmall,
+          maxLines = 1,
+          softWrap = false,
           color = MaterialTheme.colorScheme.primary,
           modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
@@ -290,6 +294,8 @@ private fun PathLevelCard(
         Text(
           text = tr("ПРОЙДЕНО", "DONE"),
           style = MaterialTheme.typography.labelSmall,
+          maxLines = 1,
+          softWrap = false,
           color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
           modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
