@@ -119,8 +119,8 @@ object TurnModule {
   @Provides
   @SingleIn(AppScope::class)
   fun provideTurnPersistence(repository: ConversationRepository): TurnPersistence = object : TurnPersistence {
-    override suspend fun addUserMessage(conversationId: String, text: String): String =
-      repository.addMessage(conversationId, "user", text)
+    override suspend fun addUserMessage(conversationId: String, text: String, imagePath: String?): String =
+      repository.addMessage(conversationId, "user", text, imagePath = imagePath)
 
     override suspend fun addAssistantMessage(conversationId: String, text: String, cardSpec: String?, agentId: String?): String =
       repository.addMessage(conversationId, "assistant", text, cardSpec = cardSpec, agentId = agentId)

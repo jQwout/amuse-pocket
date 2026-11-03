@@ -31,6 +31,11 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNamingStrategy
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.addJsonObject
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import com.aiopenpocket.di.AppScope
@@ -121,7 +126,7 @@ class OpenAiCompatClient(
             if (withoutReasoning || reasoningRejected.contains(tag)) null else reasoningFieldsFor(p, effort)
           val requestBody = OpenAiChatRequest(
             model = p.model,
-            messages = messages,
+            messages = messages.map(::toWire),
             tools = tools.ifEmpty { null },  // null omitted via explicitNulls=false; [] would confuse some providers
             maxTokens = p.maxTokens,
             stream = true,
@@ -313,10 +318,33 @@ class OpenAiCompatClient(
     emit(StreamEvent.Error(userFacingLlmError(lastErrorCode, interrupted = false), code = lastErrorCode))
   }
 
+  /**
+   * One message as it goes on the wire. A message with a photo gets the OpenAI-format content array, its
+   * text and then an `image_url` part with the JPEG as a data URL (Meta reads images that way); every other
+   * message is encoded as before. A photo whose file is gone is sent as text only rather than failing the turn.
+   */
+  private fun toWire(message: ChatMessage): JsonElement {
+    val encoded = json.encodeToJsonElement(ChatMessage.serializer(), message).jsonObject
+    val url = message.imagePath?.let(ChatImages::dataUrl) ?: return encoded
+    val parts = buildJsonArray {
+      if (!message.content.isNullOrBlank()) {
+        addJsonObject {
+          put("type", "text")
+          put("text", message.content)
+        }
+      }
+      addJsonObject {
+        put("type", "image_url")
+        putJsonObject("image_url") { put("url", url) }
+      }
+    }
+    return JsonObject(encoded + ("content" to parts))
+  }
+
   @Serializable
   private data class OpenAiChatRequest(
     val model: String,
-    val messages: List<ChatMessage>,
+    val messages: List<JsonElement>,
     val tools: List<FunctionSchema>? = null,
     // namingStrategy = SnakeCase maps maxTokens -> max_tokens. A backstop in case ProviderConfig for some
     // reason did not set a value; normally it comes from ProviderConfig.maxTokens.

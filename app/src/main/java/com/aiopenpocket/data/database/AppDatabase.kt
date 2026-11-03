@@ -2,6 +2,7 @@ package com.aiopenpocket.data.database
 
 // @trace agent-memory-05e545
 
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
@@ -83,7 +84,11 @@ import com.aiopenpocket.agent.core.srs.SrsWordEntity
     AgentStorageEntity::class,
     LlmUsageEntity::class,
   ],
-  version = 14,
+  version = 15,
+  // 14 -> 15 only adds the nullable messages.imagePath (photos-in-chat-bca88e). An exception to the
+  // destructive policy, taken on Nov 3, 2026: the owner was testing on their phone the day before the
+  // hackathon deadline, and wiping their agents and chats for one new column was not worth it.
+  autoMigrations = [AutoMigration(from = 14, to = 15)],
   // exportSchema = true, although there are no migrations yet and everything is recreated destructively
   // (see the policy in DatabaseBindings.provideDatabase). That is exactly why it is on: the first real
   // Migration will have to be written FROM the release version's schema, and there will be nowhere to

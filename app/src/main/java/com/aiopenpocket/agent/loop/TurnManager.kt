@@ -132,11 +132,14 @@ class TurnManager(
     budget: PlanRunBudget = PlanRunBudget(),
     systemPromptExtra: String? = null,
     executionMode: ExecutionMode = ExecutionMode.LIVE,
+    /** A photo attached to the message (photos-in-chat-bca88e): saved on the user message, sent this turn. */
+    imagePath: String? = null,
   ) {
     scope.launch {
       startTurn(
         conversationId, userText, mode, planId, budget,
         persistUserMessage = true, systemPromptExtra = systemPromptExtra, executionMode = executionMode,
+        imagePath = imagePath,
       )
     }
   }
@@ -278,6 +281,7 @@ class TurnManager(
     persistUserMessage: Boolean,
     systemPromptExtra: String? = null,
     executionMode: ExecutionMode = ExecutionMode.LIVE,
+    imagePath: String? = null,
   ) {
     // Acquired BEFORE the mutex: acquire calls into Android (starts a service), and there is no reason
     // to hold the manager's mutex over it — the mutex only serializes job swaps. A refusal by the
@@ -298,7 +302,7 @@ class TurnManager(
       session.job = scope.launch {
         try {
           previous.joinAll()
-          runTurn(session, userText, mode, planId, budget, persistUserMessage, systemPromptExtra, executionMode)
+          runTurn(session, userText, mode, planId, budget, persistUserMessage, systemPromptExtra, executionMode, imagePath)
         } finally {
           // finally, not the tail of runTurn: a cancellation (Stop, a new turn) must release the protection
           // too, or the service with its notification would outlive the turn it was started for.
@@ -361,6 +365,7 @@ class TurnManager(
     persistUserMessage: Boolean,
     systemPromptExtra: String? = null,
     executionMode: ExecutionMode = ExecutionMode.LIVE,
+    imagePath: String? = null,
   ) {
     val convId = session.conversationId
     resetStreaming(session)
@@ -382,7 +387,7 @@ class TurnManager(
         // A new turn is a new attempt: the retry context is valid only after a successful addMessage.
         session.lastUserText = null
         session.lastUserMessageId = null
-        val userMsgId = persistence.addUserMessage(convId, userText)
+        val userMsgId = persistence.addUserMessage(convId, userText, imagePath)
         session.lastUserText = userText
         session.lastUserMessageId = userMsgId
       }

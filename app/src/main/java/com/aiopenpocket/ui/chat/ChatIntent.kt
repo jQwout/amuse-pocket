@@ -9,6 +9,10 @@ import com.aiopenpocket.agent.loop.AgentMode
 sealed class ChatIntent {
   data class UpdateInput(val text: String) : ChatIntent()
   data object SendMessage : ChatIntent()
+  /** A photo picked or shot for the next message (photos-in-chat-bca88e). */
+  data class AttachImage(val uri: android.net.Uri) : ChatIntent()
+  /** The attached photo's "x": the next message goes without it. */
+  data object RemoveAttachedImage : ChatIntent()
   data object CancelRequest : ChatIntent()
   data object ToggleToolTrace : ChatIntent()
   /** Delete a message (the confirmation happens in the UI, before this intent is sent). */

@@ -35,6 +35,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
@@ -140,6 +144,19 @@ internal fun MessageBubble(
                 .clickable(onClick = { showActions = !showActions })
                 .padding(12.dp),
         ) {
+            // @trace photos-in-chat-bca88e
+            message.imagePath?.let { path ->
+                AsyncImage(
+                    model = java.io.File(path),
+                    contentDescription = tr("Фото", "Photo"),
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .widthIn(max = 240.dp)
+                        .heightIn(max = 280.dp)
+                        .clip(RoundedCornerShape(12.dp)),
+                )
+                if (displayText.isNotBlank()) Spacer(modifier = Modifier.height(8.dp))
+            }
             if (interactive) {
                 if (message.content.isNotBlank()) {
                     MarkdownText(text = message.content, compact = true, selectable = true, fontScale = fontScale)

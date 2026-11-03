@@ -42,5 +42,10 @@ data class MessageEntity(
    * (agent-router-dc2233) — the chat shows its name over the bubble. Null for everything else.
    */
   val agentId: String? = null,
+  /**
+   * A photo the person attached to this user message (photos-in-chat-bca88e): an absolute path to a JPEG
+   * the app copied into its own files (ChatImageStore), never a content URI that can stop resolving.
+   */
+  val imagePath: String? = null,
   val createdAt: Long = System.currentTimeMillis(),
 )

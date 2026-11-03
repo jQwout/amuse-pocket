@@ -380,6 +380,8 @@ class PrePromptAssembler @Inject constructor(
     val role: String,
     val content: String,
     val toolCallsJson: String?,
+    /** A photo attached to this user message (photos-in-chat-bca88e); only the current turn's is sent. */
+    val imagePath: String? = null,
   )
 
   companion object {

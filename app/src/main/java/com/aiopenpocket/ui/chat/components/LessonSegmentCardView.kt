@@ -195,14 +195,14 @@ internal fun LessonSegmentCardView(
     }
 }
 
-/** The system camera, with write access to the lesson's own file spelled out for the camera app. */
-private class LessonPhotoCapture : ActivityResultContracts.TakePicture() {
+/** The system camera, with write access to the lesson's own file spelled out for the camera app. Also the chat's camera. */
+internal class LessonPhotoCapture : ActivityResultContracts.TakePicture() {
     override fun createIntent(context: Context, input: Uri): Intent =
         super.createIntent(context, input)
             .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
 }
 
-private fun newPhotoCaptureUri(context: Context): Uri {
+internal fun newPhotoCaptureUri(context: Context): Uri {
     val dir = File(context.cacheDir, LESSON_PHOTO_DIR).apply { mkdirs() }
     val file = File(dir, "capture-${System.currentTimeMillis()}.jpg")
     return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
