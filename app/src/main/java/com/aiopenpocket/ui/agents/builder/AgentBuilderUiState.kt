@@ -11,6 +11,7 @@ import com.aiopenpocket.agent.core.hook.AgentHook
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.agent.core.skill.UserSkillEntity
 import com.aiopenpocket.agent.loop.AgentMode
+import com.aiopenpocket.agent.tools.GENERAL_CARD_TEMPLATES
 
 /**
  * The six pages of the agent builder wizard, in wizard order. [BuilderStep.entries]' ordinal order
@@ -168,7 +169,10 @@ data class AgentDraft(
      * [sourceContext] defaults to [AgentSourceContext.MANUAL]; the capstone completion CTA is the
      * only caller (via [AgentBuilderViewModel.newDraft]) that passes [AgentSourceContext.ACADEMY_CAPSTONE]. */
     fun new(id: String, sourceContext: AgentSourceContext = AgentSourceContext.MANUAL): AgentDraft =
-      AgentDraft(id = id, sourceContext = sourceContext)
+      // The general cards from the start, like a draft the builder chat opens (AgentDraftTool.empty): the
+      // card-template chips are folded away on the Capabilities step, and a draft that began with none
+      // would ship an agent that cannot draw a single card, with nothing on screen to say why.
+      AgentDraft(id = id, sourceContext = sourceContext, allowedWidgetTemplates = GENERAL_CARD_TEMPLATES)
 
     /**
      * Mirrors an existing (draft/published/archived) [AgentDefinition] into an editable [AgentDraft].
