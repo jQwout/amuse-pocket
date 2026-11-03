@@ -66,6 +66,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloseFullscreen
 import androidx.compose.material.icons.filled.Delete
@@ -207,6 +208,8 @@ fun ChatScreen(
     voiceAssistant: Boolean = false,
     /** Opens the agent's own forged interface (`agent_ui/{agentId}`) from the banner. */
     onOpenAgentUi: (String) -> Unit = {},
+    /** The phone button: a voice call in this conversation (an empty id = the chat has none yet). */
+    onStartCall: (String) -> Unit = {},
 ) {
     val glassState = rememberGlassState()
     val viewModel: ChatViewModel = metroViewModel()
@@ -696,6 +699,21 @@ fun ChatScreen(
                                     }
                                 },
                                 actions = {
+                                    // @trace voice-call-mode-54cb49
+                                    // A call continues this very conversation by voice. Not in a lesson: a lesson
+                                    // step is driven by its cards, not by free talk.
+                                    if (!state.lessonMode) {
+                                        IconButton(
+                                            onClick = { onStartCall(state.conversationId.orEmpty()) },
+                                            modifier = Modifier.testTag("chat_start_call"),
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Call,
+                                                contentDescription = tr("Позвонить ассистенту", "Call the assistant"),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
                                     // Search over the chat's messages.
                                     IconButton(onClick = { searchActive = true; viewModel.setSearchActive(true) }) {
                                         Icon(

@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -29,6 +30,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.aiopenpocket.i18n.AppLanguage
 import com.aiopenpocket.ui.components.glass.StatusBarScrim
+import com.aiopenpocket.ui.call.CallScreen
 import com.aiopenpocket.ui.chat.ChatScreen
 import com.aiopenpocket.ui.conversations.ConversationsListScreen
 import com.aiopenpocket.ui.agents.AgentsScreen
@@ -137,7 +139,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             }
-                            // Open a new chat when the voice assistant is invoked.
+                            // Open a call when the voice assistant is invoked.
                             // Onboarding must be completed — otherwise the chat is not available.
                             LaunchedEffect(newChatToken, onboardingCompleted) {
                                 if (newChatToken > 0 && onboardingCompleted == true) {
@@ -145,8 +147,10 @@ class MainActivity : ComponentActivity() {
                                         popUpTo("onboarding") { inclusive = true }
                                         launchSingleTop = true
                                     }
-                                    // voice=true: the chat starts listening at once and reads the reply aloud.
-                                    navController.navigate("chat/new?voice=true") {
+                                    // @trace voice-call-mode-54cb49
+                                    // The owner, 3 Nov 2026: the assistant button opens a call, as in the Claude app,
+                                    // not a chat that hears one question. Hanging up leaves the chat with the call in it.
+                                    navController.navigate("call/new") {
                                         launchSingleTop = true
                                     }
                                 }
@@ -453,6 +457,18 @@ class MainActivity : ComponentActivity() {
                                         onOpenSettings = {
                                             navController.navigate("settings") { launchSingleTop = true }
                                         },
+                                        onStartCall = { id ->
+                                            navController.navigate("call/${id.ifBlank { "new" }}") { launchSingleTop = true }
+                                        },
+                                    )
+                                }
+                                // @trace voice-call-mode-54cb49
+                                composable("call/{conversationId}") { backStackEntry ->
+                                    val conversationId =
+                                        backStackEntry.arguments?.getString("conversationId") ?: "new"
+                                    CallScreen(
+                                        conversationId = if (conversationId == "new") "" else conversationId,
+                                        onHangUp = { convId -> navController.leaveCall(convId) },
                                     )
                                 }
                             }
@@ -508,4 +524,20 @@ class MainActivity : ComponentActivity() {
         internal fun validConversationIdOrNull(raw: String?): String? =
             raw?.trim()?.takeIf { CONVERSATION_ID_REGEX.matches(it) }
     }
+}
+
+/**
+ * Leaves the call for the chat that holds it. A call started from that chat simply closes; one started by
+ * the assistant button, or from a new chat that had no conversation yet, opens the conversation it created
+ * in place of what was under it, so "Back" from there does not land on an empty chat.
+ */
+// @trace voice-call-mode-54cb49
+private fun NavController.leaveCall(conversationId: String?) {
+    popBackStack()
+    if (conversationId == null) return
+    val top = currentBackStackEntry
+    val topIsChat = top?.destination?.route?.startsWith("chat/") == true
+    if (topIsChat && top?.arguments?.getString("conversationId") == conversationId) return
+    if (topIsChat) popBackStack()
+    navigate("chat/$conversationId") { launchSingleTop = true }
 }

@@ -55,7 +55,7 @@ object TurnModule {
     routeChoices: AgentRouteChoices,
     conversationRepository: ConversationRepository,
   ): TurnExecutor =
-    TurnExecutor { conversationId, message, provider, mode, planId, budget, systemPromptExtra, executionMode ->
+    TurnExecutor { conversationId, message, provider, mode, planId, budget, systemPromptExtra, executionMode, effort ->
       // The dispatch point by mode (not in ChatViewModel, as on the old branch): the manager has already
       // passed the mode. REFLECT is a 3-phase orchestrator on top of the same ReactLoopRunner. PLAN/GOAL
       // (Task 10, structured-plan-engine-907066) are the typed Structured Plan Engine (PlanPlanner →
@@ -84,8 +84,9 @@ object TurnModule {
         )
         // How hard the model thinks is decided HERE, once per turn, by mode (lesson answer: low; chat: medium;
         // planning and critique: high) and travels in the coroutine context down to OpenAiCompatClient.
+        // A caller may ask for its own level: a voice call wants a low one, since the person waits in silence.
         // flowOn with a non-dispatcher element adds no thread hop and no buffer.
-      }.flowOn(ReasoningEffortContext(reasoningEffortFor(mode)))
+      }.flowOn(ReasoningEffortContext(effort ?: reasoningEffortFor(mode)))
     }
 
   /**

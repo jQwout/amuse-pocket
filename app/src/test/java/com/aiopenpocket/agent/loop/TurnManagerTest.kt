@@ -5,6 +5,7 @@ package com.aiopenpocket.agent.loop
 // @trace approval-outcome-honesty-554a8c
 
 import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.llm.ReasoningEffort
 import com.aiopenpocket.agent.core.llm.missingKeyMessage
 import com.aiopenpocket.agent.core.mcp.CapabilityNames
 import com.aiopenpocket.agent.core.mcp.RiskClass
@@ -73,6 +74,7 @@ class TurnManagerTest {
       budget: PlanRunBudget,
       systemPromptExtra: String?,
       executionMode: ExecutionMode,
+      effort: ReasoningEffort?,
     ): Flow<AgentEvent> {
       val call = Call(conversationId, userMessage, mode, planId, budget, executionMode, systemPromptExtra)
       calls += call

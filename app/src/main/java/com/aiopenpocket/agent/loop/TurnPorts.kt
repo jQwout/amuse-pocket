@@ -5,6 +5,7 @@ package com.aiopenpocket.agent.loop
 // @trace structured-plan-engine-907066
 
 import com.aiopenpocket.agent.core.llm.LlmProvider
+import com.aiopenpocket.agent.core.llm.ReasoningEffort
 import com.aiopenpocket.agent.core.plan.execution.PlanRunBudget
 import com.aiopenpocket.agent.core.policy.ExecutionMode
 import com.aiopenpocket.i18n.tr
@@ -33,6 +34,8 @@ fun interface TurnExecutor {
     systemPromptExtra: String?,
     /** LIVE (the default of the calling TurnManager) or PREVIEW — see ExecutionPolicy. */
     executionMode: ExecutionMode,
+    /** How hard the model thinks on this turn; null = the mode's own level (reasoningEffortFor). */
+    effort: ReasoningEffort?,
   ): Flow<AgentEvent>
 }
 
