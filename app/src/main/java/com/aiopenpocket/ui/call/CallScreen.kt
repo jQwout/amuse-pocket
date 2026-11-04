@@ -175,6 +175,15 @@ fun CallScreen(
             modifier = Modifier.testTag("call_phase"),
           )
         }
+        // Whose model hears the person: shown when it is Meta's, the point of a Meta-built call.
+        state.hearingModel?.let { model ->
+          Text(
+            text = tr("Слышит: $model", "Listening with $model"),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+            modifier = Modifier.padding(top = 2.dp).testTag("call_hearing_model"),
+          )
+        }
 
         Spacer(Modifier.weight(1f))
         AssistantOrb(state = orbState(state), size = 280.dp)
@@ -276,12 +285,17 @@ private fun orbState(state: CallUiState): OrbState = when {
   else -> when (state.phase) {
     CallPhase.SPEAKING -> OrbState.SPEAKING
     CallPhase.THINKING, CallPhase.WAITING_APPROVAL -> OrbState.THINKING
-    CallPhase.LISTENING -> if (state.micMuted) OrbState.IDLE else OrbState.LISTENING
+    CallPhase.LISTENING -> when {
+      state.transcribing -> OrbState.THINKING
+      state.micMuted -> OrbState.IDLE
+      else -> OrbState.LISTENING
+    }
   }
 }
 
 private fun phaseLabel(state: CallUiState): String = when {
   state.needsMicPermission -> tr("Нет доступа к микрофону", "No microphone access")
+  state.transcribing -> tr("Расшифровываю…", "Transcribing…")
   state.micMuted && state.phase == CallPhase.LISTENING -> tr("Микрофон выключен", "Microphone muted")
   state.micPaused -> tr("На паузе", "Paused")
   else -> when (state.phase) {
@@ -305,6 +319,7 @@ private fun CallWords(state: CallUiState, onReplay: () -> Unit) {
   val heard = state.heard
   val caption = state.caption.takeIf { state.phase == CallPhase.SPEAKING }
   val kind = when {
+    state.transcribing -> WordsKind.THINKING
     state.phase == CallPhase.LISTENING && !heard.isNullOrBlank() -> WordsKind.HEARING
     caption != null -> WordsKind.SPEAKING
     state.phase == CallPhase.THINKING -> WordsKind.THINKING
@@ -333,7 +348,9 @@ private fun CallWords(state: CallUiState, onReplay: () -> Unit) {
           withStyle(SpanStyle(color = MaterialTheme.colorScheme.onBackground)) { append(text.take(said)) }
           withStyle(SpanStyle(color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f))) { append(text.drop(said)) }
         }
-        WordsKind.THINKING -> AnnotatedString(state.activity ?: "")
+        WordsKind.THINKING -> AnnotatedString(
+          if (state.transcribing) tr("Записываю твою фразу…", "Writing down what you said…") else state.activity ?: "",
+        )
         WordsKind.REPLY -> AnnotatedString(state.reply)
         WordsKind.HINT -> AnnotatedString(
           if (micOff) tr("Микрофон выключен", "The microphone is off") else tr("Говори, я слушаю", "Go ahead, I'm listening"),

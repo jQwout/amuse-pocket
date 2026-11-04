@@ -1,6 +1,7 @@
 package com.aiopenpocket.ui.call
 
 // @trace voice-call-mode-54cb49
+// @trace meta-voice-transcribe-in-calls-297760
 
 import android.content.Context
 import android.net.Uri
@@ -9,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.llm.ChatImages
+import com.aiopenpocket.agent.core.llm.VoiceTranscribeClient
 import com.aiopenpocket.agent.core.llm.ReasoningEffort
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
 import com.aiopenpocket.agent.core.policy.ToolApprovalCoordinator
@@ -20,10 +22,13 @@ import com.aiopenpocket.agent.loop.TurnStatus
 import com.aiopenpocket.agent.loop.TurnTexts
 import com.aiopenpocket.di.AppScope
 import com.aiopenpocket.i18n.tr
+import com.aiopenpocket.voice.call.AndroidCallEars
 import com.aiopenpocket.voice.call.CALL_PROMPT
+import com.aiopenpocket.voice.call.CallEars
 import com.aiopenpocket.voice.call.CallLoop
 import com.aiopenpocket.voice.call.CallPhase
 import com.aiopenpocket.voice.call.CallSpeaker
+import com.aiopenpocket.voice.call.MetaCallEars
 import com.aiopenpocket.voice.call.SentenceFeed
 import com.aiopenpocket.voice.input.VoiceInputController
 import com.aiopenpocket.voice.input.VoiceInputState
@@ -65,6 +70,10 @@ data class CallUiState(
   val micPaused: Boolean = false,
   /** The person muted the microphone with the button; only the button unmutes it. */
   val micMuted: Boolean = false,
+  /** Meta is writing the recorded phrase down (Voice Transcribe); there are no live words meanwhile. */
+  val transcribing: Boolean = false,
+  /** Whose model hears the person, shown on the call; null for the phone's own recognizer. */
+  val hearingModel: String? = null,
   /** What the voice is reading right now, for the running caption. */
   val caption: CallSpeaker.Caption? = null,
   /** A photo taken or picked during the call; it goes with the next phrase, then is cleared. */
@@ -98,9 +107,20 @@ class CallViewModel(
   private val turnManager: TurnManager,
   private val userPreferencesRepository: UserPreferencesRepository,
   private val toolApprovalCoordinator: ToolApprovalCoordinator,
-  private val voice: VoiceInputController,
+  voice: VoiceInputController,
+  transcribeClient: VoiceTranscribeClient,
   private val speaker: CallSpeaker,
 ) : ViewModel() {
+
+  private val androidEars = AndroidCallEars(voice)
+  private val metaEars = MetaCallEars(transcribeClient)
+
+  /**
+   * What the call hears with, chosen once the language is known: Meta's Voice Transcribe when the app speaks
+   * English and a Meta key is set, otherwise the phone's recognizer (Meta's model has no Russian).
+   */
+  private var ears: CallEars = androidEars
+  private val canUseMeta = { transcribeClient.isConfigured() }
 
   private val _state = MutableStateFlow(CallUiState())
   val state: StateFlow<CallUiState> = _state.asStateFlow()
@@ -138,13 +158,16 @@ class CallViewModel(
     started = true
     viewModelScope.launch {
       val tag = appLanguageToBcp47(userPreferencesRepository.getLanguage())
+      if (tag.startsWith("en") && canUseMeta()) ears = metaEars
+      _state.update { it.copy(hearingModel = ears.modelName) }
+      launch { ears.state.collect(::onVoiceState) }
+      launch { ears.transcripts.collect(::onUserSaid) }
+      launch { ears.transcribing.collect { now -> _state.update { it.copy(transcribing = now) } } }
       language = tag
       speaker.warmUp(tag)
       conversationId.ifBlank { null }?.let { bind(it) }
       syncMic()
     }
-    viewModelScope.launch { voice.state.collect(::onVoiceState) }
-    viewModelScope.launch { voice.transcripts.collect(::onUserSaid) }
     viewModelScope.launch { speaker.speaking.collect { now -> update { it.speaking(now) } } }
     viewModelScope.launch { speaker.caption.collect { caption -> _state.update { it.copy(caption = caption) } } }
     // Only this conversation's requests: TurnManager runs turns of several chats at once.
@@ -256,13 +279,14 @@ class CallViewModel(
   fun hangUp(): String? {
     ended = true
     listenJob?.cancel()
-    voice.cancel()
+    ears.cancel()
     speaker.stop()
     return convIdFlow.value
   }
 
   override fun onCleared() {
-    voice.release()
+    androidEars.release()
+    metaEars.release()
     speaker.release()
   }
 
@@ -291,12 +315,12 @@ class CallViewModel(
 
   /** Turns the microphone on or off to match the floor. Called after every change that can affect it. */
   private fun syncMic() {
-    val on = voice.state.value is VoiceInputState.Listening
+    val on = ears.state.value is VoiceInputState.Listening
     when {
       micWanted() && !on -> scheduleListen(RESTART_DELAY_MS)
       !micWanted() -> {
         listenJob?.cancel()
-        if (on) voice.cancel()
+        if (on) ears.cancel()
       }
     }
   }
@@ -310,14 +334,14 @@ class CallViewModel(
     if (listenJob?.isActive == true) return
     listenJob = viewModelScope.launch {
       delay(delayMs)
-      if (!micWanted() || voice.state.value is VoiceInputState.Listening) return@launch
+      if (!micWanted() || ears.state.value is VoiceInputState.Listening) return@launch
       // Listen again, but not forever: every start beeps, and nobody has said a word for a while. Counted
       // here rather than on "no match" because some recognizers end a silent session with an empty result.
       if (++silentStarts > MAX_SILENT_STARTS) {
         pauseMic(tr("Я на паузе. Коснись экрана, чтобы говорить", "I've paused. Tap the screen to talk"))
         return@launch
       }
-      voice.start(language ?: return@launch)
+      ears.start(language ?: return@launch)
     }
   }
 

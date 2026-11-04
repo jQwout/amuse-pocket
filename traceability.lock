@@ -85,6 +85,10 @@
       "hash": "5ce0a59104fd",
       "git": "7bccf193"
     },
+    "meta-voice-transcribe-in-calls-297760": {
+      "hash": "fd633be7083e",
+      "git": "d80b4363"
+    },
     "multi-agent-orchestration-27b8e3": {
       "hash": "df3f619804a9",
       "git": "b7563711"
@@ -166,8 +170,8 @@
       "git": "96d7190d"
     },
     "voice-call-mode-54cb49": {
-      "hash": "07afd95c7f2f",
-      "git": "f33a6999"
+      "hash": "1ef316e95535",
+      "git": "d80b4363"
     },
     "voice-input-1a0dfd": {
       "hash": "0a8ee7dedcdf",
@@ -178,8 +182,8 @@
       "git": "9e511fb9"
     },
     "web-search-tool-c73ed8": {
-      "hash": "ba287fef9ff8",
-      "git": "e381b033"
+      "hash": "1d07c46a1e92",
+      "git": "d80b4363"
     },
     "yazykovoy-agent-repetitor-s-intervalnymi-povtoreniyami-4a9360": {
       "hash": "1224dc1209f6",

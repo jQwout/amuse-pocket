@@ -6,6 +6,7 @@ package com.aiopenpocket.di
 // @trace video-na-vhod-v-uroke-muse-spark-08ccdb
 // @trace sam-segmentation-boxes-in-a-lesson-c3ea52
 // @trace web-search-tool-c73ed8
+// @trace meta-voice-transcribe-in-calls-297760
 
 import com.aiopenpocket.agent.core.llm.ImageGenClient
 import com.aiopenpocket.agent.core.llm.LlmClient
@@ -20,6 +21,7 @@ import com.aiopenpocket.agent.core.llm.ProviderFallbackChain
 import com.aiopenpocket.agent.core.llm.SegmentationClient
 import com.aiopenpocket.agent.core.llm.SelectedLlmProvider
 import com.aiopenpocket.agent.core.llm.VideoUnderstandingClient
+import com.aiopenpocket.agent.core.llm.VoiceTranscribeClient
 import com.aiopenpocket.agent.core.llm.WebSearchClient
 import com.aiopenpocket.agent.core.llm.preferredSparkId
 import com.aiopenpocket.data.repository.SettingsRepository
@@ -99,6 +101,19 @@ object LlmModule {
     settingsRepository: SettingsRepository,
     usageRecorder: LlmUsageRecorder,
   ): SegmentationClient = SegmentationClient(
+    engine = engine,
+    apiKey = { metaKey(settingsRepository) },
+    usageRecorder = usageRecorder,
+  )
+
+  /** Muse Voice Transcribe for a call in English, on the person's Meta key; without one the call uses Android's recognizer. */
+  @Provides
+  @SingleIn(AppScope::class)
+  fun provideVoiceTranscribeClient(
+    engine: HttpClientEngine,
+    settingsRepository: SettingsRepository,
+    usageRecorder: LlmUsageRecorder,
+  ): VoiceTranscribeClient = VoiceTranscribeClient(
     engine = engine,
     apiKey = { metaKey(settingsRepository) },
     usageRecorder = usageRecorder,
