@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -28,7 +29,6 @@ import com.aiopenpocket.agent.core.forge.ForgedScreenRepository
 import com.aiopenpocket.agent.core.forge.ForgedScreenState
 import com.aiopenpocket.di.AppScope
 import com.aiopenpocket.i18n.tr
-import com.aiopenpocket.ui.components.glass.GlassCard
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
@@ -85,18 +85,29 @@ fun ForgedUiBannerContent(ui: ForgedAgentUi, onOpenUi: () -> Unit, modifier: Mod
   val building = state.isInFlight
   val ready = ui.showsCustomUi
   if (!building && !ready) return
-  GlassCard(modifier = modifier.fillMaxWidth().testTag("forged_banner"), shape = RoundedCornerShape(16.dp)) {
+  // Opaque, not glass: the banner floats over the chat, and on glass the messages scrolling behind it
+  // showed through its text (owner, phone, 4 Nov 2026).
+  Surface(
+    modifier = modifier.fillMaxWidth().testTag("forged_banner"),
+    shape = RoundedCornerShape(16.dp),
+    color = MaterialTheme.colorScheme.secondaryContainer,
+    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+  ) {
     Row(
       modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
       verticalAlignment = Alignment.CenterVertically,
     ) {
       if (building) {
-        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+        CircularProgressIndicator(
+          modifier = Modifier.size(18.dp),
+          strokeWidth = 2.dp,
+          color = MaterialTheme.colorScheme.primary,
+        )
         Spacer(modifier = Modifier.width(10.dp))
       }
       Text(
         text = if (building) {
-          tr("Ваш интерфейс в разработке — пока пользуйтесь чатом.", "Your interface is being built - use the chat meanwhile.")
+          tr("Твой интерфейс в разработке — пока пользуйся чатом.", "Your interface is being built - use the chat meanwhile.")
         } else {
           tr("Интерфейс агента готов.", "The agent's interface is ready.")
         },

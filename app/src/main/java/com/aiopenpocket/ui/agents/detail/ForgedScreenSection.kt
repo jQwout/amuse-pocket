@@ -19,6 +19,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -177,19 +178,32 @@ private fun NoneCard(customUi: Boolean, configured: Boolean, onRegenerate: () ->
   }
 }
 
+/**
+ * A job in flight. An opaque sage panel, not glass: on glass with half-transparent text the one card
+ * that says "something is happening" read as washed out, quieter than the stats below it (owner, phone,
+ * 4 Nov 2026).
+ */
 @Composable
 private fun ProgressCard(text: String, request: String, onCancel: () -> Unit) {
-  GlassCard(modifier = Modifier.fillMaxWidth()) {
-    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+  Surface(
+    modifier = Modifier.fillMaxWidth(),
+    shape = RoundedCornerShape(20.dp),
+    color = MaterialTheme.colorScheme.secondaryContainer,
+    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+  ) {
+    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
       Row(verticalAlignment = Alignment.CenterVertically) {
-        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+        CircularProgressIndicator(
+          modifier = Modifier.size(22.dp),
+          strokeWidth = 2.5.dp,
+          color = MaterialTheme.colorScheme.primary,
+        )
         Spacer(modifier = Modifier.width(12.dp))
-        Text(text = text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("forged_status"))
+        Text(text = text, style = MaterialTheme.typography.titleSmall, modifier = Modifier.testTag("forged_status"))
       }
       Text(
         text = tr("Пока можно пользоваться чатом.", "The chat works meanwhile."),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+        style = MaterialTheme.typography.bodyMedium,
       )
       Text(
         text = if (AgentUiRequest.isAuto(request)) {
@@ -198,7 +212,6 @@ private fun ProgressCard(text: String, request: String, onCancel: () -> Unit) {
           "“${request.take(160)}”"
         },
         style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
       )
       TextButton(onClick = onCancel, modifier = Modifier.testTag("forged_remove")) {
         Text(tr("Отменить", "Cancel"))
