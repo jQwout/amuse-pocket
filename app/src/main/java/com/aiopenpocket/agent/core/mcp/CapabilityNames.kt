@@ -45,6 +45,7 @@ object CapabilityNames {
     "web_search" to ("Поиск в интернете" to "Web search"),
     "outline_photo" to ("Обвести на фото" to "Outline on photo"),
     "generate_image" to ("Рисовать картинки" to "Draw pictures"),
+    "task_list" to ("Список задач" to "Task list"),
     // The hidden agent builder's own tool - not in KNOWN_TOOL_NAMES (a user's agent cannot hold it), but
     // its calls show in the tool trace, which should not say "Agent draft" as a raw id.
     "agent_draft" to ("Черновик агента" to "Agent draft"),
@@ -102,6 +103,14 @@ object CapabilityNames {
       "all_words" to ("показать все слова" to "show all words"),
     ),
     "step_counter" to mapOf("snapshot" to ("узнать шаги" to "get steps")),
+    "task_list" to mapOf(
+      "add" to ("добавить задачу" to "add a task"),
+      "list" to ("показать задачи" to "list tasks"),
+      "complete" to ("отметить выполненной" to "mark done"),
+      "update" to ("изменить задачу" to "edit a task"),
+      "delete" to ("удалить задачу" to "delete a task"),
+      "lists" to ("показать списки" to "list the lists"),
+    ),
     "agent_draft" to mapOf(
       "get" to ("прочитать черновик" to "read the draft"),
       "update" to ("обновить черновик" to "update the draft"),

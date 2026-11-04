@@ -19,6 +19,7 @@ import com.aiopenpocket.agent.tools.RenderCardTool
 import com.aiopenpocket.agent.tools.SrsTool
 import com.aiopenpocket.agent.tools.StepCounterTool
 import com.aiopenpocket.agent.tools.StorageTool
+import com.aiopenpocket.agent.tools.TaskListTool
 import com.aiopenpocket.agent.tools.WebSearchTool
 import com.aiopenpocket.agent.tools.WorkManagerTool
 import dev.zacsweers.metro.BindingContainer
@@ -101,6 +102,10 @@ object AgentToolsModule {
   @Provides
   @IntoSet
   fun provideGenerateImageTool(tool: GenerateImageTool): Tool = tool
+
+  @Provides
+  @IntoSet
+  fun provideTaskListTool(tool: TaskListTool): Tool = tool
 
   // Registered like every tool, but only the hidden Builder agent has it in its toolNames, and the tool
   // itself refuses any other agent (see AgentDraftTool.execute).

@@ -55,6 +55,7 @@ object BuilderAgent {
   internal val TOOL_PURPOSES: Map<String, Pair<String, String>> = mapOf(
     "memory_tool" to ("помнит факты о человеке между разговорами" to "remembers facts about the person between chats"),
     "storage_tool" to ("ведёт свои заметки и счётчики" to "keeps its own notes and counters"),
+    "task_list" to ("ведёт список дел: добавляет, отмечает, удаляет задачи (список виден в приложении «Таск-лист»)" to "keeps a to-do list: adds, ticks and deletes tasks (the list shows in the Task list app)"),
     "file_tool" to ("создаёт и читает свои файлы" to "creates and reads its own files"),
     "external_files" to ("файлы вне приложения (пока всегда отказывает)" to "files outside the app (currently always refuses)"),
     "render_card" to ("показывает карточки в чате: списки, таблицы, графики, вопросы" to "shows cards in the chat: lists, tables, charts, questions"),
