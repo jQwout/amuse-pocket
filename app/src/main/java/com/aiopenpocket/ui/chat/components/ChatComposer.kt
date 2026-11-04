@@ -42,6 +42,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloseFullscreen
 import androidx.compose.material.icons.filled.OpenInFull
@@ -172,7 +173,7 @@ internal fun ChatInput(
                 onValueChange = onValueChange,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 24.dp, max = 160.dp)
+                    .heightIn(min = 44.dp, max = 160.dp)
                     .padding(horizontal = 4.dp, vertical = 4.dp),
                 textStyle = LocalTextStyle.current.copy(color = MaterialTheme.colorScheme.onSurface),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -185,65 +186,60 @@ internal fun ChatInput(
                     inner()
                 },
             )
-            Spacer(Modifier.height(6.dp))
-            // The bottom panel inside the frame: expand and the microphone on the left, clear and send on the right.
+            Spacer(Modifier.height(10.dp))
+            // The bottom panel inside the frame, the layout the owner tried out in another app: a row of small
+            // round outlined controls on the left (attach, voice, expand, and clear once there is text), and one
+            // large round send button on the right that lights up in the accent when there is something to send.
+            val control = Modifier.roundControl()
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                IconButton(onClick = onExpand, modifier = Modifier.size(36.dp)) {
+                if (onAttachImage != null) {
+                    PhotoButton(onPicked = onAttachImage, modifier = control)
+                }
+                MicButton(state = voiceState, onClick = ::handleMicTap, modifier = control)
+                IconButton(onClick = onExpand, modifier = control) {
                     Icon(
                         Icons.Default.OpenInFull,
                         contentDescription = tr("Развернуть", "Expand"),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(18.dp),
                     )
                 }
-                Spacer(Modifier.width(4.dp))
-                MicButton(state = voiceState, onClick = ::handleMicTap, modifier = Modifier.size(36.dp))
-                if (onAttachImage != null) {
-                    Spacer(Modifier.width(4.dp))
-                    PhotoButton(onPicked = onAttachImage, modifier = Modifier.size(36.dp))
-                }
-                Spacer(Modifier.weight(1f))
                 // Clear the field — shown only when there is text.
                 if (value.isNotBlank()) {
-                    IconButton(onClick = { onValueChange("") }, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = { onValueChange("") }, modifier = control) {
                         Icon(
                             Icons.Default.Close,
                             contentDescription = tr("Очистить", "Clear"),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp),
+                            modifier = Modifier.size(18.dp),
                         )
                     }
-                    Spacer(Modifier.width(4.dp))
                 }
-                if (isLoading) {
-                    // The progress around the "stop" button — lets the user cancel the turn.
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp)) {
-                        IconButton(onClick = onCancel) {
-                            Icon(Icons.Default.Stop, contentDescription = tr("Остановить", "Stop"))
-                        }
-                    }
-                } else {
-                    // A round button: filled with the accent when there is something to send; dimmed otherwise (as in the mockup).
-                    // A photo alone can be sent too (it goes with a default question); not while it is still being prepared.
-                    val canSend = (value.isNotBlank() || attachedImagePath != null) && !attachingImage
-                    IconButton(
-                        // Sending hides the keyboard: the field loses focus -> the IME hides.
-                        onClick = { focusManager.clearFocus(); onSend() },
-                        enabled = canSend,
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant),
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Default.Send,
-                            contentDescription = tr("Отправить", "Send"),
-                            tint = if (canSend) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                Spacer(Modifier.weight(1f))
+                // A photo or a document alone can be sent too (it goes with a default question); not while it is
+                // still being prepared.
+                val canSend = (value.isNotBlank() || attachedImagePath != null) && !attachingImage
+                val lit = isLoading || canSend
+                val ring = if (lit) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                IconButton(
+                    // Sending hides the keyboard: the field loses focus -> the IME hides. While a turn runs the same
+                    // button stops it.
+                    onClick = { if (isLoading) onCancel() else { focusManager.clearFocus(); onSend() } },
+                    enabled = lit,
+                    modifier = Modifier
+                        .size(54.dp)
+                        .clip(CircleShape)
+                        .border(1.5.dp, ring, CircleShape),
+                ) {
+                    Icon(
+                        if (isLoading) Icons.Default.Stop else Icons.Default.ArrowUpward,
+                        contentDescription = if (isLoading) tr("Остановить", "Stop") else tr("Отправить", "Send"),
+                        tint = ring,
+                    )
                 }
             }
         }
@@ -451,3 +447,10 @@ internal fun DocumentTile(name: String, modifier: Modifier = Modifier) {
         )
     }
 }
+
+/** The small round outlined control of the input's bottom row (attach, voice, expand, clear). */
+@Composable
+private fun Modifier.roundControl(): Modifier = this
+    .size(48.dp)
+    .clip(CircleShape)
+    .border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f), CircleShape)
