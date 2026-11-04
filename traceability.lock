@@ -14,8 +14,8 @@
       "git": "097a6f63"
     },
     "agent-router-dc2233": {
-      "hash": "9c240b271ac7",
-      "git": "1e30a635"
+      "hash": "e9230842a273",
+      "git": "2f4394cc"
     },
     "agent-skills-7189cc": {
       "hash": "e3296460a332",
@@ -114,8 +114,8 @@
       "git": "1e30a635"
     },
     "photo-outline-tool-8dec5b": {
-      "hash": "0fb1be527c28",
-      "git": "1e30a635"
+      "hash": "8e28596a7a00",
+      "git": "2f4394cc"
     },
     "photos-in-chat-bca88e": {
       "hash": "98263d15e210",
@@ -182,8 +182,8 @@
       "git": "ec7af5d1"
     },
     "voice-assistant-mode-a81a99": {
-      "hash": "735b951a45fe",
-      "git": "551bdb5b"
+      "hash": "39bca81e410d",
+      "git": "2f4394cc"
     },
     "voice-call-mode-54cb49": {
       "hash": "60de2c698893",
@@ -202,8 +202,8 @@
       "git": "d80b4363"
     },
     "yazykovoy-agent-repetitor-s-intervalnymi-povtoreniyami-4a9360": {
-      "hash": "1224dc1209f6",
-      "git": "0eeb08d3"
+      "hash": "32a9fff3e7a5",
+      "git": "2f4394cc"
     }
   }
 }
