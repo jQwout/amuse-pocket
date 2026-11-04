@@ -151,6 +151,6 @@ class VoiceTranscribeClient(
     const val REQUEST_TIMEOUT_MS = 20_000L
 
     /** $0.18 per hour of audio (dev.meta.ai/docs/pricing-rate-limits, 4 Nov 2026). */
-    private const val PRICE_PER_SECOND_USD = 0.18 / 3600
+    internal const val PRICE_PER_SECOND_USD = 0.18 / 3600
   }
 }

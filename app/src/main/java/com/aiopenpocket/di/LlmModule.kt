@@ -18,6 +18,7 @@ import com.aiopenpocket.agent.core.llm.ModelCatalogLoader
 import com.aiopenpocket.agent.core.llm.OpenAiCompatClient
 import com.aiopenpocket.agent.core.llm.ProviderConfig
 import com.aiopenpocket.agent.core.llm.ProviderFallbackChain
+import com.aiopenpocket.agent.core.llm.RealtimeTranscribeClient
 import com.aiopenpocket.agent.core.llm.SegmentationClient
 import com.aiopenpocket.agent.core.llm.SelectedLlmProvider
 import com.aiopenpocket.agent.core.llm.VideoUnderstandingClient
@@ -102,6 +103,17 @@ object LlmModule {
     usageRecorder: LlmUsageRecorder,
   ): SegmentationClient = SegmentationClient(
     engine = engine,
+    apiKey = { metaKey(settingsRepository) },
+    usageRecorder = usageRecorder,
+  )
+
+  /** Muse Voice Transcribe live over a WebSocket, for a call in English; the recorded-phrase client below is its fallback. */
+  @Provides
+  @SingleIn(AppScope::class)
+  fun provideRealtimeTranscribeClient(
+    settingsRepository: SettingsRepository,
+    usageRecorder: LlmUsageRecorder,
+  ): RealtimeTranscribeClient = RealtimeTranscribeClient(
     apiKey = { metaKey(settingsRepository) },
     usageRecorder = usageRecorder,
   )

@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.llm.ChatImages
+import com.aiopenpocket.agent.core.llm.RealtimeTranscribeClient
 import com.aiopenpocket.agent.core.llm.VoiceTranscribeClient
 import com.aiopenpocket.agent.core.llm.ReasoningEffort
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
@@ -109,11 +110,12 @@ class CallViewModel(
   private val toolApprovalCoordinator: ToolApprovalCoordinator,
   voice: VoiceInputController,
   transcribeClient: VoiceTranscribeClient,
+  realtimeClient: RealtimeTranscribeClient,
   private val speaker: CallSpeaker,
 ) : ViewModel() {
 
   private val androidEars = AndroidCallEars(voice)
-  private val metaEars = MetaCallEars(transcribeClient)
+  private val metaEars = MetaCallEars(transcribeClient, realtimeClient)
 
   /**
    * What the call hears with, chosen once the language is known: Meta's Voice Transcribe when the app speaks

@@ -2,6 +2,8 @@ package com.aiopenpocket.voice.call
 
 // @trace meta-voice-transcribe-in-calls-297760
 
+import com.aiopenpocket.agent.core.llm.RealtimeResult
+import com.aiopenpocket.agent.core.llm.RealtimeTranscribeClient
 import com.aiopenpocket.agent.core.llm.TranscribeResult
 import com.aiopenpocket.agent.core.llm.VoiceTranscribeClient
 import com.aiopenpocket.voice.input.VoiceInputController
@@ -56,16 +58,22 @@ class AndroidCallEars(private val voice: VoiceInputController) : CallEars {
 }
 
 /**
- * Muse Voice Transcribe as [CallEars]: [PhraseRecorder] records until the person pauses, then
- * [VoiceTranscribeClient] turns the recording into text.
+ * Muse Voice Transcribe as [CallEars]. Live first: the microphone streams to Meta's realtime endpoint
+ * ([RealtimeTranscribeClient]) and the words show while the person speaks, Meta deciding where the phrase
+ * ends. If a realtime session cannot even start (the socket or the first frame is refused), the call falls
+ * back for good to the recorded phrase: [PhraseRecorder] records until the person pauses, then
+ * [VoiceTranscribeClient] writes the recording down.
  *
- * [state] stays Listening through the transcription too: to the call, Idle means "start listening again",
+ * [state] stays Listening through a transcription too: to the call, Idle means "start listening again",
  * and a new recording must not begin while the last phrase is still being written down.
  */
 class MetaCallEars(
   private val client: VoiceTranscribeClient,
+  private val realtime: RealtimeTranscribeClient,
   private val recorder: PhraseRecorder = PhraseRecorder(),
 ) : CallEars {
+  /** A realtime session could not start once; the rest of the call records whole phrases. */
+  private var realtimeDown = false
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
   private var job: Job? = null
 
@@ -84,6 +92,28 @@ class MetaCallEars(
     if (_state.value is VoiceInputState.Listening) return
     _state.value = VoiceInputState.Listening(partial = null)
     job = scope.launch {
+      if (!realtimeDown) {
+        val live = realtime.listenOnce(
+          language = languageNameOf(languageBcp47),
+          audio = { sink -> recorder.stream(sink) },
+          onPartial = { words -> _state.value = VoiceInputState.Listening(partial = words) },
+        )
+        when (live) {
+          is RealtimeResult.Heard -> deliver(live.text)
+          RealtimeResult.NoSpeech -> fail(VoiceInputState.ErrorReason.NoMatch)
+          is RealtimeResult.MicFailed ->
+            fail(if (live.permission) VoiceInputState.ErrorReason.Permission else VoiceInputState.ErrorReason.Audio)
+          is RealtimeResult.Failed -> {
+            android.util.Log.w(TAG, "realtime session failed: ${live.why}")
+            fail(VoiceInputState.ErrorReason.Network)
+          }
+          is RealtimeResult.NotStarted -> {
+            android.util.Log.w(TAG, "realtime unavailable, recording whole phrases: ${live.why}")
+            realtimeDown = true
+          }
+        }
+        if (!realtimeDown) return@launch
+      }
       val phrase = try {
         recorder.recordPhrase(onLevel = {})
       } catch (e: CancellationException) {
@@ -107,14 +137,7 @@ class MetaCallEars(
         _transcribing.value = false
       }
       when (result) {
-        is TranscribeResult.Heard ->
-          if (result.text.isBlank()) {
-            fail(VoiceInputState.ErrorReason.NoMatch)
-          } else {
-            // Idle first, then the text: the same order as Android's recognizer, which the call relies on.
-            _state.value = VoiceInputState.Idle
-            _transcripts.tryEmit(result.text)
-          }
+        is TranscribeResult.Heard -> deliver(result.text)
         is TranscribeResult.Failed -> fail(
           when (result.reason) {
             TranscribeResult.Reason.NETWORK, TranscribeResult.Reason.SERVER, TranscribeResult.Reason.RATE_LIMITED ->
@@ -137,6 +160,16 @@ class MetaCallEars(
   override fun release() {
     cancel()
     scope.cancel()
+  }
+
+  private fun deliver(text: String) {
+    if (text.isBlank()) {
+      fail(VoiceInputState.ErrorReason.NoMatch)
+      return
+    }
+    // Idle first, then the text: the same order as Android's recognizer, which the call relies on.
+    _state.value = VoiceInputState.Idle
+    _transcripts.tryEmit(text)
   }
 
   private fun fail(reason: VoiceInputState.ErrorReason) {

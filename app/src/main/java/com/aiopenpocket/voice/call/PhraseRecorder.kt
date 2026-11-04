@@ -35,17 +35,8 @@ class PhraseRecorder {
    * [onLevel]. Cancelling the coroutine stops the recording. Throws [SecurityException] without the
    * microphone permission and [IllegalStateException] when the microphone cannot be opened.
    */
-  @SuppressLint("MissingPermission") // The call asks for RECORD_AUDIO before it ever listens.
   suspend fun recordPhrase(onLevel: (Float) -> Unit): Phrase? = withContext(Dispatchers.IO) {
-    val minBuffer = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
-    check(minBuffer > 0) { "no audio input at $SAMPLE_RATE Hz" }
-    val record = AudioRecord(
-      MediaRecorder.AudioSource.VOICE_RECOGNITION,
-      SAMPLE_RATE,
-      AudioFormat.CHANNEL_IN_MONO,
-      AudioFormat.ENCODING_PCM_16BIT,
-      maxOf(minBuffer, FRAME_SAMPLES * 2 * 4),
-    )
+    val record = openMicrophone()
     try {
       check(record.state == AudioRecord.STATE_INITIALIZED) { "the microphone could not be opened" }
       record.startRecording()
@@ -100,6 +91,43 @@ class PhraseRecorder {
     }
   }
 
+  /**
+   * Streams the microphone as raw 16 kHz mono 16-bit little-endian PCM, [STREAM_FRAME_MS] per frame, until
+   * [onFrame] returns false or the coroutine is cancelled. No phrase detection: for a listener that finds
+   * the end of speech itself (Meta's realtime endpoint). `AudioRecord.read` blocks for a frame's worth of
+   * sound, so the frames come out at real time, which is the pace that endpoint asks for.
+   */
+  suspend fun stream(onFrame: (ByteArray) -> Boolean) = withContext(Dispatchers.IO) {
+    val record = openMicrophone()
+    try {
+      check(record.state == AudioRecord.STATE_INITIALIZED) { "the microphone could not be opened" }
+      record.startRecording()
+      val frame = ShortArray(STREAM_FRAME_SAMPLES)
+      while (true) {
+        ensureActive()
+        val read = record.read(frame, 0, STREAM_FRAME_SAMPLES)
+        if (read <= 0) continue
+        if (!onFrame(frame.copyOf(read).toLittleEndianBytes())) break
+      }
+    } finally {
+      runCatching { record.stop() }
+      record.release()
+    }
+  }
+
+  @SuppressLint("MissingPermission") // The call asks for RECORD_AUDIO before it ever listens.
+  private fun openMicrophone(): AudioRecord {
+    val minBuffer = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
+    check(minBuffer > 0) { "no audio input at $SAMPLE_RATE Hz" }
+    return AudioRecord(
+      MediaRecorder.AudioSource.VOICE_RECOGNITION,
+      SAMPLE_RATE,
+      AudioFormat.CHANNEL_IN_MONO,
+      AudioFormat.ENCODING_PCM_16BIT,
+      maxOf(minBuffer, STREAM_FRAME_SAMPLES * 2 * 4),
+    )
+  }
+
   private fun rms(samples: ShortArray, count: Int): Double {
     var sum = 0.0
     for (i in 0 until count) sum += samples[i].toDouble() * samples[i]
@@ -116,6 +144,10 @@ class PhraseRecorder {
     const val SAMPLE_RATE = 16_000
     private const val FRAME_MS = 20L
     private const val FRAME_SAMPLES = (SAMPLE_RATE * FRAME_MS / 1000).toInt()
+
+    /** The frame of Meta's own realtime example: 80 ms. */
+    const val STREAM_FRAME_MS = 80L
+    private const val STREAM_FRAME_SAMPLES = (SAMPLE_RATE * STREAM_FRAME_MS / 1000).toInt()
 
     /** The first 300 ms measure the room. */
     private const val NOISE_FRAMES = 15
