@@ -208,6 +208,14 @@ object ToolCatalog {
       consequenceEn = "Draws a picture from the agent's description (the Muse Image model) and shows it in the reply: the description is sent to Meta. Each picture costs a cent.",
     ),
     ToolCatalogEntry(
+      name = "expenses",
+      // DESTRUCTIVE is the worst case: delete removes a record from the book with no trash.
+      riskClass = RiskClass.DESTRUCTIVE,
+      permission = null,
+      consequenceRu = "Записывает, показывает и удаляет траты в книге расходов, общей с экраном «Бюджет». Удаление каждый раз спросит твоё разрешение.",
+      consequenceEn = "Records, lists and deletes expenses in the expense book shared with the Budget screen. Every deletion asks for your permission.",
+    ),
+    ToolCatalogEntry(
       name = "load_skill",
       riskClass = RiskClass.READ,
       permission = null,

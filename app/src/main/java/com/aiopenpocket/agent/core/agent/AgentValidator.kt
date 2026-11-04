@@ -67,6 +67,7 @@ object AgentValidator {
     "notifications", "heartbeat", "work_manager", "calendar", "alarm", "email",
     "step_counter", "srs_tool", "load_skill", "storage_tool", "web_search", "outline_photo",
     "generate_image",
+    "expenses",
   )
 
   /** `SkillManifest.id` of every `Skill` bean in `SkillModule` (verified against that source 2026-07-12). */
