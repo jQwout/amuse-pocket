@@ -90,7 +90,7 @@ fun AcademyBottomNav(
             )
             AcademyNavItem(
                 icon = Icons.Default.Timeline,
-                label = tr("Путь", "Path"),
+                label = tr("Уроки", "Lessons"),
                 selected = selectedTab == AcademyTab.Path,
                 onClick = { onTabSelected(AcademyTab.Path) },
             )

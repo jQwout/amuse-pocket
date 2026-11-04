@@ -223,8 +223,8 @@ fun HomeScreen(
                 }
                 item {
                     CourseCard(
-                        category = "AGENT PATH",
-                        title = tr("Путь агента", "Agent path"),
+                        category = tr("КУРС", "COURSE"),
+                        title = tr("Уроки", "Lessons"),
                         description = tr("Освой оркестрацию AI через пошаговую программу обучения.", "Master AI orchestration through a step-by-step course."),
                         progress = overallProgress,
                         onClick = onNavigateToRoadmap,

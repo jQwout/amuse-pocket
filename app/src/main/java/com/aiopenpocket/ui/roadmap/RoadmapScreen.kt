@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -37,6 +38,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.AcademyBottomNav
@@ -60,7 +63,7 @@ fun RoadmapScreen(
 
   val glassState = rememberGlassState()
   AcademyCollapsingScaffold(
-    title = tr("Путь агента", "Agent path"),
+    title = tr("Уроки", "Lessons"),
     glassState = glassState,
     bottomBar = {
       AcademyBottomNav(
@@ -123,6 +126,11 @@ fun RoadmapScreen(
       item {
         Spacer(modifier = Modifier.height(20.dp))
         ProTipCard(progressFraction = progressFraction)
+      }
+
+      item {
+        Spacer(modifier = Modifier.height(12.dp))
+        MetaGuidesCard()
       }
     }
   }
@@ -354,3 +362,73 @@ private fun ProTipCard(progressFraction: Float) {
     )
   }
 }
+
+/**
+ * Meta's own guides, after the last lesson: the lessons explain the ideas, and these pages are where the
+ * real API is documented, for whoever wants to build past the app (owner, 4 Nov 2026). Only pages checked
+ * to exist on dev.meta.ai that day; each opens in the browser.
+ */
+@Composable
+private fun MetaGuidesCard() {
+  val uriHandler = LocalUriHandler.current
+  Column(
+    modifier = Modifier
+      .fillMaxWidth()
+      .glassCardSurface(RoundedCornerShape(16.dp))
+      .padding(vertical = 8.dp)
+      .testTag("meta_guides"),
+  ) {
+    Text(
+      text = tr("ГАЙДЫ META", "META GUIDES"),
+      style = MaterialTheme.typography.labelSmall,
+      color = MaterialTheme.colorScheme.primary,
+      modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
+    )
+    Text(
+      text = tr(
+        "Уроки объясняют идеи, а вот где описан настоящий API моделей Meta.",
+        "The lessons explain the ideas; this is where Meta documents the real API.",
+      ),
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+      modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 4.dp),
+    )
+    metaGuides().forEach { guide ->
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+          .fillMaxWidth()
+          // runCatching: without a browser on the device openUri throws, and a link must not crash the screen.
+          .clickable { runCatching { uriHandler.openUri(guide.url) } }
+          .padding(horizontal = 16.dp, vertical = 10.dp),
+      ) {
+        Column(modifier = Modifier.weight(1f)) {
+          Text(text = guide.title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+          Text(
+            text = guide.what,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+          )
+        }
+        Icon(
+          imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.primary,
+          modifier = Modifier.size(18.dp),
+        )
+      }
+    }
+  }
+}
+
+private class MetaGuide(val title: String, val what: String, val url: String)
+
+// Built per call, not as a static list: tr() must run when the text is shown.
+private fun metaGuides(): List<MetaGuide> = listOf(
+  MetaGuide(tr("Быстрый старт", "Quickstart"), tr("Ключ и первый запрос", "A key and your first request"), "https://dev.meta.ai/docs/quickstart"),
+  MetaGuide(tr("Модели", "Models"), tr("Muse Spark, Wonder, Image, SAM и другие", "Muse Spark, Wonder, Image, SAM and more"), "https://dev.meta.ai/docs/models"),
+  MetaGuide(tr("Агенты", "Agent frameworks"), tr("Как строить агентов на моделях Meta", "Building agents on Meta's models"), "https://dev.meta.ai/docs/agent-frameworks"),
+  MetaGuide(tr("Инструменты", "Tool calling"), tr("Как модель вызывает функции", "How a model calls your functions"), "https://dev.meta.ai/docs/tool-calling"),
+  MetaGuide(tr("Картинки", "Image generation"), tr("Muse Image: рисунок по описанию", "Muse Image: a picture from a description"), "https://dev.meta.ai/docs/image-generation"),
+  MetaGuide(tr("Речь в текст", "Speech to text"), tr("Muse Voice Transcribe, как в звонке", "Muse Voice Transcribe, as in a call"), "https://dev.meta.ai/docs/speech-to-text"),
+)
