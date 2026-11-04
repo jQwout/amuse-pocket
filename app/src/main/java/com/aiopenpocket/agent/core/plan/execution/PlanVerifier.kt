@@ -311,7 +311,7 @@ class PlanVerifier @Inject constructor(
 
     // Fallbacks mirror PlanExecutor's own reasoning: a missing/unreadable asset must never leave the
     // verifier with NO instructions at all, even though in practice the real asset always ships.
-    private const val DEFAULT_SYSTEM_BASE = "Ты — локальный AI-агент на Android-устройстве пользователя."
+    private const val DEFAULT_SYSTEM_BASE = "Ты — AI-агент в приложении на Android-устройстве пользователя."
     private const val DEFAULT_VERIFIER_PROMPT =
       "Ты проверяешь, доказывает ли показанный результат конкретный критерий готовности. Отвечай " +
         "СТРОГО JSON-объектом {\"satisfied\": true|false, \"reasoning\": \"...\"}, без пояснений вне " +

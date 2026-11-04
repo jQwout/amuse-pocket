@@ -387,7 +387,7 @@ class PrePromptAssembler @Inject constructor(
   companion object {
     private const val LOAD_SKILL_TOOL = "load_skill"
     private val DEFAULT_SYSTEM_BASE = """
-Ты — локальный AI-агент на Android-устройстве пользователя.
+Ты — AI-агент в приложении на Android-устройстве пользователя.
 Если задача подразумевает визуальный результат — используй render_card.
 Если нужен контекст из прошлого — вызови memory_tool с action=search_memory или action=recall_episodes.
 Если пользователь сообщает факт о себе — вызови memory_tool с action=remember_fact.

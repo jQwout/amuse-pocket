@@ -198,7 +198,7 @@ class PlanPromptBuilder @Inject constructor(
     // Fallbacks mirror com.aiopenpocket.agent.core.prompt.PrePromptAssembler.DEFAULT_SYSTEM_BASE's
     // own reasoning: a missing/unreadable asset must never leave the planner with NO base rules at
     // all, even though in practice the real asset always ships with the app.
-    const val DEFAULT_SYSTEM_BASE = "Ты — локальный AI-агент на Android-устройстве пользователя."
+    const val DEFAULT_SYSTEM_BASE = "Ты — AI-агент в приложении на Android-устройстве пользователя."
 
     const val DEFAULT_PLANNER_CONTRACT =
       "Ты в фазе планирования: инструментов нет. Ответь РОВНО одним вызовом — submit_plan, " +

@@ -610,7 +610,7 @@ class PlanExecutor @Inject constructor(
     // Fallbacks mirror com.aiopenpocket.agent.core.plan.planner.PlanPromptBuilder's own reasoning: a
     // missing/unreadable asset must never leave the executor with NO base rules at all, even though
     // in practice the real asset always ships with the app.
-    private const val DEFAULT_SYSTEM_BASE = "Ты — локальный AI-агент на Android-устройстве пользователя."
+    private const val DEFAULT_SYSTEM_BASE = "Ты — AI-агент в приложении на Android-устройстве пользователя."
     private const val DEFAULT_EXECUTOR_PROMPT =
       "Ты в фазе исполнения одного шага плана: выполни ровно этот шаг, используя только разрешённые " +
         "инструменты, и не меняй план."
