@@ -1,7 +1,9 @@
 # Fly.io app for the gateway. First time: `fly launch --no-deploy` (accept this file), then
 #   fly volumes create forge_data --size 1 --region fra
 #   fly secrets set FORGE_CLIENT_TOKEN=... FORGE_WORKER_TOKEN=... FORGE_ADMIN_TOKEN=... META_API_KEY=...
-#   ./gradlew :gateway:fatJar && fly deploy
+#   (or `fly secrets import --stage < file` from a KEY=VALUE file kept outside the repo)
+#   ./gradlew :gateway:fatJar && fly deploy --ha=false
+#   If the first deploy says it failed to provision IPs: fly ips allocate-v6 && fly ips allocate-v4 --shared
 # The worker long-polls, so the machine must not auto-stop. After the demo: fly scale count 0.
 app = "amuse-forge"
 primary_region = "fra"
