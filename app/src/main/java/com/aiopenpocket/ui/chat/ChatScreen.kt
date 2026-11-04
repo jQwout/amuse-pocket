@@ -703,8 +703,8 @@ fun ChatScreen(
                                 },
                                 actions = {
                                     // @trace agent-apps-native-screens-for-the-preset-agents-c8d8ce
-                                    // A preset agent with an app of its own: one quiet icon in the header, in the
-                                    // accent so it is found, instead of a card over the messages.
+                                    // A preset agent with an app of its own: one quiet icon in the header, the same
+                                    // color as call and search, instead of a card over the messages.
                                     if (com.aiopenpocket.ui.agents.apps.AgentApps.has(state.agentId)) {
                                         IconButton(
                                             onClick = { state.agentId?.let(onOpenAgentApp) },
@@ -713,7 +713,7 @@ fun ChatScreen(
                                             Icon(
                                                 Icons.Default.Apps,
                                                 contentDescription = tr("Открыть приложение агента", "Open the agent's app"),
-                                                tint = MaterialTheme.colorScheme.primary,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
                                         }
                                     }
