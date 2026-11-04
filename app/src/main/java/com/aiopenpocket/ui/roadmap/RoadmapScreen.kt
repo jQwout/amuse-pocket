@@ -125,7 +125,7 @@ fun RoadmapScreen(
 
       item {
         Spacer(modifier = Modifier.height(20.dp))
-        ProTipCard(progressFraction = progressFraction)
+        ProgressCard(done = completedCount, total = ROADMAP_LEVELS.size, progressFraction = progressFraction)
       }
 
       item {
@@ -322,7 +322,11 @@ private fun PathLevelCard(
 }
 
 @Composable
-private fun ProTipCard(progressFraction: Float) {
+/**
+ * How far the person is: lessons done out of all. It replaced a "tip" that quoted an invented statistic
+ * ("75% more likely to reach Agent Mastery"), which nothing measured (owner, 4 Nov 2026).
+ */
+private fun ProgressCard(done: Int, total: Int, progressFraction: Float) {
   Column(
     modifier = Modifier
       .fillMaxWidth()
@@ -330,21 +334,21 @@ private fun ProTipCard(progressFraction: Float) {
       .padding(16.dp),
   ) {
     Text(
-      text = tr("СОВЕТ", "TIP"),
+      text = tr("ПРОГРЕСС", "PROGRESS"),
       style = MaterialTheme.typography.labelSmall,
       color = MaterialTheme.colorScheme.primary,
     )
     Spacer(modifier = Modifier.height(8.dp))
     Text(
-      text = tr("Будь последователен", "Stay consistent"),
+      text = tr("Пройдено уроков: $done из $total", "$done of $total lessons done"),
       style = MaterialTheme.typography.titleMedium,
       color = MaterialTheme.colorScheme.onSurface,
     )
     Spacer(modifier = Modifier.height(6.dp))
     Text(
       text = tr(
-        "Пользователи, проходящие хотя бы один урок в день, на 75% чаще достигают «Мастерства агента».",
-        "People who take at least one lesson a day are 75% more likely to reach “Agent Mastery.”",
+        "Все уроки открыты, иди в любом порядке. Следующий предложенный подсвечен.",
+        "Every lesson is open; take them in any order. The suggested next one is highlighted.",
       ),
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
