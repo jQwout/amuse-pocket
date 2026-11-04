@@ -2,8 +2,8 @@
   "version": 1,
   "features": {
     "agent-apps-native-screens-for-the-preset-agents-c8d8ce": {
-      "hash": "e0183cf51b2f",
-      "git": "8a7eadba"
+      "hash": "318d92ba26f4",
+      "git": "445245c3"
     },
     "agent-inspector-6e41eb": {
       "hash": "38d9e7818342",
@@ -14,8 +14,8 @@
       "git": "097a6f63"
     },
     "agent-router-dc2233": {
-      "hash": "3719965868fd",
-      "git": "42b9adcd"
+      "hash": "0ed9c68196bc",
+      "git": "445245c3"
     },
     "agent-skills-7189cc": {
       "hash": "e3296460a332",
@@ -50,8 +50,8 @@
       "git": "2464f21"
     },
     "cloud-forged-screens-40d702": {
-      "hash": "fa058b4ba405",
-      "git": "915b657a"
+      "hash": "4ab93b063c5e",
+      "git": "445245c3"
     },
     "desktop-genai-client-4c63b6": {
       "hash": "315eba16e382",

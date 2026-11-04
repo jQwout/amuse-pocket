@@ -66,6 +66,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloseFullscreen
@@ -701,6 +702,21 @@ fun ChatScreen(
                                     }
                                 },
                                 actions = {
+                                    // @trace agent-apps-native-screens-for-the-preset-agents-c8d8ce
+                                    // A preset agent with an app of its own: one quiet icon in the header, in the
+                                    // accent so it is found, instead of a card over the messages.
+                                    if (com.aiopenpocket.ui.agents.apps.AgentApps.has(state.agentId)) {
+                                        IconButton(
+                                            onClick = { state.agentId?.let(onOpenAgentApp) },
+                                            modifier = Modifier.testTag("chat_open_agent_app"),
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Apps,
+                                                contentDescription = tr("Открыть приложение агента", "Open the agent's app"),
+                                                tint = MaterialTheme.colorScheme.primary,
+                                            )
+                                        }
+                                    }
                                     // @trace voice-call-mode-54cb49
                                     // A call continues this very conversation by voice. Not in a lesson: a lesson
                                     // step is driven by its cards, not by free talk.
@@ -769,12 +785,6 @@ fun ChatScreen(
                 ForgedUiBanner(
                     agentId = state.agentId,
                     onOpenUi = onOpenAgentUi,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                )
-                // @trace agent-apps-native-screens-for-the-preset-agents-c8d8ce
-                com.aiopenpocket.ui.agents.apps.AgentAppBanner(
-                    agentId = state.agentId,
-                    onOpen = onOpenAgentApp,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
 
