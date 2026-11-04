@@ -123,6 +123,12 @@ fun CapabilityRegistry.registerForgeHostCapabilities(context: Context): Capabili
   register(ForgeHostIds.LOAD_TEXT) { args -> storage.loadText(args.string(0), args.string(1)) }
   register(ForgeHostIds.SAVE_TEXT) { args -> storage.saveText(args.string(0), args.string(1)) }
   registerComposable(ForgeHostIds.PHOTO_PICKER) { args -> ForgedPhotoPicker(args.string(0), args.string(1), storage) }
+  // Ketoy 0.4.20-alpha compiles a PhotoPicker(...) call into a plain capability call, not a composable
+  // one (no composable descriptor in the bundle), so the runtime looks it up among the sync capabilities.
+  // Without this entry every forged screen with a photo slot killed the app (UnknownCapabilityException
+  // 0x4005, phone, 4 Nov 2026). A sync call cannot draw, so the slot renders as nothing until the
+  // compiler emits it as a composable; the screen around it works.
+  register(ForgeHostIds.PHOTO_PICKER) { _ -> Unit }
   return this
 }
 
