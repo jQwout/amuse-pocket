@@ -142,15 +142,19 @@ internal const val RENDER_CARD_TOOL = "render_card"
 /** Name of the photo-outline tool (PhotoOutlineTool): its successful result is a card too. */
 const val OUTLINE_PHOTO_TOOL = "outline_photo"
 
+/** Name of the drawing tool (GenerateImageTool): its successful result is the picture's card. */
+const val GENERATE_IMAGE_TOOL = "generate_image"
+
 /**
  * Whether a tool result is an inline card for the chat: every `render_card` result, every successful
- * `outline_photo` result (the photo with SAM's boxes), plus the one card the agent builder's `agent_draft`
+ * `outline_photo` result (the photo with SAM's boxes), every successful `generate_image` result (the
+ * picture Muse Image drew), plus the one card the agent builder's `agent_draft`
  * tool produces itself — the "Review your agent" card of a successful finish. Any other `agent_draft`
  * result (get/update/validate) is data for the model and must not become a message.
  */
 // @trace photo-outline-tool-8dec5b
 internal fun isCardResult(toolName: String, data: String): Boolean =
-  toolName == RENDER_CARD_TOOL || toolName == OUTLINE_PHOTO_TOOL ||
+  toolName == RENDER_CARD_TOOL || toolName == OUTLINE_PHOTO_TOOL || toolName == GENERATE_IMAGE_TOOL ||
     (toolName == BuilderAgent.DRAFT_TOOL && BuilderAgent.isReviewCard(data))
 
 /**

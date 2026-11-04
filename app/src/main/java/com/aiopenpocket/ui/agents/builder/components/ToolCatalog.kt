@@ -201,6 +201,13 @@ object ToolCatalog {
       consequenceEn = "Draws boxes on the chat photo around what the agent names (the SAM 3.1 model): the photo is sent to Meta. Each outline costs a quarter of a cent.",
     ),
     ToolCatalogEntry(
+      name = "generate_image",
+      riskClass = RiskClass.READ,
+      permission = null,
+      consequenceRu = "Рисует картинку по описанию агента (модель Muse Image) и показывает её в ответе: описание уходит в Meta. Каждая картинка стоит цент.",
+      consequenceEn = "Draws a picture from the agent's description (the Muse Image model) and shows it in the reply: the description is sent to Meta. Each picture costs a cent.",
+    ),
+    ToolCatalogEntry(
       name = "load_skill",
       riskClass = RiskClass.READ,
       permission = null,

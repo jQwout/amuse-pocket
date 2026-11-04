@@ -17,6 +17,10 @@
       "hash": "e3296460a332",
       "git": "0f1e9a5"
     },
+    "agents-draw-pictures-in-a-reply-generate-image-c2a961": {
+      "hash": "6e340b9cffb3",
+      "git": "6664c345"
+    },
     "ai-academy-onboarding-5d51bb": {
       "hash": "d30ce1727b9e",
       "git": "21fba91e"
@@ -86,8 +90,8 @@
       "git": "ca77277b"
     },
     "mcp-tools-f77d9b": {
-      "hash": "5ce0a59104fd",
-      "git": "7bccf193"
+      "hash": "735c24bdd5b8",
+      "git": "6664c345"
     },
     "meta-voice-transcribe-in-calls-297760": {
       "hash": "c439febf81a9",
@@ -102,8 +106,8 @@
       "git": "a2b7ac45"
     },
     "photo-outline-tool-8dec5b": {
-      "hash": "2c49462b1c87",
-      "git": "7bccf193"
+      "hash": "0fb1be527c28",
+      "git": "6664c345"
     },
     "photos-in-chat-bca88e": {
       "hash": "9c45edc5c3f1",
@@ -162,8 +166,8 @@
       "git": "c08de0e0"
     },
     "user-agent-builder-848153": {
-      "hash": "0b2318857934",
-      "git": "98bbf112"
+      "hash": "3b7e65e1ac57",
+      "git": "6664c345"
     },
     "video-na-vhod-v-uroke-muse-spark-08ccdb": {
       "hash": "8c9fa9a6843d",

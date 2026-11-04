@@ -44,6 +44,7 @@ object CapabilityNames {
     "database_query" to ("Запросы к базе" to "Database queries"),
     "web_search" to ("Поиск в интернете" to "Web search"),
     "outline_photo" to ("Обвести на фото" to "Outline on photo"),
+    "generate_image" to ("Рисовать картинки" to "Draw pictures"),
     // The hidden agent builder's own tool - not in KNOWN_TOOL_NAMES (a user's agent cannot hold it), but
     // its calls show in the tool trace, which should not say "Agent draft" as a raw id.
     "agent_draft" to ("Черновик агента" to "Agent draft"),
