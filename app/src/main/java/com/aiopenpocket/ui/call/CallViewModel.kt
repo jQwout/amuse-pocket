@@ -6,6 +6,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aiopenpocket.agent.core.agent.AgentResolver
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.llm.ChatImages
 import com.aiopenpocket.agent.core.llm.ReasoningEffort
@@ -72,7 +73,10 @@ data class CallUiState(
   val photoLoading: Boolean = false,
   val needsMicPermission: Boolean = false,
   val pendingApproval: ToolApprovalRequest? = null,
-  val title: String? = null,
+  /** Who the person is talking to: the chat's agent, or null for the plain assistant. */
+  val agentName: String? = null,
+  /** When the call screen opened, for the call timer. */
+  val startedAt: Long = System.currentTimeMillis(),
 )
 
 /**
@@ -90,6 +94,7 @@ data class CallUiState(
 class CallViewModel(
   private val context: Context,
   private val conversationRepository: ConversationRepository,
+  private val agentResolver: AgentResolver,
   private val turnManager: TurnManager,
   private val userPreferencesRepository: UserPreferencesRepository,
   private val toolApprovalCoordinator: ToolApprovalCoordinator,
@@ -263,8 +268,11 @@ class CallViewModel(
 
   private suspend fun bind(id: String) {
     convIdFlow.value = id
-    val title = runCatching { conversationRepository.getConversation(id)?.title }.getOrNull()
-    _state.update { it.copy(title = title) }
+    // The call names who you talk to, as a phone does, not the chat's auto-written topic.
+    val name = runCatching {
+      conversationRepository.getConversation(id)?.agentId?.let { agentResolver.resolve(it)?.name }
+    }.getOrNull()
+    _state.update { it.copy(agentName = name) }
   }
 
   // ---- the floor ----

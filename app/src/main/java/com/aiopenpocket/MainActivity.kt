@@ -26,6 +26,7 @@ import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.aiopenpocket.i18n.AppLanguage
@@ -473,7 +474,12 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
 
-                            StatusBarScrim(modifier = Modifier.align(Alignment.TopCenter))
+                            // A call draws its own backdrop up to the top edge; the scrim's band of the page
+                            // colour sat over it like a stray toolbar (owner, 4 Nov 2026).
+                            val route = navController.currentBackStackEntryAsState().value?.destination?.route
+                            if (route?.startsWith("call/") != true) {
+                                StatusBarScrim(modifier = Modifier.align(Alignment.TopCenter))
+                            }
                             }
                         }
                     }

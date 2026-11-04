@@ -51,6 +51,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -60,6 +61,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -84,25 +86,26 @@ import com.aiopenpocket.ui.assistant.OrbState
 import com.aiopenpocket.ui.chat.components.LessonPhotoCapture
 import com.aiopenpocket.ui.chat.components.ToolApprovalBar
 import com.aiopenpocket.ui.chat.components.newPhotoCaptureUri
-import com.aiopenpocket.ui.theme.LimeSignal
 import com.aiopenpocket.voice.call.CallPhase
 import com.aiopenpocket.voice.call.CallSpeaker
 import dev.zacsweers.metrox.viewmodel.metroViewModel
+import kotlinx.coroutines.delay
 import java.io.File
 
 /**
- * The call screen, built like a phone call and dressed like the voice overlay: the app's lime-on-ink orb
- * (AssistantOrb, ported from the owner's earlier assistant) on a dark ink backdrop, one line of large white
- * words under it, and four round buttons — photo, mute, repeat, hang up. The whole conversation is not on
+ * The call screen, built like a phone call: who you talk to and the call time at the top, the app's
+ * lime-on-ink orb (AssistantOrb, ported from the owner's earlier assistant), one line of large words under
+ * it, and four round buttons — photo, mute, repeat, hang up. The whole conversation is not on
  * screen: it is in the chat once the call ends, and a call is listened to, not read (owner, 4 Nov 2026: the
  * first version, a flat circle over a glass transcript card, "looked like nothing", and their earlier app
  * did it far better).
  *
  * The words under the orb are whatever matters now: what the person is saying while they speak, the
  * sentence being read word by word while the agent speaks, otherwise the last reply (a tap reads it
- * again). A tap anywhere else cuts the agent off. Always dark, whatever the app theme: a call is a stage,
- * and the overlay it sits next to is dark too. [onHangUp] gets the conversation id (null if nothing was
- * said), so the caller can open the chat with the whole call in it.
+ * again). A tap anywhere else cuts the agent off. Colours follow the app theme, light or dark (an always-dark
+ * call broke the theme, owner, 4 Nov 2026), and the backdrop runs up under the status bar, which is why
+ * MainActivity leaves out its status bar scrim on this route. [onHangUp] gets the conversation id (null if
+ * nothing was said), so the caller can open the chat with the whole call in it.
  */
 @Composable
 fun CallScreen(
@@ -136,11 +139,16 @@ fun CallScreen(
   Box(
     modifier = Modifier
       .fillMaxSize()
-      .background(Brush.verticalGradient(0f to InkTop, 0.55f to Ink, 1f to Color.Black))
+      .background(
+        Brush.verticalGradient(
+          0f to MaterialTheme.colorScheme.primary.copy(alpha = 0.16f).compositeOver(MaterialTheme.colorScheme.background),
+          0.6f to MaterialTheme.colorScheme.background,
+        ),
+      )
       .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { viewModel.tap() }
       .testTag("call_screen"),
   ) {
-    CompositionLocalProvider(LocalContentColor provides Color.White) {
+    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onBackground) {
       Column(
         modifier = Modifier
           .fillMaxSize()
@@ -148,19 +156,25 @@ fun CallScreen(
           .padding(horizontal = 24.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
       ) {
+        // Like a phone call: who you are talking to, big, and under it how long and what is happening.
         Text(
-          text = state.title ?: tr("Звонок с ассистентом", "Call with the assistant"),
-          style = MaterialTheme.typography.titleMedium,
-          color = Color.White.copy(alpha = 0.75f),
+          text = state.agentName ?: tr("Ассистент", "Assistant"),
+          style = MaterialTheme.typography.headlineSmall,
+          color = MaterialTheme.colorScheme.onBackground,
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
+          modifier = Modifier.padding(top = 12.dp).testTag("call_title"),
         )
-        Text(
-          text = phaseLabel(state),
-          style = MaterialTheme.typography.labelLarge,
-          color = LimeSignal,
-          modifier = Modifier.padding(top = 4.dp).testTag("call_phase"),
-        )
+        Row(modifier = Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+          CallTimer(startedAt = state.startedAt, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
+          Text(" · ", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
+          Text(
+            text = phaseLabel(state),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.testTag("call_phase"),
+          )
+        }
 
         Spacer(Modifier.weight(1f))
         AssistantOrb(state = orbState(state), size = 280.dp)
@@ -172,7 +186,7 @@ fun CallScreen(
           Text(
             text = it,
             style = MaterialTheme.typography.bodyMedium,
-            color = NoticeRed,
+            color = MaterialTheme.colorScheme.error,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 8.dp).testTag("call_notice"),
           )
@@ -230,12 +244,31 @@ fun CallScreen(
             " "
           },
           style = MaterialTheme.typography.bodySmall,
-          color = Color.White.copy(alpha = 0.5f),
+          color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
           modifier = Modifier.padding(top = 10.dp),
         )
       }
     }
   }
+}
+
+/** The call's length, m:ss, ticking once a second like a phone call's. */
+@Composable
+private fun CallTimer(startedAt: Long, color: Color) {
+  var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+  LaunchedEffect(startedAt) {
+    while (true) {
+      now = System.currentTimeMillis()
+      delay(1_000)
+    }
+  }
+  val seconds = ((now - startedAt) / 1_000).coerceAtLeast(0)
+  Text(
+    text = "%d:%02d".format(seconds / 60, seconds % 60),
+    style = MaterialTheme.typography.labelLarge,
+    color = color,
+    modifier = Modifier.testTag("call_timer"),
+  )
 }
 
 private fun orbState(state: CallUiState): OrbState = when {
@@ -284,7 +317,7 @@ private fun CallWords(state: CallUiState, onReplay: () -> Unit) {
       text = state.said?.takeUnless { kind == WordsKind.HEARING } ?: " ",
       fontSize = 15.sp,
       fontStyle = FontStyle.Italic,
-      color = Color.White.copy(alpha = 0.55f),
+      color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
       textAlign = TextAlign.Center,
       maxLines = 1,
       overflow = TextOverflow.Ellipsis,
@@ -297,8 +330,8 @@ private fun CallWords(state: CallUiState, onReplay: () -> Unit) {
         WordsKind.SPEAKING -> buildAnnotatedString {
           val text = caption?.text.orEmpty()
           val said = caption?.spokenTo?.takeUnless { it == CallSpeaker.Caption.UNKNOWN } ?: text.length
-          withStyle(SpanStyle(color = Color.White)) { append(text.take(said)) }
-          withStyle(SpanStyle(color = Color.White.copy(alpha = 0.3f))) { append(text.drop(said)) }
+          withStyle(SpanStyle(color = MaterialTheme.colorScheme.onBackground)) { append(text.take(said)) }
+          withStyle(SpanStyle(color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f))) { append(text.drop(said)) }
         }
         WordsKind.THINKING -> AnnotatedString(state.activity ?: "")
         WordsKind.REPLY -> AnnotatedString(state.reply)
@@ -319,9 +352,9 @@ private fun CallWords(state: CallUiState, onReplay: () -> Unit) {
           lineHeight = 31.sp,
           fontWeight = FontWeight.SemiBold,
           color = when (shown) {
-            WordsKind.HEARING, WordsKind.SPEAKING -> Color.White
-            WordsKind.REPLY -> Color.White.copy(alpha = 0.8f)
-            else -> Color.White.copy(alpha = 0.45f)
+            WordsKind.HEARING, WordsKind.SPEAKING -> MaterialTheme.colorScheme.onBackground
+            WordsKind.REPLY -> MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+            else -> MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f)
           },
           textAlign = TextAlign.Center,
           maxLines = 3,
@@ -332,7 +365,7 @@ private fun CallWords(state: CallUiState, onReplay: () -> Unit) {
           Text(
             text = tr("Коснись, чтобы послушать ещё раз", "Tap to hear it again"),
             style = MaterialTheme.typography.bodySmall,
-            color = LimeSignal.copy(alpha = 0.8f),
+            color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(top = 6.dp),
           )
         }
@@ -356,8 +389,13 @@ private fun CallButton(
   toggled: Boolean = false,
   container: Color? = null,
 ) {
-  val background = container ?: if (toggled) Color.White else Color.White.copy(alpha = 0.12f)
-  val tint = if (toggled && container == null) Ink else Color.White
+  val onBg = MaterialTheme.colorScheme.onBackground
+  val background = container ?: if (toggled) onBg else onBg.copy(alpha = 0.1f)
+  val tint = when {
+    container != null -> Color.White
+    toggled -> MaterialTheme.colorScheme.background
+    else -> MaterialTheme.colorScheme.onBackground
+  }
   Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.alpha(if (enabled) 1f else 0.35f)) {
     Box(
       contentAlignment = Alignment.Center,
@@ -373,7 +411,7 @@ private fun CallButton(
     Text(
       text = label,
       style = MaterialTheme.typography.labelSmall,
-      color = Color.White.copy(alpha = 0.6f),
+      color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
       modifier = Modifier.padding(top = 6.dp),
     )
   }
@@ -431,7 +469,7 @@ private fun PhotoChip(path: String?, loading: Boolean, onRemove: () -> Unit) {
     verticalAlignment = Alignment.CenterVertically,
     modifier = Modifier
       .clip(RoundedCornerShape(16.dp))
-      .background(Color.White.copy(alpha = 0.1f))
+      .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f))
       .padding(6.dp)
       .testTag("call_photo_chip"),
   ) {
@@ -444,26 +482,22 @@ private fun PhotoChip(path: String?, loading: Boolean, onRemove: () -> Unit) {
           modifier = Modifier.fillMaxSize(),
         )
       } else if (loading) {
-        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = LimeSignal)
+        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
       }
     }
     Text(
       text = tr("Фото уйдёт с твоей следующей фразой", "The photo goes with your next phrase"),
       style = MaterialTheme.typography.bodySmall,
-      color = Color.White.copy(alpha = 0.8f),
+      color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
       modifier = Modifier.padding(horizontal = 10.dp),
     )
     IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
-      Icon(Icons.Default.Close, contentDescription = tr("Убрать фото", "Remove the photo"), tint = Color.White, modifier = Modifier.size(18.dp))
+      Icon(Icons.Default.Close, contentDescription = tr("Убрать фото", "Remove the photo"), tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.size(18.dp))
     }
   }
 }
 
-/** The ink of the overlay and the orb's sphere, a touch lifted at the top so the orb's halo has room. */
-private val Ink = Color(0xFF0B100C)
-private val InkTop = Color(0xFF18210F)
 private val HangUpRed = Color(0xFFD93025)
-private val NoticeRed = Color(0xFFFFB4A9)
 
 /** Three lines of the large words plus the "tap to hear it again" line. */
 private val WORDS_HEIGHT = 120.dp
