@@ -3,6 +3,17 @@ package com.aiopenpocket.ui.agents
 // @trace multi-agent-orchestration-27b8e3
 // @trace user-agent-builder-848153
 
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.ui.platform.testTag
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -77,10 +88,26 @@ fun AgentsScreen(
   onOpenBuilderChat: (String) -> Unit,
   onEditDraft: (String) -> Unit,
   onNavigateBack: () -> Unit,
+  /** The step form (`agent_builder`): the fast way, no model calls while filling it in. */
+  onOpenBuilderForm: () -> Unit = {},
 ) {
   val viewModel: AgentsViewModel = metroViewModel()
   val roster by viewModel.roster.collectAsState()
   val glassState = rememberGlassState()
+  var choosingWay by remember { mutableStateOf(false) }
+  if (choosingWay) {
+    CreateAgentChoiceSheet(
+      onDismiss = { choosingWay = false },
+      onChat = {
+        choosingWay = false
+        viewModel.openBuilderChat(onOpenBuilderChat)
+      },
+      onForm = {
+        choosingWay = false
+        onOpenBuilderForm()
+      },
+    )
+  }
 
   AcademyCollapsingScaffold(
     title = tr("Агенты", "Agents"),
@@ -93,7 +120,7 @@ fun AgentsScreen(
         )
       }
     },
-    floatingActionButton = { CreateAgentFab(onClick = { viewModel.openBuilderChat(onOpenBuilderChat) }) },
+    floatingActionButton = { CreateAgentFab(onClick = { choosingWay = true }) },
   ) { padding ->
     LazyColumn(
       modifier = Modifier
@@ -384,6 +411,75 @@ internal fun AgentsPreviewScaffold(
           }
         }
       }
+    }
+  }
+}
+
+/**
+ * Two ways to create an agent, chosen on "Create agent": talk it through with the builder (it asks and
+ * fills in the agent, but every answer is a model call, so it is slow), or fill in the step form yourself
+ * (name, instructions, tools - quick, no model calls until you test the agent).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CreateAgentChoiceSheet(onDismiss: () -> Unit, onChat: () -> Unit, onForm: () -> Unit) {
+  ModalBottomSheet(onDismissRequest = onDismiss) {
+    Column(
+      modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+      verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      Text(
+        tr("Как создать агента?", "How do you want to create it?"),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onSurface,
+      )
+      CreateWayOption(
+        icon = Icons.Default.EditNote,
+        title = tr("Заполнить форму", "Fill in a form"),
+        subtitle = tr(
+          "Шаг за шагом: имя, инструкции, инструменты. Быстро, без ожидания модели.",
+          "Step by step: name, instructions, tools. Quick, no waiting for the model.",
+        ),
+        onClick = onForm,
+        testTag = "create_agent_form",
+      )
+      CreateWayOption(
+        icon = Icons.AutoMirrored.Filled.Chat,
+        title = tr("Через чат", "Talk it through"),
+        subtitle = tr(
+          "Опишите словами, конструктор расспросит и соберёт агента сам. Медленнее: каждый ответ — запрос к модели.",
+          "Describe it in words; the builder asks and assembles the agent. Slower: every answer is a model call.",
+        ),
+        onClick = onChat,
+        testTag = "create_agent_chat",
+      )
+    }
+  }
+}
+
+@Composable
+private fun CreateWayOption(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit, testTag: String) {
+  val shape = RoundedCornerShape(18.dp)
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .clip(shape)
+      .border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f), shape)
+      .clickable(onClick = onClick)
+      .padding(16.dp)
+      .testTag(testTag),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Box(
+      Modifier.size(44.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), CircleShape),
+      contentAlignment = Alignment.Center,
+    ) {
+      Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+    }
+    Spacer(Modifier.width(14.dp))
+    Column(modifier = Modifier.weight(1f)) {
+      Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+      Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
   }
 }

@@ -251,6 +251,8 @@ class MainActivity : ComponentActivity() {
                                         // A draft opens straight in the builder: it has no chat yet.
                                         onEditDraft = { id -> navController.navigate("agent_builder/$id") },
                                         onNavigateBack = { navController.popBackStack() },
+                                        // The other way to create: the step form, no model calls while filling it in.
+                                        onOpenBuilderForm = { navController.navigate("agent_builder") },
                                     )
                                 }
                                 // @trace cloud-forged-screens-40d702
