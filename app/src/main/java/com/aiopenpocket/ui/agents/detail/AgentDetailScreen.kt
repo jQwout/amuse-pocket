@@ -47,6 +47,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.agent.AgentDefinition
 import com.aiopenpocket.agent.core.agent.displayName
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Cloud
 import com.aiopenpocket.agent.core.forge.ForgedScreenState
 import com.aiopenpocket.ui.forge.ForgedBundleHost
@@ -78,6 +79,8 @@ fun AgentDetailScreen(
   onNavigateBack: () -> Unit,
   onOpenPlan: (String) -> Unit = {},
   onOpenPlanList: () -> Unit = {},
+  // @trace agent-apps-native-screens-for-the-preset-agents-c8d8ce
+  onOpenApp: () -> Unit = {},
   // @trace cloud-forged-screens-40d702
   onOpenUi: () -> Unit = {},
   onForgeSetCustomUi: (Boolean) -> Unit = {},
@@ -142,6 +145,18 @@ fun AgentDetailScreen(
             FilesSection(files = state.files)
           } else {
             Spacer(modifier = Modifier.height(8.dp))
+            // A preset agent with an app of its own (AgentApps): the app first, the chat right under it.
+            if (com.aiopenpocket.ui.agents.apps.AgentApps.has(agent.id)) {
+              Button(
+                onClick = onOpenApp,
+                modifier = Modifier.fillMaxWidth().testTag("agent_detail_open_app"),
+              ) {
+                Icon(Icons.Default.Apps, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(tr("Открыть приложение", "Open app"))
+              }
+              Spacer(modifier = Modifier.height(8.dp))
+            }
             // An agent with its own interface opens there; the chat stays one tap away (and is the
             // only door while the screen is still being built).
             if (state.forged.showsCustomUi) {

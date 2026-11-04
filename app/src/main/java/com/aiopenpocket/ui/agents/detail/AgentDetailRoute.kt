@@ -38,6 +38,8 @@ fun AgentDetailRoute(
   onOpenPlanList: (String) -> Unit = {},
   /** Opens the agent's own forged interface (`agent_ui/{agentId}`). */
   onOpenUi: (String) -> Unit = {},
+  /** Opens the preset agent's native app (`agent_app/{agentId}`). */
+  onOpenApp: (String) -> Unit = {},
 ) {
   val viewModel: AgentDetailViewModel = metroViewModel()
   val agentsViewModel: AgentsViewModel = metroViewModel()
@@ -65,6 +67,7 @@ fun AgentDetailRoute(
     onOpenPlanList = { onOpenPlanList(agentId) },
     // @trace cloud-forged-screens-40d702
     onOpenUi = { onOpenUi(agentId) },
+    onOpenApp = { onOpenApp(agentId) },
     onForgeSetCustomUi = viewModel::setCustomUi,
     onForgeDraftChange = viewModel::updateForgeDraft,
     onForgeRequestChange = viewModel::requestScreenChange,

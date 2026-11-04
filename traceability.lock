@@ -1,6 +1,10 @@
 {
   "version": 1,
   "features": {
+    "agent-apps-native-screens-for-the-preset-agents-c8d8ce": {
+      "hash": "20692022f7cf",
+      "git": "dbd147dd"
+    },
     "agent-inspector-6e41eb": {
       "hash": "38d9e7818342",
       "git": "661d682"
@@ -46,8 +50,8 @@
       "git": "2464f21"
     },
     "cloud-forged-screens-40d702": {
-      "hash": "a03f26eac234",
-      "git": "d0b3e8db"
+      "hash": "8379db63f2c4",
+      "git": "dbd147dd"
     },
     "desktop-genai-client-4c63b6": {
       "hash": "315eba16e382",
@@ -171,7 +175,7 @@
     },
     "user-agent-builder-848153": {
       "hash": "3b7e65e1ac57",
-      "git": "6664c345"
+      "git": "dbd147dd"
     },
     "video-na-vhod-v-uroke-muse-spark-08ccdb": {
       "hash": "8c9fa9a6843d",

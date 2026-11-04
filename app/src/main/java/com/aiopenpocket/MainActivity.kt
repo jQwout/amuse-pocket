@@ -264,12 +264,23 @@ class MainActivity : ComponentActivity() {
                                         onNavigateBack = { navController.popBackStack() },
                                     )
                                 }
+                                // @trace agent-apps-native-screens-for-the-preset-agents-c8d8ce
+                                // A preset agent's native app (Tutor flashcards, Budget, Task list).
+                                composable("agent_app/{agentId}") { backStackEntry ->
+                                    val agentId = backStackEntry.arguments?.getString("agentId") ?: ""
+                                    com.aiopenpocket.ui.agents.apps.AgentAppRoute(
+                                        agentId = agentId,
+                                        onOpenChat = { id -> navController.navigate("chat/$id") },
+                                        onNavigateBack = { navController.popBackStack() },
+                                    )
+                                }
                                 composable("agent/{agentId}") { backStackEntry ->
                                     val agentId = backStackEntry.arguments?.getString("agentId") ?: ""
                                     AgentDetailRoute(
                                         agentId = agentId,
                                         onOpenChat = { id -> navController.navigate("chat/$id") },
                                         onOpenUi = { id -> navController.navigate("agent_ui/$id") },
+                                        onOpenApp = { id -> navController.navigate("agent_app/$id") },
                                         onNavigateToBuilder = { id -> navController.navigate("agent_builder/$id") },
                                         onNavigateBack = { navController.popBackStack() },
                                         onOpenPlan = { planId -> navController.navigate("plan/$planId") },
