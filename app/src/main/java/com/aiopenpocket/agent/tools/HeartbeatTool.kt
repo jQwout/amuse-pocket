@@ -58,8 +58,12 @@ class HeartbeatTool(
 
   // Per-call risk (Task 9): list only reads Room; schedule creates a new WorkManager job; cancel
   // is the irreversible one (the pending fire, and its underlying data, is gone).
+  // A mode=agent schedule is EXTERNAL, so it always asks: it wakes the model in the background on the
+  // person's key, every 15 minutes if periodic, and an instruction planted in a web page or a file the
+  // agent read must not be able to set that up unseen (review, 4 Nov 2026). A push is the person's own
+  // "remind me" and never runs the model, so it stays WRITE.
   override fun riskFor(arguments: Map<String, JsonElement>): RiskClass = when (arguments.string("action")) {
-    "schedule" -> RiskClass.WRITE
+    "schedule" -> if (arguments.string("mode") == "agent") RiskClass.EXTERNAL else RiskClass.WRITE
     "cancel" -> RiskClass.DESTRUCTIVE
     else -> RiskClass.READ
   }

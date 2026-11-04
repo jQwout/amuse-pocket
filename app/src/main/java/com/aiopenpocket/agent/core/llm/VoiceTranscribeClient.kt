@@ -18,7 +18,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.putJsonArray
@@ -108,7 +108,7 @@ class VoiceTranscribeClient(
       val body = runCatching { json.parseToJsonElement(response.bodyAsText()).jsonObject }.getOrNull()
         ?: return TranscribeResult.Failed(TranscribeResult.Reason.BAD_RESPONSE, status)
       val text = body.string("transcript") ?: return TranscribeResult.Failed(TranscribeResult.Reason.BAD_RESPONSE, status)
-      val billedMs = (body["audioDurationMs"]?.jsonPrimitive?.intOrNull)?.toLong()
+      val billedMs = ((body["audioDurationMs"] as? JsonPrimitive)?.intOrNull)?.toLong()
       recordUsage(billedMs ?: durationMs, estimated = billedMs == null)
       android.util.Log.d(TAG, "transcribed ${billedMs ?: durationMs} ms of audio into ${text.length} chars")
       TranscribeResult.Heard(text.trim())
@@ -142,7 +142,7 @@ class VoiceTranscribeClient(
     )
   }
 
-  private fun JsonObject.string(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull
+  private fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
 
   companion object {
     private const val TAG = "VoiceTranscribe"

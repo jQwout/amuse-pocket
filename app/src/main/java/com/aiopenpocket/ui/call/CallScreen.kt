@@ -56,6 +56,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -105,6 +107,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.ui.BiasAlignment
 import com.aiopenpocket.agent.core.agent.RouteChoice
 import com.aiopenpocket.ui.chat.RouteAgent
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.Lifecycle
 
 /**
  * A voice conversation with an agent: the call screen in the app and the phone's assistant over other apps
@@ -155,6 +160,25 @@ fun VoiceSessionScreen(
 
   val end = { onEnd(viewModel.hangUp()) }
   BackHandler(onBack = end)
+
+  // Off screen the session stops hearing and speaking (Home, the screen off, the assistant over a call):
+  // a microphone left open behind the person's back, and Meta's meter with it, is the worst kind of bug.
+  // The assistant's window is a moment, so leaving it ends it; a call in the app picks up on return.
+  // The camera or the gallery opened from the call is part of it and changes nothing.
+  val lifecycleOwner = LocalLifecycleOwner.current
+  val currentEnd by rememberUpdatedState(end)
+  DisposableEffect(lifecycleOwner, overlay) {
+    val observer = LifecycleEventObserver { _, event ->
+      when (event) {
+        Lifecycle.Event.ON_PAUSE -> viewModel.onScreenHidden()
+        Lifecycle.Event.ON_RESUME -> viewModel.onScreenShown()
+        Lifecycle.Event.ON_STOP -> if (overlay && !viewModel.isPickingPhoto) currentEnd()
+        else -> Unit
+      }
+    }
+    lifecycleOwner.lifecycle.addObserver(observer)
+    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+  }
 
   // The orb waits low, then glides up once something was said: the assistant's motion, kept for both.
   val started = state.said != null
@@ -267,8 +291,8 @@ fun VoiceSessionScreen(
         state.pendingApproval?.let { request ->
           ToolApprovalBar(
             request = request,
-            onApprove = { viewModel.resolveApproval(approved = true) },
-            onDeny = { viewModel.resolveApproval(approved = false) },
+            onApprove = { viewModel.resolveApproval(request, approved = true) },
+            onDeny = { viewModel.resolveApproval(request, approved = false) },
           )
           Spacer(Modifier.height(16.dp))
         }
@@ -546,7 +570,8 @@ private fun CallButton(
 private fun PhotoButton(onOpening: () -> Unit, onPicked: (Uri?) -> Unit) {
   val context = LocalContext.current
   var menuOpen by remember { mutableStateOf(false) }
-  var captureUri by remember { mutableStateOf<Uri?>(null) }
+  // Saveable: the camera app can outlive a rotation or this process, and the photo must still come back.
+  var captureUri by rememberSaveable { mutableStateOf<Uri?>(null) }
   val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> onPicked(uri) }
   val camera = rememberLauncherForActivityResult(LessonPhotoCapture()) { saved ->
     onPicked(captureUri?.takeIf { saved })

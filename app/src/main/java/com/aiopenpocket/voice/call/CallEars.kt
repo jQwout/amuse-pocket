@@ -92,61 +92,75 @@ class MetaCallEars(
     if (_state.value is VoiceInputState.Listening) return
     _state.value = VoiceInputState.Listening(partial = null)
     job = scope.launch {
-      if (!realtimeDown) {
-        val live = realtime.listenOnce(
-          language = languageNameOf(languageBcp47),
-          audio = { sink -> recorder.stream(sink) },
-          onPartial = { words -> _state.value = VoiceInputState.Listening(partial = words) },
-        )
-        when (live) {
-          is RealtimeResult.Heard -> deliver(live.text)
-          RealtimeResult.NoSpeech -> fail(VoiceInputState.ErrorReason.NoMatch)
-          is RealtimeResult.MicFailed ->
-            fail(if (live.permission) VoiceInputState.ErrorReason.Permission else VoiceInputState.ErrorReason.Audio)
-          is RealtimeResult.Failed -> {
-            android.util.Log.w(TAG, "realtime session failed: ${live.why}")
-            fail(VoiceInputState.ErrorReason.Network)
-          }
-          is RealtimeResult.NotStarted -> {
-            android.util.Log.w(TAG, "realtime unavailable, recording whole phrases: ${live.why}")
-            realtimeDown = true
-          }
-        }
-        if (!realtimeDown) return@launch
-      }
-      val phrase = try {
-        recorder.recordPhrase(onLevel = {})
+      // Whatever breaks below is one failed phrase, never the app: this scope has no handler, so an
+      // exception escaping it would take the process down in the middle of the call.
+      try {
+        hearOnePhrase(languageBcp47)
       } catch (e: CancellationException) {
         throw e
-      } catch (e: SecurityException) {
-        fail(VoiceInputState.ErrorReason.Permission)
-        return@launch
       } catch (e: Exception) {
-        android.util.Log.w(TAG, "recording failed: ${e.javaClass.simpleName}")
-        fail(VoiceInputState.ErrorReason.Audio)
-        return@launch
-      }
-      if (phrase == null) {
-        fail(VoiceInputState.ErrorReason.NoMatch)
-        return@launch
-      }
-      _transcribing.value = true
-      val result = try {
-        client.transcribe(phrase.wav, phrase.durationMs, languageNameOf(languageBcp47))
-      } finally {
+        android.util.Log.w(TAG, "listening failed: ${e.javaClass.simpleName}")
         _transcribing.value = false
+        fail(VoiceInputState.ErrorReason.Other)
       }
-      when (result) {
-        is TranscribeResult.Heard -> deliver(result.text)
-        is TranscribeResult.Failed -> fail(
-          when (result.reason) {
-            TranscribeResult.Reason.NETWORK, TranscribeResult.Reason.SERVER, TranscribeResult.Reason.RATE_LIMITED ->
-              VoiceInputState.ErrorReason.Network
-            TranscribeResult.Reason.NO_KEY, TranscribeResult.Reason.UNAUTHORIZED -> VoiceInputState.ErrorReason.Unavailable
-            else -> VoiceInputState.ErrorReason.Other
-          },
-        )
+    }
+  }
+
+  private suspend fun hearOnePhrase(languageBcp47: String) {
+    if (!realtimeDown) {
+      val live = realtime.listenOnce(
+        language = languageNameOf(languageBcp47),
+        audio = { sink -> recorder.stream(sink) },
+        onPartial = { words -> _state.value = VoiceInputState.Listening(partial = words) },
+      )
+      when (live) {
+        is RealtimeResult.Heard -> deliver(live.text)
+        RealtimeResult.NoSpeech -> fail(VoiceInputState.ErrorReason.NoMatch)
+        is RealtimeResult.MicFailed ->
+          fail(if (live.permission) VoiceInputState.ErrorReason.Permission else VoiceInputState.ErrorReason.Audio)
+        is RealtimeResult.Failed -> {
+          android.util.Log.w(TAG, "realtime session failed: ${live.why}")
+          fail(VoiceInputState.ErrorReason.Network)
+        }
+        is RealtimeResult.NotStarted -> {
+          android.util.Log.w(TAG, "realtime unavailable, recording whole phrases: ${live.why}")
+          realtimeDown = true
+        }
       }
+      if (!realtimeDown) return
+    }
+    val phrase = try {
+      recorder.recordPhrase(onLevel = {})
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: SecurityException) {
+      fail(VoiceInputState.ErrorReason.Permission)
+      return
+    } catch (e: Exception) {
+      android.util.Log.w(TAG, "recording failed: ${e.javaClass.simpleName}")
+      fail(VoiceInputState.ErrorReason.Audio)
+      return
+    }
+    if (phrase == null) {
+      fail(VoiceInputState.ErrorReason.NoMatch)
+      return
+    }
+    _transcribing.value = true
+    val result = try {
+      client.transcribe(phrase.wav, phrase.durationMs, languageNameOf(languageBcp47))
+    } finally {
+      _transcribing.value = false
+    }
+    when (result) {
+      is TranscribeResult.Heard -> deliver(result.text)
+      is TranscribeResult.Failed -> fail(
+        when (result.reason) {
+          TranscribeResult.Reason.NETWORK, TranscribeResult.Reason.SERVER, TranscribeResult.Reason.RATE_LIMITED ->
+            VoiceInputState.ErrorReason.Network
+          TranscribeResult.Reason.NO_KEY, TranscribeResult.Reason.UNAUTHORIZED -> VoiceInputState.ErrorReason.Unavailable
+          else -> VoiceInputState.ErrorReason.Other
+        },
+      )
     }
   }
 

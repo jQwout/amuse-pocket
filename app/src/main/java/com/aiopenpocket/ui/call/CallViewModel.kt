@@ -148,6 +148,12 @@ class CallViewModel(
   private var micGranted = false
   /** The camera or the gallery is open over the call: nobody is talking to it, so it does not listen. */
   private var pickingPhoto = false
+  /**
+   * The screen is not in front (Home, the screen off, another app or the assistant on top): the call neither
+   * listens nor speaks, so the microphone, Meta's meter and the voice stop with it. The turn goes on and its
+   * reply lands in the chat.
+   */
+  private var hidden = false
   /** The recognizer's and the voice's language, from Settings; null until read (no listening before it). */
   private var language: String? = null
 
@@ -295,14 +301,41 @@ class CallViewModel(
     _state.update { it.copy(photoPath = null) }
   }
 
+  /**
+   * The screen went behind something. Not while the camera or the gallery is open: that is part of the call.
+   * A reply being read is cut off as a tap would, so the rest of it is not read into an empty room.
+   */
+  fun onScreenHidden() {
+    if (pickingPhoto || hidden) return
+    hidden = true
+    speaker.stop()
+    if (loop.phase == CallPhase.SPEAKING || loop.phase == CallPhase.THINKING) update { it.cutOff() }
+    syncMic()
+  }
+
+  /** The screen is in front again: listen afresh. */
+  fun onScreenShown() {
+    if (!hidden) return
+    hidden = false
+    errorStreak = 0
+    silentStarts = 0
+    syncMic()
+  }
+
+  /** The camera or the gallery is open over the call, so leaving the screen is not leaving the call. */
+  val isPickingPhoto: Boolean get() = pickingPhoto
+
   /** A router chip: Auto, or one agent to answer every phrase of this call. */
   fun setRoute(choice: RouteChoice) {
     convIdFlow.value?.let { routeChoices.set(it, choice) }
     _state.update { it.copy(routeChoice = choice) }
   }
 
-  fun resolveApproval(approved: Boolean) {
-    val request = _state.value.pendingApproval ?: return
+  /**
+   * Answers [request], the one the person saw on the bar. Not whatever is pending by the time the tap lands:
+   * with two requests in a row, a quick second tap would otherwise allow one never shown.
+   */
+  fun resolveApproval(request: ToolApprovalRequest, approved: Boolean) {
     toolApprovalCoordinator.resolve(request.runId, request.requestId, approved)
   }
 
@@ -351,8 +384,8 @@ class CallViewModel(
   }
 
   private fun micWanted(): Boolean =
-    started && !ended && micGranted && language != null && !_state.value.micPaused && !_state.value.micMuted &&
-      !pickingPhoto && loop.wantsMic
+    started && !ended && !hidden && micGranted && language != null && !_state.value.micPaused &&
+      !_state.value.micMuted && !pickingPhoto && loop.wantsMic
 
   /** Turns the microphone on or off to match the floor. Called after every change that can affect it. */
   private fun syncMic() {
@@ -438,6 +471,10 @@ class CallViewModel(
     silentStarts = 0
     val photo = _state.value.photoPath
     _state.update { it.copy(said = text, heard = null, reply = "", activity = null, notice = null, photoPath = null) }
+    // The last turn is no longer awaited: a phrase said over it (after a tap) must not have that turn's end,
+    // or its session vanishing under cancelAndAwait below, taken for the end of the new one.
+    awaitingReply = false
+    turnSeen = false
     update { it.userSaid() }
     sendJob?.cancel()
     sendJob = viewModelScope.launch {
@@ -488,7 +525,11 @@ class CallViewModel(
     }
     coroutineScope {
       launch { session.routedAgent.collect { routed -> _state.update { it.copy(routedAgentName = routed?.agentName) } } }
-      combine(session.status, session.streamingText, ::Pair).collect { (status, text) -> onTurn(status, text) }
+      // A session that became stale while followed (a phrase said over its turn) says nothing more: its
+      // cancellation must not read as the new turn's end. cancelAndAwait drops it, so it is never reused.
+      combine(session.status, session.streamingText, ::Pair).collect { (status, text) ->
+        if (session !== staleSession) onTurn(status, text)
+      }
     }
   }
 
@@ -558,7 +599,7 @@ class CallViewModel(
 
   /** Reads [piece] and hands the floor to the voice. The engine reports it at once, on this thread. */
   private fun say(piece: String) {
-    if (ended) return
+    if (ended || hidden) return
     speaker.say(piece)
     update { it.speaking(speaker.speaking.value) }
   }

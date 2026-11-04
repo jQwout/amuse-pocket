@@ -6,6 +6,8 @@ import android.annotation.SuppressLint
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.SystemClock
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -38,8 +40,7 @@ class PhraseRecorder {
   suspend fun recordPhrase(onLevel: (Float) -> Unit): Phrase? = withContext(Dispatchers.IO) {
     val record = openMicrophone()
     try {
-      check(record.state == AudioRecord.STATE_INITIALIZED) { "the microphone could not be opened" }
-      record.startRecording()
+      startOrThrow(record)
       val frame = ShortArray(FRAME_SAMPLES)
       val preRoll = ArrayDeque<ShortArray>()
       val speech = ByteArrayOutputStream()
@@ -51,8 +52,7 @@ class PhraseRecorder {
       var spokenMs = 0L
       while (true) {
         ensureActive()
-        val read = record.read(frame, 0, FRAME_SAMPLES)
-        if (read <= 0) continue
+        val read = readOrThrow(record, frame)
         frames++
         val rms = rms(frame, read)
         onLevel((rms / LEVEL_FULL_SCALE).toFloat().coerceIn(0f, 1f))
@@ -100,18 +100,43 @@ class PhraseRecorder {
   suspend fun stream(onFrame: (ByteArray) -> Boolean) = withContext(Dispatchers.IO) {
     val record = openMicrophone()
     try {
-      check(record.state == AudioRecord.STATE_INITIALIZED) { "the microphone could not be opened" }
-      record.startRecording()
+      startOrThrow(record)
       val frame = ShortArray(STREAM_FRAME_SAMPLES)
       while (true) {
         ensureActive()
-        val read = record.read(frame, 0, STREAM_FRAME_SAMPLES)
-        if (read <= 0) continue
+        val read = readOrThrow(record, frame)
         if (!onFrame(frame.copyOf(read).toLittleEndianBytes())) break
       }
     } finally {
       runCatching { record.stop() }
       record.release()
+    }
+  }
+
+  /**
+   * Starts [record], or throws: another app holding the microphone (a phone call, a recorder) leaves it
+   * initialized but not recording, and reading it then returns nothing at all.
+   */
+  private fun startOrThrow(record: AudioRecord) {
+    check(record.state == AudioRecord.STATE_INITIALIZED) { "the microphone could not be opened" }
+    record.startRecording()
+    check(record.recordingState == AudioRecord.RECORDSTATE_RECORDING) { "the microphone is busy" }
+  }
+
+  /**
+   * One frame into [frame], returning how many samples came. Throws on a read error (the audio server died,
+   * the microphone was taken away) and when no sound comes for [STALL_MS]: a loop that skipped empty reads
+   * spun forever, the call "listening" to nothing until the person hung up.
+   */
+  private fun CoroutineScope.readOrThrow(record: AudioRecord, frame: ShortArray): Int {
+    val since = SystemClock.elapsedRealtime()
+    while (true) {
+      ensureActive()
+      val read = record.read(frame, 0, frame.size)
+      if (read > 0) return read
+      check(read == 0) { "the microphone stopped ($read)" }
+      check(SystemClock.elapsedRealtime() - since < STALL_MS) { "the microphone gives no sound" }
+      Thread.sleep(STALL_POLL_MS)
     }
   }
 
@@ -160,6 +185,9 @@ class PhraseRecorder {
     private const val END_SILENCE_MS = 1_100L
     private const val NO_SPEECH_MS = 8_000L
     private const val MAX_PHRASE_MS = 30_000L
+    /** No sound at all for this long means the microphone is gone, not that the room is quiet. */
+    private const val STALL_MS = 2_000L
+    private const val STALL_POLL_MS = 10L
     /** The RMS shown as a full orb: loud speech close to the phone. */
     private const val LEVEL_FULL_SCALE = 6_000.0
 

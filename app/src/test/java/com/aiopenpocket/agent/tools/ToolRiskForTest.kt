@@ -239,6 +239,12 @@ class ToolRiskForTest {
   @Test
   fun `heartbeat schedule is WRITE`() {
     assertEquals(RiskClass.WRITE, heartbeatTool.riskFor(args("action" to "schedule")))
+    assertEquals(RiskClass.WRITE, heartbeatTool.riskFor(args("action" to "schedule", "mode" to "push")))
+  }
+
+  @Test
+  fun `heartbeat schedule of an agent wakeup is EXTERNAL`() {
+    assertEquals(RiskClass.EXTERNAL, heartbeatTool.riskFor(args("action" to "schedule", "mode" to "agent")))
   }
 
   @Test

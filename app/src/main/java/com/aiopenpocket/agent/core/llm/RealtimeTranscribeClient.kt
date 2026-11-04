@@ -17,7 +17,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
@@ -127,35 +127,54 @@ class RealtimeTranscribeClient(
     )
     val sentMs = AtomicLong(0)
     val streaming = AtomicBoolean(true)
-    var pump: Job? = null
+    // The microphone opens at once, not after Meta's ack: the screen says "listening" from the start, and a
+    // person who answers quickly would otherwise lose the first words to the 0.3-1 s handshake. Frames are
+    // held until the session is acknowledged, then sent in order ahead of the live ones.
+    val gate = Any()
+    val held = ArrayList<ByteArray>()
+    var live = false
+    val pump: Job = scope.launch {
+      try {
+        audio { frame ->
+          val more = streaming.get()
+          if (more) {
+            synchronized(gate) {
+              if (live) {
+                socket.send(frame.toByteString())
+                sentMs.addAndGet(FRAME_MS)
+              } else if (held.size < MAX_HELD_FRAMES) {
+                held.add(frame)
+              }
+            }
+          }
+          more
+        }
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: SecurityException) {
+        events.trySend(Event.MicError(permission = true))
+      } catch (e: Exception) {
+        events.trySend(Event.MicError(permission = false))
+      }
+    }
     try {
       val opened = withTimeoutOrNull(HANDSHAKE_MS) { events.receive() }
+      if (opened is Event.MicError) return RealtimeResult.MicFailed(opened.permission)
       if (opened !is Event.Open) return RealtimeResult.NotStarted("no socket: ${describe(opened)}")
       socket.send(handshake(key, language))
       val ack = withTimeoutOrNull(HANDSHAKE_MS) { events.receive() }
+      if (ack is Event.MicError) return RealtimeResult.MicFailed(ack.permission)
       val ackJson = (ack as? Event.Text)?.let { parse(it.text) }
       if (ackJson == null || ackJson.string("type") != null || ackJson.string("sessionId") == null) {
         return RealtimeResult.NotStarted("handshake refused: ${ackJson?.string("message") ?: describe(ack)}")
       }
-
-      pump = scope.launch {
-        try {
-          audio { frame ->
-            if (!streaming.get()) {
-              false
-            } else {
-              socket.send(frame.toByteString())
-              sentMs.addAndGet(FRAME_MS)
-              true
-            }
-          }
-        } catch (e: CancellationException) {
-          throw e
-        } catch (e: SecurityException) {
-          events.trySend(Event.MicError(permission = true))
-        } catch (e: Exception) {
-          events.trySend(Event.MicError(permission = false))
+      synchronized(gate) {
+        held.forEach { frame ->
+          socket.send(frame.toByteString())
+          sentMs.addAndGet(FRAME_MS)
         }
+        held.clear()
+        live = true
       }
 
       val startedAt = System.currentTimeMillis()
@@ -176,7 +195,7 @@ class RealtimeTranscribeClient(
                   lastWords = words
                   onPartial(words)
                 }
-                if (message["final"]?.jsonPrimitive?.booleanOrNull == true && words.isNotEmpty()) {
+                if ((message["final"] as? JsonPrimitive)?.booleanOrNull == true && words.isNotEmpty()) {
                   return RealtimeResult.Heard(words)
                 }
               }
@@ -200,7 +219,7 @@ class RealtimeTranscribeClient(
       }
     } finally {
       streaming.set(false)
-      pump?.cancel()
+      pump.cancel()
       runCatching { socket.send(END_STREAM) }
       socket.close(1000, null)
       val ms = sentMs.get()
@@ -220,7 +239,9 @@ class RealtimeTranscribeClient(
 
   private fun parse(text: String): JsonObject? = runCatching { json.parseToJsonElement(text).jsonObject }.getOrNull()
 
-  private fun JsonObject.string(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull
+  // Never `.jsonPrimitive`: it throws on an object or an array, and a field Meta sends in another shape
+  // than expected would crash the call on its first phrase. A field of the wrong shape reads as absent.
+  private fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
 
   private fun describe(event: Event?): String = when (event) {
     null -> "timed out"
@@ -251,5 +272,8 @@ class RealtimeTranscribeClient(
     private const val HANDSHAKE_MS = 8_000L
     private const val NO_SPEECH_MS = 8_000L
     private const val MAX_PHRASE_MS = 30_000L
+
+    /** What is held before the ack: the whole handshake wait, 8 s of 80 ms frames (about 256 KB). */
+    private const val MAX_HELD_FRAMES = (HANDSHAKE_MS / FRAME_MS).toInt()
   }
 }
