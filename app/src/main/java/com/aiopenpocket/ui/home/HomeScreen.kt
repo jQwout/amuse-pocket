@@ -42,6 +42,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,6 +52,7 @@ import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.ui.components.AcademyBottomNav
 import com.aiopenpocket.ui.components.AcademyTab
 import com.aiopenpocket.ui.components.glass.GlassCard
+import com.aiopenpocket.ui.components.glass.GlassSurface
 import com.aiopenpocket.ui.components.glass.auroraBackground
 import com.aiopenpocket.ui.components.glass.glassSource
 import com.aiopenpocket.ui.components.glass.rememberGlassState
@@ -108,13 +110,23 @@ fun HomeScreen(
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
+                // The title and the two buttons each sit on a glass pill: the list scrolls under this bar, and bare
+                // text over the cards was unreadable (owner, 4 Nov 2026). Two pills, not one full-width island, so
+                // the hero under them stays open at the top of the list.
                 TopAppBar(
                     title = {
-                        Text(
-                            text = "AI Academy",
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        GlassSurface(
+                            state = glassState,
+                            shape = CircleShape,
+                            modifier = Modifier.shadow(3.dp, CircleShape, clip = false),
+                        ) {
+                            Text(
+                                text = "AI Academy",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+                            )
+                        }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color.Transparent,
@@ -123,10 +135,24 @@ fun HomeScreen(
                         actionIconContentColor = MaterialTheme.colorScheme.onSurface,
                     ),
                     actions = {
-                        HomeTopBarActions(
-                            onNavigateToConversations = onNavigateToConversations,
-                            onNavigateToProfile = onNavigateToProfile,
-                        )
+                        GlassSurface(
+                            state = glassState,
+                            shape = CircleShape,
+                            modifier = Modifier
+                                .padding(end = 12.dp)
+                                .shadow(3.dp, CircleShape, clip = false),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(start = 2.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                            ) {
+                                HomeTopBarActions(
+                                    onNavigateToConversations = onNavigateToConversations,
+                                    onNavigateToProfile = onNavigateToProfile,
+                                    trailingSpace = 0.dp,
+                                )
+                            }
+                        }
                     },
                 )
             },

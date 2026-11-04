@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.memory.model.Conversation
 import com.aiopenpocket.i18n.tr
@@ -363,6 +364,8 @@ internal fun EmptyHint(text: String) {
 internal fun RowScope.HomeTopBarActions(
     onNavigateToConversations: () -> Unit,
     onNavigateToProfile: () -> Unit,
+    /** The gap after the avatar; 0 when the actions sit inside their own pill, which brings its own margin. */
+    trailingSpace: Dp = 12.dp,
 ) {
     IconButton(onClick = onNavigateToConversations) {
         Icon(
@@ -388,5 +391,5 @@ internal fun RowScope.HomeTopBarActions(
             modifier = Modifier.size(22.dp),
         )
     }
-    Spacer(modifier = Modifier.size(12.dp))
+    if (trailingSpace > 0.dp) Spacer(modifier = Modifier.size(trailingSpace))
 }
