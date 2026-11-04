@@ -1,6 +1,8 @@
 package com.aiopenpocket.ui.call
 
 // @trace voice-call-mode-54cb49
+// @trace voice-assistant-mode-a81a99
+// @trace agent-router-dc2233
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -91,26 +93,44 @@ import com.aiopenpocket.voice.call.CallSpeaker
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import kotlinx.coroutines.delay
 import java.io.File
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.BiasAlignment
+import com.aiopenpocket.agent.core.agent.RouteChoice
+import com.aiopenpocket.ui.chat.RouteAgent
 
 /**
- * The call screen, built like a phone call: who you talk to and the call time at the top, the app's
- * lime-on-ink orb (AssistantOrb, ported from the owner's earlier assistant), one line of large words under
- * it, and four round buttons — photo, mute, repeat, hang up. The whole conversation is not on
- * screen: it is in the chat once the call ends, and a call is listened to, not read (owner, 4 Nov 2026: the
- * first version, a flat circle over a glass transcript card, "looked like nothing", and their earlier app
- * did it far better).
+ * A voice conversation with an agent: the call screen in the app and the phone's assistant over other apps
+ * are this one screen on one engine ([CallViewModel]); they used to be two (the assistant ran on the chat's
+ * engine: Google hearing, the reply read only once finished, one question per tap), and the owner found
+ * them behaving "very differently" (4 Nov 2026).
  *
- * The words under the orb are whatever matters now: what the person is saying while they speak, the
- * sentence being read word by word while the agent speaks, otherwise the last reply (a tap reads it
- * again). A tap anywhere else cuts the agent off. Colours follow the app theme, light or dark (an always-dark
- * call broke the theme, owner, 4 Nov 2026), and the backdrop runs up under the status bar, which is why
- * MainActivity leaves out its status bar scrim on this route. [onHangUp] gets the conversation id (null if
- * nothing was said), so the caller can open the chat with the whole call in it.
+ * Built like a phone call: who you talk to, the call time and what is happening at the top; the app's
+ * lime-on-ink orb (AssistantOrb, from the owner's earlier assistant); one line of large words under it; four
+ * round buttons — photo, mute, repeat, end. The orb waits low with the router chips under it and glides up
+ * once the first phrase is said, the motion the owner liked in the assistant. The whole conversation is in
+ * the chat once the session ends: a call is listened to, not read.
+ *
+ * The words are whatever matters now: what the person is saying, the sentence being read word by word, or
+ * the last reply (a tap reads it again). A tap anywhere else cuts the agent off. Colours follow the theme.
+ * [overlay] is the assistant's window: a dimmed backdrop over the app underneath (its activity forces the
+ * dark theme), a close button and "Open in chat" ([onOpenChat]). In the app the backdrop is the page and
+ * runs up under the status bar, which is why MainActivity leaves out its status bar scrim on this route.
+ * [onEnd] gets the conversation id (null if nothing was said).
  */
 @Composable
-fun CallScreen(
+fun VoiceSessionScreen(
   conversationId: String,
-  onHangUp: (String?) -> Unit,
+  onEnd: (String?) -> Unit,
+  overlay: Boolean = false,
+  onOpenChat: ((String?) -> Unit)? = null,
 ) {
   val viewModel: CallViewModel = metroViewModel()
   val state by viewModel.state.collectAsState()
@@ -133,22 +153,43 @@ fun CallScreen(
     onDispose { view.keepScreenOn = false }
   }
 
-  val hangUp = { onHangUp(viewModel.hangUp()) }
-  BackHandler(onBack = hangUp)
+  val end = { onEnd(viewModel.hangUp()) }
+  BackHandler(onBack = end)
+
+  // The orb waits low, then glides up once something was said: the assistant's motion, kept for both.
+  val started = state.said != null
+  val orbBias by animateFloatAsState(
+    targetValue = if (started) -0.9f else 0.25f,
+    animationSpec = tween(600, easing = FastOutSlowInEasing),
+    label = "orbBias",
+  )
+  val orbSize by animateDpAsState(
+    targetValue = if (started) 200.dp else 260.dp,
+    animationSpec = tween(600, easing = FastOutSlowInEasing),
+    label = "orbSize",
+  )
+  val background = MaterialTheme.colorScheme.background
+  val backdrop = if (overlay) {
+    // The app underneath stays visible through the top, as in the assistant before.
+    Brush.verticalGradient(0f to background.copy(alpha = 0.55f), 0.45f to background.copy(alpha = 0.9f), 1f to background)
+  } else {
+    Brush.verticalGradient(0f to MaterialTheme.colorScheme.primary.copy(alpha = 0.16f).compositeOver(background), 0.6f to background)
+  }
 
   Box(
     modifier = Modifier
       .fillMaxSize()
-      .background(
-        Brush.verticalGradient(
-          0f to MaterialTheme.colorScheme.primary.copy(alpha = 0.16f).compositeOver(MaterialTheme.colorScheme.background),
-          0.6f to MaterialTheme.colorScheme.background,
-        ),
-      )
+      .background(backdrop)
       .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { viewModel.tap() }
       .testTag("call_screen"),
   ) {
     CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onBackground) {
+      if (overlay) {
+        IconButton(
+          onClick = end,
+          modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(12.dp),
+        ) { Icon(Icons.Default.Close, contentDescription = tr("Закрыть", "Close")) }
+      }
       Column(
         modifier = Modifier
           .fillMaxSize()
@@ -158,12 +199,12 @@ fun CallScreen(
       ) {
         // Like a phone call: who you are talking to, big, and under it how long and what is happening.
         Text(
-          text = state.agentName ?: tr("Ассистент", "Assistant"),
+          text = state.agentName ?: state.routedAgentName ?: tr("Ассистент", "Assistant"),
           style = MaterialTheme.typography.headlineSmall,
           color = MaterialTheme.colorScheme.onBackground,
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
-          modifier = Modifier.padding(top = 12.dp).testTag("call_title"),
+          modifier = Modifier.padding(top = 12.dp, start = 40.dp, end = 40.dp).testTag("call_title"),
         )
         Row(modifier = Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
           CallTimer(startedAt = state.startedAt, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
@@ -185,28 +226,39 @@ fun CallScreen(
           )
         }
 
-        Spacer(Modifier.weight(1f))
-        AssistantOrb(state = orbState(state), size = 280.dp)
-        Spacer(Modifier.height(8.dp))
-
-        CallWords(state, onReplay = viewModel::replay)
-
-        state.notice?.let {
-          Text(
-            text = it,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.error,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 8.dp).testTag("call_notice"),
-          )
+        Box(modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp)) {
+          Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.align(BiasAlignment(0f, orbBias)),
+          ) {
+            AssistantOrb(state = orbState(state), size = orbSize)
+            CallWords(state, onReplay = viewModel::replay)
+            // Who answers: the router (Auto) or one agent, the same choice as the chip in a chat.
+            AnimatedVisibility(visible = !started && state.canRoute && state.routeAgents.isNotEmpty()) {
+              RouteChips(
+                agents = state.routeAgents,
+                choice = state.routeChoice,
+                onChoose = viewModel::setRoute,
+                modifier = Modifier.padding(top = 12.dp),
+              )
+            }
+            state.notice?.let {
+              Text(
+                text = it,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 8.dp).testTag("call_notice"),
+              )
+            }
+            if (state.needsMicPermission) {
+              Button(
+                onClick = { micPermission.launch(Manifest.permission.RECORD_AUDIO) },
+                modifier = Modifier.padding(top = 8.dp),
+              ) { Text(tr("Разрешить микрофон", "Allow the microphone")) }
+            }
+          }
         }
-        if (state.needsMicPermission) {
-          Button(
-            onClick = { micPermission.launch(Manifest.permission.RECORD_AUDIO) },
-            modifier = Modifier.padding(top = 8.dp),
-          ) { Text(tr("Разрешить микрофон", "Allow the microphone")) }
-        }
-        Spacer(Modifier.weight(1f))
 
         if (state.photoPath != null || state.photoLoading) {
           PhotoChip(path = state.photoPath, loading = state.photoLoading, onRemove = viewModel::removePhoto)
@@ -240,25 +292,77 @@ fun CallScreen(
           CallButton(
             icon = Icons.Default.CallEnd,
             label = tr("Завершить", "End"),
-            onClick = hangUp,
+            onClick = end,
             tag = "call_hang_up",
             size = 64.dp,
             container = HangUpRed,
           )
         }
-        Text(
-          text = if (state.phase == CallPhase.SPEAKING || state.phase == CallPhase.THINKING) {
-            tr("Коснись экрана, чтобы перебить", "Tap the screen to interrupt")
-          } else {
-            " "
-          },
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-          modifier = Modifier.padding(top = 10.dp),
-        )
+        if (onOpenChat != null) {
+          TextButton(
+            onClick = { onOpenChat(viewModel.hangUp()) },
+            modifier = Modifier.padding(top = 4.dp).testTag("call_open_chat"),
+          ) { Text(tr("Открыть в чате", "Open in chat")) }
+        } else {
+          Text(
+            text = if (state.phase == CallPhase.SPEAKING || state.phase == CallPhase.THINKING) {
+              tr("Коснись экрана, чтобы перебить", "Tap the screen to interrupt")
+            } else {
+              " "
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+            modifier = Modifier.padding(top = 10.dp),
+          )
+        }
       }
     }
   }
+}
+
+/** The call screen in the app: [VoiceSessionScreen] on the page; [onHangUp] opens the chat the call wrote into. */
+@Composable
+fun CallScreen(
+  conversationId: String,
+  onHangUp: (String?) -> Unit,
+) = VoiceSessionScreen(conversationId = conversationId, onEnd = onHangUp)
+
+/** The router chips: Auto, then each of the person's agents; the picked one is filled. */
+@Composable
+private fun RouteChips(
+  agents: List<RouteAgent>,
+  choice: RouteChoice,
+  onChoose: (RouteChoice) -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  Row(
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
+    modifier = modifier.horizontalScroll(rememberScrollState()),
+  ) {
+    RouteChip(tr("Авто", "Auto"), choice == RouteChoice.Auto) { onChoose(RouteChoice.Auto) }
+    agents.forEach { agent ->
+      val picked = choice == RouteChoice.Fixed(agent.id)
+      RouteChip(agent.name, picked) { onChoose(if (picked) RouteChoice.Auto else RouteChoice.Fixed(agent.id)) }
+    }
+  }
+}
+
+@Composable
+private fun RouteChip(label: String, selected: Boolean, onClick: () -> Unit) {
+  val shape = RoundedCornerShape(50)
+  val colors = MaterialTheme.colorScheme
+  Text(
+    text = label,
+    color = if (selected) colors.onPrimary else colors.onBackground,
+    style = MaterialTheme.typography.labelLarge,
+    maxLines = 1,
+    modifier = Modifier
+      .clip(shape)
+      .background(if (selected) colors.primary else colors.onBackground.copy(alpha = 0.08f))
+      .border(1.dp, if (selected) colors.primary else colors.onBackground.copy(alpha = 0.2f), shape)
+      .clickable(onClick = onClick)
+      .padding(horizontal = 14.dp, vertical = 8.dp),
+  )
 }
 
 /** The call's length, m:ss, ticking once a second like a phone call's. */

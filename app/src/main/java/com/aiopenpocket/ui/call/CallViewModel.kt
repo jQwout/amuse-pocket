@@ -8,6 +8,9 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aiopenpocket.agent.core.agent.AgentResolver
+import com.aiopenpocket.agent.core.agent.AgentRouteChoices
+import com.aiopenpocket.agent.core.agent.RouteChoice
+import com.aiopenpocket.agent.core.agent.displayName
 import com.aiopenpocket.agent.core.identity.UserPreferencesRepository
 import com.aiopenpocket.agent.core.llm.ChatImages
 import com.aiopenpocket.agent.core.llm.RealtimeTranscribeClient
@@ -31,6 +34,7 @@ import com.aiopenpocket.voice.call.CallPhase
 import com.aiopenpocket.voice.call.CallSpeaker
 import com.aiopenpocket.voice.call.MetaCallEars
 import com.aiopenpocket.voice.call.SentenceFeed
+import com.aiopenpocket.ui.chat.RouteAgent
 import com.aiopenpocket.voice.input.VoiceInputController
 import com.aiopenpocket.voice.input.VoiceInputState
 import com.aiopenpocket.voice.input.appLanguageToBcp47
@@ -42,6 +46,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -85,6 +90,14 @@ data class CallUiState(
   val pendingApproval: ToolApprovalRequest? = null,
   /** Who the person is talking to: the chat's agent, or null for the plain assistant. */
   val agentName: String? = null,
+  /** The agent the router picked for the last phrase, in a chat with no agent of its own. */
+  val routedAgentName: String? = null,
+  /** The chat has no agent of its own, so the router may pick one (agent-router-dc2233). */
+  val canRoute: Boolean = true,
+  /** The person's agents for the router chips. */
+  val routeAgents: List<RouteAgent> = emptyList(),
+  /** Auto (the router decides) or one agent the person picked. */
+  val routeChoice: RouteChoice = RouteChoice.Auto,
   /** When the call screen opened, for the call timer. */
   val startedAt: Long = System.currentTimeMillis(),
 )
@@ -105,6 +118,7 @@ class CallViewModel(
   private val context: Context,
   private val conversationRepository: ConversationRepository,
   private val agentResolver: AgentResolver,
+  private val routeChoices: AgentRouteChoices,
   private val turnManager: TurnManager,
   private val userPreferencesRepository: UserPreferencesRepository,
   private val toolApprovalCoordinator: ToolApprovalCoordinator,
@@ -169,6 +183,18 @@ class CallViewModel(
       speaker.warmUp(tag)
       conversationId.ifBlank { null }?.let { bind(it) }
       syncMic()
+    }
+    // @trace agent-router-dc2233
+    // The person's agents, for the chips; the same list and rule as the chat's picker.
+    viewModelScope.launch {
+      agentResolver.observeRoster().collect { roster ->
+        val agents = roster.filter { it.enabled }.map { RouteAgent(it.id, it.displayName) }
+        _state.update { state ->
+          val choice = state.routeChoice
+          val stillThere = choice !is RouteChoice.Fixed || agents.any { it.id == choice.agentId }
+          state.copy(routeAgents = agents, routeChoice = if (stillThere) choice else RouteChoice.Auto)
+        }
+      }
     }
     viewModelScope.launch { speaker.speaking.collect { now -> update { it.speaking(now) } } }
     viewModelScope.launch { speaker.caption.collect { caption -> _state.update { it.copy(caption = caption) } } }
@@ -269,6 +295,12 @@ class CallViewModel(
     _state.update { it.copy(photoPath = null) }
   }
 
+  /** A router chip: Auto, or one agent to answer every phrase of this call. */
+  fun setRoute(choice: RouteChoice) {
+    convIdFlow.value?.let { routeChoices.set(it, choice) }
+    _state.update { it.copy(routeChoice = choice) }
+  }
+
   fun resolveApproval(approved: Boolean) {
     val request = _state.value.pendingApproval ?: return
     toolApprovalCoordinator.resolve(request.runId, request.requestId, approved)
@@ -295,10 +327,17 @@ class CallViewModel(
   private suspend fun bind(id: String) {
     convIdFlow.value = id
     // The call names who you talk to, as a phone does, not the chat's auto-written topic.
-    val name = runCatching {
-      conversationRepository.getConversation(id)?.agentId?.let { agentResolver.resolve(it)?.name }
-    }.getOrNull()
-    _state.update { it.copy(agentName = name) }
+    val conversation = runCatching { conversationRepository.getConversation(id) }.getOrNull()
+    val name = conversation?.agentId?.let { runCatching { agentResolver.resolve(it)?.displayName }.getOrNull() }
+    val canRoute = conversation == null || (conversation.agentId == null && !conversation.isTutorial)
+    _state.update {
+      it.copy(
+        agentName = name,
+        canRoute = canRoute,
+        // A chat that already chose keeps its choice; a call's own new chat starts from the chips' choice.
+        routeChoice = if (conversation?.agentId == null && it.said != null) it.routeChoice else routeChoices.get(id),
+      )
+    }
   }
 
   // ---- the floor ----
@@ -404,6 +443,8 @@ class CallViewModel(
     sendJob = viewModelScope.launch {
       try {
         val id = convIdFlow.value ?: createConversation(text)
+        // The router reads the choice when the turn starts (TurnManager), as for a chat's message.
+        if (_state.value.canRoute) routeChoices.set(id, _state.value.routeChoice)
         // Drop the conversation's previous turn first (a chat's, or this call's own that was cut off),
         // so whatever the session shows from here on is this phrase's turn. Without it a reused session
         // could still hold the last reply, and the call would read it again as the answer.
@@ -445,7 +486,10 @@ class CallViewModel(
       if (awaitingReply && turnSeen) finishFromHistory()
       return
     }
-    combine(session.status, session.streamingText, ::Pair).collect { (status, text) -> onTurn(status, text) }
+    coroutineScope {
+      launch { session.routedAgent.collect { routed -> _state.update { it.copy(routedAgentName = routed?.agentName) } } }
+      combine(session.status, session.streamingText, ::Pair).collect { (status, text) -> onTurn(status, text) }
+    }
   }
 
   private fun onTurn(status: TurnStatus, text: String) {

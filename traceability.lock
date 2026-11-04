@@ -10,8 +10,8 @@
       "git": "097a6f63"
     },
     "agent-router-dc2233": {
-      "hash": "52ad649d4c85",
-      "git": "097a6f63"
+      "hash": "927270dfa330",
+      "git": "551bdb5b"
     },
     "agent-skills-7189cc": {
       "hash": "e3296460a332",
@@ -86,8 +86,8 @@
       "git": "7bccf193"
     },
     "meta-voice-transcribe-in-calls-297760": {
-      "hash": "b30c8fe120ff",
-      "git": "5239b328"
+      "hash": "cda9139d714d",
+      "git": "551bdb5b"
     },
     "multi-agent-orchestration-27b8e3": {
       "hash": "df3f619804a9",
@@ -166,12 +166,12 @@
       "git": "ec7af5d1"
     },
     "voice-assistant-mode-a81a99": {
-      "hash": "69aa75737d2b",
-      "git": "96d7190d"
+      "hash": "735b951a45fe",
+      "git": "551bdb5b"
     },
     "voice-call-mode-54cb49": {
-      "hash": "1ef316e95535",
-      "git": "d80b4363"
+      "hash": "60de2c698893",
+      "git": "551bdb5b"
     },
     "voice-input-1a0dfd": {
       "hash": "0a8ee7dedcdf",

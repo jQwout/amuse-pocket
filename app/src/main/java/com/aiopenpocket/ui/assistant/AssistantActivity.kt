@@ -15,14 +15,16 @@ import androidx.compose.runtime.remember
 import com.aiopenpocket.AiOpenPocketApp
 import com.aiopenpocket.MainActivity
 import com.aiopenpocket.i18n.AppLanguage
+import com.aiopenpocket.ui.call.VoiceSessionScreen
 import com.aiopenpocket.ui.theme.MyApplicationTheme
 import com.aiopenpocket.ui.theme.ThemeMode
 import dev.zacsweers.metrox.viewmodel.LocalMetroViewModelFactory
 import kotlinx.coroutines.flow.onEach
 
 /**
- * The window the assistant button opens: translucent, so the app that was on screen stays visible under
- * [AssistantOverlay]. Always dark, whatever the app theme: white text over a dimmed screen.
+ * The window the assistant button opens: translucent, so the app that was on screen stays visible under the
+ * voice session ([VoiceSessionScreen] in its overlay form, the same screen and engine as a call from a chat).
+ * Always dark, whatever the app theme: light text over a dimmed screen.
  *
  * Before onboarding is done there is no key and no language yet, so it hands over to [MainActivity],
  * which shows onboarding.
@@ -45,7 +47,12 @@ class AssistantActivity : ComponentActivity() {
                         if (onboardingCompleted == false) openApp(null)
                     }
                     if (onboardingCompleted == true && language != null) {
-                        AssistantOverlay(onDismiss = ::finish, onOpenChat = ::openApp)
+                        VoiceSessionScreen(
+                            conversationId = "",
+                            onEnd = { finish() },
+                            overlay = true,
+                            onOpenChat = ::openApp,
+                        )
                     }
                 }
             }
