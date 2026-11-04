@@ -144,7 +144,7 @@ internal fun WorkflowVsAgentScene() {
                 tr("Шаги прописаны заранее · решений: 0", "Steps are set in advance · decisions: 0")
             },
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.outline,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
         )
         Column(
@@ -153,7 +153,7 @@ internal fun WorkflowVsAgentScene() {
         ) {
             if (agent) {
                 if (shown == 0) {
-                    Text(tr("Агент ещё не знает, какие будут шаги — решит по ходу", "The agent doesn't know the steps yet — it will decide as it goes"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                    Text(tr("Агент ещё не знает, какие будут шаги — решит по ходу", "The agent doesn't know the steps yet — it will decide as it goes"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 moves.take(shown).forEachIndexed { index, move -> WfRow(index + 1, move.title, reached = true, failed = move.failed) }
             } else {
@@ -200,7 +200,7 @@ internal fun WorkflowVsAgentScene() {
         Text(
             text = if (done) tr("Задача чёткая и повторяется — воркфлоу. План заранее неизвестен — агент", "A clear, repeating task — workflow. A plan unknown in advance — agent") else " ",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.outline,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             minLines = 2,
             maxLines = 2,
         )

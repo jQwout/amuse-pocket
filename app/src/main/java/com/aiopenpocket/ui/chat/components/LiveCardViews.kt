@@ -52,7 +52,7 @@ fun ReminderCardView(
         Text(
             text = tr("Напоминание не найдено", "Reminder not found"),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.outline,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         return
     }
@@ -75,7 +75,7 @@ fun ReminderCardView(
                 Text(
                     text = "${formatSchedule(current)} · ${formatStatus(current)}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -142,7 +142,7 @@ fun NotificationPermissionCardView(card: DrivenUiCard.NotificationPermissionCard
             Text(
                 text = card.description,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.outline
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         if (enabled) {

@@ -152,7 +152,7 @@ internal fun SkillLevelsScene() {
             Box(Modifier.weight(1f))
             TextButton(onClick = { loaded = 0; read = 0 }, enabled = loaded != 0) { Text(tr("Сначала", "Start over")) }
         }
-        Text(tr("Уровень 1 — каталог, всегда в промпте:", "Level 1: the catalog, always in the prompt:"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+        Text(tr("Уровень 1 — каталог, всегда в промпте:", "Level 1: the catalog, always in the prompt:"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         SKILLS.forEachIndexed { index, skill ->
             SkillRow(
                 skill = skill,

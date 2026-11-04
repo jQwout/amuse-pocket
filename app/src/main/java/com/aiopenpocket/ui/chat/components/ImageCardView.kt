@@ -67,7 +67,7 @@ fun ImageCardView(
                 Text(
                     text = tr("Нет изображения", "No image"),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         } else {
@@ -96,7 +96,7 @@ fun ImageCardView(
             Text(
                 text = card.caption,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
         }

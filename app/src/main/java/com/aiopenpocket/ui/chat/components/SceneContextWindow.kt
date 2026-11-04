@@ -74,7 +74,7 @@ internal fun ContextWindowScene() {
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.animateContentSize()) {
         if (outside.isNotEmpty()) {
-            Text(tr("За окном — модель этого уже не видит", "Outside the window, the model can no longer see this"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+            Text(tr("За окном — модель этого уже не видит", "Outside the window, the model can no longer see this"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             outside.forEach { ChatBubble(it, faded = true) }
         }
         Column(

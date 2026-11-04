@@ -104,7 +104,7 @@ internal fun LessonAnimationCardView(card: DrivenUiCard.LessonAnimationCard) {
             Text(
                 text = card.caption,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -178,7 +178,7 @@ private fun TokenRow(label: String, tokens: List<String>, splitCount: Int) {
             Text(
                 text = tr("токенов: $splitCount", "tokens: $splitCount"),
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         // Until a piece "breaks off", it is merged with its neighbours: no gap and no color of its own — it reads
@@ -272,7 +272,7 @@ private fun TemperatureScene() {
                 else -> tr("обычный разброс", "a normal spread")
             },
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.outline,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
         )
         Slider(
@@ -299,7 +299,7 @@ private fun TemperatureScene() {
                     history.joinToString(", ")
                 },
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 3,
                 modifier = Modifier.weight(1f),
             )

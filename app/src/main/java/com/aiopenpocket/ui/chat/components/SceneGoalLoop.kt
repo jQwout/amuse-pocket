@@ -111,7 +111,7 @@ internal fun GoalLoopScene() {
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(tr("Цель: список покупок для борща и напоминание на вечер", "Goal: a shopping list for borscht and a reminder for tonight"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        Text(tr("Готово, когда:", "Done when:"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+        Text(tr("Готово, когда:", "Done when:"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             criteria.forEachIndexed { i, name ->
                 val ok = last?.passed?.get(i) == true
@@ -129,7 +129,7 @@ internal fun GoalLoopScene() {
             Text(
                 tr("страховка от вечной петли", "protects against an endless loop"),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.End,
                 maxLines = 1,
                 modifier = Modifier.weight(1f),

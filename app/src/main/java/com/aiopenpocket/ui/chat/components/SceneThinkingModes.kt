@@ -167,7 +167,7 @@ internal fun ThinkingModesScene() {
                 FilterChip(selected = mode == index, enabled = !running, onClick = { mode = index; shown = -1 }, label = { Text(name) })
             }
         }
-        Text(MODES[mode].second, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline, maxLines = 1)
+        Text(MODES[mode].second, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         Button(
             onClick = { shown = askIndex * 3 + mode; finished = -1; runId++ },
             enabled = !running,
@@ -228,7 +228,7 @@ internal fun ThinkingModesScene() {
                 minLines = 2,
             )
         }
-        Text(tr("Время и токены — пример, не замер", "Time and tokens are an example, not a measurement"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+        Text(tr("Время и токены — пример, не замер", "Time and tokens are an example, not a measurement"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         MODES.forEachIndexed { index, (name, _) ->
             val key = askIndex * 3 + index
             val live = shown == key

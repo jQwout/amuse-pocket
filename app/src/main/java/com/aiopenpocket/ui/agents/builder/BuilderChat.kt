@@ -174,7 +174,7 @@ fun BuilderPassportBar(
         Text(
           text = "$filled/${rows.size}",
           style = MaterialTheme.typography.labelMedium,
-          color = MaterialTheme.colorScheme.outline,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
       Icon(
@@ -210,7 +210,7 @@ fun BuilderPassportBar(
             "Your agent shows up here: what it does, can use and remembers. It fills in as you answer.",
           ),
           style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.outline,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.padding(top = 6.dp),
         )
       } else {
@@ -237,7 +237,7 @@ fun PassportRows(draft: AgentDefinition, modifier: Modifier = Modifier) {
         Text(
           text = row.value,
           style = MaterialTheme.typography.bodySmall,
-          color = if (row.filled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+          color = if (row.filled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
     }

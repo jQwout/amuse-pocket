@@ -84,7 +84,7 @@ fun LessonCompleteCardView(
                 text = card.subtitle,
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.outline
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         // The Academy capstone (Task 23): rendered ONLY when the card itself was built by
@@ -141,7 +141,7 @@ fun ConceptCardView(card: DrivenUiCard.ConceptCard) {
             Text(
                 text = tr("Пример: ${card.example}", "Example: ${card.example}"),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -182,7 +182,7 @@ fun ExampleCardView(card: DrivenUiCard.ExampleCard) {
                     Text(
                         text = part.note,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.outline,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -314,7 +314,7 @@ fun SortCardView(card: DrivenUiCard.SortCard, onSolved: () -> Unit) {
                     .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
                     .padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
             ) {
-                Text("${i + 1}.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
+                Text("${i + 1}.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(8.dp))
                 Text(card.items[itemIndex], style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                 if (!solved) {
@@ -430,13 +430,13 @@ fun MatchCardView(card: DrivenUiCard.MatchCard, onSolved: () -> Unit) {
                 Text(
                     text = assignedDef ?: tr("выбери →", "pick →"),
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (assignedDef != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                    color = if (assignedDef != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1.2f),
                 )
             }
         }
         CardDivider()
-        Text(tr("Определения:", "Definitions:"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+        Text(tr("Определения:", "Definitions:"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         // Definition buttons: a tap assigns it to the selected term
         displayDefOrder.forEach { di ->
             val used = assign.containsValue(di)
@@ -504,7 +504,7 @@ fun ScenarioCardView(card: DrivenUiCard.ScenarioCard, onSolved: () -> Unit) {
                 text = card.situation,
                 style = MaterialTheme.typography.bodyMedium,
                 fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         if (card.question.isNotBlank()) {
@@ -548,7 +548,7 @@ fun ScenarioCardView(card: DrivenUiCard.ScenarioCard, onSolved: () -> Unit) {
             }
         }
         if (selected >= 0 && card.explain.isNotBlank()) {
-            Text(card.explain, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+            Text(card.explain, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

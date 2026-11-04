@@ -140,7 +140,7 @@ internal fun PersonaSwitchScene() {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(tr("Учитывать профиль", "Use the profile"), style = MaterialTheme.typography.bodyMedium)
-                Text(SAMPLE_PROFILE, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                Text(SAMPLE_PROFILE, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Switch(
                 checked = useProfile,

@@ -177,7 +177,7 @@ internal fun RiskGateScene() {
                 Text(
                     text = tr("Здесь появится полоса подтверждения", "The confirmation bar will appear here"),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
                 )
             }

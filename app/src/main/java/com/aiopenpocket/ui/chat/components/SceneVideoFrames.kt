@@ -102,7 +102,7 @@ internal fun VideoFramesScene() {
                 FilterChip(selected = fps == option, onClick = { fps = option }, label = { Text(tr("$option в сек", "$option per sec")) })
             }
         }
-        Text(tr("Что увидела модель:", "What the model saw:"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+        Text(tr("Что увидела модель:", "What the model saw:"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             frames.forEach { frameTime ->
                 CupFrame(

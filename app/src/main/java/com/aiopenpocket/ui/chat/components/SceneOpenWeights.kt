@@ -164,7 +164,7 @@ internal fun OpenWeightsScene() {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f).alpha(if (api) 1f else 0.45f)) {
                 Text(tr("contributor-версия", "contributor version"), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                Text(tr("Только у API: вендор может учиться на том, что ты шлёшь", "API only: the vendor may learn from what you send"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                Text(tr("Только у API: вендор может учиться на том, что ты шлёшь", "API only: the vendor may learn from what you send"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Switch(checked = copy, onCheckedChange = { contributor = it }, enabled = api)
         }

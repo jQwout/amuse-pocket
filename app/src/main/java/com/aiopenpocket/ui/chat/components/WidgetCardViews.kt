@@ -57,7 +57,7 @@ fun TodoListCardView(card: DrivenUiCard.TodoList) {
             Text(
                 text = tr("Нет задач", "No tasks"),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.outline
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         } else {
             itemsState.forEachIndexed { index, item ->
@@ -81,7 +81,7 @@ fun TodoListCardView(card: DrivenUiCard.TodoList) {
                     Text(
                         text = item.text,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = if (item.done) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface,
+                        color = if (item.done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -146,7 +146,7 @@ fun WeatherCardView(card: DrivenUiCard.WeatherCard) {
                             fontSize = 10.sp,
                             maxLines = 1,
                             textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.outline
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -361,7 +361,7 @@ fun ChartBarCardView(card: DrivenUiCard.ChartBarCard) {
                             style = textStyle,
                             fontSize = 11.sp,
                             maxLines = 1,
-                            color = MaterialTheme.colorScheme.outline
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -526,7 +526,7 @@ fun MultiChoiceCardView(
                     else -> tr("Отметь всё подходящее (до ${card.max})", "Tick what fits (up to ${card.max})")
                 },
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
@@ -613,7 +613,7 @@ fun AgentReviewCardView(
                     "The draft is ready. Look over every setting, change what you want, then publish.",
                 ),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
             PassportRows(draft)
@@ -701,7 +701,7 @@ fun SwitchCardView(
                 Text(
                     text = card.description,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
