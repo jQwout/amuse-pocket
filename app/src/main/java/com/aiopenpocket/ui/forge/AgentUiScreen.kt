@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -122,7 +123,7 @@ fun AgentUiRoute(
     onOpenChat = { agentsViewModel.openAgentChat(agentId, onOpenChat) },
     onOpenAgentDetail = { onOpenAgentDetail(agentId) },
     onNavigateBack = onNavigateBack,
-    renderBundle = { ready, bytes -> ForgedBundleHost(agentId = agentId, ready = ready, bundle = bytes, modifier = Modifier.fillMaxSize()) },
+    renderBundle = { ready, bytes -> ForgedBundleHost(agentId = agentId, ready = ready, bundle = bytes, modifier = Modifier.fillMaxWidth()) },
   )
 }
 
@@ -160,7 +161,17 @@ fun AgentUiScreen(
       val ui = state.ui
       val screen = ui.state
       when {
-        ui.isReady -> Box(modifier = Modifier.fillMaxWidth().weight(1f).testTag("agent_ui_bundle")) {
+        // The host scrolls, not the screen: a forged screen is one Column that grows downward (forge/AGENTS.md
+        // tells the agent not to fill the display), and a taller one was cut off with no way to reach its
+        // lower cards (phone, 4 Nov 2026). The page colour fills the rest when the screen is short.
+        ui.isReady -> Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .weight(1f)
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
+            .testTag("agent_ui_bundle"),
+        ) {
           renderBundle(screen as ForgedScreenState.Ready, ui.bundle!!)
         }
 
