@@ -27,9 +27,15 @@ import kotlinx.serialization.json.Json
 import java.io.IOException
 import java.security.MessageDigest
 
-/** Where the gateway is and what it wants to hear. Both come from Settings, read on every call. */
-data class ForgeGatewayConfig(val baseUrl: String, val token: String) {
+/**
+ * Where the gateway is and what it wants to hear. All of it comes from Settings, read on every call.
+ * [metaApiKey] is the person's own Meta key: a forge job's model calls run on it, so it travels with
+ * the request (header [META_KEY_HEADER]) and neither the gateway nor the worker keeps a key of their own.
+ */
+data class ForgeGatewayConfig(val baseUrl: String, val token: String, val metaApiKey: String = "") {
   val isConfigured: Boolean get() = baseUrl.isNotBlank() && token.isNotBlank()
+
+  override fun toString(): String = "ForgeGatewayConfig(baseUrl=$baseUrl, token=<hidden>, metaApiKey=<hidden>)"
 
   /** Base without a trailing slash, so relative artifact URLs join cleanly. */
   val normalizedBase: String get() = baseUrl.trim().trimEnd('/')
@@ -69,8 +75,10 @@ class ScreenForgeClient(
   suspend fun isConfigured(): Boolean = config().isConfigured
 
   suspend fun submit(request: ForgeCreateJobRequest): ForgeResult<String> = call { cfg ->
+    if (cfg.metaApiKey.isBlank()) return@call ForgeResult.Failed(missingMetaKeyMessage())
     val response = httpClient.post("${cfg.normalizedBase}/v1/jobs") {
       authorize(cfg)
+      header(META_KEY_HEADER, cfg.metaApiKey)
       contentType(ContentType.Application.Json)
       setBody(json.encodeToString(request))
     }
@@ -85,8 +93,10 @@ class ScreenForgeClient(
   }
 
   suspend fun answer(jobId: String, text: String): ForgeResult<ForgeJobView> = call { cfg ->
+    if (cfg.metaApiKey.isBlank()) return@call ForgeResult.Failed(missingMetaKeyMessage())
     val response = httpClient.post("${cfg.normalizedBase}/v1/jobs/$jobId/answer") {
       authorize(cfg)
+      header(META_KEY_HEADER, cfg.metaApiKey)
       contentType(ContentType.Application.Json)
       setBody(json.encodeToString(ForgeAnswerRequest(text)))
     }
@@ -182,6 +192,14 @@ class ScreenForgeClient(
     private const val CONNECT_TIMEOUT_MS = 10_000L
     private const val REQUEST_TIMEOUT_MS = 30_000L
     private const val DOWNLOAD_TIMEOUT_MS = 120_000L
+
+    /** Mirrors `ForgeRoutes.META_KEY_HEADER` in the forge contract. */
+    const val META_KEY_HEADER = "X-Meta-Api-Key"
+
+    fun missingMetaKeyMessage(): String = tr(
+      "Кузница строит экран на твоём ключе Meta. Добавь его в Настройках.",
+      "The forge builds the screen on your own Meta key. Add it in Settings.",
+    )
 
     fun notConfiguredMessage(): String = tr(
       "Укажи адрес кузницы и токен в Настройках.",

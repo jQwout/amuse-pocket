@@ -78,6 +78,13 @@ class JobStore(
     private val mutex = Mutex()
     private val jobs = LinkedHashMap<String, Job>()
 
+    /**
+     * The person's Meta key per job, in memory only and only while the job is queued or held by a
+     * worker: it pays for that job's model calls and nothing else. A question, a result or a failure
+     * drops it (an answer brings it again), and a restart of the gateway forgets them all.
+     */
+    private val metaKeys = HashMap<String, String>()
+
     init {
         val root = File(dataDir, "jobs")
         root.mkdirs()
@@ -90,7 +97,7 @@ class JobStore(
         }
     }
 
-    suspend fun create(request: CreateJobRequest): Job = mutex.withLock {
+    suspend fun create(request: CreateJobRequest, metaApiKey: String): Job = mutex.withLock {
         val t = now()
         // An update may only build on a screen of the same agent: the previous source is handed to the worker.
         val previous = request.previousJobId?.let { jobs[it] }?.takeIf { it.agentId == request.agentId }
@@ -107,6 +114,7 @@ class JobStore(
             updatedAt = t,
         )
         jobs[job.jobId] = job
+        metaKeys[job.jobId] = metaApiKey
         persist(job)
         job
     }
@@ -116,7 +124,7 @@ class JobStore(
     suspend fun all(): List<Job> = mutex.withLock { jobs.values.toList() }
 
     /** The person answered: the question becomes an exchange and the job queues again. */
-    suspend fun answer(jobId: String, text: String): Job? = mutex.withLock {
+    suspend fun answer(jobId: String, text: String, metaApiKey: String): Job? = mutex.withLock {
         val job = jobs[jobId] ?: return@withLock null
         if (job.status != JobStatus.NEEDS_INFO) return@withLock job
         val updated = job.copy(
@@ -128,9 +136,13 @@ class JobStore(
             leasedAt = null,
         )
         jobs[jobId] = updated
+        metaKeys[jobId] = metaApiKey
         persist(updated)
         updated
     }
+
+    /** Whether the gateway holds a key for [jobId] right now; for tests and diagnostics. */
+    suspend fun holdsKey(jobId: String): Boolean = mutex.withLock { jobId in metaKeys }
 
     /**
      * Long poll for the worker: the oldest queued job, or null once [waitMillis] has passed.
@@ -154,6 +166,13 @@ class JobStore(
                 jobs[stale.jobId] = back
                 persist(back)
             }
+        // A queued job whose key is gone (the gateway restarted) cannot run: say so instead of
+        // handing the worker a job it has no way to pay for.
+        jobs.values.filter { it.status == JobStatus.QUEUED && it.jobId !in metaKeys }.forEach { orphan ->
+            val failed = orphan.copy(status = JobStatus.FAILED, message = NO_KEY_MESSAGE, leasedAt = null, updatedAt = t)
+            jobs[orphan.jobId] = failed
+            persist(failed)
+        }
         val job = jobs.values.firstOrNull { it.status == JobStatus.QUEUED } ?: return@withLock null
         val leased = job.copy(status = JobStatus.ACCEPTED, leasedAt = t, updatedAt = t)
         jobs[job.jobId] = leased
@@ -169,6 +188,7 @@ class JobStore(
             previousEntryPoint = previous?.entryPoint,
             exchanges = job.exchanges,
             version = job.version,
+            metaApiKey = metaKeys.getValue(job.jobId),
         )
     }
 
@@ -183,6 +203,7 @@ class JobStore(
             updatedAt = t,
             leasedAt = if (update.status == JobStatus.NEEDS_INFO || update.status.isTerminal) null else t,
         )
+        if (update.status == JobStatus.NEEDS_INFO || update.status.isTerminal) metaKeys.remove(jobId)
         jobs[jobId] = updated
         persist(updated)
         updated
@@ -217,6 +238,7 @@ class JobStore(
             leasedAt = null,
         )
         jobs[jobId] = updated
+        metaKeys.remove(jobId)
         persist(updated)
         AttachResult.Done(updated)
     }
@@ -252,6 +274,9 @@ class JobStore(
         const val BUNDLE_FILE = "bundle.ktx"
         const val SOURCE_FILE = "source.kt"
         private const val POLL_STEP_MILLIS = 500L
+
+        const val NO_KEY_MESSAGE =
+            "The forge restarted and no longer holds your Meta key for this request. Please ask for the screen again."
 
         private val ID_RULE = Regex("[A-Za-z0-9_-]{1,64}")
 

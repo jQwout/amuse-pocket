@@ -54,8 +54,8 @@ class ScreenForgeClientTest {
 
   private val jsonHeaders = headersOf(HttpHeaders.ContentType, "application/json")
 
-  private fun client(engine: MockEngine, base: String = "http://forge.test", token: String = "tok-123") =
-    ScreenForgeClient(engine) { ForgeGatewayConfig(base, token) }
+  private fun client(engine: MockEngine, base: String = "http://forge.test", token: String = "tok-123", metaKey: String = "LLM_person_key") =
+    ScreenForgeClient(engine) { ForgeGatewayConfig(base, token, metaKey) }
 
   private fun answering(body: String, status: HttpStatusCode = HttpStatusCode.OK) =
     MockEngine { respond(body, status, jsonHeaders) }
@@ -341,6 +341,32 @@ class ScreenForgeClientTest {
       says(failed(c.downloadBundle(ForgeArtifact("/a.ktx", "00", "E", 1))), "адрес кузницы и токен", "forge address and token")
       assertEquals("base='$base' token='$token'", 0, requests)
     }
+  }
+
+  @Test
+  fun `submit and answer carry the person's own Meta key, and without one nothing leaves the phone`() = runTest {
+    val keys = mutableListOf<String?>()
+    val engine = MockEngine { request ->
+      keys += request.headers[ScreenForgeClient.META_KEY_HEADER]
+      if (request.url.encodedPath.endsWith("/answer")) {
+        respond("""{"jobId":"j","agentId":"a","status":"queued","createdAt":1,"updatedAt":2}""", HttpStatusCode.OK, jsonHeaders)
+      } else {
+        respond("""{"jobId":"j"}""", HttpStatusCode.Accepted, jsonHeaders)
+      }
+    }
+    ok(client(engine).submit(createRequest))
+    ok(client(engine).answer("j", "Blue"))
+    // Polling and the download only need the gateway token: the key goes where a model call starts.
+    client(engine).status("j")
+    assertEquals(listOf("LLM_person_key", "LLM_person_key", null), keys)
+
+    var requests = 0
+    val counting = MockEngine { requests++; respond("{}", HttpStatusCode.OK, jsonHeaders) }
+    val keyless = client(counting, metaKey = "  ")
+    says(failed(keyless.submit(createRequest)), "ключе Meta", "Meta key")
+    says(failed(keyless.answer("j", "x")), "ключе Meta", "Meta key")
+    assertEquals(0, requests)
+    assertFalse(ForgeGatewayConfig("http://forge.test", "tok", "LLM_secret").toString().contains("LLM_secret"))
   }
 
   @Test

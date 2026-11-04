@@ -124,12 +124,16 @@ fun Application.forgeModule(
             post(ForgeRoutes.JOBS) {
                 if (!bodyFits(forgeLimits.maxClientBodyBytes)) return@post
                 if (!allowedBy(jobLimiter, forgeLimits.trustFlyClientIp)) return@post
+                val metaKey = metaKeyOf(call.request.headers[ForgeRoutes.META_KEY_HEADER]) ?: return@post call.respondText(
+                    "Bad request: the person's Meta key is required in ${ForgeRoutes.META_KEY_HEADER}",
+                    status = HttpStatusCode.BadRequest,
+                )
                 val request = call.receive<CreateJobRequest>()
                 val issues = forgeLimits.issuesOf(request)
                 if (issues.isNotEmpty()) {
                     return@post call.respondText("Bad request: ${issues.joinToString("; ")}", status = HttpStatusCode.BadRequest)
                 }
-                val job = store.create(request)
+                val job = store.create(request, metaKey)
                 call.respond(HttpStatusCode.Accepted, CreateJobResponse(job.jobId))
             }
             get("${ForgeRoutes.JOBS}/{id}") {
@@ -140,10 +144,14 @@ fun Application.forgeModule(
             post("${ForgeRoutes.JOBS}/{id}/answer") {
                 val id = call.parameters["id"].orEmpty()
                 if (!bodyFits(forgeLimits.maxClientBodyBytes)) return@post
+                val metaKey = metaKeyOf(call.request.headers[ForgeRoutes.META_KEY_HEADER]) ?: return@post call.respondText(
+                    "Bad request: the person's Meta key is required in ${ForgeRoutes.META_KEY_HEADER}",
+                    status = HttpStatusCode.BadRequest,
+                )
                 val answer = call.receive<AnswerRequest>()
                 require(answer.text.isNotBlank()) { "text is required" }
                 require(answer.text.length <= forgeLimits.maxAnswerChars) { "text is longer than ${forgeLimits.maxAnswerChars} characters" }
-                val job = store.answer(id, answer.text)
+                val job = store.answer(id, answer.text, metaKey)
                 if (job == null) call.respondText("No such job", status = HttpStatusCode.NotFound)
                 else call.respond(job.toView())
             }
@@ -203,3 +211,12 @@ fun Application.forgeModule(
         }
     }
 }
+
+/**
+ * The person's Meta key from the header, or null when it is missing or not key-shaped. The gateway
+ * holds no key of its own: every job runs on the key of the person who asked for it.
+ */
+internal fun metaKeyOf(header: String?): String? =
+    header?.trim()?.takeIf { it.isNotEmpty() && it.length <= MAX_META_KEY_CHARS && it.none(Char::isWhitespace) }
+
+private const val MAX_META_KEY_CHARS = 512

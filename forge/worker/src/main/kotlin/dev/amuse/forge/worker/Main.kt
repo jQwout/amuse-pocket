@@ -7,7 +7,8 @@ import kotlin.system.exitProcess
 /**
  * Entry point. Configuration comes from the environment:
  *
- *   FORGE_GATEWAY_URL, FORGE_WORKER_TOKEN, META_API_KEY   required
+ *   FORGE_GATEWAY_URL, FORGE_WORKER_TOKEN   required
+ *   (no Meta key: each job carries the key of the person who asked for it, see [WorkerJob.metaApiKey])
  *   FORGE_MODEL (muse-spark-1.3), META_BASE_URL (https://api.meta.ai/v1),
  *   FORGE_DIR (the forge directory, found from the working directory),
  *   FORGE_REASONING_EFFORT (medium; "off" omits the field)   optional
@@ -34,19 +35,24 @@ fun main(args: Array<String>) {
     log.info("starting: {}", config)
 
     val gateway = GatewayClient(config.gatewayUrl, config.workerToken)
-    val meta = MetaChatClient(
-        baseUrl = config.metaBaseUrl,
-        apiKey = config.metaApiKey,
-        model = config.model,
-        reasoningEffort = config.reasoningEffort,
-    )
-    val loop = ForgeAgentLoop(meta, config.forgeDir, GradleBuildRunner())
-    val worker = Worker(gateway, agent = { job, progress -> loop.run(job, progress) })
+    val runner = GradleBuildRunner()
+    // A Meta client per job, on that job's key, closed when the job ends: the key lives no longer than its job.
+    val worker = Worker(gateway, agent = { job, progress ->
+        if (job.metaApiKey.isBlank()) {
+            ForgeOutcome.Failed("No Meta key came with this request. Add your Meta key in Settings and ask again.")
+        } else {
+            MetaChatClient(
+                baseUrl = config.metaBaseUrl,
+                apiKey = job.metaApiKey,
+                model = config.model,
+                reasoningEffort = config.reasoningEffort,
+            ).use { meta -> ForgeAgentLoop(meta, config.forgeDir, runner).run(job, progress) }
+        }
+    })
 
     try {
         runBlocking { worker.run(once = "--once" in args) }
     } finally {
         gateway.close()
-        meta.close()
     }
 }

@@ -41,6 +41,7 @@ object KetoyModule {
 
   /** Settings-side name of the gateway token; stored next to the model keys, never in BuildConfig. */
   const val TOKEN_PROVIDER = "FORGE"
+  private const val META_KEY_NAME = "META"
 
   /**
    * Where a debug build looks for the gateway when Settings has no address: the host machine as the
@@ -88,6 +89,8 @@ object KetoyModule {
       ForgeGatewayConfig(
         baseUrl = userPreferencesRepository.getForgeGatewayUrl().trim().ifBlank { DEBUG_BASE_URL },
         token = settingsRepository.getApiKey(TOKEN_PROVIDER).trim(),
+        // The person's own key, sent with each job: the forge holds none of its own.
+        metaApiKey = settingsRepository.getApiKey(META_KEY_NAME).trim(),
       )
     }
   }

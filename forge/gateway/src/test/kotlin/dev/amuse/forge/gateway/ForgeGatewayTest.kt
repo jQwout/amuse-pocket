@@ -40,6 +40,7 @@ class ForgeGatewayTest {
 
     private val tokens = ForgeTokens(client = "client-secret", worker = "worker-secret")
     private val bundle = "KTOY fake bundle bytes".toByteArray()
+    private val metaKey = "LLM_person_own_key_123"
 
     private fun ApplicationTestBuilder.start(dataDir: File = Files.createTempDirectory("forge-test").toFile()): HttpClient {
         val store = JobStore(dataDir)
@@ -56,6 +57,7 @@ class ForgeGatewayTest {
     ): String {
         val response = post(ForgeRoutes.JOBS) {
             bearerAuth(tokens.client)
+            header(ForgeRoutes.META_KEY_HEADER, metaKey)
             contentType(ContentType.Application.Json)
             setBody(CreateJobRequest(agentId, "Hydration coach", "keeps me drinking", request, previousJobId))
         }
@@ -141,6 +143,7 @@ class ForgeGatewayTest {
 
         val answered = client.post(ForgeRoutes.answer(jobId)) {
             bearerAuth(tokens.client)
+            header(ForgeRoutes.META_KEY_HEADER, metaKey)
             contentType(ContentType.Application.Json)
             setBody(AnswerRequest("Eight"))
         }.body<JobView>()
@@ -188,5 +191,57 @@ class ForgeGatewayTest {
         val job = kotlinx.coroutines.runBlocking { reloaded.get(jobId) }
         assertEquals(JobStatus.DONE, assertNotNull(job).status)
         assertTrue(bundle.contentEquals(assertNotNull(kotlinx.coroutines.runBlocking { reloaded.bundleBytes(jobId) })))
+    }
+
+    @Test
+    fun `the person's Meta key passes through to the worker and never reaches the disk`() = testApplication {
+        val dataDir = Files.createTempDirectory("forge-key").toFile()
+        val client = start(dataDir)
+        val withoutKey = client.post(ForgeRoutes.JOBS) {
+            bearerAuth(tokens.client)
+            contentType(ContentType.Application.Json)
+            setBody(CreateJobRequest("agent_1", "Hydration coach", "keeps me drinking", "a tracker"))
+        }
+        assertEquals(HttpStatusCode.BadRequest, withoutKey.status)
+
+        val jobId = client.createJob()
+        val handed = assertNotNull(client.workerNext())
+        assertEquals(metaKey, handed.metaApiKey)
+        assertTrue(metaKey !in handed.toString(), "the job's toString hides the key")
+
+        // A question drops the key; the answer has to bring it again.
+        client.workerStatus(jobId, WorkerStatusUpdate(JobStatus.NEEDS_INFO, question = "How many glasses?"))
+        val answerWithoutKey = client.post(ForgeRoutes.answer(jobId)) {
+            bearerAuth(tokens.client)
+            contentType(ContentType.Application.Json)
+            setBody(AnswerRequest("Eight"))
+        }
+        assertEquals(HttpStatusCode.BadRequest, answerWithoutKey.status)
+        client.post(ForgeRoutes.answer(jobId)) {
+            bearerAuth(tokens.client)
+            header(ForgeRoutes.META_KEY_HEADER, metaKey)
+            contentType(ContentType.Application.Json)
+            setBody(AnswerRequest("Eight"))
+        }
+        assertEquals(metaKey, assertNotNull(client.workerNext()).metaApiKey)
+        client.workerArtifact(jobId)
+
+        val onDisk = dataDir.walkTopDown().filter { it.isFile }.map { it.readText(Charsets.ISO_8859_1) }.toList()
+        assertTrue(onDisk.isNotEmpty() && onDisk.none { metaKey in it }, "no file of the gateway holds the key")
+    }
+
+    @Test
+    fun `after a restart a queued job without its key fails with a sentence instead of reaching the worker`() = testApplication {
+        val dataDir = Files.createTempDirectory("forge-key-restart").toFile()
+        val client = start(dataDir)
+        val jobId = client.createJob()
+
+        val reloaded = JobStore(dataDir)
+        kotlinx.coroutines.runBlocking {
+            assertNull(reloaded.awaitNext(0))
+            val job = assertNotNull(reloaded.get(jobId))
+            assertEquals(JobStatus.FAILED, job.status)
+            assertEquals(JobStore.NO_KEY_MESSAGE, job.message)
+        }
     }
 }

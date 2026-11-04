@@ -86,7 +86,15 @@ data class WorkerJob(
     val exchanges: List<Exchange> = emptyList(),
     /** The version the artifact will get when this job succeeds. */
     val version: Int,
-)
+    /**
+     * The person's own Meta key, passed through from the app for this job only: the worker has no key
+     * of its own, and the gateway keeps it in memory while the job is queued or held, never on disk.
+     */
+    val metaApiKey: String = "",
+) {
+    override fun toString(): String =
+        "WorkerJob(jobId=$jobId, agentId=$agentId, version=$version, exchanges=${exchanges.size}, metaApiKey=<hidden>)"
+}
 
 @Serializable
 data class Exchange(val question: String, val answer: String)
@@ -114,6 +122,12 @@ object ForgeRoutes {
     const val WORKER_NEXT = "/v1/worker/next"
     const val WORKER_JOBS = "/v1/worker/jobs"
     const val HEALTH = "/health"
+
+    /**
+     * Header on `POST /v1/jobs` and `POST /v1/jobs/{id}/answer`: the person's Meta key, which pays for
+     * the job's model calls. A header, not a body field, so it never lands in the persisted job.
+     */
+    const val META_KEY_HEADER = "X-Meta-Api-Key"
 
     fun job(id: String) = "$JOBS/$id"
     fun answer(id: String) = "$JOBS/$id/answer"
