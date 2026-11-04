@@ -3,6 +3,8 @@ package com.aiopenpocket.ui.agents.apps
 // @trace agent-apps-native-screens-for-the-preset-agents-c8d8ce
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,9 +19,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -27,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -51,6 +54,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -61,9 +65,9 @@ import com.aiopenpocket.agent.core.expense.ExpenseCategory
 import com.aiopenpocket.agent.core.expense.ExpenseLogic
 import com.aiopenpocket.i18n.AppLanguage
 import com.aiopenpocket.i18n.tr
-import com.aiopenpocket.ui.components.glass.GlassCard
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import java.time.Instant
+import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -91,6 +95,14 @@ fun BudgetApp(modifier: Modifier = Modifier) {
   )
 }
 
+/** One day of the list: its date, its total, its records (newest first). */
+private data class ExpenseDay(val date: LocalDate, val total: Double, val expenses: List<Expense>)
+
+private fun groupByDay(expenses: List<Expense>, zone: ZoneId): List<ExpenseDay> =
+  expenses.groupBy { Instant.ofEpochMilli(it.date).atZone(zone).toLocalDate() }
+    .map { (date, items) -> ExpenseDay(date, items.sumOf { it.amount }, items) }
+    .sortedByDescending { it.date }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun BudgetContent(
@@ -104,35 +116,25 @@ internal fun BudgetContent(
 ) {
   var showAdd by remember { mutableStateOf(false) }
   var showLimit by remember { mutableStateOf(false) }
+  val days = remember(state.expenses) { groupByDay(state.expenses, ZoneId.systemDefault()) }
 
   Box(modifier = modifier.fillMaxSize()) {
     LazyColumn(
       modifier = Modifier.fillMaxSize().testTag("budget_list"),
-      contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 96.dp),
-      verticalArrangement = Arrangement.spacedBy(12.dp),
+      contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 104.dp),
+      verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-      item { MonthSwitcher(state.month, state.canGoForward, onPreviousMonth, onNextMonth) }
-      item { TotalCard(state, onEditLimit = { showLimit = true }) }
+      item { Hero(state, onPreviousMonth, onNextMonth, onEditLimit = { showLimit = true }) }
       if (state.expenses.isEmpty()) {
         item { EmptyHint() }
       } else {
-        item { CategoryDonut(state.byCategory, state.total, state.currency) }
-        item { CategoryBars(state.byCategory, state.currency) }
         item {
-          Column {
-            Text(
-              tr("Траты", "Expenses"),
-              style = MaterialTheme.typography.titleMedium,
-              color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-              tr("Смахните трату влево, чтобы удалить", "Swipe an expense left to delete it"),
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-          }
+          CategoryBreakdown(state.byCategory, state.total, state.currency, modifier = Modifier.padding(top = 8.dp, bottom = 8.dp))
         }
-        items(state.expenses, key = { it.id }) { expense -> ExpenseRow(expense, onDelete = { onDelete(expense.id) }) }
+        days.forEach { day ->
+          item(key = "day-${day.date}") { DayHeader(day, state.currency) }
+          items(day.expenses, key = { it.id }) { expense -> ExpenseRow(expense, onDelete = { onDelete(expense.id) }) }
+        }
       }
     }
     ExtendedFloatingActionButton(
@@ -141,7 +143,7 @@ internal fun BudgetContent(
       containerColor = MaterialTheme.colorScheme.primary,
       contentColor = MaterialTheme.colorScheme.onPrimary,
       icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-      text = { Text(tr("Добавить", "Add")) },
+      text = { Text(tr("Трата", "Expense")) },
     )
   }
 
@@ -168,67 +170,105 @@ internal fun BudgetContent(
   }
 }
 
+/**
+ * The top of the screen, straight on the background (no card): the month with arrows, the month's
+ * total big, how many records, and the limit - a thin bar with what is left, or a small button to set one.
+ */
 @Composable
-private fun MonthSwitcher(month: YearMonth, canGoForward: Boolean, onPrevious: () -> Unit, onNext: () -> Unit) {
-  Row(
-    modifier = Modifier.fillMaxWidth(),
-    verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.SpaceBetween,
-  ) {
-    IconButton(onClick = onPrevious) {
-      Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = tr("Предыдущий месяц", "Previous month"))
-    }
-    Text(
-      monthTitle(month),
-      style = MaterialTheme.typography.titleMedium,
-      fontWeight = FontWeight.SemiBold,
-      color = MaterialTheme.colorScheme.onSurface,
-    )
-    IconButton(onClick = onNext, enabled = canGoForward) {
-      Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = tr("Следующий месяц", "Next month"))
-    }
-  }
-}
-
-@Composable
-private fun TotalCard(state: BudgetUiState, onEditLimit: () -> Unit) {
-  GlassCard(modifier = Modifier.fillMaxWidth()) {
-    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+private fun Hero(state: BudgetUiState, onPrevious: () -> Unit, onNext: () -> Unit, onEditLimit: () -> Unit) {
+  Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+      IconButton(onClick = onPrevious, modifier = Modifier.size(36.dp)) {
+        Icon(
+          Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+          contentDescription = tr("Предыдущий месяц", "Previous month"),
+          tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
       Text(
-        tr("Потрачено за месяц", "Spent this month"),
-        style = MaterialTheme.typography.labelMedium,
+        monthTitle(state.month),
+        style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
       )
+      IconButton(onClick = onNext, enabled = state.canGoForward, modifier = Modifier.size(36.dp)) {
+        Icon(
+          Icons.AutoMirrored.Filled.KeyboardArrowRight,
+          contentDescription = tr("Следующий месяц", "Next month"),
+          tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (state.canGoForward) 1f else 0.3f),
+        )
+      }
+    }
+    Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(start = 8.dp, top = 4.dp)) {
       Text(
-        "${ExpenseLogic.money(state.total)} ${state.currency}",
-        style = MaterialTheme.typography.headlineMedium,
+        ExpenseLogic.money(state.total),
+        style = MaterialTheme.typography.displayMedium,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.testTag("budget_total"),
       )
-      val limit = state.monthlyBudget
-      if (limit != null) {
-        val ratio = (state.total / limit).toFloat()
-        val over = state.total > limit
+      Spacer(Modifier.width(8.dp))
+      Text(
+        state.currency,
+        style = MaterialTheme.typography.titleLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(bottom = 8.dp),
+      )
+    }
+    val count = state.expenses.size
+    Text(
+      when {
+        count == 0 -> tr("пока ничего не потрачено", "nothing spent yet")
+        AppLanguage.isEnglish -> if (count == 1) "spent · 1 expense" else "spent · $count expenses"
+        else -> tr("потрачено · трат: $count", "spent · $count expenses")
+      },
+      style = MaterialTheme.typography.bodyMedium,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      modifier = Modifier.padding(start = 8.dp),
+    )
+    Spacer(Modifier.height(14.dp))
+    val limit = state.monthlyBudget
+    if (limit != null) {
+      val over = state.total > limit
+      Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onEditLimit),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+      ) {
         LinearProgressIndicator(
-          progress = { ratio.coerceIn(0f, 1f) },
-          modifier = Modifier.fillMaxWidth().height(8.dp),
+          progress = { (state.total / limit).toFloat().coerceIn(0f, 1f) },
+          modifier = Modifier.fillMaxWidth().height(6.dp),
           color = if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-          trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f),
+          trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
           strokeCap = StrokeCap.Round,
+          gapSize = 0.dp,
+          drawStopIndicator = {},
         )
         val left = limit - state.total
         Text(
-          if (over) tr("Лимит ${ExpenseLogic.money(limit)} превышен на ${ExpenseLogic.money(-left)}", "Limit ${ExpenseLogic.money(limit)} exceeded by ${ExpenseLogic.money(-left)}")
-          else tr("Лимит ${ExpenseLogic.money(limit)}, осталось ${ExpenseLogic.money(left)}", "Limit ${ExpenseLogic.money(limit)}, ${ExpenseLogic.money(left)} left"),
+          if (over) {
+            tr("Лимит ${ExpenseLogic.money(limit)} · сверху ${ExpenseLogic.money(-left)}", "Limit ${ExpenseLogic.money(limit)} · ${ExpenseLogic.money(-left)} over")
+          } else {
+            tr("Лимит ${ExpenseLogic.money(limit)} · осталось ${ExpenseLogic.money(left)}", "Limit ${ExpenseLogic.money(limit)} · ${ExpenseLogic.money(left)} left")
+          },
           style = MaterialTheme.typography.bodySmall,
           color = if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
-      TextButton(onClick = onEditLimit, contentPadding = PaddingValues(0.dp)) {
+    } else {
+      Row(
+        modifier = Modifier
+          .padding(start = 8.dp)
+          .clip(RoundedCornerShape(50))
+          .border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(50))
+          .clickable(onClick = onEditLimit)
+          .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Icon(Icons.Outlined.Flag, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
         Text(
-          if (limit == null) tr("Задать лимит на месяц", "Set a monthly limit") else tr("Изменить лимит", "Change the limit"),
-          color = MaterialTheme.colorScheme.primary,
+          tr("Задать лимит на месяц", "Set a monthly limit"),
+          style = MaterialTheme.typography.labelLarge,
+          color = MaterialTheme.colorScheme.onSurface,
         )
       }
     }
@@ -237,22 +277,54 @@ private fun TotalCard(state: BudgetUiState, onEditLimit: () -> Unit) {
 
 @Composable
 private fun EmptyHint() {
-  GlassCard(modifier = Modifier.fillMaxWidth()) {
-    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-      Text(
-        tr("В этом месяце трат пока нет.", "No expenses this month yet."),
-        style = MaterialTheme.typography.bodyLarge,
-        color = MaterialTheme.colorScheme.onSurface,
-      )
-      Text(
-        tr(
-          "Скажите агенту «Бюджет» в чате: потратил 12 на обед",
-          "Tell the Budget agent in chat: spent 12 on lunch",
-        ),
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-      )
-    }
+  Column(
+    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 32.dp),
+    verticalArrangement = Arrangement.spacedBy(6.dp),
+    horizontalAlignment = Alignment.CenterHorizontally,
+  ) {
+    Text(
+      tr("В этом месяце трат пока нет", "No expenses this month yet"),
+      style = MaterialTheme.typography.titleMedium,
+      color = MaterialTheme.colorScheme.onSurface,
+    )
+    Text(
+      tr(
+        "Скажите агенту в чате «потратил 12 на обед» или нажмите «Трата».",
+        "Tell the agent in chat \"spent 12 on lunch\", or tap Expense.",
+      ),
+      style = MaterialTheme.typography.bodyMedium,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+  }
+}
+
+private fun dayTitle(date: LocalDate): String {
+  val today = LocalDate.now()
+  return when (date) {
+    today -> tr("Сегодня", "Today")
+    today.minusDays(1) -> tr("Вчера", "Yesterday")
+    else -> DateTimeFormatter.ofPattern("EEEE, d MMMM", appLocale()).format(date).replaceFirstChar { it.uppercase() }
+  }
+}
+
+@Composable
+private fun DayHeader(day: ExpenseDay, currency: String) {
+  Row(
+    modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 2.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Text(
+      dayTitle(day.date),
+      modifier = Modifier.weight(1f),
+      style = MaterialTheme.typography.labelLarge,
+      fontWeight = FontWeight.SemiBold,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Text(
+      "${ExpenseLogic.money(day.total)} $currency",
+      style = MaterialTheme.typography.labelLarge,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
   }
 }
 
@@ -269,54 +341,60 @@ private fun ExpenseRow(expense: Expense, onDelete: () -> Unit) {
       }
     },
   )
+  val shape = RoundedCornerShape(18.dp)
   SwipeToDismissBox(
     state = dismissState,
     enableDismissFromStartToEnd = false,
     backgroundContent = {
-      Box(
-        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.error.copy(alpha = 0.85f), RoundedCornerShape(20.dp)).padding(end = 20.dp),
-        contentAlignment = Alignment.CenterEnd,
-      ) {
-        Icon(Icons.Filled.Delete, contentDescription = tr("Удалить", "Delete"), tint = MaterialTheme.colorScheme.onError)
+      // Only while the row is being dragged: at rest nothing shows behind it.
+      if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) {
+        Box(
+          Modifier.fillMaxSize().clip(shape).background(MaterialTheme.colorScheme.error).padding(end = 20.dp),
+          contentAlignment = Alignment.CenterEnd,
+        ) {
+          Icon(Icons.Filled.Delete, contentDescription = tr("Удалить", "Delete"), tint = MaterialTheme.colorScheme.onError)
+        }
       }
     },
   ) {
     val category = expense.categoryEnum
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-      Row(
-        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-      ) {
-        Box(Modifier.size(36.dp).background(category.color().copy(alpha = 0.25f), CircleShape), contentAlignment = Alignment.Center) {
-          Icon(category.icon(), contentDescription = null, tint = category.color(), modifier = Modifier.size(20.dp))
-        }
-        Column(modifier = Modifier.weight(1f)) {
-          Text(
-            expense.note.ifBlank { category.label() },
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-          )
-          Text(
-            category.label() + " · " + dayLabel(expense.date),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-          )
-        }
+    // An opaque surface, not glass: the swipe background must not show through a row at rest.
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .clip(shape)
+        .background(MaterialTheme.colorScheme.surfaceVariant)
+        .padding(horizontal = 14.dp, vertical = 12.dp),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      CategoryMark(category)
+      Column(modifier = Modifier.weight(1f)) {
         Text(
-          "${ExpenseLogic.money(expense.amount)} ${expense.currency}",
+          expense.note.ifBlank { category.label() }.replaceFirstChar { it.uppercase() },
           style = MaterialTheme.typography.bodyLarge,
-          fontWeight = FontWeight.Medium,
           color = MaterialTheme.colorScheme.onSurface,
+          maxLines = 1,
+        )
+        Text(
+          // A record without a note already shows the category as its title: just the time then.
+          if (expense.note.isBlank()) timeLabel(expense.date) else category.label() + " · " + timeLabel(expense.date),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
       }
+      Text(
+        "−${ExpenseLogic.money(expense.amount)} ${expense.currency}",
+        style = MaterialTheme.typography.bodyLarge,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurface,
+      )
     }
   }
 }
 
-private fun dayLabel(millis: Long): String =
-  DateTimeFormatter.ofPattern("d MMM", appLocale()).format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
+private fun timeLabel(millis: Long): String =
+  DateTimeFormatter.ofPattern("HH:mm", appLocale()).format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
