@@ -192,7 +192,7 @@ class ForgedScreenRepositoryTest {
     AppLanguage.code = AppLanguage.EN
     store = ForgedScreenStore(application)
     gateway = FakeGateway()
-    repo = repository(ForgeGatewayConfig("http://forge.test", "token"))
+    repo = repository(ForgeGatewayConfig("http://forge.test", "token", metaApiKey = "meta-key"))
   }
 
   @After
@@ -267,7 +267,7 @@ class ForgedScreenRepositoryTest {
   @Test
   fun `before the first load the screen is not loaded, so nothing forge-related shows`() = runTest(testDispatcher) {
     // A repository whose scope never runs anything: observe() hands out the initial, unloaded value.
-    val idle = ForgedScreenRepository(store, ScreenForgeClient(gateway.engine) { ForgeGatewayConfig("http://forge.test", "token") }, scope = CoroutineScope(UnconfinedTestDispatcher()).also { it.cancel() })
+    val idle = ForgedScreenRepository(store, ScreenForgeClient(gateway.engine) { ForgeGatewayConfig("http://forge.test", "token", metaApiKey = "meta-key") }, scope = CoroutineScope(UnconfinedTestDispatcher()).also { it.cancel() })
     assertFalse(idle.observe("never-loaded").value.loaded)
   }
 
@@ -275,7 +275,7 @@ class ForgedScreenRepositoryTest {
   fun `a stored Ready state is read back with its bundle and the switch, without asking the gateway`() = runTest(testDispatcher) {
     val ready = storeReady("job-disk-1", "stored request")
     store.setCustomUiEnabled(agentId, true)
-    val fresh = repository(ForgeGatewayConfig("http://forge.test", "token"))
+    val fresh = repository(ForgeGatewayConfig("http://forge.test", "token", metaApiKey = "meta-key"))
 
     val loaded = awaitUi(fresh.observe(agentId)) { it.loaded }
 
@@ -292,7 +292,7 @@ class ForgedScreenRepositoryTest {
   fun `a Ready screen whose bundle is gone from disk is not ready and does not show the custom interface`() = runTest(testDispatcher) {
     store.save(agentId, ForgedScreenState.Ready("job-lost-1", "req", "LostEntry", 1, "job-lost-1.ktx"))
     store.setCustomUiEnabled(agentId, true)
-    val fresh = repository(ForgeGatewayConfig("http://forge.test", "token"))
+    val fresh = repository(ForgeGatewayConfig("http://forge.test", "token", metaApiKey = "meta-key"))
 
     val loaded = awaitUi(fresh.observe(agentId)) { it.loaded }
 
@@ -305,7 +305,7 @@ class ForgedScreenRepositoryTest {
   @Test
   fun `a stored Working state resumes polling that job and nothing is submitted`() = runTest(testDispatcher) {
     store.save(agentId, ForgedScreenState.Working("job-stored-9", "stored request", null))
-    val fresh = repository(ForgeGatewayConfig("http://forge.test", "token"))
+    val fresh = repository(ForgeGatewayConfig("http://forge.test", "token", metaApiKey = "meta-key"))
     val flow = fresh.observe(agentId)
 
     awaitCalls(1)
@@ -321,7 +321,7 @@ class ForgedScreenRepositoryTest {
   @Test
   fun `a stored Requested state resumes polling too`() = runTest(testDispatcher) {
     store.save(agentId, ForgedScreenState.Requested("job-stored-3", "stored request"))
-    repository(ForgeGatewayConfig("http://forge.test", "token")).observe(agentId)
+    repository(ForgeGatewayConfig("http://forge.test", "token", metaApiKey = "meta-key")).observe(agentId)
 
     awaitCalls(1)
 
@@ -331,13 +331,13 @@ class ForgedScreenRepositoryTest {
   @Test
   fun `stored NeedsInfo or Failed do not poll`() = runTest(testDispatcher) {
     store.save(agentId, ForgedScreenState.NeedsInfo("job-ask-1", "req", "q?"))
-    val asking = repository(ForgeGatewayConfig("http://forge.test", "token")).observe(agentId)
+    val asking = repository(ForgeGatewayConfig("http://forge.test", "token", metaApiKey = "meta-key")).observe(agentId)
     assertEquals("q?", (awaitUi(asking) { it.state is ForgedScreenState.NeedsInfo }.state as ForgedScreenState.NeedsInfo).question)
     settle()
     assertEquals(0, gateway.statusCalls.get())
 
     store.save(agentId, ForgedScreenState.Failed("job-fail-1", "req", "boom"))
-    val failed = repository(ForgeGatewayConfig("http://forge.test", "token")).observe(agentId)
+    val failed = repository(ForgeGatewayConfig("http://forge.test", "token", metaApiKey = "meta-key")).observe(agentId)
     awaitUi(failed) { (it.state as? ForgedScreenState.Failed)?.message == "boom" }
     settle()
     assertEquals(0, gateway.statusCalls.get())
@@ -479,7 +479,7 @@ class ForgedScreenRepositoryTest {
   @Test
   fun `answering a question about a change queues the job again with the same previousJobId`() = runTest(testDispatcher) {
     storeReady("job-old-5")
-    val flow = repository(ForgeGatewayConfig("http://forge.test", "token")).also { repo = it }.observe(agentId)
+    val flow = repository(ForgeGatewayConfig("http://forge.test", "token", metaApiKey = "meta-key")).also { repo = it }.observe(agentId)
     awaitUi(flow) { it.isReady }
     repo.requestChange(agentId, definition, "make it blue")
     awaitUi(flow) { it.state is ForgedScreenState.Requested }
@@ -523,7 +523,7 @@ class ForgedScreenRepositoryTest {
     assertEquals(emptyList<String>(), gateway.log.toList())
 
     store.save(agentId, ForgedScreenState.NeedsInfo("job-ask-1", "req", "q?"))
-    val asking = repository(ForgeGatewayConfig("http://forge.test", "token"))
+    val asking = repository(ForgeGatewayConfig("http://forge.test", "token", metaApiKey = "meta-key"))
     awaitUi(asking.observe(agentId)) { it.state is ForgedScreenState.NeedsInfo }
     asking.answer(agentId, "   ")
     settle(100)
@@ -535,7 +535,7 @@ class ForgedScreenRepositoryTest {
   @Test
   fun `a change request sends the Ready job as previousJobId and keeps it through Working and Failed`() = runTest(testDispatcher) {
     storeReady("job-old-5")
-    val flow = repository(ForgeGatewayConfig("http://forge.test", "token")).also { repo = it }.observe(agentId)
+    val flow = repository(ForgeGatewayConfig("http://forge.test", "token", metaApiKey = "meta-key")).also { repo = it }.observe(agentId)
     awaitUi(flow) { it.isReady }
 
     repo.requestChange(agentId, definition, "  make the glasses blue  ")
@@ -570,7 +570,7 @@ class ForgedScreenRepositoryTest {
     // What the person sees after "make it blue" failed: a Failed card whose Retry must NOT turn the change
     // into a request for a brand-new screen.
     store.save(agentId, ForgedScreenState.Failed("job-fail-1", "make it blue", "boom", previousJobId = "job-old-5"))
-    val flow = repository(ForgeGatewayConfig("http://forge.test", "token")).also { repo = it }.observe(agentId)
+    val flow = repository(ForgeGatewayConfig("http://forge.test", "token", metaApiKey = "meta-key")).also { repo = it }.observe(agentId)
     awaitUi(flow) { it.state is ForgedScreenState.Failed }
 
     repo.retry(agentId, definition)
@@ -585,7 +585,7 @@ class ForgedScreenRepositoryTest {
   @Test
   fun `a change refused at submit fails without a job id, still remembers what it changes, and retry sends it again`() = runTest(testDispatcher) {
     storeReady("job-old-5")
-    val flow = repository(ForgeGatewayConfig("http://forge.test", "token")).also { repo = it }.observe(agentId)
+    val flow = repository(ForgeGatewayConfig("http://forge.test", "token", metaApiKey = "meta-key")).also { repo = it }.observe(agentId)
     awaitUi(flow) { it.isReady }
     gateway.submitStatus = HttpStatusCode.Unauthorized
 
@@ -614,7 +614,7 @@ class ForgedScreenRepositoryTest {
   @Test
   fun `try again after a failed first build re-sends the request without a previousJobId`() = runTest(testDispatcher) {
     store.save(agentId, ForgedScreenState.Failed("job-fail-1", "the original ask", "boom"))
-    val flow = repository(ForgeGatewayConfig("http://forge.test", "token")).also { repo = it }.observe(agentId)
+    val flow = repository(ForgeGatewayConfig("http://forge.test", "token", metaApiKey = "meta-key")).also { repo = it }.observe(agentId)
     awaitUi(flow) { it.state is ForgedScreenState.Failed }
 
     repo.retry(agentId, definition)
@@ -635,7 +635,7 @@ class ForgedScreenRepositoryTest {
     assertEquals(emptyList<String>(), gateway.log.toList())
 
     storeReady("job-old-5")
-    val flow = repository(ForgeGatewayConfig("http://forge.test", "token")).also { repo = it }.observe(agentId)
+    val flow = repository(ForgeGatewayConfig("http://forge.test", "token", metaApiKey = "meta-key")).also { repo = it }.observe(agentId)
     awaitUi(flow) { it.isReady }
     repo.requestChange(agentId, definition, "   ") // blank
     repo.retry(agentId, definition) // Ready is not Failed
@@ -761,7 +761,7 @@ class ForgedScreenRepositoryTest {
     store.save(agentId, ForgedScreenState.Ready("job-crashed-9", "a tracker", "CrashScreen", 1, fileName))
     // What the section writes right before the bundle composes; the process then died.
     store.markRendering(agentId, "job-crashed-9")
-    val fresh = repository(ForgeGatewayConfig("http://forge.test", "token"))
+    val fresh = repository(ForgeGatewayConfig("http://forge.test", "token", metaApiKey = "meta-key"))
 
     val loaded = awaitUi(fresh.observe(agentId)) { it.loaded }
 
@@ -782,7 +782,7 @@ class ForgedScreenRepositoryTest {
     val ready = ForgedScreenState.Ready("job-fine-1", "a tracker", "FineScreen", 1, fileName)
     store.save(agentId, ready)
     store.markRendering(agentId, "job-older-0")
-    val fresh = repository(ForgeGatewayConfig("http://forge.test", "token"))
+    val fresh = repository(ForgeGatewayConfig("http://forge.test", "token", metaApiKey = "meta-key"))
 
     val loaded = awaitUi(fresh.observe(agentId)) { it.loaded }
 
@@ -820,7 +820,7 @@ class ForgedScreenRepositoryTest {
   @Test
   fun `switching on over a Ready screen only flips the switch`() = runTest(testDispatcher) {
     storeReady("job-old-5")
-    val flow = repository(ForgeGatewayConfig("http://forge.test", "token")).also { repo = it }.observe(agentId)
+    val flow = repository(ForgeGatewayConfig("http://forge.test", "token", metaApiKey = "meta-key")).also { repo = it }.observe(agentId)
     awaitUi(flow) { it.isReady }
 
     repo.setCustomUiEnabled(agentId, true, definition)
@@ -849,7 +849,7 @@ class ForgedScreenRepositoryTest {
   @Test
   fun `switching on after a failure asks again, switching off asks for nothing and drops the switch`() = runTest(testDispatcher) {
     store.save(agentId, ForgedScreenState.Failed("job-fail-1", "req", "boom"))
-    val flow = repository(ForgeGatewayConfig("http://forge.test", "token")).also { repo = it }.observe(agentId)
+    val flow = repository(ForgeGatewayConfig("http://forge.test", "token", metaApiKey = "meta-key")).also { repo = it }.observe(agentId)
     awaitUi(flow) { it.state is ForgedScreenState.Failed }
 
     repo.setCustomUiEnabled(agentId, true, definition)

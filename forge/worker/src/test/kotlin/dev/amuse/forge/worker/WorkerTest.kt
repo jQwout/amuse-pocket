@@ -154,18 +154,18 @@ class WorkerTest {
     }
 
     @Test
-    fun `config reads the environment, defaults the model and refuses a missing key`() {
-        val env = mapOf("FORGE_GATEWAY_URL" to "https://gw.test/", "FORGE_WORKER_TOKEN" to "t", "META_API_KEY" to "k", "FORGE_DIR" to "build")
+    fun `config reads the environment, defaults the model and wants no Meta key of its own`() {
+        val env = mapOf("FORGE_GATEWAY_URL" to "https://gw.test/", "FORGE_WORKER_TOKEN" to "t", "FORGE_DIR" to "build")
         val config = WorkerConfig.fromEnv(env)
 
         assertEquals("muse-spark-1.3", config.model)
         assertEquals("https://api.meta.ai/v1", config.metaBaseUrl)
         assertEquals("https://gw.test", config.gatewayUrl)
         assertEquals("medium", config.reasoningEffort)
-        assertTrue(!config.toString().contains("k,") && !config.toString().contains("token"))
+        assertTrue(!config.toString().contains("token"))
         assertEquals(null, WorkerConfig.fromEnv(env + ("FORGE_REASONING_EFFORT" to "off")).reasoningEffort)
-        val error = assertFailsWith<IllegalArgumentException> { WorkerConfig.fromEnv(env - "META_API_KEY") }
-        assertTrue(error.message!!.contains("META_API_KEY"))
+        val error = assertFailsWith<IllegalArgumentException> { WorkerConfig.fromEnv(env - "FORGE_WORKER_TOKEN") }
+        assertTrue(error.message!!.contains("FORGE_WORKER_TOKEN"))
     }
 }
 

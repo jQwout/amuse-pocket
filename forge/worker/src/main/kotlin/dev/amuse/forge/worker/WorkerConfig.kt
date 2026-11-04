@@ -13,7 +13,6 @@ import java.nio.file.Paths
 data class WorkerConfig(
     val gatewayUrl: String,
     val workerToken: String,
-    val metaApiKey: String,
     val model: String = DEFAULT_MODEL,
     val metaBaseUrl: String = DEFAULT_META_BASE_URL,
     val forgeDir: Path,
@@ -33,7 +32,8 @@ data class WorkerConfig(
             env: Map<String, String> = System.getenv(),
             workingDir: Path = Paths.get("").toAbsolutePath(),
         ): WorkerConfig {
-            val missing = listOf("FORGE_GATEWAY_URL", "FORGE_WORKER_TOKEN", "META_API_KEY")
+            // No META_API_KEY: every job brings the key of the person who asked for it (WorkerJob.metaApiKey).
+            val missing = listOf("FORGE_GATEWAY_URL", "FORGE_WORKER_TOKEN")
                 .filter { env[it].isNullOrBlank() }
             require(missing.isEmpty()) { "Missing environment variables: ${missing.joinToString()}" }
             // FORGE_REASONING_EFFORT unset -> default; set to blank or "off" -> the field is omitted.
@@ -45,7 +45,6 @@ data class WorkerConfig(
             return WorkerConfig(
                 gatewayUrl = env.getValue("FORGE_GATEWAY_URL").trim().trimEnd('/'),
                 workerToken = env.getValue("FORGE_WORKER_TOKEN").trim(),
-                metaApiKey = env.getValue("META_API_KEY").trim(),
                 model = env["FORGE_MODEL"]?.takeIf { it.isNotBlank() }?.trim() ?: DEFAULT_MODEL,
                 metaBaseUrl = (env["META_BASE_URL"]?.takeIf { it.isNotBlank() }?.trim() ?: DEFAULT_META_BASE_URL).trimEnd('/'),
                 forgeDir = env["FORGE_DIR"]?.takeIf { it.isNotBlank() }?.let { Paths.get(it).toAbsolutePath().normalize() }

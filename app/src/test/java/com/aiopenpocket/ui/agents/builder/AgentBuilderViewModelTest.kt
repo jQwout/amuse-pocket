@@ -726,7 +726,7 @@ class AgentBuilderViewModelTest {
   private fun builderWithForge(forge: ScriptedForge, store: ForgedScreenStore): Pair<AgentBuilderViewModel, ForgedScreenRepository> {
     val forgedRepo = ForgedScreenRepository(
       store = store,
-      client = ScreenForgeClient(forge.engine) { ForgeGatewayConfig("http://forge.test", "token") },
+      client = ScreenForgeClient(forge.engine) { ForgeGatewayConfig("http://forge.test", "token", metaApiKey = "meta-key") },
       scope = CoroutineScope(testDispatcher + SupervisorJob()),
       pollIntervalMs = 10L,
     )

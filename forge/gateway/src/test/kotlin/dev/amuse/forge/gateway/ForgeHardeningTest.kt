@@ -12,6 +12,7 @@ import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -44,6 +45,7 @@ class ForgeHardeningTest {
     private suspend fun HttpClient.create(body: CreateJobRequest = job()): HttpResponse =
         post(ForgeRoutes.JOBS) {
             bearerAuth(tokens.client)
+            header(ForgeRoutes.META_KEY_HEADER, "LLM_test_key")
             contentType(ContentType.Application.Json)
             setBody(body)
         }
@@ -80,6 +82,7 @@ class ForgeHardeningTest {
         }
         val tooLong = client.post(ForgeRoutes.answer(id)) {
             bearerAuth(tokens.client)
+            header(ForgeRoutes.META_KEY_HEADER, "LLM_test_key")
             contentType(ContentType.Application.Json)
             setBody(AnswerRequest("x".repeat(ForgeLimits().maxAnswerChars + 1)))
         }

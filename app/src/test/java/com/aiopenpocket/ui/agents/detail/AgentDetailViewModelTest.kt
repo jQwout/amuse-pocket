@@ -125,7 +125,7 @@ class AgentDetailViewModelTest {
     forgedRepository = ForgedScreenRepository(
       store = ForgedScreenStore(RuntimeEnvironment.getApplication()),
       client = ScreenForgeClient(MockEngine { respond("", HttpStatusCode.NotFound) }) {
-        ForgeGatewayConfig("http://forge.test", "token")
+        ForgeGatewayConfig("http://forge.test", "token", metaApiKey = "meta-key")
       },
       // The repository's own scope runs on the test dispatcher so the test controls it.
       scope = CoroutineScope(testDispatcher),

@@ -27,9 +27,12 @@ The first build downloads Ketoy's embedded Kotlin compiler; later builds take a 
 
 ```bash
 ./gradlew :worker:fatJar
-FORGE_GATEWAY_URL=https://<gateway> FORGE_WORKER_TOKEN=... META_API_KEY=...   java -jar worker/build/libs/worker-all.jar          # add --once to process one job and exit
+FORGE_GATEWAY_URL=https://<gateway> FORGE_WORKER_TOKEN=...   java -jar worker/build/libs/worker-all.jar          # add --once to process one job and exit
 java -jar worker/build/libs/worker-all.jar --self-test  # builds a sample screen, no model or gateway needed
 ```
+
+The worker has no Meta key of its own. Each job carries the key of the person who asked for it (see
+"Whose Meta key" below), and the worker makes a Meta client for that job only.
 
 Optional: `FORGE_MODEL` (default `muse-spark-1.3`), `META_BASE_URL` (default `https://api.meta.ai/v1`),
 `FORGE_DIR` (default: found from the working directory), `FORGE_REASONING_EFFORT` (default `medium`,
@@ -68,6 +71,16 @@ worker  POST /v1/worker/jobs/{id}/artifact  -> done, with the bundle
 
 Two bearer tokens: `FORGE_CLIENT_TOKEN` for the app, `FORGE_WORKER_TOKEN` for the worker.
 
+### Whose Meta key
+
+A screen is paid for by the person who asks for it. The app sends the Meta key the person entered in
+Settings in the `X-Meta-Api-Key` header of `POST /v1/jobs` and of `POST /v1/jobs/{id}/answer` (a job
+without it is a `400`). The gateway keeps the key in memory only while the job is queued or held by a
+worker, hands it to the worker inside `WorkerJob.metaApiKey`, and drops it when the job asks a question,
+finishes or fails; it is never written to `job.json` or any other file. A restart of the gateway
+forgets every key: a queued job then fails with a sentence asking to try again, and a pending question
+gets the key back with the answer. Neither the gateway's job queue nor the worker has a key of its own.
+
 Limits (`ForgeLimits`): JSON bodies up to 64 KB (the artifact upload up to 32 MB), `Content-Length`
 required, 20 new jobs per hour per IP (every job spends paid model calls), request text up to 4000
 characters, an answer up to 2000. An artifact only lands on a job a worker holds (`409` otherwise).
@@ -76,7 +89,7 @@ On Fly (`FLY_APP_NAME` set) the client IP comes from the proxy's `Fly-Client-IP`
 It also serves the remote config (`GET /v1/config`, public; written with `FORGE_ADMIN_TOKEN`):
 see `docs/remote-config.md`.
 
-With `META_API_KEY` the market also reviews every package with Muse Spark, draws covers with Muse
+The one key the gateway may hold is the owner's, for the market only: with `META_API_KEY` the market also reviews every package with Muse Spark, draws covers with Muse
 Image and answers plain-words search (see "AI features" in `docs/market-api.md`).
 
 The same service also hosts the market (publish and install agents and skills): see
