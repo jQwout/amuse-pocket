@@ -12,6 +12,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.aiopenpocket.agent.core.memory.entity.HeartbeatEntity
 import com.aiopenpocket.agent.tools.HeartbeatTool
+import com.aiopenpocket.agent.workers.HeartbeatAlarm
 import com.aiopenpocket.agent.workers.HeartbeatWorker
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.BindingContainer
@@ -92,11 +93,23 @@ class WorkManagerHeartbeatScheduler(private val context: Context) : HeartbeatSch
         .setInputData(input)
         .build()
       workManager.enqueueUniqueWork(workName, ExistingWorkPolicy.REPLACE, request)
+      // The delayed job above is only the fallback: in Doze it waits for a maintenance window. The alarm
+      // fires on time and runs the same job at once (HeartbeatAlarm). Not worth it for "right now".
+      val fireAt = entity.fireAt
+      if (fireAt != null && fireAt - now > ALARM_MIN_LEAD_MS) {
+        HeartbeatAlarm.arm(context, entity.id, fireAt)
+      }
     }
   }
 
   override suspend fun cancel(heartbeatId: String) {
     WorkManager.getInstance(context).cancelUniqueWork(HeartbeatTool.workName(heartbeatId))
+    HeartbeatAlarm.cancel(context, heartbeatId)
+  }
+
+  private companion object {
+    /** Below this lead the delayed job starts at once anyway, Doze or not. */
+    const val ALARM_MIN_LEAD_MS = 30_000L
   }
 }
 

@@ -10,6 +10,13 @@
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <!-- On-time reminders (HeartbeatAlarm): an exact while-idle alarm fires in Doze, where a delayed
+         WorkManager job waits for a maintenance window. USE_EXACT_ALARM is granted on install (API 33+);
+         SCHEDULE_EXACT_ALARM covers API 31-32. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission
+        android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
 
     <uses-feature
         android:name="android.hardware.sensor.stepcounter"
@@ -119,6 +126,11 @@
             android:name="com.aiopenpocket.agent.core.notification.TurnForegroundService"
             android:exported="false"
             android:foregroundServiceType="shortService" />
+
+        <!-- Fires a one-time heartbeat on time; see HeartbeatAlarm. -->
+        <receiver
+            android:name="com.aiopenpocket.agent.workers.HeartbeatAlarmReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>
