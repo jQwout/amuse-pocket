@@ -32,8 +32,9 @@ fun WaterTrackerScreen() { ... }
 ## Hard rules (the compiler enforces them, so breaking one only costs you a build)
 
 1. State is local: `remember { mutableStateOf(..) }`, `mutableIntStateOf`, `mutableFloatStateOf`,
-   `rememberSaveable`, `derivedStateOf`. There is no ViewModel, no database, no files, no network.
-   The state resets when the screen is recreated; that is expected. Do not promise persistence.
+   `rememberSaveable`. There is no ViewModel, no database of your own, no files, no network. To keep
+   something after the screen closes, use the app's storage (see "What the app lends a screen" below):
+   that is the only persistence there is.
 2. Use only the composables, modifiers, constructors and tokens in the catalog below. Anything else
    fails with `UnregisteredComposable` / `UnregisteredCall` / `NonKbcConstructor`.
 3. No `android.*` imports, no `Log`, `Toast` or `Context`, no reflection (`::class.java`), no file or
@@ -43,10 +44,10 @@ fun WaterTrackerScreen() { ... }
    bounds) when a helper composable takes parameters and renders content - it compiles, then kills
    the app. Everything lives inside the entry function; a tappable thing is a `Button`; repeated
    cells are `repeat(n) { i -> ... }` inline.
-5. Prefer named arguments: `Text(text = "Glasses: $count", fontSize = 18.sp, color = Color(0xFF1C1B1F))`.
+5. Prefer named arguments: `Text(text = "Glasses: $count", fontSize = 18.sp, color = themeColor("text"))`.
    EVERY `Text` MUST pass an explicit `color`: the host renders a text without one as transparent
-   (laid out, never drawn). Dark text `Color(0xFF1C1B1F)` on cards, `Color.White` inside a `Button`,
-   `Color(0xFF49454F)` for secondary lines. Never rely on the default color.
+   (laid out, never drawn). Take it from the app's palette (rule 11): `themeColor("text")`,
+   `themeColor("textMuted")` for secondary lines, `themeColor("onAccent")` inside a `Button`.
 6. Keep it small and robust: a clear layout, a few state variables, simple lambdas. A boring screen
    that compiles beats an ambitious one that does not. Aim for under 150 lines.
    Four buttons in a row leave room for 1-3 characters each: use a digit, a short word or one emoji,
@@ -59,15 +60,38 @@ fun WaterTrackerScreen() { ... }
    app at runtime (`no method toFloat on Integer`); `derivedStateOf`, nullable state (`null`, `?.`,
    `?:`) render as the text "null". Keep every counter an Int, compute values inline in the `Text`
    that shows them (`"Left: ${goal - spent}"`), and never declare a nullable variable.
-11. Contrast: the host draws the screen on a LIGHT surface (0xFFF7F6F2) in every theme. Dark text
-   (rule 5) on light backgrounds only: a card or row background must be a light tint such as
-   `Color(0xFFEDE7F6)`, `Color(0xFFE3F2FD)` or `Color.White` - NEVER a dark background colour, and
-   never dark text on a dark card. Buttons keep their own colours.
+11. The app's palette: the screen sits on the app's own page, light or dark as the person chose, so
+   fixed colors vanish in one of the themes. Every color of text, cards and the page comes from
+   `themeColor("name")` (import `dev.ketoy.runtime.compose.themeColor`): `page`, `card` (a panel:
+   `Modifier.background(themeColor("card"), RoundedCornerShape(20.dp))`), `text`, `textMuted`,
+   `accent` (the app's lime: a highlight, progress, a done mark), `onAccent` (text on accent and in
+   every Button), `line` (borders). Buttons take the accent by themselves. A `Color(0xFF......)`
+   literal only for a deliberate extra hue (a red warning, a category dot), never for text or panels.
+   Rounded panels (20.dp) and generous padding (16-20.dp) are the app's look.
 9. NO RANGES, EVER: `0..7`, `0 until 8`, `downTo`, `step`, `.indices`, `rangeTo` all COMPILE but
    CRASH the app at runtime (`KBCException: no method rangeTo on Integer`). `write_screen` rejects
    them. Loops: `repeat(8) { i -> ... }` for a count, `items.forEach { }` / `forEachIndexed` for a
    list. Build lists with `listOf(...)`. Example rows of buttons: `repeat(2) { row -> Row { repeat(4)
    { col -> val i = row * 4 + col; Button(...) { Text(...) } } } }`.
+
+## What the app lends a screen
+
+The screen cannot touch the phone itself, but the app lends it a few functions. Import them from
+`dev.amuse.forge.host` (one import per function) and call them like any function; the app answers.
+Everything is kept for this agent only. A working example is `screens/src/main/kotlin/dev/amuse/forge/screens/WishlistScreen.kt`.
+
+- `loadInt(key, default): Int` and `saveInt(key, value)` - a number that survives closing the screen
+  and the app. Read it once into state, save it in the same click that changes it:
+  `var glasses by remember { mutableIntStateOf(loadInt("glasses", 0)) }` and
+  `Button(onClick = { glasses += 1; saveInt("glasses", glasses) }) { ... }`.
+- `loadText(key, default): String` and `saveText(key, value)` - the same for a short text (a note, a
+  list joined with a separator). The default is a String, never null.
+- `PhotoPicker(key = "...", label = "...")` - a photo slot drawn by the app: a button with your
+  `label` that opens the phone's gallery, then the chosen photo, kept under `key` for next time. Use it
+  when the request mentions a photo, a picture or the gallery. You cannot read the photo yourself.
+
+Nothing else is available: no camera, no contacts, no location, no notifications. If the request needs
+one of those, build what you can and say what is missing in `notes`.
 
 ## Known compiler limits (verified against Ketoy 0.4.20-alpha)
 

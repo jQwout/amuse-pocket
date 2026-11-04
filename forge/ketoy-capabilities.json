@@ -1,5 +1,11 @@
 {
   "version": 1,
-  "capabilities": [],
+  "capabilities": [
+    { "id": 16385, "name": "loadInt", "fqName": "dev.amuse.forge.host.loadInt", "kind": "SYNC", "parameterTypes": ["kotlin.String", "kotlin.Int"], "returnType": "kotlin.Int" },
+    { "id": 16386, "name": "saveInt", "fqName": "dev.amuse.forge.host.saveInt", "kind": "SYNC", "parameterTypes": ["kotlin.String", "kotlin.Int"], "returnType": "kotlin.Unit" },
+    { "id": 16387, "name": "loadText", "fqName": "dev.amuse.forge.host.loadText", "kind": "SYNC", "parameterTypes": ["kotlin.String", "kotlin.String"], "returnType": "kotlin.String" },
+    { "id": 16388, "name": "saveText", "fqName": "dev.amuse.forge.host.saveText", "kind": "SYNC", "parameterTypes": ["kotlin.String", "kotlin.String"], "returnType": "kotlin.Unit" },
+    { "id": 16389, "name": "PhotoPicker", "fqName": "dev.amuse.forge.host.PhotoPicker", "kind": "COMPOSABLE", "parameterTypes": ["kotlin.String", "kotlin.String"], "returnType": "kotlin.Unit" }
+  ],
   "allowedStdlibFqNames": []
 }

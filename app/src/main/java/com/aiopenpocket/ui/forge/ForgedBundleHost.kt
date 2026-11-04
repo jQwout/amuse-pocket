@@ -22,7 +22,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.aiopenpocket.AiOpenPocketApp
@@ -62,6 +61,11 @@ fun ForgedBundleHost(
   val loader = remember { graph.ketoyBundleLoader }
   val repository = graph.forgedScreenRepository
 
+  // The screen's storage and photos are this agent's (ForgeHostCapabilities).
+  remember(agentId) { ForgeHostScope.agentId = agentId; Unit }
+  // Named colors answer with the scheme the screen is drawn in, light or dark.
+  val scheme = MaterialTheme.colorScheme
+  remember(scheme) { ForgeHostScope.colors = scheme; Unit }
   remember(ready.jobId) { repository.markRendering(agentId, ready.jobId); Unit }
   var loaded by remember(ready.jobId) { mutableStateOf(false) }
   LaunchedEffect(ready.jobId, loaded) {
@@ -81,9 +85,10 @@ fun ForgedBundleHost(
     // A new job is a new screen: key on it so the interpreter is recreated, not recomposed with the
     // previous bundle's state (the entry point name is usually the same).
     key(ready.jobId) {
-      // A light surface whatever the app theme: the worker's catalog tells the model to use fixed
-      // dark text colours (the bundle cannot read the theme), and on the dark theme they vanished.
-      Box(modifier = modifier.background(FORGED_SURFACE)) {
+      // The app's own page: screens take their colors by name from the current scheme (themeColor,
+      // ForgeHostCapabilities), so they read in both themes. Bundles from before that used fixed dark
+      // text and needed a light page; they were signed with the retired key and no longer load anyway.
+      Box(modifier = modifier.background(MaterialTheme.colorScheme.background)) {
         KetoyScreen(
           entryPoint = ready.entryPoint,
           bundleSource = source,
@@ -115,5 +120,4 @@ fun ForgedScreenFallback(reason: String?, modifier: Modifier = Modifier) {
 }
 
 private const val TAG = "ForgedBundleHost"
-private val FORGED_SURFACE = Color(0xFFF7F6F2)
 private const val GRACE_MS = 1_500L

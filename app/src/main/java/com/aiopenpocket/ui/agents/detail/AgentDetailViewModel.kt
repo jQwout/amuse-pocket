@@ -515,7 +515,7 @@ class AgentDetailViewModel(
   companion object {
     // @trace cloud-forged-screens-40d702
     const val SAMPLE_BUNDLE_ASSET = "ketoy/hello.ktx"
-    const val SAMPLE_ENTRY_POINT = "HelloForgeScreen"
+    const val SAMPLE_ENTRY_POINT = "WishlistScreen"
     private const val MAX_POLL_FAILURES = 5
     private const val MAX_POLL_MILLIS = 15 * 60 * 1000L
     private const val SLOW_POLL_AFTER = 20

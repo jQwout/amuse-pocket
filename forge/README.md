@@ -51,8 +51,12 @@ take the pair it generates, replace both files and rebuild the app.
 
 - The Ketoy version: 0.4.20-alpha on both sides.
 - The public key above.
-- Capability ids: `ketoy-capabilities.json` lists the app-specific ones (none yet - screens are
-  self-contained; Ketoy's built-in core capabilities are registered by the app).
+- Capability ids: `ketoy-capabilities.json` lists what the app lends a screen, ids 16385-16389:
+  `loadInt`/`saveInt`/`loadText`/`saveText` (storage, kept per agent) and `PhotoPicker` (the app's
+  gallery slot). Screens call them through the stubs in `screens/.../host/ForgeHost.kt`; the app
+  answers in `ForgeHostCapabilities.kt`. A bundle calling anything else does not compile.
+- Colors: `themeColor("page" | "card" | "text" | "textMuted" | "accent" | "onAccent" | "line")`
+  resolves to the app's current light or dark scheme, so a forged screen looks like the app.
 - The entry point name: the worker reports it with the artifact; the app never hard-codes it.
 
 ## Protocol

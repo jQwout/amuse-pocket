@@ -13,6 +13,8 @@ import com.aiopenpocket.agent.core.market.MarketClient
 import com.aiopenpocket.data.repository.SettingsRepository
 import dev.ketoy.adapters.material3.registerGeneratedAdapters
 import dev.ketoy.adapters.material3.registerGeneratedConstructors
+import com.aiopenpocket.ui.forge.forgeColorResolver
+import com.aiopenpocket.ui.forge.registerForgeHostCapabilities
 import dev.ketoy.capabilities.core.registerCoreCapabilities
 import dev.ketoy.runtime.KetoyConfig
 import dev.ketoy.runtime.KetoyRuntime
@@ -33,7 +35,8 @@ import kotlinx.coroutines.withContext
  * One [KetoyRuntime] per process. Its config carries the forge's public key, so a bundle signed with
  * any other key never renders: `nativeFallback` shows instead. Core capabilities are registered the
  * way `ketoy init` does it (dispatchers, flows, storage), because a bundle's manifest may list them
- * even when the screen only keeps local state; app-specific capabilities (ids 0x4000+) are none yet.
+ * even when the screen only keeps local state; app-specific capabilities (ids 0x4000+) are the forge host's
+ * (ForgeHostCapabilities.kt: storage per agent and a photo picker).
  */
 @ContributesTo(AppScope::class)
 @BindingContainer
@@ -56,10 +59,14 @@ object KetoyModule {
   fun provideKetoyRuntime(application: Application): KetoyRuntime {
     val capabilities = CapabilityRegistry().apply {
       registerCoreCapabilities(context = application)
+      // The app's own doors for forged screens: storage per agent and a photo picker (forge-host-capabilities-f648ae).
+      registerForgeHostCapabilities(application)
     }
     val config = KetoyConfig(
       enableSignatureVerification = true,
       publicKey = KetoyKeystore.loadFromAsset(application, PUBLIC_KEY_ASSET),
+      // The app's palette by name (themeColor("accent") in a bundle), per theme: forge-host-capabilities-f648ae.
+      colorResolver = forgeColorResolver(),
     )
     return KetoyRuntime(capabilityRegistry = capabilities, config = config).also { runtime ->
       registerGeneratedAdapters(runtime.adapterRegistry)

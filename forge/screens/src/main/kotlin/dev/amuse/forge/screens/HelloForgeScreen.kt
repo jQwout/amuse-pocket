@@ -15,18 +15,19 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.ketoy.annotations.KetoyComposable
 import dev.ketoy.annotations.KetoyEntryPoint
+import dev.ketoy.runtime.compose.themeColor
 
 /**
  * The template screen. It is what the app ships as its debug sample (`assets/ketoy/hello.ktx`)
  * and what the coding agent reads before writing a screen of its own: one `@KetoyEntryPoint`
  * function, local state through `remember`, Material 3 widgets from the Ketoy catalog, nothing
  * from `android.*`. Every `Text` carries an explicit `color`: Ketoy 0.4.20 encodes the default
- * (`Color.Unspecified`) as transparent, so a text without one is laid out but never drawn.
+ * (`Color.Unspecified`) as transparent, so a text without one is laid out but never drawn. The colors
+ * are the app's, by name (`themeColor("text")`), so the screen reads in the light and the dark theme.
  */
 @KetoyEntryPoint
 @KetoyComposable
@@ -37,17 +38,17 @@ fun HelloForgeScreen() {
         modifier = Modifier.fillMaxWidth().padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(text = "Forged in the cloud", fontSize = 22.sp, color = Color.Black)
-        Text(text = "This screen arrived as a Ketoy bundle, not as an app update.", color = Color(0xFF333333))
+        Text(text = "Forged in the cloud", fontSize = 22.sp, color = themeColor("text"))
+        Text(text = "This screen arrived as a Ketoy bundle, not as an app update.", color = themeColor("textMuted"))
         Spacer(modifier = Modifier.height(4.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = { taps += 1 }) {
-                Text(text = "Tap me", color = Color.White)
+                Text(text = "Tap me", color = themeColor("onAccent"))
             }
             Button(onClick = { taps = 0 }) {
-                Text(text = "Reset", color = Color.White)
+                Text(text = "Reset", color = themeColor("onAccent"))
             }
         }
-        Text(text = if (taps == 0) "No taps yet" else "Taps: $taps", color = Color(0xFF1B5E20))
+        Text(text = if (taps == 0) "No taps yet" else "Taps: $taps", color = themeColor("accent"))
     }
 }

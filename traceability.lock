@@ -42,8 +42,8 @@
       "git": "2464f21"
     },
     "cloud-forged-screens-40d702": {
-      "hash": "845ec7a4173b",
-      "git": "98bbf112"
+      "hash": "a03f26eac234",
+      "git": "d0b3e8db"
     },
     "desktop-genai-client-4c63b6": {
       "hash": "315eba16e382",
@@ -60,6 +60,10 @@
     "fonovye-hody-agenta-dde42d": {
       "hash": "15ded8537d02",
       "git": "097a6f63"
+    },
+    "forge-host-capabilities-f648ae": {
+      "hash": "e6373f178145",
+      "git": "d0b3e8db"
     },
     "glass-design-system-21a3fe": {
       "hash": "1ec54f30dc07",

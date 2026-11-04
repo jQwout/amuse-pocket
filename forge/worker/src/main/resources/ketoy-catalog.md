@@ -7,7 +7,7 @@ Anything not listed here fails the build with UnregisteredComposable, Unregister
 Layout: Box, Column, Row, FlowRow, FlowColumn, Spacer, Scaffold, Surface, Card
 Lists and grids: LazyColumn, LazyRow, LazyVerticalGrid, LazyHorizontalGrid, HorizontalPager, VerticalPager
 Text and input: Text, TextField, Checkbox, Switch
-Text ALWAYS with an explicit color (`Text(text = ..., color = Color(0xFF1C1B1F))`; `Color.White` inside Button): the default color renders transparent in the host.
+Text ALWAYS with an explicit color, taken from the app's palette: `Text(text = ..., color = themeColor("text"))`; `themeColor("onAccent")` inside a Button. The default color renders transparent in the host.
 Buttons: Button, IconButton
 Media: Image, Icon, AsyncImage, Canvas
 Other: TopAppBar (needs @OptIn(ExperimentalMaterial3Api::class)), AlertDialog, ModalBottomSheet, HorizontalDivider, VerticalDivider
@@ -43,7 +43,12 @@ Top CenterVertically Bottom, Start CenterHorizontally End.
 ContentScale: Crop Fit FillBounds Inside None FillHeight FillWidth.
 KeyboardType: Text Number Phone Uri Email Password NumberPassword Decimal. ImeAction: Default None Go Search Send Next Done Previous.
 Sizes: `16.dp`, `14.sp`. MaterialTheme typography/colorScheme reads are NOT tokens - use explicit colors and sizes.
-themeColor("name") adapts to light and dark, but only for names the host defines; prefer explicit colors.
+THE APP'S PALETTE - use it for every color: `themeColor("name")` (import dev.ketoy.runtime.compose.themeColor) gives the app's color
+for the current theme, light or dark. Names: page (the background), card (a panel on the page), text, textMuted (secondary
+lines), accent (the app's lime: highlights, progress, a done mark), onAccent (text on accent, and inside every Button),
+line (borders, dividers). Works for `color =`, `background(themeColor("card"), RoundedCornerShape(20.dp))` and `border`.
+Buttons already take the accent by themselves. A `Color(0xFF......)` literal is for a deliberate extra hue only (a red
+warning, a category dot), never for text, cards or the page: fixed colors vanish in one of the themes.
 Icons: do NOT use Icon/Icons - the app registers no icon set yet, so they render as an empty box. Use text or emoji labels ('+', '-', 'x') in Button/Text instead.
 
 ## State and control flow
@@ -59,6 +64,6 @@ String/Int/Boolean/Dp/Color/data class/List parameters, callback lambdas, and `c
 Ranges of any kind (`0..7`, `until`, `downTo`, `step`, `.indices`): they compile but crash the app at runtime (no Int.rangeTo in the interpreter). Loop with `repeat(n) { i -> }` or `forEachIndexed`.
 Helper composables, functions with parameters, lambda parameters, `Modifier.clickable`: they compile but crash the interpreter at runtime. ONE function, everything inline, taps through `Button`.
 Numeric conversions (`toFloat()`, `toDouble()`, `toLong()`, `toInt()`) crash at runtime; `derivedStateOf` and nullable values (`null`, `?.`, `?:`) render as the text "null". Ints only, computed inline.
-Dark backgrounds for cards or rows: the screen sits on a light surface; use light tints (0xFFEDE7F6, 0xFFE3F2FD, White) with dark text.
+Fixed colors for text, cards or the page (`Color(0xFF1C1B1F)`, `Color.White`, `Color.Black` text): the page follows the app's light or dark theme, so they vanish in one of them. Use themeColor.
 android.* APIs (Log, Context, Toast), reflection (::class.java, kotlin.reflect), java.io / File, GlobalScope, runBlocking,
 network calls, LaunchedEffect with external APIs, ViewModels, any composable or function not listed above.
