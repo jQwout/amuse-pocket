@@ -208,6 +208,14 @@ object ToolCatalog {
       consequenceEn = "Draws a picture from the agent's description (the Muse Image model) and shows it in the reply: the description is sent to Meta. Each picture costs a cent.",
     ),
     ToolCatalogEntry(
+      name = "task_list",
+      // DESTRUCTIVE is the worst case: deleting a task has no trash; every delete asks in the chat.
+      riskClass = RiskClass.DESTRUCTIVE,
+      permission = null,
+      consequenceRu = "Добавляет, меняет и отмечает задачи в списке дел на телефоне (его видно в приложении «Таск-лист»). Удаление задачи каждый раз спросит твоё разрешение.",
+      consequenceEn = "Adds, edits and ticks tasks in the to-do list on your phone (you see it in the Task list app). Deleting a task asks for your permission every time.",
+    ),
+    ToolCatalogEntry(
       name = "load_skill",
       riskClass = RiskClass.READ,
       permission = null,

@@ -2,8 +2,8 @@
   "version": 1,
   "features": {
     "agent-apps-native-screens-for-the-preset-agents-c8d8ce": {
-      "hash": "f613fee46fa2",
-      "git": "31081005"
+      "hash": "2281bfc9c910",
+      "git": "b29c109f"
     },
     "agent-inspector-6e41eb": {
       "hash": "38d9e7818342",
@@ -42,8 +42,8 @@
       "git": "21fba91e"
     },
     "builder-passport-7d7794": {
-      "hash": "43587eeaaf29",
-      "git": "36749b19"
+      "hash": "8bab7c7e4c9d",
+      "git": "b29c109f"
     },
     "chat-font-size-setting-c72418": {
       "hash": "df096d1da66c",
@@ -94,8 +94,8 @@
       "git": "ca77277b"
     },
     "mcp-tools-f77d9b": {
-      "hash": "11848a6dd330",
-      "git": "1e30a635"
+      "hash": "7be44e9d6dbc",
+      "git": "b29c109f"
     },
     "meta-voice-transcribe-in-calls-297760": {
       "hash": "c439febf81a9",
@@ -103,7 +103,7 @@
     },
     "multi-agent-orchestration-27b8e3": {
       "hash": "df3f619804a9",
-      "git": "b7563711"
+      "git": "b29c109f"
     },
     "multi-chat-conversations-b3c93b": {
       "hash": "601eda9bbaa8",
@@ -174,8 +174,8 @@
       "git": "c08de0e0"
     },
     "user-agent-builder-848153": {
-      "hash": "3b7e65e1ac57",
-      "git": "dbd147dd"
+      "hash": "3a19da94ff92",
+      "git": "b29c109f"
     },
     "video-na-vhod-v-uroke-muse-spark-08ccdb": {
       "hash": "8c9fa9a6843d",
