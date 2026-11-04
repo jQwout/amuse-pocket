@@ -15,7 +15,11 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.TextButton
+import com.aiopenpocket.ui.components.glass.GlassCard
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -99,6 +103,33 @@ fun AgentAppRoute(
         }
       }
       AgentAppContent(agentId = agentId, modifier = Modifier.fillMaxWidth().weight(1f))
+    }
+  }
+}
+
+/**
+ * In a preset agent's chat: a one-line card that the agent has an app, and an Open button. The chat and
+ * the app share the agent's store, so this is the way to see what the chat just recorded.
+ */
+@Composable
+fun AgentAppBanner(agentId: String?, onOpen: (String) -> Unit, modifier: Modifier = Modifier) {
+  if (agentId == null || !AgentApps.has(agentId)) return
+  GlassCard(modifier = modifier.fillMaxWidth().testTag("agent_app_banner"), shape = RoundedCornerShape(16.dp)) {
+    Row(
+      modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Icon(Icons.Default.Apps, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+      Spacer(modifier = Modifier.width(10.dp))
+      Text(
+        text = tr("У агента есть своё приложение.", "This agent has its own app."),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.weight(1f),
+      )
+      TextButton(onClick = { onOpen(agentId) }, modifier = Modifier.testTag("agent_app_banner_open")) {
+        Text(tr("Открыть", "Open"))
+      }
     }
   }
 }

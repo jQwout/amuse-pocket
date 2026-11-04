@@ -2,8 +2,8 @@
   "version": 1,
   "features": {
     "agent-apps-native-screens-for-the-preset-agents-c8d8ce": {
-      "hash": "20692022f7cf",
-      "git": "dbd147dd"
+      "hash": "49c7982b7aa2",
+      "git": "62c1ebd9"
     },
     "agent-inspector-6e41eb": {
       "hash": "38d9e7818342",
@@ -50,8 +50,8 @@
       "git": "2464f21"
     },
     "cloud-forged-screens-40d702": {
-      "hash": "8379db63f2c4",
-      "git": "dbd147dd"
+      "hash": "af26d5b62160",
+      "git": "62c1ebd9"
     },
     "desktop-genai-client-4c63b6": {
       "hash": "315eba16e382",
@@ -119,7 +119,7 @@
     },
     "photos-in-chat-bca88e": {
       "hash": "98263d15e210",
-      "git": "1e30a635"
+      "git": "62c1ebd9"
     },
     "profile-screen-7354a7": {
       "hash": "a2de6c9b5be3",
@@ -159,7 +159,7 @@
     },
     "streaming-llm-chat-6595a1": {
       "hash": "de8c3d941806",
-      "git": "1e30a635"
+      "git": "62c1ebd9"
     },
     "structured-plan-engine-907066": {
       "hash": "4f3e27a5820b",

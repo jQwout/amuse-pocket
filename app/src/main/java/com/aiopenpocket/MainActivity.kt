@@ -452,6 +452,7 @@ class MainActivity : ComponentActivity() {
                                         voiceAssistant = backStackEntry.arguments?.getBoolean("voice") ?: false,
                                         onNavigateBack = { navController.popBackStack() },
                                         onOpenAgentUi = { id -> navController.navigate("agent_ui/$id") },
+                                        onOpenAgentApp = { id -> navController.navigate("agent_app/$id") },
                                         onOpenAgentDetail = { agentId ->
                                             navController.navigate("agent/$agentId")
                                         },

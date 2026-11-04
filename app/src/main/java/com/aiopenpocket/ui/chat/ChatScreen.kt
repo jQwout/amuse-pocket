@@ -208,6 +208,8 @@ fun ChatScreen(
     voiceAssistant: Boolean = false,
     /** Opens the agent's own forged interface (`agent_ui/{agentId}`) from the banner. */
     onOpenAgentUi: (String) -> Unit = {},
+    /** Opens a preset agent's native app (`agent_app/{agentId}`) from the banner. */
+    onOpenAgentApp: (String) -> Unit = {},
     /** The phone button: a voice call in this conversation (an empty id = the chat has none yet). */
     onStartCall: (String) -> Unit = {},
 ) {
@@ -767,6 +769,12 @@ fun ChatScreen(
                 ForgedUiBanner(
                     agentId = state.agentId,
                     onOpenUi = onOpenAgentUi,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+                // @trace agent-apps-native-screens-for-the-preset-agents-c8d8ce
+                com.aiopenpocket.ui.agents.apps.AgentAppBanner(
+                    agentId = state.agentId,
+                    onOpen = onOpenAgentApp,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
 
