@@ -2,8 +2,8 @@
   "version": 1,
   "features": {
     "agent-apps-native-screens-for-the-preset-agents-c8d8ce": {
-      "hash": "318d92ba26f4",
-      "git": "445245c3"
+      "hash": "9096d311a2b9",
+      "git": "c9ace0d7"
     },
     "agent-inspector-6e41eb": {
       "hash": "38d9e7818342",

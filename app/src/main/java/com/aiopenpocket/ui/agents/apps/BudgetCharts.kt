@@ -38,7 +38,6 @@ import androidx.compose.ui.unit.dp
 import com.aiopenpocket.agent.core.expense.ExpenseCategory
 import com.aiopenpocket.agent.core.expense.ExpenseLogic
 import com.aiopenpocket.i18n.tr
-import com.aiopenpocket.ui.components.glass.GlassCard
 
 /**
  * Category colors: muted earth tones that sit next to the app's lime/olive accent instead of fighting it,
@@ -99,7 +98,7 @@ internal fun CategoryBreakdown(
   modifier: Modifier = Modifier,
 ) {
   if (total <= 0 || byCategory.isEmpty()) return
-  GlassCard(modifier = modifier.fillMaxWidth()) {
+  AppPanel(modifier = modifier.fillMaxWidth()) {
     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
       Text(
         tr("По категориям", "By category"),

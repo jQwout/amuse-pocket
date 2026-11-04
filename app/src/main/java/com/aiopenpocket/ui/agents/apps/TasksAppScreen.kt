@@ -66,7 +66,6 @@ import com.aiopenpocket.agent.core.tasks.TaskPriority
 import com.aiopenpocket.agent.core.tasks.TaskStore
 import com.aiopenpocket.di.AppScope
 import com.aiopenpocket.i18n.tr
-import com.aiopenpocket.ui.components.glass.GlassCard
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
@@ -365,11 +364,14 @@ private fun SwipeableTask(
     state = state,
     enableDismissFromStartToEnd = false,
     backgroundContent = {
-      Box(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.error, RoundedCornerShape(16.dp)).padding(horizontal = 20.dp),
-        contentAlignment = Alignment.CenterEnd,
-      ) {
-        Icon(Icons.Default.Delete, contentDescription = tr("Удалить", "Delete"), tint = MaterialTheme.colorScheme.onError)
+      // Only while the row is being dragged: at rest nothing shows behind it.
+      if (state.dismissDirection == SwipeToDismissBoxValue.EndToStart) {
+        Box(
+          modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.error, RoundedCornerShape(20.dp)).padding(horizontal = 20.dp),
+          contentAlignment = Alignment.CenterEnd,
+        ) {
+          Icon(Icons.Default.Delete, contentDescription = tr("Удалить", "Delete"), tint = MaterialTheme.colorScheme.onError)
+        }
       }
     },
   ) {
@@ -380,7 +382,7 @@ private fun SwipeableTask(
 @Composable
 private fun TaskRow(task: TaskItem, listName: String?, onSetDone: (Long, Boolean) -> Unit) {
   val overdue = !task.done && task.dueAt != null && task.dueAt < System.currentTimeMillis()
-  GlassCard(modifier = Modifier.fillMaxWidth().animateContentSize().testTag("task_${task.id}")) {
+  AppPanel(modifier = Modifier.fillMaxWidth().animateContentSize().testTag("task_${task.id}")) {
     Row(
       modifier = Modifier.fillMaxWidth().padding(end = 14.dp).alpha(if (task.done) 0.55f else 1f),
       verticalAlignment = Alignment.CenterVertically,

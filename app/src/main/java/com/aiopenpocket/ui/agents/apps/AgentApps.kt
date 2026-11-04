@@ -2,6 +2,8 @@ package com.aiopenpocket.ui.agents.apps
 
 // @trace agent-apps-native-screens-for-the-preset-agents-c8d8ce
 
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -101,4 +103,22 @@ fun AgentAppRoute(
       AgentAppContent(agentId = agentId, modifier = Modifier.fillMaxWidth().weight(1f))
     }
   }
+}
+
+/**
+ * The card of the agent apps: an opaque surface from the theme, not glass. Glass is tuned for the chat's
+ * aurora and let whatever sits behind it show through (a swipe-to-delete background, a flipping card's back),
+ * and its fixed tint did not follow the light and dark schemes the way the rest of these screens do.
+ */
+@Composable
+internal fun AppPanel(
+  modifier: Modifier = Modifier,
+  content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+  Column(
+    modifier = modifier
+      .clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+      .background(MaterialTheme.colorScheme.surfaceVariant),
+    content = content,
+  )
 }

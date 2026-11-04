@@ -47,7 +47,6 @@ import com.aiopenpocket.agent.core.srs.SrsWord
 import com.aiopenpocket.agent.tools.startOfTodayMillis
 import com.aiopenpocket.di.AppScope
 import com.aiopenpocket.i18n.tr
-import com.aiopenpocket.ui.components.glass.GlassCard
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
@@ -165,7 +164,7 @@ fun TutorApp(modifier: Modifier = Modifier) {
 
 @Composable
 private fun TutorEmpty() {
-  GlassCard(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
+  AppPanel(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
       Text(
         tr("Пока нет слов для повторения.", "No words to review yet."),
@@ -234,7 +233,7 @@ private fun TutorSession(state: TutorAppState, viewModel: TutorAppViewModel, mod
     verticalArrangement = Arrangement.Center,
   ) {
     if (card == null) {
-      GlassCard(modifier = Modifier.fillMaxWidth()) {
+      AppPanel(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
           Text(
             tr("На сегодня всё!", "All done for today!"),
@@ -294,7 +293,7 @@ private fun FlipCard(card: SrsWord, flipped: Boolean, onFlip: () -> Unit) {
     contentAlignment = Alignment.Center,
   ) {
     if (rotation < 90f) {
-      GlassCard(modifier = Modifier.fillMaxSize()) {
+      AppPanel(modifier = Modifier.fillMaxSize()) {
         Column(
           modifier = Modifier.fillMaxSize().padding(24.dp),
           horizontalAlignment = Alignment.CenterHorizontally,
@@ -318,7 +317,7 @@ private fun FlipCard(card: SrsWord, flipped: Boolean, onFlip: () -> Unit) {
     } else {
       // Mirror the back so it reads correctly after the half-turn.
       Box(modifier = Modifier.fillMaxSize().graphicsLayer { rotationY = 180f }) {
-        GlassCard(modifier = Modifier.fillMaxSize()) {
+        AppPanel(modifier = Modifier.fillMaxSize()) {
           Column(
             modifier = Modifier.fillMaxSize().padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -353,7 +352,7 @@ private fun TutorDictionary(words: List<SrsWord>, todayStartMs: Long, modifier: 
   val dateFormat = remember { DateFormat.getDateInstance(DateFormat.MEDIUM) }
   LazyColumn(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
     items(words, key = { it.key() }) { w ->
-      GlassCard(modifier = Modifier.fillMaxWidth()) {
+      AppPanel(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
           Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
             Text(
