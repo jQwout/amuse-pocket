@@ -71,6 +71,7 @@ object BuilderAgent {
     "database_query" to ("читает данные приложения запросами SELECT" to "reads app data with SELECT queries"),
     "web_search" to ("ищет свежие факты в интернете (каждый поиск стоит денег)" to "looks up fresh facts on the web (each search costs a little money)"),
     "outline_photo" to ("обводит рамками на фото из чата то, что нашёл: пятна, вещи, детали (SAM 3.1, четверть цента за раз)" to "outlines on the chat photo what it found: stains, items, parts (SAM 3.1, a quarter of a cent each)"),
+    "expenses" to ("ведёт учёт расходов, общий с экраном «Бюджет»" to "keeps the expense book shared with the Budget screen"),
     "generate_image" to ("рисует картинку по описанию и показывает её в ответе (Muse Image, цент за картинку)" to "draws a picture from a description and shows it in the reply (Muse Image, a cent per picture)"),
   )
 

@@ -216,6 +216,14 @@ object ToolCatalog {
       consequenceEn = "Adds, edits and ticks tasks in the to-do list on your phone (you see it in the Task list app). Deleting a task asks for your permission every time.",
     ),
     ToolCatalogEntry(
+      name = "expenses",
+      // DESTRUCTIVE is the worst case: delete removes a record from the book with no trash.
+      riskClass = RiskClass.DESTRUCTIVE,
+      permission = null,
+      consequenceRu = "Записывает, показывает и удаляет траты в книге расходов, общей с экраном «Бюджет». Удаление каждый раз спросит твоё разрешение.",
+      consequenceEn = "Records, lists and deletes expenses in the expense book shared with the Budget screen. Every deletion asks for your permission.",
+    ),
+    ToolCatalogEntry(
       name = "load_skill",
       riskClass = RiskClass.READ,
       permission = null,
