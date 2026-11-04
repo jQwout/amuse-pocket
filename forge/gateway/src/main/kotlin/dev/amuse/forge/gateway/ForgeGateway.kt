@@ -28,6 +28,7 @@ import io.ktor.server.auth.UserIdPrincipal
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.authentication
 import io.ktor.server.auth.bearer
+import io.ktor.server.plugins.BadRequestException
 import io.ktor.server.plugins.calllogging.CallLogging
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.statuspages.StatusPages
@@ -84,6 +85,14 @@ fun Application.forgeModule(
         }
         exception<IllegalArgumentException> { call, cause ->
             call.respondText("Bad request: ${cause.message}", status = HttpStatusCode.BadRequest)
+        }
+        // A body that does not decode reaches here wrapped by Ktor (BadRequestException around the
+        // serializer's message), and without this handler it went out as an empty 400: the app's card
+        // said "rejected (HTTP 400)" and nobody could tell which field was wrong.
+        exception<BadRequestException> { call, cause ->
+            val reason = badRequestReason(cause)
+            call.application.environment.log.info("400 on ${call.request.local.uri}: $reason")
+            call.respondText("Bad request: $reason", status = HttpStatusCode.BadRequest)
         }
     }
     authentication {
@@ -220,3 +229,16 @@ internal fun metaKeyOf(header: String?): String? =
     header?.trim()?.takeIf { it.isNotEmpty() && it.length <= MAX_META_KEY_CHARS && it.none(Char::isWhitespace) }
 
 private const val MAX_META_KEY_CHARS = 512
+
+/**
+ * The innermost message of a decode failure ("Field 'request' is required ..."), one line, capped.
+ * Keys travel in headers, never in a body, so echoing the serializer's excerpt of the body leaks none.
+ */
+internal fun badRequestReason(cause: Throwable): String {
+    var root: Throwable = cause
+    while (root.cause != null && root.cause !== root) root = root.cause!!
+    val text = (root.message ?: cause.message ?: "the body could not be read").replace(Regex("\\s+"), " ").trim()
+    return text.take(MAX_REASON_CHARS)
+}
+
+private const val MAX_REASON_CHARS = 300

@@ -18,6 +18,7 @@ import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.client.statement.readRawBytes
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -86,6 +87,21 @@ class ForgeGatewayTest {
             contentType(ContentType.Application.Json)
             setBody(WorkerArtifactUpload(entryPoint, "fun $entryPoint() {}", Base64.getEncoder().encodeToString(bundle)))
         }.body()
+
+    @Test
+    fun `a body that does not decode gets a 400 that names the problem, not an empty one`() = testApplication {
+        val client = start()
+        val response = client.post(ForgeRoutes.JOBS) {
+            bearerAuth(tokens.client)
+            header(ForgeRoutes.META_KEY_HEADER, metaKey)
+            contentType(ContentType.Application.Json)
+            setBody("""{"agentId":"agent_1","agentName":"x","request":"a tracker"}""")
+        }
+        assertEquals(HttpStatusCode.BadRequest, response.status)
+        val text = response.bodyAsText()
+        assertTrue(text.startsWith("Bad request: ") && "agentDescription" in text, text)
+        assertTrue(metaKey !in text)
+    }
 
     @Test
     fun `health needs no token, everything else does`() = testApplication {
