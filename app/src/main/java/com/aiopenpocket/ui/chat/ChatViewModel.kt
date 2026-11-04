@@ -25,6 +25,7 @@ import com.aiopenpocket.agent.core.lesson.RESULT_COPY_MAX_AGE_MS
 import com.aiopenpocket.agent.core.lesson.aboutMeFrom
 import com.aiopenpocket.agent.core.lesson.prepareSegmentPhoto
 import com.aiopenpocket.agent.core.lesson.sweepPhotoFolder
+import com.aiopenpocket.agent.core.llm.ChatDocuments
 import com.aiopenpocket.agent.core.llm.ChatImages
 import com.aiopenpocket.agent.core.llm.SegmentationFailure
 import com.aiopenpocket.agent.core.llm.VideoUnderstandingClient
@@ -526,12 +527,26 @@ class ChatViewModel(
     private fun attachImage(uri: android.net.Uri) {
         _state.update { it.copy(attachingImage = true) }
         viewModelScope.launch {
-            val path = withContext(Dispatchers.IO) { ChatImages.import(context, uri) }
+            // A PDF rides the same slot as a photo (pdf-documents-in-chat-read-by-muse-spark-b7acf1): Muse Spark reads it as is.
+            val (path, problem) = withContext(Dispatchers.IO) {
+                if (ChatDocuments.isPdf(context, uri)) {
+                    when (val imported = ChatDocuments.import(context, uri)) {
+                        is ChatDocuments.Imported.Ok -> imported.path to null
+                        ChatDocuments.Imported.TooLarge ->
+                            null to tr("Документ больше 20 МБ — его не отправить.", "The document is over 20 MB, too large to send.")
+                        ChatDocuments.Imported.Unreadable ->
+                            null to tr("Не получилось открыть этот документ.", "Couldn't open that document.")
+                    }
+                } else {
+                    val photo = ChatImages.import(context, uri)
+                    photo to if (photo == null) tr("Не получилось открыть это фото.", "Couldn't open that photo.") else null
+                }
+            }
             _state.update {
                 it.copy(
                     attachingImage = false,
                     attachedImagePath = path ?: it.attachedImagePath,
-                    error = if (path == null) tr("Не получилось открыть это фото.", "Couldn't open that photo.") else it.error,
+                    error = problem ?: it.error,
                 )
             }
         }
@@ -542,7 +557,11 @@ class ChatViewModel(
         val imagePath = _state.value.attachedImagePath
         // A photo alone is a question too: it goes with a default one, visible in the chat like any other text.
         val text = _inputText.value.trim().ifEmpty {
-            if (imagePath != null) tr("Что на фото?", "What's in this photo?") else ""
+            when {
+                ChatDocuments.isDocument(imagePath) -> tr("Кратко перескажи этот документ.", "Summarize this document.")
+                imagePath != null -> tr("Что на фото?", "What's in this photo?")
+                else -> ""
+            }
         }
         if (text.isEmpty()) return
         _inputText.value = ""

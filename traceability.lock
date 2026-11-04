@@ -10,8 +10,8 @@
       "git": "097a6f63"
     },
     "agent-router-dc2233": {
-      "hash": "2c4a44b9e7e3",
-      "git": "9e21ff47"
+      "hash": "9c240b271ac7",
+      "git": "1e30a635"
     },
     "agent-skills-7189cc": {
       "hash": "e3296460a332",
@@ -90,8 +90,8 @@
       "git": "ca77277b"
     },
     "mcp-tools-f77d9b": {
-      "hash": "735c24bdd5b8",
-      "git": "6664c345"
+      "hash": "11848a6dd330",
+      "git": "1e30a635"
     },
     "meta-voice-transcribe-in-calls-297760": {
       "hash": "c439febf81a9",
@@ -105,13 +105,17 @@
       "hash": "601eda9bbaa8",
       "git": "a2b7ac45"
     },
+    "pdf-documents-in-chat-read-by-muse-spark-b7acf1": {
+      "hash": "7e1caef5c140",
+      "git": "1e30a635"
+    },
     "photo-outline-tool-8dec5b": {
       "hash": "0fb1be527c28",
-      "git": "6664c345"
+      "git": "1e30a635"
     },
     "photos-in-chat-bca88e": {
-      "hash": "9c45edc5c3f1",
-      "git": "097a6f63"
+      "hash": "98263d15e210",
+      "git": "1e30a635"
     },
     "profile-screen-7354a7": {
       "hash": "a2de6c9b5be3",
@@ -130,8 +134,8 @@
       "git": "97ca7fba"
     },
     "sam-segmentation-boxes-in-a-lesson-c3ea52": {
-      "hash": "4b7afa3980ab",
-      "git": "7bccf193"
+      "hash": "d2a3d4c4800c",
+      "git": "1e30a635"
     },
     "screen-text-check-7c6d09": {
       "hash": "c4c3af4e3ce1",
@@ -150,8 +154,8 @@
       "git": "5ce3906"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "3f366b7aba54",
-      "git": "097a6f63"
+      "hash": "de8c3d941806",
+      "git": "1e30a635"
     },
     "structured-plan-engine-907066": {
       "hash": "4f3e27a5820b",

@@ -1,6 +1,7 @@
 package com.aiopenpocket.agent.loop
 
 import com.aiopenpocket.agent.core.AgentLog
+import com.aiopenpocket.agent.core.llm.ChatDocuments
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
 import com.aiopenpocket.agent.core.llm.LlmProvider
@@ -137,19 +138,28 @@ internal fun PrePromptAssembler.PromptMessage.toChatMessage(): ChatMessage =
  * message sends its photo: that is the one the person is asking about, and re-sending every earlier photo
  * would bill all of them again on every turn. An earlier photo leaves a note in its message instead, so the
  * model knows one was shown and can refer to what it said about it.
+ *
+ * A PDF (ChatDocuments) is different: people ask about a document over several turns ("and page 3?"),
+ * and without it the model would answer from memory. So the newest document in the history keeps going
+ * with every turn; older ones leave the note.
  */
+// @trace pdf-documents-in-chat-read-by-muse-spark-b7acf1
 internal fun List<PrePromptAssembler.PromptMessage>.toChatMessages(): List<ChatMessage> {
   val current = indexOfLast { it.role == "user" }
+  val document = indexOfLast { ChatDocuments.isDocument(it.imagePath) }
   return mapIndexed { i, m ->
     when {
       m.imagePath == null -> m.toChatMessage()
-      i == current -> m.toChatMessage().copy(imagePath = m.imagePath)
+      i == current || i == document -> m.toChatMessage().copy(imagePath = m.imagePath)
+      ChatDocuments.isDocument(m.imagePath) ->
+        ChatMessage(role = m.role, content = (m.content + EARLIER_DOCUMENT_NOTE).trim())
       else -> ChatMessage(role = m.role, content = (m.content + EARLIER_PHOTO_NOTE).trim())
     }
   }
 }
 
 private const val EARLIER_PHOTO_NOTE = "\n[A photo was attached to this message earlier in the chat.]"
+private const val EARLIER_DOCUMENT_NOTE = "\n[A PDF document was attached to this message earlier in the chat.]"
 
 data class AgentResult(
   /**

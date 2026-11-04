@@ -322,10 +322,14 @@ class OpenAiCompatClient(
    * One message as it goes on the wire. A message with a photo gets the OpenAI-format content array, its
    * text and then an `image_url` part with the JPEG as a data URL (Meta reads images that way); every other
    * message is encoded as before. A photo whose file is gone is sent as text only rather than failing the turn.
+   * A PDF ([ChatDocuments]) rides the same field and goes as a `file` part, the shape Meta documents for
+   * chat completions (dev.meta.ai/docs/file-handling).
    */
   private fun toWire(message: ChatMessage): JsonElement {
     val encoded = json.encodeToJsonElement(ChatMessage.serializer(), message).jsonObject
-    val url = message.imagePath?.let(ChatImages::dataUrl) ?: return encoded
+    val path = message.imagePath ?: return encoded
+    val document = ChatDocuments.isDocument(path)
+    val url = (if (document) ChatDocuments.dataUrl(path) else ChatImages.dataUrl(path)) ?: return encoded
     val parts = buildJsonArray {
       if (!message.content.isNullOrBlank()) {
         addJsonObject {
@@ -334,8 +338,16 @@ class OpenAiCompatClient(
         }
       }
       addJsonObject {
-        put("type", "image_url")
-        putJsonObject("image_url") { put("url", url) }
+        if (document) {
+          put("type", "file")
+          putJsonObject("file") {
+            put("filename", ChatDocuments.displayName(path))
+            put("file_data", url)
+          }
+        } else {
+          put("type", "image_url")
+          putJsonObject("image_url") { put("url", url) }
+        }
       }
     }
     return JsonObject(encoded + ("content" to parts))

@@ -11,6 +11,8 @@ import android.net.Uri
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Description
+import com.aiopenpocket.agent.core.llm.ChatDocuments
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.CircularProgressIndicator
@@ -331,6 +333,11 @@ private fun PhotoButton(onPicked: (Uri) -> Unit, modifier: Modifier = Modifier) 
     val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) onPicked(uri)
     }
+    // @trace pdf-documents-in-chat-read-by-muse-spark-b7acf1
+    // The system file picker, PDF only: no storage permission, the app gets just the file picked.
+    val document = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) onPicked(uri)
+    }
     val camera = rememberLauncherForActivityResult(LessonPhotoCapture()) { saved ->
         captureUri?.takeIf { saved }?.let(onPicked)
         captureUri = null
@@ -339,7 +346,7 @@ private fun PhotoButton(onPicked: (Uri) -> Unit, modifier: Modifier = Modifier) 
         IconButton(onClick = { menuOpen = true }, modifier = modifier) {
             Icon(
                 Icons.Default.AddPhotoAlternate,
-                contentDescription = tr("Приложить фото", "Attach a photo"),
+                contentDescription = tr("Приложить фото или документ", "Attach a photo or a document"),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp),
             )
@@ -364,6 +371,14 @@ private fun PhotoButton(onPicked: (Uri) -> Unit, modifier: Modifier = Modifier) 
                     runCatching { camera.launch(uri) }.onFailure { captureUri = null }
                 },
             )
+            DropdownMenuItem(
+                text = { Text(tr("Документ (PDF)", "Document (PDF)")) },
+                leadingIcon = { Icon(Icons.Default.Description, contentDescription = null) },
+                onClick = {
+                    menuOpen = false
+                    runCatching { document.launch(arrayOf(ChatDocuments.PDF_MIME)) }
+                },
+            )
         }
     }
 }
@@ -379,12 +394,16 @@ private fun AttachedPhoto(path: String?, loading: Boolean, onRemove: () -> Unit)
                 modifier = Modifier.fillMaxSize().clip(shape).background(MaterialTheme.colorScheme.surfaceVariant),
             ) { CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp) }
         } else {
-            AsyncImage(
-                model = File(path),
-                contentDescription = tr("Приложенное фото", "Attached photo"),
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().clip(shape),
-            )
+            if (ChatDocuments.isDocument(path)) {
+                DocumentTile(name = ChatDocuments.displayName(path), modifier = Modifier.fillMaxSize().clip(shape))
+            } else {
+                AsyncImage(
+                    model = File(path),
+                    contentDescription = tr("Приложенное фото", "Attached photo"),
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().clip(shape),
+                )
+            }
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
@@ -397,11 +416,38 @@ private fun AttachedPhoto(path: String?, loading: Boolean, onRemove: () -> Unit)
             ) {
                 Icon(
                     Icons.Default.Close,
-                    contentDescription = tr("Убрать фото", "Remove the photo"),
+                    contentDescription = tr("Убрать вложение", "Remove the attachment"),
                     tint = Color.White,
                     modifier = Modifier.size(14.dp),
                 )
             }
         }
+    }
+}
+
+/**
+ * A PDF attached to a message (pdf-documents-in-chat-read-by-muse-spark-b7acf1): an icon and the file name, in the composer
+ * and in the sent message. Muse Spark reads the document itself; the app only shows which one went.
+ */
+@Composable
+internal fun DocumentTile(name: String, modifier: Modifier = Modifier) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant).padding(6.dp),
+    ) {
+        Icon(
+            Icons.Default.Description,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(26.dp),
+        )
+        Text(
+            text = name,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        )
     }
 }

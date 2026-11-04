@@ -5,6 +5,7 @@ package com.aiopenpocket.agent.tools
 
 import android.graphics.BitmapFactory
 import com.aiopenpocket.agent.core.lesson.buildSegmentResultCardSpec
+import com.aiopenpocket.agent.core.llm.ChatDocuments
 import com.aiopenpocket.agent.core.llm.SegmentationClient
 import com.aiopenpocket.agent.core.llm.SegmentationConcept
 import com.aiopenpocket.agent.core.llm.SegmentationFailure
@@ -96,7 +97,10 @@ class PhotoOutlineTool(
   private suspend fun latestPhoto(conversationId: String): File? =
     conversations.getAllMessages(conversationId)
       .asReversed()
-      .firstNotNullOfOrNull { message -> message.imagePath?.let(::File)?.takeIf { it.isFile } }
+      .firstNotNullOfOrNull { message ->
+        // A PDF rides the same field (ChatDocuments) and is not a photo SAM can outline.
+        message.imagePath?.takeUnless(ChatDocuments::isDocument)?.let(::File)?.takeIf { it.isFile }
+      }
 
   companion object {
     const val NAME = OUTLINE_PHOTO_TOOL

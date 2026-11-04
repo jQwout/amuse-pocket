@@ -146,15 +146,23 @@ internal fun MessageBubble(
         ) {
             // @trace photos-in-chat-bca88e
             message.imagePath?.let { path ->
-                AsyncImage(
-                    model = java.io.File(path),
-                    contentDescription = tr("Фото", "Photo"),
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .widthIn(max = 240.dp)
-                        .heightIn(max = 280.dp)
-                        .clip(RoundedCornerShape(12.dp)),
-                )
+                if (com.aiopenpocket.agent.core.llm.ChatDocuments.isDocument(path)) {
+                    // @trace pdf-documents-in-chat-read-by-muse-spark-b7acf1
+                    DocumentTile(
+                        name = com.aiopenpocket.agent.core.llm.ChatDocuments.displayName(path),
+                        modifier = Modifier.size(width = 160.dp, height = 96.dp).clip(RoundedCornerShape(12.dp)),
+                    )
+                } else {
+                    AsyncImage(
+                        model = java.io.File(path),
+                        contentDescription = tr("Фото", "Photo"),
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .widthIn(max = 240.dp)
+                            .heightIn(max = 280.dp)
+                            .clip(RoundedCornerShape(12.dp)),
+                    )
+                }
                 if (displayText.isNotBlank()) Spacer(modifier = Modifier.height(8.dp))
             }
             if (interactive) {
