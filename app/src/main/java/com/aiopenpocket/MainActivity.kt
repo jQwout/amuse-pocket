@@ -102,6 +102,9 @@ class MainActivity : ComponentActivity() {
             ) {
                 val themeMode by remember { appGraph.themeRepository.mode }.collectAsState()
                 MyApplicationTheme(mode = themeMode) {
+                    // @trace fonovye-hody-agenta-dde42d
+                    // Notifications are asked for right at the start: background replies and reminders need them.
+                    com.aiopenpocket.agent.core.notification.AskNotificationsOnStart()
                     val userPreferencesRepository = remember { appGraph.userPreferencesRepository }
                     val onboardingCompleted by userPreferencesRepository.onboardingCompleted
                         .collectAsState(initial = null)

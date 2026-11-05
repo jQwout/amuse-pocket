@@ -221,11 +221,6 @@ fun ChatScreen(
     val agentsViewModel: AgentsViewModel = metroViewModel()
     val state by viewModel.state.collectAsState()
     val scope = rememberCoroutineScope()
-    // @trace fonovye-hody-agenta-dde42d
-    // The first turn the person starts asks for notifications, once: a reply that finishes while the app is in
-    // the background, and every reminder, arrives as a notification, and without the permission they were
-    // dropped silently.
-    com.aiopenpocket.agent.core.notification.AskNotificationsOnFirstTurn(turnRunning = state.isLoading)
 
     // @trace builder-passport-7d7794
     // The builder chat's live draft: the passport under the header and the last card's Publish.
