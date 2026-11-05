@@ -91,6 +91,10 @@ fun AgentDetailScreen(
   onForgeAnswer: (String) -> Unit = {},
   onForgeRemove: () -> Unit = {},
   onForgeLoadSample: (() -> Unit)? = null,
+  // @trace screen-brief-and-mockup-before-the-forge-builds-82cfb2
+  onForgeDrawMockup: (com.aiopenpocket.agent.core.forge.ScreenBrief, Boolean) -> Unit = { _, _ -> },
+  onForgeBuildFromBrief: (com.aiopenpocket.agent.core.forge.ScreenBrief) -> Unit = {},
+  onForgeClearMockup: () -> Unit = {},
   /** How a ready bundle is drawn; the app passes the Ketoy interpreter, previews a stand-in. */
   renderForgedBundle: @Composable (ForgedScreenState.Ready, ByteArray) -> Unit = { ready, bytes ->
     ForgedBundleHost(agentId = state.definition?.id.orEmpty(), ready = ready, bundle = bytes)
@@ -116,6 +120,23 @@ fun AgentDetailScreen(
       }
     } else {
       var tab by rememberSaveable { mutableStateOf(0) }
+      // "Build the screen" and "Regenerate" open the brief first; the forge starts only from its Build.
+      var briefOpen by rememberSaveable { mutableStateOf(false) }
+      if (briefOpen) {
+        ScreenBriefSheet(
+          initial = com.aiopenpocket.agent.core.forge.ScreenBriefs.draft(agent),
+          mockup = state.forgeMockup,
+          onDrawMockup = onForgeDrawMockup,
+          onBuild = { brief ->
+            briefOpen = false
+            onForgeBuildFromBrief(brief)
+          },
+          onDismiss = {
+            briefOpen = false
+            onForgeClearMockup()
+          },
+        )
+      }
       // The app draws edge to edge. As a ModalBottomSheet the inspector got the status bar inset from the
       // sheet; as a full-screen route nobody gave it, and the header (name, version, ✕) sat under the clock.
       // The aurora behind still fills the status bar area — only the content steps down.
@@ -209,7 +230,7 @@ fun AgentDetailScreen(
               onSetCustomUi = onForgeSetCustomUi,
               onDraftChange = onForgeDraftChange,
               onRequestChange = onForgeRequestChange,
-              onRegenerate = onForgeRegenerate,
+              onRegenerate = { briefOpen = true },
               onRetry = onForgeRetry,
               onAnswer = onForgeAnswer,
               onRemove = onForgeRemove,

@@ -88,7 +88,7 @@ class ImageGenClient(
   fun isConfigured(): Boolean = apiKey().isNotBlank()
 
   /** The image for [prompt], or `null`: no key, network, a provider refusal, an empty or broken answer. */
-  suspend fun generate(prompt: String): GeneratedImage? {
+  suspend fun generate(prompt: String, size: String = IMAGE_SIZE): GeneratedImage? {
     val key = apiKey()
     if (key.isBlank()) {
       // Without a key the request is guaranteed a 401 — do not spend the network and the step's time on it.
@@ -100,7 +100,7 @@ class ImageGenClient(
         ImageRequest(
           model = model,
           prompt = prompt,
-          size = IMAGE_SIZE,
+          size = size,
           responseFormat = RESPONSE_FORMAT,
           outputFormat = OUTPUT_FORMAT,
         ),
@@ -188,7 +188,10 @@ class ImageGenClient(
     const val MUSE_IMAGE_MODEL = "muse-image-1.0"
 
     /** "WxH" sets only the aspect ratio: 16:9 for the lesson card (the style text asks for the same). */
-    private const val IMAGE_SIZE = "1280x720"
+    const val IMAGE_SIZE = "1280x720"
+
+    /** A phone screen standing up: the forge mockup (ScreenMockupGenerator). */
+    const val PORTRAIT_SIZE = "720x1280"
     private const val RESPONSE_FORMAT = "b64_json"
 
     /** Meta's default; pinned so the media type we fall back to is the format we asked for. */

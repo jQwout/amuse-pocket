@@ -109,11 +109,15 @@ class ForgedScreenRepository(
       store.setCustomUiEnabled(agentId, enabled)
       Log.d(TAG, "switch persisted for $agentId")
       flowFor(agentId).update { it.copy(customUiEnabled = enabled) }
-      val state = flowFor(agentId).value.state
-      if (enabled && definition != null && (state is ForgedScreenState.None || state is ForgedScreenState.Failed)) {
-        requestAgentUi(definition)
-      }
+      // @trace screen-brief-and-mockup-before-the-forge-builds-82cfb2
+      // Switching on no longer builds a screen by itself: the forge guessed from the agent's name and the
+      // person got a screen they never described. The card offers "Build the screen", which opens the brief.
     }
+  }
+
+  /** Builds the screen the person described in a [ScreenBrief] (the brief sheet's "Build"). */
+  fun requestFromBrief(definition: AgentDefinition, brief: ScreenBrief) {
+    submit(definition, AgentUiRequest.fromBrief(definition, brief), previousJobId = null)
   }
 
   /**
@@ -312,6 +316,38 @@ object AgentUiRequest {
 
   fun build(definition: AgentDefinition): String = buildString {
     append(PREFIX).append(" \"").append(definition.displayName).append("\".\n")
+    agentContext(definition)
+    append(
+      "\nThe screen is the person's everyday view of this agent: ONE minimal screen that shows what " +
+        "matters for its purpose - a status or counter, a short list, one or two actions. Keep what the " +
+        "person enters with the app's storage functions so it survives closing. English labels, no " +
+        "settings, no chat.",
+    )
+  }
+
+  // @trace screen-brief-and-mockup-before-the-forge-builds-82cfb2
+  /**
+   * The request from the person's [ScreenBrief]: their words first (the forge builds what they asked for,
+   * not what it guesses from the agent's name), then the blocks and the layout spelled out, then the agent
+   * as context. Starts with [PREFIX] too: the card still does not quote it back as a typed change.
+   */
+  fun fromBrief(definition: AgentDefinition, brief: ScreenBrief): String = buildString {
+    append(PREFIX).append(" \"").append(definition.displayName).append("\" exactly as the person describes it.\n")
+    append("The person's brief: ").append(brief.text.trim().take(BRIEF_MAX)).append('\n')
+    if (brief.blocks.isNotEmpty()) {
+      append("It must contain, in this order:\n")
+      ScreenBlock.entries.filter { it in brief.blocks }.forEach { append("- ").append(it.forForge).append('\n') }
+    }
+    append("Layout: ").append(brief.layout.forForge).append(".\n")
+    agentContext(definition)
+    append(
+      "\nOne screen. Keep every record the person enters with the app's storage functions (saveText/loadText, " +
+        "saveInt/loadInt; several records as lines of one text value) so it survives closing. Colors only " +
+        "through themeColor names. Short English labels, generous spacing, no settings, no chat.",
+    )
+  }
+
+  private fun StringBuilder.agentContext(definition: AgentDefinition) {
     val description = definition.displayDescription.trim()
     if (description.isNotBlank()) append("What the agent is for: ").append(description).append('\n')
     val prompt = definition.systemPrompt.trim()
@@ -321,10 +357,7 @@ object AgentUiRequest {
       if (prompt.length > PROMPT_EXCERPT) append(" ...")
       append('\n')
     }
-    append(
-      "\nThe screen is the person's everyday view of this agent: ONE minimal screen that shows what " +
-        "matters for its purpose - a status or counter, a short list, one or two actions. Local state " +
-        "only, English labels, no settings, no chat.",
-    )
   }
+
+  private const val BRIEF_MAX = 1_200
 }

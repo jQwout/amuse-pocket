@@ -148,6 +148,15 @@ class AgentDetailViewModelTest {
     // that answers 404 to everything. The one test that looks at it feeds it through [forgedRepository].
     forgedScreenRepository = forgedRepository,
     application = RuntimeEnvironment.getApplication(),
+    // No key: the mockup is never drawn in these tests.
+    screenMockups = com.aiopenpocket.agent.core.forge.ScreenMockupGenerator(
+      RuntimeEnvironment.getApplication(),
+      com.aiopenpocket.agent.core.llm.ImageGenClient(
+        io.ktor.client.engine.mock.MockEngine { error("no image calls in these tests") },
+        { "" },
+        com.aiopenpocket.agent.core.llm.NoOpLlmUsageRecorder,
+      ),
+    ),
   )
 
   @After

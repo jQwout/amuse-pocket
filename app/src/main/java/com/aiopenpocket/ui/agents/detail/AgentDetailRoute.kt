@@ -72,6 +72,10 @@ fun AgentDetailRoute(
     onForgeDraftChange = viewModel::updateForgeDraft,
     onForgeRequestChange = viewModel::requestScreenChange,
     onForgeRegenerate = viewModel::regenerateScreen,
+    // @trace screen-brief-and-mockup-before-the-forge-builds-82cfb2
+    onForgeDrawMockup = viewModel::drawMockup,
+    onForgeBuildFromBrief = viewModel::buildFromBrief,
+    onForgeClearMockup = viewModel::clearMockup,
     onForgeRetry = viewModel::retryScreen,
     onForgeAnswer = viewModel::answerForge,
     onForgeRemove = viewModel::removeScreen,

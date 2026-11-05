@@ -285,8 +285,8 @@ class AgentBuilderViewModel(
           )
         }
         // @trace cloud-forged-screens-40d702
-        // "Own interface": the forge is asked right after the agent exists, from its name, description
-        // and instructions. The chat keeps working while it is built; the card shows the progress.
+        // "Own interface": the switch is turned on; the screen itself is built from the brief the person
+        // fills in on the agent's card (screen-brief-and-mockup-before-the-forge-builds-82cfb2).
         if (BuildConfig.DEBUG) android.util.Log.d("ForgeUi", "published ${draft.id}: customUi=${_state.value.customUi}")
         if (_state.value.customUi) {
           forgedScreenRepository.setCustomUiEnabled(draft.id, enabled = true, definition = published)

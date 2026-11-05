@@ -122,6 +122,16 @@ data class AgentDetailState(
   val forgedDraft: String = "",
   /** False until Settings has a gateway address and token: the forge buttons stay disabled. */
   val forgeConfigured: Boolean = false,
+  // @trace screen-brief-and-mockup-before-the-forge-builds-82cfb2
+  /** The Muse Image mockup of the brief being written: drawing, drawn, or why it was not. */
+  val forgeMockup: ForgeMockup = ForgeMockup(),
+)
+
+/** The brief sheet's picture: a spinner while [drawing], the file once [path] is set, or [error]. */
+data class ForgeMockup(
+  val drawing: Boolean = false,
+  val path: String? = null,
+  val error: String? = null,
 )
 
 /** [AgentSource.USER] only — presets are read-only Kotlin and can never be edited in place. */
@@ -190,6 +200,7 @@ class AgentDetailViewModel(
   private val userSkillRepository: UserSkillRepository,
   private val forgedScreenRepository: ForgedScreenRepository,
   private val application: Application,
+  private val screenMockups: com.aiopenpocket.agent.core.forge.ScreenMockupGenerator,
 ) : ViewModel() {
 
   private val agentIdFlow = MutableStateFlow<String?>(null)
@@ -314,6 +325,47 @@ class AgentDetailViewModel(
   fun regenerateScreen() {
     val definition = _state.value.definition ?: return
     forgedScreenRepository.requestAgentUi(definition)
+  }
+
+  // @trace screen-brief-and-mockup-before-the-forge-builds-82cfb2
+  /** Draws the brief as a phone-screen mockup (Muse Image, a cent), replacing the previous drawing. */
+  fun drawMockup(brief: com.aiopenpocket.agent.core.forge.ScreenBrief, dark: Boolean) {
+    val definition = _state.value.definition ?: return
+    if (_state.value.forgeMockup.drawing) return
+    if (!screenMockups.isConfigured()) {
+      _state.update {
+        it.copy(forgeMockup = ForgeMockup(error = tr("Для макета нужен ключ Meta в Настройках.", "A mockup needs your Meta key in Settings.")))
+      }
+      return
+    }
+    _state.update { it.copy(forgeMockup = it.forgeMockup.copy(drawing = true, error = null)) }
+    viewModelScope.launch {
+      val file = screenMockups.draw(definition.id, definition.displayName, brief, dark)
+      _state.update {
+        it.copy(
+          forgeMockup = if (file != null) {
+            ForgeMockup(path = file.absolutePath)
+          } else {
+            it.forgeMockup.copy(
+              drawing = false,
+              error = tr("Макет не нарисовался. Попробуй ещё раз или собери без него.", "The mockup was not drawn. Try again, or build without it."),
+            )
+          },
+        )
+      }
+    }
+  }
+
+  /** Builds the screen from the brief; the mockup has done its job and is forgotten. */
+  fun buildFromBrief(brief: com.aiopenpocket.agent.core.forge.ScreenBrief) {
+    val definition = _state.value.definition ?: return
+    forgedScreenRepository.requestFromBrief(definition, brief)
+    _state.update { it.copy(forgeMockup = ForgeMockup()) }
+  }
+
+  /** The sheet was closed without building: drop the picture. */
+  fun clearMockup() {
+    _state.update { it.copy(forgeMockup = ForgeMockup()) }
   }
 
   /** Sends the draft as a change to the current screen: the worker gets the old source back. */
