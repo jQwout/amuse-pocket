@@ -737,7 +737,7 @@ class AgentBuilderViewModelTest {
   private suspend fun <T> inRealTime(block: suspend () -> T): T = withContext(Dispatchers.Default) { withTimeout(10_000) { block() } }
 
   @Test
-  fun `publishing with the own interface switched on turns the switch on in the store and asks the forge for the screen`() = runTest(testDispatcher) {
+  fun `publishing with the own interface switched on turns the switch on and builds nothing until the brief`() = runTest(testDispatcher) {
     val forge = ScriptedForge()
     val store = ForgedScreenStore(RuntimeEnvironment.getApplication())
     val (builder, forged) = builderWithForge(forge, store)
@@ -758,16 +758,13 @@ class AgentBuilderViewModelTest {
     builder.publish()
     advanceUntilIdle()
 
-    val requested = inRealTime { forged.observe(id).first { it.state is ForgedScreenState.Requested } }
-    assertEquals("job-built-1", requested.state.jobId)
-    assertTrue(requested.customUiEnabled)
+    val switchedOn = inRealTime { forged.observe(id).first { it.customUiEnabled } }
     assertTrue(inRealTime { store.isCustomUiEnabled(id) })
-    // Exactly one job, built from the PUBLISHED agent.
-    val sent = Json.parseToJsonElement(forge.submitBodies.single()).jsonObject
-    assertEquals(id, sent.getValue("agentId").jsonPrimitive.content)
-    assertEquals("Тестовый агент", sent.getValue("agentName").jsonPrimitive.content)
-    assertTrue(sent.getValue("request").jsonPrimitive.content.contains("Тестовый агент"))
     assertEquals(AgentStatus.PUBLISHED, userAgentRepository.get(id)?.status)
+    // The screen waits for the person's brief on the agent's card: publishing alone sends no job.
+    inRealTime { delay(400) }
+    assertTrue(forge.submitBodies.isEmpty())
+    assertEquals(ForgedScreenState.None, switchedOn.state)
   }
 
   @Test

@@ -53,6 +53,8 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 
 /** One resolved row for the Tools section — real tool metadata, never a bare count. */
 data class AgentDetailToolRow(
@@ -206,6 +208,9 @@ class AgentDetailViewModel(
   private val agentIdFlow = MutableStateFlow<String?>(null)
 
   private val _state = MutableStateFlow(AgentDetailState())
+
+  /** The Muse Image drawing in progress, if any (see [forgetMockup]). */
+  private var mockupJob: Job? = null
   val state: StateFlow<AgentDetailState> = _state.asStateFlow()
 
   init {
@@ -315,23 +320,17 @@ class AgentDetailViewModel(
     _state.update { it.copy(forgedDraft = text) }
   }
 
-  /** The person's switch: chat or the agent's own interface. Switching on asks the forge when there is nothing yet. */
+  /** The person's switch: chat or the agent's own interface. It builds nothing: that is [buildFromBrief]. */
   fun setCustomUi(enabled: Boolean) {
     val agentId = agentIdFlow.value ?: return
     forgedScreenRepository.setCustomUiEnabled(agentId, enabled, _state.value.definition)
-  }
-
-  /** A fresh screen from the agent's identity - also what "Build the screen" does when there is none. */
-  fun regenerateScreen() {
-    val definition = _state.value.definition ?: return
-    forgedScreenRepository.requestAgentUi(definition)
   }
 
   // @trace screen-brief-and-mockup-before-the-forge-builds-82cfb2
   /** Draws the brief as a phone-screen mockup (Muse Image, a cent), replacing the previous drawing. */
   fun drawMockup(brief: com.aiopenpocket.agent.core.forge.ScreenBrief, dark: Boolean) {
     val definition = _state.value.definition ?: return
-    if (_state.value.forgeMockup.drawing) return
+    if (mockupJob?.isActive == true) return
     if (!screenMockups.isConfigured()) {
       _state.update {
         it.copy(forgeMockup = ForgeMockup(error = tr("Для макета нужен ключ Meta в Настройках.", "A mockup needs your Meta key in Settings.")))
@@ -339,17 +338,15 @@ class AgentDetailViewModel(
       return
     }
     _state.update { it.copy(forgeMockup = it.forgeMockup.copy(drawing = true, error = null)) }
-    viewModelScope.launch {
+    mockupJob = viewModelScope.launch {
       val file = screenMockups.draw(definition.id, definition.displayName, brief, dark)
+      // A failed redraw drops the old picture too: it shows the brief as it was, not as it is now.
       _state.update {
         it.copy(
           forgeMockup = if (file != null) {
             ForgeMockup(path = file.absolutePath)
           } else {
-            it.forgeMockup.copy(
-              drawing = false,
-              error = tr("Макет не нарисовался. Попробуй ещё раз или собери без него.", "The mockup was not drawn. Try again, or build without it."),
-            )
+            ForgeMockup(error = tr("Макет не нарисовался. Попробуй ещё раз или собери без него.", "The mockup was not drawn. Try again, or build without it."))
           },
         )
       }
@@ -360,12 +357,26 @@ class AgentDetailViewModel(
   fun buildFromBrief(brief: com.aiopenpocket.agent.core.forge.ScreenBrief) {
     val definition = _state.value.definition ?: return
     forgedScreenRepository.requestFromBrief(definition, brief)
-    _state.update { it.copy(forgeMockup = ForgeMockup()) }
+    forgetMockup(definition.id)
   }
 
-  /** The sheet was closed without building: drop the picture. */
+  /** The sheet was closed without building: stop a drawing in progress and drop the picture. */
   fun clearMockup() {
+    forgetMockup(_state.value.definition?.id ?: return)
+  }
+
+  /**
+   * A drawing still under way is cancelled, not left to land later: it would bring a picture of an old
+   * brief back into the next sheet, and a second paid drawing could start beside it.
+   */
+  private fun forgetMockup(agentId: String) {
+    val drawing = mockupJob
+    mockupJob = null
     _state.update { it.copy(forgeMockup = ForgeMockup()) }
+    viewModelScope.launch {
+      drawing?.cancelAndJoin()
+      screenMockups.discard(agentId)
+    }
   }
 
   /** Sends the draft as a change to the current screen: the worker gets the old source back. */
@@ -553,6 +564,7 @@ class AgentDetailViewModel(
     viewModelScope.launch {
       try {
         userAgentRepository.archive(definition.id)
+        screenMockups.discard(definition.id)
         reload()
         // The agent is gone from every list: staying on its screen looked as if nothing happened.
         onDone()

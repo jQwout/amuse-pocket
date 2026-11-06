@@ -37,7 +37,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,9 +67,10 @@ fun ScreenBriefSheet(
   onBuild: (ScreenBrief) -> Unit,
   onDismiss: () -> Unit,
 ) {
-  var text by remember { mutableStateOf(initial.text) }
-  var blocks by remember { mutableStateOf(initial.blocks) }
-  var layout by remember { mutableStateOf(initial.layout) }
+  // Saveable like the sheet's own "open" flag: a rotation or a theme switch must not wipe what was written.
+  var text by rememberSaveable { mutableStateOf(initial.text) }
+  var blocks by rememberSaveable { mutableStateOf(initial.blocks) }
+  var layout by rememberSaveable { mutableStateOf(initial.layout) }
   val brief = ScreenBrief(text = text, blocks = blocks, layout = layout)
   // The mockup follows the theme the person is looking at, not the system's.
   val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
@@ -91,7 +92,7 @@ fun ScreenBriefSheet(
       )
       OutlinedTextField(
         value = text,
-        onValueChange = { text = it.take(1_200) },
+        onValueChange = { text = it.take(ScreenBrief.TEXT_MAX) },
         label = { Text(tr("Что должно быть на экране", "What should be on the screen")) },
         minLines = 3,
         maxLines = 6,

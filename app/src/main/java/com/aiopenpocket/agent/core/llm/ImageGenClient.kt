@@ -28,6 +28,12 @@ class GeneratedImage(
   val mediaType: String?,
 )
 
+/** What one [ImageGenClient.attempt] gave: the image, or null and whether the size was what Meta refused. */
+class ImageAttempt(
+  val image: GeneratedImage?,
+  val rejectedSize: Boolean = false,
+)
+
 /**
  * Image generation through Muse Image on the direct Meta Model API
  * (`POST https://api.meta.ai/v1/images/generations`, model `muse-image-1.0`), on the person's own Meta
@@ -88,12 +94,19 @@ class ImageGenClient(
   fun isConfigured(): Boolean = apiKey().isNotBlank()
 
   /** The image for [prompt], or `null`: no key, network, a provider refusal, an empty or broken answer. */
-  suspend fun generate(prompt: String, size: String = IMAGE_SIZE): GeneratedImage? {
+  suspend fun generate(prompt: String, size: String = IMAGE_SIZE): GeneratedImage? = attempt(prompt, size).image
+
+  /**
+   * [generate] that also says whether Meta turned down the [size] itself (HTTP 400 naming `size`), so a
+   * caller asking for a non-default frame can fall back to [IMAGE_SIZE] on that alone - not on a network
+   * failure or a content refusal, which a second request would only repeat.
+   */
+  suspend fun attempt(prompt: String, size: String = IMAGE_SIZE): ImageAttempt {
     val key = apiKey()
     if (key.isBlank()) {
       // Without a key the request is guaranteed a 401 — do not spend the network and the step's time on it.
       Log.i(TAG, "No Meta key for image generation — skipping")
-      return null
+      return ImageAttempt(null)
     }
     return try {
       val body = json.encodeToString(
@@ -116,24 +129,24 @@ class ImageGenClient(
       if (!response.status.isSuccess()) {
         // Meta's error body is {"error":{"message","type","param","code"}}, e.g. content_policy_violation.
         Log.w(TAG, "Image generation failed: HTTP ${response.status.value} ${text.take(300)}")
-        return null
+        return ImageAttempt(null, rejectedSize = response.status.value == 400 && text.contains("size", ignoreCase = true))
       }
       val parsed = json.decodeFromString<ImageResponse>(text)
       val drawn = parsed.data.filter { it.b64Json.isNotBlank() }
       val first = drawn.firstOrNull()
       if (first == null) {
         Log.w(TAG, "Image generation returned no image")
-        return null
+        return ImageAttempt(null)
       }
       val bytes = Base64.decode(first.b64Json, Base64.DEFAULT)
       recordUsage(parsed.usage, images = drawn.size)
       // The response has no media type of its own: it says which format it used, and "image/" + that is the type.
-      GeneratedImage(bytes, "image/" + (parsed.outputFormat?.takeIf { it.isNotBlank() } ?: OUTPUT_FORMAT))
+      ImageAttempt(GeneratedImage(bytes, "image/" + (parsed.outputFormat?.takeIf { it.isNotBlank() } ?: OUTPUT_FORMAT)))
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
       Log.w(TAG, "Image generation failed: ${e.message}")
-      null
+      ImageAttempt(null)
     }
   }
 

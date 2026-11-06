@@ -17,14 +17,23 @@ data class ScreenBrief(
   val text: String,
   val blocks: Set<ScreenBlock>,
   val layout: ScreenLayout,
-)
+) {
+  companion object {
+    /** The longest brief: the sheet's field stops here, and the forge request carries it whole. */
+    const val TEXT_MAX = 1_200
+  }
+}
 
-/** The building blocks a forged screen can be made of; [forForge] is how the forge is told about each. */
+/**
+ * The building blocks a forged screen can be made of; [forForge] is how the forge is told about each.
+ * The order is top to bottom: the request lists the ticked ones "in this order", so the total that sits
+ * "at the top" comes first.
+ */
 enum class ScreenBlock(val forForge: String) {
-  LIST("a list of the saved records, newest first"),
-  ADD_FORM("a small form to add a record (text fields and an Add button)"),
   TOTAL("a big total or counter at the top"),
   PROGRESS("a progress bar toward a goal the person sets"),
+  ADD_FORM("a small form to add a record (text fields and an Add button)"),
+  LIST("a list of the saved records, newest first"),
   PHOTO("a photo slot per record, using PhotoPicker"),
   CHART("simple bars comparing the records (drawn with Box widths, no chart library)"),
   ;

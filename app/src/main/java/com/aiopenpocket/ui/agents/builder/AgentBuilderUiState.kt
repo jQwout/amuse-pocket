@@ -259,6 +259,6 @@ data class AgentBuilderUiState(
    */
   val reviewMode: Boolean = false,
   // @trace cloud-forged-screens-40d702
-  /** "Own interface (beta)": on publish the forge is asked for the agent's own screen. */
+  /** "Own interface (beta)": on publish the switch is turned on; the screen is built from a brief on the agent's card. */
   val customUi: Boolean = false,
 )

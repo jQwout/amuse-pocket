@@ -71,7 +71,6 @@ fun AgentDetailRoute(
     onForgeSetCustomUi = viewModel::setCustomUi,
     onForgeDraftChange = viewModel::updateForgeDraft,
     onForgeRequestChange = viewModel::requestScreenChange,
-    onForgeRegenerate = viewModel::regenerateScreen,
     // @trace screen-brief-and-mockup-before-the-forge-builds-82cfb2
     onForgeDrawMockup = viewModel::drawMockup,
     onForgeBuildFromBrief = viewModel::buildFromBrief,

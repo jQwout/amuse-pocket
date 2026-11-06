@@ -102,7 +102,7 @@ class ForgedScreenRepository(
 
   suspend fun isConfigured(): Boolean = client.isConfigured()
 
-  /** The person's switch. Switching on without a screen or a job asks the forge for one. */
+  /** The person's switch. It only chooses chat or the screen; building one is [requestFromBrief]. */
   fun setCustomUiEnabled(agentId: String, enabled: Boolean, definition: AgentDefinition?) {
     Log.d(TAG, "setCustomUiEnabled($agentId, $enabled, definition=${definition?.id})")
     scope.launch {
@@ -118,14 +118,6 @@ class ForgedScreenRepository(
   /** Builds the screen the person described in a [ScreenBrief] (the brief sheet's "Build"). */
   fun requestFromBrief(definition: AgentDefinition, brief: ScreenBrief) {
     submit(definition, AgentUiRequest.fromBrief(definition, brief), previousJobId = null)
-  }
-
-  /**
-   * Asks the forge for the agent's own interface: one minimal screen derived from what the agent is
-   * for. The request text is built here, not typed by the person (see [AgentUiRequest]).
-   */
-  fun requestAgentUi(definition: AgentDefinition) {
-    submit(definition, AgentUiRequest.build(definition), previousJobId = null)
   }
 
   /** The person asks for a change of the current screen; the worker gets the old source back. */
@@ -306,24 +298,13 @@ class ForgedScreenRepository(
   }
 }
 
-/** Turns an agent's identity into the request the forge gets when the person asks for "its own interface". */
+/** Turns the person's [ScreenBrief] and the agent's identity into the request the forge gets. */
 object AgentUiRequest {
   private const val PROMPT_EXCERPT = 700
   private const val PREFIX = "Design the main screen of the agent"
 
   /** True for a request the app built itself (nothing the person typed - the card does not quote it). */
   fun isAuto(request: String): Boolean = request.startsWith(PREFIX)
-
-  fun build(definition: AgentDefinition): String = buildString {
-    append(PREFIX).append(" \"").append(definition.displayName).append("\".\n")
-    agentContext(definition)
-    append(
-      "\nThe screen is the person's everyday view of this agent: ONE minimal screen that shows what " +
-        "matters for its purpose - a status or counter, a short list, one or two actions. Keep what the " +
-        "person enters with the app's storage functions so it survives closing. English labels, no " +
-        "settings, no chat.",
-    )
-  }
 
   // @trace screen-brief-and-mockup-before-the-forge-builds-82cfb2
   /**
@@ -333,7 +314,7 @@ object AgentUiRequest {
    */
   fun fromBrief(definition: AgentDefinition, brief: ScreenBrief): String = buildString {
     append(PREFIX).append(" \"").append(definition.displayName).append("\" exactly as the person describes it.\n")
-    append("The person's brief: ").append(brief.text.trim().take(BRIEF_MAX)).append('\n')
+    append("The person's brief: ").append(brief.text.trim().take(ScreenBrief.TEXT_MAX)).append('\n')
     if (brief.blocks.isNotEmpty()) {
       append("It must contain, in this order:\n")
       ScreenBlock.entries.filter { it in brief.blocks }.forEach { append("- ").append(it.forForge).append('\n') }
@@ -358,6 +339,4 @@ object AgentUiRequest {
       append('\n')
     }
   }
-
-  private const val BRIEF_MAX = 1_200
 }

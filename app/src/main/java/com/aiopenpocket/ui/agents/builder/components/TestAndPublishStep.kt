@@ -443,8 +443,8 @@ internal fun InterfaceChoice(customUi: Boolean, onSetCustomUi: (Boolean) -> Unit
     Text(
       text = if (customUi) {
         tr(
-          "После публикации агент в облаке напишет этому агенту собственный экран на Compose. Это займёт минуту-две; пока можно пользоваться чатом.",
-          "After publishing, an agent in the cloud writes this agent a screen of its own in Compose. It takes a minute or two; the chat works meanwhile.",
+          "После публикации открой карточку агента и нажми «Собрать экран»: опиши, что на нём должно быть, и облачный агент напишет его на Compose за пару минут. Пока можно пользоваться чатом.",
+          "After publishing, open the agent's card and tap \"Build the screen\": describe what should be on it, and an agent in the cloud writes it in Compose in a couple of minutes. The chat works meanwhile.",
         )
       } else {
         tr("Агент открывается в чате.", "The agent opens in the chat.")

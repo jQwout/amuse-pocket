@@ -572,9 +572,9 @@ class AgentDetailViewModelTest {
 
     vm.setCustomUi(true)
 
-    // The gateway of this class answers 404 to everything, so the screen it asked for ends Failed: what
-    // matters here is that the switch is on, persisted, and the request really left the ViewModel.
-    val state = awaitForged { it.forged.customUiEnabled && it.forged.state is ForgedScreenState.Failed }
+    // The switch is on and persisted, and nothing was asked of the forge: the screen waits for the brief.
+    val state = awaitForged { it.forged.customUiEnabled }
+    assertEquals(ForgedScreenState.None, state.forged.state)
     assertTrue(state.forged.showsCustomUi.not())
     assertTrue(kotlinx.coroutines.runBlocking { ForgedScreenStore(RuntimeEnvironment.getApplication()).isCustomUiEnabled("budget") })
 

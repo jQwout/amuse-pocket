@@ -84,6 +84,13 @@ class ForgedScreenRepositoryTest {
 
   private val agentId = "forge-agent"
 
+  /** What the person wrote in the brief sheet: every build in these tests starts from it. */
+  private val brief = ScreenBrief(
+    text = "Glasses drunk today and a button to add one",
+    blocks = setOf(ScreenBlock.ADD_FORM, ScreenBlock.TOTAL),
+    layout = ScreenLayout.DASHBOARD,
+  )
+
   private val definition: AgentDefinition = MiniAgentCatalog.get("budget")!!.toDefinition().copy(
     id = "forge-agent",
     source = AgentSource.USER,
@@ -364,7 +371,7 @@ class ForgedScreenRepositoryTest {
   fun `asking for an agent screen is sent with the agent's name, persisted as Requested, followed through Working and ends Ready with the bundle on disk`() = runTest(testDispatcher) {
     awaitLoaded()
 
-    repo.requestAgentUi(definition)
+    repo.requestFromBrief(definition, brief)
 
     // 1. Requested: the id is the mock's, the request text is built from the agent (its name, its description).
     val requested = awaitUi { it.state is ForgedScreenState.Requested }
@@ -372,7 +379,7 @@ class ForgedScreenRepositoryTest {
     assertEquals("job-fake-42", requested.state.jobId)
     assertTrue(request, request.contains("Zorblax Counter"))
     assertTrue(request, request.contains("Counts zorblax glasses every day"))
-    assertEquals(AgentUiRequest.build(definition), request)
+    assertEquals(AgentUiRequest.fromBrief(definition, brief), request)
     assertNull(requested.state.previousJobId)
     val sent = bodyOf(gateway.submitBodies.single())
     assertEquals(agentId, sent.getValue("agentId").jsonPrimitive.content)
@@ -408,7 +415,7 @@ class ForgedScreenRepositoryTest {
   @Test
   fun `a progress line that did not change is not written to disk again`() = runTest(testDispatcher) {
     awaitLoaded()
-    repo.requestAgentUi(definition)
+    repo.requestFromBrief(definition, brief)
     awaitUi { it.state is ForgedScreenState.Requested }
 
     gateway.working(message = "line-A") // answer to poll #1
@@ -430,7 +437,7 @@ class ForgedScreenRepositoryTest {
   @Test
   fun `queued and accepted answers keep the Requested state and write nothing`() = runTest(testDispatcher) {
     awaitLoaded()
-    repo.requestAgentUi(definition)
+    repo.requestFromBrief(definition, brief)
     val requested = awaitUi { it.state is ForgedScreenState.Requested }
     assertTrue(stateFile().delete())
 
@@ -448,12 +455,12 @@ class ForgedScreenRepositoryTest {
   @Test
   fun `needs_info shows the question and stops polling, the answer is posted and polling resumes`() = runTest(testDispatcher) {
     awaitLoaded()
-    repo.requestAgentUi(definition)
+    repo.requestFromBrief(definition, brief)
     awaitUi { it.state is ForgedScreenState.Requested }
 
     gateway.needsInfo("Which-currency-mock?")
     val asked = awaitUi { it.state is ForgedScreenState.NeedsInfo }
-    val request = AgentUiRequest.build(definition)
+    val request = AgentUiRequest.fromBrief(definition, brief)
     assertEquals(ForgedScreenState.NeedsInfo("job-fake-42", request, "Which-currency-mock?"), asked.state)
     assertEquals(asked.state, store.load(agentId))
 
@@ -498,7 +505,7 @@ class ForgedScreenRepositoryTest {
   @Test
   fun `a refused answer reports the reason, leaves the question open and does not poll`() = runTest(testDispatcher) {
     awaitLoaded()
-    repo.requestAgentUi(definition)
+    repo.requestFromBrief(definition, brief)
     awaitUi { it.state is ForgedScreenState.Requested }
     gateway.needsInfo("Which-currency-mock?")
     val asked = awaitUi { it.state is ForgedScreenState.NeedsInfo }
@@ -648,7 +655,7 @@ class ForgedScreenRepositoryTest {
   @Test
   fun `five transport failures in a row end the job as Failed`() = runTest(testDispatcher) {
     awaitLoaded()
-    repo.requestAgentUi(definition)
+    repo.requestFromBrief(definition, brief)
     awaitUi { it.state is ForgedScreenState.Requested }
     // More than five are queued: a poller that gave up one call late would be caught by the exact count.
     repeat(8) { gateway.transportFailure() }
@@ -657,7 +664,7 @@ class ForgedScreenRepositoryTest {
 
     val state = failed.state as ForgedScreenState.Failed
     assertEquals("job-fake-42", state.jobId)
-    assertEquals(AgentUiRequest.build(definition), state.request)
+    assertEquals(AgentUiRequest.fromBrief(definition, brief), state.request)
     assertTrue(state.message, state.message.contains("socket reset by mock"))
     assertEquals(state, store.load(agentId))
     settle()
@@ -667,7 +674,7 @@ class ForgedScreenRepositoryTest {
   @Test
   fun `a good answer in between resets the failure count`() = runTest(testDispatcher) {
     awaitLoaded()
-    repo.requestAgentUi(definition)
+    repo.requestFromBrief(definition, brief)
     awaitUi { it.state is ForgedScreenState.Requested }
     repeat(4) { gateway.transportFailure() }
     gateway.working(message = "still-alive-after-4")
@@ -683,13 +690,13 @@ class ForgedScreenRepositoryTest {
   @Test
   fun `a job the gateway reports as failed ends polling with the gateway's message`() = runTest(testDispatcher) {
     awaitLoaded()
-    repo.requestAgentUi(definition)
+    repo.requestFromBrief(definition, brief)
     awaitUi { it.state is ForgedScreenState.Requested }
 
     gateway.failedJob("kotlinc-exploded-mock")
 
     val failed = awaitUi { it.state is ForgedScreenState.Failed }
-    assertEquals(ForgedScreenState.Failed("job-fake-42", AgentUiRequest.build(definition), "kotlinc-exploded-mock"), failed.state)
+    assertEquals(ForgedScreenState.Failed("job-fake-42", AgentUiRequest.fromBrief(definition, brief), "kotlinc-exploded-mock"), failed.state)
     assertEquals(failed.state, store.load(agentId))
     settle()
     assertEquals(1, gateway.statusCalls.get())
@@ -698,7 +705,7 @@ class ForgedScreenRepositoryTest {
   @Test
   fun `done without an artifact is a Failed, not a crash`() = runTest(testDispatcher) {
     awaitLoaded()
-    repo.requestAgentUi(definition)
+    repo.requestFromBrief(definition, brief)
     awaitUi { it.state is ForgedScreenState.Requested }
 
     gateway.reply("""{"jobId":"job-fake-42","status":"done"}""")
@@ -710,7 +717,7 @@ class ForgedScreenRepositoryTest {
   @Test
   fun `a bundle that fails the checksum is not stored and the job ends Failed`() = runTest(testDispatcher) {
     awaitLoaded()
-    repo.requestAgentUi(definition)
+    repo.requestFromBrief(definition, brief)
     awaitUi { it.state is ForgedScreenState.Requested }
 
     gateway.done(entryPoint = "SwappedEntry", version = 1, sha = "0".repeat(64))
@@ -726,12 +733,12 @@ class ForgedScreenRepositoryTest {
     awaitLoaded()
     gateway.submitStatus = HttpStatusCode.Unauthorized
 
-    repo.requestAgentUi(definition)
+    repo.requestFromBrief(definition, brief)
 
     val failed = awaitUi { it.state is ForgedScreenState.Failed }
     val state = failed.state as ForgedScreenState.Failed
     assertNull(state.jobId)
-    assertEquals(AgentUiRequest.build(definition), state.request)
+    assertEquals(AgentUiRequest.fromBrief(definition, brief), state.request)
     assertSaysEither(state.message, "Настройках", "Settings")
     assertEquals(state, store.load(agentId))
     settle(100)
@@ -746,7 +753,7 @@ class ForgedScreenRepositoryTest {
 
     assertFalse(unconfigured.isConfigured())
     assertTrue(repo.isConfigured())
-    unconfigured.requestAgentUi(definition)
+    unconfigured.requestFromBrief(definition, brief)
 
     val failed = awaitUi(flow) { it.state is ForgedScreenState.Failed }
     assertSaysEither((failed.state as ForgedScreenState.Failed).message, "адрес кузницы и токен", "forge address and token")
@@ -805,16 +812,28 @@ class ForgedScreenRepositoryTest {
   // --- The own-interface switch -------------------------------------------------------------------
 
   @Test
-  fun `switching on with no screen persists the switch and asks the forge for one`() = runTest(testDispatcher) {
+  fun `switching on with no screen persists the switch and builds nothing until the brief`() = runTest(testDispatcher) {
     awaitLoaded()
 
     repo.setCustomUiEnabled(agentId, true, definition)
 
-    val requested = awaitUi { it.state is ForgedScreenState.Requested }
-    assertTrue(requested.customUiEnabled)
+    val on = awaitUi { it.customUiEnabled }
+    assertEquals(ForgedScreenState.None, on.state)
     assertTrue(store.isCustomUiEnabled(agentId))
-    assertEquals(1, gateway.submitBodies.size)
-    assertEquals("Zorblax Counter", bodyOf(gateway.submitBodies.single()).getValue("agentName").jsonPrimitive.content)
+    settle(100)
+    assertEquals(emptyList<String>(), gateway.log.toList())
+  }
+
+  @Test
+  fun `the brief is what the forge is asked to build`() = runTest(testDispatcher) {
+    awaitLoaded()
+
+    repo.requestFromBrief(definition, brief)
+
+    awaitUi { it.state is ForgedScreenState.Requested }
+    val sent = bodyOf(gateway.submitBodies.single())
+    assertEquals("Zorblax Counter", sent.getValue("agentName").jsonPrimitive.content)
+    assertEquals(AgentUiRequest.fromBrief(definition, brief), sent.getValue("request").jsonPrimitive.content)
   }
 
   @Test
@@ -836,7 +855,7 @@ class ForgedScreenRepositoryTest {
   @Test
   fun `switching on while a job is in flight does not submit a second one`() = runTest(testDispatcher) {
     awaitLoaded()
-    repo.requestAgentUi(definition)
+    repo.requestFromBrief(definition, brief)
     awaitUi { it.state is ForgedScreenState.Requested }
 
     repo.setCustomUiEnabled(agentId, true, definition)
@@ -847,21 +866,21 @@ class ForgedScreenRepositoryTest {
   }
 
   @Test
-  fun `switching on after a failure asks again, switching off asks for nothing and drops the switch`() = runTest(testDispatcher) {
+  fun `switching on after a failure keeps the failure, switching off drops the switch, neither asks the forge`() = runTest(testDispatcher) {
     store.save(agentId, ForgedScreenState.Failed("job-fail-1", "req", "boom"))
     val flow = repository(ForgeGatewayConfig("http://forge.test", "token", metaApiKey = "meta-key")).also { repo = it }.observe(agentId)
     awaitUi(flow) { it.state is ForgedScreenState.Failed }
 
     repo.setCustomUiEnabled(agentId, true, definition)
-    awaitUi(flow) { it.state is ForgedScreenState.Requested }
-    assertEquals(1, gateway.submitBodies.size)
+    val on = awaitUi(flow) { it.customUiEnabled }
+    assertTrue("the card keeps offering Retry", on.state is ForgedScreenState.Failed)
 
     repo.setCustomUiEnabled(agentId, false, definition)
     val off = awaitUi(flow) { !it.customUiEnabled }
     assertFalse(off.showsCustomUi)
     assertFalse(store.isCustomUiEnabled(agentId))
     settle(100)
-    assertEquals(1, gateway.submitBodies.size)
+    assertEquals(emptyList<String>(), gateway.submitBodies.toList())
   }
 
   @Test
@@ -882,6 +901,8 @@ class ForgedScreenRepositoryTest {
   fun `removing a ready screen clears the disk, the flags and the switch`() = runTest(testDispatcher) {
     awaitLoaded()
     repo.setCustomUiEnabled(agentId, true, definition)
+    awaitUi { it.customUiEnabled }
+    repo.requestFromBrief(definition, brief)
     awaitUi { it.state is ForgedScreenState.Requested }
     gateway.done(entryPoint = "TimerEntry", version = 2)
     awaitUi { it.state is ForgedScreenState.Ready }
@@ -905,7 +926,7 @@ class ForgedScreenRepositoryTest {
   @Test
   fun `cancelling a job in flight stops the polling and forgets the job`() = runTest(testDispatcher) {
     awaitLoaded()
-    repo.requestAgentUi(definition)
+    repo.requestFromBrief(definition, brief)
     awaitUi { it.state is ForgedScreenState.Requested }
     awaitCalls(1) // the poller is parked in the handler
 
@@ -964,20 +985,27 @@ class ForgedScreenRepositoryTest {
   fun `the request text carries the name, the description and a bounded excerpt of the instructions`() {
     val long = definition.copy(systemPrompt = "ALPHA" + "x".repeat(900) + "OMEGA")
 
-    val request = AgentUiRequest.build(long)
+    val request = AgentUiRequest.fromBrief(long, brief)
 
     assertTrue(request.contains("\"Zorblax Counter\""))
     assertTrue(request.contains("What the agent is for: Counts zorblax glasses every day"))
     assertTrue("the excerpt starts at the beginning of the instructions", request.contains("ALPHA"))
     assertFalse("the excerpt is cut, the tail never travels", request.contains("OMEGA"))
     assertTrue(request.contains(" ..."))
+    assertTrue("the person's words travel whole", request.contains("The person's brief: Glasses drunk today and a button to add one"))
+    assertTrue(
+      "the blocks are listed in the sheet's order, not the order they were ticked",
+      request.indexOf(ScreenBlock.TOTAL.forForge) in 0 until request.indexOf(ScreenBlock.ADD_FORM.forForge),
+    )
+    assertTrue(request.contains("Layout: " + ScreenLayout.DASHBOARD.forForge))
+    assertTrue("the card does not quote it as a typed change", AgentUiRequest.isAuto(request))
   }
 
   @Test
   fun `a blank description and blank instructions leave their lines out`() {
     val bare = definition.copy(description = "  ", systemPrompt = "")
 
-    val request = AgentUiRequest.build(bare)
+    val request = AgentUiRequest.fromBrief(bare, brief)
 
     assertTrue(request.contains("Zorblax Counter"))
     assertFalse(request.contains("What the agent is for"))

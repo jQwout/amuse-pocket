@@ -9,6 +9,7 @@ import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -19,7 +20,7 @@ import java.io.IOException
  * spends minutes on code. One cent a drawing, on the person's own Meta key.
  *
  * The picture is a sketch for the person, not a contract: the forge builds from the brief's text. The file
- * is one per agent in `filesDir/forge_mockups`, replaced by the next drawing.
+ * is one per agent in `filesDir/forge_mockups`, replaced by the next drawing and deleted by [discard].
  */
 @Inject
 @SingleIn(AppScope::class)
@@ -34,24 +35,39 @@ class ScreenMockupGenerator(
   suspend fun draw(agentId: String, agentName: String, brief: ScreenBrief, dark: Boolean): File? =
     withContext(Dispatchers.IO) {
       val prompt = prompt(agentName, brief, dark)
-      // Portrait first; if Meta refuses that size, the default frame still gives the person a picture.
-      val image = client.generate(prompt, ImageGenClient.PORTRAIT_SIZE) ?: client.generate(prompt) ?: return@withContext null
+      // Portrait first. Only if Meta turns that size down is the default frame tried: on a network failure
+      // or a content refusal a second request would just repeat the wait (each one already retries).
+      val portrait = client.attempt(prompt, ImageGenClient.PORTRAIT_SIZE)
+      val image = portrait.image
+        ?: (if (portrait.rejectedSize) client.attempt(prompt).image else null)
+        ?: return@withContext null
+      // Closed while Meta was drawing: nothing is written, the sheet already forgot this drawing.
+      ensureActive()
       try {
-        val dir = File(application.filesDir, DIR).apply { mkdirs() }
-        val safe = agentId.replace(Regex("[^A-Za-z0-9_-]"), "_")
+        discardFiles(agentId)
         // A new name each time, so the image loader never shows the previous drawing from its cache.
-        dir.listFiles { f -> f.name.startsWith("$safe-") }?.forEach { it.delete() }
-        File(dir, "$safe-${System.currentTimeMillis()}.img").apply { writeBytes(image.bytes) }
+        File(dir(), "${safe(agentId)}-${System.currentTimeMillis()}.img").apply { writeBytes(image.bytes) }
       } catch (e: IOException) {
         Log.w(TAG, "Failed to save the mockup: ${e.message}")
         null
       }
     }
 
+  /** Deletes the agent's mockup: the sheet closed, the screen was built from it, or the agent is gone. */
+  suspend fun discard(agentId: String) = withContext(Dispatchers.IO) { discardFiles(agentId) }
+
+  private fun discardFiles(agentId: String) {
+    dir().listFiles { f -> f.name.startsWith("${safe(agentId)}-") }?.forEach { it.delete() }
+  }
+
+  private fun dir(): File = File(application.filesDir, DIR).apply { mkdirs() }
+
+  private fun safe(agentId: String): String = agentId.replace(Regex("[^A-Za-z0-9_-]"), "_")
+
   private fun prompt(agentName: String, brief: ScreenBrief, dark: Boolean): String = buildString {
     append("A clean, flat mobile app screen UI mockup, seen straight on, filling the whole frame, ")
     append("no phone frame, no hands, no photos of people. ")
-    append("The app screen for \"").append(agentName).append("\": ").append(brief.text.trim().take(600)).append(". ")
+    append("The app screen for \"").append(agentName).append("\": ").append(brief.text.trim().take(PROMPT_BRIEF_MAX)).append(". ")
     if (brief.blocks.isNotEmpty()) {
       append("It shows: ")
       append(ScreenBlock.entries.filter { it in brief.blocks }.joinToString("; ") { it.forForge })
@@ -69,5 +85,8 @@ class ScreenMockupGenerator(
   private companion object {
     const val TAG = "ScreenMockup"
     const val DIR = "forge_mockups"
+
+    /** The picture needs the gist, not every word: the forge still gets the whole brief. */
+    const val PROMPT_BRIEF_MAX = 600
   }
 }

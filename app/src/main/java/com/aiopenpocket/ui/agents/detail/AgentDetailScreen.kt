@@ -86,7 +86,6 @@ fun AgentDetailScreen(
   onForgeSetCustomUi: (Boolean) -> Unit = {},
   onForgeDraftChange: (String) -> Unit = {},
   onForgeRequestChange: () -> Unit = {},
-  onForgeRegenerate: () -> Unit = {},
   onForgeRetry: () -> Unit = {},
   onForgeAnswer: (String) -> Unit = {},
   onForgeRemove: () -> Unit = {},
