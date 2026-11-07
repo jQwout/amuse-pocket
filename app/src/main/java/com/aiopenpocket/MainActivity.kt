@@ -8,13 +8,9 @@ import android.content.res.Configuration
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.util.Rational
-import androidx.lifecycle.lifecycleScope
 import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.voice.call.CallBackground
 import com.aiopenpocket.voice.call.CallControl
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.launch
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -535,25 +531,33 @@ class MainActivity : ComponentActivity() {
 
     /**
      * Keeps the window's picture-in-picture settings in step with the call: on Android 12+ leaving a call
-     * shrinks it by itself (auto-enter), and the mini window's buttons show mute or unmute as it stands.
-     * A call hung up from the mini window closes the window too, instead of leaving the chat in it.
+     * shrinks it by itself (auto-enter), not while the call itself opened the camera or a dialog, and the
+     * mini window's buttons show mute or unmute as it stands. A call hung up from the mini window closes the
+     * window too, instead of leaving the chat in it. Applied synchronously from CallBackground's setters.
      */
-    private fun followCallForPip() {
-        if (!supportsPip) return
-        lifecycleScope.launch {
-            combine(CallBackground.onCall, CallBackground.status) { onCall, status ->
-                Triple(onCall, status.muted, status.paused)
-            }.distinctUntilChanged().collect { (onCall, _, _) ->
-                runCatching { setPictureInPictureParams(callPipParams(onCall)) }
-                if (!onCall && isInPictureInPictureMode) moveTaskToBack(false)
-            }
+    private val refreshCallPip: () -> Unit = {
+        if (supportsPip) {
+            runCatching { setPictureInPictureParams(callPipParams(callMayShrink())) }
+            if (!CallBackground.onCall.value && isInPictureInPictureMode) moveTaskToBack(false)
         }
+    }
+
+    private fun callMayShrink(): Boolean = CallBackground.onCall.value && !CallBackground.holdPip.value
+
+    private fun followCallForPip() {
+        CallBackground.pipHost = refreshCallPip
+        refreshCallPip()
+    }
+
+    override fun onDestroy() {
+        if (CallBackground.pipHost === refreshCallPip) CallBackground.pipHost = null
+        super.onDestroy()
     }
 
     /** Before Android 12 the window cannot shrink by itself: Home (the user leaving) asks for it. */
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (supportsPip && Build.VERSION.SDK_INT < Build.VERSION_CODES.S && CallBackground.onCall.value) {
+        if (supportsPip && Build.VERSION.SDK_INT < Build.VERSION_CODES.S && callMayShrink()) {
             runCatching { enterPictureInPictureMode(callPipParams(onCall = true)) }
         }
     }

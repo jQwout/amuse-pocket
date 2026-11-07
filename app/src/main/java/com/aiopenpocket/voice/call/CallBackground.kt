@@ -15,6 +15,7 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.aiopenpocket.MainActivity
@@ -73,6 +74,27 @@ object CallBackground {
    */
   val overlayOpen: StateFlow<Boolean> = _overlayOpen.asStateFlow()
 
+  private val _holdPip = MutableStateFlow(false)
+
+  /**
+   * The call itself opened something over the screen (the camera, the gallery, the permission dialog). To
+   * Android that is the person leaving, so without this the call would shrink into its mini window.
+   */
+  val holdPip: StateFlow<Boolean> = _holdPip.asStateFlow()
+
+  /**
+   * MainActivity's picture-in-picture settings, re-applied at once on every change here. A call, not a
+   * collector: the camera starts in the same click that sets [holdPip], and settings applied a dispatch
+   * later would be too late for the pause it causes.
+   */
+  @Volatile
+  var pipHost: (() -> Unit)? = null
+
+  /** The call's microphone service is up: a turn of the call needs no service of its own. */
+  @Volatile
+  var serviceRunning: Boolean = false
+    internal set
+
   private val _status = MutableStateFlow(CallStatus())
   val status: StateFlow<CallStatus> = _status.asStateFlow()
 
@@ -83,6 +105,12 @@ object CallBackground {
 
   fun setOnCall(on: Boolean) {
     _onCall.value = on
+    pipHost?.invoke()
+  }
+
+  fun setHoldPip(hold: Boolean) {
+    _holdPip.value = hold
+    pipHost?.invoke()
   }
 
   fun setInPip(inPip: Boolean) {
@@ -94,7 +122,9 @@ object CallBackground {
   }
 
   fun setStatus(status: CallStatus) {
+    val buttonsChanged = status.muted != _status.value.muted || status.paused != _status.value.paused
     _status.value = status
+    if (buttonsChanged) pipHost?.invoke()
   }
 
   fun send(control: CallControl) {
@@ -136,6 +166,7 @@ class CallForegroundService : Service() {
   override fun onBind(intent: Intent?): IBinder? = null
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    CallBackground.serviceRunning = true
     ServiceCompat.startForeground(
       this,
       NOTIFICATION_ID,
@@ -153,6 +184,7 @@ class CallForegroundService : Service() {
   }
 
   override fun onDestroy() {
+    CallBackground.serviceRunning = false
     scope.cancel()
     super.onDestroy()
   }
@@ -170,11 +202,6 @@ class CallForegroundService : Service() {
       Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
-    val muteLabel = when {
-      status.paused -> tr("Слушать", "Listen")
-      status.muted -> tr("Включить микрофон", "Unmute")
-      else -> tr("Без звука", "Mute")
-    }
     return NotificationCompat.Builder(this, CHANNEL_ID)
       .setSmallIcon(R.drawable.ic_stat_agent)
       .setContentTitle(status.title.ifBlank { tr("Звонок", "Call") })
@@ -183,7 +210,7 @@ class CallForegroundService : Service() {
       .setSilent(true)
       .setCategory(NotificationCompat.CATEGORY_CALL)
       .setContentIntent(open)
-      .addAction(R.drawable.ic_call_mic_off, muteLabel, CallBackground.controlIntent(this, CallControl.MUTE))
+      .addAction(R.drawable.ic_call_mic_off, muteLabel(status), CallBackground.controlIntent(this, CallControl.MUTE))
       .addAction(R.drawable.ic_call_end, tr("Завершить", "Hang up"), CallBackground.controlIntent(this, CallControl.HANG_UP))
       // Shown at once: the person has just left the screen and must see that the call still hears them.
       .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
@@ -208,6 +235,32 @@ class CallForegroundService : Service() {
 
     fun stop(context: Context) {
       context.stopService(Intent(context, CallForegroundService::class.java))
+    }
+
+    /** The call has left the background: no mini window, no status, no service. Safe to call twice. */
+    fun leaveBackground(context: Context) {
+      CallBackground.setOnCall(false)
+      CallBackground.setHoldPip(false)
+      CallBackground.setStatus(CallStatus())
+      stop(context)
+    }
+
+    /**
+     * Whether the call's notification would be seen. Without it (notifications off for the app, or the
+     * call channel muted) a call must not hear off screen: nothing would show it or offer to hang up.
+     */
+    fun canShowNotification(context: Context): Boolean {
+      val manager = NotificationManagerCompat.from(context)
+      if (!manager.areNotificationsEnabled()) return false
+      val channel = manager.getNotificationChannelCompat(CHANNEL_ID) ?: return true
+      return channel.importance != NotificationManagerCompat.IMPORTANCE_NONE
+    }
+
+    /** The mute button's words: wake a microphone that gave up, unmute, or mute. */
+    internal fun muteLabel(status: CallStatus): String = when {
+      status.paused -> tr("Слушать", "Listen")
+      status.muted -> tr("Включить микрофон", "Unmute")
+      else -> tr("Без звука", "Mute")
     }
   }
 }

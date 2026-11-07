@@ -42,6 +42,12 @@ class AndroidTurnLifeSupport(private val application: Application) : TurnLifeSup
     }
     if (!needsStart) return true
 
+    // @trace background-voice-calls-a-picture-in-picture-window-and-a-call-that-goes-on-off-screen-3ab748
+    // A call going on off screen already runs a foreground service of its own, which keeps the process alive
+    // and shows the call; a second "The agent is replying…" notification under it is noise. A turn still
+    // running when that call hangs up loses the guarantee - its reply is in the chat either way.
+    if (com.aiopenpocket.voice.call.CallBackground.serviceRunning) return true
+
     // Since API 31 starting an FGS from the background is forbidden (ForegroundServiceStartNotAllowedException).
     // It is neither a programmer error nor a reason to fail the turn — there just will be no guarantee,
     // see the spec, section 6.
