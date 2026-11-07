@@ -50,6 +50,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import com.aiopenpocket.voice.call.CallBackground
+import com.aiopenpocket.voice.call.CallControl
+import com.aiopenpocket.voice.call.CallForegroundService
+import com.aiopenpocket.voice.call.CallStatus
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -141,43 +145,88 @@ fun VoiceSessionScreen(
   val state by viewModel.state.collectAsState()
   val context = LocalContext.current
 
-  val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+  // @trace background-voice-calls-a-picture-in-picture-window-and-a-call-that-goes-on-off-screen-3ab748
+  // A call in the app goes on off screen, so it needs the microphone service; started with the permission,
+  // while the screen is still in front (Android allows it only then). The assistant's window never needs it.
+  val onMicGranted = { granted: Boolean ->
     viewModel.onMicPermission(granted)
+    if (granted && !overlay) CallForegroundService.start(context)
+  }
+  val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+    onMicGranted(granted)
   }
   LaunchedEffect(conversationId) {
     viewModel.start(conversationId)
     val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
       PackageManager.PERMISSION_GRANTED
-    if (granted) viewModel.onMicPermission(true) else micPermission.launch(Manifest.permission.RECORD_AUDIO)
+    if (granted) onMicGranted(true) else micPermission.launch(Manifest.permission.RECORD_AUDIO)
   }
+  val inPip by CallBackground.inPip.collectAsState()
 
-  // A call does not let the screen go dark under the person's ear, as a phone call doesn't.
+  // A call does not let the screen go dark under the person's ear, as a phone call doesn't - but a mini
+  // window over another app is not at the ear, and must not hold the screen on.
   val view = LocalView.current
-  DisposableEffect(view) {
-    view.keepScreenOn = true
+  DisposableEffect(view, inPip) {
+    view.keepScreenOn = !inPip
     onDispose { view.keepScreenOn = false }
   }
 
   val end = { onEnd(viewModel.hangUp()) }
   BackHandler(onBack = end)
 
-  // Off screen the session stops hearing and speaking (Home, the screen off, the assistant over a call):
-  // a microphone left open behind the person's back, and Meta's meter with it, is the worst kind of bug.
-  // The assistant's window is a moment, so leaving it ends it; a call in the app picks up on return.
-  // The camera or the gallery opened from the call is part of it and changes nothing.
+  // The assistant's window is a moment: off screen it stops hearing and speaking, and leaving it ends it.
+  // A call in the app goes on off screen instead - in a picture-in-picture window, behind another app, with
+  // the screen locked (owner, Nov 7, 2026). The microphone is never open unseen: the call's ongoing
+  // notification says so and can mute or hang up, and Android shows its own microphone dot. It keeps quiet
+  // only while the assistant's own window listens over it. The camera or the gallery changes nothing.
   val lifecycleOwner = LocalLifecycleOwner.current
   val currentEnd by rememberUpdatedState(end)
   DisposableEffect(lifecycleOwner, overlay) {
     val observer = LifecycleEventObserver { _, event ->
-      when (event) {
-        Lifecycle.Event.ON_PAUSE -> viewModel.onScreenHidden()
-        Lifecycle.Event.ON_RESUME -> viewModel.onScreenShown()
-        Lifecycle.Event.ON_STOP -> if (overlay && !viewModel.isPickingPhoto) currentEnd()
-        else -> Unit
+      if (overlay) {
+        when (event) {
+          Lifecycle.Event.ON_PAUSE -> viewModel.onScreenHidden()
+          Lifecycle.Event.ON_RESUME -> viewModel.onScreenShown()
+          Lifecycle.Event.ON_STOP -> if (!viewModel.isPickingPhoto) currentEnd()
+          else -> Unit
+        }
       }
     }
     lifecycleOwner.lifecycle.addObserver(observer)
     onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+  }
+  DisposableEffect(overlay) {
+    if (overlay) CallBackground.setOverlayOpen(true) else CallBackground.setOnCall(true)
+    onDispose {
+      if (overlay) {
+        CallBackground.setOverlayOpen(false)
+      } else {
+        CallBackground.setOnCall(false)
+        CallBackground.setStatus(CallStatus())
+        CallForegroundService.stop(context)
+      }
+    }
+  }
+  if (!overlay) {
+    val assistantOver by CallBackground.overlayOpen.collectAsState()
+    LaunchedEffect(assistantOver) {
+      if (assistantOver) viewModel.onScreenHidden() else viewModel.onScreenShown()
+    }
+    // What the notification and the mini window's buttons show.
+    val title = state.agentName ?: state.routedAgentName ?: tr("Ассистент", "Assistant")
+    val phase = phaseLabel(state)
+    LaunchedEffect(title, phase, state.micMuted, state.micPaused) {
+      CallBackground.setStatus(CallStatus(title = title, phase = phase, muted = state.micMuted, paused = state.micPaused))
+    }
+    // Their taps: mute (or wake a microphone that gave up after a long silence) and hang up.
+    LaunchedEffect(Unit) {
+      CallBackground.controls.collect { control ->
+        when (control) {
+          CallControl.MUTE -> if (viewModel.state.value.micPaused) viewModel.tap() else viewModel.toggleMute()
+          CallControl.HANG_UP -> currentEnd()
+        }
+      }
+    }
   }
 
   // The orb waits low, then glides up once something was said: the assistant's motion, kept for both.
@@ -192,6 +241,11 @@ fun VoiceSessionScreen(
     animationSpec = tween(600, easing = FastOutSlowInEasing),
     label = "orbSize",
   )
+  if (!overlay && inPip) {
+    CallPipContent(state)
+    return
+  }
+
   val background = MaterialTheme.colorScheme.background
   val backdrop = if (overlay) {
     // The app underneath stays visible through the top, as in the assistant before.
@@ -417,6 +471,51 @@ private fun orbState(state: CallUiState): OrbState = when {
       state.transcribing -> OrbState.THINKING
       state.micMuted -> OrbState.IDLE
       else -> OrbState.LISTENING
+    }
+  }
+}
+
+/**
+ * The call in a picture-in-picture window: the orb, who you talk to, what is happening and the last words.
+ * No buttons of its own - the window carries mute and hang-up (MainActivity), and a tap opens the full call.
+ */
+@Composable
+private fun CallPipContent(state: CallUiState) {
+  val words = state.heard ?: state.caption?.text ?: state.reply.takeIf { it.isNotBlank() }
+  Box(
+    modifier = Modifier
+      .fillMaxSize()
+      .background(MaterialTheme.colorScheme.background)
+      .testTag("call_pip"),
+    contentAlignment = Alignment.Center,
+  ) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(8.dp)) {
+      AssistantOrb(state = orbState(state), size = 64.dp)
+      Text(
+        text = state.agentName ?: state.routedAgentName ?: tr("Ассистент", "Assistant"),
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onBackground,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.padding(top = 6.dp),
+      )
+      Text(
+        text = phaseLabel(state),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.primary,
+        maxLines = 1,
+      )
+      words?.let {
+        Text(
+          text = it,
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
+          textAlign = TextAlign.Center,
+          maxLines = 2,
+          overflow = TextOverflow.Ellipsis,
+          modifier = Modifier.padding(top = 4.dp),
+        )
+      }
     }
   }
 }

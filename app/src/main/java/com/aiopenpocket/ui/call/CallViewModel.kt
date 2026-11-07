@@ -149,9 +149,9 @@ class CallViewModel(
   /** The camera or the gallery is open over the call: nobody is talking to it, so it does not listen. */
   private var pickingPhoto = false
   /**
-   * The screen is not in front (Home, the screen off, another app or the assistant on top): the call neither
-   * listens nor speaks, so the microphone, Meta's meter and the voice stop with it. The turn goes on and its
-   * reply lands in the chat.
+   * The call must keep quiet: the assistant's window is off screen, or it listens over a call in the app (a
+   * call in the app otherwise goes on off screen, see CallBackground). It neither listens nor speaks, so the
+   * microphone, Meta's meter and the voice stop with it. The turn goes on and its reply lands in the chat.
    */
   private var hidden = false
   /** The recognizer's and the voice's language, from Settings; null until read (no listening before it). */

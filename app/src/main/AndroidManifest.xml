@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- A voice call keeps hearing off screen (CallForegroundService): Android 14+ asks for the type's own permission. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
@@ -51,7 +53,11 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:theme="@style/Theme.MyApplication"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize"
+            android:supportsPictureInPicture="true"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout">
+            <!-- A call shrinks into a picture-in-picture window when the person leaves it; the size changes
+                 above are handled by Compose, so the window resizes without recreating the call. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -126,6 +132,15 @@
             android:name="com.aiopenpocket.agent.core.notification.TurnForegroundService"
             android:exported="false"
             android:foregroundServiceType="shortService" />
+
+        <!-- A voice call going on off screen: its notification, and the mute / hang-up buttons. -->
+        <service
+            android:name="com.aiopenpocket.voice.call.CallForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+        <receiver
+            android:name="com.aiopenpocket.voice.call.CallControlReceiver"
+            android:exported="false" />
 
         <!-- Fires a one-time heartbeat on time; see HeartbeatAlarm. -->
         <receiver

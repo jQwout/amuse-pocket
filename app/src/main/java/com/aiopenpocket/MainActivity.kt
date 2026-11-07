@@ -1,6 +1,20 @@
 package com.aiopenpocket
 
+import android.app.PictureInPictureParams
+import android.app.RemoteAction
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.graphics.drawable.Icon
+import android.os.Build
+import android.util.Rational
+import androidx.lifecycle.lifecycleScope
+import com.aiopenpocket.i18n.tr
+import com.aiopenpocket.voice.call.CallBackground
+import com.aiopenpocket.voice.call.CallControl
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -93,6 +107,7 @@ class MainActivity : ComponentActivity() {
         }
 
         enableEdgeToEdge()
+        followCallForPip()
 
         val appGraph = (application as AiOpenPocketApp).appGraph
 
@@ -509,6 +524,73 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleLaunchIntent(intent)
+    }
+
+    // ---- a call in a picture-in-picture window ----
+    // @trace background-voice-calls-a-picture-in-picture-window-and-a-call-that-goes-on-off-screen-3ab748
+
+    private val supportsPip: Boolean by lazy {
+        packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+    }
+
+    /**
+     * Keeps the window's picture-in-picture settings in step with the call: on Android 12+ leaving a call
+     * shrinks it by itself (auto-enter), and the mini window's buttons show mute or unmute as it stands.
+     * A call hung up from the mini window closes the window too, instead of leaving the chat in it.
+     */
+    private fun followCallForPip() {
+        if (!supportsPip) return
+        lifecycleScope.launch {
+            combine(CallBackground.onCall, CallBackground.status) { onCall, status ->
+                Triple(onCall, status.muted, status.paused)
+            }.distinctUntilChanged().collect { (onCall, _, _) ->
+                runCatching { setPictureInPictureParams(callPipParams(onCall)) }
+                if (!onCall && isInPictureInPictureMode) moveTaskToBack(false)
+            }
+        }
+    }
+
+    /** Before Android 12 the window cannot shrink by itself: Home (the user leaving) asks for it. */
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (supportsPip && Build.VERSION.SDK_INT < Build.VERSION_CODES.S && CallBackground.onCall.value) {
+            runCatching { enterPictureInPictureMode(callPipParams(onCall = true)) }
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        CallBackground.setInPip(isInPictureInPictureMode)
+    }
+
+    private fun callPipParams(onCall: Boolean): PictureInPictureParams {
+        val builder = PictureInPictureParams.Builder().setAspectRatio(Rational(3, 4))
+        if (onCall) {
+            val status = CallBackground.status.value
+            val micOff = status.muted || status.paused
+            val micLabel = if (micOff) tr("Включить микрофон", "Unmute") else tr("Без звука", "Mute")
+            val hangUp = tr("Завершить", "Hang up")
+            builder.setActions(
+                listOf(
+                    RemoteAction(
+                        Icon.createWithResource(this, if (micOff) R.drawable.ic_call_mic else R.drawable.ic_call_mic_off),
+                        micLabel,
+                        micLabel,
+                        CallBackground.controlIntent(this, CallControl.MUTE),
+                    ),
+                    RemoteAction(
+                        Icon.createWithResource(this, R.drawable.ic_call_end),
+                        hangUp,
+                        hangUp,
+                        CallBackground.controlIntent(this, CallControl.HANG_UP),
+                    ),
+                ),
+            )
+        } else {
+            builder.setActions(emptyList())
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) builder.setAutoEnterEnabled(onCall)
+        return builder.build()
     }
 
     /**

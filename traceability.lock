@@ -14,8 +14,8 @@
       "git": "097a6f63"
     },
     "agent-router-dc2233": {
-      "hash": "0ed9c68196bc",
-      "git": "7f4b746f"
+      "hash": "08575822e968",
+      "git": "51f561f2"
     },
     "agent-skills-7189cc": {
       "hash": "e3296460a332",
@@ -40,6 +40,10 @@
     "background-tasks-15a34a": {
       "hash": "589f7d11a82a",
       "git": "21fba91e"
+    },
+    "background-voice-calls-a-picture-in-picture-window-and-a-call-that-goes-on-off-screen-3ab748": {
+      "hash": "a3d0f4b3b157",
+      "git": "51f561f2"
     },
     "builder-passport-7d7794": {
       "hash": "b0e569cfebd9",
@@ -98,8 +102,8 @@
       "git": "eae32b2d"
     },
     "meta-voice-transcribe-in-calls-297760": {
-      "hash": "c439febf81a9",
-      "git": "9e21ff47"
+      "hash": "86d15fc29b0f",
+      "git": "51f561f2"
     },
     "multi-agent-orchestration-27b8e3": {
       "hash": "df3f619804a9",
@@ -190,8 +194,8 @@
       "git": "2f4394cc"
     },
     "voice-call-mode-54cb49": {
-      "hash": "09b1861fb055",
-      "git": "2d91e9de"
+      "hash": "6d57940f9bfe",
+      "git": "51f561f2"
     },
     "voice-input-1a0dfd": {
       "hash": "0a8ee7dedcdf",
