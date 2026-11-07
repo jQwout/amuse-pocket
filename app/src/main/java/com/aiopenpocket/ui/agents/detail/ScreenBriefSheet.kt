@@ -172,7 +172,8 @@ private fun MockupBox(mockup: ForgeMockup) {
         )
       }
     }
-    mockup.path != null && File(mockup.path).isFile -> AsyncImage(
+    // No disk check here, it would run on every keystroke: the path is set only once the file is written.
+    mockup.path != null -> AsyncImage(
       model = File(mockup.path),
       contentDescription = tr("Макет экрана", "Screen mockup"),
       contentScale = ContentScale.Fit,

@@ -291,7 +291,8 @@ class ForgedScreenRepository(
   companion object {
     private const val TAG = "ForgeUi"
     const val SAMPLE_JOB_ID = "sample"
-    const val SAMPLE_ENTRY_POINT = "HelloForgeScreen"
+    /** The bundled sample is the wishlist (6664c345); the bundle still carries the old hello screen too. */
+    const val SAMPLE_ENTRY_POINT = "WishlistScreen"
     private const val MAX_POLL_FAILURES = 5
     private const val MAX_POLL_MILLIS = 15 * 60 * 1000L
     private const val SLOW_POLL_AFTER = 20
@@ -314,12 +315,15 @@ object AgentUiRequest {
    */
   fun fromBrief(definition: AgentDefinition, brief: ScreenBrief): String = buildString {
     append(PREFIX).append(" \"").append(definition.displayName).append("\" exactly as the person describes it.\n")
-    append("The person's brief: ").append(brief.text.trim().take(ScreenBrief.TEXT_MAX)).append('\n')
+    // Between markers, so the brief can be read back whole (several lines too): the card quotes it and
+    // "Regenerate" opens the sheet on it ([briefOf]).
+    val text = brief.text.trim().take(ScreenBrief.TEXT_MAX).replace(BRIEF_CLOSE, "")
+    append("The person's brief:\n").append(BRIEF_OPEN).append(text).append(BRIEF_CLOSE).append('\n')
     if (brief.blocks.isNotEmpty()) {
       append("It must contain, in this order:\n")
-      ScreenBlock.entries.filter { it in brief.blocks }.forEach { append("- ").append(it.forForge).append('\n') }
+      ScreenBlock.entries.filter { it in brief.blocks }.forEach { append(BLOCK_BULLET).append(it.forForge).append('\n') }
     }
-    append("Layout: ").append(brief.layout.forForge).append(".\n")
+    append(LAYOUT_LABEL).append(brief.layout.forForge).append(".\n")
     agentContext(definition)
     append(
       "\nOne screen. Keep every record the person enters with the app's storage functions (saveText/loadText, " +
@@ -327,6 +331,27 @@ object AgentUiRequest {
         "through themeColor names. Short English labels, generous spacing, no settings, no chat.",
     )
   }
+
+  /**
+   * The [ScreenBrief] a [fromBrief] request was made from, or null for any other request (a typed change,
+   * an older auto request). Reads only what [fromBrief] wrote: the text between the markers, the bullets
+   * that name a block, the layout line.
+   */
+  fun briefOf(request: String): ScreenBrief? {
+    if (!isAuto(request)) return null
+    val start = request.indexOf(BRIEF_OPEN).takeIf { it >= 0 } ?: return null
+    val end = request.indexOf(BRIEF_CLOSE, start + BRIEF_OPEN.length).takeIf { it >= 0 } ?: return null
+    val text = request.substring(start + BRIEF_OPEN.length, end)
+    val lines = request.lines()
+    val blocks = ScreenBlock.entries.filter { block -> (BLOCK_BULLET + block.forForge) in lines }.toSet()
+    val layout = ScreenLayout.entries.firstOrNull { (LAYOUT_LABEL + it.forForge + ".") in lines } ?: ScreenLayout.CARDS
+    return ScreenBrief(text = text, blocks = blocks, layout = layout)
+  }
+
+  private const val BRIEF_OPEN = "[brief]\n"
+  private const val BRIEF_CLOSE = "\n[/brief]"
+  private const val BLOCK_BULLET = "- "
+  private const val LAYOUT_LABEL = "Layout: "
 
   private fun StringBuilder.agentContext(definition: AgentDefinition) {
     val description = definition.displayDescription.trim()

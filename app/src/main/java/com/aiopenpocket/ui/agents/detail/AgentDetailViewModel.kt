@@ -54,7 +54,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancelAndJoin
 
 /** One resolved row for the Tools section — real tool metadata, never a bare count. */
 data class AgentDetailToolRow(
@@ -367,16 +366,21 @@ class AgentDetailViewModel(
 
   /**
    * A drawing still under way is cancelled, not left to land later: it would bring a picture of an old
-   * brief back into the next sheet, and a second paid drawing could start beside it.
+   * brief back into the next sheet. Its request still finishes inside the generator, so a picture Meta
+   * bills is recorded; the cancelled drawing just writes no file.
    */
   private fun forgetMockup(agentId: String) {
-    val drawing = mockupJob
+    mockupJob?.cancel()
     mockupJob = null
     _state.update { it.copy(forgeMockup = ForgeMockup()) }
-    viewModelScope.launch {
-      drawing?.cancelAndJoin()
-      screenMockups.discard(agentId)
-    }
+    screenMockups.discardLater(agentId)
+  }
+
+  /** Leaving the agent's screen with the sheet open (system Back) must not leave the picture on disk. */
+  override fun onCleared() {
+    val agentId = _state.value.definition?.id
+    if (agentId != null && (mockupJob != null || _state.value.forgeMockup != ForgeMockup())) forgetMockup(agentId)
+    super.onCleared()
   }
 
   /** Sends the draft as a change to the current screen: the worker gets the old source back. */
@@ -579,7 +583,6 @@ class AgentDetailViewModel(
   companion object {
     // @trace cloud-forged-screens-40d702
     const val SAMPLE_BUNDLE_ASSET = "ketoy/hello.ktx"
-    const val SAMPLE_ENTRY_POINT = "WishlistScreen"
     private const val MAX_POLL_FAILURES = 5
     private const val MAX_POLL_MILLIS = 15 * 60 * 1000L
     private const val SLOW_POLL_AFTER = 20

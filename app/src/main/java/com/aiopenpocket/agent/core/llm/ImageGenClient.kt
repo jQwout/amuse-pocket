@@ -20,6 +20,9 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
 import kotlin.random.Random
 
 /** One generated image: the bytes and their type (`image/webp`, `image/png`, ...), if it is known. */
@@ -129,7 +132,7 @@ class ImageGenClient(
       if (!response.status.isSuccess()) {
         // Meta's error body is {"error":{"message","type","param","code"}}, e.g. content_policy_violation.
         Log.w(TAG, "Image generation failed: HTTP ${response.status.value} ${text.take(300)}")
-        return ImageAttempt(null, rejectedSize = response.status.value == 400 && text.contains("size", ignoreCase = true))
+        return ImageAttempt(null, rejectedSize = response.status.value in SIZE_REFUSAL_STATUSES && refusesSize(text))
       }
       val parsed = json.decodeFromString<ImageResponse>(text)
       val drawn = parsed.data.filter { it.b64Json.isNotBlank() }
@@ -148,6 +151,19 @@ class ImageGenClient(
       Log.w(TAG, "Image generation failed: ${e.message}")
       ImageAttempt(null)
     }
+  }
+
+  /**
+   * Whether an error body is about the `size` field: Meta's `error.param` names the field when it is sent,
+   * otherwise the message has to say "size" as a word. Not seen live for a portrait size - a guess at the
+   * documented error shape, kept narrow so a content refusal is never mistaken for it.
+   */
+  private fun refusesSize(body: String): Boolean {
+    val error = runCatching { json.parseToJsonElement(body).jsonObject["error"]?.jsonObject }.getOrNull()
+    val param = (error?.get("param") as? JsonPrimitive)?.contentOrNull
+    if (param != null) return param == "size"
+    val message = (error?.get("message") as? JsonPrimitive)?.contentOrNull ?: body
+    return SIZE_WORD.containsMatchIn(message)
   }
 
   /**
@@ -206,6 +222,10 @@ class ImageGenClient(
     /** A phone screen standing up: the forge mockup (ScreenMockupGenerator). */
     const val PORTRAIT_SIZE = "720x1280"
     private const val RESPONSE_FORMAT = "b64_json"
+
+    /** A bad field is a 400 in Meta's docs; 422 is what OpenAI-style APIs use for the same. */
+    private val SIZE_REFUSAL_STATUSES = setOf(400, 422)
+    private val SIZE_WORD = Regex("""\bsize\b""", RegexOption.IGNORE_CASE)
 
     /** Meta's default; pinned so the media type we fall back to is the format we asked for. */
     private const val OUTPUT_FORMAT = "webp"

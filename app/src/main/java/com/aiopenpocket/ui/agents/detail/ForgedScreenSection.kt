@@ -206,11 +206,14 @@ private fun ProgressCard(text: String, request: String, onCancel: () -> Unit) {
         style = MaterialTheme.typography.bodyMedium,
       )
       Text(
-        text = if (AgentUiRequest.isAuto(request)) {
-          tr("Экран собирается из имени, описания и инструкций агента.", "Built from the agent name, description and instructions.")
-        } else {
-          "“${request.take(160)}”"
-        },
+        // @trace screen-brief-and-mockup-before-the-forge-builds-82cfb2
+        // A brief build quotes the person's own words; the generic line is left for requests without them.
+        text = AgentUiRequest.briefOf(request)?.let { "“${it.text.take(160)}”" }
+          ?: if (AgentUiRequest.isAuto(request)) {
+            tr("Экран собирается из имени, описания и инструкций агента.", "Built from the agent name, description and instructions.")
+          } else {
+            "“${request.take(160)}”"
+          },
         style = MaterialTheme.typography.bodySmall,
       )
       TextButton(onClick = onCancel, modifier = Modifier.testTag("forged_remove")) {

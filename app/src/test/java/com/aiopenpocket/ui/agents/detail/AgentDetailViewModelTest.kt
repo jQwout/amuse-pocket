@@ -134,7 +134,18 @@ class AgentDetailViewModelTest {
   }
 
   /** The same wiring as [vm], with a [ToolRegistry] of its own — for a test that needs other tools registered. */
-  private fun viewModelWith(toolRegistry: ToolRegistry) = AgentDetailViewModel(
+  private fun viewModelWith(
+    toolRegistry: ToolRegistry,
+    // No key: the mockup is never drawn, except in the tests that bring their own generator.
+    screenMockups: com.aiopenpocket.agent.core.forge.ScreenMockupGenerator = com.aiopenpocket.agent.core.forge.ScreenMockupGenerator(
+      RuntimeEnvironment.getApplication(),
+      com.aiopenpocket.agent.core.llm.ImageGenClient(
+        io.ktor.client.engine.mock.MockEngine { error("no image calls in these tests") },
+        { "" },
+        com.aiopenpocket.agent.core.llm.NoOpLlmUsageRecorder,
+      ),
+    ),
+  ) = AgentDetailViewModel(
     agentResolver = DefaultAgentResolver(userAgentRepository),
     userAgentRepository = userAgentRepository,
     toolRegistry = toolRegistry,
@@ -148,15 +159,7 @@ class AgentDetailViewModelTest {
     // that answers 404 to everything. The one test that looks at it feeds it through [forgedRepository].
     forgedScreenRepository = forgedRepository,
     application = RuntimeEnvironment.getApplication(),
-    // No key: the mockup is never drawn in these tests.
-    screenMockups = com.aiopenpocket.agent.core.forge.ScreenMockupGenerator(
-      RuntimeEnvironment.getApplication(),
-      com.aiopenpocket.agent.core.llm.ImageGenClient(
-        io.ktor.client.engine.mock.MockEngine { error("no image calls in these tests") },
-        { "" },
-        com.aiopenpocket.agent.core.llm.NoOpLlmUsageRecorder,
-      ),
-    ),
+    screenMockups = screenMockups,
   )
 
   @After
@@ -547,7 +550,7 @@ class AgentDetailViewModelTest {
 
     val state = awaitForged { (it.forged.state as? ForgedScreenState.Ready)?.jobId == ForgedScreenRepository.SAMPLE_JOB_ID }
     val ready = state.forged.state as ForgedScreenState.Ready
-    assertEquals(AgentDetailViewModel.SAMPLE_ENTRY_POINT, ready.entryPoint)
+    assertEquals(ForgedScreenRepository.SAMPLE_ENTRY_POINT, ready.entryPoint)
     val shipped = File("src/debug/assets/ketoy/hello.ktx").readBytes()
     assertTrue("the sample asset must not be empty", shipped.isNotEmpty())
     assertTrue(state.forged.bundle!!.contentEquals(shipped))
@@ -580,5 +583,75 @@ class AgentDetailViewModelTest {
 
     vm.setCustomUi(false)
     assertFalse(awaitForged { !it.forged.customUiEnabled }.forged.customUiEnabled)
+  }
+
+  // --- The brief's mockup ------------------------------------------------------------------------
+  // @trace screen-brief-and-mockup-before-the-forge-builds-82cfb2
+
+  /** A generator whose Meta answers only when [release] completes, so a test can act mid-drawing. */
+  private fun gatedMockups(release: kotlinx.coroutines.CompletableDeferred<Unit>, fail: () -> Boolean = { false }) =
+    com.aiopenpocket.agent.core.forge.ScreenMockupGenerator(
+      RuntimeEnvironment.getApplication(),
+      com.aiopenpocket.agent.core.llm.ImageGenClient(
+        MockEngine {
+          release.await()
+          if (fail()) {
+            respond("""{"error":{"message":"busy","param":null}}""", HttpStatusCode.InternalServerError)
+          } else {
+            val b64 = android.util.Base64.encodeToString(byteArrayOf(1, 2, 3), android.util.Base64.NO_WRAP)
+            respond(
+              """{"data":[{"b64_json":"$b64"}],"output_format":"webp"}""",
+              HttpStatusCode.OK,
+              io.ktor.http.headersOf(io.ktor.http.HttpHeaders.ContentType, "application/json"),
+            )
+          }
+        },
+        { "meta-key" },
+        com.aiopenpocket.agent.core.llm.NoOpLlmUsageRecorder,
+      ),
+    )
+
+  private val brief = com.aiopenpocket.agent.core.forge.ScreenBrief(
+    "Glasses today",
+    setOf(com.aiopenpocket.agent.core.forge.ScreenBlock.TOTAL),
+    com.aiopenpocket.agent.core.forge.ScreenLayout.CARDS,
+  )
+
+  @Test
+  fun `closing the sheet mid-drawing keeps the late picture out of the next sheet`() = runTest(testDispatcher) {
+    val release = kotlinx.coroutines.CompletableDeferred<Unit>()
+    vm = viewModelWith(ToolRegistry(emptySet()), gatedMockups(release))
+    vm.select("budget")
+    awaitForged { it.definition != null }
+
+    vm.drawMockup(brief, dark = true)
+    assertTrue(vm.state.value.forgeMockup.drawing)
+    vm.clearMockup()
+    release.complete(Unit)
+
+    // Real time for the generator's IO thread to finish what it had started.
+    withContext(Dispatchers.Default) { kotlinx.coroutines.delay(500) }
+    assertEquals(ForgeMockup(), vm.state.value.forgeMockup)
+    val dir = File(RuntimeEnvironment.getApplication().filesDir, "forge_mockups")
+    assertTrue("a drawing nobody waits for writes no file", dir.listFiles().orEmpty().none { it.name.startsWith("budget-") })
+  }
+
+  @Test
+  fun `a failed redraw drops the old picture and says why`() = runTest(testDispatcher) {
+    var failing = false
+    val release = kotlinx.coroutines.CompletableDeferred<Unit>().apply { complete(Unit) }
+    vm = viewModelWith(ToolRegistry(emptySet()), gatedMockups(release) { failing })
+    vm.select("budget")
+    awaitForged { it.definition != null }
+
+    vm.drawMockup(brief, dark = true)
+    val drawn = awaitForged { it.forgeMockup.path != null }
+    assertTrue(File(drawn.forgeMockup.path!!).isFile)
+
+    failing = true
+    vm.drawMockup(brief.copy(text = "Something else"), dark = true)
+    val failed = awaitForged { !it.forgeMockup.drawing && it.forgeMockup.error != null }
+
+    assertEquals("the old picture is of the old words", null, failed.forgeMockup.path)
   }
 }

@@ -8,8 +8,13 @@ import com.aiopenpocket.agent.core.llm.ImageGenClient
 import com.aiopenpocket.di.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -31,22 +36,37 @@ class ScreenMockupGenerator(
 
   fun isConfigured(): Boolean = client.isConfigured()
 
-  /** The mockup file, or null when nothing was drawn (no key, a refusal, the network). */
+  /** Deletes on its own thread, for a caller that is going away (a ViewModel being cleared). */
+  private val cleanup = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+  /**
+   * The mockup file, or null when nothing was drawn (no key, a refusal, the network) or the caller was
+   * cancelled meanwhile.
+   *
+   * A request that has started is let finish even when the caller is cancelled: Meta may already be
+   * drawing, and an image it bills must still reach the spend card. Only the file is skipped.
+   */
   suspend fun draw(agentId: String, agentName: String, brief: ScreenBrief, dark: Boolean): File? =
     withContext(Dispatchers.IO) {
       val prompt = prompt(agentName, brief, dark)
-      // Portrait first. Only if Meta turns that size down is the default frame tried: on a network failure
-      // or a content refusal a second request would just repeat the wait (each one already retries).
-      val portrait = client.attempt(prompt, ImageGenClient.PORTRAIT_SIZE)
-      val image = portrait.image
-        ?: (if (portrait.rejectedSize) client.attempt(prompt).image else null)
-        ?: return@withContext null
+      val image = withContext(NonCancellable) {
+        // Portrait first. Only if Meta turns that size down is the default frame tried: on a network failure
+        // or a content refusal a second request would just repeat the wait (each one already retries).
+        val portrait = client.attempt(prompt, ImageGenClient.PORTRAIT_SIZE)
+        portrait.image ?: if (portrait.rejectedSize) client.attempt(prompt).image else null
+      } ?: return@withContext null
       // Closed while Meta was drawing: nothing is written, the sheet already forgot this drawing.
       ensureActive()
       try {
         discardFiles(agentId)
         // A new name each time, so the image loader never shows the previous drawing from its cache.
-        File(dir(), "${safe(agentId)}-${System.currentTimeMillis()}.img").apply { writeBytes(image.bytes) }
+        val file = File(dir(), "${safe(agentId)}-${System.currentTimeMillis()}.img").apply { writeBytes(image.bytes) }
+        // Cancelled during the write: the discard that came with the cancel may already have run.
+        if (!isActive) {
+          file.delete()
+          return@withContext null
+        }
+        file
       } catch (e: IOException) {
         Log.w(TAG, "Failed to save the mockup: ${e.message}")
         null
@@ -55,6 +75,11 @@ class ScreenMockupGenerator(
 
   /** Deletes the agent's mockup: the sheet closed, the screen was built from it, or the agent is gone. */
   suspend fun discard(agentId: String) = withContext(Dispatchers.IO) { discardFiles(agentId) }
+
+  /** [discard] that does not wait: for a caller whose own scope is ending. */
+  fun discardLater(agentId: String) {
+    cleanup.launch { discardFiles(agentId) }
+  }
 
   private fun discardFiles(agentId: String) {
     dir().listFiles { f -> f.name.startsWith("${safe(agentId)}-") }?.forEach { it.delete() }

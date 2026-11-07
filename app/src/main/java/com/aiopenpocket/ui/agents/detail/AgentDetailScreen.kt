@@ -123,7 +123,8 @@ fun AgentDetailScreen(
       var briefOpen by rememberSaveable { mutableStateOf(false) }
       if (briefOpen) {
         ScreenBriefSheet(
-          initial = com.aiopenpocket.agent.core.forge.ScreenBriefs.draft(agent),
+          // "Regenerate" reopens the brief the screen was built from; a first build starts from the agent.
+          initial = lastBrief(state.forged.state) ?: com.aiopenpocket.agent.core.forge.ScreenBriefs.draft(agent),
           mockup = state.forgeMockup,
           onDrawMockup = onForgeDrawMockup,
           onBuild = { brief ->
@@ -259,6 +260,17 @@ fun AgentDetailScreen(
 }
 
 /** The modal's compact header per the mockup: the agent's icon, name, status dot + id, a close cross. */
+// @trace screen-brief-and-mockup-before-the-forge-builds-82cfb2
+/** The brief the current (or failed) screen was asked with, if it was a brief build. */
+private fun lastBrief(state: ForgedScreenState): com.aiopenpocket.agent.core.forge.ScreenBrief? {
+  val request = when (state) {
+    is ForgedScreenState.Ready -> state.request
+    is ForgedScreenState.Failed -> state.request
+    else -> return null
+  }
+  return com.aiopenpocket.agent.core.forge.AgentUiRequest.briefOf(request)
+}
+
 @Composable
 private fun AgentDetailModalHeader(
   agent: AgentDefinition,

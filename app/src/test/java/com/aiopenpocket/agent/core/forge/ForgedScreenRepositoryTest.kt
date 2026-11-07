@@ -992,13 +992,31 @@ class ForgedScreenRepositoryTest {
     assertTrue("the excerpt starts at the beginning of the instructions", request.contains("ALPHA"))
     assertFalse("the excerpt is cut, the tail never travels", request.contains("OMEGA"))
     assertTrue(request.contains(" ..."))
-    assertTrue("the person's words travel whole", request.contains("The person's brief: Glasses drunk today and a button to add one"))
+    assertTrue("the person's words travel whole", request.contains("The person's brief:\n[brief]\nGlasses drunk today and a button to add one\n[/brief]"))
     assertTrue(
       "the blocks are listed in the sheet's order, not the order they were ticked",
       request.indexOf(ScreenBlock.TOTAL.forForge) in 0 until request.indexOf(ScreenBlock.ADD_FORM.forForge),
     )
     assertTrue(request.contains("Layout: " + ScreenLayout.DASHBOARD.forForge))
     assertTrue("the card does not quote it as a typed change", AgentUiRequest.isAuto(request))
+  }
+
+  @Test
+  fun `the brief reads back from its request, several lines and all`() {
+    val written = ScreenBrief(
+      text = "Glasses today\n- big counter\n- a reset",
+      blocks = setOf(ScreenBlock.PHOTO, ScreenBlock.TOTAL),
+      layout = ScreenLayout.LIST,
+    )
+
+    assertEquals(written, AgentUiRequest.briefOf(AgentUiRequest.fromBrief(definition, written)))
+    assertEquals(brief, AgentUiRequest.briefOf(AgentUiRequest.fromBrief(definition, brief)))
+  }
+
+  @Test
+  fun `a typed change has no brief to read back`() {
+    assertNull(AgentUiRequest.briefOf("add a reset button"))
+    assertNull(AgentUiRequest.briefOf("Design the main screen of the agent \"X\".\nWhat the agent is for: y"))
   }
 
   @Test
