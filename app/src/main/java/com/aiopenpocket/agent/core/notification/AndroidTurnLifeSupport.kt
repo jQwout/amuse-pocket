@@ -7,6 +7,7 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 import com.aiopenpocket.agent.loop.TurnLifeSupport
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.voice.call.CallBackground
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -27,6 +28,14 @@ class AndroidTurnLifeSupport(private val application: Application) : TurnLifeSup
   private val lock = Any()
   private val holders = mutableMapOf<String, Int>()
 
+  /**
+   * Whether [TurnForegroundService] was started by this and not stopped since. Kept apart from [holders]:
+   * a turn counted while a background call's service stood in for this one leaves the map non-empty with
+   * no service of its own, and inferring "the service is up" from the map would hand every later turn a
+   * guarantee nobody gives.
+   */
+  private var serviceUp = false
+
   @Volatile
   private var protectionLost: ((Set<String>) -> Unit)? = null
 
@@ -36,17 +45,17 @@ class AndroidTurnLifeSupport(private val application: Application) : TurnLifeSup
 
   override suspend fun acquire(conversationId: String): Boolean {
     val needsStart = synchronized(lock) {
-      val wasEmpty = holders.isEmpty()
       holders[conversationId] = (holders[conversationId] ?: 0) + 1
-      wasEmpty
+      !serviceUp
     }
     if (!needsStart) return true
 
     // @trace background-voice-calls-a-picture-in-picture-window-and-a-call-that-goes-on-off-screen-3ab748
     // A call going on off screen already runs a foreground service of its own, which keeps the process alive
     // and shows the call; a second "The agent is replying…" notification under it is noise. A turn still
-    // running when that call hangs up loses the guarantee - its reply is in the chat either way.
-    if (com.aiopenpocket.voice.call.CallBackground.serviceRunning) return true
+    // running when that call hangs up loses the guarantee - its reply is in the chat either way - but the
+    // next turn after it starts this service again.
+    if (CallBackground.serviceRunning.value) return true
 
     // Since API 31 starting an FGS from the background is forbidden (ForegroundServiceStartNotAllowedException).
     // It is neither a programmer error nor a reason to fail the turn — there just will be no guarantee,
@@ -58,16 +67,16 @@ class AndroidTurnLifeSupport(private val application: Application) : TurnLifeSup
       )
     }.isSuccess
 
-    if (!started) synchronized(lock) { decrement(conversationId) }
+    synchronized(lock) { if (started) serviceUp = true else decrement(conversationId) }
     return started
   }
 
   override fun release(conversationId: String) {
-    val nowEmpty = synchronized(lock) {
+    val stop = synchronized(lock) {
       decrement(conversationId)
-      holders.isEmpty()
+      (holders.isEmpty() && serviceUp).also { if (it) serviceUp = false }
     }
-    if (nowEmpty) {
+    if (stop) {
       application.stopService(Intent(application, TurnForegroundService::class.java))
     }
   }
@@ -83,6 +92,7 @@ class AndroidTurnLifeSupport(private val application: Application) : TurnLifeSup
    */
   private fun reportProtectionLost() {
     val protectedIds = synchronized(lock) {
+      serviceUp = false
       holders.keys.toSet().also { holders.clear() }
     }
     protectionLost?.invoke(protectedIds)

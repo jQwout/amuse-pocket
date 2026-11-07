@@ -14,8 +14,8 @@
       "git": "097a6f63"
     },
     "agent-router-dc2233": {
-      "hash": "75807c825898",
-      "git": "0f642151"
+      "hash": "95ec5a8617dc",
+      "git": "8400da26"
     },
     "agent-skills-7189cc": {
       "hash": "e3296460a332",
@@ -34,16 +34,16 @@
       "git": "22c86347"
     },
     "approval-outcome-honesty-554a8c": {
-      "hash": "9f8819931e05",
-      "git": "097a6f63"
+      "hash": "17223930a1ee",
+      "git": "8400da26"
     },
     "background-tasks-15a34a": {
       "hash": "589f7d11a82a",
       "git": "21fba91e"
     },
     "background-voice-calls-a-picture-in-picture-window-and-a-call-that-goes-on-off-screen-3ab748": {
-      "hash": "cfa1b006ec55",
-      "git": "0f642151"
+      "hash": "6197ccacf2c3",
+      "git": "8400da26"
     },
     "builder-passport-7d7794": {
       "hash": "b0e569cfebd9",
@@ -70,8 +70,8 @@
       "git": "eae32b2d"
     },
     "fonovye-hody-agenta-dde42d": {
-      "hash": "c645166e5a62",
-      "git": "0f642151"
+      "hash": "068aaa8366f1",
+      "git": "8400da26"
     },
     "forge-host-capabilities-f648ae": {
       "hash": "74b78f71d116",
@@ -102,8 +102,8 @@
       "git": "eae32b2d"
     },
     "meta-voice-transcribe-in-calls-297760": {
-      "hash": "86d15fc29b0f",
-      "git": "51f561f2"
+      "hash": "c5c54ced90a2",
+      "git": "8400da26"
     },
     "multi-agent-orchestration-27b8e3": {
       "hash": "df3f619804a9",
@@ -170,8 +170,8 @@
       "git": "4bee9462"
     },
     "structured-plan-engine-907066": {
-      "hash": "5bd8c8d8bc90",
-      "git": "f34130ef"
+      "hash": "84d6e775f6f5",
+      "git": "8400da26"
     },
     "swappable-persona-e5e65e": {
       "hash": "11aaa5d19303",

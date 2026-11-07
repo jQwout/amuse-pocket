@@ -6,6 +6,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.aiopenpocket.agent.loop.ForegroundState
 import com.aiopenpocket.di.AppScope
+import com.aiopenpocket.voice.call.CallBackground
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -21,4 +22,7 @@ import dev.zacsweers.metro.SingleIn
 class AppForegroundTracker : ForegroundState {
   override fun isInForeground(): Boolean =
     ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+
+  // @trace background-voice-calls-a-picture-in-picture-window-and-a-call-that-goes-on-off-screen-3ab748
+  override fun readsAloud(conversationId: String): Boolean = CallBackground.readsAloud(conversationId)
 }

@@ -618,9 +618,14 @@ class TurnManager(
     notifyIfBackground(session.conversationId, preview = message, failed = true)
   }
 
-  /** Push only when the app is really in the background; inside the app — the conversation list badges. */
+  /**
+   * Push only when the app is really in the background; inside the app — the conversation list badges.
+   * Not a reply that a voice call going on off screen is reading aloud: it is already heard. A failure is
+   * still pushed: its "Retry" lives in the chat.
+   */
   private suspend fun notifyIfBackground(conversationId: String, preview: String, failed: Boolean) {
     if (foreground.isInForeground()) return
+    if (!failed && foreground.readsAloud(conversationId)) return
     val title = runCatching { persistence.conversationTitle(conversationId) }.getOrNull()
     notifier.turnFinished(conversationId, title, preview, failed)
   }

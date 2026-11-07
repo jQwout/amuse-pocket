@@ -55,9 +55,10 @@
             android:theme="@style/Theme.MyApplication"
             android:windowSoftInputMode="adjustResize"
             android:supportsPictureInPicture="true"
-            android:configChanges="screenSize|smallestScreenSize|screenLayout">
-            <!-- A call shrinks into a picture-in-picture window when the person leaves it; the size changes
-                 above are handled by Compose, so the window resizes without recreating the call. -->
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation">
+            <!-- A call shrinks into a picture-in-picture window when the person leaves it; the size and
+                 orientation changes above are handled by Compose, so the window resizes (a portrait mini
+                 window out of a landscape screen too) without recreating the call. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

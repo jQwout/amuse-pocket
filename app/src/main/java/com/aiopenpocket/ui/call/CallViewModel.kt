@@ -159,6 +159,9 @@ class CallViewModel(
 
   private val convIdFlow = MutableStateFlow<String?>(null)
 
+  /** The conversation this call speaks in; null until its first phrase creates one. */
+  val conversationId: StateFlow<String?> = convIdFlow.asStateFlow()
+
   /** The session of a turn from before the current phrase; nothing from it is read or shown. */
   private var staleSession: TurnSession? = null
 
@@ -238,13 +241,20 @@ class CallViewModel(
         speaker.stop()
         update { it.cutOff() }
       }
-      _state.value.micPaused -> {
-        errorStreak = 0
-        silentStarts = 0
-        _state.update { it.copy(micPaused = false, notice = null) }
-        syncMic()
-      }
+      _state.value.micPaused -> wakeMic()
     }
+  }
+
+  /**
+   * Wakes a microphone that gave up after a long silence, and nothing else: the notification's "Listen"
+   * must not cut off a reply being read the way a tap on the screen does.
+   */
+  fun wakeMic() {
+    if (!_state.value.micPaused) return
+    errorStreak = 0
+    silentStarts = 0
+    _state.update { it.copy(micPaused = false, notice = null) }
+    syncMic()
   }
 
   /**

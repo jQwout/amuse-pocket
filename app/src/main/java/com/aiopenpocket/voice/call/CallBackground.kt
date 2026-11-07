@@ -44,13 +44,15 @@ data class CallStatus(
   val muted: Boolean = false,
   /** The microphone gave up after a long silence: the mute button wakes it instead. */
   val paused: Boolean = false,
+  /** The conversation the call speaks in; null until its first phrase creates one. */
+  val conversationId: String? = null,
 )
 
 /**
  * The call as the rest of the app sees it, for the owner's "a call like picture-in-picture on Windows" (Nov 7,
- * 2026): leaving the call screen shrinks it into a mini window over other apps, and closing that window or
- * locking the screen does not end it - the call goes on listening and speaking, with an ongoing notification
- * that can mute or hang up.
+ * 2026): leaving the call screen shrinks it into a mini window over other apps, and going behind another app
+ * or locking the screen does not end it - the call goes on listening and speaking, with an ongoing
+ * notification that can mute or hang up. Closing the mini window itself hangs up, as closing a call does.
  *
  * Plain flows in an object, not the DI graph: the system creates the service, the receiver and the activity,
  * and all three only need to read or nudge one call at a time.
@@ -90,10 +92,24 @@ object CallBackground {
   @Volatile
   var pipHost: (() -> Unit)? = null
 
-  /** The call's microphone service is up: a turn of the call needs no service of its own. */
-  @Volatile
-  var serviceRunning: Boolean = false
-    internal set
+  private val _serviceRunning = MutableStateFlow(false)
+
+  /**
+   * The call's microphone service is up. Only then may the call hear off screen (Android gives the
+   * microphone to a backgrounded app only through it), and a turn of the call needs no service of its own.
+   */
+  val serviceRunning: StateFlow<Boolean> = _serviceRunning.asStateFlow()
+
+  internal fun setServiceRunning(running: Boolean) {
+    _serviceRunning.value = running
+  }
+
+  /**
+   * Whether a call going on off screen reads [conversationId]'s replies aloud: then a push about the same
+   * reply would only ring over the voice.
+   */
+  fun readsAloud(conversationId: String): Boolean =
+    _serviceRunning.value && _onCall.value && _status.value.conversationId == conversationId
 
   private val _status = MutableStateFlow(CallStatus())
   val status: StateFlow<CallStatus> = _status.asStateFlow()
@@ -163,16 +179,42 @@ class CallForegroundService : Service() {
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
   private var watching = false
 
+  // Built once: the status changes several times a phrase, these never do.
+  private val openIntent by lazy {
+    PendingIntent.getActivity(
+      this,
+      NOTIFICATION_ID,
+      Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+  }
+  private val muteIntent by lazy { CallBackground.controlIntent(this, CallControl.MUTE) }
+  private val hangUpIntent by lazy { CallBackground.controlIntent(this, CallControl.HANG_UP) }
+
   override fun onBind(intent: Intent?): IBinder? = null
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-    CallBackground.serviceRunning = true
-    ServiceCompat.startForeground(
-      this,
-      NOTIFICATION_ID,
-      notification(CallBackground.status.value),
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0,
-    )
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      getSystemService(NotificationManager::class.java).createNotificationChannel(
+        // Low: the call is already speaking, the notification must not ring over it.
+        NotificationChannel(CHANNEL_ID, tr("Звонок", "Call"), NotificationManager.IMPORTANCE_LOW),
+      )
+    }
+    try {
+      ServiceCompat.startForeground(
+        this,
+        NOTIFICATION_ID,
+        notification(CallBackground.status.value),
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0,
+      )
+    } catch (e: Exception) {
+      // Android 14+ refuses a microphone service it cannot allow right now (the app already behind
+      // something, the permission gone). Not a crash: the call keeps quiet off screen instead.
+      Log.w(TAG, "Could not keep the call going off screen: ${e.message}")
+      stopSelf()
+      return START_NOT_STICKY
+    }
+    CallBackground.setServiceRunning(true)
     if (!watching) {
       watching = true
       val manager = getSystemService(NotificationManager::class.java)
@@ -184,42 +226,33 @@ class CallForegroundService : Service() {
   }
 
   override fun onDestroy() {
-    CallBackground.serviceRunning = false
+    CallBackground.setServiceRunning(false)
     scope.cancel()
     super.onDestroy()
   }
 
-  private fun notification(status: CallStatus): Notification {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      getSystemService(NotificationManager::class.java).createNotificationChannel(
-        // Low: the call is already speaking, the notification must not ring over it.
-        NotificationChannel(CHANNEL_ID, tr("Звонок", "Call"), NotificationManager.IMPORTANCE_LOW),
-      )
-    }
-    val open = PendingIntent.getActivity(
-      this,
-      NOTIFICATION_ID,
-      Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
-      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-    )
-    return NotificationCompat.Builder(this, CHANNEL_ID)
+  private fun notification(status: CallStatus): Notification =
+    NotificationCompat.Builder(this, CHANNEL_ID)
       .setSmallIcon(R.drawable.ic_stat_agent)
       .setContentTitle(status.title.ifBlank { tr("Звонок", "Call") })
       .setContentText(status.phase)
       .setOngoing(true)
       .setSilent(true)
       .setCategory(NotificationCompat.CATEGORY_CALL)
-      .setContentIntent(open)
-      .addAction(R.drawable.ic_call_mic_off, muteLabel(status), CallBackground.controlIntent(this, CallControl.MUTE))
-      .addAction(R.drawable.ic_call_end, tr("Завершить", "Hang up"), CallBackground.controlIntent(this, CallControl.HANG_UP))
+      .setContentIntent(openIntent)
+      .addAction(
+        if (status.muted || status.paused) R.drawable.ic_call_mic else R.drawable.ic_call_mic_off,
+        muteLabel(status),
+        muteIntent,
+      )
+      .addAction(R.drawable.ic_call_end, tr("Завершить", "Hang up"), hangUpIntent)
       // Shown at once: the person has just left the screen and must see that the call still hears them.
       .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
       .build()
-  }
 
   companion object {
     private const val TAG = "CallForeground"
-    private const val CHANNEL_ID = "call_channel"
+    internal const val CHANNEL_ID = "call_channel"
     private const val NOTIFICATION_ID = 4343
 
     /** Starts it; quietly does nothing when Android refuses (the app already in the background). */

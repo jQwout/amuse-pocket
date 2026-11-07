@@ -144,6 +144,9 @@ class TurnManagerTest {
   private val lifeSupport = FakeLifeSupport()
   private var inForeground = true
 
+  /** Conversations a background voice call is reading aloud right now. */
+  private val readAloud = mutableSetOf<String>()
+
   /**
    * Request ids the coordinator would still call pending. A mutable set, not a constant `true`: the
    * push must stop nudging about a request the user has already answered.
@@ -162,7 +165,10 @@ class TurnManagerTest {
   private fun TestScope.manager() = TurnManager(
     executor = executor,
     persistence = persistence,
-    foreground = { inForeground },
+    foreground = object : ForegroundState {
+      override fun isInForeground() = inForeground
+      override fun readsAloud(conversationId: String) = conversationId in readAloud
+    },
     notifier = notifier,
     pendingApprovals = { it in pendingApprovalIds },
     lifeSupport = lifeSupport,
@@ -724,6 +730,28 @@ class TurnManagerTest {
     assertEquals("Чат c2", shown.title)
     assertEquals("готово", shown.preview)
     assertTrue(!shown.failed)
+  }
+
+  @Test
+  fun `a reply a background call reads aloud gets no push, its failure still does`() = runTest {
+    inForeground = false
+    readAloud += "call"
+    val m = manager()
+
+    executor.script = { flowOf(AgentEvent.Completed(finished("done"))) }
+    m.launchTurn("call", "question", AgentMode.CHAT)
+    advanceUntilIdle()
+    assertTrue("the call already spoke it", notifier.shown.isEmpty())
+
+    m.launchTurn("other", "question", AgentMode.CHAT)
+    advanceUntilIdle()
+    assertEquals("another chat still gets its push", "other", notifier.shown.single().convId)
+
+    executor.script = { flowOf(AgentEvent.Error("network down")) }
+    m.launchTurn("call", "question", AgentMode.CHAT)
+    advanceUntilIdle()
+    assertTrue("a failure is pushed: its Retry is in the chat", notifier.shown.last().failed)
+    assertEquals(2, notifier.shown.size)
   }
 
   @Test

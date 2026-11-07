@@ -51,6 +51,12 @@ interface TurnPersistence {
 /** Is the app on screen right now? The gate for the push about a background turn finishing. */
 fun interface ForegroundState {
   fun isInForeground(): Boolean
+
+  /**
+   * A voice call going on off screen reads this conversation's replies aloud, so the reply is already
+   * heard: a push about it would only ring over the voice.
+   */
+  fun readsAloud(conversationId: String): Boolean = false
 }
 
 /**

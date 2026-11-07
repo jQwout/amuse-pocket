@@ -61,7 +61,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -210,19 +210,40 @@ fun VoiceSessionScreen(
       goesOnOffScreen -> CallBackground.setOnCall(true)
     }
     onDispose {
+      // The screen left while its call lives on: another screen of the app pushed over it (a tap on a push
+      // opens that chat on top), the back stack keeping the call's ViewModel. With no screen and no
+      // notification it must not hear or speak; coming back to it listens afresh.
+      viewModel.onScreenHidden()
       if (overlay) CallBackground.setOverlayOpen(false) else CallForegroundService.leaveBackground(context)
     }
   }
   if (goesOnOffScreen) {
     // Everything below is a plain collect, not a recomposition: while the app is not in front Compose does not
     // recompose, and the call must still go quiet, show its state and hang up from the notification.
-    LaunchedEffect(Unit) {
-      // The assistant's own window listens: two recognizers on one microphone hear nothing.
-      CallBackground.overlayOpen.collect { open -> if (open) viewModel.onScreenHidden() else viewModel.onScreenShown() }
+    LaunchedEffect(lifecycleOwner) {
+      // The call hears while its screen is in front, or off screen while the microphone service runs - and
+      // not while the assistant's own window listens: two recognizers on one microphone hear nothing. A
+      // service that never started (refused in the background) or was stopped leaves it quiet off screen.
+      combine(
+        lifecycleOwner.lifecycle.currentStateFlow,
+        CallBackground.serviceRunning,
+        CallBackground.overlayOpen,
+      ) { screen, service, assistantOpen ->
+        !assistantOpen && (screen.isAtLeast(Lifecycle.State.RESUMED) || service)
+      }
+        .distinctUntilChanged()
+        .collect { hears -> if (hears) viewModel.onScreenShown() else viewModel.onScreenHidden() }
     }
     LaunchedEffect(Unit) {
-      viewModel.state
-        .map { CallStatus(title = callTitle(it), phase = phaseLabel(it), muted = it.micMuted, paused = it.micPaused) }
+      combine(viewModel.state, viewModel.conversationId) { state, id ->
+        CallStatus(
+          title = callTitle(state),
+          phase = phaseLabel(state),
+          muted = state.micMuted,
+          paused = state.micPaused,
+          conversationId = id,
+        )
+      }
         .distinctUntilChanged()
         .collect(CallBackground::setStatus)
     }
@@ -230,7 +251,7 @@ fun VoiceSessionScreen(
       CallBackground.controls.collect { control ->
         when (control) {
           // Mute, or wake a microphone that gave up after a long silence.
-          CallControl.MUTE -> if (viewModel.state.value.micPaused) viewModel.tap() else viewModel.toggleMute()
+          CallControl.MUTE -> if (viewModel.state.value.micPaused) viewModel.wakeMic() else viewModel.toggleMute()
           // The notification goes now: the screen's own dispose waits for the app to be opened again.
           CallControl.HANG_UP -> {
             CallForegroundService.leaveBackground(context)

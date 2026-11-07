@@ -2,8 +2,10 @@ package com.aiopenpocket.voice.call
 
 // @trace background-voice-calls-a-picture-in-picture-window-and-a-call-that-goes-on-off-screen-3ab748
 
+import android.app.NotificationChannel
 import android.app.NotificationManager
 import com.aiopenpocket.agent.core.notification.AndroidTurnLifeSupport
+import com.aiopenpocket.agent.core.notification.TurnForegroundService
 import com.aiopenpocket.i18n.tr
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
@@ -35,7 +37,7 @@ class CallBackgroundTest {
   @After
   fun tearDown() {
     CallBackground.pipHost = null
-    CallBackground.serviceRunning = false
+    CallBackground.setServiceRunning(false)
     CallForegroundService.leaveBackground(app)
   }
 
@@ -102,13 +104,54 @@ class CallBackgroundTest {
   }
 
   @Test
+  fun `a call does not go on off screen when only its channel is muted`() {
+    val manager = app.getSystemService(NotificationManager::class.java)
+    shadowOf(manager).setNotificationsEnabled(true)
+
+    manager.createNotificationChannel(
+      NotificationChannel(CallForegroundService.CHANNEL_ID, "Call", NotificationManager.IMPORTANCE_NONE),
+    )
+
+    assertFalse(CallForegroundService.canShowNotification(app))
+  }
+
+  @Test
+  fun `only the call's own conversation counts as read aloud, and only while its service runs`() {
+    CallBackground.setOnCall(true)
+    CallBackground.setStatus(CallStatus(conversationId = "conv-1"))
+
+    assertFalse("no service, nothing goes on off screen", CallBackground.readsAloud("conv-1"))
+    CallBackground.setServiceRunning(true)
+    assertTrue(CallBackground.readsAloud("conv-1"))
+    assertFalse(CallBackground.readsAloud("conv-2"))
+  }
+
+  @Test
   fun `a turn during a background call starts no second service`() = runTest {
-    CallBackground.serviceRunning = true
+    CallBackground.setServiceRunning(true)
     val support = AndroidTurnLifeSupport(app)
 
     assertTrue(support.acquire("conv-1"))
 
     assertNull("the call's own service is enough", shadowOf(app).nextStartedService)
     support.release("conv-1")
+  }
+
+  @Test
+  fun `a turn after the call hung up gets a service, though the first turn still runs`() = runTest {
+    CallBackground.setServiceRunning(true)
+    val support = AndroidTurnLifeSupport(app)
+    assertTrue(support.acquire("conv-1"))
+
+    CallBackground.setServiceRunning(false)
+    assertTrue(support.acquire("conv-2"))
+
+    assertEquals(
+      TurnForegroundService::class.java.name,
+      shadowOf(app).nextStartedService?.component?.className,
+    )
+    support.release("conv-1")
+    support.release("conv-2")
+    assertEquals(TurnForegroundService::class.java.name, shadowOf(app).nextStoppedService?.component?.className)
   }
 }

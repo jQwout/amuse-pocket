@@ -8,6 +8,7 @@ import android.content.res.Configuration
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.util.Rational
+import androidx.lifecycle.Lifecycle
 import com.aiopenpocket.i18n.tr
 import com.aiopenpocket.voice.call.CallBackground
 import com.aiopenpocket.voice.call.CallControl
@@ -565,6 +566,12 @@ class MainActivity : ComponentActivity() {
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         CallBackground.setInPip(isInPictureInPictureMode)
+        // Leaving the mini window while the activity is already stopped means it was closed, not expanded:
+        // the person put the call away, so it hangs up - cleanly, with its notification, before Android
+        // removes the task and takes the call screen with it.
+        if (!isInPictureInPictureMode && lifecycle.currentState == Lifecycle.State.CREATED && CallBackground.onCall.value) {
+            CallBackground.send(CallControl.HANG_UP)
+        }
     }
 
     private fun callPipParams(onCall: Boolean): PictureInPictureParams {
