@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistAddCheck
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,7 +29,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.runtime.saveable.rememberSaveable
+import android.content.Intent
+import android.provider.AlarmClock
+import com.aiopenpocket.agent.tools.AlarmTool
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.selection.toggleable
 import com.aiopenpocket.ui.chat.MultiChoiceSelection
@@ -42,7 +48,6 @@ import com.aiopenpocket.ui.agents.builder.LocalBuilderChatHost
 import com.aiopenpocket.ui.agents.builder.PassportRows
 import com.aiopenpocket.ui.agents.builder.PublishFromChatDialog
 import java.util.Locale
-import kotlinx.coroutines.delay
 import org.json.JSONObject
 
 @Composable
@@ -155,79 +160,73 @@ fun WeatherCardView(card: DrivenUiCard.WeatherCard) {
     }
 }
 
+// @trace a-timer-in-the-phone-s-clock-not-in-the-chat-cfafda
+/**
+ * A timer in the phone's Clock, as the Claude app shows one: how long, what for, and a way to Clock's timers.
+ * Not a countdown of its own any more - that one lived only while the card was on screen, was lost with it
+ * and could not be found or stopped anywhere else (owner, Nov 7, 2026). A timer the alarm tool already set
+ * says so; one the model only drew starts in Clock with the button.
+ */
 @Composable
 fun TimerCardView(card: DrivenUiCard.TimerCard) {
-    var timeLeft by remember { mutableStateOf(card.durationSec) }
-    var isRunning by remember { mutableStateOf(false) }
-
-    LaunchedEffect(isRunning, timeLeft) {
-        if (isRunning && timeLeft > 0) {
-            delay(1000L)
-            timeLeft--
-        } else if (timeLeft == 0) {
-            isRunning = false
-        }
+    val context = LocalContext.current
+    // The card's own record: "started" survives scrolling, so a drawn timer is not started twice by mistake.
+    var started by rememberSaveable(card) { mutableStateOf(card.setOnDevice) }
+    var noClock by remember { mutableStateOf(false) }
+    val openClock = { intent: Intent ->
+        noClock = runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isFailure
     }
 
-    val minutes = timeLeft / 60
-    val seconds = timeLeft % 60
-    val progress = if (card.durationSec > 0) timeLeft.toFloat() / card.durationSec.toFloat() else 0f
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text(
-            text = card.label,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.size(100.dp)
-        ) {
-            CircularProgressIndicator(
-                progress = { progress },
-                modifier = Modifier.fillMaxSize(),
-                strokeWidth = 6.dp,
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-            )
-
+    Column(modifier = Modifier.fillMaxWidth().testTag("timer_card")) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Outlined.Timer, contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
             Text(
-                text = String.format(Locale.US, "%02d:%02d", minutes, seconds),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp
+                text = tr("Таймер", "Timer"),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f),
             )
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Button(
-                onClick = { isRunning = !isRunning },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isRunning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                )
-            ) {
-                Icon(
-                    imageVector = if (isRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = null
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(if (isRunning) tr("Пауза", "Pause") else tr("Старт", "Start"))
+            TextButton(onClick = { openClock(Intent(AlarmClock.ACTION_SHOW_TIMERS)) }) {
+                Text(tr("Таймеры", "See timers"))
             }
-
-            TextButton(
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+        Text(
+            text = AlarmTool.formatLength(card.durationSec),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 12.dp),
+        )
+        if (card.label.isNotBlank()) {
+            Text(text = card.label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 4.dp))
+        }
+        when {
+            noClock -> Text(
+                text = tr("На телефоне нет приложения «Часы»", "There is no Clock app on this phone"),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            started -> Text(
+                text = tr("Таймер поставлен на телефоне", "This timer was set on your phone"),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 8.dp).alpha(0.7f),
+            )
+            else -> Button(
                 onClick = {
-                    isRunning = false
-                    timeLeft = card.durationSec
-                }
+                    openClock(
+                        Intent(AlarmClock.ACTION_SET_TIMER)
+                            .putExtra(AlarmClock.EXTRA_LENGTH, card.durationSec.coerceIn(1, 24 * 60 * 60))
+                            .putExtra(AlarmClock.EXTRA_MESSAGE, card.label)
+                            .putExtra(AlarmClock.EXTRA_SKIP_UI, true),
+                    )
+                    started = !noClock
+                },
+                modifier = Modifier.padding(top = 8.dp),
             ) {
-                Icon(imageVector = Icons.Default.Refresh, contentDescription = tr("Сброс", "Reset"))
+                Icon(Icons.Default.PlayArrow, contentDescription = null)
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(tr("Сброс", "Reset"))
+                Text(tr("Запустить в «Часах»", "Start in Clock"))
             }
         }
     }

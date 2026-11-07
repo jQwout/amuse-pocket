@@ -95,6 +95,8 @@ object CapabilityNames {
     "alarm" to mapOf(
       "set_alarm" to ("завести" to "set"),
       "show_alarms" to ("показать все" to "show all"),
+      "set_timer" to ("поставить таймер" to "set a timer"),
+      "show_timers" to ("показать таймеры" to "show timers"),
     ),
     "email" to mapOf("compose" to ("написать письмо" to "write a draft")),
     "srs_tool" to mapOf(

@@ -4,6 +4,7 @@ package com.aiopenpocket.ui.chat
 // @trace user-agent-builder-848153
 // @trace sam-segmentation-boxes-in-a-lesson-c3ea52
 
+import com.aiopenpocket.agent.tools.AlarmTool
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
@@ -21,7 +22,11 @@ import org.json.JSONObject
 sealed class DrivenUiCard {
     data class TodoList(val title: String, val items: List<TodoItem>) : DrivenUiCard()
     data class WeatherCard(val city: String, val days: List<WeatherDay>) : DrivenUiCard()
-    data class TimerCard(val label: String, val durationSec: Int) : DrivenUiCard()
+    /**
+     * A timer in the phone's Clock. [setOnDevice]: the alarm tool already started it there (the card only
+     * shows it); false for a card the model drew with render_card - its button starts it in Clock.
+     */
+    data class TimerCard(val label: String, val durationSec: Int, val setOnDevice: Boolean = false) : DrivenUiCard()
     data class TableCard(val headers: List<String>, val rows: List<List<String>>) : DrivenUiCard()
     data class ChartBarCard(val title: String, val labels: List<String>, val values: List<Float>) : DrivenUiCard()
     data class FormCard(val fields: List<FormField>, val submitLabel: String) : DrivenUiCard()
@@ -217,6 +222,7 @@ object DrivenUiEngine {
             "timer" -> DrivenUiCard.TimerCard(
                 label = p.optString("label", tr("Таймер", "Timer")),
                 durationSec = p.optInt("duration_sec", 60),
+                setOnDevice = p.optBoolean("set_on_device", false),
             )
             "table" -> {
                 val rowsJson = p.array("rows")
@@ -441,7 +447,10 @@ fun DrivenUiCard.toMarkdown(): String = when (this) {
         days.forEach { appendLine("| ${it.dayName} | ${it.temp} | ${it.text} |") }
     }.trim()
 
-    is DrivenUiCard.TimerCard -> tr("**$label** — таймер на $durationSec сек.", "**$label** — timer for $durationSec sec.")
+    is DrivenUiCard.TimerCard -> tr(
+        "**$label** — таймер на ${AlarmTool.formatLength(durationSec)}",
+        "**$label** — timer for ${AlarmTool.formatLength(durationSec)}",
+    )
 
     is DrivenUiCard.TableCard -> buildString {
         if (headers.isNotEmpty()) {

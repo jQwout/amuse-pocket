@@ -1,6 +1,10 @@
 {
   "version": 1,
   "features": {
+    "a-timer-in-the-phone-s-clock-not-in-the-chat-cfafda": {
+      "hash": "e54c7aebb4c0",
+      "git": "0cf1ec45"
+    },
     "agent-apps-native-screens-for-the-preset-agents-c8d8ce": {
       "hash": "73635ad619ba",
       "git": "1b32f21b"
@@ -62,8 +66,8 @@
       "git": "98161c0"
     },
     "driven-ui-cards-0418d0": {
-      "hash": "02f0d98637b5",
-      "git": "36749b19"
+      "hash": "990d4e679584",
+      "git": "0cf1ec45"
     },
     "english-ui-on-the-demo-path-223241": {
       "hash": "836f5b4411bf",
@@ -98,8 +102,8 @@
       "git": "ca77277b"
     },
     "mcp-tools-f77d9b": {
-      "hash": "a85bdea79198",
-      "git": "eae32b2d"
+      "hash": "b0843c8e7237",
+      "git": "0cf1ec45"
     },
     "meta-voice-transcribe-in-calls-297760": {
       "hash": "c5c54ced90a2",
@@ -118,8 +122,8 @@
       "git": "4bee9462"
     },
     "photo-outline-tool-8dec5b": {
-      "hash": "8e28596a7a00",
-      "git": "2f4394cc"
+      "hash": "9f4a07e7cfdc",
+      "git": "0cf1ec45"
     },
     "photos-in-chat-bca88e": {
       "hash": "98263d15e210",
@@ -142,8 +146,8 @@
       "git": "97ca7fba"
     },
     "sam-segmentation-boxes-in-a-lesson-c3ea52": {
-      "hash": "d2a3d4c4800c",
-      "git": "1e30a635"
+      "hash": "a33066fc3861",
+      "git": "0cf1ec45"
     },
     "screen-brief-and-mockup-before-the-forge-builds-82cfb2": {
       "hash": "b72354d7e171",
@@ -170,8 +174,8 @@
       "git": "4bee9462"
     },
     "structured-plan-engine-907066": {
-      "hash": "84d6e775f6f5",
-      "git": "8400da26"
+      "hash": "1a21fabbc79f",
+      "git": "0cf1ec45"
     },
     "swappable-persona-e5e65e": {
       "hash": "11aaa5d19303",
@@ -182,8 +186,8 @@
       "git": "c08de0e0"
     },
     "user-agent-builder-848153": {
-      "hash": "96e6701cc3eb",
-      "git": "f7379511"
+      "hash": "eef853a18db9",
+      "git": "0cf1ec45"
     },
     "video-na-vhod-v-uroke-muse-spark-08ccdb": {
       "hash": "8c9fa9a6843d",
