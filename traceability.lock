@@ -18,8 +18,8 @@
       "git": "097a6f63"
     },
     "agent-router-dc2233": {
-      "hash": "95ec5a8617dc",
-      "git": "8400da26"
+      "hash": "c9a3f21f1bf1",
+      "git": "c4c56399"
     },
     "agent-skills-7189cc": {
       "hash": "e3296460a332",
@@ -114,8 +114,8 @@
       "git": "eae32b2d"
     },
     "multi-chat-conversations-b3c93b": {
-      "hash": "601eda9bbaa8",
-      "git": "a2b7ac45"
+      "hash": "89213c31e424",
+      "git": "c4c56399"
     },
     "pdf-documents-in-chat-read-by-muse-spark-b7acf1": {
       "hash": "34e683e34abf",
@@ -180,6 +180,10 @@
     "swappable-persona-e5e65e": {
       "hash": "11aaa5d19303",
       "git": "48d4078"
+    },
+    "the-prompt-cache-keeps-the-whole-chat-history-d25062": {
+      "hash": "18e5535f53f3",
+      "git": "c4c56399"
     },
     "uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2": {
       "hash": "caea8ee443b8",

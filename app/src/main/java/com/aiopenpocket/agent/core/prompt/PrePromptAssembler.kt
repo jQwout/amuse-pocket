@@ -221,16 +221,22 @@ class PrePromptAssembler @Inject constructor(
           appendLine()
         }
 
-        // --- Prompt-cache order (Meta prompt caching is automatic PREFIX caching: everything after the
-        // first differing token is recomputed). Stable sections come first — system base, tutorial,
-        // language, role/persona, skill catalog, instructions — and the volatile tail (plan, current
-        // minute, memory) last. The timestamp used to sit third and moved the cache boundary every minute.
         // Instructions stay ABOVE the memory fence on purpose: the fence text says it cannot override "the
-        // instructions above". ---
+        // instructions above".
         appendLine("## Инструкции")
         appendLine("Действуй кратко. Используй инструменты когда нужно. Не показывай внутренние ID.")
         appendLine()
+      }
 
+      // @trace the-prompt-cache-keeps-the-whole-chat-history-d25062
+      // --- What changes every turn: the plan, the current minute, memory. Meta's prompt cache is automatic
+      // PREFIX caching - everything after the first differing token is billed in full again. These used to
+      // close the system prompt, which sits ahead of the whole history, so every new message moved the
+      // minute and re-billed the entire chat at the full price (~30% of agent-turn prompts cached on the
+      // owner's phone, Nov 4-8, 2026). They now ride at the end of the newest user message instead (see
+      // withTurnContext): the system prompt and every earlier message stay byte-for-byte the same from turn
+      // to turn, and only the newest exchange is new to the cache. ---
+      val turnContext = buildString {
         // The conversation's active approved plan (Task 6) — a compact, escaped summary; the full snapshot
         // is seen only by Planner/Executor/Verifier (design spec section 14). A conversation without a
         // plan does NOT get this section at all: planContext == null, nothing is added — this task leaves
@@ -240,8 +246,7 @@ class PrePromptAssembler @Inject constructor(
           appendLine()
         }
 
-        // The current moment is the TRUSTED zone (the app puts it in, not the user), so it sits above
-        // the <user_data> fence.
+        // The current moment is put in by the app, not the user, so it sits above the <user_data> fence.
         //
         // Without this section the agent answered every "remind me at 19:00" by setting a SYSTEM ALARM
         // and never a push. The reason is mechanical: heartbeat takes delay_minutes (relative time),
@@ -305,12 +310,13 @@ class PrePromptAssembler @Inject constructor(
           appendLine("</user_data>")
           appendLine()
         }
+      }.trimEnd()
 
-      }
+      val (stablePrompt, history) = withTurnContext(systemPrompt, window.verbatim, turnContext)
 
       PromptContext(
-        systemPrompt = systemPrompt,
-        history = window.verbatim,
+        systemPrompt = stablePrompt,
+        history = history,
         // null ONLY for a plain chat (no bound agent) — that is what grants the full tool registry.
         // A bound agent always scopes to its own toolNames, even when empty: an agent that chose no
         // tools must get an empty scope, never fall through to every tool on the device.
@@ -325,6 +331,30 @@ class PrePromptAssembler @Inject constructor(
     }
 
   private fun loadAsset(path: String): String? = assets.load(path)
+
+  /**
+   * Puts [turnContext] (what changes every turn) at the end of the newest user message, so the system
+   * prompt and every earlier message stay the same from turn to turn for the prompt cache. After the
+   * person's own words, not before them: the cache matches tokens, and in the next turn that message comes
+   * back without the context, so its text still matches.
+   *
+   * Only the copy sent to the model changes; the chat log keeps the person's words as they were. With no
+   * user message in the window (nothing calls it that way today), the context goes back to the end of the
+   * system prompt, where it used to be: the model still gets it, only without the cache saving.
+   */
+  internal fun withTurnContext(
+    systemPrompt: String,
+    history: List<PromptMessage>,
+    turnContext: String,
+  ): Pair<String, List<PromptMessage>> {
+    if (turnContext.isBlank()) return systemPrompt to history
+    val newest = history.indexOfLast { it.role == "user" }
+    if (newest < 0) return (systemPrompt.trimEnd() + "\n\n" + turnContext + "\n") to history
+    val withContext = history.toMutableList()
+    val message = withContext[newest]
+    withContext[newest] = message.copy(content = message.content.trimEnd() + TURN_CONTEXT_SEPARATOR + turnContext)
+    return systemPrompt to withContext
+  }
 
   /**
    * Fact lines under a shared character ceiling: each no longer than
@@ -386,6 +416,12 @@ class PrePromptAssembler @Inject constructor(
 
   companion object {
     private const val LOAD_SKILL_TOOL = "load_skill"
+
+    /**
+     * Sets the app's part apart from what the person wrote, so the model does not take the plan, the time or
+     * the memory for their words.
+     */
+    internal const val TURN_CONTEXT_SEPARATOR = "\n\n---\n[Контекст от приложения, не слова пользователя]\n"
     private val DEFAULT_SYSTEM_BASE = """
 Ты — AI-агент в приложении на Android-устройстве пользователя.
 Если задача подразумевает визуальный результат — используй render_card.

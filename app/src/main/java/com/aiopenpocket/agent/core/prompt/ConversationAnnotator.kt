@@ -2,9 +2,13 @@ package com.aiopenpocket.agent.core.prompt
 
 // @trace multi-chat-conversations-b3c93b
 
+import com.aiopenpocket.agent.core.llm.AgentModel
+import com.aiopenpocket.agent.core.llm.AgentModelContext
 import com.aiopenpocket.agent.core.llm.ChatMessage
 import com.aiopenpocket.agent.core.llm.LlmClient
 import com.aiopenpocket.agent.core.llm.LlmContextConfig
+import com.aiopenpocket.agent.core.llm.ReasoningEffort
+import com.aiopenpocket.agent.core.llm.ReasoningEffortContext
 import com.aiopenpocket.agent.core.llm.SelectedLlmProvider
 import com.aiopenpocket.agent.core.llm.StreamEvent
 import com.aiopenpocket.agent.core.memory.repository.ConversationRepository
@@ -14,6 +18,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -129,12 +134,18 @@ class ConversationAnnotator(
 
     val builder = StringBuilder()
     var streamError: String? = null
-    llmClient.streamChat(chat, tools = emptyList(), provider = selectedProvider()).collect { event ->
-      when (event) {
-        // Thinking instead of an answer is not an answer: a JSON draft from it would parse as a title.
-        is StreamEvent.TextDelta -> if (!event.reasoning) builder.append(event.content)
-        is StreamEvent.Error -> streamError = event.message
-        else -> Unit
+    // @trace the-prompt-cache-keeps-the-whole-chat-history-d25062
+    // Spark at low effort, like the agent router: a title and three tags need no depth. Without it the call
+    // ran at the model's own effort and on whatever model the person picked; background calls averaged about
+    // 900 output tokens each on the owner's phone (Nov 4-8, 2026) for a few words of JSON.
+    withContext(ReasoningEffortContext(ReasoningEffort.LOW) + AgentModelContext(AgentModel.SPARK.key)) {
+      llmClient.streamChat(chat, tools = emptyList(), provider = selectedProvider()).collect { event ->
+        when (event) {
+          // Thinking instead of an answer is not an answer: a JSON draft from it would parse as a title.
+          is StreamEvent.TextDelta -> if (!event.reasoning) builder.append(event.content)
+          is StreamEvent.Error -> streamError = event.message
+          else -> Unit
+        }
       }
     }
     if (streamError != null) return null
