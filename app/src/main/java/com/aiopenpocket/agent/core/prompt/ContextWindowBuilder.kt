@@ -53,6 +53,8 @@ object ContextWindowBuilder {
     headCount: Int = LlmContextConfig.HEAD_MESSAGE_COUNT,
     tailCount: Int = LlmContextConfig.TAIL_MESSAGE_COUNT,
     budgetTokens: Int = LlmContextConfig.HISTORY_TOKEN_BUDGET,
+    /** Drop the old part of the tail in whole runs of this many messages, see [trimVerbatimToTokenBudget]. */
+    dropStep: Int = 1,
   ): Window {
     if (totalPromptable == 0) {
       return Window(emptyList(), hasMiddleGap = false, middleMessageCount = 0)
@@ -62,9 +64,10 @@ object ContextWindowBuilder {
     // conversation (≤ 48 messages) used to go out whole without a check: a couple of pasted walls of
     // text — and the request exceeded the model's window, the provider answered 400, and the user saw
     // "no network".
-    val kept = trimVerbatimToTokenBudget(verbatim, budgetTokens, headCount)
+    val kept = trimVerbatimToTokenBudget(verbatim, budgetTokens, headCount, dropStep = dropStep)
     val dropped = verbatim.size - kept.size
-    val skipped = (totalPromptable - headCount - tailCount).coerceAtLeast(0)
+    // From the parts' real sizes: the tail may be longer than tailCount (getPromptWindowParts' tailStep).
+    val skipped = (totalPromptable - head.size - tail.size).coerceAtLeast(0)
     // Messages dropped by the budget are also a "middle" the model must know about: otherwise it thinks it
     // sees the whole conversation.
     val middleCount = skipped + dropped
@@ -109,12 +112,16 @@ object ContextWindowBuilder {
    *
    * The old algorithm, having trimmed the tail down to "head + one message", dropped exactly that one
    * next — the current question — while keeping eight greeting messages.
+   *
+   * Step 1 drops whole runs of [dropStep] messages: the window then starts on the same message for several
+   * turns, which is what keeps it in Meta's prompt cache (see [LlmContextConfig.WINDOW_SLIDE_STEP]).
    */
   internal fun trimVerbatimToTokenBudget(
     verbatim: List<PrePromptAssembler.PromptMessage>,
     budgetTokens: Int = LlmContextConfig.HISTORY_TOKEN_BUDGET,
     headCount: Int = LlmContextConfig.HEAD_MESSAGE_COUNT,
     protectedRecent: Int = LlmContextConfig.PROTECTED_RECENT_MESSAGES,
+    dropStep: Int = 1,
   ): List<PrePromptAssembler.PromptMessage> {
     if (verbatim.size <= 1) return verbatim
 
@@ -131,11 +138,16 @@ object ContextWindowBuilder {
     val dropOrder = (headEnd until recentStart) + // 1. the old part of the tail
       (headEnd - 1 downTo 0) + // 2. the start of the conversation, from its end
       (recentStart until last) // 3. the recent ones, except the very last
+    val oldTail = headEnd until recentStart
     val dropped = HashSet<Int>()
+    var droppedFromOldTail = 0
     for (index in dropOrder) {
-      if (total <= budgetTokens) break
+      // @trace the-prompt-cache-keeps-the-whole-chat-history-d25062
+      val midRun = index in oldTail && droppedFromOldTail % dropStep.coerceAtLeast(1) != 0
+      if (total <= budgetTokens && !midRun) break
       total -= tokensOf(verbatim[index])
       dropped += index
+      if (index in oldTail) droppedFromOldTail++
     }
     return verbatim.filterIndexed { index, _ -> index !in dropped }
   }

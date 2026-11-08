@@ -13,6 +13,16 @@ object LlmContextConfig {
   /** Verbatim messages kept from the end of the dialog (recent context). */
   const val TAIL_MESSAGE_COUNT = 40
 
+  /**
+   * How many messages the start of the window moves at once in a long chat, both where the tail begins and
+   * what the token budget drops. Meta's prompt cache matches the start of a request: a window that slid by
+   * one message every turn changed the request right after the head, and the rest of the chat was billed in
+   * full each time. Moving by 20 keeps it the same for about ten turns, at the price of up to 19 more
+   * messages in the window.
+   */
+  // @trace the-prompt-cache-keeps-the-whole-chat-history-d25062
+  const val WINDOW_SLIDE_STEP = 20
+
   const val RELEVANT_FACTS_LIMIT = 5
   const val EPISODES_LIMIT = 5
 

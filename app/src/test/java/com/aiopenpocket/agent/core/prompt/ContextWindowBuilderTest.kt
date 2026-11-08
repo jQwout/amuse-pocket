@@ -140,6 +140,20 @@ class ContextWindowBuilderTest {
     )
   }
 
+  // @trace the-prompt-cache-keeps-the-whole-chat-history-d25062
+  @Test
+  fun `the old tail goes in whole runs, so the window keeps its start while the chat grows`() {
+    // 20 messages of ~100 tokens: head 0..1, old tail 2..13, protected recent ones 14..19.
+    val messages = (0..19).map { bulky(it) }
+    fun trimmed(budget: Int) = ids(
+      ContextWindowBuilder.trimVerbatimToTokenBudget(messages, budgetTokens = budget, headCount = 2, protectedRecent = 6, dropStep = 4),
+    )
+
+    // One message over the budget and four over it drop the same run of four: the start does not move.
+    assertEquals(listOf("m0", "m1") + (6..19).map { "m$it" }, trimmed(1_900))
+    assertEquals(trimmed(1_900), trimmed(1_600))
+  }
+
   @Test
   fun `within budget nothing is dropped`() {
     val messages = (0..5).map { bulky(it) }

@@ -18,8 +18,8 @@
       "git": "097a6f63"
     },
     "agent-router-dc2233": {
-      "hash": "c9a3f21f1bf1",
-      "git": "c4c56399"
+      "hash": "7db60c8506b6",
+      "git": "55fbe456"
     },
     "agent-skills-7189cc": {
       "hash": "e3296460a332",
@@ -86,8 +86,8 @@
       "git": "417d1e27"
     },
     "heartbeat-napominalki-agenta-5f0442": {
-      "hash": "ea4820f246c8",
-      "git": "cb109bff"
+      "hash": "c2bf2b2caf54",
+      "git": "55fbe456"
     },
     "kartinki-urokov-cherez-muse-image-fd6f8c": {
       "hash": "240959c9447d",
@@ -114,8 +114,8 @@
       "git": "eae32b2d"
     },
     "multi-chat-conversations-b3c93b": {
-      "hash": "89213c31e424",
-      "git": "c4c56399"
+      "hash": "e61c0fde0dfc",
+      "git": "55fbe456"
     },
     "pdf-documents-in-chat-read-by-muse-spark-b7acf1": {
       "hash": "34e683e34abf",
@@ -170,20 +170,20 @@
       "git": "5ce3906"
     },
     "streaming-llm-chat-6595a1": {
-      "hash": "d7d912b09cd1",
-      "git": "4bee9462"
+      "hash": "911807ba6cf0",
+      "git": "55fbe456"
     },
     "structured-plan-engine-907066": {
-      "hash": "1a21fabbc79f",
-      "git": "0cf1ec45"
+      "hash": "17d6e558e2b8",
+      "git": "55fbe456"
     },
     "swappable-persona-e5e65e": {
       "hash": "11aaa5d19303",
       "git": "48d4078"
     },
     "the-prompt-cache-keeps-the-whole-chat-history-d25062": {
-      "hash": "18e5535f53f3",
-      "git": "c4c56399"
+      "hash": "d5b6dc389019",
+      "git": "55fbe456"
     },
     "uroki-kontseptsii-v-chate-po-json-kontraktu-0a70c2": {
       "hash": "caea8ee443b8",

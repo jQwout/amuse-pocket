@@ -61,17 +61,15 @@ class AgentLoopOrchestrator(
     // The mode contract (CHAT/TUTOR) is a pure decision, covered by AgentModeTest.
     val turn = resolveTurnExecutionPlan(mode, ReactLoopRunner.MAX_ITERATIONS)
 
-    val context = prePromptAssembler.assemble(conversationId, userMessage)
+    // systemPromptExtra is trusted turn context (the current lesson step's text for a tutor question, a voice
+    // call's spoken style). It changes between turns, so it rides with the time and memory at the end of the
+    // newest message, not in the system prompt (the-prompt-cache-keeps-the-whole-chat-history-d25062).
+    val context = prePromptAssembler.assemble(conversationId, userMessage, turnExtra = systemPromptExtra)
     // The iteration budget section (and any other mode-specific addition) is assembled in
-    // resolveTurnExecutionPlan; systemPromptExtra is trusted turn context (e.g. the current lesson
-    // step's text for a tutor question).
-    val withSuffix = turn.systemPromptSuffix
+    // resolveTurnExecutionPlan; it is fixed per mode, so it stays in the system prompt.
+    val systemContent = turn.systemPromptSuffix
       ?.let { context.systemPrompt + "\n\n" + it }
       ?: context.systemPrompt
-    val systemContent = systemPromptExtra
-      ?.takeIf { it.isNotBlank() }
-      ?.let { withSuffix + "\n\n" + it }
-      ?: withSuffix
     val messages = mutableListOf<ChatMessage>()
     messages += ChatMessage(role = "system", content = systemContent)
     messages += context.history.toChatMessages()

@@ -158,11 +158,16 @@ class ConversationRepository(
   /**
    * Head + tail + the count of "prompt" messages for assembling the prompt window (ContextWindowBuilder)
    * WITHOUT loading the whole history from disk on every turn. The "prompt" filter is on the SQL side.
+   *
+   * The tail starts on a multiple of [tailStep] past the head, so it is [tailCount] to
+   * `tailCount + tailStep - 1` long and its first message stays put for [tailStep] new messages instead of
+   * moving every turn (see [LlmContextConfig.WINDOW_SLIDE_STEP]).
    */
   suspend fun getPromptWindowParts(
     conversationId: String,
     headCount: Int,
     tailCount: Int,
+    tailStep: Int = 1,
   ): PromptWindowParts {
     val total = messageDao.countPromptable(conversationId)
     if (total <= headCount + tailCount) {
@@ -170,7 +175,8 @@ class ConversationRepository(
       return PromptWindowParts(head = all, tail = emptyList(), totalPromptable = total)
     }
     val head = messageDao.getFirstPromptable(conversationId, headCount).map { it.toDomain() }
-    val tail = messageDao.getLastPromptable(conversationId, tailCount)
+    val overflow = total - headCount - tailCount
+    val tail = messageDao.getLastPromptable(conversationId, tailCount + overflow % tailStep.coerceAtLeast(1))
       .asReversed()
       .map { it.toDomain() }
     return PromptWindowParts(head = head, tail = tail, totalPromptable = total)

@@ -88,6 +88,21 @@ class PrePromptAssemblerTest {
   @After
   fun tearDown() = db.close()
 
+  /**
+   * What the app adds to the newest message for the turn: the plan, the time, memory. They ride there and not
+   * in the system prompt (the-prompt-cache-keeps-the-whole-chat-history-d25062), so the turn is assembled the
+   * way a chat runs it - with the person's message saved first.
+   */
+  private suspend fun appContext(conversationId: String = "c1", message: String = "привет"): String {
+    ConversationRepository(db.conversationDao(), db.conversationTagDao(), db.messageDao())
+      .addMessage(conversationId, "user", message)
+    val result = assembler.assemble(conversationId, message)
+    val newest = result.history.last { it.role == "user" }.content
+    assertTrue("the app's context is not at the end of the newest message:\n$newest", newest.contains("<app_context>"))
+    assertFalse("the app's context leaked into the system prompt", result.systemPrompt.contains("## Сейчас"))
+    return newest.substringAfter("<app_context>")
+  }
+
   // --- fixtures ---------------------------------------------------------------------------------------
 
   private fun plan(id: String = "plan-1", conversationId: String = "c1") = AgentPlan(
@@ -137,21 +152,21 @@ class PrePromptAssemblerTest {
     planRepository.saveProposal(plan(), version("plan-1", "Собрать бюджет на месяц"))
     planRepository.approve("plan-1", 1)
 
-    val result = assembler.assemble("c1", "привет")
+    val context = appContext()
 
-    assertTrue(result.systemPrompt.contains("## Активный утверждённый план"))
-    assertTrue(result.systemPrompt.contains("<plan_data trust=\"structured\">"))
-    assertTrue(result.systemPrompt.contains("Собрать бюджет на месяц"))
+    assertTrue(context.contains("## Активный утверждённый план"))
+    assertTrue(context.contains("<plan_data trust=\"structured\">"))
+    assertTrue(context.contains("Собрать бюджет на месяц"))
   }
 
   @Test
   fun `assemble omits the plan section entirely for a plain chat with no plan`() = runTest {
     db.conversationDao().insert(ConversationEntity(id = "c1", title = "T"))
 
-    val result = assembler.assemble("c1", "привет")
+    val context = appContext()
 
-    assertFalse(result.systemPrompt.contains("Активный утверждённый план"))
-    assertFalse(result.systemPrompt.contains("plan_data"))
+    assertFalse(context.contains("Активный утверждённый план"))
+    assertFalse(context.contains("plan_data"))
   }
 
   @Test
@@ -159,10 +174,10 @@ class PrePromptAssemblerTest {
     db.conversationDao().insert(ConversationEntity(id = "c1", title = "T"))
     planRepository.saveProposal(plan(), version("plan-1", "Ещё не одобренный план"))
 
-    val result = assembler.assemble("c1", "привет")
+    val context = appContext()
 
-    assertFalse(result.systemPrompt.contains("Активный утверждённый план"))
-    assertFalse(result.systemPrompt.contains("Ещё не одобренный план"))
+    assertFalse(context.contains("Активный утверждённый план"))
+    assertFalse(context.contains("Ещё не одобренный план"))
   }
 
   // --- tool scoping (B2): a bound agent's empty tool set means "no tools", never "all tools" ----------
@@ -212,28 +227,28 @@ class PrePromptAssemblerTest {
     assertEquals(setOf("memory_tool"), result.toolNames)
   }
 
-  // --- prompt-cache order: stable prefix first, the minute-resolution clock after it ------------------
+  // --- prompt-cache order: the stable sections in the system prompt, the changing ones at the end ------
 
   @Test
-  fun `stable sections precede the current-time section so the cacheable prefix survives the minute tick`() = runTest {
+  fun `stable sections stay in the system prompt and the plan and the time ride with the newest message`() = runTest {
     db.conversationDao().insert(ConversationEntity(id = "c1", title = "T"))
     planRepository.saveProposal(plan(), version("plan-1", "Собрать бюджет на месяц"))
     planRepository.approve("plan-1", 1)
+    ConversationRepository(db.conversationDao(), db.conversationTagDao(), db.messageDao()).addMessage("c1", "user", "привет")
 
-    val prompt = assembler.assemble("c1", "привет").systemPrompt
+    val result = assembler.assemble("c1", "привет")
+    val prompt = result.systemPrompt
+    val context = result.history.last().content
 
-    val language = prompt.indexOf("## Язык")
-    val persona = prompt.indexOf("## Персона")
-    val skills = prompt.indexOf("## Доступные навыки")
-    val instructions = prompt.indexOf("## Инструкции")
-    val plan = prompt.indexOf("## Активный утверждённый план")
-    val now = prompt.indexOf("## Сейчас")
-    assertTrue("sections must exist", listOf(language, persona, skills, instructions, plan, now).all { it >= 0 })
-    assertTrue("language before time", language < now)
-    assertTrue("persona before time", persona < now)
-    assertTrue("skills before time", skills < now)
-    assertTrue("instructions before time", instructions < now)
-    assertTrue("the time is the last of the trusted sections", plan < now)
+    for (stable in listOf("## Язык", "## Персона", "## Доступные навыки", "## Инструкции")) {
+      assertTrue("$stable is missing from the system prompt", prompt.contains(stable))
+    }
+    assertFalse(prompt.contains("## Активный утверждённый план"))
+    assertFalse(prompt.contains("## Сейчас"))
+    val plan = context.indexOf("## Активный утверждённый план")
+    val now = context.indexOf("## Сейчас")
+    assertTrue("the plan and the time must ride with the newest message", plan >= 0 && now >= 0)
+    assertTrue("the time is the last of the app's own sections", plan < now)
   }
 
   // --- skill catalog: full only for a plain chat; a bound agent sees its own skills or none --------
@@ -282,7 +297,7 @@ class PrePromptAssemblerTest {
       conversationId = "c1",
     )
 
-    val prompt = assembler.assemble("c1", "привет").systemPrompt
+    val prompt = appContext()
 
     assertTrue("нет метки действия:\n${prompt.takeLast(2_000)}", prompt.contains("[file_tool read]"))
     assertFalse("сырой вывод инструмента попал в промпт целиком", prompt.contains("Б".repeat(EpisodeFormat.OUTCOME_MAX_CHARS + 1)))
@@ -293,7 +308,7 @@ class PrePromptAssemblerTest {
     db.conversationDao().insert(ConversationEntity(id = "c1", title = "T"))
     MemoryRepository(db.factDao(), db.episodeDao()).saveFact("family.sister", "Аня", "general")
 
-    val prompt = assembler.assemble("c1", "как зовут мою сестру").systemPrompt
+    val prompt = appContext(message = "как зовут мою сестру")
 
     assertTrue("факт о сестре не попал в промпт", prompt.contains("family.sister: Аня"))
   }
@@ -304,7 +319,7 @@ class PrePromptAssemblerTest {
     val memory = MemoryRepository(db.factDao(), db.episodeDao())
     repeat(30) { memory.saveFact("note.$it", "В".repeat(1_000), "general") }
 
-    val prompt = assembler.assemble("c1", "привет").systemPrompt
+    val prompt = appContext()
 
     val factChars = prompt.lines().filter { it.startsWith("- note.") }.sumOf { it.length }
     assertTrue("секция фактов без потолка: $factChars символов", factChars <= 3_000)
